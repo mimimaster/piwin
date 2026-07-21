@@ -25,6 +25,17 @@ export {
   truncateTranscriptFrom,
 } from './message-store.js';
 
+export {
+  exportTranscript,
+  suggestSessionExportBasename,
+  TOOL_OUTPUT_REDACTED_PLACEHOLDER,
+} from './export-transcript.js';
+export type {
+  ExportTranscriptOptions,
+  ExportTranscriptResult,
+  SessionExportFormat,
+} from './export-transcript.js';
+
 export { searchSessions } from './session-search.js';
 export type { SessionSearchOptions } from './session-search.js';
 

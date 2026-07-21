@@ -49,6 +49,8 @@ import type {
   SessionSearchQuery,
   SessionSearchResult,
   SessionTruncateFromResult,
+  SessionExportData,
+  SessionExportFormat,
 } from './session-ops.js';
 
 /**
@@ -222,6 +224,16 @@ export type HostCommand =
       sessionId: string;
       messageId: string;
     }
+  /** CE-SHARE-01: local transcript export (MD/HTML). */
+  | {
+      id?: string;
+      type: 'session/export';
+      sessionId: string;
+      format?: SessionExportFormat;
+      redactTools?: boolean;
+      /** Absolute path; when omitted host writes under session exports dir. */
+      outputPath?: string;
+    }
   | {
       id?: string;
       type: 'extension/ui_resolve';
@@ -316,6 +328,8 @@ export type HostStatusData = {
     sessionPin?: boolean;
     /** CE-OBS: usage/update events emitted. */
     usage?: boolean;
+    /** CE-SHARE-01: local session export MD/HTML. */
+    sessionExport?: boolean;
   };
 };
 
@@ -344,6 +358,9 @@ export type SessionCompactionSettingsData = {
 export type SessionListData = {
   sessions: SessionSummary[];
 };
+
+/** Alias for CE-SHARE-01 export response payload. */
+export type SessionExportResultData = SessionExportData;
 
 export type ConfigGetData = {
   config: PiwinConfig;

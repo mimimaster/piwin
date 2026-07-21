@@ -41,6 +41,7 @@ Usage:
   piwin session pin <sessionId> [--mock]
   piwin session unpin <sessionId> [--mock]
   piwin session search <query> [--project <path>] [--mock]
+  piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin status [--project <path>] [--mock]
   piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>]
   piwin host serve [--mode sdk|rpc] [--mock]
@@ -357,8 +358,54 @@ async function commandSession(argv: string[]): Promise<void> {
       return;
     }
 
+    if (sub === 'export') {
+      const sessionId = argv[2];
+      if (!sessionId || sessionId.startsWith('--')) {
+        console.error(
+          'Usage: piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]',
+        );
+        process.exitCode = 1;
+        return;
+      }
+      const formatRaw = readOption(argv, '--format') ?? 'md';
+      if (formatRaw !== 'md' && formatRaw !== 'html') {
+        console.error(`Unsupported format: ${formatRaw} (use md or html)`);
+        process.exitCode = 1;
+        return;
+      }
+      const redactTools = hasFlag(argv, '--redact-tools');
+      const outOption = readOption(argv, '--out');
+      const command: Extract<HostCommand, { type: 'session/export' }> = {
+        type: 'session/export',
+        sessionId,
+        format: formatRaw,
+        redactTools,
+        ...(outOption ? { outputPath: resolve(outOption) } : {}),
+      };
+      const response = await runtime.handleCommand(command);
+      if (!response.success) {
+        console.error(response.error);
+        process.exitCode = 1;
+        return;
+      }
+      const data = response.data as {
+        path?: string;
+        format?: string;
+        redactTools?: boolean;
+        byteLength?: number;
+      };
+      console.log(data.path ?? '(export written)');
+      if (typeof data.byteLength === 'number') {
+        console.error(
+          `exported ${data.byteLength} bytes format=${data.format ?? formatRaw}` +
+            (data.redactTools ? ' redact-tools' : ''),
+        );
+      }
+      return;
+    }
+
     console.error(`Unknown session subcommand: ${sub}`);
-    console.error('Usage: piwin session list|pin|unpin|search');
+    console.error('Usage: piwin session list|pin|unpin|search|export');
     process.exitCode = 1;
   } finally {
     await runtime.dispose();

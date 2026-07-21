@@ -55,3 +55,27 @@ export type SessionTruncateFromResult = {
   removedCount: number;
   remainingCount: number;
 };
+
+/** CE-SHARE-01: local session export (MD/HTML). */
+export type SessionExportFormat = 'md' | 'html';
+
+export type SessionExportInput = {
+  sessionId: string;
+  format?: SessionExportFormat;
+  /** Replace tool card outputs with a placeholder. */
+  redactTools?: boolean;
+  /**
+   * Absolute path for the host to write.
+   * When omitted, host writes under ~/.piwin/sessions/<id>/exports/.
+   */
+  outputPath?: string;
+};
+
+export type SessionExportData = {
+  sessionId: string;
+  format: SessionExportFormat;
+  redactTools: boolean;
+  /** Absolute path of the written export file. */
+  path: string;
+  byteLength: number;
+};

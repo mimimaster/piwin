@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import type {
   AgentEvent,
   AgentHost,
@@ -84,6 +86,8 @@ import {
   truncateTranscriptFrom,
   buildProductHistoryContext,
   mergeProductHistoryIntoPrompt,
+  exportTranscript,
+  suggestSessionExportBasename,
 } from '@piwin/session';
 import type {
   ContextUsageSnapshot,
@@ -104,6 +108,7 @@ import {
   getPiwinSessionIndexPath,
   getPiwinSessionTranscriptPath,
   getPiwinSessionPlanPath,
+  getPiwinSessionDir,
 } from './paths.js';
 
 export type HostRuntimeOptions = {
@@ -1332,6 +1337,50 @@ export class HostRuntime {
           return ok(requestId, 'memory/quota', { summaries });
         }
 
+        case 'session/export': {
+          const rootDir = getPiwinRoot(this.options.piwinRoot);
+          const indexPath = getPiwinSessionIndexPath(rootDir);
+          const record = await getSessionRecord(indexPath, command.sessionId);
+          if (!record) {
+            return fail(
+              requestId,
+              'session/export',
+              `Unknown session: ${command.sessionId}`,
+            );
+          }
+          const format = command.format === 'html' ? 'html' : 'md';
+          const redactTools = command.redactTools === true;
+          const messages = await this.loadTranscriptMessages(command.sessionId);
+          const exported = exportTranscript(messages, {
+            format,
+            redactTools,
+            sessionId: command.sessionId,
+            projectPath: record.projectPath,
+            ...(record.name ? { title: record.name } : {}),
+          });
+          let outputPath: string;
+          if (command.outputPath && command.outputPath.trim()) {
+            const candidate = command.outputPath.trim();
+            outputPath = isAbsolute(candidate) ? candidate : resolvePath(candidate);
+          } else {
+            const basename = suggestSessionExportBasename(command.sessionId, format);
+            outputPath = resolvePath(
+              getPiwinSessionDir(rootDir, command.sessionId),
+              'exports',
+              basename,
+            );
+          }
+          await mkdir(dirname(outputPath), { recursive: true });
+          await writeFile(outputPath, exported.content, 'utf8');
+          const byteLength = Buffer.byteLength(exported.content, 'utf8');
+          return ok(requestId, 'session/export', {
+            sessionId: command.sessionId,
+            format,
+            redactTools,
+            path: outputPath,
+            byteLength,
+          });
+        }
         default:
           return fail(requestId, 'unknown', 'Unhandled command');
       }
@@ -1695,6 +1744,7 @@ export class HostRuntime {
         sessionPin: true,
         usage: true,
         process: true,
+        sessionExport: true,
       },
     };
   }

@@ -860,6 +860,88 @@ export function App() {
     }
   }
 
+  async function handleExportSession(options?: {
+    format?: 'md' | 'html';
+    redactTools?: boolean;
+  }): Promise<void> {
+    const sessionId = state.activeSessionId;
+    if (!sessionId) {
+      dispatch({ type: 'error', message: 'Select a session before exporting.' });
+      return;
+    }
+    const format = options?.format === 'html' ? 'html' : 'md';
+    const redactTools = options?.redactTools === true;
+    const defaultName = `piwin-export-${sessionId.slice(0, 8)}.${format === 'html' ? 'html' : 'md'}`;
+
+    let outputPath: string | undefined;
+    try {
+      // Path selection only — write always goes through host (no UI FS).
+      const dialog = await import('@tauri-apps/plugin-dialog').catch(() => null);
+      if (dialog && typeof dialog.save === 'function') {
+        const selected = await dialog.save({
+          title: 'Export session',
+          defaultPath: defaultName,
+          filters: [
+            format === 'html'
+              ? { name: 'HTML', extensions: ['html'] }
+              : { name: 'Markdown', extensions: ['md'] },
+          ],
+        });
+        if (selected === null) {
+          return;
+        }
+        if (typeof selected === 'string' && selected.trim()) {
+          outputPath = selected.trim();
+        }
+      } else if (typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window)) {
+        const fallback = window.prompt(
+          'Export path (host writes the file; leave empty for default)',
+          defaultName,
+        );
+        if (fallback === null) {
+          return;
+        }
+        if (fallback.trim()) {
+          outputPath = fallback.trim();
+        }
+      }
+    } catch {
+      // fall through to host default path
+    }
+
+    const command: {
+      type: 'session/export';
+      sessionId: string;
+      format: 'md' | 'html';
+      redactTools: boolean;
+      outputPath?: string;
+    } = {
+      type: 'session/export',
+      sessionId,
+      format,
+      redactTools,
+    };
+    if (outputPath) {
+      command.outputPath = outputPath;
+    }
+    const response = await hostClient.request(command);
+    if (!response.success) {
+      dispatch({ type: 'error', message: response.error });
+      return;
+    }
+    const data = response.data as { path?: string; byteLength?: number; format?: string };
+    const pathLabel = data.path ?? '(unknown path)';
+    const sizeLabel =
+      typeof data.byteLength === 'number' ? ` (${data.byteLength} bytes)` : '';
+    setHostLogEntries((current) =>
+      appendHostLogEntry(current, {
+        level: 'info',
+        message: `Exported session to ${pathLabel}${sizeLabel}`,
+        at: new Date().toISOString(),
+      }),
+    );
+  }
+
   function revokePending(localId: string): void {
     setPendingAttachments((current) => {
       const target = current.find((item) => item.localId === localId);
@@ -1896,6 +1978,42 @@ export function App() {
                     }}
                   >
                     Activity output
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="session-export-md-btn"
+                    disabled={!state.activeSessionId}
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      void handleExportSession({ format: 'md' });
+                    }}
+                  >
+                    Export Markdown
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="session-export-md-redact-btn"
+                    disabled={!state.activeSessionId}
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      void handleExportSession({ format: 'md', redactTools: true });
+                    }}
+                  >
+                    Export Markdown (redact tools)
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    data-testid="session-export-html-btn"
+                    disabled={!state.activeSessionId}
+                    onClick={() => {
+                      setMoreMenuOpen(false);
+                      void handleExportSession({ format: 'html' });
+                    }}
+                  >
+                    Export HTML
                   </button>
                 </div>
               ) : null}

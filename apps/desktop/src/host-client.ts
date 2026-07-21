@@ -307,6 +307,62 @@ export class HostClient {
           },
         };
       }
+      case 'session/export': {
+        const session = this.sessions.get(command.sessionId);
+        const messages = session?.transcript ?? [];
+        const format = command.format === 'html' ? 'html' : 'md';
+        const redactTools = command.redactTools === true;
+        const lines: string[] = [];
+        if (format === 'html') {
+          lines.push('<!DOCTYPE html><html><body><h1>Mock export</h1>');
+          for (const message of messages) {
+            lines.push(`<p><strong>${message.role}</strong></p><pre>${message.text}</pre>`);
+            if (message.tools) {
+              for (const tool of message.tools) {
+                const output = redactTools ? '[tool output redacted]' : tool.output;
+                lines.push(`<pre>${tool.toolName}: ${output}</pre>`);
+              }
+            }
+          }
+          lines.push('</body></html>');
+        } else {
+          lines.push('# Mock session export');
+          lines.push('');
+          for (const message of messages) {
+            lines.push(`### ${message.role}`);
+            lines.push('');
+            lines.push(message.text);
+            lines.push('');
+            if (message.tools) {
+              for (const tool of message.tools) {
+                const output = redactTools ? '[tool output redacted]' : tool.output;
+                lines.push(`##### ${tool.toolName}`);
+                lines.push('```');
+                lines.push(output);
+                lines.push('```');
+                lines.push('');
+              }
+            }
+          }
+        }
+        const content = lines.join('\n');
+        const path =
+          command.outputPath?.trim() ||
+          `/mock/exports/piwin-export-${command.sessionId.slice(0, 8)}.${format === 'html' ? 'html' : 'md'}`;
+        return {
+          id,
+          type: 'response',
+          command: 'session/export',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            format,
+            redactTools,
+            path,
+            byteLength: content.length,
+          },
+        };
+      }
       case 'session/prompt': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {
