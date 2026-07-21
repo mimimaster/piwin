@@ -1,0 +1,31 @@
+{
+  "id": "piwin-dark",
+  "name": "Piwin Dark",
+  "version": "2.0.0",
+  "description": "Default dark chrome for piwin shell + artifacts",
+  "mode": "dark",
+  "tokens": {
+    "bg": "#090b0f",
+    "panel": "#11151d",
+    "panel2": "#171c25",
+    "border": "#293241",
+    "text": "#eef2f8",
+    "muted": "#8792a5",
+    "accent": "#7ca8ff",
+    "accent2": "#5d8df6",
+    "danger": "#ff7b72",
+    "ok": "#66d49b",
+    "radius": "10px",
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, sans-serif"
+  },
+  "artifact": {
+    "bg": "transparent",
+    "surface": "rgba(23, 28, 37, 0.94)",
+    "text": "#eef2f8",
+    "muted": "#8792a5",
+    "accent": "#7ca8ff",
+    "border": "rgba(76, 89, 112, 0.45)",
+    "radius": "0.75rem",
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, sans-serif"
+  }
+}

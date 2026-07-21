@@ -1,0 +1,12 @@
+{
+  "type": "compaction_end",
+  "reason": "manual",
+  "aborted": false,
+  "willRetry": false,
+  "result": {
+    "summary": "Prior work covered auth middleware and login tests.",
+    "firstKeptEntryId": "entry-42",
+    "tokensBefore": 12000,
+    "estimatedTokensAfter": 4200
+  }
+}

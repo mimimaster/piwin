@@ -1,0 +1,8 @@
+{
+  "type": "compaction_end",
+  "reason": "manual",
+  "aborted": true,
+  "willRetry": false,
+  "errorMessage": "user cancelled",
+  "result": null
+}

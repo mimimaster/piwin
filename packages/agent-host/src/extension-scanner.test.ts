@@ -1,0 +1,79 @@
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import {
+  collectExtensionEntryPaths,
+  scanExtensions,
+} from './extension-scanner.js';
+import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
+import { extensionIdFromPath } from './pi-resource-loader.js';
+
+describe('extension-scanner', () => {
+  it('scans user flat .ts and package index.ts', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-ext-scan-'));
+    const extensionsDir = join(rootDir, 'extensions');
+    await mkdir(extensionsDir, { recursive: true });
+    await writeFile(
+      join(extensionsDir, 'hello.ts'),
+      '/** Greets the session. */\nexport default function () {}\n',
+      'utf8',
+    );
+    await mkdir(join(extensionsDir, 'pack'), { recursive: true });
+    await writeFile(
+      join(extensionsDir, 'pack', 'index.ts'),
+      'export default function () {}\n',
+      'utf8',
+    );
+
+    const listed = await scanExtensions({ piwinRoot: rootDir });
+    expect(listed.map((item) => item.id).sort()).toEqual(['hello', 'pack']);
+    const hello = listed.find((item) => item.id === 'hello');
+    expect(hello?.description).toContain('Greets');
+    expect(hello?.enabled).toBe(true);
+  });
+
+  it('respects disabledIds and collects only enabled entry paths', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-ext-dis-'));
+    const extensionsDir = join(rootDir, 'extensions');
+    await mkdir(extensionsDir, { recursive: true });
+    await writeFile(join(extensionsDir, 'keep.ts'), 'export default function () {}\n', 'utf8');
+    await writeFile(join(extensionsDir, 'drop.ts'), 'export default function () {}\n', 'utf8');
+
+    const listed = await scanExtensions({
+      piwinRoot: rootDir,
+      extensionsConfig: { extraPaths: [], disabledIds: ['drop'] },
+    });
+    expect(listed.find((item) => item.id === 'drop')?.enabled).toBe(false);
+    expect(listed.find((item) => item.id === 'keep')?.enabled).toBe(true);
+
+    const paths = collectExtensionEntryPaths({
+      piwinRoot: rootDir,
+      discovered: listed,
+      disabledIds: ['drop'],
+    });
+    expect(paths.some((path) => path.endsWith('keep.ts'))).toBe(true);
+    expect(paths.some((path) => path.endsWith('drop.ts'))).toBe(false);
+  });
+
+  it('installs bundled path-guard once and marks bundled source', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-ext-bundled-'));
+    const installed = await ensureBundledExtensionsInstalled(rootDir);
+    expect(installed).toContain('path-guard');
+    const again = await ensureBundledExtensionsInstalled(rootDir);
+    expect(again).toEqual([]);
+
+    const listed = await scanExtensions({ piwinRoot: rootDir });
+    const pathGuard = listed.find((item) => item.id === 'path-guard');
+    expect(pathGuard).toBeDefined();
+    expect(pathGuard?.source).toBe('bundled');
+    expect(pathGuard?.description.toLowerCase()).toContain('secret');
+  });
+});
+
+describe('extensionIdFromPath', () => {
+  it('derives id from file and package index paths', () => {
+    expect(extensionIdFromPath('/tmp/extensions/path-guard.ts')).toBe('path-guard');
+    expect(extensionIdFromPath('/tmp/extensions/my-pack/index.ts')).toBe('my-pack');
+  });
+});

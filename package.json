@@ -1,0 +1,33 @@
+{
+  "name": "piwin",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Private coding agent shell on Pi (UI + CLI)",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "dev:cli": "pnpm --filter @piwin/cli dev",
+    "dev:desktop": "pnpm --dir apps/desktop dev",
+    "check": "pnpm typecheck && pnpm test",
+    "dev:tauri": "pnpm --dir apps/desktop dev:tauri",
+    "package:desktop": "pnpm --dir apps/desktop package",
+    "e2e:smoke": "tsx scripts/e2e-host-smoke.mjs",
+    "audit:prod": "pnpm audit --prod || true",
+    "e2e:desktop": "pnpm --dir apps/desktop e2e"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5",
+    "prettier": "^3.4.2",
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2"
+  }
+}

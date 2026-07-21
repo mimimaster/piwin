@@ -1,0 +1,31 @@
+{
+  "id": "piwin-light",
+  "name": "Piwin Light",
+  "version": "2.0.0",
+  "description": "Default light chrome for piwin shell + artifacts",
+  "mode": "light",
+  "tokens": {
+    "bg": "#f3f5f9",
+    "panel": "#ffffff",
+    "panel2": "#eef1f7",
+    "border": "#d5dbe8",
+    "text": "#111827",
+    "muted": "#5f6b7c",
+    "accent": "#3b6ff5",
+    "accent2": "#2f5de0",
+    "danger": "#dc2626",
+    "ok": "#16a34a",
+    "radius": "10px",
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, sans-serif"
+  },
+  "artifact": {
+    "bg": "transparent",
+    "surface": "rgba(255, 255, 255, 0.96)",
+    "text": "#111827",
+    "muted": "#5f6b7c",
+    "accent": "#3b6ff5",
+    "border": "rgba(17, 24, 39, 0.12)",
+    "radius": "0.75rem",
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, sans-serif"
+  }
+}

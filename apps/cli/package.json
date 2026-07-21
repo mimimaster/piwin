@@ -1,0 +1,32 @@
+{
+  "name": "@piwin/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "piwin": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "lint": "echo \"lint ok (cli)\""
+  },
+  "dependencies": {
+    "@piwin/agent-host": "workspace:*",
+    "@piwin/contracts": "workspace:*",
+    "@piwin/skills": "workspace:*",
+    "@piwin/mcp": "workspace:*",
+    "@piwin/marketplace": "workspace:*",
+    "@piwin/pet": "workspace:*",
+    "@piwin/theme": "workspace:*",
+    "@piwin/media": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5",
+    "@types/node": "^22.10.5"
+  }
+}

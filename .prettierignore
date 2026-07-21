@@ -1,0 +1,8 @@
+node_modules
+dist
+build
+coverage
+.turbo
+apps/desktop/src-tauri/target
+pnpm-lock.yaml
+*.md

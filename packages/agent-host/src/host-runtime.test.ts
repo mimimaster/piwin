@@ -1,0 +1,736 @@
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import type { MediaSaveData } from '@piwin/contracts';
+import { HostRuntime } from './host-runtime.js';
+
+describe('HostRuntime', () => {
+  it('handles ping and mock session prompt', async () => {
+    const pushes: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      onPush: (message) => {
+        pushes.push(message.type);
+      },
+    });
+
+    const ping = await runtime.handleCommand({ id: '1', type: 'host/ping' });
+    expect(ping.success).toBe(true);
+
+    const created = await runtime.handleCommand({
+      id: '2',
+      type: 'session/create',
+      input: { projectPath: '/tmp/project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) {
+      throw new Error(created.error);
+    }
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtime.handleCommand({
+      id: '3',
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'hello runtime' },
+    });
+    expect(prompted, JSON.stringify(prompted)).toMatchObject({ success: true });
+    expect(pushes).toContain('event');
+
+    await runtime.dispose();
+  });
+
+  it('saves media via IPC and injects path metadata into the model prompt', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-media-'));
+    const textDeltas: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'event' && message.event.type === 'message/text_delta') {
+          textDeltas.push(message.event.delta);
+        }
+      },
+    });
+
+    const created = await runtime.handleCommand({
+      id: 'create',
+      type: 'session/create',
+      input: { projectPath: '/tmp/project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) {
+      throw new Error(created.error);
+    }
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    // 1x1 PNG
+    const pngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const saved = await runtime.handleCommand({
+      id: 'media',
+      type: 'media/save',
+      input: {
+        sessionId,
+        mimeType: 'image/png',
+        source: 'paste',
+        base64Data: pngBase64,
+      },
+    });
+    expect(saved.success).toBe(true);
+    if (!saved.success) {
+      throw new Error(saved.error);
+    }
+    const asset = (saved.data as MediaSaveData).asset;
+    expect(asset.absolutePath.startsWith(join(rootDir, 'media'))).toBe(true);
+    const fileBytes = await readFile(asset.absolutePath);
+    expect(fileBytes.byteLength).toBeGreaterThan(0);
+
+    const prompted = await runtime.handleCommand({
+      id: 'prompt',
+      type: 'session/prompt',
+      sessionId,
+      input: {
+        text: 'look at this',
+        attachments: [
+          {
+            id: asset.id,
+            path: asset.absolutePath,
+            mimeType: asset.mimeType,
+            byteSize: asset.byteSize,
+            source: 'paste',
+          },
+        ],
+      },
+    });
+    expect(prompted.success).toBe(true);
+    const joined = textDeltas.join('');
+    expect(joined).toContain('[attached image]');
+    expect(joined).toContain(asset.absolutePath);
+    expect(joined).not.toContain(pngBase64);
+
+    await runtime.dispose();
+  });
+
+  it('rejects media attachments outside the media root', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-media-deny-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+
+    const created = await runtime.handleCommand({
+      id: 'create',
+      type: 'session/create',
+      input: { projectPath: '/tmp/project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) {
+      throw new Error(created.error);
+    }
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtime.handleCommand({
+      id: 'prompt',
+      type: 'session/prompt',
+      sessionId,
+      input: {
+        text: 'evil',
+        attachments: [
+          {
+            id: 'x',
+            path: '/etc/passwd',
+            mimeType: 'image/png',
+            byteSize: 12,
+            source: 'paste',
+          },
+        ],
+      },
+    });
+    expect(prompted.success).toBe(false);
+    if (prompted.success) {
+      throw new Error('expected path escape rejection');
+    }
+    expect(prompted.error).toMatch(/media root|escapes/i);
+
+    await runtime.dispose();
+  });
+
+  it('requestPermission emits and resolves via permission/resolve', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-perm-'));
+    let seenRequestId: string | null = null;
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'permission/request') {
+          seenRequestId = message.requestId;
+          void runtime.handleCommand({
+            id: 'resolve',
+            type: 'permission/resolve',
+            requestId: message.requestId,
+            decision: 'allow',
+          });
+        }
+      },
+    });
+
+    const decision = await runtime.requestPermission({
+      sessionId: 'sess-1',
+      action: 'network:web_search',
+      detail: 'piwin',
+      defaultDecision: 'ask',
+    });
+    expect(decision).toBe('allow');
+    expect(seenRequestId).toBeTruthy();
+    await runtime.dispose();
+  });
+
+  it('skills/list returns array and set_enabled updates config', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-skills-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+
+    const listed = await runtime.handleCommand({ id: 's1', type: 'skills/list' });
+    expect(listed.success).toBe(true);
+    if (!listed.success) {
+      throw new Error(listed.error);
+    }
+    const skills = (listed.data as { skills: Array<{ id: string }> }).skills;
+    expect(Array.isArray(skills)).toBe(true);
+
+    const toggled = await runtime.handleCommand({
+      id: 's2',
+      type: 'skills/set_enabled',
+      skillId: 'find-skill',
+      enabled: false,
+    });
+    expect(toggled.success).toBe(true);
+    if (!toggled.success) {
+      throw new Error(toggled.error);
+    }
+    const disabledIds = (toggled.data as { disabledIds: string[] }).disabledIds;
+    expect(disabledIds).toContain('find-skill');
+
+    const mcp = await runtime.handleCommand({ id: 'm1', type: 'mcp/get' });
+    expect(mcp.success).toBe(true);
+    if (!mcp.success) {
+      throw new Error(mcp.error);
+    }
+    expect((mcp.data as { document: { mcpServers: unknown } }).document.mcpServers).toEqual({});
+
+    await runtime.dispose();
+  });
+
+  it('extensions/list installs bundled path-guard and set_enabled persists', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-ext-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+
+    const listed = await runtime.handleCommand({ id: 'e1', type: 'extensions/list' });
+    expect(listed.success).toBe(true);
+    if (!listed.success) {
+      throw new Error(listed.error);
+    }
+    const extensions = (listed.data as { extensions: Array<{ id: string }> }).extensions;
+    expect(extensions.some((item) => item.id === 'path-guard')).toBe(true);
+
+    const toggled = await runtime.handleCommand({
+      id: 'e2',
+      type: 'extensions/set_enabled',
+      extensionId: 'path-guard',
+      enabled: false,
+    });
+    expect(toggled.success).toBe(true);
+    if (!toggled.success) {
+      throw new Error(toggled.error);
+    }
+    expect((toggled.data as { disabledIds: string[] }).disabledIds).toContain('path-guard');
+
+    const listedAgain = await runtime.handleCommand({ id: 'e3', type: 'extensions/list' });
+    expect(listedAgain.success).toBe(true);
+    if (!listedAgain.success) {
+      throw new Error(listedAgain.error);
+    }
+    const pathGuard = (
+      listedAgain.data as { extensions: Array<{ id: string; enabled: boolean }> }
+    ).extensions.find((item) => item.id === 'path-guard');
+    expect(pathGuard?.enabled).toBe(false);
+
+    const validated = await runtime.handleCommand({
+      id: 'm2',
+      type: 'mcp/validate',
+      document: {
+        mcpServers: {
+          memory: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'] },
+        },
+      },
+    });
+    expect(validated.success).toBe(true);
+    if (!validated.success) {
+      throw new Error(validated.error);
+    }
+    expect((validated.data as { valid: boolean }).valid).toBe(true);
+
+    await runtime.dispose();
+  });
+
+  it('git/status returns repository snapshot for this repo', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-git-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+
+    // Use the monorepo path (this workspace is a git repo).
+    const projectPath = process.cwd().includes('packages/agent-host')
+      ? join(process.cwd(), '../..')
+      : process.cwd();
+
+    const status = await runtime.handleCommand({
+      id: 'g1',
+      type: 'git/status',
+      projectPath,
+    });
+    expect(status.success).toBe(true);
+    if (!status.success) {
+      throw new Error(status.error);
+    }
+    const snapshot = (status.data as { snapshot: { repository: { isRepository: boolean } } })
+      .snapshot;
+    expect(snapshot.repository.isRepository).toBe(true);
+
+    const graph = await runtime.handleCommand({
+      id: 'g2',
+      type: 'git/log-graph',
+      projectPath,
+      limit: 5,
+    });
+    expect(graph.success).toBe(true);
+    if (!graph.success) {
+      throw new Error(graph.error);
+    }
+    const nodes = (graph.data as { graph: { nodes: unknown[] } }).graph.nodes;
+    expect(Array.isArray(nodes)).toBe(true);
+
+    await runtime.dispose();
+  });
+
+  it('persists transcript and hydrates on resume across runtime instances', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-transcript-'));
+    const runtimeA = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+
+    const created = await runtimeA.handleCommand({
+      id: 'create',
+      type: 'session/create',
+      input: { projectPath: '/tmp/resume-project', sessionName: 'resume-demo' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtimeA.handleCommand({
+      id: 'prompt',
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'hello after create' },
+    });
+    expect(prompted.success).toBe(true);
+    // allow mock stream + transcript flushes
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    await runtimeA.dispose();
+
+    const runtimeB = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+    const resumed = await runtimeB.handleCommand({
+      id: 'resume',
+      type: 'session/resume',
+      sessionId,
+    });
+    expect(resumed.success).toBe(true);
+    if (!resumed.success) throw new Error(resumed.error);
+    const data = resumed.data as {
+      sessionId: string;
+      live: boolean;
+      messages: Array<{ text: string; role: string }>;
+    };
+    expect(data.sessionId).toBe(sessionId);
+    expect(data.live).toBe(true);
+    expect(data.messages.some((message) => message.role === 'user')).toBe(true);
+    expect(data.messages.some((message) => message.text.includes('hello after create'))).toBe(
+      true,
+    );
+
+    const listed = await runtimeB.handleCommand({
+      id: 'msgs',
+      type: 'session/messages',
+      sessionId,
+    });
+    expect(listed.success).toBe(true);
+    await runtimeB.dispose();
+  });
+
+  it('supports manual session compaction on mock sessions', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-compact-'));
+    const events: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'event') {
+          events.push(message.event.type);
+        }
+      },
+    });
+    const created = await runtime.handleCommand({
+      id: 'c1',
+      type: 'session/create',
+      input: { projectPath: '/tmp/compact-project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const compacted = await runtime.handleCommand({
+      id: 'c2',
+      type: 'session/compact',
+      sessionId,
+      customInstructions: 'keep recent tools',
+    });
+    expect(compacted.success).toBe(true);
+    if (!compacted.success) throw new Error(compacted.error);
+    const data = compacted.data as { ok: boolean; message?: string };
+    expect(data.ok).toBe(true);
+    expect(events).toContain('compaction/start');
+    expect(events).toContain('compaction/end');
+
+    const settings = await runtime.handleCommand({
+      id: 'c3',
+      type: 'session/compaction-settings',
+      sessionId,
+    });
+    expect(settings.success).toBe(true);
+    if (!settings.success) throw new Error(settings.error);
+    expect((settings.data as { supported: boolean }).supported).toBe(true);
+
+    await runtime.dispose();
+  });
+
+  it('persists and approves a session plan artifact', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-'));
+    const pushes: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message.type),
+    });
+    await runtime.handleCommand({
+      id: 'p0',
+      type: 'project/open',
+      path: '/tmp/plan-project',
+    });
+    const created = await runtime.handleCommand({
+      id: 'p1',
+      type: 'session/create',
+      input: { projectPath: '/tmp/plan-project', sessionName: 'plan-demo' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const now = new Date().toISOString();
+    const plan = {
+      id: 'plan-1',
+      sessionId,
+      projectPath: '/tmp/plan-project',
+      status: 'draft' as const,
+      title: 'Demo',
+      goal: 'Prove plan IPC',
+      steps: [{ id: '1', title: 'Write plan', status: 'pending' as const }],
+      revision: 0,
+      createdAt: now,
+      updatedAt: now,
+      source: 'user' as const,
+    };
+    const setResult = await runtime.handleCommand({
+      id: 'p2',
+      type: 'plan/set',
+      sessionId,
+      plan,
+    });
+    expect(setResult.success).toBe(true);
+    if (!setResult.success) throw new Error(setResult.error);
+    const approved = await runtime.handleCommand({
+      id: 'p3',
+      type: 'plan/approve',
+      sessionId,
+    });
+    expect(approved.success).toBe(true);
+    if (!approved.success) throw new Error(approved.error);
+    expect((approved.data as { plan: { status: string } }).plan.status).toBe('approved');
+    expect(pushes).toContain('plan/updated');
+    await runtime.dispose();
+  });
+
+  it('spawns a depth-1 sub-agent and rejects nesting', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-spawn-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    await runtime.handleCommand({ type: 'project/open', path: '/tmp/spawn-project' });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/spawn-project', sessionName: 'main' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const parentId = (created.data as { sessionId: string }).sessionId;
+
+    const spawned = await runtime.handleCommand({
+      type: 'session/spawn',
+      parentSessionId: parentId,
+      task: 'Investigate auth bugs',
+    });
+    expect(spawned.success).toBe(true);
+    if (!spawned.success) throw new Error(spawned.error);
+    const childId = (spawned.data as { sessionId: string }).sessionId;
+
+    const children = await runtime.handleCommand({
+      type: 'session/list-children',
+      parentSessionId: parentId,
+    });
+    expect(children.success).toBe(true);
+    if (!children.success) throw new Error(children.error);
+    const list = (children.data as { sessions: Array<{ id: string }> }).sessions;
+    expect(list.some((item) => item.id === childId)).toBe(true);
+
+    const nested = await runtime.handleCommand({
+      type: 'session/spawn',
+      parentSessionId: childId,
+      task: 'should fail',
+    });
+    expect(nested.success).toBe(false);
+
+    const cancelled = await runtime.handleCommand({
+      type: 'session/cancel-subagent',
+      sessionId: childId,
+    });
+    expect(cancelled.success).toBe(true);
+
+    await runtime.dispose();
+  });
+
+  it('inherits global auto-compact default and session override source', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-auto-compact-'));
+    const { savePiwinConfig, createDefaultPiwinConfig } = await import('./config-store.js');
+    const config = createDefaultPiwinConfig();
+    config.compaction = { autoEnabledDefault: false };
+    await savePiwinConfig(config, rootDir);
+
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/auto-c' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    // Allow async applyAutoCompactionToSession to settle
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const settings = await runtime.handleCommand({
+      type: 'session/compaction-settings',
+      sessionId,
+    });
+    expect(settings.success).toBe(true);
+    if (!settings.success) throw new Error(settings.error);
+    const data = settings.data as {
+      source?: string;
+      globalDefault?: boolean;
+      autoCompactionEnabled: boolean;
+    };
+    expect(data.globalDefault).toBe(false);
+    expect(data.source).toBe('global');
+    expect(data.autoCompactionEnabled).toBe(false);
+
+    const overridden = await runtime.handleCommand({
+      type: 'session/set-auto-compaction',
+      sessionId,
+      enabled: true,
+    });
+    expect(overridden.success).toBe(true);
+    const after = await runtime.handleCommand({
+      type: 'session/compaction-settings',
+      sessionId,
+    });
+    expect(after.success).toBe(true);
+    if (!after.success) throw new Error(after.error);
+    expect((after.data as { source?: string }).source).toBe('session');
+    expect((after.data as { autoCompactionEnabled: boolean }).autoCompactionEnabled).toBe(true);
+
+    await runtime.dispose();
+  });
+
+  it('completes and merges sub-agent into parent transcript', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-merge-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    await runtime.handleCommand({ type: 'project/open', path: '/tmp/merge-project' });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/merge-project', sessionName: 'main' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const parentId = (created.data as { sessionId: string }).sessionId;
+
+    const spawned = await runtime.handleCommand({
+      type: 'session/spawn',
+      parentSessionId: parentId,
+      task: 'Investigate auth',
+    });
+    expect(spawned.success).toBe(true);
+    if (!spawned.success) throw new Error(spawned.error);
+    const childId = (spawned.data as { sessionId: string }).sessionId;
+
+    const completed = await runtime.handleCommand({
+      type: 'session/complete-subagent',
+      sessionId: childId,
+    });
+    expect(completed.success).toBe(true);
+
+    const merged = await runtime.handleCommand({
+      type: 'session/merge-subagent',
+      childSessionId: childId,
+    });
+    expect(merged.success).toBe(true);
+    if (!merged.success) throw new Error(merged.error);
+    const messageId = (merged.data as { messageId: string }).messageId;
+
+    const parentMessages = await runtime.handleCommand({
+      type: 'session/messages',
+      sessionId: parentId,
+    });
+    expect(parentMessages.success).toBe(true);
+    if (!parentMessages.success) throw new Error(parentMessages.error);
+    const messages = (
+      parentMessages.data as { messages: Array<{ id: string; role: string; text: string }> }
+    ).messages;
+    expect(messages.some((item) => item.id === messageId && item.role === 'system')).toBe(true);
+    expect(messages.some((item) => item.text.includes(childId))).toBe(true);
+
+    const again = await runtime.handleCommand({
+      type: 'session/merge-subagent',
+      childSessionId: childId,
+    });
+    expect(again.success).toBe(true);
+    if (!again.success) throw new Error(again.error);
+    expect((again.data as { alreadyMerged?: boolean }).alreadyMerged).toBe(true);
+
+    await runtime.dispose();
+  });
+
+  it('updates plan steps via plan/update-step and auto-completes', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-step-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    await runtime.handleCommand({ type: 'project/open', path: '/tmp/plan-step' });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/plan-step' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const now = new Date().toISOString();
+    await runtime.handleCommand({
+      type: 'plan/set',
+      sessionId,
+      plan: {
+        id: 'p1',
+        sessionId,
+        projectPath: '/tmp/plan-step',
+        status: 'draft',
+        title: 'T',
+        goal: 'G',
+        steps: [
+          { id: '1', title: 'A', status: 'pending' },
+          { id: '2', title: 'B', status: 'pending' },
+        ],
+        revision: 0,
+        createdAt: now,
+        updatedAt: now,
+        source: 'user',
+      },
+    });
+    await runtime.handleCommand({ type: 'plan/approve', sessionId });
+
+    const step1 = await runtime.handleCommand({
+      type: 'plan/update-step',
+      sessionId,
+      stepId: '1',
+      status: 'done',
+    });
+    expect(step1.success).toBe(true);
+    if (!step1.success) throw new Error(step1.error);
+    expect((step1.data as { plan: { status: string } }).plan.status).toBe('executing');
+
+    const step2 = await runtime.handleCommand({
+      type: 'plan/update-step',
+      sessionId,
+      stepId: '2',
+      status: 'done',
+    });
+    expect(step2.success).toBe(true);
+    if (!step2.success) throw new Error(step2.error);
+    expect((step2.data as { plan: { status: string } }).plan.status).toBe('done');
+
+    await runtime.dispose();
+  });
+
+  it('extension UI bridge request resolves via extension/ui_resolve', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-extui-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+
+    const pending = runtime.requestExtensionUi({
+      sessionId: 'sess-ext',
+      requestId: 'ext-req-1',
+      kind: 'confirm',
+      title: 'Allow path-guard override?',
+      message: 'Write to .env',
+    });
+
+    const resolved = await runtime.handleCommand({
+      id: 'r1',
+      type: 'extension/ui_resolve',
+      requestId: 'ext-req-1',
+      confirmed: true,
+    });
+    expect(resolved.success).toBe(true);
+
+    await expect(pending).resolves.toEqual({ kind: 'confirm', confirmed: true });
+    await runtime.dispose();
+  });
+
+});

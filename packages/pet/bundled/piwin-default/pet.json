@@ -1,0 +1,12 @@
+{
+  "id": "piwin-default",
+  "displayName": "Piwin Default",
+  "description": "Bundled status companion for piwin agent states.",
+  "spritesheetPath": "spritesheet.png",
+  "version": "1.0.0",
+  "fps": 6,
+  "cellWidth": 48,
+  "cellHeight": 52,
+  "cols": 8,
+  "rows": 9
+}

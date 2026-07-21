@@ -1,0 +1,20 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/agent-host" },
+    { "path": "packages/session" },
+    { "path": "packages/project" },
+    { "path": "packages/skills" },
+    { "path": "packages/mcp" },
+    { "path": "packages/tools-web" },
+    { "path": "packages/git" },
+    { "path": "packages/theme" },
+    { "path": "packages/pet" },
+    { "path": "packages/artifact" },
+    { "path": "packages/media" },
+    { "path": "packages/marketplace" },
+    { "path": "packages/ui-kit" },
+    { "path": "apps/cli" }
+  ]
+}

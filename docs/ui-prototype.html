@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>piwin — desktop prototype</title>
+    <style>
+      :root {
+        --canvas: #090b0f;
+        --rail: #0d1016;
+        --sidebar: #11151d;
+        --surface: #171c25;
+        --surface-raised: #1c222d;
+        --surface-hover: #222a37;
+        --line: #293241;
+        --line-soft: rgba(76, 89, 112, 0.35);
+        --text: #eef2f8;
+        --muted: #8792a5;
+        --faint: #5d687a;
+        --blue: #7ca8ff;
+        --blue-deep: #5d8df6;
+        --violet: #a790ff;
+        --green: #66d49b;
+        --radius: 10px;
+        --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      }
+
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        overflow: hidden;
+        color: var(--text);
+        background: var(--canvas);
+        font: 13px/1.45 var(--font);
+        -webkit-font-smoothing: antialiased;
+      }
+      button, input, textarea { font: inherit; }
+      button { color: inherit; }
+
+      .window {
+        display: grid;
+        grid-template-columns: 58px 264px minmax(0, 1fr);
+        height: 100vh;
+        min-width: 980px;
+        background: var(--canvas);
+      }
+
+      .rail {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 14px 8px;
+        background: var(--rail);
+        border-right: 1px solid var(--line-soft);
+      }
+      .brand {
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        margin: 4px 0 20px;
+        border-radius: 9px;
+        color: #111522;
+        background: linear-gradient(145deg, var(--blue), var(--violet));
+        font-size: 17px;
+        font-weight: 750;
+      }
+      .rail-spacer { flex: 1; }
+      .rail-button {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: 9px;
+        color: var(--faint);
+        background: transparent;
+        cursor: pointer;
+      }
+      .rail-button:hover, .rail-button.active {
+        color: var(--text);
+        background: var(--surface-hover);
+        border-color: var(--line-soft);
+      }
+      .rail-button.active { box-shadow: inset 2px 0 var(--blue); }
+      svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+
+      .sidebar {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        padding: 16px 12px 12px;
+        background: var(--sidebar);
+        border-right: 1px solid var(--line-soft);
+      }
+      .workspace-switcher {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 2px 7px 16px;
+        cursor: pointer;
+      }
+      .workspace-mark {
+        display: grid;
+        place-items: center;
+        width: 27px;
+        height: 27px;
+        border-radius: 7px;
+        color: #a4c5ff;
+        background: #253554;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .workspace-name { flex: 1; font-size: 13px; font-weight: 650; }
+      .chevron { color: var(--faint); font-size: 14px; }
+      .search {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 32px;
+        margin-bottom: 10px;
+        padding: 0 10px;
+        color: var(--faint);
+        border: 1px solid var(--line-soft);
+        border-radius: 7px;
+        background: rgba(0, 0, 0, 0.16);
+      }
+      .search input {
+        width: 100%;
+        padding: 0;
+        border: 0;
+        outline: 0;
+        color: var(--text);
+        background: transparent;
+        font-size: 12px;
+      }
+      .search input::placeholder { color: var(--faint); }
+      .new-chat {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        height: 35px;
+        margin-bottom: 19px;
+        border: 0;
+        border-radius: 8px;
+        color: #0d1527;
+        background: linear-gradient(135deg, #8db4ff, #6e95fb);
+        font-weight: 650;
+        cursor: pointer;
+        box-shadow: 0 6px 18px rgba(70, 112, 220, 0.2);
+      }
+      .new-chat svg { width: 15px; height: 15px; }
+      .section-label {
+        margin: 0 8px 7px;
+        color: var(--faint);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+      }
+      .history { min-height: 0; flex: 1; overflow: auto; }
+      .history-group { margin-bottom: 18px; }
+      .chat-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 34px;
+        padding: 7px 9px;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        color: var(--muted);
+        background: transparent;
+        text-align: left;
+        cursor: pointer;
+      }
+      .chat-item:hover { color: var(--text); background: var(--surface-hover); }
+      .chat-item.active { color: var(--text); background: #1d2635; border-color: #2b3b56; }
+      .chat-item svg { width: 14px; height: 14px; color: var(--faint); flex: 0 0 auto; }
+      .chat-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .project-footer {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-top: 12px;
+        padding: 10px 9px;
+        border: 1px solid var(--line-soft);
+        border-radius: 9px;
+        background: rgba(0, 0, 0, .13);
+      }
+      .folder-icon { color: var(--blue); }
+      .project-copy { min-width: 0; flex: 1; }
+      .project-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+      .project-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 11px; }
+      .trusted { color: var(--green); font-size: 11px; }
+
+      .main {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: radial-gradient(ellipse 70% 42% at 50% -10%, #1a2540 0%, transparent 63%), var(--canvas);
+      }
+      .titlebar {
+        display: flex;
+        align-items: center;
+        height: 57px;
+        padding: 0 22px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .breadcrumb { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
+      .breadcrumb strong { color: var(--text); font-weight: 600; }
+      .titlebar-center { position: absolute; left: 50%; transform: translateX(-50%); }
+      .model-pill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 11px;
+        border: 1px solid var(--line-soft);
+        border-radius: 999px;
+        color: var(--text);
+        background: rgba(25, 31, 42, .75);
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .model-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px rgba(102, 212, 155, .6); }
+      .top-actions { display: flex; gap: 3px; margin-left: auto; }
+      .top-button { padding: 6px 9px; border: 1px solid transparent; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; font-size: 12px; }
+      .top-button:hover { color: var(--text); background: var(--surface-hover); border-color: var(--line-soft); }
+
+      .chat-area { flex: 1; min-height: 0; overflow: auto; }
+      .chat-content { display: flex; flex-direction: column; align-items: center; min-height: 100%; padding: 7vh 24px 27vh; }
+      .welcome { width: min(100%, 620px); margin: auto 0; text-align: center; }
+      .welcome-mark {
+        display: grid;
+        place-items: center;
+        width: 54px;
+        height: 54px;
+        margin: 0 auto 18px;
+        border: 1px solid #526eae;
+        border-radius: 16px;
+        color: #dce7ff;
+        background: linear-gradient(145deg, #314d88, #4d5d9d);
+        box-shadow: 0 12px 34px rgba(62, 91, 173, .28);
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .welcome h1 { margin: 0 0 9px; font-size: 23px; font-weight: 650; letter-spacing: -.035em; }
+      .welcome p { max-width: 430px; margin: 0 auto 25px; color: var(--muted); }
+      .suggestions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; text-align: left; }
+      .suggestion { padding: 12px; border: 1px solid var(--line-soft); border-radius: 9px; color: var(--muted); background: rgba(19, 24, 33, .72); cursor: pointer; }
+      .suggestion:hover { color: var(--text); border-color: #435477; background: var(--surface); }
+      .suggestion strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 12px; }
+      .suggestion span { display: block; font-size: 11px; line-height: 1.35; }
+
+      .composer-wrap { position: absolute; right: 0; bottom: 0; left: 0; padding: 14px 24px 22px; background: linear-gradient(transparent, rgba(9, 11, 15, .96) 36%); }
+      .composer { width: min(100%, 760px); margin: 0 auto; padding: 11px 13px 9px; border: 1px solid #344157; border-radius: 14px; background: rgba(24, 30, 41, .94); box-shadow: 0 18px 50px rgba(0, 0, 0, .45), 0 0 0 1px rgba(255,255,255,.025); }
+      .composer:focus-within { border-color: #5577b7; box-shadow: 0 18px 50px rgba(0, 0, 0, .45), 0 0 0 3px rgba(110, 150, 240, .1); }
+      .composer textarea { display: block; width: 100%; height: 54px; padding: 2px 2px 0; resize: none; outline: none; border: 0; color: var(--text); background: transparent; line-height: 1.5; }
+      .composer textarea::placeholder { color: var(--faint); }
+      .composer-toolbar { display: flex; align-items: center; gap: 5px; height: 28px; color: var(--faint); }
+      .compose-button { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 7px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; font-size: 11px; }
+      .compose-button:hover { color: var(--text); background: var(--surface-hover); }
+      .compose-button svg { width: 14px; height: 14px; }
+      .compose-spacer { flex: 1; }
+      .context-chip { padding: 4px 8px; border: 1px solid var(--line-soft); border-radius: 5px; color: var(--muted); font-size: 11px; }
+      .send-button { display: grid; place-items: center; width: 27px; height: 27px; margin-left: 3px; padding: 0; border: 0; border-radius: 8px; color: #0d1527; background: var(--blue); cursor: pointer; }
+      .send-button:hover { background: #a2c1ff; }
+      .send-button svg { width: 15px; height: 15px; }
+
+      .drawer {
+        position: absolute;
+        z-index: 4;
+        top: 57px;
+        right: 0;
+        bottom: 0;
+        width: 320px;
+        padding: 20px;
+        border-left: 1px solid var(--line);
+        background: #151b25;
+        box-shadow: -20px 0 50px rgba(0, 0, 0, .25);
+        transform: translateX(100%);
+        transition: transform .2s ease;
+      }
+      .drawer.open { transform: translateX(0); }
+      .drawer h2 { margin: 0 0 5px; font-size: 15px; }
+      .drawer p { margin: 0 0 18px; color: var(--muted); font-size: 12px; }
+      .drawer-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-top: 1px solid var(--line-soft); color: var(--muted); }
+      .drawer-row strong { color: var(--text); font-weight: 550; }
+      .close-drawer { float: right; border: 0; color: var(--muted); background: transparent; cursor: pointer; font-size: 18px; }
+
+      @media (max-width: 1050px) { .window { grid-template-columns: 58px 230px minmax(0, 1fr); } .titlebar-center { display: none; } }
+    </style>
+  </head>
+  <body>
+    <main class="window">
+      <nav class="rail" aria-label="Global navigation">
+        <div class="brand">π</div>
+        <button class="rail-button active" title="Chats" aria-label="Chats">
+          <svg viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4V5Z"/><path d="M8 9h8M8 12h5"/></svg>
+        </button>
+        <button class="rail-button" title="Workspace" aria-label="Workspace">
+          <svg viewBox="0 0 24 24"><path d="M4 7h6l2 2h8v10H4V7Z"/><path d="M4 9h16"/></svg>
+        </button>
+        <button class="rail-button" title="Skills" aria-label="Skills">
+          <svg viewBox="0 0 24 24"><path d="m12 3 2.2 5.5L20 11l-5.8 2.5L12 19l-2.2-5.5L4 11l5.8-2.5L12 3Z"/><path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/></svg>
+        </button>
+        <button class="rail-button" title="MCP" aria-label="MCP">
+          <svg viewBox="0 0 24 24"><path d="M7 4v8a5 5 0 0 0 10 0V4"/><path d="M4 4v7a8 8 0 0 0 16 0V4M7 20h10"/></svg>
+        </button>
+        <div class="rail-spacer"></div>
+        <button class="rail-button" title="Settings" aria-label="Settings" id="settingsNav">
+          <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1a2 2 0 0 1-2.8 2.8l-.1-.1a2 2 0 0 0-3.4 1.4v.2a2 2 0 0 1-4 0v-.2a2 2 0 0 0-3.4-1.4l-.1.1A2 2 0 0 1 3 15.1l.1-.1A2 2 0 0 0 1.7 11.6h-.2a2 2 0 0 1 0-4h.2A2 2 0 0 0 3.1 4.2L3 4.1a2 2 0 0 1 2.8-2.8l.1.1A2 2 0 0 0 9.3 0h.2a2 2 0 0 1 4 0v.2a2 2 0 0 0 3.4 1.4l.1-.1A2 2 0 0 1 19.8 4l-.1.1a2 2 0 0 0 1.4 3.4h.2a2 2 0 0 1 0 4h-.2a2 2 0 0 0-1.7 3.5Z" transform="translate(1 2) scale(.87)"/></svg>
+        </button>
+        <button class="rail-button" title="Help" aria-label="Help">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.7 9a2.4 2.4 0 1 1 4.3 1.5c-.8.9-2 1.1-2 2.5M12 16.5h.01"/></svg>
+        </button>
+      </nav>
+
+      <aside class="sidebar">
+        <div class="workspace-switcher">
+          <div class="workspace-mark">π</div>
+          <span class="workspace-name">piwin</span>
+          <span class="chevron">⌄</span>
+        </div>
+        <label class="search">
+          <svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.5"/><path d="m16 16 4.5 4.5"/></svg>
+          <input placeholder="Search chats" />
+          <span>⌘K</span>
+        </label>
+        <button class="new-chat" id="newChat">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          New chat
+        </button>
+        <div class="history">
+          <div class="history-group">
+            <div class="section-label">Today</div>
+            <button class="chat-item active"><svg viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4V5Z"/></svg><span>Desktop UI direction</span></button>
+            <button class="chat-item"><svg viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4V5Z"/></svg><span>Host compaction smoke test</span></button>
+            <button class="chat-item"><svg viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4V5Z"/></svg><span>Build a MCP server</span></button>
+          </div>
+          <div class="history-group">
+            <div class="section-label">Yesterday</div>
+            <button class="chat-item"><svg viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4V5Z"/></svg><span>Review project architecture</span></button>
+            <button class="chat-item"><svg viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4V5Z"/></svg><span>Fix the session resume flow</span></button>
+          </div>
+        </div>
+        <div class="project-footer">
+          <svg class="folder-icon" viewBox="0 0 24 24"><path d="M3 6h7l2 2h9v10H3V6Z"/><path d="M3 9h18"/></svg>
+          <div class="project-copy"><div class="project-title">piwin</div><div class="project-path">/Projects/piwin</div></div>
+          <span class="trusted">●</span>
+        </div>
+      </aside>
+
+      <section class="main">
+        <header class="titlebar">
+          <div class="breadcrumb"><strong>piwin</strong><span>/</span><span>Agent window</span></div>
+          <div class="titlebar-center"><button class="model-pill"><span class="model-dot"></span>Default model <span class="chevron">⌄</span></button></div>
+          <div class="top-actions">
+            <button class="top-button" id="planButton">Plan</button>
+            <button class="top-button" id="agentsButton">Agents</button>
+            <button class="top-button" id="appearanceButton">Appearance</button>
+          </div>
+        </header>
+        <div class="chat-area">
+          <div class="chat-content">
+            <div class="welcome">
+              <div class="welcome-mark">π</div>
+              <h1>What should we work on?</h1>
+              <p>Open a project and let piwin help you understand, build, and ship it.</p>
+              <div class="suggestions">
+                <button class="suggestion" data-prompt="Review this project"><strong>Review this project</strong><span>Find risks, gaps, and the next best step.</span></button>
+                <button class="suggestion" data-prompt="Plan a feature"><strong>Plan a feature</strong><span>Turn an idea into a clear implementation plan.</span></button>
+                <button class="suggestion" data-prompt="Debug an issue"><strong>Debug an issue</strong><span>Trace a failure from symptom to fix.</span></button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="composer-wrap">
+          <div class="composer">
+            <textarea id="composer" placeholder="Message piwin…" aria-label="Message piwin"></textarea>
+            <div class="composer-toolbar">
+              <button class="compose-button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Attach</button>
+              <span class="context-chip">Project</span>
+              <button class="compose-button">Compact</button>
+              <span class="compose-spacer"></span>
+              <span class="muted">Enter to send</span>
+              <button class="send-button" aria-label="Send"><svg viewBox="0 0 24 24"><path d="m5 12 14-7-4 14-3.5-6.5L5 12Z"/><path d="m11.5 12.5 3.5-1.5"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <aside class="drawer" id="drawer">
+          <button class="close-drawer" id="closeDrawer">×</button>
+          <h2 id="drawerTitle">Plan</h2>
+          <p id="drawerCopy">Keep the work visible without taking permanent space from the conversation.</p>
+          <div class="drawer-row"><strong>Context</strong><span>Project</span></div>
+          <div class="drawer-row"><strong>Auto compact</strong><span class="trusted">On</span></div>
+          <div class="drawer-row"><strong>Session tools</strong><span>6 enabled</span></div>
+        </aside>
+      </section>
+    </main>
+    <script>
+      const composer = document.querySelector('#composer');
+      const drawer = document.querySelector('#drawer');
+      const drawerTitle = document.querySelector('#drawerTitle');
+      const drawerCopy = document.querySelector('#drawerCopy');
+      const openDrawer = (title) => {
+        drawerTitle.textContent = title;
+        drawerCopy.textContent = `${title} stays available when you need it, without competing with the conversation.`;
+        drawer.classList.add('open');
+      };
+      document.querySelector('#closeDrawer').addEventListener('click', () => drawer.classList.remove('open'));
+      document.querySelectorAll('#planButton, #agentsButton, #appearanceButton, #settingsNav').forEach((button) => {
+        button.addEventListener('click', () => openDrawer(button.textContent || 'Settings'));
+      });
+      document.querySelector('#newChat').addEventListener('click', () => { composer.value = ''; composer.focus(); });
+      document.querySelectorAll('.suggestion').forEach((button) => button.addEventListener('click', () => {
+        composer.value = button.dataset.prompt || '';
+        composer.focus();
+      }));
+      document.querySelectorAll('.chat-item').forEach((button) => button.addEventListener('click', () => {
+        document.querySelectorAll('.chat-item').forEach((item) => item.classList.remove('active'));
+        button.classList.add('active');
+      }));
+    </script>
+  </body>
+</html>

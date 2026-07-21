@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>piwin — desktop directions</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --page: #08090b;
+        --panel: #111216;
+        --panel-raised: #191a20;
+        --line: rgba(255, 255, 255, 0.09);
+        --line-soft: rgba(255, 255, 255, 0.06);
+        --text: #f2f3f5;
+        --muted: #a4a4ae;
+        --faint: #70717d;
+        --blue: #99b8ff;
+        --green: #78d7ad;
+        --amber: #e8b76b;
+        --red: #f4837e;
+        --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        --mono: "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+      }
+
+      * { box-sizing: border-box; }
+      html { min-width: 1120px; background: var(--page); }
+      body {
+        min-width: 1120px;
+        margin: 0;
+        color: var(--text);
+        background: var(--page);
+        font: 13px/1.45 var(--font);
+        -webkit-font-smoothing: antialiased;
+      }
+      button { font: inherit; }
+      svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+
+      .gallery-header {
+        position: sticky;
+        z-index: 10;
+        top: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 68px;
+        padding: 0 40px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(8, 9, 11, 0.94);
+        backdrop-filter: blur(18px);
+      }
+      .gallery-brand { display: flex; align-items: center; gap: 12px; }
+      .gallery-mark {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        border: 1px solid rgba(153, 184, 255, 0.3);
+        border-radius: 8px;
+        color: #d9e4ff;
+        background: #1d2944;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .gallery-brand strong { font-size: 14px; letter-spacing: -0.01em; }
+      .gallery-brand span { color: var(--faint); font-size: 12px; }
+      .directions { display: flex; align-items: center; gap: 4px; }
+      .direction-tab {
+        padding: 7px 12px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        color: var(--muted);
+        background: transparent;
+        cursor: pointer;
+        font-size: 12px;
+        transition: 140ms ease;
+      }
+      .direction-tab:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
+      .direction-tab.active { border-color: rgba(153, 184, 255, 0.26); color: #dce7ff; background: rgba(117, 152, 234, 0.17); }
+      .approval-note { color: var(--faint); font-size: 11px; }
+
+      .direction { display: none; padding: 36px 40px 54px; }
+      .direction.active { display: block; }
+      .direction-intro { display: grid; grid-template-columns: minmax(0, 1fr) 430px; gap: 40px; max-width: 1450px; margin: 0 auto 22px; }
+      .direction-kicker { margin-bottom: 7px; color: var(--blue); font-family: var(--mono); font-size: 11px; letter-spacing: .09em; text-transform: uppercase; }
+      .direction-intro h1 { margin: 0; font-size: 26px; letter-spacing: -0.04em; line-height: 1.15; }
+      .direction-intro p { max-width: 600px; margin: 11px 0 0; color: var(--muted); font-size: 14px; }
+      .direction-principles { display: flex; flex-wrap: wrap; align-content: center; gap: 7px; }
+      .direction-principles span { padding: 4px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11px; }
+
+      .screen {
+        position: relative;
+        max-width: 1450px;
+        height: 820px;
+        margin: 0 auto;
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.13);
+        border-radius: 14px;
+        background: #0c0d10;
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+      }
+      .screen * { min-width: 0; }
+      .screen button { color: inherit; }
+      .screen-icon-btn {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        padding: 0;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        color: var(--muted);
+        background: transparent;
+      }
+      .screen-icon-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.07); }
+      .icon-rail { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 14px 8px; background: #0a0b0e; border-right: 1px solid var(--line-soft); }
+      .pi-mark { display: grid; width: 30px; height: 30px; place-items: center; margin-bottom: 13px; border-radius: 9px; color: #101728; background: #abc2ff; font-size: 17px; font-weight: 750; }
+      .rail-bottom { margin-top: auto; }
+      .screen-icon-btn.selected { color: #e7edff; background: rgba(143, 177, 255, 0.16); }
+      .tiny-label { color: var(--faint); font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+      .sidebar-area { display: flex; flex-direction: column; min-height: 0; padding: 15px 12px 11px; background: #101115; border-right: 1px solid var(--line-soft); }
+      .project-switch { display: flex; align-items: center; gap: 9px; padding: 5px 7px 15px; }
+      .project-logo { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 7px; color: #b6ccff; background: #1c2a47; font-weight: 700; }
+      .project-switch strong { display: block; font-size: 12px; font-weight: 650; }
+      .project-switch span { display: block; overflow: hidden; color: var(--faint); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+      .project-switch .chevron { margin-left: auto; color: var(--faint); }
+      .project-search { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--faint); background: #0b0c0f; font-size: 11px; }
+      .project-search kbd { margin-left: auto; padding: 1px 4px; border: 1px solid var(--line); border-radius: 4px; color: var(--faint); font-family: var(--font); font-size: 9px; }
+      .new-agent { display: flex; align-items: center; justify-content: center; gap: 7px; height: 34px; margin: 9px 0 16px; border: 0; border-radius: 8px; color: #11182a; background: #aabfff; cursor: pointer; font-size: 12px; font-weight: 700; }
+      .new-agent svg { width: 14px; height: 14px; }
+      .sessions { overflow: hidden; }
+      .session-group { margin-bottom: 16px; }
+      .session-group-title { padding: 0 7px 5px; color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+      .session-row { display: flex; align-items: center; gap: 7px; height: 31px; padding: 0 7px; border-radius: 7px; color: var(--muted); font-size: 11.5px; }
+      .session-row.active { color: #f5f7ff; background: rgba(143, 177, 255, 0.14); }
+      .session-row .session-symbol { color: var(--faint); font-family: var(--mono); font-size: 10px; }
+      .session-row span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .session-row .session-more { margin-left: auto; color: var(--faint); }
+      .project-status { display: flex; align-items: center; gap: 6px; margin-top: auto; padding: 10px 6px 3px; border-top: 1px solid var(--line-soft); color: var(--faint); font-size: 10px; }
+      .status-ok { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px rgba(120, 215, 173, 0.55); }
+      .git-branch { margin-left: auto; font-family: var(--mono); }
+      .topbar { display: flex; align-items: center; min-height: 52px; padding: 0 15px; border-bottom: 1px solid var(--line-soft); }
+      .crumb { display: flex; align-items: center; gap: 7px; color: var(--faint); font-size: 11px; }
+      .crumb b { color: var(--text); font-weight: 650; }
+      .topbar-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+      .model-chip { display: inline-flex; align-items: center; gap: 7px; height: 28px; margin-right: 6px; padding: 0 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: rgba(255, 255, 255, 0.025); font-size: 11px; }
+      .model-chip i { width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px rgba(120, 215, 173, 0.5); }
+      .chat { overflow: hidden; }
+      .conversation { display: flex; flex-direction: column; gap: 20px; width: min(100% - 48px, 755px); margin: 0 auto; padding: 50px 0 210px; }
+      .turn-label { margin-bottom: 6px; color: var(--faint); font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+      .message { color: #d9d9df; font-size: 13px; line-height: 1.62; }
+      .message strong { color: #fafbff; }
+      .user-message { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, 0.035); color: #e4e4e8; }
+      .assistant-copy p { margin: 0 0 11px; }
+      .assistant-copy ul { margin: 0; padding-left: 18px; }
+      .tool-row { display: flex; align-items: center; gap: 9px; min-height: 36px; padding: 7px 9px; border: 1px solid var(--line-soft); border-radius: 8px; color: var(--muted); background: rgba(255, 255, 255, 0.018); font-family: var(--mono); font-size: 10.5px; }
+      .tool-row .tool-state { color: var(--green); }
+      .tool-row .tool-detail { overflow: hidden; flex: 1; text-overflow: ellipsis; white-space: nowrap; }
+      .tool-row .tool-time { color: var(--faint); }
+      .code-panel { overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: #0a0b0e; }
+      .code-caption { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-bottom: 1px solid var(--line-soft); color: var(--faint); font-family: var(--mono); font-size: 10px; }
+      .code-caption span:last-child { color: var(--blue); }
+      pre { margin: 0; padding: 12px 14px; overflow: hidden; color: #cfd3dc; font: 10.5px/1.65 var(--mono); }
+      .syntax-blue { color: #a9c4ff; }.syntax-green { color: #9bd5ae; }.syntax-muted { color: #707380; }.syntax-purple { color: #d1b6ff; }
+      .composer-area { position: absolute; right: 0; bottom: 0; left: 0; padding: 42px 24px 18px; background: linear-gradient(transparent, #0c0d10 42%); }
+      .composer { width: min(100%, 770px); margin: auto; padding: 10px 11px 9px; border: 1px solid rgba(162, 184, 232, 0.25); border-radius: 12px; background: #17181d; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32); }
+      .composer-input { min-height: 44px; padding: 4px 3px; color: var(--faint); font-size: 12.5px; }
+      .composer-tools { display: flex; align-items: center; gap: 5px; }
+      .composer-action { display: inline-flex; align-items: center; gap: 5px; height: 25px; padding: 0 7px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; font-size: 10.5px; }
+      .composer-action svg { width: 13px; height: 13px; }
+      .composer-spacer { flex: 1; }
+      .composer-pill { padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 10px; }
+      .send { display: grid; width: 27px; height: 27px; place-items: center; padding: 0; border: 0; border-radius: 7px; color: #11182a; background: #adc3ff; }
+      .send svg { width: 14px; height: 14px; }
+
+      /* Direction A — Atlas */
+      .atlas .screen { display: grid; grid-template-columns: 48px 266px minmax(0, 1fr) 330px; }
+      .atlas .main-area { position: relative; display: grid; grid-template-rows: 52px minmax(0, 1fr); min-height: 0; background: #0c0d10; }
+      .atlas .chat { background: radial-gradient(ellipse 70% 45% at 50% -12%, rgba(92, 123, 199, 0.12), transparent 63%); }
+      .atlas .inspector { display: flex; flex-direction: column; padding: 15px 13px; border-left: 1px solid var(--line-soft); background: #101115; }
+      .inspector-title { display: flex; align-items: center; justify-content: space-between; padding: 1px 3px 13px; }
+      .inspector-title strong { font-size: 12px; }
+      .inspector-title span { color: var(--faint); font-size: 10px; }
+      .inspector-section { margin-bottom: 19px; }
+      .inspector-heading { display: flex; align-items: center; justify-content: space-between; margin: 0 3px 7px; color: var(--faint); font-family: var(--mono); font-size: 9.5px; letter-spacing: .07em; text-transform: uppercase; }
+      .progress-bar { height: 3px; margin: 0 3px 10px; overflow: hidden; border-radius: 9px; background: rgba(255, 255, 255, 0.08); }
+      .progress-bar i { display: block; width: 62%; height: 100%; border-radius: inherit; background: var(--blue); }
+      .plan-step { display: flex; align-items: flex-start; gap: 8px; padding: 7px 5px; color: var(--muted); font-size: 11px; }
+      .step-check { display: grid; width: 14px; height: 14px; flex: 0 0 auto; place-items: center; margin-top: 1px; border: 1px solid var(--line); border-radius: 50%; color: var(--green); font-size: 9px; }
+      .plan-step.done { color: #d0d4d8; }.plan-step.done .step-check { border-color: rgba(120, 215, 173, 0.45); background: rgba(120, 215, 173, 0.12); }
+      .plan-step.running { color: #eff2f7; }.plan-step.running .step-check { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(153, 184, 255, 0.11); }
+      .event-line { position: relative; display: grid; grid-template-columns: 10px 1fr auto; gap: 7px; padding: 7px 4px; color: var(--muted); font-size: 10.5px; }
+      .event-line::before { position: absolute; top: 20px; bottom: -8px; left: 8px; width: 1px; content: ""; background: var(--line); }
+      .event-line:last-child::before { display: none; }
+      .event-dot { width: 8px; height: 8px; margin-top: 3px; border: 1px solid var(--faint); border-radius: 50%; background: #101115; }.event-dot.blue { border-color: var(--blue); background: var(--blue); }.event-dot.green { border-color: var(--green); background: var(--green); }
+      .event-line time { color: var(--faint); font-family: var(--mono); font-size: 9px; }
+      .change-file { display: grid; grid-template-columns: 1fr auto auto; gap: 7px; padding: 6px 4px; color: var(--muted); font-family: var(--mono); font-size: 10px; }
+      .change-file .added { color: var(--green); }.change-file .removed { color: var(--red); }
+
+      /* Direction B — Studio */
+      .studio .screen { display: grid; grid-template-columns: 48px 252px minmax(0, 1fr) 286px; color: #2b2927; background: #f1eee8; }
+      .studio .icon-rail { color: #736e67; background: #e7e2db; border-color: rgba(74, 67, 59, 0.12); }.studio .pi-mark { color: #fffaf0; background: #273858; }.studio .screen-icon-btn { color: #736e67; }.studio .screen-icon-btn.selected { color: #273858; background: rgba(63, 91, 137, 0.12); }
+      .studio .sidebar-area { color: #2e2b29; background: #ede9e3; border-color: rgba(74, 67, 59, 0.12); }.studio .project-logo { color: #38527e; background: #dbe5f4; }.studio .project-switch span,.studio .chevron,.studio .session-group-title,.studio .session-row,.studio .project-status,.studio .git-branch { color: #817a71; }.studio .project-search { border-color: rgba(74, 67, 59, 0.15); color: #938b82; background: #f8f5ef; }.studio .project-search kbd { border-color: rgba(74, 67, 59, 0.15); }.studio .new-agent { color: #fffdf8; background: #385b96; }.studio .session-row.active { color: #273858; background: #dce6f5; }.studio .project-status { border-color: rgba(74, 67, 59, 0.11); }.studio .status-ok { background: #4c9677; box-shadow: none; }
+      .studio .main-area { position: relative; display: grid; grid-template-rows: 52px minmax(0, 1fr); background: #f8f6f1; }.studio .topbar { border-color: rgba(74, 67, 59, 0.11); background: rgba(248, 246, 241, 0.92); }.studio .crumb { color: #928a80; }.studio .crumb b { color: #322f2b; }.studio .screen-icon-btn { color: #817a71; }.studio .screen-icon-btn:hover { background: rgba(54, 48, 43, 0.06); }.studio .chat { background: radial-gradient(ellipse 65% 45% at 50% -14%, rgba(101, 127, 166, 0.11), transparent 63%); }.studio .conversation { width: min(100% - 78px, 720px); padding-top: 62px; }.studio .turn-label { color: #948d84; }.studio .message { color: #4c4944; }.studio .message strong { color: #292622; }.studio .user-message { border-color: rgba(74, 67, 59, 0.13); background: #fffdf9; color: #3d3934; box-shadow: 0 4px 14px rgba(73, 62, 48, 0.04); }.studio .code-panel { border-color: rgba(74, 67, 59, 0.15); background: #292b31; }.studio .code-caption { border-color: rgba(255, 255, 255, 0.10); color: #b3b5bd; }.studio .code-caption span:last-child { color: #b5c9ff; }.studio .tool-row { border-color: rgba(74, 67, 59, 0.12); color: #6d675f; background: rgba(255, 255, 255, 0.48); }.studio .tool-row .tool-state { color: #3d8a6b; }.studio .composer-area { background: linear-gradient(transparent, #f8f6f1 41%); }.studio .composer { border-color: rgba(65, 89, 130, 0.28); border-radius: 14px; background: #fffdf9; box-shadow: 0 14px 30px rgba(59, 49, 38, 0.10); }.studio .composer-input { color: #969087; }.studio .composer-action { color: #6f6a64; }.studio .composer-pill { border-color: rgba(74, 67, 59, 0.15); color: #5c6168; background: #f5f2eb; }.studio .send { color: #fff; background: #385b96; }
+      .studio .model-chip { border-color: rgba(74, 67, 59, 0.14); color: #615c55; background: #fffdf9; }.studio .model-chip i { background: #4c9677; box-shadow: none; }.studio .inspector { color: #36322e; border-color: rgba(74, 67, 59, 0.12); background: #eeeae3; }.studio .inspector-title span,.studio .inspector-heading { color: #8c857b; }.studio .studio-work-tabs { display: flex; gap: 4px; margin-bottom: 17px; padding: 3px; border-radius: 8px; background: rgba(71, 65, 58, 0.07); }.studio .studio-work-tabs span { flex: 1; padding: 5px; border-radius: 5px; color: #817a71; text-align: center; font-size: 10px; }.studio .studio-work-tabs span.active { color: #2c436b; background: #fffdf9; box-shadow: 0 1px 3px rgba(66, 54, 39, .08); }.studio .plan-step { color: #716a62; }.studio .plan-step.done { color: #3d3935; }.studio .step-check { border-color: rgba(74, 67, 59, 0.2); color: #3d8a6b; }.studio .plan-step.done .step-check { border-color: rgba(61, 138, 107, 0.45); background: rgba(61, 138, 107, 0.1); }.studio .plan-step.running { color: #2b426b; }.studio .plan-step.running .step-check { border-color: #5e80b8; box-shadow: 0 0 0 3px rgba(94, 128, 184, 0.10); }.studio .progress-bar { background: rgba(74, 67, 59, 0.1); }.studio .progress-bar i { background: #5d7fb7; }.studio .change-file { color: #716a62; }.studio .change-file .added { color: #3d8a6b; }.studio .change-file .removed { color: #c26960; }
+
+      /* Direction C — Terminal First */
+      .terminal .screen { display: grid; grid-template-columns: 48px 260px minmax(0, 1fr) 356px; }.terminal .sidebar-area { background: #0d0f13; }.terminal .main-area { display: grid; grid-template-rows: 47px minmax(0, 1fr) 239px; min-height: 0; background: #090b0e; }.terminal .topbar { min-height: 47px; }.terminal .chat { position: relative; min-height: 0; overflow: hidden; }.terminal .conversation { width: min(100% - 34px, 775px); gap: 15px; padding: 27px 0 70px; }.terminal .user-message { padding: 9px 11px; border-radius: 7px; font-size: 12px; }.terminal .tool-row { min-height: 31px; padding: 5px 8px; border-radius: 5px; }.terminal .code-panel { border-radius: 6px; }.terminal .code-caption { padding: 6px 8px; }.terminal pre { padding: 9px 12px; }.terminal .composer-area { bottom: 0; padding: 25px 17px 10px; background: linear-gradient(transparent, #090b0e 51%); }.terminal .composer { width: min(100%, 780px); padding: 7px 8px; border-radius: 8px; background: #14171d; box-shadow: none; }.terminal .composer-input { display: none; }.terminal .composer-tools { height: 28px; }.terminal .terminal-dock { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--line); background: #090a0c; }.dock-tabs { display: flex; align-items: center; gap: 3px; height: 31px; padding: 0 8px; border-bottom: 1px solid var(--line-soft); }.dock-tab { padding: 5px 8px; border: 0; border-radius: 5px; color: var(--faint); background: transparent; font-size: 10px; }.dock-tab.active { color: #d9dde5; background: rgba(255, 255, 255, 0.07); }.dock-actions { margin-left: auto; color: var(--faint); font-family: var(--mono); font-size: 10px; }.terminal-output { flex: 1; padding: 9px 13px; overflow: hidden; color: #aeb3bc; font: 10.5px/1.67 var(--mono); }.terminal-output .prompt { color: #82c8a5; }.terminal-output .command { color: #d9dde4; }.terminal-output .pass { color: #82d0aa; }.terminal-output .terminal-muted { color: #6d7280; }.terminal .inspector { display: flex; flex-direction: column; min-height: 0; padding: 0; border-left: 1px solid var(--line-soft); background: #0d0f13; }.terminal .activity-tabs { display: flex; height: 47px; align-items: center; gap: 1px; padding: 0 10px; border-bottom: 1px solid var(--line-soft); }.terminal .activity-tabs button { height: 29px; padding: 0 8px; border: 0; border-radius: 6px; color: var(--faint); background: transparent; font-size: 10.5px; }.terminal .activity-tabs button.active { color: #edf0f7; background: rgba(255, 255, 255, 0.08); }.terminal .activity-pane { padding: 14px 12px; }.terminal .inspector-heading { margin: 0 2px 8px; }.terminal .activity-current { margin-bottom: 15px; padding: 10px; border: 1px solid rgba(153, 184, 255, 0.18); border-radius: 7px; background: rgba(119, 149, 222, 0.08); }.terminal .activity-current header { display: flex; justify-content: space-between; margin-bottom: 6px; color: #dbe5ff; font-family: var(--mono); font-size: 10px; }.terminal .activity-current p { margin: 0; color: var(--muted); font-size: 11px; }.terminal .event-line { padding-top: 8px; padding-bottom: 8px; }.terminal .change-file { padding: 7px 3px; }
+
+      .prototype-footer { max-width: 1450px; margin: 16px auto 0; color: var(--faint); font-size: 11px; text-align: right; }
+      @media (max-width: 1250px) { .direction-intro { grid-template-columns: 1fr; gap: 12px; }.screen { height: 760px; }.atlas .screen { grid-template-columns: 48px 240px minmax(0, 1fr) 292px; }.studio .screen { grid-template-columns: 48px 230px minmax(0, 1fr) 260px; }.terminal .screen { grid-template-columns: 48px 230px minmax(0, 1fr) 320px; } }
+    </style>
+  </head>
+  <body>
+    <header class="gallery-header">
+      <div class="gallery-brand"><div class="gallery-mark">π</div><strong>piwin</strong><span>desktop directions · 21 Jul 2026</span></div>
+      <nav class="directions" aria-label="Prototype directions">
+        <button class="direction-tab active" data-direction="atlas">A · Atlas</button>
+        <button class="direction-tab" data-direction="studio">B · Studio</button>
+        <button class="direction-tab" data-direction="terminal">C · Terminal First</button>
+      </nav>
+      <div class="approval-note">Pick a direction, then we build it for real.</div>
+    </header>
+
+    <section class="direction atlas active" data-screen="atlas">
+      <div class="direction-intro"><div><div class="direction-kicker">Direction A / Atlas</div><h1>Orderly command center for serious agent work.</h1><p>Conversation leads; project state remains one glance away. This is the clearest choice for long-running, multi-step work without losing the calm of a desktop-native app.</p></div><div class="direction-principles"><span>Structured three-column layout</span><span>Execution timeline</span><span>High signal / low noise</span><span>Default: right panel on demand</span></div></div>
+      <div class="screen">
+        <nav class="icon-rail"><div class="pi-mark">π</div><button class="screen-icon-btn selected" title="Chats"><svg><path d="M4 5.5h8a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H8l-3.5 2v-2.2A3 3 0 0 1 3 11.5v-3a3 3 0 0 1 1-3Z"/></svg></button><button class="screen-icon-btn" title="Workspace"><svg><path d="M3 4.5h10l2 2v8H3z"/><path d="M3 7h12"/></svg></button><button class="screen-icon-btn" title="Skills"><svg><path d="m8 3 1.5 3.4L13 8l-3.5 1.5L8 13l-1.5-3.5L3 8l3.5-1.6Z"/></svg></button><button class="screen-icon-btn" title="MCP"><svg><circle cx="5" cy="8" r="2"/><circle cx="11" cy="5" r="2"/><circle cx="11" cy="11" r="2"/><path d="m6.7 7 2.6-1.2M6.7 9l2.6 1.2"/></svg></button><div class="rail-bottom"><button class="screen-icon-btn"><svg><circle cx="8" cy="8" r="3"/><path d="M8 1.8v1.4M8 12.8v1.4M14.2 8h-1.4M3.2 8H1.8M12.4 3.6l-1 1M4.6 11.4l-1 1M12.4 12.4l-1-1M4.6 4.6l-1-1"/></svg></button></div></nav>
+        <aside class="sidebar-area"><div class="project-switch"><div class="project-logo">S</div><div><strong>storefront</strong><span>~/Projects/storefront</span></div><svg class="chevron"><path d="m5 6 3 3 3-3"/></svg></div><div class="project-search"><svg><circle cx="7" cy="7" r="4"/><path d="m10 10 3 3"/></svg><span>Search conversations</span><kbd>⌘ K</kbd></div><button class="new-agent"><svg><path d="M8 3v10M3 8h10"/></svg>New agent</button><div class="sessions"><div class="session-group"><div class="session-group-title">Today</div><div class="session-row active"><span class="session-symbol">◈</span><span>Review checkout regression</span><span class="session-more">···</span></div><div class="session-row"><span class="session-symbol">◇</span><span>Plan Stripe webhooks</span></div><div class="session-row"><span class="session-symbol">◇</span><span>Investigate CI timeout</span></div></div><div class="session-group"><div class="session-group-title">Yesterday</div><div class="session-row"><span class="session-symbol">◇</span><span>Add accessibility audit</span></div><div class="session-row"><span class="session-symbol">◇</span><span>Refactor cart pricing</span></div></div><div class="session-group"><div class="session-group-title">Previous 7 days</div><div class="session-row"><span class="session-symbol">◇</span><span>Database migration review</span></div></div></div><div class="project-status"><i class="status-ok"></i>Host connected <span class="git-branch">main ±3</span></div></aside>
+        <main class="main-area"><header class="topbar"><div class="crumb"><span>piwin</span><span>/</span><b>storefront</b><span>/</span><span>Review checkout regression</span></div><div class="topbar-actions"><div class="model-chip"><i></i>Claude 4.6 Sonnet <svg><path d="m5 6 3 3 3-3"/></svg></div><button class="screen-icon-btn"><svg><path d="M3 4h10v7H3z"/><path d="M5 14h6M8 11v3"/></svg></button><button class="screen-icon-btn"><svg><path d="M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z"/></svg></button><button class="screen-icon-btn"><svg><circle cx="8" cy="8" r="3"/><path d="M8 1.8v1.4M8 12.8v1.4M14.2 8h-1.4M3.2 8H1.8"/></svg></button></div></header><div class="chat"><div class="conversation"><div><div class="turn-label">You · 10:32</div><div class="user-message">The checkout confirmation can occasionally render with a stale cart total. Please trace the source of truth, propose the smallest safe fix, and run the relevant tests.</div></div><div><div class="turn-label">π · working</div><div class="assistant-copy message"><p>I found two values being read after the order mutation: the response total is authoritative, while the client cart store can lag by one render.</p><p><strong>Proposed fix</strong> — preserve the mutation result for the confirmation view and invalidate the cart store separately. This removes the race without changing the checkout contract.</p></div></div><div class="tool-row"><span class="tool-state">✓</span><span>read</span><span class="tool-detail">apps/web/src/features/checkout/confirmation.tsx</span><span class="tool-time">0.2s</span></div><div class="tool-row"><span class="tool-state">✓</span><span>search</span><span class="tool-detail">cartStore.total · 6 matches</span><span class="tool-time">0.1s</span></div><div class="code-panel"><div class="code-caption"><span>confirmation.tsx</span><span>+3 −2</span></div><pre><span class="syntax-muted">// The mutation response is the only total bound to this completed order.</span>
+<span class="syntax-purple">const</span> <span class="syntax-blue">orderTotal</span> = checkoutResult.<span class="syntax-green">order</span>.total;
+invalidateCart();
+setConfirmation({ orderId, <span class="syntax-blue">orderTotal</span> });</pre></div><div class="assistant-copy message"><p>The focused confirmation and cart-store tests pass. The change only affects the post-checkout display path.</p></div></div><div class="composer-area"><div class="composer"><div class="composer-input">Ask a follow-up or give the agent a task…</div><div class="composer-tools"><button class="composer-action"><svg><path d="m8 3 0 10M3 8h10"/></svg>Add context</button><button class="composer-action"><svg><path d="M5 5.5 8.5 9a2 2 0 0 0 2.8-2.8L8.2 3.1a3 3 0 0 0-4.2 4.2l3.5 3.5"/></svg></button><div class="composer-spacer"></div><span class="composer-pill">Agent</span><span class="composer-pill">32k context</span><button class="send"><svg><path d="m3 8 10-5-3.2 10-2-3.1z"/><path d="m7.8 9.9 2-2"/></svg></button></div></div></div></div></main>
+        <aside class="inspector"><div class="inspector-title"><strong>Execution</strong><span>live</span></div><section class="inspector-section"><div class="inspector-heading"><span>Plan</span><span>2 / 3</span></div><div class="progress-bar"><i></i></div><div class="plan-step done"><i class="step-check">✓</i><span>Trace the checkout state sources</span></div><div class="plan-step done"><i class="step-check">✓</i><span>Confirm authoritative total</span></div><div class="plan-step running"><i class="step-check"></i><span>Run focused test coverage</span></div></section><section class="inspector-section"><div class="inspector-heading"><span>Activity</span><span>10:32</span></div><div class="event-line"><i class="event-dot green"></i><span>Read confirmation flow</span><time>10:32</time></div><div class="event-line"><i class="event-dot green"></i><span>Located stale store read</span><time>10:33</time></div><div class="event-line"><i class="event-dot blue"></i><span>Running checkout tests</span><time>now</time></div></section><section class="inspector-section"><div class="inspector-heading"><span>Changes</span><span>1 file</span></div><div class="change-file"><span>confirmation.tsx</span><span class="added">+3</span><span class="removed">−2</span></div></section></aside>
+      </div><div class="prototype-footer">A / Atlas — most balanced default for piwin.</div>
+    </section>
+
+    <section class="direction studio" data-screen="studio">
+      <div class="direction-intro"><div><div class="direction-kicker">Direction B / Studio</div><h1>A warmer, more human agent workspace.</h1><p>Studio puts the quality of thinking and the written collaboration first. It feels intentionally native and editorial, without becoming soft or losing engineering precision.</p></div><div class="direction-principles"><span>Focused conversation canvas</span><span>Warm native materials</span><span>Controls in the composer</span><span>Inspector stays quiet</span></div></div>
+      <div class="screen">
+        <nav class="icon-rail"><div class="pi-mark">π</div><button class="screen-icon-btn selected"><svg><path d="M4 5.5h8a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H8l-3.5 2v-2.2A3 3 0 0 1 3 11.5v-3a3 3 0 0 1 1-3Z"/></svg></button><button class="screen-icon-btn"><svg><path d="M3 4.5h10l2 2v8H3z"/><path d="M3 7h12"/></svg></button><button class="screen-icon-btn"><svg><path d="m8 3 1.5 3.4L13 8l-3.5 1.5L8 13l-1.5-3.5L3 8l3.5-1.6Z"/></svg></button><button class="screen-icon-btn"><svg><circle cx="5" cy="8" r="2"/><circle cx="11" cy="5" r="2"/><circle cx="11" cy="11" r="2"/><path d="m6.7 7 2.6-1.2M6.7 9l2.6 1.2"/></svg></button><div class="rail-bottom"><button class="screen-icon-btn"><svg><circle cx="8" cy="8" r="3"/><path d="M8 1.8v1.4M8 12.8v1.4M14.2 8h-1.4M3.2 8H1.8"/></svg></button></div></nav>
+        <aside class="sidebar-area"><div class="project-switch"><div class="project-logo">S</div><div><strong>storefront</strong><span>~/Projects/storefront</span></div><svg class="chevron"><path d="m5 6 3 3 3-3"/></svg></div><div class="project-search"><svg><circle cx="7" cy="7" r="4"/><path d="m10 10 3 3"/></svg><span>Search conversations</span><kbd>⌘ K</kbd></div><button class="new-agent"><svg><path d="M8 3v10M3 8h10"/></svg>New task</button><div class="sessions"><div class="session-group"><div class="session-group-title">Today</div><div class="session-row active"><span class="session-symbol">◈</span><span>Review checkout regression</span><span class="session-more">···</span></div><div class="session-row"><span class="session-symbol">◇</span><span>Plan Stripe webhooks</span></div><div class="session-row"><span class="session-symbol">◇</span><span>Investigate CI timeout</span></div></div><div class="session-group"><div class="session-group-title">Yesterday</div><div class="session-row"><span class="session-symbol">◇</span><span>Add accessibility audit</span></div><div class="session-row"><span class="session-symbol">◇</span><span>Refactor cart pricing</span></div></div></div><div class="project-status"><i class="status-ok"></i>Ready <span class="git-branch">main ±3</span></div></aside>
+        <main class="main-area"><header class="topbar"><div class="crumb"><span>storefront</span><span>·</span><b>Checkout review</b></div><div class="topbar-actions"><button class="screen-icon-btn"><svg><path d="M3 4h10v7H3z"/><path d="M5 14h6M8 11v3"/></svg></button><button class="screen-icon-btn"><svg><path d="M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z"/></svg></button><button class="screen-icon-btn"><svg><path d="M3 8h10M8 3v10"/></svg></button></div></header><div class="chat"><div class="conversation"><div><div class="turn-label">Your task</div><div class="user-message">The checkout confirmation can occasionally render with a stale cart total. Trace the source of truth, suggest the smallest safe fix, and prove it with the relevant tests.</div></div><div><div class="turn-label">π has a recommendation</div><div class="assistant-copy message"><p>I traced the confirmation screen and found a small timing mismatch between the <strong>completed order</strong> and the client-side cart store.</p><p>The order mutation already returns the exact total we want to display. The confirmation screen should retain that value; then cart invalidation can happen independently.</p></div></div><div class="code-panel"><div class="code-caption"><span>confirmation.tsx</span><span>View change</span></div><pre><span class="syntax-purple">const</span> <span class="syntax-blue">orderTotal</span> = checkoutResult.<span class="syntax-green">order</span>.total;
+invalidateCart();
+setConfirmation({ orderId, <span class="syntax-blue">orderTotal</span> });</pre></div><div class="tool-row"><span class="tool-state">✓</span><span>Tests passed</span><span class="tool-detail">checkout-confirmation.test.tsx · 12 assertions</span><span class="tool-time">1.7s</span></div><div class="assistant-copy message"><p><strong>Why this is safe:</strong> the server response is already the source of truth for the completed order, and the cart cache is no longer responsible for this screen.</p></div></div><div class="composer-area"><div class="composer"><div class="composer-input">Continue the review, ask a question, or give piwin a task…</div><div class="composer-tools"><button class="composer-action"><svg><path d="M8 3v10M3 8h10"/></svg>Context</button><button class="composer-action"><svg><path d="M5 5.5 8.5 9a2 2 0 0 0 2.8-2.8L8.2 3.1a3 3 0 0 0-4.2 4.2l3.5 3.5"/></svg></button><div class="composer-spacer"></div><span class="composer-pill">Agent</span><div class="model-chip"><i></i>Claude 4.6 Sonnet <svg><path d="m5 6 3 3 3-3"/></svg></div><button class="send"><svg><path d="m3 8 10-5-3.2 10-2-3.1z"/><path d="m7.8 9.9 2-2"/></svg></button></div></div></div></div></main>
+        <aside class="inspector"><div class="inspector-title"><strong>Work</strong><span>⌘ ⇧ O</span></div><div class="studio-work-tabs"><span class="active">Plan</span><span>Tools</span><span>Changes</span></div><section class="inspector-section"><div class="inspector-heading"><span>Checkout regression</span><span>2 / 3</span></div><div class="progress-bar"><i></i></div><div class="plan-step done"><i class="step-check">✓</i><span>Find the total’s source of truth</span></div><div class="plan-step done"><i class="step-check">✓</i><span>Keep the mutation result for confirmation</span></div><div class="plan-step running"><i class="step-check"></i><span>Verify with focused coverage</span></div></section><section class="inspector-section"><div class="inspector-heading"><span>One considered change</span><span>+3 −2</span></div><div class="change-file"><span>confirmation.tsx</span><span class="added">+3</span><span class="removed">−2</span></div></section><section class="inspector-section"><div class="inspector-heading"><span>Agent note</span></div><div class="message" style="padding:0 3px;font-size:11px;line-height:1.55">The fix stays inside the confirmation view. No checkout API or cart-store contract changes required.</div></section></aside>
+      </div><div class="prototype-footer">B / Studio — strongest visual differentiation and reading experience.</div>
+    </section>
+
+    <section class="direction terminal" data-screen="terminal">
+      <div class="direction-intro"><div><div class="direction-kicker">Direction C / Terminal First</div><h1>An execution cockpit for expert users.</h1><p>Terminal, agent activity, plan progress, and project changes remain visible together. More compact, but disciplined: every persistent region has a distinct job.</p></div><div class="direction-principles"><span>Terminal always accessible</span><span>Tool execution is first class</span><span>Dense but bounded</span><span>Expert default</span></div></div>
+      <div class="screen">
+        <nav class="icon-rail"><div class="pi-mark">π</div><button class="screen-icon-btn selected"><svg><path d="M4 5.5h8a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3H8l-3.5 2v-2.2A3 3 0 0 1 3 11.5v-3a3 3 0 0 1 1-3Z"/></svg></button><button class="screen-icon-btn"><svg><path d="M3 4.5h10l2 2v8H3z"/><path d="M3 7h12"/></svg></button><button class="screen-icon-btn"><svg><path d="m8 3 1.5 3.4L13 8l-3.5 1.5L8 13l-1.5-3.5L3 8l3.5-1.6Z"/></svg></button><button class="screen-icon-btn"><svg><circle cx="5" cy="8" r="2"/><circle cx="11" cy="5" r="2"/><circle cx="11" cy="11" r="2"/><path d="m6.7 7 2.6-1.2M6.7 9l2.6 1.2"/></svg></button><div class="rail-bottom"><button class="screen-icon-btn"><svg><circle cx="8" cy="8" r="3"/><path d="M8 1.8v1.4M8 12.8v1.4M14.2 8h-1.4M3.2 8H1.8"/></svg></button></div></nav>
+        <aside class="sidebar-area"><div class="project-switch"><div class="project-logo">S</div><div><strong>storefront</strong><span>~/Projects/storefront</span></div><svg class="chevron"><path d="m5 6 3 3 3-3"/></svg></div><div class="project-search"><svg><circle cx="7" cy="7" r="4"/><path d="m10 10 3 3"/></svg><span>Search conversations</span><kbd>⌘ K</kbd></div><button class="new-agent"><svg><path d="M8 3v10M3 8h10"/></svg>New agent</button><div class="sessions"><div class="session-group"><div class="session-group-title">Today</div><div class="session-row active"><span class="session-symbol">◈</span><span>Review checkout regression</span><span class="session-more">···</span></div><div class="session-row"><span class="session-symbol">◇</span><span>Plan Stripe webhooks</span></div><div class="session-row"><span class="session-symbol">◇</span><span>Investigate CI timeout</span></div></div><div class="session-group"><div class="session-group-title">Yesterday</div><div class="session-row"><span class="session-symbol">◇</span><span>Add accessibility audit</span></div><div class="session-row"><span class="session-symbol">◇</span><span>Refactor cart pricing</span></div></div></div><div class="project-status"><i class="status-ok"></i>Host connected <span class="git-branch">main ±3</span></div></aside>
+        <main class="main-area"><header class="topbar"><div class="crumb"><span>piwin</span><span>/</span><b>storefront</b><span>/</span><span>Review checkout regression</span></div><div class="topbar-actions"><div class="model-chip"><i></i>Claude 4.6 Sonnet</div><button class="screen-icon-btn"><svg><path d="M3 3h4v4H3zM9 3h4v4H9zM3 9h4v4H3zM9 9h4v4H9z"/></svg></button></div></header><div class="chat"><div class="conversation"><div><div class="turn-label">You</div><div class="user-message">Trace the stale checkout total, make the smallest safe patch, and run the relevant tests.</div></div><div class="tool-row"><span class="tool-state">✓</span><span>read</span><span class="tool-detail">apps/web/src/features/checkout/confirmation.tsx</span><span class="tool-time">0.2s</span></div><div><div class="turn-label">π · analysis</div><div class="assistant-copy message"><p>The completed order response is authoritative. The cart store can update after the confirmation view has rendered.</p></div></div><div class="code-panel"><div class="code-caption"><span>confirmation.tsx</span><span>patch</span></div><pre><span class="syntax-purple">const</span> <span class="syntax-blue">orderTotal</span> = checkoutResult.<span class="syntax-green">order</span>.total;
+invalidateCart();
+setConfirmation({ orderId, <span class="syntax-blue">orderTotal</span> });</pre></div><div class="tool-row"><span class="tool-state">●</span><span>bash</span><span class="tool-detail">pnpm test checkout-confirmation</span><span class="tool-time">running</span></div></div><div class="composer-area"><div class="composer"><div class="composer-tools"><button class="composer-action"><svg><path d="M8 3v10M3 8h10"/></svg></button><span style="color:var(--faint);font-size:11px">Follow up or steer the current run…</span><div class="composer-spacer"></div><span class="composer-pill">Agent</span><span class="composer-pill">32k</span><button class="send"><svg><path d="m3 8 10-5-3.2 10-2-3.1z"/><path d="m7.8 9.9 2-2"/></svg></button></div></div></div></div><section class="terminal-dock"><div class="dock-tabs"><button class="dock-tab">Output</button><button class="dock-tab active">Terminal</button><button class="dock-tab">Problems <span style="color:var(--amber)">1</span></button><span class="dock-actions">zsh · + · ⌃`</span></div><div class="terminal-output"><div><span class="prompt">yorick@piwin</span> <span class="terminal-muted">~/Projects/storefront</span> <span style="color:#9fc0ff">git:(main)</span> <span class="command">pnpm test checkout-confirmation</span></div><div class="terminal-muted"> RUN  v3.2.7 /Users/yorick/Projects/storefront</div><div class="pass"> ✓ src/features/checkout/confirmation.test.tsx (12 tests) 1.68s</div><div class="terminal-muted"> Test Files  1 passed (1)</div><div><span class="prompt">yorick@piwin</span> <span class="terminal-muted">~/Projects/storefront</span> <span style="color:#9fc0ff">git:(main)</span> <span style="color:#aeb3bc">█</span></div></div></section></main>
+        <aside class="inspector"><div class="activity-tabs"><button class="active">Plan</button><button>Tools</button><button>Changes <span style="color:var(--green)">1</span></button><button>Git</button></div><div class="activity-pane"><section class="inspector-section"><div class="inspector-heading"><span>Current operation</span><span>live</span></div><div class="activity-current"><header><span>RUNNING TESTS</span><span>01:68</span></header><p>checkout-confirmation.test.tsx</p></div></section><section class="inspector-section"><div class="inspector-heading"><span>Plan</span><span>2 / 3</span></div><div class="progress-bar"><i></i></div><div class="plan-step done"><i class="step-check">✓</i><span>Trace confirmation state</span></div><div class="plan-step done"><i class="step-check">✓</i><span>Patch authoritative value</span></div><div class="plan-step running"><i class="step-check"></i><span>Verify focused coverage</span></div></section><section class="inspector-section"><div class="inspector-heading"><span>Execution stream</span></div><div class="event-line"><i class="event-dot green"></i><span>Read source</span><time>0.2s</time></div><div class="event-line"><i class="event-dot green"></i><span>Applied patch</span><time>0.1s</time></div><div class="event-line"><i class="event-dot blue"></i><span>pnpm test</span><time>now</time></div></section><section class="inspector-section"><div class="inspector-heading"><span>Modified</span><span>+3 −2</span></div><div class="change-file"><span>confirmation.tsx</span><span class="added">+3</span><span class="removed">−2</span></div></section></div></aside>
+      </div><div class="prototype-footer">C / Terminal First — highest execution density for expert workflows.</div>
+    </section>
+
+    <script>
+      const directionTabs = document.querySelectorAll('.direction-tab');
+      const directionScreens = document.querySelectorAll('.direction');
+
+      directionTabs.forEach((directionTab) => {
+        directionTab.addEventListener('click', () => {
+          const directionId = directionTab.dataset.direction;
+          directionTabs.forEach((tab) => tab.classList.toggle('active', tab === directionTab));
+          directionScreens.forEach((screen) => screen.classList.toggle('active', screen.dataset.screen === directionId));
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      });
+    </script>
+  </body>
+</html>

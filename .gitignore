@@ -1,0 +1,25 @@
+node_modules/
+dist/
+build/
+.turbo/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+apps/desktop/src-tauri/target/
+coverage/
+.vite/
+*.tsbuildinfo
+.piwin-local/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+apps/desktop/dist/
+apps/desktop/src-tauri/gen/
+
+# Playwright desktop UI e2e
+apps/desktop/test-results/
+apps/desktop/playwright-report/
+apps/desktop/blob-report/
+apps/desktop/playwright/.cache/

@@ -1,0 +1,94 @@
+import { describe, expect, it } from 'vitest';
+import { assertSafeFetchUrl, validateFetchUrl, webFetch } from './web-fetch.js';
+
+describe('validateFetchUrl', () => {
+  it('allows https', () => {
+    expect(validateFetchUrl('https://example.com/a', [])).toContain('https://example.com');
+  });
+  it('blocks file and localhost', () => {
+    expect(() => validateFetchUrl('file:///etc/passwd', ['file:'])).toThrow(/blocked|only http/);
+    expect(() => validateFetchUrl('http://127.0.0.1/x', [])).toThrow(/private|local|blocked/);
+    expect(() => validateFetchUrl('http://192.168.1.5/x', [])).toThrow(/private|local|blocked/);
+  });
+});
+
+describe('assertSafeFetchUrl DNS', () => {
+  it('blocks hostnames that resolve to private IPs', async () => {
+    await expect(
+      assertSafeFetchUrl('https://evil.example/', [], async () => ['10.0.0.5']),
+    ).rejects.toThrow(/SSRF|private/);
+  });
+
+  it('allows hostnames that resolve to public IPs', async () => {
+    const url = await assertSafeFetchUrl(
+      'https://example.com/',
+      [],
+      async () => ['93.184.216.34'],
+    );
+    expect(url).toContain('example.com');
+  });
+});
+
+describe('webFetch', () => {
+  it('extracts text from html via mock fetch', async () => {
+    const html =
+      '<html><head><title>Hello</title></head><body><p>World article</p></body></html>';
+    const result = await webFetch('https://example.com/post', {
+      fetchImpl: async () =>
+        new Response(html, {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        }),
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      config: { fetchMaxBytes: 10000, fetchTimeoutMs: 5000, fetchBlockedUrlPrefixes: [] },
+    });
+    expect(result.title).toBe('Hello');
+    expect(result.text.toLowerCase()).toContain('world');
+    expect(result.truncated).toBe(false);
+  });
+
+  it('revalidates redirects and blocks private hop', async () => {
+    let calls = 0;
+    await expect(
+      webFetch('https://example.com/start', {
+        maxRedirects: 3,
+        resolveHostAddresses: async (hostname) => {
+          if (hostname === 'example.com') return ['93.184.216.34'];
+          return ['127.0.0.1'];
+        },
+        fetchImpl: async (input) => {
+          calls += 1;
+          const url = String(input);
+          if (url.includes('/start')) {
+            return new Response(null, {
+              status: 302,
+              headers: { location: 'http://internal.local/secret' },
+            });
+          }
+          return new Response('should-not-reach', { status: 200 });
+        },
+        config: { fetchMaxBytes: 1000, fetchTimeoutMs: 5000, fetchBlockedUrlPrefixes: [] },
+      }),
+    ).rejects.toThrow(/private|local|SSRF|blocked/);
+    expect(calls).toBe(1);
+  });
+
+  it('enforces stream byte cap', async () => {
+    const body = 'x'.repeat(5000);
+    await expect(
+      webFetch('https://example.com/big', {
+        resolveHostAddresses: async () => ['93.184.216.34'],
+        fetchImpl: async () =>
+          new Response(body, {
+            status: 200,
+            headers: { 'content-type': 'text/plain' },
+          }),
+        config: {
+          fetchMaxBytes: 100,
+          fetchTimeoutMs: 5000,
+          fetchBlockedUrlPrefixes: [],
+        },
+      }),
+    ).rejects.toThrow(/too large|cap/);
+  });
+});
