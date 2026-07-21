@@ -1,5 +1,6 @@
 import type { AgentHost, AgentHostFactoryOptions, PermissionDecision } from '@piwin/contracts';
 import type { McpLifecycleManager } from '@piwin/mcp';
+import type { ProcessRegistry } from '@piwin/process';
 import { PiRpcAdapter } from './rpc-adapter.js';
 import { PiSdkAdapter, type PiSdkAdapterOptions, type PiSdkPermissionRequest } from './sdk-adapter.js';
 
@@ -20,6 +21,8 @@ export type CreateAgentHostOptions = AgentHostFactoryOptions & {
   lifecycleManager?: McpLifecycleManager;
   onExtensionUiRequest?: PiSdkAdapterOptions['onExtensionUiRequest'];
   onExtensionNotify?: PiSdkAdapterOptions['onExtensionNotify'];
+  /** Shared managed process registry (CE-PROC). */
+  processRegistry?: ProcessRegistry;
 };
 
 export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
@@ -47,6 +50,9 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
     if (options.onExtensionNotify) {
       rpcOptions.onExtensionNotify = options.onExtensionNotify;
     }
+    if (options.processRegistry) {
+      rpcOptions.processRegistry = options.processRegistry;
+    }
     return new PiRpcAdapter(rpcOptions);
   }
 
@@ -65,6 +71,9 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
   }
   if (options.onExtensionNotify) {
     sdkOptions.onExtensionNotify = options.onExtensionNotify;
+  }
+  if (options.processRegistry) {
+    sdkOptions.processRegistry = options.processRegistry;
   }
   return new PiSdkAdapter(sdkOptions);
 }

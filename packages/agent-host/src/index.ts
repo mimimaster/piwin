@@ -7,9 +7,19 @@ export { mapPiSessionEvent } from './event-map.js';
 export {
   evaluateBashPermission,
   evaluateWebPermission,
+  evaluateProcessPermission,
   resolveNonInteractiveDecision,
 } from './permission-policy.js';
-export type { PermissionEvaluation, WebPermissionAction } from './permission-policy.js';
+export type {
+  PermissionEvaluation,
+  WebPermissionAction,
+  ProcessPermissionAction,
+} from './permission-policy.js';
+export { buildProcessTools } from './process-tools.js';
+export type {
+  BuildProcessToolsOptions,
+  ProcessToolPermissionGate,
+} from './process-tools.js';
 export {
   createDefaultPiwinConfig,
   initPiwinConfig,

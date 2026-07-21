@@ -69,7 +69,7 @@ export type ProcessConfig = {
 
 export function createDefaultProcessConfig(): ProcessConfig {
   return {
-    enabled: false,
+    enabled: true,
     maxProcesses: 8,
     killOnSessionEnd: false,
     killOnHostDispose: true,

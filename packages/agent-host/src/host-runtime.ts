@@ -30,6 +30,7 @@ import {
   tryValidateMcpConfig,
   type McpLifecycleManager,
 } from '@piwin/mcp';
+import { createProcessRegistry, type ProcessRegistry } from '@piwin/process';
 import { createGitService } from '@piwin/git';
 import {
   getActiveTheme,
@@ -48,6 +49,7 @@ import {
   allowNetworkFetchHost,
   allowNetworkWebSearch,
   allowMcpServer,
+  listProjects,
   openOrCreateProject,
   setProjectTrust,
 } from '@piwin/project';
@@ -141,19 +143,36 @@ export class HostRuntime {
     ReturnType<typeof createTranscriptRecorder>
   >();
   private mcpManager: McpLifecycleManager | null = null;
+  private processRegistry: ProcessRegistry | null = null;
   private readonly options: HostRuntimeOptions;
   private ready = true;
 
   constructor(options: HostRuntimeOptions) {
     this.options = options;
     // Single process owner for Desktop UI lifecycle + SDK session tools.
-    const mcpManager = createMcpLifecycleManager(getPiwinRoot(options.piwinRoot));
+    const rootDir = getPiwinRoot(options.piwinRoot);
+    const mcpManager = createMcpLifecycleManager(rootDir);
     this.mcpManager = mcpManager;
+    const processRegistry = createProcessRegistry({
+      getTrustedProjectRoots: async () => {
+        try {
+          const projects = await listProjects(getPiwinProjectsPath(rootDir));
+          return projects
+            .filter((project) => project.trust === 'trusted')
+            .map((project) => project.path);
+        } catch {
+          return [];
+        }
+      },
+      onEvent: (event) => this.emitProcessEvent(event),
+    });
+    this.processRegistry = processRegistry;
     const createOptions: Parameters<typeof createAgentHost>[0] = {
       mode: options.mode,
       mock: options.mock === true,
       onPermissionRequest: async (request) => this.requestPermission(request),
       lifecycleManager: mcpManager,
+      processRegistry,
       onExtensionUiRequest: async (request) => this.requestExtensionUi(request),
       onExtensionNotify: (message, level) => {
         this.push({
@@ -177,6 +196,14 @@ export class HostRuntime {
   }
 
   async dispose(): Promise<void> {
+    if (this.processRegistry) {
+      try {
+        await this.processRegistry.dispose();
+      } catch {
+        // best-effort shutdown
+      }
+      this.processRegistry = null;
+    }
     if (this.mcpManager) {
       try {
         await this.mcpManager.dispose();
@@ -1193,6 +1220,44 @@ export class HostRuntime {
             ok: true,
           });
         }
+        case 'process/list': {
+          const registry = this.getProcessRegistry();
+          const filter: { sessionId?: string; projectPath?: string } = {};
+          if (command.sessionId) filter.sessionId = command.sessionId;
+          if (command.projectPath) filter.projectPath = command.projectPath;
+          const processes = registry.list(
+            Object.keys(filter).length > 0 ? filter : undefined,
+          );
+          return ok(requestId, 'process/list', { processes });
+        }
+        case 'process/get': {
+          const registry = this.getProcessRegistry();
+          const processRecord = registry.get(command.processId);
+          if (!processRecord) {
+            return fail(requestId, 'process/get', `Unknown process: ${command.processId}`);
+          }
+          return ok(requestId, 'process/get', { process: processRecord });
+        }
+        case 'process/start': {
+          // IPC start is host-authoritative (Desktop/CLI). Agent tools gate via process:start ask.
+          const registry = this.getProcessRegistry();
+          const processRecord = await registry.start(command.input);
+          return ok(requestId, 'process/start', { process: processRecord });
+        }
+        case 'process/logs': {
+          const registry = this.getProcessRegistry();
+          const chunks = registry.readLogs(command.query);
+          return ok(requestId, 'process/logs', {
+            processId: command.query.processId,
+            chunks,
+          });
+        }
+        case 'process/stop': {
+          // UI Stop is explicit user intent; tools still gate via process:stop ask.
+          const registry = this.getProcessRegistry();
+          const processRecord = await registry.stop(command.processId);
+          return ok(requestId, 'process/stop', { process: processRecord });
+        }
         default:
           return fail(requestId, 'unknown', 'Unhandled command');
       }
@@ -1366,6 +1431,82 @@ export class HostRuntime {
     };
   }
 
+
+  private getProcessRegistry(): ProcessRegistry {
+    if (!this.processRegistry) {
+      throw new Error('Process registry is not available');
+    }
+    return this.processRegistry;
+  }
+
+  private emitProcessEvent(event: {
+    type: string;
+    process?: unknown;
+    processId?: string;
+    exitCode?: number | null;
+    chunk?: unknown;
+  }): void {
+    const processRecord = event.process as { sessionId?: string } | undefined;
+    const sessionId =
+      (processRecord && typeof processRecord.sessionId === 'string'
+        ? processRecord.sessionId
+        : undefined) ??
+      (typeof event.processId === 'string'
+        ? this.processRegistry?.get(event.processId)?.sessionId
+        : undefined) ??
+      '';
+
+    if (!sessionId) {
+      return;
+    }
+
+    if (event.type === 'process/started' && event.process) {
+      this.push({
+        type: 'event',
+        sessionId,
+        event: {
+          type: 'process/started',
+          process: event.process as never,
+        },
+      });
+      return;
+    }
+    if (event.type === 'process/updated' && event.process) {
+      this.push({
+        type: 'event',
+        sessionId,
+        event: {
+          type: 'process/updated',
+          process: event.process as never,
+        },
+      });
+      return;
+    }
+    if (event.type === 'process/exited') {
+      this.push({
+        type: 'event',
+        sessionId,
+        event: {
+          type: 'process/exited',
+          processId: String(event.processId ?? ''),
+          ...(event.exitCode !== undefined ? { exitCode: event.exitCode } : {}),
+          ...(event.process ? { process: event.process as never } : {}),
+        },
+      });
+      return;
+    }
+    if (event.type === 'process/log' && event.chunk) {
+      this.push({
+        type: 'event',
+        sessionId,
+        event: {
+          type: 'process/log',
+          chunk: event.chunk as never,
+        },
+      });
+    }
+  }
+
   private getMcpManager(): McpLifecycleManager {
     if (!this.mcpManager) {
       // dispose() nulls the manager; recreate only if commands arrive after partial teardown.
@@ -1416,6 +1557,7 @@ export class HostRuntime {
         sessionSearch: true,
         sessionPin: true,
         usage: true,
+        process: true,
       },
     };
   }

@@ -24,6 +24,7 @@
     "@piwin/mcp": "workspace:*",
     "@piwin/media": "workspace:*",
     "@piwin/project": "workspace:*",
+    "@piwin/process": "workspace:*",
     "@piwin/session": "workspace:*",
     "@piwin/skills": "workspace:*",
     "@piwin/tools-web": "workspace:*",

@@ -63,6 +63,8 @@ export class HostClient {
   private mockBundledExtensionsInstalled = true;
   private mockDisabledPromptIds = new Set<string>();
   private mockActiveThemeId: 'piwin-dark' | 'piwin-light' = 'piwin-dark';
+  private mockProcesses = new Map<string, import('@piwin/contracts').ManagedProcessRecord>();
+  private mockProcessLogs = new Map<string, string>();
   private mockConfig: import('@piwin/contracts').PiwinConfig = {
     hostMode: 'sdk',
     providers: [],
@@ -222,6 +224,7 @@ export class HostClient {
               compaction: true,
               extensions: true,
               prompts: true,
+              process: true,
               sessionSearch: true,
               sessionPin: true,
               usage: true,
@@ -1072,6 +1075,105 @@ export class HostClient {
             enabled: command.enabled,
             disabledIds: [...this.mockDisabledPromptIds],
           },
+        };
+      }
+
+      case 'process/list':
+        return {
+          id,
+          type: 'response',
+          command: 'process/list',
+          success: true,
+          data: { processes: [...this.mockProcesses.values()] },
+        };
+      case 'process/get': {
+        const processRecord = this.mockProcesses.get(command.processId);
+        if (!processRecord) {
+          return {
+            id,
+            type: 'response',
+            command: 'process/get',
+            success: false,
+            error: `Unknown process: ${command.processId}`,
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'process/get',
+          success: true,
+          data: { process: processRecord },
+        };
+      }
+      case 'process/start': {
+        const processId = crypto.randomUUID();
+        const record: import('@piwin/contracts').ManagedProcessRecord = {
+          id: processId,
+          command: command.input.command,
+          argv: [...command.input.argv],
+          cwd: command.input.cwd,
+          status: 'running',
+          startedAt: new Date().toISOString(),
+          pid: 0,
+        };
+        if (command.input.sessionId) record.sessionId = command.input.sessionId;
+        if (command.input.projectPath) record.projectPath = command.input.projectPath;
+        if (command.input.label) record.label = command.input.label;
+        this.mockProcesses.set(processId, record);
+        this.mockProcessLogs.set(processId, `[mock] started ${command.input.command}\n`);
+        return {
+          id,
+          type: 'response',
+          command: 'process/start',
+          success: true,
+          data: { process: record },
+        };
+      }
+      case 'process/logs': {
+        const text = this.mockProcessLogs.get(command.query.processId) ?? '';
+        return {
+          id,
+          type: 'response',
+          command: 'process/logs',
+          success: true,
+          data: {
+            processId: command.query.processId,
+            chunks: text
+              ? [
+                  {
+                    processId: command.query.processId,
+                    stream: 'stdout' as const,
+                    text,
+                    at: new Date().toISOString(),
+                  },
+                ]
+              : [],
+          },
+        };
+      }
+      case 'process/stop': {
+        const existing = this.mockProcesses.get(command.processId);
+        if (!existing) {
+          return {
+            id,
+            type: 'response',
+            command: 'process/stop',
+            success: false,
+            error: `Unknown process: ${command.processId}`,
+          };
+        }
+        const stopped = {
+          ...existing,
+          status: 'stopped' as const,
+          exitedAt: new Date().toISOString(),
+        };
+        this.mockProcesses.set(command.processId, stopped);
+        return {
+          id,
+          type: 'response',
+          command: 'process/stop',
+          success: true,
+          data: { process: stopped },
         };
       }
       case 'mcp/status':

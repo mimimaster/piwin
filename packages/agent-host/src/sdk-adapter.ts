@@ -14,6 +14,7 @@ import {
   upsertSessionRecord,
 } from '@piwin/session';
 import { createMcpLifecycleManager, type McpLifecycleManager } from '@piwin/mcp';
+import { createProcessRegistry, type ProcessRegistry } from '@piwin/process';
 import { createMockSessionHandle } from './mock-session.js';
 import { createProductShellSession } from './product-shell-session.js';
 import { mapPiSessionEvent } from './event-map.js';
@@ -35,6 +36,8 @@ import {
 } from './extension-ui-bridge.js';
 import { createMcpSessionBridge } from './mcp-session-bridge.js';
 import { buildGatedBashToolDefinition } from './gated-bash-tool.js';
+import { buildProcessTools } from './process-tools.js';
+import { listProjects } from '@piwin/project';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -66,6 +69,8 @@ export type PiSdkAdapterOptions = {
     message: string,
     level: 'info' | 'warning' | 'error',
   ) => void;
+  /** Shared CE-PROC registry from HostRuntime; adapter owns one if omitted. */
+  processRegistry?: ProcessRegistry;
 };
 
 /**
@@ -79,6 +84,7 @@ export class PiSdkAdapter implements AgentHost {
   private readonly sessionCleanups = new Map<string, () => Promise<void>>();
   private readonly options: PiSdkAdapterOptions;
   /** Only set when this adapter owns the manager (not injected by HostRuntime). */
+  private ownedProcessRegistry: ProcessRegistry | null = null;
   private ownedLifecycleManager: McpLifecycleManager | null = null;
 
   constructor(options: PiSdkAdapterOptions = {}) {
@@ -210,6 +216,14 @@ export class PiSdkAdapter implements AgentHost {
     }
     this.sessionCleanups.clear();
     this.sessions.clear();
+    if (this.ownedProcessRegistry) {
+      try {
+        await this.ownedProcessRegistry.dispose();
+      } catch {
+        // best-effort shutdown
+      }
+      this.ownedProcessRegistry = null;
+    }
     if (this.ownedLifecycleManager) {
       try {
         await this.ownedLifecycleManager.dispose();
@@ -341,8 +355,39 @@ async function createPiSdkSession(
   });
   const executionMode = input.executionMode ?? 'agent';
   const chatMode = executionMode === 'chat';
+
+  // CE-PROC managed process tools (shared registry with HostRuntime when provided).
+  let processRegistry = adapterOptions.processRegistry;
+  if (!processRegistry) {
+    const configProcess = config.process;
+    processRegistry = createProcessRegistry({
+      ...(configProcess ? { config: configProcess } : {}),
+      getTrustedProjectRoots: async () => {
+        try {
+          const projects = await listProjects(getPiwinProjectsPath(rootDir));
+          return projects
+            .filter((project) => project.trust === 'trusted')
+            .map((project) => project.path);
+        } catch {
+          return [];
+        }
+      },
+    });
+  }
+  const processToolOptions: import('./process-tools.js').BuildProcessToolsOptions = {
+    registry: processRegistry,
+    projectPath: input.projectPath,
+    sessionId,
+  };
+  if (requestPermission) {
+    processToolOptions.requestPermission = requestPermission;
+  }
+  const processTools = chatMode ? [] : buildProcessTools(processToolOptions);
+
   // CE-MODE light: chat strips host custom tools and gated bash.
-  const hostTools = chatMode ? [] : [...webTools, ...mcpBridge.tools, planTool];
+  const hostTools = chatMode
+    ? []
+    : [...webTools, ...mcpBridge.tools, planTool, ...processTools];
   const customTools = toPiCustomTools(hostTools);
 
   // Replace built-in bash with permission-gated bash (hard-deny + ask UI).

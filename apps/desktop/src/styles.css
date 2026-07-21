@@ -3971,3 +3971,41 @@ textarea.drop-active {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+
+
+/* CE-PROC managed processes in Execution inspector */
+.execution-process-list { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.execution-process-card {
+  border: 1px solid var(--border, #2a2a2e);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--panel, #1a1a1e) 92%, transparent);
+}
+.execution-process-row { display: flex; gap: 8px; justify-content: space-between; align-items: flex-start; }
+.execution-process-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.execution-process-meta strong { font-size: 12px; }
+.execution-process-cmd {
+  font-size: 10px;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+  display: block;
+}
+.execution-process-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.execution-process-logs {
+  margin: 8px 0 0;
+  max-height: 140px;
+  overflow: auto;
+  font-size: 10px;
+  line-height: 1.35;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.25);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.execution-process-card.status-running { border-color: color-mix(in srgb, #3dd68c 45%, var(--border, #2a2a2e)); }
+.execution-process-card.status-error,
+.execution-process-card.status-stopped { opacity: 0.85; }

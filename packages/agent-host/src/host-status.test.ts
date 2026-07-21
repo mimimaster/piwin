@@ -23,6 +23,7 @@ describe('HostRuntime status capabilities', () => {
     expect(data.capabilities.sessionPin).toBe(true);
     expect(data.capabilities.sessionSearch).toBe(true);
     expect(data.capabilities.usage).toBe(true);
+    expect(data.capabilities.process).toBe(true);
     await runtime.dispose();
   });
 

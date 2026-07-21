@@ -165,7 +165,7 @@
 | CE-MEM-01..04 | Memory store, tools, inject, Settings/CLI | W1 | [`w1-memory-process-chat.md`](./specs/w1-memory-process-chat.md) | Queued |
 | CE-MEM-05 | Silent memory extract (opt-in) | W1.5 | same | Future |
 | CE-MEM-06 | Memory organizer | later | same | Future |
-| CE-PROC-01..04 | ManagedProcess registry + tools + UI | W1 | same | Queued |
+| CE-PROC-01..04 | ManagedProcess registry + tools + UI | W1 | same | **Done 2026-07-21** (WT-2) |
 | CE-CHAT-01..05 | Pin, search, edit-resend, modes light | W1 | same | Queued |
 | CE-OBS-01..02 | Token/context usage events + UI | W1 | same | Queued |
 | CE-SUB-01..05 | Worktree sub-agent, apply policy, concurrency | W2 | [`w2-subagent-compaction-pty.md`](./specs/w2-subagent-compaction-pty.md) | Queued |

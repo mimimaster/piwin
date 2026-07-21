@@ -76,6 +76,32 @@ function parametersForHostTool(tool: HostToolDefinition): unknown {
       note: Type.Optional(Type.String({ description: 'Optional short note' })),
     });
   }
+  if (tool.name === 'process_start') {
+    return Type.Object({
+      command: Type.String({ description: 'Executable to run (no shell)' }),
+      argv: Type.Array(Type.String(), { description: 'Arguments after executable' }),
+      cwd: Type.String({ description: 'Working directory under trusted project' }),
+      label: Type.Optional(Type.String({ description: 'Optional UI label' })),
+    });
+  }
+  if (tool.name === 'process_list') {
+    return Type.Object({
+      sessionId: Type.Optional(Type.String()),
+      projectPath: Type.Optional(Type.String()),
+    });
+  }
+  if (tool.name === 'process_logs') {
+    return Type.Object({
+      processId: Type.String({ description: 'Managed process id' }),
+      offset: Type.Optional(Type.Number()),
+      limit: Type.Optional(Type.Number()),
+    });
+  }
+  if (tool.name === 'process_stop') {
+    return Type.Object({
+      processId: Type.String({ description: 'Managed process id' }),
+    });
+  }
   // MCP / generic tools: free-form object arguments
   return Type.Record(Type.String(), Type.Any());
 }

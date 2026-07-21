@@ -4,7 +4,7 @@
  */
 
 import type { ReactElement, ReactNode } from 'react';
-import type { ContextUsageSnapshot, SessionPlan } from '@piwin/contracts';
+import type { ManagedProcessRecord, ContextUsageSnapshot, SessionPlan } from '@piwin/contracts';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import { ToolCallCard } from './tool-call-card';
@@ -31,6 +31,12 @@ export type RightPanelProps = {
   changesCount?: number;
   toolCallDensity?: ToolCallDensity;
   usageSnapshot?: ContextUsageSnapshot | null;
+  /** CE-PROC managed processes for Execution panel. */
+  processes?: ManagedProcessRecord[];
+  processLogsById?: Record<string, string>;
+  onStopProcess?: (processId: string) => void;
+  onRefreshProcesses?: () => void;
+  onLoadProcessLogs?: (processId: string) => void;
 };
 
 const TAB_ITEMS: { id: RightPanelTab; label: string; icon: ReactElement }[] = [
@@ -161,6 +167,80 @@ export function RightPanel(props: RightPanelProps): ReactElement | null {
                   ))}
                 </div>
               )}
+            </section>
+
+            <section className="execution-section" data-testid="execution-processes">
+              <div className="execution-section-heading">
+                <span>Processes</span>
+                <span>
+                  {(props.processes ?? []).filter((item) => item.status === 'running' || item.status === 'starting').length}
+                  {' '}
+                  active
+                </span>
+              </div>
+              {(props.processes ?? []).length === 0 ? (
+                <div className="execution-empty muted">
+                  Long-running managed processes (dev servers) appear here. Start via process_start tool.
+                </div>
+              ) : (
+                <div className="execution-process-list">
+                  {(props.processes ?? []).map((proc) => {
+                    const logText = props.processLogsById?.[proc.id] ?? '';
+                    const isActive = proc.status === 'running' || proc.status === 'starting';
+                    return (
+                      <div
+                        key={proc.id}
+                        className={`execution-process-card status-${proc.status}`}
+                        data-testid={`process-card-${proc.id}`}
+                      >
+                        <div className="execution-process-row">
+                          <div className="execution-process-meta">
+                            <strong>{proc.label || proc.command}</strong>
+                            <span className="muted">
+                              {proc.status}
+                              {typeof proc.pid === 'number' ? ` · pid ${proc.pid}` : ''}
+                            </span>
+                            <code className="execution-process-cmd">
+                              {proc.command} {proc.argv.join(' ')}
+                            </code>
+                          </div>
+                          <div className="execution-process-actions">
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-compact"
+                              onClick={() => props.onLoadProcessLogs?.(proc.id)}
+                            >
+                              Logs
+                            </button>
+                            {isActive ? (
+                              <button
+                                type="button"
+                                className="btn btn-compact"
+                                data-testid={`process-stop-${proc.id}`}
+                                onClick={() => props.onStopProcess?.(proc.id)}
+                              >
+                                Stop
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                        {logText ? (
+                          <pre className="execution-process-logs">{logText.slice(-4000)}</pre>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {props.onRefreshProcesses ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-compact"
+                  onClick={() => props.onRefreshProcesses?.()}
+                >
+                  Refresh processes
+                </button>
+              ) : null}
             </section>
 
             {errorCount > 0 ? (

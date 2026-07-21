@@ -97,6 +97,25 @@ export function evaluateWebPermission(
   };
 }
 
+
+export type ProcessPermissionAction = 'process:start' | 'process:stop';
+
+/**
+ * Managed process tools: start/stop always ask (Desktop) or deny non-interactive.
+ * list/logs are read-only and are not gated here.
+ */
+export function evaluateProcessPermission(
+  action: ProcessPermissionAction,
+): PermissionEvaluation {
+  if (action === 'process:start') {
+    return { decision: 'ask', reason: 'process-start' };
+  }
+  if (action === 'process:stop') {
+    return { decision: 'ask', reason: 'process-stop' };
+  }
+  return { decision: 'deny', reason: 'unknown-process-action' };
+}
+
 /** Non-interactive CLI: never auto-approve ask. */
 export function resolveNonInteractiveDecision(
   evaluation: PermissionEvaluation,

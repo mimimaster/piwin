@@ -760,6 +760,94 @@ async function commandMcp(argv: string[]): Promise<void> {
   process.exitCode = 1;
 }
 
+async function commandProcess(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? 'list';
+  const mock = parseMock(argv);
+  const runtime = new HostRuntime({ mode: 'sdk', mock });
+
+  try {
+    if (sub === 'list') {
+      const projectPath = hasFlag(argv, '--project') ? parseProject(argv) : undefined;
+      const command: HostCommand = projectPath
+        ? { type: 'process/list', projectPath }
+        : { type: 'process/list' };
+      const response = await runtime.handleCommand(command);
+      if (!response.success) {
+        console.error(response.error);
+        process.exitCode = 1;
+        return;
+      }
+      const processes = (response.data as { processes: Array<Record<string, unknown>> }).processes ?? [];
+      if (processes.length === 0) {
+        console.log('(no managed processes in this host process)');
+        console.log('Note: processes live in the host that started them (Desktop host serve or chat session).');
+        return;
+      }
+      for (const item of processes) {
+        const label = item.label ? String(item.label) : '';
+        const pid = item.pid !== undefined ? String(item.pid) : '-';
+        console.log(
+          `${item.status}\t${item.id}\tpid=${pid}\t${item.command} ${(item.argv as string[] | undefined)?.join(' ') ?? ''}\t${label}`.trimEnd(),
+        );
+      }
+      return;
+    }
+
+    if (sub === 'logs') {
+      const processId = argv[2];
+      if (!processId) {
+        console.error('Usage: piwin process logs <processId> [--limit N]');
+        process.exitCode = 1;
+        return;
+      }
+      const limitRaw = readOption(argv, '--limit');
+      const query: { processId: string; limit?: number } = { processId };
+      if (limitRaw) {
+        query.limit = Number(limitRaw);
+      }
+      const response = await runtime.handleCommand({ type: 'process/logs', query });
+      if (!response.success) {
+        console.error(response.error);
+        process.exitCode = 1;
+        return;
+      }
+      const chunks = (response.data as { chunks: Array<{ stream: string; text: string; at: string }> }).chunks ?? [];
+      for (const chunk of chunks) {
+        process.stdout.write(`[${chunk.stream}] ${chunk.text}`);
+        if (!chunk.text.endsWith('\n')) process.stdout.write('\n');
+      }
+      if (chunks.length === 0) {
+        console.log('(no logs)');
+      }
+      return;
+    }
+
+    if (sub === 'stop') {
+      const processId = argv[2];
+      if (!processId) {
+        console.error('Usage: piwin process stop <processId>');
+        process.exitCode = 1;
+        return;
+      }
+      const response = await runtime.handleCommand({ type: 'process/stop', processId });
+      if (!response.success) {
+        console.error(response.error);
+        process.exitCode = 1;
+        return;
+      }
+      const processRecord = (response.data as { process: { id: string; status: string } }).process;
+      console.log(`${processRecord.status}\t${processRecord.id}`);
+      return;
+    }
+
+    console.error(`Unknown process subcommand: ${sub}`);
+    console.error('Usage: piwin process list|logs|stop');
+    process.exitCode = 1;
+  } finally {
+    await runtime.dispose();
+  }
+}
+
 async function commandHostServe(argv: string[]): Promise<void> {
   const mode = parseMode(argv);
   const mock = parseMock(argv);
@@ -865,6 +953,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'mcp') {
     await commandMcp(argv);
+    return;
+  }
+  if (command === 'process') {
+    await commandProcess(argv);
     return;
   }
   if (command === 'host' && argv[1] === 'serve') {

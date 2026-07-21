@@ -17,6 +17,7 @@ import type {
   ModelRef,
   PermissionDecision,
   PiwinConfig,
+  ManagedProcessRecord,
   SessionPlan,
   SessionSearchHit,
   SessionSummary,
@@ -193,6 +194,8 @@ export function App() {
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [rightPanelTab, setRightPanelTab] = useState<RightPanelTab>('execution');
+  const [managedProcesses, setManagedProcesses] = useState<ManagedProcessRecord[]>([]);
+  const [processLogsById, setProcessLogsById] = useState<Record<string, string>>({});
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
   const [executionMode, setExecutionMode] = useState<ExecutionMode>('agent');
   const [remoteSearchHits, setRemoteSearchHits] = useState<SessionSearchHit[] | null>(null);
@@ -472,6 +475,20 @@ export function App() {
       }
       if (message.type === 'event') {
         dispatch({ type: 'event', event: message.event });
+        if (
+          message.event.type === 'process/started' ||
+          message.event.type === 'process/updated' ||
+          message.event.type === 'process/exited'
+        ) {
+          void refreshManagedProcesses();
+        }
+        if (message.event.type === 'process/log') {
+          const chunk = message.event.chunk;
+          setProcessLogsById((current) => ({
+            ...current,
+            [chunk.processId]: `${current[chunk.processId] ?? ''}${chunk.text}`,
+          }));
+        }
         return;
       }
       if (message.type === 'permission/request') {
@@ -1227,6 +1244,50 @@ export function App() {
     setRightPanelOpen(true);
     setMoreMenuOpen(false);
   }
+
+  const refreshManagedProcesses = useCallback(async (): Promise<void> => {
+    const response = await hostClient.request({ type: 'process/list' });
+    if (!response.success) {
+      return;
+    }
+    const processes =
+      (response.data as { processes?: ManagedProcessRecord[] } | undefined)?.processes ?? [];
+    setManagedProcesses(processes);
+  }, [hostClient]);
+
+  const loadProcessLogs = useCallback(
+    async (processId: string): Promise<void> => {
+      const response = await hostClient.request({
+        type: 'process/logs',
+        query: { processId },
+      });
+      if (!response.success) {
+        return;
+      }
+      const chunks =
+        (response.data as { chunks?: Array<{ text: string }> } | undefined)?.chunks ?? [];
+      const text = chunks.map((chunk) => chunk.text).join('');
+      setProcessLogsById((current) => ({ ...current, [processId]: text }));
+    },
+    [hostClient],
+  );
+
+  const stopManagedProcess = useCallback(
+    async (processId: string): Promise<void> => {
+      const response = await hostClient.request({ type: 'process/stop', processId });
+      if (response.success) {
+        await refreshManagedProcesses();
+        await loadProcessLogs(processId);
+      }
+    },
+    [hostClient, refreshManagedProcesses, loadProcessLogs],
+  );
+
+  useEffect(() => {
+    if (rightPanelOpen && rightPanelTab === 'execution') {
+      void refreshManagedProcesses();
+    }
+  }, [rightPanelOpen, rightPanelTab, refreshManagedProcesses]);
 
   function openRailPanel(
     nav:
@@ -2195,6 +2256,17 @@ export function App() {
         tools={sessionTools}
         plan={sessionPlan}
         toolCallDensity={toolCallDensity}
+        processes={managedProcesses}
+        processLogsById={processLogsById}
+        onStopProcess={(processId) => {
+          void stopManagedProcess(processId);
+        }}
+        onRefreshProcesses={() => {
+          void refreshManagedProcesses();
+        }}
+        onLoadProcessLogs={(processId) => {
+          void loadProcessLogs(processId);
+        }}
         usageSnapshot={state.contextUsage}
         changesContent={
           <ChangesPanel projectPath={state.projectPath} request={requestGit as never} />

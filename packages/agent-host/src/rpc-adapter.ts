@@ -9,6 +9,7 @@ import { mapPiSessionEvent } from './event-map.js';
 import { createMockSessionHandle } from './mock-session.js';
 import { PiSdkAdapter, type PiSdkAdapterOptions } from './sdk-adapter.js';
 import type { McpLifecycleManager } from '@piwin/mcp';
+import type { ProcessRegistry } from '@piwin/process';
 
 export type PiRpcAdapterOptions = {
   /** e.g. "pi" or absolute path (stock pi binary; unused when using SDK fallback) */
@@ -20,6 +21,7 @@ export type PiRpcAdapterOptions = {
   onPermissionRequest?: PiSdkAdapterOptions['onPermissionRequest'];
   onExtensionUiRequest?: PiSdkAdapterOptions['onExtensionUiRequest'];
   onExtensionNotify?: PiSdkAdapterOptions['onExtensionNotify'];
+  processRegistry?: ProcessRegistry;
   /**
    * When true (default), real sessions use PiSdkAdapter so extensions/tools load.
    * Stock `pi --mode rpc` cannot register custom tools (ADR 0008 / D-EXT-07).
@@ -151,6 +153,9 @@ export class PiRpcAdapter implements AgentHost {
       }
       if (this.options.onExtensionNotify) {
         sdkOptions.onExtensionNotify = this.options.onExtensionNotify;
+      }
+      if (this.options.processRegistry) {
+        sdkOptions.processRegistry = this.options.processRegistry;
       }
       this.sdkBackend = new PiSdkAdapter(sdkOptions);
     }

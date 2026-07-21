@@ -8,6 +8,7 @@
     { "path": "packages/skills" },
     { "path": "packages/mcp" },
     { "path": "packages/tools-web" },
+    { "path": "packages/process" },
     { "path": "packages/git" },
     { "path": "packages/theme" },
     { "path": "packages/pet" },
