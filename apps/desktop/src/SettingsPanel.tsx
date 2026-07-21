@@ -13,6 +13,7 @@ import { ExtensionsPanel, type ExtensionsPanelProps } from './ExtensionsPanel';
 import { PromptsPanel, type PromptsPanelProps } from './PromptsPanel';
 import { ThemePanel, type ThemePanelProps } from './ThemePanel';
 import { PetPanel, type PetPanelProps } from './PetPanel';
+import { MemoryPanel, type MemoryPanelProps } from './MemoryPanel';
 
 type SettingsPanelProps = {
   request: (command: {
@@ -30,6 +31,7 @@ type SettingsPanelProps = {
   requestPrompts: PromptsPanelProps['request'];
   requestTheme: ThemePanelProps['request'];
   requestPet: PetPanelProps['request'];
+  requestMemory: MemoryPanelProps['request'];
   onThemeApplied: ThemePanelProps['onApplied'];
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
   initialSection?: SettingsSectionId;
@@ -45,7 +47,8 @@ type SettingsSectionId =
   | 'extensions'
   | 'prompts'
   | 'tools'
-  | 'session';
+  | 'session'
+  | 'memory';
 
 type DraftWeb = {
   searchProvider: WebConfig['searchProvider'];
@@ -99,6 +102,7 @@ export function SettingsPanel({
   requestPrompts,
   requestTheme,
   requestPet,
+  requestMemory,
   onThemeApplied,
   onPetActiveChanged,
   initialSection,
@@ -190,6 +194,7 @@ export function SettingsPanel({
     { id: 'skills', label: 'Skills', group: 'Agent' },
     { id: 'extensions', label: 'Extensions', group: 'Agent' },
     { id: 'prompts', label: 'Prompts', group: 'Agent' },
+    { id: 'memory', label: 'Memory', group: 'Agent' },
     { id: 'tools', label: 'Tools & MCPs', group: 'System' },
     { id: 'session', label: 'Sessions', group: 'System' },
   ];
@@ -348,6 +353,12 @@ export function SettingsPanel({
         ) : null}
 
 
+
+        {settingsNav === 'memory' || settingsNav === 'agents' ? (
+        <div className="settings-card" data-testid="settings-memory">
+          <MemoryPanel projectPath={projectPath} request={requestMemory} variant="inline" />
+        </div>
+        ) : null}
 
         {settingsNav === 'tools' || settingsNav === 'agents' ? (
         <div className="settings-card">

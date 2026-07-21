@@ -14,6 +14,7 @@
     { "path": "packages/pet" },
     { "path": "packages/artifact" },
     { "path": "packages/media" },
+    { "path": "packages/memory" },
     { "path": "packages/marketplace" },
     { "path": "packages/ui-kit" },
     { "path": "apps/cli" }

@@ -7,12 +7,14 @@ export { mapPiSessionEvent } from './event-map.js';
 export {
   evaluateBashPermission,
   evaluateWebPermission,
+  evaluateMemoryPermission,
   evaluateProcessPermission,
   resolveNonInteractiveDecision,
 } from './permission-policy.js';
 export type {
   PermissionEvaluation,
   WebPermissionAction,
+  MemoryPermissionAction,
   ProcessPermissionAction,
 } from './permission-policy.js';
 export { buildProcessTools } from './process-tools.js';
@@ -30,6 +32,7 @@ export {
   getPiwinRoot,
   getPiwinConfigPath,
   getPiwinMediaDir,
+  getPiwinMemoryDir,
   getPiwinLogsDir,
   getPiwinProjectsPath,
   getPiwinSessionIndexPath,
@@ -91,3 +94,11 @@ export {
 export type { ProviderValidationIssue } from './provider-validation.js';
 export { createSecretResolver } from './secret-resolver.js';
 export type { SecretResolver, SecretResolveReport } from './secret-resolver.js';
+
+export { buildMemoryTools } from './memory-tools.js';
+export type { BuildMemoryToolsOptions } from './memory-tools.js';
+export {
+  buildMemoryOverviewInjection,
+  shouldInjectMemoryOverview,
+} from './memory-inject.js';
+

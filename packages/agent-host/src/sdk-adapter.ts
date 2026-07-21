@@ -37,6 +37,8 @@ import {
 import { createMcpSessionBridge } from './mcp-session-bridge.js';
 import { buildGatedBashToolDefinition } from './gated-bash-tool.js';
 import { buildProcessTools } from './process-tools.js';
+import { createMemoryStore, projectKeyFromPath } from '@piwin/memory';
+import { buildMemoryTools } from './memory-tools.js';
 import { listProjects } from '@piwin/project';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -384,10 +386,27 @@ async function createPiSdkSession(
   }
   const processTools = chatMode ? [] : buildProcessTools(processToolOptions);
 
+  const memoryEnabled = config.memory?.enabled === true;
+  const memoryStore = createMemoryStore({
+    piwinRoot: rootDir,
+    ...(typeof config.memory?.maxOverviewChars === 'number'
+      ? { maxOverviewChars: config.memory.maxOverviewChars }
+      : {}),
+  });
+  const memoryToolOptions: import('./memory-tools.js').BuildMemoryToolsOptions = {
+    store: memoryStore,
+    enabled: memoryEnabled && !chatMode,
+    defaultProjectKey: projectKeyFromPath(input.projectPath),
+  };
+  if (requestPermission) {
+    memoryToolOptions.requestPermission = requestPermission;
+  }
+  const memoryTools = buildMemoryTools(memoryToolOptions);
+
   // CE-MODE light: chat strips host custom tools and gated bash.
   const hostTools = chatMode
     ? []
-    : [...webTools, ...mcpBridge.tools, planTool, ...processTools];
+    : [...webTools, ...mcpBridge.tools, planTool, ...processTools, ...memoryTools];
   const customTools = toPiCustomTools(hostTools);
 
   // Replace built-in bash with permission-gated bash (hard-deny + ask UI).
@@ -493,7 +512,7 @@ async function createPiSdkSession(
   }
 
   console.info(
-    `[piwin] session tools mode=${executionMode} custom=${customTools.length} (web=${webTools.length}, mcp=${mcpBridge.toolCount}) skills=${skillPaths.length} extensions=${extensionPaths.length} prompts=${promptPaths.length}`,
+    `[piwin] session tools mode=${executionMode} custom=${customTools.length} (web=${webTools.length}, mcp=${mcpBridge.toolCount}, memory=${memoryTools.length}) skills=${skillPaths.length} extensions=${extensionPaths.length} prompts=${promptPaths.length}`,
   );
 
   const handle = wrapPiSession(piSession, sessionId);

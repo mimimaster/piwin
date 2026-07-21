@@ -20,6 +20,10 @@ export function getPiwinMediaDir(rootDir: string): string {
   return join(rootDir, 'media');
 }
 
+export function getPiwinMemoryDir(rootDir: string): string {
+  return join(rootDir, 'memory');
+}
+
 export function getPiwinLogsDir(rootDir: string): string {
   return join(rootDir, 'logs');
 }

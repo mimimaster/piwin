@@ -23,6 +23,7 @@
     "@piwin/contracts": "workspace:*",
     "@piwin/mcp": "workspace:*",
     "@piwin/media": "workspace:*",
+    "@piwin/memory": "workspace:*",
     "@piwin/project": "workspace:*",
     "@piwin/process": "workspace:*",
     "@piwin/session": "workspace:*",

@@ -41,6 +41,9 @@ importers:
       '@piwin/media':
         specifier: workspace:*
         version: link:../../packages/media
+      '@piwin/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@piwin/pet':
         specifier: workspace:*
         version: link:../../packages/pet
@@ -145,6 +148,9 @@ importers:
       '@piwin/media':
         specifier: workspace:*
         version: link:../media
+      '@piwin/memory':
+        specifier: workspace:*
+        version: link:../memory
       '@piwin/pet':
         specifier: workspace:*
         version: link:../pet
@@ -260,6 +266,22 @@ importers:
         version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
 
   packages/media:
+    dependencies:
+      '@piwin/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
+
+  packages/memory:
     dependencies:
       '@piwin/contracts':
         specifier: workspace:*

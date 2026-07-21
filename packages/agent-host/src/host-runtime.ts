@@ -31,6 +31,13 @@ import {
   type McpLifecycleManager,
 } from '@piwin/mcp';
 import { createProcessRegistry, type ProcessRegistry } from '@piwin/process';
+import { createMemoryStore, projectKeyFromPath } from '@piwin/memory';
+import type { MemoryStore } from '@piwin/memory';
+import {
+  buildMemoryOverviewInjection,
+  prependMemoryOverview,
+  shouldInjectMemoryOverview,
+} from './memory-inject.js';
 import { createGitService } from '@piwin/git';
 import {
   getActiveTheme,
@@ -144,6 +151,7 @@ export class HostRuntime {
   >();
   private mcpManager: McpLifecycleManager | null = null;
   private processRegistry: ProcessRegistry | null = null;
+  private memoryStore: MemoryStore | null = null;
   private readonly options: HostRuntimeOptions;
   private ready = true;
 
@@ -636,6 +644,19 @@ export class HostRuntime {
           ) {
             promptInput.text =
               `${formatPlanForModelContext(activePlan)}\n\n${promptInput.text}`;
+          }
+          try {
+            promptInput.text = await this.maybeInjectMemoryOverview(
+              command.sessionId,
+              promptInput.text,
+            );
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `memory overview inject failed: ${message}`,
+            });
           }
           this.sessionLastPromptText.set(command.sessionId, command.input.text);
           // Ensure a live session exists after truncate (product shell rebuild).
@@ -1258,6 +1279,59 @@ export class HostRuntime {
           const processRecord = await registry.stop(command.processId);
           return ok(requestId, 'process/stop', { process: processRecord });
         }
+
+        case 'memory/list': {
+          await this.requireMemoryEnabled();
+          const store = this.getMemoryStore();
+          const records = await store.list(command.filter ?? {});
+          return ok(requestId, 'memory/list', { records });
+        }
+        case 'memory/read': {
+          await this.requireMemoryEnabled();
+          const store = this.getMemoryStore();
+          const record = await store.read(command.memoryId);
+          return ok(requestId, 'memory/read', { record });
+        }
+        case 'memory/search': {
+          await this.requireMemoryEnabled();
+          const store = this.getMemoryStore();
+          const hits = await store.search(command.query);
+          return ok(requestId, 'memory/search', { hits });
+        }
+        case 'memory/write': {
+          await this.requireMemoryEnabled();
+          const store = this.getMemoryStore();
+          const record = await store.write(command.input);
+          return ok(requestId, 'memory/write', { record });
+        }
+        case 'memory/update': {
+          await this.requireMemoryEnabled();
+          const store = this.getMemoryStore();
+          const record = await store.update(command.input);
+          return ok(requestId, 'memory/update', { record });
+        }
+        case 'memory/delete': {
+          await this.requireMemoryEnabled();
+          const store = this.getMemoryStore();
+          const result = await store.delete(command.memoryId);
+          return ok(requestId, 'memory/delete', result);
+        }
+        case 'memory/accept': {
+          await this.requireMemoryEnabled();
+          const store = this.getMemoryStore();
+          const record = await store.accept(command.memoryId);
+          return ok(requestId, 'memory/accept', { record });
+        }
+        case 'memory/quota': {
+          await this.requireMemoryEnabled();
+          const store = this.getMemoryStore();
+          const quotaOptions: { scope?: 'global' | 'project'; projectKey?: string } = {};
+          if (command.scope) quotaOptions.scope = command.scope;
+          if (command.projectKey) quotaOptions.projectKey = command.projectKey;
+          const summaries = await store.quotaSummary(quotaOptions);
+          return ok(requestId, 'memory/quota', { summaries });
+        }
+
         default:
           return fail(requestId, 'unknown', 'Unhandled command');
       }
@@ -1432,6 +1506,68 @@ export class HostRuntime {
   }
 
 
+
+  private getMemoryStore(): MemoryStore {
+    if (!this.memoryStore) {
+      const rootDir = getPiwinRoot(this.options.piwinRoot);
+      this.memoryStore = createMemoryStore({ piwinRoot: rootDir });
+    }
+    return this.memoryStore;
+  }
+
+  private async requireMemoryEnabled(): Promise<void> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const config = await loadPiwinConfig(rootDir);
+    if (config.memory?.enabled !== true) {
+      throw new Error(
+        'Memory is disabled. Enable with config.memory.enabled=true (Settings → Agent → Memory or config/set).',
+      );
+    }
+  }
+
+  private async maybeInjectMemoryOverview(
+    sessionId: string,
+    promptText: string,
+  ): Promise<string> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const config = await loadPiwinConfig(rootDir);
+    const projectPath = this.sessionProjects.get(sessionId);
+    let projectTrusted = false;
+    let projectKey: string | undefined;
+    if (projectPath) {
+      projectKey = projectKeyFromPath(projectPath);
+      try {
+        const projectsPath = getPiwinProjectsPath(rootDir);
+        const project = await openOrCreateProject(projectsPath, projectPath);
+        projectTrusted = project.trust === 'trusted';
+      } catch {
+        projectTrusted = false;
+      }
+    }
+    const injectGate: { projectTrusted: boolean; memoryConfig?: typeof config.memory } = {
+      projectTrusted,
+    };
+    if (config.memory) {
+      injectGate.memoryConfig = config.memory;
+    }
+    if (!shouldInjectMemoryOverview(injectGate)) {
+      return promptText;
+    }
+    const store = this.getMemoryStore();
+    const injectOptions: {
+      store: MemoryStore;
+      projectKey?: string;
+      maxChars?: number;
+      writeCache: boolean;
+    } = { store, writeCache: true };
+    if (projectKey) injectOptions.projectKey = projectKey;
+    if (typeof config.memory?.maxOverviewChars === 'number') {
+      injectOptions.maxChars = config.memory.maxOverviewChars;
+    }
+    const overview = await buildMemoryOverviewInjection(injectOptions);
+    return prependMemoryOverview(promptText, overview);
+  }
+
   private getProcessRegistry(): ProcessRegistry {
     if (!this.processRegistry) {
       throw new Error('Process registry is not available');
@@ -1554,6 +1690,7 @@ export class HostRuntime {
           ? { rpcSdkFallback: true }
           : {}),
         extensionUiBridge: true,
+        memory: true,
         sessionSearch: true,
         sessionPin: true,
         usage: true,

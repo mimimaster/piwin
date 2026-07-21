@@ -21,6 +21,7 @@
     "@piwin/marketplace": "workspace:*",
     "@piwin/pet": "workspace:*",
     "@piwin/theme": "workspace:*",
+    "@piwin/memory": "workspace:*",
     "@piwin/media": "workspace:*"
   },
   "devDependencies": {
