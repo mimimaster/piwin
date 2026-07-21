@@ -1075,6 +1075,69 @@ textarea {
   padding: 0 4px;
   font-size: 0.92em;
 }
+
+.md-math-display {
+  margin: 0.6em 0 0.9em;
+  overflow-x: auto;
+  padding: 8px 4px;
+}
+.md-math-inline {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  vertical-align: middle;
+}
+.md-math-error {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #f0a8a8;
+  background: rgba(240, 100, 100, 0.08);
+  border: 1px solid rgba(240, 100, 100, 0.28);
+  border-radius: 6px;
+  padding: 4px 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.md-math-error.md-math-display {
+  padding: 10px 12px;
+}
+.md-mermaid {
+  margin: 0.5em 0 0.9em;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #0c1018;
+  overflow-x: auto;
+}
+.md-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+.md-mermaid-loading {
+  margin: 0.5em 0 0.9em;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--border);
+  color: var(--muted, #9aa4b2);
+  font-size: 12px;
+}
+.md-mermaid-error {
+  margin: 0.5em 0 0.9em;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(240, 100, 100, 0.35);
+  background: rgba(240, 100, 100, 0.06);
+}
+.md-mermaid-error-title {
+  font-weight: 600;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: #f0a8a8;
+}
+.md-mermaid-error-message {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

@@ -86,6 +86,23 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.getByTestId('settings-close-btn').click();
   });
 
+  test('Models settings can add Gemini OpenAI-compatible preset', async ({ page }) => {
+    await page.goto('/');
+    await waitForHostReady(page);
+    await page.getByTestId('settings-open-btn').click();
+    await page.getByTestId('settings-panel').getByRole('button', { name: 'Models', exact: true }).click();
+    await expect(page.getByTestId('provider-settings')).toBeVisible();
+    await page.locator('[data-testid="provider-preset"][data-preset-id="gemini"]').click();
+    await expect(page.getByTestId('provider-list-item').filter({ hasText: 'Google Gemini' })).toBeVisible();
+    await expect(page.getByTestId('provider-baseurl-input')).toHaveValue(
+      /generativelanguage\.googleapis\.com/,
+    );
+    await page.getByTestId('provider-apikey-ref-input').fill('keychain:gemini');
+    await page.getByTestId('provider-save-btn').click();
+    await expect(page.getByTestId('provider-apikey-ref-input')).toHaveValue('keychain:gemini');
+    await page.getByTestId('settings-close-btn').click();
+  });
+
   test('open project → trust → session ready for chat', async ({ page }) => {
     await page.goto('/');
     await waitForHostReady(page);

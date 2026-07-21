@@ -7,6 +7,14 @@ import {
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
 import { ArtifactFrame } from './ArtifactFrame';
+import { MermaidBlock } from './MermaidBlock';
+import {
+  extractStandaloneDisplayMath,
+  isMathFenceLanguage,
+  isMermaidFenceLanguage,
+  renderKatex,
+  tokenizeInlineWithMath,
+} from './markdown-math';
 
 type MarkdownViewProps = {
   text: string;
@@ -26,8 +34,9 @@ type MarkdownViewProps = {
 };
 
 /**
- * Markdown renderer with optional HTML Artifact previews.
+ * Markdown renderer with optional HTML Artifact previews, KaTeX, and Mermaid.
  * Model HTML never runs in the parent document — only via sandboxed ArtifactFrame.
+ * Math/Mermaid failures soft-degrade (show source); they must not crash the shell.
  */
 export function MarkdownView({
   text,
@@ -81,14 +90,18 @@ export function MarkdownView({
             </ul>
           );
         }
-        return (
-          <p key={index} className="md-p">
-            {renderInline(block.value)}
-          </p>
-        );
+        return <ParagraphView key={index} value={block.value} />;
       })}
     </div>
   );
+}
+
+function ParagraphView(props: { value: string }): ReactElement {
+  const standaloneMath = extractStandaloneDisplayMath(props.value);
+  if (standaloneMath !== null) {
+    return <MathView tex={standaloneMath} display />;
+  }
+  return <p className="md-p">{renderInline(props.value)}</p>;
 }
 
 function CodeFenceView(props: {
@@ -101,6 +114,22 @@ function CodeFenceView(props: {
   initPriority: number;
   artifactThemeKey?: string;
 }): ReactElement {
+  if (isMermaidFenceLanguage(props.language)) {
+    // While streaming an incomplete fence, show source instead of partial mermaid.
+    if (props.streamMode) {
+      return (
+        <pre className="md-code" data-testid="mermaid-stream-source">
+          <code data-language="mermaid">{props.source}</code>
+        </pre>
+      );
+    }
+    return <MermaidBlock source={props.source} />;
+  }
+
+  if (isMathFenceLanguage(props.language)) {
+    return <MathView tex={props.source} display />;
+  }
+
   const evaluateOptions: Parameters<typeof evaluateCodeFence>[0] = {
     language: props.language,
     source: props.source,
@@ -137,32 +166,77 @@ function CodeFenceView(props: {
   );
 }
 
-function renderInline(text: string): Array<string | ReactElement> {
-  const parts: Array<string | ReactElement> = [];
-  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
-  let last = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > last) {
-      parts.push(text.slice(last, match.index));
-    }
-    const token = match[0];
-    if (token.startsWith('**')) {
-      parts.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
-    } else if (token.startsWith('*')) {
-      parts.push(<em key={key++}>{token.slice(1, -1)}</em>);
-    } else if (token.startsWith('`')) {
-      parts.push(
-        <code key={key++} className="md-inline-code">
-          {token.slice(1, -1)}
-        </code>,
+function MathView(props: { tex: string; display: boolean }): ReactElement {
+  const result = renderKatex(props.tex, props.display);
+  if (!result.ok) {
+    const fallback = props.display ? `$$${result.source}$$` : `$${result.source}$`;
+    if (props.display) {
+      return (
+        <div
+          className="md-math-error md-math-display"
+          data-testid="math-error"
+          title={result.error}
+          role="alert"
+        >
+          {fallback}
+        </div>
       );
     }
-    last = match.index + token.length;
+    return (
+      <span
+        className="md-math-error md-math-inline"
+        data-testid="math-error"
+        title={result.error}
+      >
+        {fallback}
+      </span>
+    );
   }
-  if (last < text.length) {
-    parts.push(text.slice(last));
+
+  if (props.display) {
+    return (
+      <div
+        className="md-math md-math-display"
+        data-testid="math-display"
+        dangerouslySetInnerHTML={{ __html: result.html }}
+      />
+    );
+  }
+
+  return (
+    <span
+      className="md-math md-math-inline"
+      data-testid="math-inline"
+      dangerouslySetInnerHTML={{ __html: result.html }}
+    />
+  );
+}
+
+function renderInline(text: string): Array<string | ReactElement> {
+  const parts: Array<string | ReactElement> = [];
+  let key = 0;
+  for (const segment of tokenizeInlineWithMath(text)) {
+    if (segment.kind === 'text') {
+      parts.push(segment.value);
+      continue;
+    }
+    if (segment.kind === 'code') {
+      parts.push(
+        <code key={key++} className="md-inline-code">
+          {segment.value}
+        </code>,
+      );
+      continue;
+    }
+    if (segment.kind === 'strong') {
+      parts.push(<strong key={key++}>{segment.value}</strong>);
+      continue;
+    }
+    if (segment.kind === 'em') {
+      parts.push(<em key={key++}>{segment.value}</em>);
+      continue;
+    }
+    parts.push(<MathView key={key++} tex={segment.value} display={segment.display} />);
   }
   return parts;
 }

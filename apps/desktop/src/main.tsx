@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { applyAppearanceToDocument, PIWIN_APPEARANCE_DARK } from './appearance-tokens';
+import 'katex/dist/katex.min.css';
 import './styles.css';
 
 // Paint shell tokens before first paint to avoid unthemed flash.

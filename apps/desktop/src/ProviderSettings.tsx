@@ -456,6 +456,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
               <label className="field">
                 <span>apiKeyRef (optional keychain)</span>
                 <input
+                  data-testid="provider-apikey-ref-input"
                   value={draft.apiKeyRef}
                   onChange={(event) => setDraft({ ...draft, apiKeyRef: event.target.value })}
                   placeholder="keychain:piwin-openai"

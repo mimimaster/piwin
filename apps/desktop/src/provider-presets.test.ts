@@ -19,3 +19,22 @@ describe('provider-presets', () => {
     expect(grouped.local.length).toBeGreaterThan(0);
   });
 });
+
+  it('includes Gemini-class OpenAI-compatible presets', () => {
+    const gemini = getProviderPreset('gemini');
+    expect(gemini?.protocol).toBe('openai-compatible');
+    expect(gemini?.baseUrl).toContain('generativelanguage.googleapis.com');
+    expect(gemini?.apiKeyEnv).toBe('GEMINI_API_KEY');
+    expect(gemini?.models.length).toBeGreaterThan(0);
+
+    const proxy = getProviderPreset('gemini-proxy');
+    expect(proxy?.protocol).toBe('openai-compatible');
+    expect(proxy?.group).toBe('gateway');
+  });
+
+  it('only uses openai-compatible or anthropic-compatible protocols', () => {
+    for (const preset of PROVIDER_PRESETS) {
+      expect(['openai-compatible', 'anthropic-compatible']).toContain(preset.protocol);
+    }
+  });
+
