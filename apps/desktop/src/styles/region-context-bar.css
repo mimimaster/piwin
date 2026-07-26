@@ -1,0 +1,138 @@
+/* Region: context bar (context-bar.tsx). Owns every .context-bar* selector.
+   42px unified band between titleband and transcript.
+   Uses runtime semantic tokens from appearance-tokens.ts only. */
+
+.context-bar {
+  display: flex;
+  align-items: center;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 12px;
+  gap: 8px;
+  border-bottom: 1px solid transparent;
+  background: var(--canvas);
+  flex-shrink: 0;
+}
+
+/* Session identity */
+.context-bar-identity {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.context-bar-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--content-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.context-bar-scope-pill {
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--surface-hover);
+  color: var(--content-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Run status cluster */
+.context-bar-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.context-bar-phase-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--content-muted);
+  flex-shrink: 0;
+}
+
+.context-bar-phase-dot.is-running {
+  background: var(--ok);
+  animation: wb-pulse var(--motion-pulse, 1.6s) ease-in-out infinite;
+}
+
+.context-bar-phase-dot.is-warning {
+  background: var(--state-warning);
+}
+
+.context-bar-phase-dot.is-error {
+  background: var(--state-danger);
+}
+
+.context-bar-phase-dot.is-complete {
+  background: var(--state-success);
+}
+
+@keyframes context-bar-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.context-bar-status-label {
+  font-size: 12px;
+  color: var(--content-secondary);
+  white-space: nowrap;
+}
+
+.context-bar-elapsed {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Right controls */
+.context-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.context-bar-overflow-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--content-secondary);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 16px;
+  letter-spacing: 0.05em;
+}
+
+.context-bar-overflow-btn:hover {
+  background: var(--surface-hover);
+  color: var(--content-primary);
+}
+
+.context-bar-overflow-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* .context-bar-inspector-btn inherits IconButton from ui-kit */
+.context-bar-inspector-btn.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}

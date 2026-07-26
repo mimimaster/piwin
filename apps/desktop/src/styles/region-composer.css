@@ -1,0 +1,938 @@
+/* Region: composer (composer-dock.tsx, composer-plus-menu.tsx,
+   ThinkingEffortControl.tsx, context-usage-ring.tsx, slash/slash-menu.tsx).
+   Owns .composer-*, .plus-*, .slash-menu-*, .thinking-effort-*,
+   .context-usage-*, .linkish-btn and the plus-menu .status-dot indicator.
+   Uses runtime semantic tokens from appearance-tokens.ts only. */
+
+/* ─── Dock ──────────────────────────────────────────────────────────── */
+
+.composer-dock {
+  /* Above the transcript so upward popovers (slash, thinking, plus) are visible. */
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+  padding: 10px 20px 16px;
+  border-top: 1px solid var(--line-soft);
+  background: transparent;
+}
+
+.composer-dock.layout-centered {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(100%, var(--chat-max, 760px));
+  margin: 0 auto;
+  padding: 8px 28px 28px;
+  border-top: none;
+}
+
+/* Empty stage: dock is packed under the hero as one vertical system. */
+.chat-column-empty .composer-dock.layout-centered {
+  flex: 0 0 auto;
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 4px 28px 24px;
+  border-top: 0;
+  background: transparent;
+}
+
+@media (max-width: 820px) {
+  .composer-dock {
+    padding-inline: 12px;
+  }
+
+  .chat-column-empty .composer-dock.layout-centered {
+    width: 100%;
+    padding: 4px 14px 14px;
+  }
+}
+
+/* ─── Card ──────────────────────────────────────────────────────────── */
+
+.composer-card-v2 {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 760px);
+  margin: 0 auto;
+  border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel) 92%, var(--canvas));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--text) 2%, transparent),
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.2);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+  /* Popovers (slash menu, thinking effort) open upward past the card edge. */
+  overflow: visible;
+}
+
+.composer-card-v2:focus-within,
+.composer-card-v2.drop-active {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent),
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.composer-card-v2.is-streaming {
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* Centered empty-state card is slightly wider-rounded and larger. */
+.chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
+  width: min(100%, 680px);
+  border-radius: 18px;
+}
+
+.chat-column-empty .composer-dock.layout-centered .composer-v2-input-area {
+  padding: 18px 18px 8px;
+}
+
+.chat-column-empty .composer-dock.layout-centered .composer-v2-textarea {
+  min-height: 48px;
+  font-size: 15px;
+}
+
+.chat-column-empty .composer-dock.layout-centered .composer-v2-toolbar {
+  padding: 8px 12px 12px;
+}
+
+/* ─── Attachments ───────────────────────────────────────────────────── */
+
+.composer-v2-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px 4px;
+}
+
+.composer-v2-attachment-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.composer-v2-chip-remove {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  /* Deliberate literals: scrim over arbitrary image thumbnails, theme-independent. */
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+/* ─── Input area ────────────────────────────────────────────────────── */
+
+.composer-v2-input-area {
+  position: relative;
+  padding: 14px 16px 6px;
+}
+
+.composer-v2-textarea {
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  max-height: 200px;
+  padding: 0;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14.5px;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+}
+
+.composer-v2-textarea::placeholder {
+  color: var(--faint);
+}
+
+.composer-v2-textarea:disabled {
+  opacity: 0.5;
+}
+
+/* ─── Toolbar ───────────────────────────────────────────────────────── */
+
+.composer-v2-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 10px;
+  overflow: visible;
+}
+
+.composer-v2-toolbar-left,
+.composer-v2-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.composer-v2-toolbar-right {
+  gap: 6px;
+  overflow: visible;
+}
+
+.composer-v2-icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.12s ease;
+  flex-shrink: 0;
+}
+
+.composer-v2-icon-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.composer-v2-icon-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.composer-v2-icon-btn.active {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.composer-v2-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Agent mode chip (non-default modes only) */
+.composer-v2-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 650;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.composer-v2-mode-dismiss {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.composer-v2-mode-dismiss:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* ─── Send / stop / steer ───────────────────────────────────────────── */
+
+/* Class display:grid would otherwise override the UA [hidden] { display:none }. */
+.composer-v2-send-btn[hidden],
+.composer-v2-stop-btn[hidden],
+.composer-v2-streaming-actions[hidden] {
+  display: none;
+}
+
+
+.composer-v2-send-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  /* Deliberate literal: dark glyph on accent fill (design choice, not --content-on-accent). */
+  color: #1a140e;
+  cursor: pointer;
+  transition: transform 0.12s ease, opacity 0.12s ease, box-shadow 0.15s ease;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.composer-v2-send-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.composer-v2-send-btn:hover:not(:disabled) {
+  background: var(--accent-2);
+  transform: scale(1.04);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.composer-v2-send-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.composer-v2-send-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  background: var(--faint);
+}
+
+.composer-v2-stop-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  cursor: pointer;
+  transition: all 0.14s ease;
+  flex-shrink: 0;
+}
+
+.composer-v2-stop-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.composer-v2-stop-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+}
+
+.composer-v2-stop-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.composer-v2-streaming-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer-v2-text-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.composer-v2-text-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--line);
+  background: var(--surface-hover);
+}
+
+.composer-v2-text-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* ─── Plus menu (ui-kit DropdownMenu) ───────────────────────────────── */
+
+.plus-anchor {
+  position: relative;
+}
+
+/* Radix anchors the portaled menu to this element; it mirrors the "+" button
+   box so the flyout lines up, and never intercepts the button's own clicks. */
+.plus-menu-anchor {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ui-menu-content.plus-menu,
+.ui-menu-content.plus-submenu {
+  min-width: 220px;
+  max-width: 280px;
+  max-height: min(70vh, 420px);
+  overflow: auto;
+  border-radius: 12px;
+  background: var(--surface-raised);
+}
+
+.ui-menu-content.plus-submenu {
+  min-width: 240px;
+}
+
+.plus-menu-caption {
+  padding: 6px 10px 8px;
+  font-size: 11px;
+}
+
+.plus-menu-icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.plus-menu-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.plus-menu-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.plus-menu-chevron {
+  color: var(--faint);
+  font-size: 16px;
+}
+
+.plus-menu-check {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.plus-menu-empty,
+.plus-menu-static {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+}
+
+.plus-menu-flag {
+  font-size: 11px;
+}
+
+/* MCP server on/off indicator inside the plus submenu. */
+.plus-menu-static .status-dot {
+  font-family: var(--mono);
+  color: var(--muted);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: var(--surface-inset);
+}
+
+.plus-menu-static .status-dot.ok {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+}
+
+/* ─── Slash menu (/) ────────────────────────────────────────────────── */
+
+.slash-menu-root {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: var(--layer-menu);
+  display: flex;
+  justify-content: stretch;
+  pointer-events: auto;
+}
+
+.slash-menu {
+  width: 100%;
+  max-height: min(50vh, 320px);
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+
+.slash-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 4px;
+}
+
+.slash-menu-section-title {
+  padding: 6px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.slash-menu-item {
+  display: grid;
+  grid-template-columns: minmax(96px, auto) 1fr auto;
+  align-items: center;
+  gap: 8px 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.slash-menu-item:hover,
+.slash-menu-item.active {
+  background: var(--surface-hover);
+}
+
+.slash-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.slash-menu-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.slash-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slash-menu-badge {
+  font-size: 10px;
+}
+
+.slash-menu-empty {
+  padding: 12px 10px;
+  font-size: 13px;
+}
+
+/* ─── Thinking effort / model pill ──────────────────────────────────── */
+
+.thinking-effort-control {
+  position: relative;
+  overflow: visible;
+  z-index: 3;
+}
+
+.thinking-effort-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  height: 28px;
+  min-width: 0;
+  max-width: 280px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-inset) 75%, var(--canvas));
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.thinking-effort-trigger:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border-color: color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.thinking-effort-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thinking-effort-model {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thinking-effort-sep {
+  flex-shrink: 0;
+  color: var(--faint);
+  font-weight: 500;
+}
+
+.thinking-effort-value {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.thinking-effort-control.ultra-active .thinking-effort-value {
+  color: var(--violet);
+}
+
+.thinking-effort-chevron {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-left: 1px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  transform: translateY(-1px) rotate(45deg);
+  opacity: 0.75;
+}
+
+/* Radix (ui-kit Popover) owns placement, portal, and layering; this rule only
+   sizes and skins the panel. Compound selector beats the later-imported
+   .ui-popover-content base for the properties it overrides. */
+.ui-popover-content.thinking-effort-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(300px, calc(100vw - 24px));
+  padding: 12px;
+  border-color: var(--line-strong);
+}
+
+.thinking-effort-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.thinking-effort-section-title {
+  margin: 0;
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.thinking-effort-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.thinking-effort-chip {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 550;
+  line-height: 1;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.thinking-effort-chip:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
+  border-color: color-mix(in srgb, var(--text) 14%, transparent);
+}
+
+.thinking-effort-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thinking-effort-chip.is-active {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--text);
+  font-weight: 650;
+}
+
+.thinking-effort-popover.ultra-active .thinking-effort-chip.is-active {
+  border-color: color-mix(in srgb, var(--violet) 55%, transparent);
+  background: color-mix(in srgb, var(--violet) 16%, transparent);
+}
+
+.thinking-effort-model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow: auto;
+  padding: 2px;
+  margin: 0 -2px;
+  border-radius: 8px;
+}
+
+.thinking-effort-model-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  transition: background 100ms ease;
+}
+
+.thinking-effort-model-option:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.thinking-effort-model-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thinking-effort-model-option.is-selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.thinking-effort-model-option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thinking-effort-model-check {
+  flex-shrink: 0;
+  color: var(--accent-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.thinking-effort-model-empty {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ─── Context usage ring + popover ──────────────────────────────────── */
+
+.context-usage-ring-root {
+  position: relative;
+  display: inline-flex;
+}
+
+.context-usage-ring {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.context-usage-ring:hover,
+.context-usage-ring.open {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.context-usage-ring-track {
+  stroke: color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.context-usage-ring-progress {
+  stroke: var(--accent);
+  transition: stroke-dashoffset 0.25s ease;
+}
+
+/* Deliberate literals below: usage-tone and breakdown chart palette shared
+   with inline row swatch colors in context-usage-ring.tsx. */
+.context-usage-ring.tone-warn .context-usage-ring-progress {
+  stroke: #fbbf24;
+}
+
+.context-usage-ring.tone-critical .context-usage-ring-progress {
+  stroke: #f87171;
+}
+
+/* Radix (ui-kit Popover) owns placement, portal, and layering; this rule only
+   sizes and skins the panel. Compound selector beats the later-imported
+   .ui-popover-content base for the properties it overrides. */
+.ui-popover-content.context-usage-popover {
+  width: min(320px, 70vw);
+  max-height: min(70vh, 420px);
+  overflow-y: auto;
+  padding: 12px;
+  border: none;
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent),
+    0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: context-usage-popover-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes context-usage-popover-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-usage-popover {
+    animation: none;
+  }
+}
+
+.context-usage-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.context-usage-popover-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.context-usage-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.context-usage-pill.tone-warn {
+  background: color-mix(in srgb, #fbbf24 20%, transparent);
+  color: #fbbf24;
+}
+
+.context-usage-pill.tone-critical {
+  background: color-mix(in srgb, #f87171 20%, transparent);
+  color: #f87171;
+}
+
+.context-usage-bar {
+  height: 6px;
+  margin-bottom: 10px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  overflow: hidden;
+}
+
+.context-usage-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #8eb0ff, #a78bfa, #f87171);
+}
+
+.context-usage-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.context-usage-rows li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.context-usage-row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-usage-row-label > i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.context-usage-popover-footer {
+  margin-top: 10px;
+  font-size: 11px;
+}
+
+.linkish-btn {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}
+
+
+/* Quiet workbench: floating composer card */
+.composer-dock .composer-card,
+.composer-dock .composer-v2-card,
+.composer-shell {
+  border-radius: 12px;
+  border: 1px solid var(--wb-line, var(--line));
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  background: var(--canvas);
+}

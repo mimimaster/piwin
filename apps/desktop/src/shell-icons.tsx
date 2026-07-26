@@ -13,7 +13,7 @@ function IconBase(props: IconProps): ReactElement {
       height="1em"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.65}
+      strokeWidth={1.6}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
@@ -27,8 +27,7 @@ function IconBase(props: IconProps): ReactElement {
 export function IconChat(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <path d="M5 5h14v10H9l-4 4V5Z" />
-      <path d="M8 9h8M8 12h5" />
+      <path d="M6 5h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6l-4 3v-3H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
     </IconBase>
   );
 }
@@ -36,8 +35,17 @@ export function IconChat(props: IconProps): ReactElement {
 export function IconFolder(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
+      <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
+    </IconBase>
+  );
+}
+
+/** Folder with a plus badge — Cursor-style open workspace control. */
+export function IconFolderPlus(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
       <path d="M4 7h6l2 2h8v10H4V7Z" />
-      <path d="M4 9h16" />
+      <path d="M12 12v5M9.5 14.5h5" />
     </IconBase>
   );
 }
@@ -45,7 +53,8 @@ export function IconFolder(props: IconProps): ReactElement {
 export function IconSpark(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <path d="m12 3 2.2 5.5L20 11l-5.8 2.5L12 19l-2.2-5.5L4 11l5.8-2.5L12 3Z" />
+      {/* Agent / product mark — prototype role icon */}
+      <path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z" />
     </IconBase>
   );
 }
@@ -72,8 +81,10 @@ export function IconExtension(props: IconProps): ReactElement {
 export function IconSettings(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <circle cx="12" cy="12" r="3.2" />
-      <path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" />
+      {/* Sliders — product “tools / tuning” semantics (prototype §05). */}
+      <path d="M4 7.5h16M4 16.5h16" />
+      <circle cx="9.5" cy="7.5" r="2.4" fill="var(--canvas, currentColor)" stroke="currentColor" />
+      <circle cx="15" cy="16.5" r="2.4" fill="var(--canvas, currentColor)" stroke="currentColor" />
     </IconBase>
   );
 }
@@ -89,8 +100,8 @@ export function IconPlus(props: IconProps): ReactElement {
 export function IconSearch(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <circle cx="10.8" cy="10.8" r="6.5" />
-      <path d="m16 16 4.5 4.5" />
+      <circle cx="10.5" cy="10.5" r="5.5" />
+      <path d="M15 15l4.5 4.5" />
     </IconBase>
   );
 }
@@ -98,8 +109,7 @@ export function IconSearch(props: IconProps): ReactElement {
 export function IconSend(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <path d="m5 12 14-7-4 14-3.5-6.5L5 12Z" />
-      <path d="m11.5 12.5 3.5-1.5" />
+      <path d="M12 19V6M6.5 11.5 12 6l5.5 5.5" />
     </IconBase>
   );
 }
@@ -107,10 +117,11 @@ export function IconSend(props: IconProps): ReactElement {
 export function IconGit(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <circle cx="6" cy="6" r="2" />
-      <circle cx="18" cy="18" r="2" />
-      <circle cx="6" cy="18" r="2" />
-      <path d="M6 8v8M6 12h8a4 4 0 0 1 4 4" />
+      <circle cx="6" cy="6" r="2.2" />
+      <circle cx="6" cy="18" r="2.2" />
+      <circle cx="18" cy="7" r="2.2" />
+      <path d="M6 8.2v7.6" />
+      <path d="M17.9 9.2c-.4 4.2-6.6 3.1-9.5 6.3" />
     </IconBase>
   );
 }
@@ -137,7 +148,7 @@ export function IconPaperclip(props: IconProps): ReactElement {
 export function IconStop(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" />
+      <rect x="7.5" y="7.5" width="9" height="9" rx="2" fill="currentColor" stroke="none" />
     </IconBase>
   );
 }
@@ -189,7 +200,7 @@ export function IconCompress(props: IconProps): ReactElement {
 export function IconChevronDown(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <path d="m7 10 5 5 5-5" />
+      <path d="M6.5 9.5l5.5 5.5 5.5-5.5" />
     </IconBase>
   );
 }
@@ -197,9 +208,9 @@ export function IconChevronDown(props: IconProps): ReactElement {
 export function IconMore(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <circle cx="6" cy="12" r="1.2" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
-      <circle cx="18" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="5.5" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none" />
     </IconBase>
   );
 }
@@ -207,8 +218,8 @@ export function IconMore(props: IconProps): ReactElement {
 export function IconTerminal(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <path d="M4 6h16v12H4z" />
-      <path d="m7 10 3 2-3 2M12 14h5" />
+      <rect x="3.5" y="5" width="17" height="14" rx="2" />
+      <path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5" />
     </IconBase>
   );
 }
@@ -232,10 +243,29 @@ export function IconRefresh(props: IconProps): ReactElement {
   );
 }
 
+export function IconPanelRight(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <rect x="3.5" y="5" width="17" height="14" rx="2" />
+      <path d="M14.5 5v14" />
+    </IconBase>
+  );
+}
+
+/** Window with an emphasized left navigator, used by the titlebar sidebar control. */
+export function IconPanelLeft(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <rect x="3.5" y="5" width="17" height="14" rx="2" />
+      <path d="M9.5 5v14" />
+    </IconBase>
+  );
+}
+
 export function IconClose(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <path d="m6 6 12 12M18 6 6 18" />
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
     </IconBase>
   );
 }
@@ -245,6 +275,67 @@ export function IconBack(props: IconProps): ReactElement {
     <IconBase {...props}>
       <path d="m14 5-7 7 7 7" />
       <path d="M7 12h12" />
+    </IconBase>
+  );
+}
+
+/** Compact titlebar history navigation controls. */
+export function IconChevronLeft(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M14 6l-6 6 6 6" />
+    </IconBase>
+  );
+}
+
+export function IconChevronRight(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M10 6l6 6-6 6" />
+    </IconBase>
+  );
+}
+
+
+export function IconNote(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z" />
+      <path d="M14 3.5V8h4.5M9 12.5h6M9 16h4" />
+    </IconBase>
+  );
+}
+
+export function IconCards(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <rect x="4" y="7" width="11.5" height="12.5" rx="1.5" />
+      <path d="M8.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5v9.5" />
+    </IconBase>
+  );
+}
+
+export function IconActivity(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M3.5 12h4l2.5-6 4 12 2.5-6h4" />
+    </IconBase>
+  );
+}
+
+export function IconPin(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M9.5 4.5h5l-.7 5.4 3.2 3.1H7l3.2-3.1z" />
+      <path d="M12 13v6.5" />
+    </IconBase>
+  );
+}
+
+export function IconAgent(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z" />
     </IconBase>
   );
 }

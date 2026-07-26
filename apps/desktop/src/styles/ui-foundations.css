@@ -1,0 +1,480 @@
+/* Shared control primitives used across every region: buttons, inputs, pills,
+   ui-kit primitives (Field, Notice, StatusBadge, Spinner, Tabs), media
+   thumbnails, and the piwin-* component language. This file owns each of
+   these classes exclusively — regions may scope-refine them but never
+   redefine the base. All color variables are applied at runtime by
+   appearance-tokens.ts; this file only uses them, never redefines them. */
+
+/* ── Text helpers ─────────────────────────────────────────────────── */
+
+.muted { color: var(--muted); }
+.list { padding-left: 18px; }
+
+.banner-meta { font-size: 11px; margin-top: 2px; }
+.banner-details { margin-top: 4px; }
+.banner-summary-pre {
+  white-space: pre-wrap;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────── */
+
+.btn {
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 4.5%, transparent), color-mix(in srgb, var(--text) 2%, transparent));
+  color: var(--text);
+  border-radius: 10px;
+  height: 34px;
+  padding: 0 14px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 560;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease, filter 0.12s ease, transform 0.1s ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line-strong));
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn.primary,
+.btn-primary {
+  /* Transparent accent glass — no solid fills. */
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent-2);
+  font-weight: 650;
+  box-shadow: none;
+}
+
+.btn.primary:hover:not(:disabled),
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  filter: none;
+}
+
+.btn-secondary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--text) 4.5%, transparent), color-mix(in srgb, var(--text) 2%, transparent));
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.btn-ghost,
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.btn-ghost:hover:not(:disabled),
+.btn.ghost:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.btn-compact {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 11.5px;
+}
+
+.btn-danger {
+  background: color-mix(in srgb, var(--danger) 24%, var(--panel));
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--text);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 32%, var(--panel));
+}
+
+/* Inline action cluster inside Notice banners (trust notice, archived
+   banner, error boundary). */
+.run-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.run-status-actions .piwin-button {
+  min-height: 28px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  padding: 0;
+  font-size: 16px;
+  cursor: pointer;
+  transition:
+    background var(--motion-quick, 120ms) var(--motion-ease, ease),
+    color var(--motion-quick, 120ms) var(--motion-ease, ease);
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--wb-hover, var(--surface-hover));
+}
+
+.icon-btn.active {
+  color: var(--accent-2);
+  background: var(--wb-accent-soft, var(--accent-soft));
+}
+
+/* ui-kit IconButton — ghost by default (P1: no boxed chrome). */
+.piwin-icon-button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  transition:
+    background var(--motion-quick, 120ms) var(--motion-ease, ease),
+    color var(--motion-quick, 120ms) var(--motion-ease, ease);
+}
+
+.piwin-icon-button:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--wb-hover, var(--surface-hover));
+}
+
+.piwin-icon-button.active,
+.piwin-icon-button[aria-pressed='true'] {
+  color: var(--accent);
+  background: var(--wb-accent-soft, var(--accent-soft));
+}
+
+.piwin-icon-button svg {
+  width: var(--icon-size-sm, 16px);
+  height: var(--icon-size-sm, 16px);
+  stroke-width: 1.6;
+}
+
+.piwin-icon-button:disabled,
+.piwin-icon-button:disabled:hover {
+  opacity: 0.42;
+  background: transparent;
+  cursor: default;
+}
+
+/* ── Inputs ───────────────────────────────────────────────────────── */
+
+.text-input,
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-inset);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  font: inherit;
+}
+
+/* ── Pills ────────────────────────────────────────────────────────── */
+
+.pill {
+  border: none;
+  background: var(--wb-accent-soft, var(--accent-soft));
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.pill.ok {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.pill.neutral {
+  color: var(--muted);
+  background: var(--surface-hover);
+}
+
+/* ── Media thumbnails (transcript attachments + composer chips) ───── */
+
+.media-chip-thumb,
+.media-preview-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-preview-image {
+  max-width: 240px;
+  max-height: 180px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.media-chip-fallback,
+.media-preview-fallback {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 8px;
+}
+
+/* ── ui-kit: Notice ───────────────────────────────────────────────── */
+
+.ui-notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-surface);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: none;
+  margin: 8px 16px;
+}
+
+.ui-notice.tone-error {
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+}
+
+.ui-notice.tone-warning {
+  border-color: color-mix(in srgb, var(--state-warning) 40%, transparent);
+  background: color-mix(in srgb, var(--state-warning) 10%, var(--panel));
+}
+
+.ui-notice.tone-success {
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+  background: color-mix(in srgb, var(--ok) 10%, var(--panel));
+}
+
+/* Panel-embedded notices align with their container, not the stage gutter. */
+.embedded-body .ui-notice,
+.changes-panel .ui-notice,
+.git-panel .ui-notice {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* ── ui-kit: StatusBadge ──────────────────────────────────────────── */
+
+.ui-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ui-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.ui-status-badge.tone-running .ui-status-dot { background: var(--accent); }
+.ui-status-badge.tone-success .ui-status-dot { background: var(--ok); }
+.ui-status-badge.tone-warning .ui-status-dot { background: var(--state-warning); }
+.ui-status-badge.tone-danger .ui-status-dot { background: var(--danger); }
+
+/* ── ui-kit: Field ────────────────────────────────────────────────── */
+
+.ui-field { margin-bottom: 10px; }
+
+/* Denser field rhythm inside panel bodies. */
+.embedded-body .ui-field,
+.git-panel .ui-field {
+  margin-bottom: 12px;
+}
+.ui-field-label { display: block; margin-bottom: 4px; font-size: 12px; }
+.ui-field-error { color: var(--danger); font-size: 12px; margin: 4px 0 0; }
+
+.ui-field-control input,
+.ui-field-control select,
+.ui-field-control textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-inset);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.ui-field-description {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+}
+
+.ui-field-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0 12px;
+  padding: 8px 0 0;
+}
+
+.ui-field-checkbox[data-disabled='true'] {
+  opacity: 0.55;
+}
+
+.ui-field-checkbox-input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.ui-field-checkbox-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.ui-field-checkbox-label {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.ui-field-checkbox[data-disabled='true'] .ui-field-checkbox-label {
+  cursor: not-allowed;
+}
+
+/* ── ui-kit: Spinner + panel loading ──────────────────────────────── */
+
+.ui-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: piwin-spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+@keyframes piwin-spin {
+  to { transform: rotate(360deg); }
+}
+
+.panel-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0;
+}
+
+/* ── ui-kit: Tabs ─────────────────────────────────────────────────── */
+
+.ui-tabs-list { display: flex; gap: 6px; margin-bottom: 10px; }
+
+.ui-tabs-trigger {
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.ui-tabs-trigger[data-state='active'] {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* ── piwin component language ─────────────────────────────────────── */
+
+.piwin-surface {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-surface);
+  background: var(--panel);
+}
+.piwin-surface--raised { background: var(--surface-raised); }
+.piwin-surface--inset { background: var(--surface-control); }
+.piwin-surface--selected {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
+  background: var(--surface-selected);
+}
+
+.piwin-list-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--control-height-large);
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+.piwin-list-row:hover:not(:disabled) {
+  border-color: var(--line-soft);
+  background: var(--surface-hover);
+}
+.piwin-list-row.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--surface-selected);
+}
+.piwin-list-row.is-compact { min-height: var(--control-height-default); padding-block: 5px; }
+.piwin-list-row:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.piwin-button {
+  min-height: var(--control-height-default);
+  font-weight: 550;
+  letter-spacing: 0;
+}
+.piwin-button--compact { min-height: var(--control-height-compact); }
+.piwin-button--primary { box-shadow: none; }
+.piwin-button--ghost { color: var(--muted); }
+.piwin-button--danger { color: var(--danger); }
+
+/* ── Mantine bridge ───────────────────────────────────────────────── */
+/* Mantine variables inherit validated piwin theme tokens, never hard-coded
+   feature colors. */
+
+.mantine-Button-root,
+.mantine-ActionIcon-root,
+.mantine-Input-input,
+.mantine-Select-input,
+.mantine-Textarea-input {
+  --mantine-color-body: var(--panel);
+  --mantine-color-text: var(--text);
+  --mantine-color-dimmed: var(--muted);
+  --mantine-color-default-border: var(--line);
+  --mantine-color-default-hover: var(--surface-hover);
+  --mantine-primary-color-filled: var(--accent);
+  --mantine-primary-color-filled-hover: var(--accent-2);
+  --mantine-primary-color-light: var(--accent-soft);
+  --mantine-primary-color-light-hover: color-mix(in srgb, var(--accent) 23%, var(--panel));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piwin-list-row { transition: none; }
+}

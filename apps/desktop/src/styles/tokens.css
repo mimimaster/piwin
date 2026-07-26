@@ -1,0 +1,60 @@
+/* geometry & z-layer only — colors are applied at runtime by appearance-tokens.ts */
+
+:root {
+  /* Shell geometry — single source of truth; never hardcode these in cascade files. */
+  --sidebar-width: 260px;
+  --rail-width: 48px;
+  --signal-rail-width: 48px;
+  --right-panel-width: 320px;
+  --chat-max: 760px;
+  --chat-font-size: 15px;
+  --code-font-size: 13px;
+  --code-wrap: unset;
+
+  /* Band heights */
+  --topbar-height: 40px;
+  /* Must fit titleband controls (≥28px) under Overlay traffic lights without clipping. */
+  --titleband-height: 36px;
+  --workspace-header-height: 44px;
+
+  /* Quiet Workbench motion + icon geometry (docs/plans/2026-07-27-quiet-workbench-implementation.md) */
+  --icon-size-sm: 16px;
+  --icon-size-md: 20px;
+  --motion-quick: 120ms;
+  --motion-standard: 200ms;
+  --motion-large: 260ms;
+  --motion-think-collapse: 350ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-shimmer: 1.6s;
+  --motion-pulse: 1.6s;
+
+  /* Quiet Workbench hover fill fallback (runtime may override via appearance). */
+  --wb-hover: rgba(255, 255, 255, 0.055);
+  --wb-line: rgba(255, 255, 255, 0.04);
+  --wb-accent-soft: rgba(91, 157, 255, 0.14);
+  --wb-send-fg: #0b1320;
+  --wb-term-bg: #0c0d10;
+
+  /* Stacking contract — shell overlays use these only (PSR-S1) */
+  --layer-shell: 1;
+  --layer-scrim: 20;
+  --layer-drawer: 30;
+  --layer-menu-backdrop: 40;
+  --layer-menu: 50;
+  --layer-settings: 60;
+  --layer-dialog: 70;
+  --layer-toast: 80;
+
+  /* Base typography — font values are overwritten at runtime by appearance-tokens.ts
+     but these fallbacks prevent a flash before the first applyAppearanceToDocument call. */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  font-feature-settings: "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* { box-sizing: border-box; }

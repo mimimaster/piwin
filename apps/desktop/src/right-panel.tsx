@@ -1,336 +1,260 @@
 /**
- * Right inspector — tools / changes / git / agents.
- * Plan is a composer mode (Cursor-style), not a tab here.
+ * Right workspace panel — closed by default.
+ *
+ * Quiet workbench IA (prototype v2.3):
+ * - Outer: whole rail expands/collapses from the titleband panel toggle.
+ * - Inner: directory home first; drill into a section; back returns to home.
+ * - Terminal shows process count + chevron only when processes are live.
+ *
+ * Outward expand (desktop / Tauri) is unchanged: window grows, stage width holds.
  */
 
-import type { ReactElement, ReactNode } from 'react';
-import type { ManagedProcessRecord, ContextUsageSnapshot, SessionPlan } from '@piwin/contracts';
-import type { ToolCardUi } from './chat-reducer';
-import type { ToolCallDensity } from './ui-preferences';
-import { ToolCallCard } from './tool-call-card';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import {
+  IconCards,
+  IconChevronLeft,
+  IconChevronRight,
   IconClose,
   IconFolder,
   IconGit,
-  IconSpark,
-  IconUsers,
+  IconNote,
+  IconTerminal,
 } from './shell-icons';
+import type { DesktopLocale } from './desktop-locale';
+import { IconButton, ListRow } from '@piwin/ui-kit';
 
-export type RightPanelTab = 'execution' | 'changes' | 'git' | 'agents' | 'notes' | 'cards';
+export type RightPanelTab = 'files' | 'activity' | 'review' | 'notes' | 'cards';
+
+export type RightPanelView = 'home' | 'detail';
 
 export type RightPanelProps = {
   open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
   activeTab: RightPanelTab;
   onTabChange: (tab: RightPanelTab) => void;
-  onClose: () => void;
-  agentsContent: ReactNode;
-  changesContent: ReactNode;
-  gitContent: ReactNode;
+  panelWidthPx: number;
+  isResizing: boolean;
+  onResizePointerDown: (event: React.PointerEvent<HTMLElement>) => void;
+  onResizeReset: () => void;
+  isOverlayPresentation?: boolean;
+  filesContent: ReactNode;
+  activityContent: ReactNode;
+  reviewContent: ReactNode;
   /** Notes library panel (ADR 0018 S6). */
   notesContent?: ReactNode;
   /** Flashcards review panel (ADR 0018 S7). */
   cardsContent?: ReactNode;
-  tools: ToolCardUi[];
-  plan: SessionPlan | null;
   changesCount?: number;
-  toolCallDensity?: ToolCallDensity;
-  usageSnapshot?: ContextUsageSnapshot | null;
-  /** CE-PROC managed processes for Execution panel. */
-  processes?: ManagedProcessRecord[];
-  processLogsById?: Record<string, string>;
-  onStopProcess?: (processId: string) => void;
-  onRefreshProcesses?: () => void;
-  onLoadProcessLogs?: (processId: string) => void;
+  /** Live terminal / managed process count — drives Terminal row affordances. */
+  runningProcessCount?: number;
+  /** Optional due flashcard count for Cards row. */
+  cardsDueCount?: number;
+  locale?: DesktopLocale;
 };
 
-const TAB_ITEMS: { id: RightPanelTab; label: string; icon: ReactElement }[] = [
-  { id: 'execution', label: 'Execution', icon: <IconSpark /> },
-  { id: 'changes', label: 'Changes', icon: <IconFolder /> },
-  { id: 'git', label: 'Git', icon: <IconGit /> },
-  { id: 'agents', label: 'Agents', icon: <IconUsers /> },
-  { id: 'notes', label: 'Notes', icon: <IconNote /> },
-  { id: 'cards', label: 'Cards', icon: <IconCards /> },
+const DIRECTORY_ITEMS: Array<{
+  id: RightPanelTab;
+  icon: ReactElement;
+  labelEn: string;
+  labelZh: string;
+}> = [
+  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: 'Changes' },
+  { id: 'activity', icon: <IconTerminal />, labelEn: 'Terminal', labelZh: '终端' },
+  { id: 'files', icon: <IconFolder />, labelEn: 'Files', labelZh: 'Files' },
+  { id: 'notes', icon: <IconNote />, labelEn: 'Notes', labelZh: 'Notes' },
+  { id: 'cards', icon: <IconCards />, labelEn: 'Cards', labelZh: 'Cards' },
 ];
 
-function IconNote(): ReactElement {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M3 2.5h8.5L14 5v8.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
-      <path d="M5 6.5h6M5 9h6M5 11.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
+function getSectionLabel(tab: RightPanelTab, locale: DesktopLocale): string {
+  const item = DIRECTORY_ITEMS.find((entry) => entry.id === tab);
+  if (!item) {
+    return tab;
+  }
+  return locale === 'zh-CN' ? item.labelZh : item.labelEn;
 }
 
-function IconCards(): ReactElement {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <rect x="2" y="4" width="9" height="10" rx="1" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M5 2h9a1 1 0 0 1 1 1v9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
+export function RightPanel(props: RightPanelProps): ReactElement {
+  const locale = props.locale ?? 'zh-CN';
+  const changesCount = props.changesCount ?? 0;
+  const runningProcessCount = props.runningProcessCount ?? 0;
+  const cardsDueCount = props.cardsDueCount;
+  const listTitle = locale === 'zh-CN' ? '工作区' : 'Workspace';
 
-export function RightPanel(props: RightPanelProps): ReactElement | null {
+  // Remember last inner view across collapses (prototype: reopen restores view).
+  const [view, setView] = useState<RightPanelView>('home');
+  const previousActiveTabRef = useRef(props.activeTab);
+
+  useEffect(() => {
+    const previousTab = previousActiveTabRef.current;
+    previousActiveTabRef.current = props.activeTab;
+    // External tab navigation (run status → Activity, commands) drills into detail.
+    if (props.open && previousTab !== props.activeTab) {
+      setView('detail');
+    }
+  }, [props.activeTab, props.open]);
+
+  const drillInto = (tab: RightPanelTab): void => {
+    props.onTabChange(tab);
+    setView('detail');
+  };
+
+  const returnHome = (): void => {
+    setView('home');
+  };
+
   if (!props.open) {
-    return null;
+    return <></>;
   }
 
-  const runningCount = props.tools.filter((tool) => tool.status === 'running').length;
-  const errorCount = props.tools.filter((tool) => tool.status === 'error').length;
-  const changesCount = props.changesCount ?? 0;
-  const recentTools = [...props.tools].reverse();
-  const completedTools = props.tools.filter((tool) => tool.status === 'done').length;
-  const planSteps = props.plan?.steps ?? [];
-  const completedSteps = planSteps.filter((step) => step.status === 'done').length;
+  const inDetail = view === 'detail';
 
   return (
-    <aside className="right-panel" data-testid="right-panel" aria-label="Inspector">
+    <aside
+      className={
+        props.isResizing
+          ? 'right-panel content-expanded outward-column is-resizing'
+          : 'right-panel content-expanded outward-column'
+      }
+      data-testid="right-panel"
+      data-content-expanded="true"
+      data-view={view}
+      aria-label="Workspace panel"
+    >
+      <div
+        className="right-panel-resize-handle"
+        data-testid="right-panel-resize-handle"
+        role="separator"
+        aria-label="Resize workspace panel"
+        aria-orientation="vertical"
+        aria-valuemin={240}
+        aria-valuemax={640}
+        aria-valuenow={props.panelWidthPx}
+        title="Drag to resize workspace panel. Double-click to reset."
+        onPointerDown={props.onResizePointerDown}
+        onDoubleClick={props.onResizeReset}
+      />
+
       <header className="right-panel-header">
-        <div className="right-panel-tabs" role="tablist" aria-label="Inspector tabs">
-          {TAB_ITEMS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={props.activeTab === tab.id}
-              className={
-                props.activeTab === tab.id
-                  ? 'right-panel-tab active'
-                  : 'right-panel-tab'
-              }
-              onClick={() => props.onTabChange(tab.id)}
-              title={tab.label}
-              aria-label={tab.label}
+        {inDetail ? (
+          <>
+            <IconButton
+              label={locale === 'zh-CN' ? '返回目录' : 'Back to directory'}
+              data-testid="right-panel-back-btn"
+              onClick={returnHome}
             >
-              {tab.icon}
-              <span className="sr-only">{tab.label}</span>
-              {tab.id === 'execution' && props.tools.length > 0 ? (
-                <span className="right-panel-tab-count">{props.tools.length}</span>
-              ) : null}
-              {tab.id === 'changes' && changesCount > 0 ? (
-                <span className="right-panel-tab-count">{changesCount}</span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          className="icon-btn right-panel-close"
-          onClick={props.onClose}
-          title="Close panel"
-          aria-label="Close inspector"
-        >
-          <IconClose />
-        </button>
+              <IconChevronLeft />
+            </IconButton>
+            <div className="right-panel-header-copy">
+              <h2>{getSectionLabel(props.activeTab, locale)}</h2>
+            </div>
+          </>
+        ) : (
+          <div className="right-panel-header-copy">
+            <span className="right-panel-kicker">{listTitle}</span>
+          </div>
+        )}
+        {props.isOverlayPresentation ? (
+          <IconButton
+            label={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
+            data-testid="right-panel-close-btn"
+            onClick={props.onClose}
+          >
+            <IconClose />
+          </IconButton>
+        ) : null}
       </header>
 
-      <div className="right-panel-body" role="tabpanel">
-        {props.activeTab === 'execution' ? (
-          <div className="right-panel-section execution-inspector">
-            <div className="execution-heading">
-              <div>
-                <span className="inspector-kicker">Current session</span>
-                <strong>Execution</strong>
-              </div>
-              <span className={runningCount > 0 ? 'execution-status running' : 'execution-status'}>
-                <i aria-hidden />
-                {runningCount > 0 ? 'Working' : 'Idle'}
-              </span>
-            </div>
-
-            {props.plan ? (
-              <section className="execution-section">
-                <div className="execution-section-heading">
-                  <span>Plan</span>
-                  <span>{completedSteps} / {planSteps.length || 1}</span>
-                </div>
-                <div className="execution-progress" aria-label="Plan progress">
-                  <i style={{ width: `${planSteps.length > 0 ? (completedSteps / planSteps.length) * 100 : 0}%` }} />
-                </div>
-                <div className="execution-plan-list">
-                  {planSteps.slice(0, 4).map((step) => (
-                    <div key={step.id} className={`execution-plan-step status-${step.status}`}>
-                      <i aria-hidden>{step.status === 'done' ? '✓' : ''}</i>
-                      <span>{step.title}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            ) : null}
-
-            <section className="execution-section" data-testid="execution-usage">
-              <div className="execution-section-heading">
-                <span>Last turn tokens</span>
-              </div>
-              <div className="muted execution-usage-body">
-                {props.usageSnapshot
-                  ? formatExecutionUsage(props.usageSnapshot)
-                  : 'No usage yet · unknown until first assistant turn'}
-              </div>
-            </section>
-
-            <section className="execution-section">
-              <div className="execution-section-heading">
-                <span>Activity</span>
-                <span>{props.tools.length > 0 ? `${completedTools} complete` : 'Waiting'}</span>
-              </div>
-              {recentTools.length === 0 ? (
-                <div className="execution-empty muted">
-                  Tool activity and changed files will appear here while the agent works.
-                </div>
-              ) : (
-                <div className="execution-timeline">
-                  {recentTools.slice(0, 8).map((tool) => (
-                    <div key={tool.toolCallId} className={`execution-event status-${tool.status}`}>
-                      <i aria-hidden />
-                      <span className="execution-event-name">{tool.toolName}</span>
-                      <span className="execution-event-state">
-                        {tool.status === 'running' ? 'running' : tool.status === 'error' ? 'failed' : 'done'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="execution-section" data-testid="execution-processes">
-              <div className="execution-section-heading">
-                <span>Processes</span>
-                <span>
-                  {(props.processes ?? []).filter((item) => item.status === 'running' || item.status === 'starting').length}
-                  {' '}
-                  active
-                </span>
-              </div>
-              {(props.processes ?? []).length === 0 ? (
-                <div className="execution-empty muted">
-                  Long-running managed processes (dev servers) appear here. Start via process_start tool.
-                </div>
-              ) : (
-                <div className="execution-process-list">
-                  {(props.processes ?? []).map((proc) => {
-                    const logText = props.processLogsById?.[proc.id] ?? '';
-                    const isActive = proc.status === 'running' || proc.status === 'starting';
-                    return (
-                      <div
-                        key={proc.id}
-                        className={`execution-process-card status-${proc.status}`}
-                        data-testid={`process-card-${proc.id}`}
-                      >
-                        <div className="execution-process-row">
-                          <div className="execution-process-meta">
-                            <strong>{proc.label || proc.command}</strong>
-                            <span className="muted">
-                              {proc.status}
-                              {typeof proc.pid === 'number' ? ` · pid ${proc.pid}` : ''}
-                            </span>
-                            <code className="execution-process-cmd">
-                              {proc.command} {proc.argv.join(' ')}
-                            </code>
-                          </div>
-                          <div className="execution-process-actions">
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-compact"
-                              onClick={() => props.onLoadProcessLogs?.(proc.id)}
-                            >
-                              Logs
-                            </button>
-                            {isActive ? (
-                              <button
-                                type="button"
-                                className="btn btn-compact"
-                                data-testid={`process-stop-${proc.id}`}
-                                onClick={() => props.onStopProcess?.(proc.id)}
-                              >
-                                Stop
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                        {logText ? (
-                          <pre className="execution-process-logs">{logText.slice(-4000)}</pre>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-              {props.onRefreshProcesses ? (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-compact"
-                  onClick={() => props.onRefreshProcesses?.()}
-                >
-                  Refresh processes
-                </button>
-              ) : null}
-            </section>
-
-            {errorCount > 0 ? (
-              <div className="execution-error-note">{errorCount} tool call{errorCount === 1 ? '' : 's'} failed</div>
-            ) : null}
-
-            {recentTools.length > 0 ? (
-              <details className="execution-tool-details">
-                <summary>Inspect tool output</summary>
-                <div className="tools-inspector-list">
-                  {recentTools.map((tool) => (
-                    <ToolCallCard key={tool.toolCallId} tool={tool} density={props.toolCallDensity ?? 'compact'} />
-                  ))}
-                </div>
-              </details>
-            ) : null}
+      {!inDetail ? (
+        <nav
+          className="right-panel-section-list"
+          aria-label="Workspace sections"
+          data-testid="right-panel-directory"
+        >
+          <div className="right-panel-group-label" aria-hidden>
+            piwin
           </div>
-        ) : null}
-
-        {props.activeTab === 'changes' ? (
-          <div className="right-panel-section">{props.changesContent}</div>
-        ) : null}
-
-        {props.activeTab === 'git' ? (
-          <div className="right-panel-section">{props.gitContent}</div>
-        ) : null}
-
-        {props.activeTab === 'agents' ? (
-          <div className="right-panel-section">{props.agentsContent}</div>
-        ) : null}
-
-        {props.activeTab === 'notes' ? (
-          <div className="right-panel-section">{props.notesContent}</div>
-        ) : null}
-
-        {props.activeTab === 'cards' ? (
-          <div className="right-panel-section">{props.cardsContent}</div>
-        ) : null}
-      </div>
+          {DIRECTORY_ITEMS.map((tab) => {
+            const label = locale === 'zh-CN' ? tab.labelZh : tab.labelEn;
+            const isTerminal = tab.id === 'activity';
+            const hasProcess = isTerminal && runningProcessCount > 0;
+            return (
+              <ListRow
+                key={tab.id}
+                className={
+                  hasProcess
+                    ? 'right-panel-section-row has-proc'
+                    : 'right-panel-section-row'
+                }
+                selected={false}
+                role="button"
+                id={`inspector-tab-${tab.id}`}
+                onClick={() => drillInto(tab.id)}
+                data-testid={
+                  tab.id === 'files'
+                    ? 'right-panel-files-btn'
+                    : `right-panel-tab-${tab.id}`
+                }
+              >
+                <span className="right-panel-section-icon" aria-hidden>
+                  {tab.icon}
+                </span>
+                {hasProcess ? (
+                  <span className="right-panel-section-count is-process">
+                    {runningProcessCount}
+                  </span>
+                ) : null}
+                <span className="right-panel-section-label">{label}</span>
+                {tab.id === 'review' && changesCount > 0 ? (
+                  <span className="right-panel-section-count is-changes">
+                    {changesCount}
+                  </span>
+                ) : null}
+                {tab.id === 'cards' &&
+                cardsDueCount !== undefined &&
+                cardsDueCount > 0 ? (
+                  <span className="right-panel-section-count is-due">
+                    {cardsDueCount} due
+                  </span>
+                ) : null}
+                {hasProcess ? (
+                  <span className="right-panel-section-chevron" aria-hidden>
+                    <IconChevronRight />
+                  </span>
+                ) : null}
+              </ListRow>
+            );
+          })}
+        </nav>
+      ) : (
+        <div
+          className="right-panel-body"
+          role="region"
+          id={`inspector-panel-${props.activeTab}`}
+          aria-labelledby={`inspector-tab-${props.activeTab}`}
+        >
+          {props.activeTab === 'files' ? (
+            <div className="right-panel-section">{props.filesContent}</div>
+          ) : null}
+          {props.activeTab === 'activity' ? (
+            <div
+              className="right-panel-section right-panel-activity"
+              data-testid="activity-panel"
+            >
+              {props.activityContent}
+            </div>
+          ) : null}
+          {props.activeTab === 'review' ? (
+            <div className="right-panel-section">{props.reviewContent}</div>
+          ) : null}
+          {props.activeTab === 'notes' ? (
+            <div className="right-panel-section">{props.notesContent}</div>
+          ) : null}
+          {props.activeTab === 'cards' ? (
+            <div className="right-panel-section">{props.cardsContent}</div>
+          ) : null}
+        </div>
+      )}
     </aside>
   );
-}
-
-
-function formatExecutionUsage(usage: ContextUsageSnapshot): string {
-  const parts: string[] = [];
-  if (typeof usage.promptTokens === 'number') {
-    parts.push(`prompt ${usage.promptTokens.toLocaleString()}`);
-  }
-  if (typeof usage.completionTokens === 'number') {
-    parts.push(`completion ${usage.completionTokens.toLocaleString()}`);
-  }
-  if (typeof usage.totalTokens === 'number') {
-    parts.push(`total ${usage.totalTokens.toLocaleString()}`);
-  } else if (typeof usage.tokensUsed === 'number') {
-    parts.push(`used ${usage.tokensUsed.toLocaleString()}`);
-  }
-  if (typeof usage.tokensLimit === 'number') {
-    parts.push(`limit ${usage.tokensLimit.toLocaleString()}`);
-  }
-  if (parts.length === 0) {
-    return 'usage · unknown';
-  }
-  return parts.join(' · ');
 }

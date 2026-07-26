@@ -1,0 +1,1310 @@
+/* Region: inspector / right panel (right-panel.tsx, file-tree-panel.tsx,
+   terminal-dock.tsx, context-window-panel.tsx, review-panel.tsx,
+   changes-panel.tsx, GitPanel.tsx, PlanPanel.tsx, HostLogPanel.tsx,
+   xterm-surface.tsx, diff-view.tsx).
+   Owns .right-panel* internals + panel placement (.right-panel.outward-column),
+   .file-tree-*, .terminal-*, .pty-*, .xterm-surface, .context-window-*,
+   .review-*, .changes-*, .diff-*, .git-*, .plan-*, .host-log-*.
+   The .app-shell grid-template rules live in region-shell.css.
+   Values re-derived from the effective post-cascade rendering. Semantic
+   runtime tokens only; no forced declarations. */
+
+/* ── Panel frame ──────────────────────────────────────────────────── */
+
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  background: var(--sidebar);
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--text) 4%, transparent);
+  box-shadow: none;
+  overflow: hidden;
+  transition: opacity 200ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* In-flow third column: window is grown by --right-panel-width before this
+   class applies, so the stage keeps the same pixel width. */
+.app-shell.has-right-panel > .right-panel.outward-column {
+  grid-area: signal;
+  position: relative;
+  width: 100%;
+  max-width: var(--right-panel-width, 320px);
+  height: 100%;
+  min-height: 0;
+  z-index: auto;
+}
+
+/* Compact cannot reliably grow the window; panel is a fixed overlay drawer. */
+.app-shell[data-layout='compact'] > .right-panel.outward-column {
+  position: fixed;
+  z-index: var(--layer-drawer);
+  top: var(--topbar-height);
+  right: 0;
+  bottom: 0;
+  width: min(var(--right-panel-width, 320px), 92vw);
+  max-width: none;
+  grid-area: unset;
+}
+
+.right-panel.is-resizing {
+  border-left-color: var(--accent);
+}
+
+.right-panel-resize-handle {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.right-panel-resize-handle::after {
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 1px;
+  height: 42px;
+  border-radius: 1px;
+  background: transparent;
+  content: '';
+  transform: translateY(-50%);
+  transition: background 120ms ease;
+}
+
+.right-panel-resize-handle:hover::after,
+.right-panel.is-resizing .right-panel-resize-handle::after {
+  background: var(--accent);
+}
+
+/* ── Header + section tabs ────────────────────────────────────────── */
+
+.right-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+  padding: 0 10px;
+  border-bottom: 1px solid transparent;
+  flex-shrink: 0;
+  background: transparent;
+}
+
+.right-panel-header-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.right-panel-kicker {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.right-panel-group-label {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--wb-dim, var(--faint));
+  font-weight: 650;
+  padding: 10px 12px 4px;
+}
+
+.right-panel-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.right-panel-section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 12px;
+  border-bottom: none;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: transparent;
+}
+
+.piwin-list-row.right-panel-section-row {
+  justify-content: flex-start;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 12.5px;
+  gap: 8px;
+}
+
+.piwin-list-row.right-panel-section-row:hover {
+  background: var(--wb-hover, var(--surface-hover));
+  color: var(--text);
+}
+
+.piwin-list-row.right-panel-section-row.is-selected {
+  background: var(--wb-hover, var(--surface-hover));
+  color: var(--text);
+}
+
+.right-panel-section-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.right-panel-section-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.6;
+}
+
+.right-panel-section-chevron {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.right-panel-section-chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.right-panel[data-view='home'] {
+  background: var(--canvas);
+}
+
+.right-panel {
+  background: var(--canvas);
+  border-left: 1px solid transparent;
+  transition:
+    width var(--motion-large, 260ms) var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity var(--motion-standard, 200ms) ease,
+    border-color var(--motion-standard, 200ms) ease;
+}
+
+.right-panel-section-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 580;
+}
+
+.right-panel-section-count {
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ok);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+/* ── Body ─────────────────────────────────────────────────────────── */
+
+.right-panel-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+}
+
+.right-panel-section {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: 12px;
+}
+
+.right-panel-section-meta {
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+.right-panel-empty {
+  padding: 24px 8px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ── File tree ────────────────────────────────────────────────────── */
+
+.file-tree-panel,
+.review-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.file-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.file-tree-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0 12px;
+  overflow: auto;
+  flex: 1;
+}
+
+.file-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+}
+
+.file-tree-row[draggable='true'] {
+  cursor: grab;
+}
+
+.file-tree-row:hover,
+.file-tree-node.selected > .file-tree-row {
+  background: var(--surface-hover);
+}
+
+.file-tree-twist {
+  width: 12px;
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.file-tree-icon {
+  width: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.file-tree-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.file-tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-children {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.file-tree-footer {
+  padding: 8px 12px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-loading,
+.file-tree-empty {
+  padding: 16px 12px;
+  font-size: 12px;
+}
+
+.file-tree-panel-split {
+  display: grid;
+  grid-template-rows: minmax(132px, 44%) minmax(132px, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+
+.file-tree-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-bottom: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+
+.file-tree-preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 64%, var(--canvas));
+}
+
+.file-tree-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12px;
+}
+
+.file-tree-preview-header strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-tree-preview-code {
+  flex: 1;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+.file-tree-preview-meta {
+  padding: 4px 10px 8px;
+  font-size: 11px;
+}
+
+.file-tree-preview-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ── Review sub-tabs ──────────────────────────────────────────────── */
+
+.review-subtabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.review-subtab {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.review-subtab.active {
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.review-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ── Terminal dock (panel variant inside inspector) ───────────────── */
+/* Deliberate literal palette: the terminal is a dark console surface in
+   both themes, matching the shipped rendering. */
+
+.terminal-dock {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.terminal-dock-panel {
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.terminal-dock-panel .terminal-dock-body {
+  flex: 1;
+  min-height: 240px;
+}
+
+.terminal-dock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line-soft);
+  background: rgb(14, 18, 24); /* console header — deliberate dark literal */
+}
+
+.terminal-dock-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.terminal-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11.5px;
+}
+
+.terminal-tab:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.terminal-tab.active {
+  color: var(--text);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.terminal-tab-count {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.terminal-dock[data-pty-mode='tauri'] .terminal-tab-count {
+  opacity: 0.85;
+}
+
+.terminal-tab-badge {
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+}
+
+.terminal-tab-badge.err {
+  background: color-mix(in srgb, var(--danger) 30%, transparent);
+  color: var(--danger);
+}
+
+.terminal-tab-badge.warn {
+  background: color-mix(in srgb, var(--state-warning) 30%, transparent);
+  color: var(--state-warning);
+}
+
+.terminal-dock-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.terminal-dock-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal-stream {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.terminal-empty {
+  padding: 12px 0;
+  font-size: 12px;
+}
+
+.terminal-line {
+  display: grid;
+  grid-template-columns: 52px 42px minmax(0, 1fr);
+  gap: 8px;
+  padding: 1px 0;
+  color: rgb(197, 205, 219); /* console foreground — deliberate literal */
+}
+
+.terminal-line.level-warn .terminal-level,
+.terminal-line.level-warn .terminal-text {
+  color: var(--state-warning);
+}
+
+.terminal-line.level-error .terminal-level,
+.terminal-line.level-error .terminal-text {
+  color: var(--danger);
+}
+
+.terminal-level {
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--faint);
+}
+
+.terminal-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── PTY (interactive + line-preview) ─────────────────────────────── */
+
+.pty-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.pty-stream {
+  flex: 1;
+  overflow: auto;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pty-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgb(215, 224, 234); /* console foreground — deliberate literal */
+}
+
+.pty-input-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--line-soft);
+  background: rgb(14, 18, 24); /* console input strip — deliberate literal */
+}
+
+.pty-prompt {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.pty-input {
+  flex: 1;
+  height: 28px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: rgb(10, 12, 16); /* console input field — deliberate literal */
+  color: var(--text);
+  padding: 0 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.pty-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.pty-xterm-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.xterm-surface {
+  flex: 1;
+  min-height: 140px;
+  padding: 4px 6px;
+  background: rgb(15, 17, 21); /* xterm canvas — deliberate literal */
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.xterm-surface .xterm {
+  height: 100%;
+}
+
+/* xterm.js sets inline overflow on its viewport; this is the one place we
+   must out-rank an inline style to keep the scrollbar functional. */
+.xterm-surface .xterm-viewport {
+  overflow-y: auto !important;
+}
+
+/* ── Changes panel ────────────────────────────────────────────────── */
+
+.changes-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.changes-panel-split {
+  display: grid;
+  grid-template-columns: minmax(160px, 42%) minmax(0, 1fr);
+  min-height: 0;
+  height: 100%;
+  gap: 0;
+}
+
+.changes-list-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line-soft);
+  overflow: hidden;
+}
+
+.changes-diff-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.changes-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.changes-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changes-branch-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex-shrink: 0;
+}
+
+.changes-totals {
+  font-size: 11px;
+}
+
+.changes-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(52vh, 480px);
+  overflow: auto;
+}
+
+.changes-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 0 4px 0 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.changes-row:hover {
+  background: var(--surface-hover);
+}
+
+.changes-row.selected {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.changes-row-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  padding: 0 4px 0 0;
+}
+
+.changes-check {
+  flex-shrink: 0;
+}
+
+.changes-code {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.changes-code.status-modified { color: var(--accent); }
+.changes-code.status-added,
+.changes-code.status-untracked { color: var(--ok); }
+.changes-code.status-deleted { color: var(--danger); }
+.changes-code.status-conflicted { color: var(--danger); }
+
+.changes-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 11.5px;
+}
+
+.changes-stats {
+  display: inline-flex;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.changes-stats .add { color: var(--ok); }
+.changes-stats .del { color: var(--danger); }
+
+.changes-chip {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.changes-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.changes-diff-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+@media (max-width: 1100px) {
+  .changes-panel-split {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(140px, 40%) minmax(160px, 1fr);
+  }
+  .changes-list-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+}
+
+/* ── Diff view ────────────────────────────────────────────────────── */
+/* Deliberate literal diff palette: add/del tints match the shipped GitHub-like
+   colors independent of theme accent hues. */
+
+.diff-mode-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--surface-hover);
+}
+
+.diff-mode-toggle button {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.diff-mode-toggle button.active {
+  background: var(--panel);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.diff-view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.45;
+  border: none;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 5%, transparent);
+  animation: diff-in 250ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes diff-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.diff-view.empty {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.diff-view[data-review='accepted'] {
+  opacity: 0.7;
+  border-color: color-mix(in srgb, var(--ok) 25%, transparent);
+}
+
+.diff-view[data-review='rejected'] {
+  opacity: 0.5;
+  border-color: color-mix(in srgb, var(--danger) 25%, transparent);
+}
+
+.diff-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+  font-size: 11px;
+}
+
+.diff-view-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diff-unified,
+.diff-split {
+  margin: 0;
+  min-width: max-content;
+}
+
+.diff-line {
+  display: flex;
+  white-space: pre;
+  padding: 0 8px;
+}
+
+.diff-gutter {
+  width: 14px;
+  flex-shrink: 0;
+  color: var(--faint);
+}
+
+.diff-line.kind-add {
+  background: color-mix(in srgb, #34d399 16%, transparent); /* diff green */
+  color: #a7f3d0; /* diff green text */
+}
+
+.diff-line.kind-del {
+  background: color-mix(in srgb, #f87171 16%, transparent); /* diff red */
+  color: #fecaca; /* diff red text */
+}
+
+.diff-line.kind-hunk,
+.diff-line.kind-meta {
+  color: var(--faint);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.diff-line.kind-empty {
+  background: transparent;
+  min-height: 1.45em;
+}
+
+.diff-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100%;
+}
+
+.diff-split-col {
+  border-right: 1px solid var(--line-soft);
+  min-width: 0;
+}
+
+.diff-split-col:last-child {
+  border-right: 0;
+}
+
+/* ── Diff action bar (accept / reject) ────────────────────────────── */
+
+.diff-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
+}
+
+.diff-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  background: transparent;
+}
+
+.diff-action-btn.accept {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+}
+
+.diff-action-btn.accept:hover {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+}
+
+.diff-action-btn.reject {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+}
+
+.diff-action-btn.reject:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+}
+
+.diff-review-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.diff-review-badge.accepted {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.diff-review-badge.rejected {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+/* ── Context window panel ─────────────────────────────────────────── */
+
+.context-window-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.context-window-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.context-window-header h3 {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text);
+  margin: 0;
+}
+
+.context-window-percent {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.context-window-percent.tone-ok { color: var(--ok); }
+.context-window-percent.tone-warn { color: var(--accent); }
+.context-window-percent.tone-critical { color: var(--danger); }
+
+.context-window-bar {
+  display: flex;
+  align-items: stretch;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--surface-inset);
+}
+
+.context-window-segment {
+  display: block;
+  height: 100%;
+  min-width: 1px;
+  transition: width 0.3s ease;
+}
+
+.context-window-segment.free {
+  background: transparent;
+  flex: 1;
+}
+
+.context-window-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.context-window-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.context-window-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  flex: 1;
+  color: var(--muted);
+}
+
+.legend-value {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+}
+
+/* ── Git panel (embedded review tab + dialog variant) ─────────────── */
+
+.git-panel {
+  width: min(720px, calc(100vw - 32px));
+}
+
+.git-section {
+  margin: 12px 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.git-section h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.git-path {
+  display: block;
+  margin-top: 4px;
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.git-graph-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 12px;
+}
+
+.git-graph-list {
+  max-height: 220px;
+}
+
+.git-commit-detail {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface-inset);
+  min-height: 120px;
+}
+
+.git-file-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.git-panel-body .git-section {
+  margin-top: 8px;
+}
+
+.git-panel-body .git-graph-layout {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 800px) {
+  .git-graph-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Plan panel ───────────────────────────────────────────────────── */
+
+.plan-step-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-status {
+  font-size: 12px;
+}
+
+/* ── Host log panel ───────────────────────────────────────────────── */
+
+.host-log-panel {
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  flex-shrink: 0;
+}
+
+.host-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+}
+
+.host-log-toggle {
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.host-log-counts {
+  font-size: 11px;
+}
+
+.host-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.host-log-body {
+  max-height: 160px;
+  overflow: auto;
+  padding: 0 10px 8px;
+  border-top: 1px solid var(--border);
+}
+
+.host-log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.host-log-line {
+  display: grid;
+  grid-template-columns: 72px 48px 1fr;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(42, 49, 66, 0.4);
+}
+
+.host-log-line.level-error .host-log-level {
+  color: var(--danger);
+}
+
+.host-log-line.level-warn .host-log-level {
+  color: var(--state-warning);
+}
+
+.host-log-line.level-info .host-log-level {
+  color: var(--muted);
+}
+
+.host-log-message {
+  word-break: break-word;
+  white-space: pre-wrap;
+}
