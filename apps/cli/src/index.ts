@@ -62,6 +62,11 @@ Usage:
   piwin notes show <id> | delete <id> | reindex
   piwin notes pin <query> <noteId...>       (add golden eval case)
   piwin notes eval [--k 5] [--verbose] | eval history
+  piwin cards add <front> --back <b> [--deck d] [--tags a,b]
+  piwin cards list [--deck d] | decks | show <id> | delete <id>
+  piwin cards due [--deck d]
+  piwin cards review [--deck d]             (interactive FSRS loop)
+  piwin cards export [--deck d] [--out <path>]   (Anki TSV)
 
 Host modes: sdk | rpc
 Offline: --mock or PIWIN_MOCK=1
@@ -1314,6 +1319,159 @@ async function commandNotes(argv: string[]): Promise<void> {
   process.exitCode = 1;
 }
 
+async function commandCards(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? 'list';
+  const root = getPiwinRoot();
+  const config = await loadPiwinConfig(root);
+  if (config.flashcards?.enabled === false) {
+    console.error('Flashcards disabled (config.flashcards.enabled=false).');
+    process.exitCode = 1;
+    return;
+  }
+
+  const { createCardStore, buildReviewQueue, exportCardsToTsv } = await import(
+    '@piwin/flashcards'
+  );
+  const store = createCardStore({ piwinRoot: root });
+  const deck = readOption(argv, '--deck');
+
+  if (sub === 'add') {
+    const front = collectPositionals(argv.slice(2), ['--back', '--deck', '--tags'])
+      .join(' ')
+      .trim();
+    const back = readOption(argv, '--back');
+    if (!front || !back) {
+      console.error('Usage: piwin cards add <front> --back <b> [--deck d] [--tags a,b]');
+      process.exitCode = 1;
+      return;
+    }
+    const input: {
+      front: string;
+      back: string;
+      deck?: string;
+      tags?: string[];
+    } = { front, back };
+    if (deck) input.deck = deck;
+    const tags = readOption(argv, '--tags');
+    if (tags) input.tags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+    const card = await store.create(input);
+    console.log(`created ${card.id} [${card.deck}]`);
+    return;
+  }
+
+  if (sub === 'list') {
+    const cards = await store.list(deck ? { deck } : undefined);
+    for (const card of cards) {
+      console.log(`${card.id}\t${card.deck}\t${card.front.replaceAll('\n', ' ').slice(0, 80)}`);
+    }
+    return;
+  }
+
+  if (sub === 'decks') {
+    for (const name of await store.listDecks()) {
+      console.log(name);
+    }
+    return;
+  }
+
+  if (sub === 'show') {
+    const cardId = argv[2];
+    if (!cardId) {
+      console.error('Usage: piwin cards show <id>');
+      process.exitCode = 1;
+      return;
+    }
+    const card = await store.read(cardId);
+    const state = await store.getReviewState(cardId);
+    console.log(JSON.stringify({ card, review: state }, null, 2));
+    return;
+  }
+
+  if (sub === 'delete') {
+    const cardId = argv[2];
+    if (!cardId) {
+      console.error('Usage: piwin cards delete <id>');
+      process.exitCode = 1;
+      return;
+    }
+    await store.delete(cardId);
+    console.log(`deleted ${cardId}`);
+    return;
+  }
+
+  if (sub === 'due' || sub === 'review') {
+    const cards = await store.list();
+    const states = await store.loadReviewStates();
+    const queue = buildReviewQueue({
+      cards,
+      states,
+      ...(deck ? { deck } : {}),
+      ...(typeof config.flashcards?.newPerDay === 'number'
+        ? { newPerDay: config.flashcards.newPerDay }
+        : {}),
+      ...(typeof config.flashcards?.maxReviewsPerDay === 'number'
+        ? { maxReviewsPerDay: config.flashcards.maxReviewsPerDay }
+        : {}),
+    });
+
+    if (sub === 'due') {
+      console.log(`${queue.length} card(s) to review`);
+      for (const item of queue) {
+        const label = item.isNew ? 'new' : `due ${item.state.due.slice(0, 10)}`;
+        console.log(`${item.card.id}\t[${label}]\t${item.card.front.slice(0, 70)}`);
+      }
+      return;
+    }
+
+    // Interactive review loop.
+    if (queue.length === 0) {
+      console.log('No cards due. 🎉' .replace(' 🎉', ''));
+      return;
+    }
+    const readline = createInterface({ input: process.stdin, output: process.stdout });
+    const ask = (prompt: string): Promise<string> =>
+      new Promise((resolvePrompt) => readline.question(prompt, resolvePrompt));
+    try {
+      let position = 0;
+      for (const item of queue) {
+        position += 1;
+        console.log(`\n[${position}/${queue.length}] ${item.isNew ? '(new) ' : ''}${item.card.front}`);
+        await ask('  press Enter to reveal…');
+        console.log(`  → ${item.card.back}`);
+        const answer = (
+          await ask('  rate: 1=again 2=hard 3=good 4=easy (q=quit): ')
+        ).trim();
+        if (answer === 'q') break;
+        const rating =
+          answer === '1' ? 'again' : answer === '2' ? 'hard' : answer === '4' ? 'easy' : 'good';
+        const next = await store.rate(item.card.id, rating);
+        console.log(`  next due: ${next.due.slice(0, 16).replace('T', ' ')}`);
+      }
+      console.log('\nreview session done');
+    } finally {
+      readline.close();
+    }
+    return;
+  }
+
+  if (sub === 'export') {
+    const cards = await store.list(deck ? { deck } : undefined);
+    const tsv = exportCardsToTsv(cards);
+    const outPath = readOption(argv, '--out');
+    if (outPath) {
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(resolve(outPath), tsv, 'utf8');
+      console.log(`exported ${cards.length} card(s) to ${resolve(outPath)}`);
+    } else {
+      process.stdout.write(tsv);
+    }
+    return;
+  }
+
+  console.error('Usage: piwin cards add|list|decks|show|delete|due|review|export');
+  process.exitCode = 1;
+}
+
 async function commandHostServe(argv: string[]): Promise<void> {
   const mode = parseMode(argv);
   const mock = parseMock(argv);
@@ -1431,6 +1589,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'notes') {
     await commandNotes(argv);
+    return;
+  }
+  if (command === 'cards') {
+    await commandCards(argv);
     return;
   }
   if (command === 'host' && argv[1] === 'serve') {

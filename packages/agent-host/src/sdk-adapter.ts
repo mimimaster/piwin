@@ -42,6 +42,8 @@ import { buildMemoryTools } from './memory-tools.js';
 import { createNoteStore, openNoteIndex, createEmbeddingProvider } from '@piwin/notes';
 import { buildNotesTools } from './notes-tools.js';
 import { resolveNotesEmbeddingApiKey } from './notes-embedding-secret.js';
+import { createCardStore } from '@piwin/flashcards';
+import { buildFlashcardTools } from './flashcard-tools.js';
 import { listProjects } from '@piwin/project';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -438,10 +440,33 @@ async function createPiSdkSession(
     notesTools = buildNotesTools(notesToolOptions);
   }
 
+  // Flashcard tools (ADR 0018 §7). Default enabled; generation is agent-driven.
+  const flashcardsEnabled = config.flashcards?.enabled !== false && !chatMode;
+  let flashcardTools: import('@piwin/tools-web').HostToolDefinition[] = [];
+  if (flashcardsEnabled) {
+    const cardStore = createCardStore({ piwinRoot: rootDir });
+    const flashcardToolOptions: import('./flashcard-tools.js').BuildFlashcardToolsOptions = {
+      store: cardStore,
+      enabled: true,
+    };
+    if (requestPermission) {
+      flashcardToolOptions.requestPermission = requestPermission;
+    }
+    flashcardTools = buildFlashcardTools(flashcardToolOptions);
+  }
+
   // CE-MODE light: chat strips host custom tools and gated bash.
   const hostTools = chatMode
     ? []
-    : [...webTools, ...mcpBridge.tools, planTool, ...processTools, ...memoryTools, ...notesTools];
+    : [
+        ...webTools,
+        ...mcpBridge.tools,
+        planTool,
+        ...processTools,
+        ...memoryTools,
+        ...notesTools,
+        ...flashcardTools,
+      ];
   const customTools = toPiCustomTools(hostTools);
 
   // Replace built-in bash with permission-gated bash (hard-deny + ask UI).
