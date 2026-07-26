@@ -1472,6 +1472,15 @@ export class HostRuntime {
           const state = await store.rate(command.cardId, command.rating);
           return ok(requestId, 'flashcards/rate', { state });
         }
+        case 'flashcards/export': {
+          const store = await this.getCardStore();
+          const { exportCardsToTsv } = await import('@piwin/flashcards');
+          const cards = await store.list(command.deck ? { deck: command.deck } : undefined);
+          return ok(requestId, 'flashcards/export', {
+            tsv: exportCardsToTsv(cards),
+            count: cards.length,
+          });
+        }
 
         case 'session/export': {
           const rootDir = getPiwinRoot(this.options.piwinRoot);
@@ -1728,6 +1737,11 @@ export class HostRuntime {
       }
       if (typeof config.notes?.search?.rrfK === 'number') {
         searchOptions.rrfK = config.notes.search.rrfK;
+      }
+      const { buildNotesRerankProvider } = await import('./notes-rerank.js');
+      const rerank = await buildNotesRerankProvider(config);
+      if (rerank) {
+        searchOptions.rerankProvider = rerank;
       }
       this.notesServices = { store, index, searchOptions };
     }

@@ -2,6 +2,7 @@ import type {
   EmbeddingProvider,
   NoteSearchHit,
   NoteSearchQuery,
+  RerankProvider,
 } from '@piwin/contracts';
 import { fuseHybridHits } from './hybrid-search.js';
 import type { NoteIndex } from './note-index.js';
@@ -11,6 +12,8 @@ const CHANNEL_FETCH_LIMIT = 50;
 export type SearchNotesOptions = {
   /** Absent = FTS-only ('auto' resolves to fts). */
   embeddingProvider?: EmbeddingProvider;
+  /** Optional second-stage reranker over fused hits (default off). */
+  rerankProvider?: RerankProvider;
   /** RRF constant; default 60. */
   rrfK?: number;
   signal?: AbortSignal;
@@ -37,27 +40,28 @@ export async function searchNotes(
   const limit = query.limit && query.limit > 0 ? Math.floor(query.limit) : 10;
 
   if (mode === 'fts') {
-    return index.searchFts(query);
+    return applyRerank(index.searchFts(query), query.query, options);
   }
 
   // vector / hybrid — provider is defined per resolveMode contract.
   if (!provider) {
-    return index.searchFts(query);
+    return applyRerank(index.searchFts(query), query.query, options);
   }
   const channelQuery = { ...query, limit: CHANNEL_FETCH_LIMIT };
   try {
     if (mode === 'vector') {
       const hits = await index.searchVector(channelQuery, provider, options?.signal);
-      return hits.slice(0, limit);
+      return applyRerank(hits.slice(0, limit), query.query, options);
     }
     const [ftsHits, vectorHits] = [
       index.searchFts(channelQuery),
       await index.searchVector(channelQuery, provider, options?.signal),
     ];
-    return fuseHybridHits(
+    const fused = fuseHybridHits(
       { fts: ftsHits, vector: vectorHits },
       { limit, ...(options?.rrfK !== undefined ? { rrfK: options.rrfK } : {}) },
     );
+    return applyRerank(fused, query.query, options);
   } catch (error) {
     if (options?.signal?.aborted) {
       throw error;
@@ -68,6 +72,19 @@ export async function searchNotes(
     );
     return index.searchFts(query);
   }
+}
+
+/** Rerank is provider-internal-failure-safe; it returns input order on error. */
+async function applyRerank(
+  hits: NoteSearchHit[],
+  query: string,
+  options: SearchNotesOptions | undefined,
+): Promise<NoteSearchHit[]> {
+  const rerank = options?.rerankProvider;
+  if (!rerank || hits.length < 2) {
+    return hits;
+  }
+  return rerank.rerank(query, hits, options?.signal);
 }
 
 function resolveMode(

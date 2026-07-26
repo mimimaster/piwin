@@ -13,6 +13,7 @@ export type FlashcardsPanelProps = {
     | { type: 'flashcards/decks' }
     | { type: 'flashcards/queue'; deck?: string }
     | { type: 'flashcards/rate'; cardId: string; rating: ReviewRating }
+    | { type: 'flashcards/export'; deck?: string }
   ) => Promise<HostResponse>;
 };
 
@@ -127,6 +128,28 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
     return () => window.removeEventListener('keydown', onKey);
   }, [reviewing, revealed, handleRate]);
 
+  async function handleExport(): Promise<void> {
+    setError(null);
+    const response = await props.request({
+      type: 'flashcards/export',
+      ...(deckFilter ? { deck: deckFilter } : {}),
+    });
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    const data = response.data as { tsv: string; count: number };
+    // Download as a file (Anki: File → Import, tab separator).
+    const blob = new Blob([data.tsv], { type: 'text/tab-separated-values' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = deckFilter ? `piwin-cards-${deckFilter}.tsv` : 'piwin-cards.tsv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setInfo(`Exported ${data.count} card(s) as Anki TSV`);
+  }
+
   async function handleDelete(cardId: string): Promise<void> {
     setError(null);
     const response = await props.request({ type: 'flashcards/delete', cardId });
@@ -224,6 +247,16 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
             </button>
             <button type="button" className="btn" onClick={() => void loadData()}>
               Refresh
+            </button>
+            <button
+              type="button"
+              className="btn"
+              data-testid="flashcards-export"
+              disabled={cards.length === 0}
+              onClick={() => void handleExport()}
+              title="Export as Anki-importable TSV"
+            >
+              Export TSV
             </button>
           </div>
 

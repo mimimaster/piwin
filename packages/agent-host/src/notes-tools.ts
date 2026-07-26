@@ -26,6 +26,8 @@ export type BuildNotesToolsOptions = {
   enabled: boolean;
   /** When set, note_search runs hybrid (FTS + vector RRF); absent = FTS-only. */
   embeddingProvider?: EmbeddingProvider;
+  /** Optional LLM rerank stage (config.notes.rerank.enabled). */
+  rerankProvider?: import('@piwin/contracts').RerankProvider;
   /** RRF constant override (config.notes.search.rrfK). */
   rrfK?: number;
   requestPermission?: ToolPermissionGate;
@@ -47,6 +49,9 @@ export function buildNotesTools(options: BuildNotesToolsOptions): HostToolDefini
   const searchOptions: SearchNotesOptions = {};
   if (options.embeddingProvider) {
     searchOptions.embeddingProvider = options.embeddingProvider;
+  }
+  if (options.rerankProvider) {
+    searchOptions.rerankProvider = options.rerankProvider;
   }
   if (options.rrfK !== undefined) {
     searchOptions.rrfK = options.rrfK;

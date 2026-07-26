@@ -434,6 +434,13 @@ async function createPiSdkSession(
     if (typeof config.notes?.search?.rrfK === 'number') {
       notesToolOptions.rrfK = config.notes.search.rrfK;
     }
+    {
+      const { buildNotesRerankProvider } = await import('./notes-rerank.js');
+      const rerank = await buildNotesRerankProvider(config);
+      if (rerank) {
+        notesToolOptions.rerankProvider = rerank;
+      }
+    }
     if (requestPermission) {
       notesToolOptions.requestPermission = requestPermission;
     }

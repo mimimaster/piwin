@@ -227,6 +227,7 @@ export type HostCommand =
   | { id?: string; type: 'flashcards/decks' }
   | { id?: string; type: 'flashcards/queue'; deck?: string }
   | { id?: string; type: 'flashcards/rate'; cardId: string; rating: ReviewRating }
+  | { id?: string; type: 'flashcards/export'; deck?: string }
   /** CE-PROC: managed process registry. */
   | { id?: string; type: 'process/list'; sessionId?: string; projectPath?: string }
   | { id?: string; type: 'process/get'; processId: string }

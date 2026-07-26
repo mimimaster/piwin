@@ -34,6 +34,7 @@ export function NotesPanel(props: NotesPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMode, setSearchMode] = useState<NoteSearchMode>('auto');
   const [evalReports, setEvalReports] = useState<RecallEvalReport[] | null>(null);
+  const [evalHistory, setEvalHistory] = useState<RecallEvalReport[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -149,6 +150,21 @@ export function NotesPanel(props: NotesPanelProps) {
     setEvalReports(data.reports ?? []);
   }
 
+  async function handleEvalHistory(): Promise<void> {
+    if (evalHistory !== null) {
+      setEvalHistory(null); // toggle off
+      return;
+    }
+    setError(null);
+    const response = await props.request({ type: 'notes/eval-history' });
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    const data = response.data as { runs: RecallEvalReport[] };
+    setEvalHistory(data.runs ?? []);
+  }
+
   const displayList = hits !== null ? hits.map((hit) => hit.note) : records;
 
   return (
@@ -220,7 +236,28 @@ export function NotesPanel(props: NotesPanelProps) {
         <button type="button" className="btn" disabled={busy} onClick={() => void handleEvalRun()}>
           Run recall eval
         </button>
+        <button type="button" className="btn" onClick={() => void handleEvalHistory()}>
+          {evalHistory !== null ? 'Hide history' : 'Eval history'}
+        </button>
       </div>
+
+      {evalHistory !== null ? (
+        <div data-testid="notes-eval-history" style={{ marginTop: 10 }}>
+          <strong>Eval run history</strong>
+          {evalHistory.length === 0 ? (
+            <p className="muted">No runs yet — run a recall eval first.</p>
+          ) : (
+            <ul className="muted">
+              {evalHistory.map((run, index) => (
+                <li key={`${run.runAt}-${index}`}>
+                  {run.runAt.slice(0, 16).replace('T', ' ')} · {run.mode} · recall@{run.k}{' '}
+                  {run.recallAtK.toFixed(3)} · mrr {run.mrr.toFixed(3)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
 
       {evalReports ? (
         <div data-testid="notes-eval-report" style={{ marginTop: 10 }}>
