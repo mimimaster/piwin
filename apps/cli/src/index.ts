@@ -1291,16 +1291,22 @@ async function commandNotes(argv: string[]): Promise<void> {
 
       console.log(`eval: ${cases.length} case(s), k=${k}, modes=${modes.join(',')}`);
       for (const mode of modes) {
+        let degraded = false;
         const report = await runRecallEval({
           cases,
           mode,
           k,
           search: async (query, limit, searchMode) =>
-            runSearch(index, { query, limit, mode: searchMode }, searchOptions),
+            runSearch(
+              index,
+              { query, limit, mode: searchMode },
+              { ...searchOptions, onWarning: () => (degraded = true) },
+            ),
+          wasDegraded: () => degraded,
         });
         index.saveEvalRun(report);
         console.log(
-          `${mode.padEnd(7)}\trecall@${k}=${report.recallAtK.toFixed(3)}\tmrr=${report.mrr.toFixed(3)}`,
+          `${mode.padEnd(7)}\trecall@${k}=${report.recallAtK.toFixed(3)}\tmrr=${report.mrr.toFixed(3)}${report.degraded ? '\t⚠ DEGRADED to fts (embedding failed) — numbers do not measure this mode' : ''}`,
         );
         if (verbose) {
           for (const perCase of report.perCase) {

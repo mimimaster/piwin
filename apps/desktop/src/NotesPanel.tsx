@@ -268,6 +268,11 @@ export function NotesPanel(props: NotesPanelProps) {
               <li key={report.mode}>
                 {report.mode}: recall {report.recallAtK.toFixed(3)} · mrr {report.mrr.toFixed(3)} ·{' '}
                 {report.cases} case(s)
+                {report.degraded ? (
+                  <span className="pill" title="Embedding failed; numbers are FTS results">
+                    {' '}degraded
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>

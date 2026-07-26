@@ -1408,6 +1408,9 @@ export class HostRuntime {
             : ['fts'];
           const reports = [];
           for (const mode of modes) {
+            // Detect embedding-provider degradation so the report never
+            // silently labels FTS numbers as vector/hybrid results.
+            let degraded = false;
             const report = await runRecallEval({
               cases,
               mode,
@@ -1416,8 +1419,9 @@ export class HostRuntime {
                 searchNotes(
                   services.index,
                   { query, limit, mode: searchMode },
-                  services.searchOptions,
+                  { ...services.searchOptions, onWarning: () => (degraded = true) },
                 ),
+              wasDegraded: () => degraded,
             });
             services.index.saveEvalRun(report);
             reports.push(report);

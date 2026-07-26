@@ -87,6 +87,12 @@ export async function runRecallEval(input: {
   mode: NoteSearchMode;
   k?: number;
   search: (query: string, limit: number, mode: NoteSearchMode) => Promise<NoteSearchHit[]>;
+  /**
+   * Set by the caller's onWarning hook when vector/hybrid degraded to FTS
+   * mid-run — the report is then marked so its numbers are not trusted as
+   * measuring the labeled mode.
+   */
+  wasDegraded?: () => boolean;
 }): Promise<RecallEvalReport> {
   const k = input.k && input.k > 0 ? Math.floor(input.k) : 5;
   const perCase: RecallEvalReport['perCase'] = [];
@@ -107,9 +113,11 @@ export async function runRecallEval(input: {
   }
 
   const cases = input.cases.length;
+  const degraded = input.wasDegraded?.() === true;
   return {
     runAt: new Date().toISOString(),
     mode: input.mode,
+    ...(degraded ? { degraded: true } : {}),
     k,
     cases,
     recallAtK: cases > 0 ? hitsAtK / cases : 0,

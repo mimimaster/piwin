@@ -34,6 +34,12 @@ export type NoteStore = {
 
 export function createNoteStore(options: NoteStoreOptions): NoteStore {
   const notesRoot = getNotesRoot(options.piwinRoot);
+  /**
+   * id → absolute path, refreshed on every scan. Lets read/update/delete
+   * resolve a note with one file read instead of scanning the whole tree
+   * (full scan is O(n) file reads + sha256 each — seconds at 10k notes).
+   */
+  const idPathCache = new Map<string, string>();
 
   async function ensureRoot(): Promise<void> {
     await mkdir(notesRoot, { recursive: true });
@@ -43,10 +49,12 @@ export function createNoteStore(options: NoteStoreOptions): NoteStore {
     await ensureRoot();
     const files = await listMarkdownFiles(notesRoot);
     const notes: ScannedNote[] = [];
+    idPathCache.clear();
     for (const absolutePath of files) {
       const scanned = await loadNote(absolutePath);
       if (scanned) {
         notes.push(scanned);
+        idPathCache.set(scanned.record.id, absolutePath);
       }
     }
     return notes;
@@ -107,6 +115,16 @@ export function createNoteStore(options: NoteStoreOptions): NoteStore {
   }
 
   async function findById(noteId: string): Promise<ScannedNote | null> {
+    // Fast path: cached location from a previous scan. Re-verify the id —
+    // the file may have been externally replaced since the cache was built.
+    const cachedPath = idPathCache.get(noteId);
+    if (cachedPath) {
+      const scanned = await loadNote(cachedPath);
+      if (scanned && scanned.record.id === noteId) {
+        return scanned;
+      }
+      idPathCache.delete(noteId);
+    }
     const notes = await scan();
     return notes.find((entry) => entry.record.id === noteId) ?? null;
   }
@@ -162,6 +180,7 @@ export function createNoteStore(options: NoteStoreOptions): NoteStore {
       record.contentHash = sha256(raw);
       await mkdir(join(notesRoot, collection), { recursive: true });
       await writeFile(absolutePath, raw, 'utf8');
+      idPathCache.set(id, absolutePath);
       return record;
     },
 
@@ -199,6 +218,7 @@ export function createNoteStore(options: NoteStoreOptions): NoteStore {
         join(notesRoot, found.record.relativePath),
       );
       await rm(absolutePath);
+      idPathCache.delete(noteId);
       return { deleted: true, id: noteId };
     },
 

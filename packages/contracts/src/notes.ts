@@ -93,6 +93,11 @@ export type RecallEvalCase = {
 export type RecallEvalReport = {
   runAt: string;
   mode: NoteSearchMode;
+  /**
+   * True when any case degraded to FTS (embedding provider failed) — the
+   * numbers then do NOT measure the labeled mode and must not be compared.
+   */
+  degraded?: boolean;
   k: number;
   cases: number;
   /** Fraction of cases with at least one expected id in top k. */
