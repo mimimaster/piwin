@@ -60,6 +60,8 @@ Usage:
   piwin notes list [--collection c]
   piwin notes search <query> [--collection c] [--limit n] [--search-mode auto|fts|vector|hybrid]
   piwin notes show <id> | delete <id> | reindex
+  piwin notes pin <query> <noteId...>       (add golden eval case)
+  piwin notes eval [--k 5] [--verbose] | eval history
 
 Host modes: sdk | rpc
 Offline: --mock or PIWIN_MOCK=1
@@ -1213,7 +1215,102 @@ async function commandNotes(argv: string[]): Promise<void> {
     }
   }
 
-  console.error('Usage: piwin notes add|list|search|show|delete|reindex');
+  if (sub === 'pin') {
+    const positionals = collectPositionals(argv.slice(2), []);
+    const query = positionals[0];
+    const noteIds = positionals.slice(1);
+    if (!query || noteIds.length === 0) {
+      console.error('Usage: piwin notes pin <query> <noteId...>');
+      process.exitCode = 1;
+      return;
+    }
+    const { appendGoldenCase } = await import('@piwin/notes');
+    const path = await appendGoldenCase(store.getNotesRoot(), {
+      query,
+      expectedNoteIds: noteIds,
+    });
+    console.log(`pinned "${query}" -> ${noteIds.join(',')} (${path})`);
+    return;
+  }
+
+  if (sub === 'eval') {
+    const { openNoteIndex: openIndex, searchNotes: runSearch, loadGoldenSet, runRecallEval } =
+      await import('@piwin/notes');
+    const index = await openIndex(store);
+    try {
+      if (argv[2] === 'history') {
+        const runs = index.listEvalRuns();
+        if (runs.length === 0) {
+          console.log('(no eval runs yet — run `piwin notes eval` first)');
+          return;
+        }
+        for (const run of runs) {
+          console.log(
+            `${run.runAt}\t${run.mode}\trecall@${run.k}=${run.recallAtK.toFixed(3)}\tmrr=${run.mrr.toFixed(3)}\tcases=${run.cases}`,
+          );
+        }
+        return;
+      }
+
+      const { cases, warnings } = await loadGoldenSet(store.getNotesRoot());
+      for (const warning of warnings) {
+        console.error(`[golden] ${warning}`);
+      }
+      if (cases.length === 0) {
+        console.error(
+          'Golden set empty. Add cases with: piwin notes pin <query> <noteId...>',
+        );
+        process.exitCode = 1;
+        return;
+      }
+
+      const searchOptions: import('@piwin/notes').SearchNotesOptions = {};
+      if (config.notes?.embedding) {
+        const { resolveNotesEmbeddingApiKey } = await import('@piwin/agent-host');
+        const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
+        const provider = createEmbeddingProvider({
+          config: config.notes.embedding,
+          ...(apiKey ? { apiKey } : {}),
+        });
+        if (provider) searchOptions.embeddingProvider = provider;
+      }
+      if (typeof config.notes?.search?.rrfK === 'number') {
+        searchOptions.rrfK = config.notes.search.rrfK;
+      }
+
+      const k = Number(readOption(argv, '--k')) || 5;
+      const verbose = hasFlag(argv, '--verbose');
+      const modes: Array<'fts' | 'vector' | 'hybrid'> = searchOptions.embeddingProvider
+        ? ['fts', 'vector', 'hybrid']
+        : ['fts'];
+
+      console.log(`eval: ${cases.length} case(s), k=${k}, modes=${modes.join(',')}`);
+      for (const mode of modes) {
+        const report = await runRecallEval({
+          cases,
+          mode,
+          k,
+          search: async (query, limit, searchMode) =>
+            runSearch(index, { query, limit, mode: searchMode }, searchOptions),
+        });
+        index.saveEvalRun(report);
+        console.log(
+          `${mode.padEnd(7)}\trecall@${k}=${report.recallAtK.toFixed(3)}\tmrr=${report.mrr.toFixed(3)}`,
+        );
+        if (verbose) {
+          for (const perCase of report.perCase) {
+            const status = perCase.hitRank === null ? 'MISS' : `rank ${perCase.hitRank}`;
+            console.log(`  ${status.padEnd(8)} ${perCase.query}`);
+          }
+        }
+      }
+      return;
+    } finally {
+      index.close();
+    }
+  }
+
+  console.error('Usage: piwin notes add|list|search|show|delete|reindex|pin|eval');
   process.exitCode = 1;
 }
 

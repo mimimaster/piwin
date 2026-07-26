@@ -13,6 +13,7 @@ import type {
   NoteRecord,
   NoteSearchHit,
   NoteSearchQuery,
+  RecallEvalReport,
 } from '@piwin/contracts';
 import type { NoteStore, ScannedNote } from './note-store.js';
 import { getIndexPath } from './paths.js';
@@ -38,8 +39,14 @@ export type NoteIndex = {
   ) => Promise<NoteSearchHit[]>;
   /** Drop and rebuild all rows (manual repair surface). */
   rebuild: () => Promise<void>;
+  /** Persist an eval report (cache; keeps the most recent runs only). */
+  saveEvalRun: (report: RecallEvalReport) => void;
+  /** Recent eval runs, newest first. */
+  listEvalRuns: (limit?: number) => RecallEvalReport[];
   close: () => void;
 };
+
+const EVAL_RUN_KEEP = 20;
 
 export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
   const indexPath = getIndexPath(store.getNotesRoot());
@@ -61,6 +68,10 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
       emb_model TEXT NOT NULL,
       emb_dim INTEGER NOT NULL,
       embedding BLOB NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS eval_runs(
+      run_at TEXT NOT NULL,
+      report_json TEXT NOT NULL
     );
   `);
 
@@ -242,11 +253,33 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
     await reconcile();
   }
 
+  function saveEvalRun(report: RecallEvalReport): void {
+    db.prepare('INSERT INTO eval_runs(run_at, report_json) VALUES (?, ?)').run(
+      report.runAt,
+      JSON.stringify(report),
+    );
+    db.prepare(
+      `DELETE FROM eval_runs WHERE rowid NOT IN (
+         SELECT rowid FROM eval_runs ORDER BY run_at DESC LIMIT ?
+       )`,
+    ).run(EVAL_RUN_KEEP);
+  }
+
+  function listEvalRuns(limit?: number): RecallEvalReport[] {
+    const max = limit && limit > 0 ? Math.floor(limit) : EVAL_RUN_KEEP;
+    const rows = db
+      .prepare('SELECT report_json FROM eval_runs ORDER BY run_at DESC LIMIT ?')
+      .all(max) as Array<{ report_json: string }>;
+    return rows.map((row) => JSON.parse(row.report_json) as RecallEvalReport);
+  }
+
   return {
     reconcile,
     searchFts,
     searchVector,
     rebuild,
+    saveEvalRun,
+    listEvalRuns,
     close: () => db.close(),
   };
 }

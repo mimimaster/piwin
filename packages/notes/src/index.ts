@@ -11,6 +11,13 @@ export type { CreateEmbeddingProviderOptions } from './embedding/create-provider
 export { createOpenAiCompatibleEmbedding } from './embedding/openai-compatible.js';
 export { createOllamaEmbedding } from './embedding/ollama.js';
 export { cosineSimilarity } from './vector-math.js';
+export {
+  loadGoldenSet,
+  parseGoldenSet,
+  appendGoldenCase,
+  runRecallEval,
+  getGoldenSetPath,
+} from './recall-eval.js';
 export { tokenize, tokenizeForIndex, buildMatchExpression } from './tokenize.js';
 export { encodeNoteMarkdown, decodeNoteMarkdown } from './markdown-codec.js';
 export {
