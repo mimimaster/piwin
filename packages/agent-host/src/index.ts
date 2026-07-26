@@ -101,6 +101,7 @@ export { buildMemoryTools } from './memory-tools.js';
 export type { BuildMemoryToolsOptions } from './memory-tools.js';
 export { buildNotesTools } from './notes-tools.js';
 export type { BuildNotesToolsOptions } from './notes-tools.js';
+export { resolveNotesEmbeddingApiKey } from './notes-embedding-secret.js';
 export {
   buildMemoryOverviewInjection,
   shouldInjectMemoryOverview,

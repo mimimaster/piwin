@@ -39,8 +39,9 @@ import { buildGatedBashToolDefinition } from './gated-bash-tool.js';
 import { buildProcessTools } from './process-tools.js';
 import { createMemoryStore, projectKeyFromPath } from '@piwin/memory';
 import { buildMemoryTools } from './memory-tools.js';
-import { createNoteStore, openNoteIndex } from '@piwin/notes';
+import { createNoteStore, openNoteIndex, createEmbeddingProvider } from '@piwin/notes';
 import { buildNotesTools } from './notes-tools.js';
+import { resolveNotesEmbeddingApiKey } from './notes-embedding-secret.js';
 import { listProjects } from '@piwin/project';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -418,6 +419,19 @@ async function createPiSdkSession(
       index: noteIndex,
       enabled: true,
     };
+    if (config.notes?.embedding) {
+      const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
+      const provider = createEmbeddingProvider({
+        config: config.notes.embedding,
+        ...(apiKey ? { apiKey } : {}),
+      });
+      if (provider) {
+        notesToolOptions.embeddingProvider = provider;
+      }
+    }
+    if (typeof config.notes?.search?.rrfK === 'number') {
+      notesToolOptions.rrfK = config.notes.search.rrfK;
+    }
     if (requestPermission) {
       notesToolOptions.requestPermission = requestPermission;
     }

@@ -2,8 +2,14 @@
  * Host customTools for the notes library (ADR 0018).
  * Pure tool descriptors; permission gate wraps execute at registration.
  */
-import type { NoteSearchQuery, NoteUpdateInput, NoteWriteInput, PermissionDecision } from '@piwin/contracts';
-import type { NoteIndex, NoteStore } from '@piwin/notes';
+import type {
+  EmbeddingProvider,
+  NoteSearchQuery,
+  NoteUpdateInput,
+  NoteWriteInput,
+  PermissionDecision,
+} from '@piwin/contracts';
+import type { NoteIndex, NoteStore, SearchNotesOptions } from '@piwin/notes';
 import { searchNotes } from '@piwin/notes';
 import type { HostToolDefinition } from '@piwin/tools-web';
 import {
@@ -18,6 +24,10 @@ export type BuildNotesToolsOptions = {
   index: NoteIndex;
   /** When false, returns no tools. */
   enabled: boolean;
+  /** When set, note_search runs hybrid (FTS + vector RRF); absent = FTS-only. */
+  embeddingProvider?: EmbeddingProvider;
+  /** RRF constant override (config.notes.search.rrfK). */
+  rrfK?: number;
   requestPermission?: ToolPermissionGate;
 };
 
@@ -34,11 +44,22 @@ export function buildNotesTools(options: BuildNotesToolsOptions): HostToolDefini
   if (!options.enabled) {
     return [];
   }
-  const bare = createNotesToolDefinitions(options.store, options.index);
+  const searchOptions: SearchNotesOptions = {};
+  if (options.embeddingProvider) {
+    searchOptions.embeddingProvider = options.embeddingProvider;
+  }
+  if (options.rrfK !== undefined) {
+    searchOptions.rrfK = options.rrfK;
+  }
+  const bare = createNotesToolDefinitions(options.store, options.index, searchOptions);
   return bare.map((tool) => wrapNotesToolWithPermission(tool, options.requestPermission));
 }
 
-function createNotesToolDefinitions(store: NoteStore, index: NoteIndex): HostToolDefinition[] {
+function createNotesToolDefinitions(
+  store: NoteStore,
+  index: NoteIndex,
+  searchOptions: SearchNotesOptions,
+): HostToolDefinition[] {
   return [
     {
       name: 'note_search',
@@ -64,7 +85,7 @@ function createNotesToolDefinitions(store: NoteStore, index: NoteIndex): HostToo
           if (tags.length > 0) query.tags = tags;
         }
         if (typeof args.limit === 'number') query.limit = args.limit;
-        const hits = await searchNotes(index, query);
+        const hits = await searchNotes(index, query, searchOptions);
         return JSON.stringify(
           hits.map((hit) => ({
             id: hit.note.id,
@@ -73,6 +94,7 @@ function createNotesToolDefinitions(store: NoteStore, index: NoteIndex): HostToo
             tags: hit.note.tags,
             snippet: hit.snippet,
             score: hit.score,
+            channels: hit.channels,
           })),
           null,
           2,

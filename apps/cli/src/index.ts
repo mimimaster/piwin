@@ -58,7 +58,7 @@ Usage:
   piwin memory list|search|write|delete|quota|enable|disable [--project <path>]
   piwin notes add <content> --title <t> [--collection c] [--tags a,b]
   piwin notes list [--collection c]
-  piwin notes search <query> [--collection c] [--limit n]
+  piwin notes search <query> [--collection c] [--limit n] [--search-mode auto|fts|vector|hybrid]
   piwin notes show <id> | delete <id> | reindex
 
 Host modes: sdk | rpc
@@ -69,6 +69,23 @@ host serve: JSONL IPC on stdin/stdout for desktop sidecar
 
 function hasFlag(argv: string[], name: string): boolean {
   return argv.includes(name);
+}
+
+/** Positional tokens, excluding flags and the value tokens of the given options. */
+function collectPositionals(tokens: string[], valueOptions: string[]): string[] {
+  const positionals: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!token) continue;
+    if (token.startsWith('--')) {
+      if (valueOptions.includes(token)) {
+        index += 1; // skip the option's value
+      }
+      continue;
+    }
+    positionals.push(token);
+  }
+  return positionals;
 }
 
 function readOption(argv: string[], name: string): string | undefined {
@@ -1061,11 +1078,15 @@ async function commandNotes(argv: string[]): Promise<void> {
     return;
   }
 
-  const { createNoteStore, openNoteIndex, searchNotes } = await import('@piwin/notes');
+  const { createNoteStore, openNoteIndex, searchNotes, createEmbeddingProvider } = await import(
+    '@piwin/notes'
+  );
   const store = createNoteStore({ piwinRoot: root });
 
   if (sub === 'add') {
-    const content = argv.slice(2).filter((token) => !token.startsWith('--')).join(' ').trim();
+    const content = collectPositionals(argv.slice(2), ['--title', '--collection', '--tags'])
+      .join(' ')
+      .trim();
     const title = readOption(argv, '--title');
     if (!content || !title) {
       console.error('Usage: piwin notes add <content> --title <t> [--collection c] [--tags a,b]');
@@ -1132,9 +1153,17 @@ async function commandNotes(argv: string[]): Promise<void> {
         console.log('index rebuilt');
         return;
       }
-      const query = argv.slice(2).filter((token) => !token.startsWith('--')).join(' ').trim();
+      const query = collectPositionals(argv.slice(2), [
+        '--collection',
+        '--limit',
+        '--search-mode',
+      ])
+        .join(' ')
+        .trim();
       if (!query) {
-        console.error('Usage: piwin notes search <query> [--collection c] [--limit n]');
+        console.error(
+          'Usage: piwin notes search <query> [--collection c] [--limit n] [--search-mode m]',
+        );
         process.exitCode = 1;
         return;
       }
@@ -1142,15 +1171,40 @@ async function commandNotes(argv: string[]): Promise<void> {
         query: string;
         collection?: string;
         limit?: number;
+        mode?: 'auto' | 'fts' | 'vector' | 'hybrid';
       } = { query };
       const collection = readOption(argv, '--collection');
       if (collection) searchQuery.collection = collection;
       const limit = readOption(argv, '--limit');
       if (limit) searchQuery.limit = Number(limit);
-      const hits = await searchNotes(index, searchQuery);
+      const searchMode = readOption(argv, '--search-mode');
+      if (
+        searchMode === 'auto' ||
+        searchMode === 'fts' ||
+        searchMode === 'vector' ||
+        searchMode === 'hybrid'
+      ) {
+        searchQuery.mode = searchMode;
+      }
+
+      const searchOptions: import('@piwin/notes').SearchNotesOptions = {};
+      if (config.notes?.embedding) {
+        const { resolveNotesEmbeddingApiKey } = await import('@piwin/agent-host');
+        const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
+        const provider = createEmbeddingProvider({
+          config: config.notes.embedding,
+          ...(apiKey ? { apiKey } : {}),
+        });
+        if (provider) searchOptions.embeddingProvider = provider;
+      }
+      if (typeof config.notes?.search?.rrfK === 'number') {
+        searchOptions.rrfK = config.notes.search.rrfK;
+      }
+
+      const hits = await searchNotes(index, searchQuery, searchOptions);
       for (const hit of hits) {
         console.log(
-          `${hit.note.id}\t${hit.score.toFixed(2)}\t${hit.note.title}\t${hit.snippet.replaceAll('\n', ' ').slice(0, 100)}`,
+          `${hit.note.id}\t[${hit.channels.join('+')}]\t${hit.score.toFixed(4)}\t${hit.note.title}\t${hit.snippet.replaceAll('\n', ' ').slice(0, 100)}`,
         );
       }
       return;

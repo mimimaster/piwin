@@ -1,6 +1,6 @@
 /**
- * FTS5 index over the note store — the ONLY module in this package that may
- * import `node:sqlite` (experimental API containment, ADR 0018 §3).
+ * FTS5 + vector index over the note store — the ONLY module in this package
+ * that may import `node:sqlite` (experimental API containment, ADR 0018 §3).
  *
  * Invariant: this file is a rebuildable cache. Deleting the sqlite file must
  * lose zero user data; `reconcile()` recreates everything from markdown.
@@ -8,16 +8,34 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { NoteRecord, NoteSearchHit, NoteSearchQuery } from '@piwin/contracts';
+import type {
+  EmbeddingProvider,
+  NoteRecord,
+  NoteSearchHit,
+  NoteSearchQuery,
+} from '@piwin/contracts';
 import type { NoteStore, ScannedNote } from './note-store.js';
 import { getIndexPath } from './paths.js';
 import { buildMatchExpression, tokenizeForIndex } from './tokenize.js';
+import { bufferToFloat32, cosineSimilarity, float32ToBuffer } from './vector-math.js';
+
+const EMBED_BATCH_SIZE = 16;
 
 export type NoteIndex = {
   /** Lazy reconcile: sync index rows with the markdown source of truth. */
   reconcile: () => Promise<void>;
-  /** FTS search; call `reconcile()` first (searchNotes below does both). */
+  /** FTS search over reconciled rows. */
   searchFts: (query: NoteSearchQuery) => NoteSearchHit[];
+  /**
+   * Vector search. Lazily embeds notes missing vectors for the provider's
+   * model (batched); requires a provider. Throws on provider failure —
+   * callers (searchNotes) degrade to FTS.
+   */
+  searchVector: (
+    query: NoteSearchQuery,
+    provider: EmbeddingProvider,
+    signal?: AbortSignal,
+  ) => Promise<NoteSearchHit[]>;
   /** Drop and rebuild all rows (manual repair surface). */
   rebuild: () => Promise<void>;
   close: () => void;
@@ -38,6 +56,12 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
     CREATE VIRTUAL TABLE IF NOT EXISTS note_fts USING fts5(
       id UNINDEXED, title, body, tags
     );
+    CREATE TABLE IF NOT EXISTS note_vec(
+      id TEXT PRIMARY KEY,
+      emb_model TEXT NOT NULL,
+      emb_dim INTEGER NOT NULL,
+      embedding BLOB NOT NULL
+    );
   `);
 
   function upsert(entry: ScannedNote): void {
@@ -52,12 +76,15 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
       tokenizeForIndex(record.content),
       tokenizeForIndex((record.tags ?? []).join(' ')),
     );
+    // Content changed → stored vector is stale; drop for lazy re-embed.
+    db.prepare('DELETE FROM note_vec WHERE id = ?').run(record.id);
   }
 
   function removeIds(ids: string[]): void {
     for (const id of ids) {
       db.prepare('DELETE FROM note_meta WHERE id = ?').run(id);
       db.prepare('DELETE FROM note_fts WHERE id = ?').run(id);
+      db.prepare('DELETE FROM note_vec WHERE id = ?').run(id);
     }
   }
 
@@ -85,6 +112,15 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
     removeIds(stale);
   }
 
+  function passesFilters(note: NoteRecord, query: NoteSearchQuery): boolean {
+    if (query.collection && note.collection !== query.collection) return false;
+    if (query.tags && query.tags.length > 0) {
+      const tags = note.tags ?? [];
+      if (!query.tags.every((tag) => tags.includes(tag))) return false;
+    }
+    return true;
+  }
+
   function searchFts(query: NoteSearchQuery): NoteSearchHit[] {
     const match = buildMatchExpression(query.query);
     if (!match) {
@@ -106,15 +142,11 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
     let rank = 0;
     for (const row of rows) {
       const note = JSON.parse(row.record_json) as NoteRecord;
-      if (query.collection && note.collection !== query.collection) continue;
-      if (query.tags && query.tags.length > 0) {
-        const tags = note.tags ?? [];
-        if (!query.tags.every((tag) => tags.includes(tag))) continue;
-      }
+      if (!passesFilters(note, query)) continue;
       rank += 1;
       hits.push({
         note,
-        // bm25() returns lower-is-better negative scores; invert for the contract.
+        // bm25() is lower-is-better (≤0); invert so higher is better.
         score: -row.score,
         snippet: makeSnippet(note, query.query),
         channels: ['fts'],
@@ -125,14 +157,95 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
     return hits;
   }
 
+  /** Embed notes lacking a current-model vector, in batches. */
+  async function ensureVectors(
+    provider: EmbeddingProvider,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    const missing = db
+      .prepare(
+        `SELECT note_meta.id AS id, note_meta.record_json AS record_json
+         FROM note_meta
+         LEFT JOIN note_vec ON note_vec.id = note_meta.id AND note_vec.emb_model = ?
+         WHERE note_vec.id IS NULL`,
+      )
+      .all(provider.model) as Array<{ id: string; record_json: string }>;
+    if (missing.length === 0) {
+      return;
+    }
+
+    for (let start = 0; start < missing.length; start += EMBED_BATCH_SIZE) {
+      const batch = missing.slice(start, start + EMBED_BATCH_SIZE);
+      const texts = batch.map((row) => {
+        const note = JSON.parse(row.record_json) as NoteRecord;
+        return `${note.title}\n\n${note.content}`;
+      });
+      const vectors = await provider.embed(texts, signal);
+      if (vectors.length !== batch.length) {
+        throw new Error('embedding provider returned wrong vector count');
+      }
+      for (const [position, row] of batch.entries()) {
+        const vector = vectors[position];
+        if (!vector) continue;
+        db.prepare(
+          'INSERT OR REPLACE INTO note_vec(id, emb_model, emb_dim, embedding) VALUES (?, ?, ?, ?)',
+        ).run(row.id, provider.model, vector.length, float32ToBuffer(vector));
+      }
+    }
+  }
+
+  async function searchVector(
+    query: NoteSearchQuery,
+    provider: EmbeddingProvider,
+    signal?: AbortSignal,
+  ): Promise<NoteSearchHit[]> {
+    const limit = query.limit && query.limit > 0 ? Math.floor(query.limit) : 10;
+    await ensureVectors(provider, signal);
+    const queryVectors = await provider.embed([query.query], signal);
+    const queryVector = queryVectors[0];
+    if (!queryVector) {
+      return [];
+    }
+
+    const rows = db
+      .prepare(
+        `SELECT note_vec.id AS id, note_vec.embedding AS embedding, note_meta.record_json AS record_json
+         FROM note_vec JOIN note_meta ON note_meta.id = note_vec.id
+         WHERE note_vec.emb_model = ?`,
+      )
+      .all(provider.model) as Array<{
+      id: string;
+      embedding: Uint8Array;
+      record_json: string;
+    }>;
+
+    const scored: Array<{ note: NoteRecord; similarity: number }> = [];
+    for (const row of rows) {
+      const note = JSON.parse(row.record_json) as NoteRecord;
+      if (!passesFilters(note, query)) continue;
+      const similarity = cosineSimilarity(queryVector, bufferToFloat32(row.embedding));
+      scored.push({ note, similarity });
+    }
+    scored.sort((left, right) => right.similarity - left.similarity);
+
+    return scored.slice(0, limit).map((entry, position) => ({
+      note: entry.note,
+      score: entry.similarity,
+      snippet: entry.note.content.slice(0, 160),
+      channels: ['vector'] as Array<'fts' | 'vector'>,
+      rank: { vector: position + 1 },
+    }));
+  }
+
   async function rebuild(): Promise<void> {
-    db.exec('DELETE FROM note_meta; DELETE FROM note_fts;');
+    db.exec('DELETE FROM note_meta; DELETE FROM note_fts; DELETE FROM note_vec;');
     await reconcile();
   }
 
   return {
     reconcile,
     searchFts,
+    searchVector,
     rebuild,
     close: () => db.close(),
   };

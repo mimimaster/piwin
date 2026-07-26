@@ -111,7 +111,9 @@ export type NotesEmbeddingConfig = {
   provider: 'openai-compatible' | 'ollama';
   baseUrl: string;
   model: string;
-  /** Env/keychain reference, never an inline secret. */
+  /** Env var name holding the API key (mirrors ModelProviderConfig.apiKeyEnv). */
+  apiKeyEnv?: string;
+  /** Keychain reference, never an inline secret. */
   apiKeyRef?: string;
   dimensions?: number;
 };
