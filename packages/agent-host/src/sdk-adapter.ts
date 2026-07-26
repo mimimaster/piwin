@@ -39,6 +39,8 @@ import { buildGatedBashToolDefinition } from './gated-bash-tool.js';
 import { buildProcessTools } from './process-tools.js';
 import { createMemoryStore, projectKeyFromPath } from '@piwin/memory';
 import { buildMemoryTools } from './memory-tools.js';
+import { createNoteStore, openNoteIndex } from '@piwin/notes';
+import { buildNotesTools } from './notes-tools.js';
 import { listProjects } from '@piwin/project';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -403,10 +405,29 @@ async function createPiSdkSession(
   }
   const memoryTools = buildMemoryTools(memoryToolOptions);
 
+  // Notes library tools (ADR 0018). Default enabled; FTS-only until embedding configured.
+  const notesEnabled = config.notes?.enabled !== false && !chatMode;
+  let notesTools: import('@piwin/tools-web').HostToolDefinition[] = [];
+  let notesIndexCleanup: (() => void) | null = null;
+  if (notesEnabled) {
+    const noteStore = createNoteStore({ piwinRoot: rootDir });
+    const noteIndex = await openNoteIndex(noteStore);
+    notesIndexCleanup = () => noteIndex.close();
+    const notesToolOptions: import('./notes-tools.js').BuildNotesToolsOptions = {
+      store: noteStore,
+      index: noteIndex,
+      enabled: true,
+    };
+    if (requestPermission) {
+      notesToolOptions.requestPermission = requestPermission;
+    }
+    notesTools = buildNotesTools(notesToolOptions);
+  }
+
   // CE-MODE light: chat strips host custom tools and gated bash.
   const hostTools = chatMode
     ? []
-    : [...webTools, ...mcpBridge.tools, planTool, ...processTools, ...memoryTools];
+    : [...webTools, ...mcpBridge.tools, planTool, ...processTools, ...memoryTools, ...notesTools];
   const customTools = toPiCustomTools(hostTools);
 
   // Replace built-in bash with permission-gated bash (hard-deny + ask UI).
@@ -519,6 +540,7 @@ async function createPiSdkSession(
   // Attach cleanup via weak side channel on handle id — stored by adapter after return.
   (handle as SessionHandle & { __piwinCleanup?: () => Promise<void> }).__piwinCleanup =
     async () => {
+      notesIndexCleanup?.();
       await mcpBridge.close();
     };
   return handle;

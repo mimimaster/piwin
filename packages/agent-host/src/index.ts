@@ -8,6 +8,7 @@ export {
   evaluateBashPermission,
   evaluateWebPermission,
   evaluateMemoryPermission,
+  evaluateNotesPermission,
   evaluateProcessPermission,
   resolveNonInteractiveDecision,
 } from './permission-policy.js';
@@ -15,6 +16,7 @@ export type {
   PermissionEvaluation,
   WebPermissionAction,
   MemoryPermissionAction,
+  NotesPermissionAction,
   ProcessPermissionAction,
 } from './permission-policy.js';
 export { buildProcessTools } from './process-tools.js';
@@ -97,6 +99,8 @@ export type { SecretResolver, SecretResolveReport } from './secret-resolver.js';
 
 export { buildMemoryTools } from './memory-tools.js';
 export type { BuildMemoryToolsOptions } from './memory-tools.js';
+export { buildNotesTools } from './notes-tools.js';
+export type { BuildNotesToolsOptions } from './notes-tools.js';
 export {
   buildMemoryOverviewInjection,
   shouldInjectMemoryOverview,

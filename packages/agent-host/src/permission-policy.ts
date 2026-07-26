@@ -144,6 +144,38 @@ export function evaluateMemoryPermission(
   return { decision: 'allow', reason: 'memory-read' };
 }
 
+export type NotesPermissionAction =
+  | 'note_list'
+  | 'note_search'
+  | 'note_read'
+  | 'note_write'
+  | 'note_update'
+  | 'note_delete';
+
+/**
+ * Notes tools: read/list/search allow by default; mutating ops ask
+ * (same policy tier as memory writes, ADR 0018).
+ */
+export function evaluateNotesPermission(
+  action: NotesPermissionAction,
+  detail: string,
+): PermissionEvaluation {
+  const normalized = detail.trim();
+  if (action === 'note_write' || action === 'note_update' || action === 'note_delete') {
+    if (normalized.length === 0) {
+      return {
+        decision: 'deny',
+        reason: action === 'note_write' ? 'empty-content' : 'empty-note-id',
+      };
+    }
+    return { decision: 'ask', reason: `notes-mutate:${action}` };
+  }
+  if (action === 'note_search' && normalized.length > 500) {
+    return { decision: 'deny', reason: 'query-too-long' };
+  }
+  return { decision: 'allow', reason: 'notes-read' };
+}
+
 export type ProcessPermissionAction = 'process:start' | 'process:stop';
 
 /**

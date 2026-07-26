@@ -44,6 +44,9 @@ importers:
       '@piwin/memory':
         specifier: workspace:*
         version: link:../../packages/memory
+      '@piwin/notes':
+        specifier: workspace:*
+        version: link:../../packages/notes
       '@piwin/pet':
         specifier: workspace:*
         version: link:../../packages/pet
@@ -160,6 +163,9 @@ importers:
       '@piwin/memory':
         specifier: workspace:*
         version: link:../memory
+      '@piwin/notes':
+        specifier: workspace:*
+        version: link:../notes
       '@piwin/pet':
         specifier: workspace:*
         version: link:../pet

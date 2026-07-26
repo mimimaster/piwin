@@ -56,6 +56,10 @@ Usage:
   piwin mcp validate [path]
   piwin mcp add <id> --command <cmd> [--args a,b] [--env KEY=VAL]
   piwin memory list|search|write|delete|quota|enable|disable [--project <path>]
+  piwin notes add <content> --title <t> [--collection c] [--tags a,b]
+  piwin notes list [--collection c]
+  piwin notes search <query> [--collection c] [--limit n]
+  piwin notes show <id> | delete <id> | reindex
 
 Host modes: sdk | rpc
 Offline: --mock or PIWIN_MOCK=1
@@ -1047,6 +1051,118 @@ async function commandMemory(argv: string[]): Promise<void> {
   }
 }
 
+async function commandNotes(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? 'list';
+  const root = getPiwinRoot();
+  const config = await loadPiwinConfig(root);
+  if (config.notes?.enabled === false) {
+    console.error('Notes disabled (config.notes.enabled=false).');
+    process.exitCode = 1;
+    return;
+  }
+
+  const { createNoteStore, openNoteIndex, searchNotes } = await import('@piwin/notes');
+  const store = createNoteStore({ piwinRoot: root });
+
+  if (sub === 'add') {
+    const content = argv.slice(2).filter((token) => !token.startsWith('--')).join(' ').trim();
+    const title = readOption(argv, '--title');
+    if (!content || !title) {
+      console.error('Usage: piwin notes add <content> --title <t> [--collection c] [--tags a,b]');
+      process.exitCode = 1;
+      return;
+    }
+    const input: {
+      title: string;
+      content: string;
+      collection?: string;
+      tags?: string[];
+    } = { title, content };
+    const collection = readOption(argv, '--collection');
+    if (collection) input.collection = collection;
+    const tags = readOption(argv, '--tags');
+    if (tags) input.tags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+    const record = await store.write(input);
+    console.log(`wrote ${record.id} (${record.relativePath})`);
+    return;
+  }
+
+  if (sub === 'list') {
+    const filter: { collection?: string } = {};
+    const collection = readOption(argv, '--collection');
+    if (collection) filter.collection = collection;
+    const records = await store.list(filter);
+    for (const record of records) {
+      console.log(
+        `${record.id}\t${record.collection}\t${record.title}\t${(record.tags ?? []).join(',')}`,
+      );
+    }
+    return;
+  }
+
+  if (sub === 'show') {
+    const noteId = argv[2];
+    if (!noteId) {
+      console.error('Usage: piwin notes show <id>');
+      process.exitCode = 1;
+      return;
+    }
+    const record = await store.read(noteId);
+    console.log(JSON.stringify(record, null, 2));
+    return;
+  }
+
+  if (sub === 'delete') {
+    const noteId = argv[2];
+    if (!noteId) {
+      console.error('Usage: piwin notes delete <id>');
+      process.exitCode = 1;
+      return;
+    }
+    await store.delete(noteId);
+    console.log(`deleted ${noteId}`);
+    return;
+  }
+
+  if (sub === 'search' || sub === 'reindex') {
+    const index = await openNoteIndex(store);
+    try {
+      if (sub === 'reindex') {
+        await index.rebuild();
+        console.log('index rebuilt');
+        return;
+      }
+      const query = argv.slice(2).filter((token) => !token.startsWith('--')).join(' ').trim();
+      if (!query) {
+        console.error('Usage: piwin notes search <query> [--collection c] [--limit n]');
+        process.exitCode = 1;
+        return;
+      }
+      const searchQuery: {
+        query: string;
+        collection?: string;
+        limit?: number;
+      } = { query };
+      const collection = readOption(argv, '--collection');
+      if (collection) searchQuery.collection = collection;
+      const limit = readOption(argv, '--limit');
+      if (limit) searchQuery.limit = Number(limit);
+      const hits = await searchNotes(index, searchQuery);
+      for (const hit of hits) {
+        console.log(
+          `${hit.note.id}\t${hit.score.toFixed(2)}\t${hit.note.title}\t${hit.snippet.replaceAll('\n', ' ').slice(0, 100)}`,
+        );
+      }
+      return;
+    } finally {
+      index.close();
+    }
+  }
+
+  console.error('Usage: piwin notes add|list|search|show|delete|reindex');
+  process.exitCode = 1;
+}
+
 async function commandHostServe(argv: string[]): Promise<void> {
   const mode = parseMode(argv);
   const mock = parseMock(argv);
@@ -1160,6 +1276,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'memory') {
     await commandMemory(argv);
+    return;
+  }
+  if (command === 'notes') {
+    await commandNotes(argv);
     return;
   }
   if (command === 'host' && argv[1] === 'serve') {
