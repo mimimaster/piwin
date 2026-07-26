@@ -85,13 +85,15 @@ export function createNoteStore(options: NoteStoreOptions): NoteStore {
     }
 
     // External file without frontmatter: synthesize metadata so it is still
-    // searchable. Identity derives from path (stable across scans).
+    // searchable. Identity derives from the NFC-normalized path — macOS
+    // stores filenames as NFD, so without normalization the same logical
+    // path yields different ids across platforms/sync tools.
     const fileName = relativePath.split('/').at(-1) ?? relativePath;
     const title = fileName.replace(/\.md$/i, '');
     const stamp = new Date(mtimeMs).toISOString();
     return {
       record: {
-        id: `ext-${sha256(relativePath).slice(0, 16)}`,
+        id: `ext-${sha256(relativePath.normalize('NFC')).slice(0, 16)}`,
         collection,
         title,
         content: raw,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   FlashcardRecord,
   HostResponse,
@@ -32,16 +32,23 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const reviewingRef = useRef(false);
+  const ratingInFlightRef = useRef(false);
 
+  useEffect(() => {
+    reviewingRef.current = reviewing;
+  }, [reviewing]);
+
+  const request = props.request;
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const decksResponse = await props.request({ type: 'flashcards/decks' });
+    const decksResponse = await request({ type: 'flashcards/decks' });
     if (decksResponse.success) {
       const decksData = decksResponse.data as { decks: string[] };
       setDecks(decksData.decks ?? []);
     }
-    const listResponse = await props.request({
+    const listResponse = await request({
       type: 'flashcards/list',
       ...(deckFilter ? { deck: deckFilter } : {}),
     });
@@ -53,16 +60,18 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
     const listData = listResponse.data as { cards: FlashcardRecord[] };
     setCards(listData.cards ?? []);
 
-    const queueResponse = await props.request({
+    const queueResponse = await request({
       type: 'flashcards/queue',
       ...(deckFilter ? { deck: deckFilter } : {}),
     });
     if (queueResponse.success) {
       const queueData = queueResponse.data as { queue: ReviewQueueItem[] };
-      setQueue(queueData.queue ?? []);
+      // Never replace the queue mid-review: rated cards drop out of the
+      // rebuilt queue and queue[position] would skip/repeat cards.
+      setQueue((previous) => (reviewingRef.current ? previous : queueData.queue ?? []));
     }
     setLoading(false);
-  }, [props, deckFilter]);
+  }, [request, deckFilter]);
 
   useEffect(() => {
     void loadData();
@@ -72,32 +81,50 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
 
   const handleRate = useCallback(
     async (rating: ReviewRating) => {
-      if (!currentItem) return;
-      const response = await props.request({
-        type: 'flashcards/rate',
-        cardId: currentItem.card.id,
-        rating,
-      });
-      if (!response.success) {
-        setError(response.error);
-        return;
-      }
-      if (position + 1 >= queue.length) {
-        setReviewing(false);
-        setInfo(`Review done — ${queue.length} card(s)`);
-        await loadData();
-      } else {
-        setPosition(position + 1);
-        setRevealed(false);
+      // In-flight guard: rapid double keypress must not rate the same card twice.
+      if (!currentItem || ratingInFlightRef.current) return;
+      ratingInFlightRef.current = true;
+      try {
+        const response = await request({
+          type: 'flashcards/rate',
+          cardId: currentItem.card.id,
+          rating,
+        });
+        if (!response.success) {
+          setError(response.error);
+          return;
+        }
+        if (position + 1 >= queue.length) {
+          setReviewing(false);
+          setInfo(`Review done — ${queue.length} card(s)`);
+          await loadData();
+        } else {
+          setPosition(position + 1);
+          setRevealed(false);
+        }
+      } finally {
+        ratingInFlightRef.current = false;
       }
     },
-    [currentItem, loadData, position, props, queue.length],
+    [currentItem, loadData, position, request, queue.length],
   );
 
   // Keyboard-first review: Space reveal, 1-4 rate, Escape quit.
   useEffect(() => {
     if (!reviewing) return;
     const onKey = (event: KeyboardEvent) => {
+      // Ignore keys while the user is typing elsewhere (chat composer, inputs) —
+      // otherwise "3" in the composer would silently rate the current card.
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       if (event.key === ' ' && !revealed) {
         event.preventDefault();
         setRevealed(true);

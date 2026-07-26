@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   FlashcardCreateInput,
@@ -85,19 +85,44 @@ export function createCardStore(options: CardStoreOptions): CardStore {
     return assertInsideFlashcardsRoot(flashcardsRoot, join(reviewDir, `${cardId}.json`));
   }
 
+  /**
+   * Review state is user data (ADR 0018): a corrupted file must never be
+   * silently reset. Missing file → null (caller may initialize); corrupt
+   * file → preserved as .bak, logged, then treated as missing.
+   */
   async function readReviewState(cardId: string): Promise<ReviewState | null> {
+    const path = reviewPath(cardId);
+    let raw: string;
     try {
-      const raw = await readFile(reviewPath(cardId), 'utf8');
-      const parsed = JSON.parse(raw) as ReviewState;
-      return typeof parsed.due === 'string' ? parsed : null;
+      raw = await readFile(path, 'utf8');
     } catch {
+      return null; // genuinely missing — safe to initialize
+    }
+    try {
+      const parsed = JSON.parse(raw) as ReviewState;
+      if (typeof parsed.due !== 'string') {
+        throw new Error('missing due field');
+      }
+      return parsed;
+    } catch (error) {
+      const backupPath = `${path}.bak`;
+      await rename(path, backupPath).catch(() => undefined);
+      console.warn(
+        `[piwin/flashcards] corrupt review state for ${cardId} preserved at ${backupPath}: ${
+          error instanceof Error ? error.message : 'parse error'
+        }`,
+      );
       return null;
     }
   }
 
+  /** Atomic write (tmp + rename): crash mid-write never truncates user data. */
   async function writeReviewState(state: ReviewState): Promise<void> {
     await ensureDirs();
-    await writeFile(reviewPath(state.cardId), `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+    const path = reviewPath(state.cardId);
+    const tmpPath = `${path}.tmp`;
+    await writeFile(tmpPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+    await rename(tmpPath, path);
   }
 
   return {

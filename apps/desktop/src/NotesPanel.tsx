@@ -40,10 +40,11 @@ export function NotesPanel(props: NotesPanelProps) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  const request = props.request;
   const loadNotes = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const response = await props.request({ type: 'notes/list' });
+    const response = await request({ type: 'notes/list' });
     setLoading(false);
     if (!response.success) {
       setError(response.error);
@@ -51,7 +52,7 @@ export function NotesPanel(props: NotesPanelProps) {
     }
     const data = response.data as { records: NoteRecord[] };
     setRecords(data.records ?? []);
-  }, [props]);
+  }, [request]);
 
   useEffect(() => {
     void loadNotes();

@@ -129,11 +129,20 @@ describe('card codec', () => {
 });
 
 describe('anki export', () => {
-  it('produces tab-separated lines with flattened newlines', () => {
+  it('produces header + tab-separated lines with flattened newlines', () => {
     const tsv = exportCardsToTsv([
       { ...makeCard('a'), front: 'multi\nline', back: 'tab\there', tags: ['t1', 't2'] },
     ]);
-    expect(tsv).toBe('multi<br>line\ttab here\tdefault\tt1 t2\n');
+    expect(tsv).toBe(
+      '#separator:tab\n#html:true\n#columns:front\tback\tdeck\ttags\n' +
+        'multi<br>line\ttab here\tdefault\tt1 t2\n',
+    );
+  });
+
+  it('guards leading # so markdown-heading fronts are not dropped as Anki comments', () => {
+    const tsv = exportCardsToTsv([{ ...makeCard('a'), front: '# 标题问题', back: 'b' }]);
+    const dataLine = tsv.split('\n')[3];
+    expect(dataLine?.startsWith(' #')).toBe(true);
   });
 
   it('empty input produces empty string', () => {

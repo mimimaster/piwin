@@ -3,6 +3,7 @@ import type { FlashcardRecord } from '@piwin/contracts';
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const FRONT_HEADING = '## Front';
 const BACK_HEADING = '## Back';
+const SOURCE_HEADING = '## Source';
 
 /**
  * Card markdown: frontmatter (id/deck/source metadata) + `## Front` /
@@ -27,7 +28,7 @@ export function encodeCardMarkdown(card: FlashcardRecord): string {
   lines.push(card.back);
   if (card.sourceExcerpt) {
     lines.push('');
-    lines.push('## Source');
+    lines.push(SOURCE_HEADING);
     lines.push('');
     lines.push('> ' + card.sourceExcerpt.split('\n').join('\n> '));
   }
@@ -62,20 +63,35 @@ export function decodeCardMarkdown(raw: string): FlashcardRecord | null {
   return card;
 }
 
+/**
+ * Find a heading that sits alone on its own line — card content mentioning
+ * "## Back" inline must not split the card.
+ */
+function findHeadingIndex(body: string, heading: string, fromIndex = 0): number {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const pattern = new RegExp(String.raw`^${escaped}\s*$`, 'm');
+  const slice = body.slice(fromIndex);
+  const found = pattern.exec(slice);
+  return found ? fromIndex + found.index : -1;
+}
+
 function splitSections(body: string): { front: string; back: string; source?: string } {
-  const frontIndex = body.indexOf(FRONT_HEADING);
-  const backIndex = body.indexOf(BACK_HEADING);
-  if (frontIndex === -1 || backIndex === -1 || backIndex < frontIndex) {
+  const frontIndex = findHeadingIndex(body, FRONT_HEADING);
+  const backIndex =
+    frontIndex === -1
+      ? -1
+      : findHeadingIndex(body, BACK_HEADING, frontIndex + FRONT_HEADING.length);
+  if (frontIndex === -1 || backIndex === -1) {
     return { front: '', back: '' };
   }
   const front = body.slice(frontIndex + FRONT_HEADING.length, backIndex);
   const afterBack = body.slice(backIndex + BACK_HEADING.length);
-  const sourceIndex = afterBack.indexOf('## Source');
+  const sourceIndex = findHeadingIndex(afterBack, SOURCE_HEADING);
   if (sourceIndex === -1) {
     return { front, back: afterBack };
   }
   const back = afterBack.slice(0, sourceIndex);
-  const sourceQuoted = afterBack.slice(sourceIndex + '## Source'.length).trim();
+  const sourceQuoted = afterBack.slice(sourceIndex + SOURCE_HEADING.length).trim();
   const source = sourceQuoted
     .split('\n')
     .map((line) => line.replace(/^>\s?/, ''))

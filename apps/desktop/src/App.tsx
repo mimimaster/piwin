@@ -262,6 +262,19 @@ export function App() {
     [hostClient],
   );
 
+  // Stable identities: panels reload via useEffect([request]) — a fresh
+  // closure per render would re-fire full loads on every App render.
+  const requestNotesPanel = useCallback(
+    (command: Parameters<import('./NotesPanel').NotesPanelProps['request']>[0]) =>
+      hostClient.request(command),
+    [hostClient],
+  );
+  const requestCardsPanel = useCallback(
+    (command: Parameters<import('./FlashcardsPanel').FlashcardsPanelProps['request']>[0]) =>
+      hostClient.request(command),
+    [hostClient],
+  );
+
   const requestConfig = useCallback(
 
     async (command: {
@@ -2465,8 +2478,8 @@ export function App() {
         changesContent={
           <ChangesPanel projectPath={state.projectPath} request={requestGit as never} />
         }
-        notesContent={<NotesPanel request={(command) => hostClient.request(command)} />}
-        cardsContent={<FlashcardsPanel request={(command) => hostClient.request(command)} />}
+        notesContent={<NotesPanel request={requestNotesPanel} />}
+        cardsContent={<FlashcardsPanel request={requestCardsPanel} />}
         gitContent={
           <GitPanel
             projectPath={state.projectPath}

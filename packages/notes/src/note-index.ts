@@ -52,6 +52,9 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
   const indexPath = getIndexPath(store.getNotesRoot());
   await mkdir(dirname(indexPath), { recursive: true });
   const db = new DatabaseSync(indexPath);
+  // WAL + busy timeout: the index may be opened by desktop host, agent
+  // sessions, and CLI concurrently; readers must not fail on a writer.
+  db.exec('PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 2000;');
   db.exec(`
     CREATE TABLE IF NOT EXISTS note_meta(
       id TEXT PRIMARY KEY,
@@ -75,20 +78,32 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
     );
   `);
 
+  /**
+   * Transactional: a crash mid-upsert must never leave note_meta recording
+   * the new hash while note_fts misses the row (reconcile would then skip
+   * the note forever).
+   */
   function upsert(entry: ScannedNote): void {
     const { record, mtimeMs } = entry;
-    db.prepare('DELETE FROM note_fts WHERE id = ?').run(record.id);
-    db.prepare(
-      'INSERT OR REPLACE INTO note_meta(id, path, mtime, hash, record_json) VALUES (?, ?, ?, ?, ?)',
-    ).run(record.id, record.relativePath, mtimeMs, record.contentHash, JSON.stringify(record));
-    db.prepare('INSERT INTO note_fts(id, title, body, tags) VALUES (?, ?, ?, ?)').run(
-      record.id,
-      tokenizeForIndex(record.title),
-      tokenizeForIndex(record.content),
-      tokenizeForIndex((record.tags ?? []).join(' ')),
-    );
-    // Content changed → stored vector is stale; drop for lazy re-embed.
-    db.prepare('DELETE FROM note_vec WHERE id = ?').run(record.id);
+    db.exec('BEGIN');
+    try {
+      db.prepare('DELETE FROM note_fts WHERE id = ?').run(record.id);
+      db.prepare(
+        'INSERT OR REPLACE INTO note_meta(id, path, mtime, hash, record_json) VALUES (?, ?, ?, ?, ?)',
+      ).run(record.id, record.relativePath, mtimeMs, record.contentHash, JSON.stringify(record));
+      db.prepare('INSERT INTO note_fts(id, title, body, tags) VALUES (?, ?, ?, ?)').run(
+        record.id,
+        tokenizeForIndex(record.title),
+        tokenizeForIndex(record.content),
+        tokenizeForIndex((record.tags ?? []).join(' ')),
+      );
+      // Content changed → stored vector is stale; drop for lazy re-embed.
+      db.prepare('DELETE FROM note_vec WHERE id = ?').run(record.id);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   function removeIds(ids: string[]): void {
@@ -141,8 +156,10 @@ export async function openNoteIndex(store: NoteStore): Promise<NoteIndex> {
     // Over-fetch so post-filters (collection/tags) do not starve results.
     const rows = db
       .prepare(
+        // bm25 weights are positional over ALL columns: (id, title, body, tags).
+        // id is UNINDEXED (weight ignored); title 5x, body 1x, tags 2x.
         `SELECT note_fts.id AS id, note_meta.record_json AS record_json,
-                bm25(note_fts, 5.0, 1.0, 2.0) AS score
+                bm25(note_fts, 0.0, 5.0, 1.0, 2.0) AS score
          FROM note_fts JOIN note_meta ON note_meta.id = note_fts.id
          WHERE note_fts MATCH ?
          ORDER BY score LIMIT ?`,

@@ -1438,12 +1438,28 @@ async function commandCards(argv: string[]): Promise<void> {
         console.log(`\n[${position}/${queue.length}] ${item.isNew ? '(new) ' : ''}${item.card.front}`);
         await ask('  press Enter to reveal…');
         console.log(`  → ${item.card.back}`);
-        const answer = (
-          await ask('  rate: 1=again 2=hard 3=good 4=easy (q=quit): ')
-        ).trim();
-        if (answer === 'q') break;
-        const rating =
-          answer === '1' ? 'again' : answer === '2' ? 'hard' : answer === '4' ? 'easy' : 'good';
+        // Only 1-4 commit a rating; anything else re-prompts (a typo must
+        // never silently write FSRS state).
+        const RATING_KEYS: Record<string, 'again' | 'hard' | 'good' | 'easy'> = {
+          '1': 'again',
+          '2': 'hard',
+          '3': 'good',
+          '4': 'easy',
+        };
+        let rating: 'again' | 'hard' | 'good' | 'easy' | undefined;
+        let quit = false;
+        while (!rating && !quit) {
+          const answer = (
+            await ask('  rate: 1=again 2=hard 3=good 4=easy (q=quit): ')
+          ).trim();
+          if (answer === 'q') {
+            quit = true;
+          } else {
+            rating = RATING_KEYS[answer];
+            if (!rating) console.log('  invalid input — enter 1, 2, 3, 4, or q');
+          }
+        }
+        if (quit || !rating) break;
         const next = await store.rate(item.card.id, rating);
         console.log(`  next due: ${next.due.slice(0, 16).replace('T', ' ')}`);
       }

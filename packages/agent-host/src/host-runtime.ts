@@ -215,6 +215,14 @@ export class HostRuntime {
   }
 
   async dispose(): Promise<void> {
+    if (this.notesServices) {
+      try {
+        this.notesServices.index.close();
+      } catch {
+        // best-effort shutdown
+      }
+      this.notesServices = null;
+    }
     if (this.processRegistry) {
       try {
         await this.processRegistry.dispose();

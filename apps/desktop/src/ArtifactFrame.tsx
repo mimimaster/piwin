@@ -175,11 +175,19 @@ function ArtifactRenderFrame(props: {
         return;
       }
 
-      // Whitelisted user-intent actions (flashcard rating etc). Same origin
-      // checks as height bridge: event.source + channelId must match.
+      // Whitelisted user-intent actions (flashcard rating etc). Checks:
+      // event.source, channelId, AND the cardId must be declared in the
+      // artifact's own source (data-card-id) — a malicious artifact cannot
+      // rate arbitrary cards, only the card it visibly renders.
       const actionMessage = parseArtifactActionMessage(event.data);
       if (actionMessage) {
-        if (actionMessage.channelId === channelId && onArtifactAction) {
+        if (
+          actionMessage.channelId === channelId &&
+          onArtifactAction &&
+          decision.descriptor.source.includes(
+            `data-card-id="${actionMessage.payload.cardId}"`,
+          )
+        ) {
           onArtifactAction(actionMessage);
         }
         return;
@@ -244,7 +252,7 @@ function ArtifactRenderFrame(props: {
       window.removeEventListener('message', onMessage);
       window.clearTimeout(readyTimeout);
     };
-  }, [granted, channelId, decision.mode, maxHeight]);
+  }, [granted, channelId, decision.mode, decision.descriptor.source, maxHeight, onArtifactAction]);
 
   // When collapsing expand mode, re-clamp height to the default max.
   useEffect(() => {
