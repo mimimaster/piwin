@@ -1,0 +1,1511 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>piwin Shell UI 重设计提案</title>
+<style>
+  /* minimal reset */
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  button { font: inherit; color: inherit; }
+</style>
+</head>
+<body>
+<style>
+  :root {
+    --bg: #f6f7f8;
+    --surface: #ffffff;
+    --surface-2: #eef0f3;
+    --text: #1b1d21;
+    --muted: #5a616c;
+    --faint: #8a919c;
+    --line: rgba(16, 20, 28, 0.1);
+    --accent: #0a6cff;
+    --accent-soft: rgba(10, 108, 255, 0.09);
+    --good: #1f9d5b;
+    --warn: #b97c14;
+    --code-bg: rgba(16, 20, 28, 0.05);
+    --shadow: 0 1px 2px rgba(16, 20, 28, 0.05), 0 8px 28px rgba(16, 20, 28, 0.07);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #131417;
+      --surface: #1a1d21;
+      --surface-2: #22252b;
+      --text: #e7e9ec;
+      --muted: #9aa1ac;
+      --faint: #6d7480;
+      --line: rgba(255, 255, 255, 0.08);
+      --accent: #5b9dff;
+      --accent-soft: rgba(91, 157, 255, 0.12);
+      --good: #43c384;
+      --warn: #e0a83e;
+      --code-bg: rgba(255, 255, 255, 0.06);
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 32px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f7f8; --surface: #ffffff; --surface-2: #eef0f3; --text: #1b1d21;
+    --muted: #5a616c; --faint: #8a919c; --line: rgba(16, 20, 28, 0.1);
+    --accent: #0a6cff; --accent-soft: rgba(10, 108, 255, 0.09);
+    --good: #1f9d5b; --warn: #b97c14; --code-bg: rgba(16, 20, 28, 0.05);
+    --shadow: 0 1px 2px rgba(16, 20, 28, 0.05), 0 8px 28px rgba(16, 20, 28, 0.07);
+  }
+  :root[data-theme="dark"] {
+    --bg: #131417; --surface: #1a1d21; --surface-2: #22252b; --text: #e7e9ec;
+    --muted: #9aa1ac; --faint: #6d7480; --line: rgba(255, 255, 255, 0.08);
+    --accent: #5b9dff; --accent-soft: rgba(91, 157, 255, 0.12);
+    --good: #43c384; --warn: #e0a83e; --code-bg: rgba(255, 255, 255, 0.06);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 32px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Mockup world: committed dark (product default). */
+  .mk {
+    /* One graphite field: L/R/top share tone — no hard panel boxes. */
+    --mk-bg: #12141a;
+    --mk-band: #12141a;
+    --mk-side: #12141a;
+    --mk-panel: #12141a;
+    --mk-line: rgba(255, 255, 255, 0.04);
+    --mk-text: #dde0e5;
+    --mk-mut: #8d94a0;
+    --mk-dim: #5f6672;
+    --mk-acc: #5b9dff;
+    --mk-acc-soft: rgba(91, 157, 255, 0.14);
+    --mk-good: #43c384;
+    --mk-hover: rgba(255, 255, 255, 0.055);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.75;
+  }
+  .wrap { max-width: 1020px; margin: 0 auto; padding: 64px 28px 120px; }
+  code, .mono {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em;
+  }
+  code { background: var(--code-bg); padding: 0.12em 0.42em; border-radius: 5px; }
+  a { color: var(--accent); }
+
+  /* ---------- header ---------- */
+  .eyebrow {
+    font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--faint); font-weight: 600; margin: 0 0 14px;
+  }
+  h1 {
+    font-size: 40px; line-height: 1.2; letter-spacing: -0.018em;
+    font-weight: 700; margin: 0 0 18px; text-wrap: balance;
+  }
+  h1 .accent { color: var(--accent); }
+  .lede { font-size: 17px; color: var(--muted); max-width: 46em; margin: 0 0 26px; }
+  .meta-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-size: 12.5px; padding: 4px 12px; border-radius: 999px;
+    background: var(--surface-2); color: var(--muted); font-weight: 500;
+  }
+  .chip strong { color: var(--text); font-weight: 600; }
+
+  /* ---------- sections ---------- */
+  section { margin-top: 92px; }
+  .sec-eyebrow {
+    font-size: 11.5px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--accent); font-weight: 700; margin: 0 0 10px;
+  }
+  h2 { font-size: 27px; letter-spacing: -0.014em; font-weight: 700; margin: 0 0 14px; text-wrap: balance; }
+  h3 { font-size: 18px; font-weight: 650; margin: 34px 0 10px; letter-spacing: -0.01em; }
+  section > p { color: var(--muted); max-width: 47em; margin: 0 0 18px; }
+  .note { font-size: 13px; color: var(--faint); margin-top: 10px; }
+
+  /* ---------- principle cards ---------- */
+  .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-top: 26px; }
+  .pcard {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 20px 18px;
+  }
+  .pcard .pnum { font-size: 12px; color: var(--faint); font-weight: 600; letter-spacing: 0.08em; }
+  .pcard h4 { margin: 8px 0 8px; font-size: 15.5px; font-weight: 650; }
+  .pcard p { margin: 0; font-size: 13.5px; color: var(--muted); line-height: 1.65; }
+
+  /* ---------- mockups ---------- */
+  .mock-block { margin-top: 30px; }
+  .mock-title { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .mock-title h3 { margin: 0; }
+  .mock-title .tag {
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; padding: 3px 10px;
+    border-radius: 999px; text-transform: uppercase;
+  }
+  .tag.rec { background: var(--accent-soft); color: var(--accent); }
+  .tag.alt { background: var(--surface-2); color: var(--muted); }
+
+  .mk {
+    background: var(--mk-bg); border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; box-shadow: var(--shadow);
+    font-size: 10px; color: var(--mk-text); line-height: 1.5;
+    user-select: none;
+  }
+  .mk, .mk * { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; }
+  .mk .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  /* traffic lights */
+  .tl { display: flex; gap: 5px; }
+  .tl i { width: 8px; height: 8px; border-radius: 50%; background: #3a3d43; }
+
+  /* shared mock atoms */
+  .mkbtn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 6px; color: var(--mk-mut);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .mkbtn:hover { background: var(--mk-hover); color: var(--mk-text); }
+  .mkbtn svg { width: 12px; height: 12px; }
+  .mk svg { stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .mk svg .fill { fill: currentColor; stroke: none; }
+
+  .mk-row { display: flex; align-items: center; }
+
+  /* ---- Mockup A ---- */
+  .mkA-band {
+    height: 30px; background: var(--mk-band); border-bottom: 1px solid transparent;
+    display: flex; align-items: center; padding: 0 8px 0 10px; gap: 6px;
+  }
+  .mkA-band .mk-panel-toggle {
+    flex-shrink: 0;
+  }
+  .mkA-body { display: flex; height: 500px; }
+  .mkA-side {
+    width: 168px; background: var(--mk-side); border-right: 1px solid transparent;
+    padding: 8px; display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;
+  }
+  .mkA-proj {
+    display: flex; align-items: center; gap: 6px; padding: 5px 7px; border-radius: 7px;
+    font-weight: 600; font-size: 10.5px; color: var(--mk-text); cursor: default;
+  }
+  .mkA-proj:hover { background: var(--mk-hover); }
+  .mkA-proj .cv { color: var(--mk-dim); margin-left: auto; }
+  .mkA-search {
+    display: flex; align-items: center; gap: 6px; margin: 6px 0 8px; padding: 5px 8px;
+    border-radius: 7px; background: rgba(255,255,255,0.035); color: var(--mk-dim); font-size: 9.5px;
+  }
+  .mkA-search .k { margin-left: auto; font-size: 8.5px; color: var(--mk-dim); border: 1px solid var(--mk-line); padding: 0 4px; border-radius: 4px; }
+  .mk-group { font-size: 8.5px; letter-spacing: 0.1em; color: var(--mk-dim); padding: 8px 7px 3px; font-weight: 650; }
+  .mk-sess {
+    display: flex; align-items: center; gap: 6px; padding: 4.5px 7px; border-radius: 7px;
+    color: var(--mk-mut); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default;
+    transition: background 0.15s ease;
+  }
+  .mk-sess:hover { background: var(--mk-hover); }
+  .mk-sess.on { background: var(--mk-acc-soft); color: var(--mk-text); font-weight: 550; }
+  .mk-sess .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--mk-good); flex-shrink: 0; }
+  .mk-sess .pin { color: var(--mk-dim); flex-shrink: 0; width: 9px; height: 9px; }
+  .mkA-newbtn {
+    margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 5px;
+    background: var(--mk-acc); color: #0b1320; font-weight: 650; border-radius: 8px; padding: 6px 0;
+  }
+  .mkA-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .mkA-ctx {
+    height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 14px;
+    border-bottom: 1px solid transparent; color: var(--mk-mut); font-size: 9.5px;
+  }
+  .mkA-ctx .ttl { color: var(--mk-text); font-weight: 600; }
+  .mk-scope { padding: 1px 7px; border-radius: 999px; background: rgba(255,255,255,0.05); font-size: 8.5px; color: var(--mk-mut); }
+  .mk-run { display: flex; align-items: center; gap: 5px; margin-left: auto; color: var(--mk-good); font-size: 9px; }
+  .mk-run .rd { width: 5px; height: 5px; border-radius: 50%; background: var(--mk-good); animation: pulse 1.6s ease-in-out infinite; }
+  .mkA-stage {
+    flex: 1; min-height: 0; display: flex; position: relative;
+    overflow: hidden; /* chat scrolls; tips stay inside stage */
+  }
+  .mkA-chat {
+    flex: 1; overflow: auto; padding: 10px 18px 10px 16px;
+    display: flex; flex-direction: column; gap: 14px; justify-content: flex-start;
+    scrollbar-width: none; /* Firefox: no white track in dark mock */
+    -ms-overflow-style: none;
+  }
+  .mkA-chat::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  .mkA-chat .mk-turn { scroll-margin-top: 8px; }
+  .mk-user {
+    align-self: flex-end; max-width: 70%; background: var(--mk-acc-soft);
+    border-radius: 12px 12px 3px 12px; padding: 7px 11px; color: var(--mk-text);
+  }
+  .mk-asst { max-width: 88%; color: var(--mk-text); }
+  .mk-asst .role { display: flex; align-items: center; gap: 5px; color: var(--mk-dim); font-size: 8.5px; margin-bottom: 4px; }
+  .mk-asst .role svg { width: 9px; height: 9px; color: var(--mk-acc); }
+  .mk-think {
+    display: flex; align-items: center; gap: 6px; color: var(--mk-dim); font-size: 9px;
+    padding: 4px 8px; border-radius: 7px; background: rgba(255,255,255,0.03); width: fit-content;
+  }
+  .mk-tool {
+    display: flex; align-items: center; gap: 7px; font-size: 9px; color: var(--mk-mut);
+    padding: 3px 0 3px 10px; border-left: 1.5px solid var(--mk-line); margin: 2px 0 2px 2px;
+  }
+  .mk-tool .tn { color: var(--mk-text); font-weight: 600; }
+  .mk-tool .ok { color: var(--mk-good); margin-left: auto; }
+  .mkA-composer {
+    margin: 4px 18px 14px; background: var(--mk-panel); border: 1px solid var(--mk-line);
+    border-radius: 12px; padding: 8px 10px 7px; box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+  }
+  .mkA-composer .hint { color: var(--mk-dim); }
+  .mkA-composer .crow { display: flex; align-items: center; gap: 4px; margin-top: 8px; color: var(--mk-mut); }
+  .mk-txtbtn { padding: 2px 7px; border-radius: 6px; font-size: 9px; color: var(--mk-mut); transition: background .15s; }
+  .mk-txtbtn:hover { background: var(--mk-hover); color: var(--mk-text); }
+  .mk-send {
+    margin-left: auto; width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--mk-acc); color: #0b1320;
+  }
+  .mk-send svg { width: 11px; height: 11px; stroke-width: 2; }
+  .mkA-status {
+    height: 22px; border-top: 1px solid transparent; display: flex; align-items: center;
+    gap: 10px; padding: 0 12px; color: var(--mk-dim); font-size: 8.5px;
+  }
+  .mkA-status .sdot { width: 5px; height: 5px; border-radius: 50%; background: var(--mk-good); }
+  .mkA-panel {
+    width: 186px; border-left: 1px solid transparent; background: var(--mk-panel);
+    display: flex; flex-direction: column; flex-shrink: 0;
+    overflow: hidden;
+    transition: width 0.26s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.2s ease, border-color 0.2s ease;
+  }
+  .mkA-panel-inner {
+    width: 186px; height: 100%; display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  /* Outer shell: whole right rail can collapse; content is gone, chat takes the space. */
+  .mk[data-right="collapsed"] .mkA-panel {
+    width: 0; opacity: 0; border-left-color: transparent; pointer-events: none;
+  }
+  .mk-panel-toggle {
+    border: none; background: transparent; cursor: pointer; padding: 0; font-family: inherit;
+  }
+  .mk-panel-toggle[aria-pressed="true"] {
+    background: var(--mk-acc-soft); color: var(--mk-acc);
+  }
+  .mk-panel-toggle .ico-collapse,
+  .mk-panel-toggle .ico-expand { display: inline-flex; align-items: center; justify-content: center; }
+  .mk-panel-toggle .ico-expand,
+  .mk[data-right="collapsed"] .mk-panel-toggle .ico-collapse { display: none; }
+  .mk[data-right="collapsed"] .mk-panel-toggle .ico-expand { display: inline-flex; }
+  .mk-state-label {
+    font-size: 11px; color: var(--faint); font-weight: 650; letter-spacing: 0.04em;
+    text-transform: uppercase; margin: 0 0 8px;
+  }
+
+  /* Hide light/system scrollbars inside dark mock shells (and page overflow rails). */
+  .mk, .mk * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .mk::-webkit-scrollbar,
+  .mk *::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(120, 128, 140, 0.35) transparent;
+  }
+  html::-webkit-scrollbar { width: 8px; height: 8px; }
+  html::-webkit-scrollbar-track { background: transparent; }
+  html::-webkit-scrollbar-thumb {
+    background: rgba(120, 128, 140, 0.35);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  html::-webkit-scrollbar-thumb:hover { background: rgba(120, 128, 140, 0.5); background-clip: content-box; }
+
+  .mk-term {
+    flex: 1; margin: 4px 8px 8px; border-radius: 8px; background: #0c0d10;
+    padding: 8px 9px; font-size: 8.8px; color: #9aa1ac; overflow: hidden;
+  }
+  .mk-term .g { color: var(--mk-good); }
+  .mk-term .b { color: var(--mk-acc); }
+  .mk-prow {
+    display: flex; align-items: center; gap: 7px; margin: 0 8px; padding: 5px 8px;
+    border-radius: 7px; color: var(--mk-mut); font-size: 9.5px; cursor: default;
+    transition: background 0.15s ease;
+  }
+  .mk-prow:hover { background: var(--mk-hover); }
+  .mk-prow.on { background: var(--mk-hover); color: var(--mk-text); }
+  .mk-prow svg { width: 11px; height: 11px; flex-shrink: 0; }
+  .mk-prow .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mk-prow .cnt { font-size: 8.5px; color: var(--mk-dim); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .mk-prow .cnt.g { color: var(--mk-good); }
+  .mk-prow .cnt.r { color: #e5665c; }
+  .mk-prow .cv { margin-left: auto; color: var(--mk-dim); display: inline-flex; flex-shrink: 0; }
+  .mk-prow .cv svg { width: 8px; height: 8px; }
+  /* Process rows: count + chevron only when live processes exist (else plain label). */
+  .mk-prow.has-proc { cursor: pointer; }
+  .mk-prow.has-proc .cv { color: var(--mk-mut); }
+  .mk-prow .run-dot {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--mk-good);
+    margin-left: auto; animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  /* ---------- right-panel drill-down demo ---------- */
+  .rp-wrap { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; margin-top: 26px; }
+  .rp-demo {
+    width: 280px; height: 360px; flex-shrink: 0;
+    background: var(--mk-panel); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column;
+    color: var(--mk-text); font-size: 12px;
+  }
+  .rp-head {
+    display: flex; align-items: center; gap: 6px; padding: 9px 10px 7px;
+    border-bottom: 1px solid var(--mk-line); min-height: 36px;
+  }
+  .rp-head .rp-title { font-size: 11px; color: var(--mk-mut); font-weight: 600; }
+  .rp-head .mkbtn { width: 22px; height: 22px; }
+  .rp-head .mkbtn svg { width: 12px; height: 12px; }
+  .rp-chips { display: flex; gap: 5px; overflow: hidden; }
+  .rp-chip {
+    font-size: 10px; padding: 3px 9px; border-radius: 6px; color: var(--mk-mut);
+    background: transparent; white-space: nowrap; transition: background 0.15s ease;
+  }
+  .rp-chip.on { background: var(--mk-hover); color: var(--mk-text); }
+  .rp-view { flex: 1; position: relative; overflow: hidden; }
+  .rp-home, .rp-term {
+    position: absolute; inset: 0; padding: 4px 0 8px;
+    transition: transform 0.24s cubic-bezier(0.22,1,0.36,1), opacity 0.2s ease;
+  }
+  .rp-home .mk-group { font-size: 9.5px; padding: 10px 16px 4px; }
+  .rp-home .mk-prow { margin: 0 8px; padding: 7px 10px; font-size: 11px; cursor: pointer; }
+  .rp-home .mk-prow svg { width: 13px; height: 13px; }
+  .rp-term { background: #0c0d10; padding: 10px 12px; font-size: 10.5px; color: #9aa1ac; }
+  .rp-term .g { color: var(--mk-good); }
+  .rp-term .b { color: var(--mk-acc); }
+  .rp-demo[data-view="home"] .rp-term { transform: translateX(24px); opacity: 0; pointer-events: none; }
+  .rp-demo[data-view="term"] .rp-home { transform: translateX(-24px); opacity: 0; pointer-events: none; }
+  .rp-notes { flex: 1; min-width: 260px; }
+  .rp-notes .pcard { margin-bottom: 12px; }
+
+  /* ---------- comparison table ---------- */
+  .cmp-wrap {
+    overflow-x: auto; margin-top: 26px; border: 1px solid var(--line); border-radius: 12px;
+    scrollbar-width: thin; scrollbar-color: rgba(120, 128, 140, 0.35) transparent;
+  }
+  .cmp-wrap::-webkit-scrollbar { height: 6px; }
+  .cmp-wrap::-webkit-scrollbar-track { background: transparent; }
+  .cmp-wrap::-webkit-scrollbar-thumb {
+    background: rgba(120, 128, 140, 0.35); border-radius: 999px;
+  }
+  table.cmp { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 13.5px; }
+  .cmp th, .cmp td { text-align: left; padding: 11px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .cmp th { font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); font-weight: 650; background: var(--surface); }
+  .cmp tr:last-child td { border-bottom: none; }
+  .cmp td:first-child { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  .cmp td { color: var(--text); }
+  .cmp .good { color: var(--good); font-weight: 600; }
+  .cmp .warn { color: var(--warn); font-weight: 600; }
+
+  .callout {
+    margin-top: 26px; border: 1px solid var(--line); border-left: 3px solid var(--accent);
+    background: var(--surface); border-radius: 12px; padding: 18px 22px;
+  }
+  .callout h4 { margin: 0 0 6px; font-size: 15px; }
+  .callout p { margin: 0; font-size: 14px; color: var(--muted); }
+
+  /* ---------- flow demo ---------- */
+  .demo-stage {
+    margin-top: 26px; background: var(--mk-bg); border: 1px solid var(--line);
+    border-radius: 14px; padding: 26px 30px; box-shadow: var(--shadow);
+    color: var(--mk-text); font-size: 13px; line-height: 1.65; min-height: 300px;
+  }
+  .demo-stage .mk-user { font-size: 12.5px; max-width: 75%; }
+  .fd-role { display: flex; align-items: center; gap: 6px; color: var(--mk-dim); font-size: 10.5px; margin: 16px 0 8px; }
+  .fd-role svg { width: 12px; height: 12px; stroke: var(--mk-acc); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .fd-think { margin: 4px 0 10px; }
+  .fd-chip {
+    display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 8px;
+    background: rgba(255,255,255,0.04); color: var(--mk-mut); font-size: 11.5px; cursor: pointer;
+    border: 1px solid transparent; transition: background 0.15s ease;
+  }
+  .fd-chip:hover { background: rgba(255,255,255,0.07); }
+  .fd-chip .cv { transition: transform 0.2s ease; display: inline-flex; }
+  .fd-chip .cv svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .fd-think.open .fd-chip .cv { transform: rotate(180deg); }
+  .fd-think-body { overflow: hidden; max-height: 320px; opacity: 1; transition: max-height 0.35s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease, margin 0.35s; margin-top: 8px; }
+  .fd-think.collapsed .fd-think-body { max-height: 0; opacity: 0; margin-top: 0; }
+  .fd-think.collapsed.open .fd-think-body { max-height: 320px; opacity: 1; margin-top: 8px; }
+  .fd-tline { color: var(--mk-dim); font-size: 12px; margin: 3px 0; padding-left: 12px; border-left: 1.5px solid rgba(255,255,255,0.09); }
+  .fd-tline.active {
+    background: linear-gradient(90deg, var(--mk-dim) 0%, #cfd4db 45%, var(--mk-dim) 60%);
+    background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: shimmer 1.6s linear infinite;
+  }
+  .fd-tool {
+    display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--mk-mut);
+    padding: 3px 0 3px 12px; border-left: 1.5px solid rgba(255,255,255,0.09); margin: 3px 0;
+    opacity: 0; transform: translateY(3px); transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .fd-tool.in { opacity: 1; transform: none; }
+  .fd-tool .tn { color: var(--mk-text); font-weight: 600; }
+  .fd-tool .ok { color: var(--mk-good); margin-left: 4px; }
+  .fd-answer { color: var(--mk-text); font-size: 13px; max-width: 62em; min-height: 1.5em; }
+  .fd-answer code { background: rgba(255,255,255,0.07); color: var(--mk-text); }
+  .demo-bar { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .replay-btn {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 550;
+    color: var(--accent); background: none; border: none; cursor: pointer; padding: 6px 10px;
+    border-radius: 8px; font-family: inherit; transition: background 0.15s ease;
+  }
+  .replay-btn:hover { background: var(--accent-soft); }
+  .replay-btn:focus-visible, .fd-chip:focus-visible, .pd-toggle:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .replay-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------- before / after ---------- */
+  .ba-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 26px; }
+  .ba-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .ba-card h4 { margin: 0 0 4px; font-size: 14.5px; }
+  .ba-card .ba-desc { font-size: 12.5px; color: var(--faint); margin: 0 0 14px; }
+  .ba-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ba-cell {
+    background: var(--mk-bg); border-radius: 10px; padding: 16px 12px;
+    display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 72px;
+  }
+  .ba-label { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); font-weight: 650; margin-bottom: 6px; }
+  .ba-old-btn {
+    width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.05); color: #8d94a0;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .ba-old-btn svg, .ba-new-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .ba-new-btn {
+    width: 26px; height: 26px; border-radius: 7px; border: none; background: transparent; color: #8d94a0;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .ba-new-btn:hover { background: rgba(255,255,255,0.08); color: #dde0e5; }
+  .ba-old-pill {
+    font-size: 10.5px; padding: 2px 9px; border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.2); color: #8d94a0;
+  }
+  .ba-new-pill { font-size: 10.5px; padding: 2px 9px; border-radius: 6px; background: rgba(91,157,255,0.14); color: #5b9dff; font-weight: 600; }
+  .ba-old-sel {
+    font-size: 10.5px; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.05); color: #8d94a0;
+  }
+  .ba-new-sel {
+    font-size: 10.5px; padding: 3px 8px; border-radius: 6px; color: #8d94a0; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px; transition: background 0.15s ease, color .15s;
+  }
+  .ba-new-sel:hover { background: rgba(255,255,255,0.08); color: #dde0e5; }
+  .ba-new-sel svg { width: 9px; height: 9px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; }
+  .ba-old-bubble {
+    font-size: 10.5px; padding: 6px 10px; border-radius: 10px; max-width: 150px;
+    border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.05); color: #dde0e5;
+  }
+  .ba-new-doc { font-size: 10.5px; max-width: 170px; color: #dde0e5; }
+  .ba-new-doc .r { color: #5f6672; font-size: 8.5px; display: flex; gap: 4px; align-items: center; margin-bottom: 3px; }
+
+  /* ---------- icon system ---------- */
+  .icon-spec {
+    display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 6px;
+  }
+  .icon-spec .chip { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; }
+  .icon-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; margin-top: 20px;
+  }
+  .ic-cell {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 8px 12px; display: flex; flex-direction: column; align-items: center; gap: 9px;
+    transition: border-color 0.15s ease;
+  }
+  .ic-cell:hover { border-color: var(--accent); }
+  .ic-cell:hover svg { color: var(--accent); }
+  .ic-cell svg {
+    width: 22px; height: 22px; color: var(--muted); transition: color 0.15s ease;
+    stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .ic-cell svg .fill { fill: currentColor; stroke: none; }
+  .ic-cell svg .knock { fill: var(--surface); }
+  .ic-cell span { font-size: 11px; color: var(--faint); font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  .ic-ba { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 22px; }
+  .ic-ba-card {
+    flex: 1; min-width: 280px; background: var(--mk-bg); border: 1px solid var(--line);
+    border-radius: 12px; padding: 16px 18px; color: #8d94a0;
+  }
+  .ic-ba-card .ba-label { color: #5f6672; }
+  .ic-ba-row { display: flex; align-items: center; gap: 14px; }
+  .ic-ba-row svg { stroke: currentColor; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .ic-ba-note { font-size: 11.5px; color: #5f6672; margin-top: 10px; line-height: 1.6; }
+
+  /* ---------- motion ---------- */
+  .motion-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-top: 26px; }
+  .m-demo {
+    background: var(--mk-bg); border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px; min-height: 168px; display: flex; flex-direction: column; color: var(--mk-text);
+  }
+  .m-demo h4 { margin: 0 0 2px; font-size: 13.5px; color: var(--mk-text); }
+  .m-demo .md { font-size: 11px; color: #5f6672; margin: 0 0 12px; }
+  .m-demo .zone { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; border-radius: 8px; }
+
+  .md-msg {
+    background: rgba(91,157,255,0.14); color: #dde0e5; border-radius: 10px 10px 3px 10px;
+    font-size: 11px; padding: 6px 11px;
+  }
+  .md-msg.enter { animation: msg-in 0.32s cubic-bezier(0.22,1,0.36,1) both; }
+
+  .pd-shell { width: 100%; height: 108px; background: #0c0d10; border-radius: 8px; overflow: hidden; position: relative; display: flex; }
+  .pd-main { flex: 1; padding: 8px; font-size: 9px; color: #5f6672; }
+  .pd-panel {
+    position: absolute; top: 0; right: 0; bottom: 0; width: 74px;
+    background: var(--mk-panel); border-left: 1px solid var(--mk-line);
+    transform: translateX(105%); transition: transform 0.26s cubic-bezier(0.22,1,0.36,1);
+    padding: 8px; font-size: 8.5px; color: #8d94a0;
+  }
+  .pd-open .pd-panel { transform: none; }
+  .pd-toggle {
+    margin-top: 10px; align-self: flex-start; font-size: 11.5px; font-weight: 550; color: var(--mk-acc);
+    background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; font-family: inherit;
+  }
+  .pd-toggle:hover { background: rgba(91,157,255,0.12); }
+
+  .sh-line {
+    font-size: 11.5px; color: #5f6672;
+    background: linear-gradient(90deg, #5f6672 0%, #cfd4db 45%, #5f6672 60%);
+    background-size: 200% 100%; -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 1.6s linear infinite;
+  }
+  .st-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mk-good); animation: pulse 1.6s ease-in-out infinite; }
+  .st-wrap { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #8d94a0; }
+
+  .mtok-wrap {
+    overflow-x: auto; margin-top: 28px; border: 1px solid var(--line); border-radius: 12px;
+    scrollbar-width: thin; scrollbar-color: rgba(120, 128, 140, 0.35) transparent;
+  }
+  .mtok-wrap::-webkit-scrollbar { height: 6px; }
+  .mtok-wrap::-webkit-scrollbar-track { background: transparent; }
+  .mtok-wrap::-webkit-scrollbar-thumb {
+    background: rgba(120, 128, 140, 0.35); border-radius: 999px;
+  }
+  table.mtok { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 13px; }
+  .mtok th, .mtok td { text-align: left; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .mtok th { font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); background: var(--surface); }
+  .mtok tr:last-child td { border-bottom: none; }
+  .mtok td:first-child { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12.5px; white-space: nowrap; }
+  .mtok td { font-variant-numeric: tabular-nums; }
+
+  /* ---------- scope list ---------- */
+  .scope-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 26px; }
+  .scope-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 22px; }
+  .scope-card h4 { margin: 0 0 10px; font-size: 14.5px; }
+  .scope-card ul { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--muted); }
+  .scope-card li { margin: 5px 0; }
+  .scope-card li strong { color: var(--text); font-weight: 600; }
+
+  footer { margin-top: 100px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 13px; color: var(--faint); }
+
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes msg-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; transition-duration: 0.001s !important; }
+  }
+  @media (max-width: 760px) {
+    h1 { font-size: 30px; }
+    .wrap { padding: 44px 18px 80px; }
+    .mkA-side { display: none; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Design Spec v2.3 · 2026-07-27 · piwin desktop</p>
+    <h1>壳层重设计:<span class="accent">静默工作台</span></h1>
+    <p class="lede">
+      最终形态:<strong>无硬边界的一体工作台</strong> + <strong>可收起的右侧工作面板</strong>。
+      左右栏与顶栏同色同透、不画明显分割线;对话贴顶排列。
+      工作面板(Changes / 终端 / …)仅在顶栏右上角面板按钮展开时出现。
+      对话区保持干净——不做右缘消息刻度/导航轨,长会话定位留给后续大纲类能力另议。
+    </p>
+    <div class="meta-chips">
+      <span class="chip">布局 <strong>一体色场 · 右栏可收起</strong></span>
+      <span class="chip">右栏触发 <strong>顶栏右上角</strong></span>
+      <span class="chip">对话流 <strong>置灰流式 + 完成折叠</strong></span>
+    </div>
+  </header>
+
+  <!-- ============ 01 principles ============ -->
+  <section>
+    <p class="sec-eyebrow">01 · 设计原则</p>
+    <h2>四条原则,贯穿所有改动</h2>
+    <div class="grid-4">
+      <div class="pcard">
+        <span class="pnum">P1</span>
+        <h4>无框优先</h4>
+        <p>图标按钮默认透明无边框,悬停浮现 6–8% 色块;边框只留给输入区和悬浮层。现有 boxed <code>.icon-btn</code> 全部退役。</p>
+      </div>
+      <div class="pcard">
+        <span class="pnum">P2</span>
+        <h4>内容即界面</h4>
+        <p>助手消息去掉气泡,回归文档流;面板靠背景微差与发丝线分区,不再套「盒子里的盒子」。</p>
+      </div>
+      <div class="pcard">
+        <span class="pnum">P3</span>
+        <h4>动效即状态</h4>
+        <p>动画只在状态变化处出现:思考 shimmer、面板滑入、消息进场、运行脉冲。120–260ms,一套缓动,全局尊重 reduced-motion。</p>
+      </div>
+      <div class="pcard">
+        <span class="pnum">P4</span>
+        <h4>一套图标语言</h4>
+        <p>24 网格 / 1.6 描边 / 圆头圆角,尺寸走 token。清除 8 种描边宽度、文字字符图标(× ★ ⚙)与 emoji 混用。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 02 layout ============ -->
+  <section>
+    <p class="sec-eyebrow">02 · 最终布局</p>
+    <h2>一体色场三栏 · 工作面板可收起</h2>
+    <p>
+      <strong>视觉</strong>:左会话栏、中央对话、右侧工作面板、顶栏共用同一 graphite 底,去掉明显竖线/横线边界,
+      只靠内容分区(与标注一致:左右透明度一致,上方也一样)。
+      <strong>工作面板</strong>:顶栏<strong>右上角</strong>面板按钮展开/收起整栏(与 Cursor 等 IDE 一致);
+      收起后整列消失,对话吃满宽度。上下文栏只保留会话标题 / 作用域 / 运行态,不再塞面板开关。
+      消息从顶部开始排布,不垂直居中。对话区右缘不做消息刻度条,保持静默。
+    </p>
+
+    <div class="mock-block">
+      <div class="mock-title">
+        <h3>最终形态</h3><span class="tag rec">已选定</span>
+      </div>
+      <div class="mk" id="mk-shell" data-right="expanded" role="region" aria-label="可交互布局:点顶栏右上角面板按钮展开/收起右侧工作面板">
+        <div class="mkA-band">
+          <div class="tl"><i></i><i></i><i></i></div>
+          <span class="mkbtn" title="侧栏"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M9.5 5v14"/></svg></span>
+          <span class="mkbtn"><svg viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg></span>
+          <span class="mkbtn"><svg viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg></span>
+          <span style="margin-left:auto"></span>
+          <span class="mkbtn" title="更多"><svg viewBox="0 0 24 24"><circle class="fill" cx="5.5" cy="12" r="1.4"/><circle class="fill" cx="12" cy="12" r="1.4"/><circle class="fill" cx="18.5" cy="12" r="1.4"/></svg></span>
+          <button type="button" class="mkbtn mk-panel-toggle" id="mk-panel-toggle" aria-pressed="true" aria-controls="mk-right-panel" title="展开 / 收起右侧工作面板" style="border:none;background:transparent;cursor:pointer;padding:0;font-family:inherit">
+            <span class="ico-collapse" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/></svg></span>
+            <span class="ico-expand" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/></svg></span>
+          </button>
+        </div>
+        <div class="mkA-body">
+          <div class="mkA-side">
+            <div class="mkA-proj">
+              <svg style="width:11px;height:11px;color:var(--mk-acc)" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>
+              piwin
+              <span class="cv"><svg style="width:9px;height:9px" viewBox="0 0 24 24"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></svg></span>
+            </div>
+            <div class="mkA-search">
+              <svg style="width:10px;height:10px" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l4.5 4.5"/></svg>
+              搜索或命令<span class="k">⌘K</span>
+            </div>
+            <div class="mk-group">已置顶</div>
+            <div class="mk-sess"><svg class="pin" viewBox="0 0 24 24"><path d="M9.5 4.5h5l-.7 5.4 3.2 3.1H7l3.2-3.1z"/><path d="M12 13v6.5"/></svg>shell 重设计提案</div>
+            <div class="mk-group">今天</div>
+            <div class="mk-sess on"><span class="dot"></span>notes 分支合并</div>
+            <div class="mk-sess">修 dispose 顺序</div>
+            <div class="mk-sess">FSRS 调度参数</div>
+            <div class="mk-group">昨天</div>
+            <div class="mk-sess">PTY 终端接入</div>
+            <div class="mk-sess">MCP 网关拆分</div>
+            <div class="mkA-newbtn">
+              <svg style="width:10px;height:10px;stroke-width:2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新会话
+            </div>
+          </div>
+          <div class="mkA-main">
+            <div class="mkA-ctx">
+              <span class="ttl">notes 分支合并</span>
+              <span class="mk-scope">project · piwin</span>
+              <span class="mk-run"><span class="rd"></span>运行中 · 12s</span>
+            </div>
+            <div class="mkA-stage">
+              <div class="mkA-chat" id="mk-chat">
+                <div class="mk-turn" data-turn="0" id="mk-turn-0">
+                  <div class="mk-user">壳层 UI 先别动代码,只改原型</div>
+                  <div class="mk-asst">
+                    <div class="role">
+                      <svg viewBox="0 0 24 24"><path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg>
+                      piwin
+                    </div>
+                    <div style="margin-top:2px;color:var(--mk-mut)">好的,本轮只改 quiet-workbench 原型,业务代码不动。</div>
+                  </div>
+                </div>
+                <div class="mk-turn" data-turn="1" id="mk-turn-1">
+                  <div class="mk-user">右栏要能整栏收起,展开才显示目录</div>
+                  <div class="mk-asst">
+                    <div class="role">
+                      <svg viewBox="0 0 24 24"><path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg>
+                      piwin
+                    </div>
+                    <div style="margin-top:2px;color:var(--mk-mut)">已改到顶栏右上角面板按钮控制整栏展开/收起。</div>
+                  </div>
+                </div>
+                <div class="mk-turn is-active" data-turn="2" id="mk-turn-2">
+                  <div class="mk-user">把 worktree 合并到 main,并干掉它</div>
+                  <div class="mk-asst">
+                    <div class="role">
+                      <svg viewBox="0 0 24 24"><path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg>
+                      piwin
+                    </div>
+                    <div class="mk-think">
+                      <svg style="width:9px;height:9px" viewBox="0 0 24 24"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></svg>
+                      已思考 8 秒 · 2 次工具调用
+                    </div>
+                    <div class="mk-tool"><span class="tn">Bash</span><span class="mono">git merge --ff-only …</span><span class="ok">✓</span></div>
+                    <div class="mk-tool"><span class="tn">Bash</span><span class="mono">pnpm -r test</span><span class="ok">✓</span></div>
+                    <div style="margin-top:6px">合并完成:main 现指向 <span class="mono">d93176d</span>,12 个提交全部进入历史,worktree 已移除,测试全绿。</div>
+                  </div>
+                </div>
+                <div class="mk-turn" data-turn="3" id="mk-turn-3">
+                  <div class="mk-user">左右颜色透明度一致,不要明显边界</div>
+                  <div class="mk-asst">
+                    <div class="role">
+                      <svg viewBox="0 0 24 24"><path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg>
+                      piwin
+                    </div>
+                    <div style="margin-top:2px;color:var(--mk-mut)">已统一左右顶为同一色场,发丝线改为透明。</div>
+                  </div>
+                </div>
+                <div class="mk-turn" data-turn="4" id="mk-turn-4">
+                  <div class="mk-user">你不觉得还有个问题吗,有太多的方框了…</div>
+                  <div class="mk-asst">
+                    <div class="role">
+                      <svg viewBox="0 0 24 24"><path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg>
+                      piwin
+                    </div>
+                    <div style="margin-top:2px;color:var(--mk-mut)">助手去气泡、ghost 按钮、无框选择器——见组件对照。</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="mkA-composer">
+              <div class="hint">回复 piwin…</div>
+              <div class="crow">
+                <span class="mkbtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+                <span class="mk-txtbtn">fable-5</span>
+                <span class="mk-txtbtn">agent</span>
+                <span class="mk-send"><svg viewBox="0 0 24 24"><path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/></svg></span>
+              </div>
+            </div>
+            <div class="mkA-status">
+              <span class="sdot"></span><span>就绪</span><span class="mono">main</span>
+              <span style="margin-left:auto" class="mono">ctx 41%</span><span class="mono">skills 6</span>
+            </div>
+          </div>
+          <aside class="mkA-panel" id="mk-right-panel" aria-label="右侧工作面板">
+            <div class="mkA-panel-inner">
+            <div class="mk-group" style="padding-top:10px">piwin</div>
+            <div class="mk-prow">
+              <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 8.2v7.6"/><path d="M17.9 9.2c-.4 4.2-6.6 3.1-9.5 6.3"/></svg>
+              <span class="lbl">Changes</span>
+              <span class="cnt g">+6 556</span><span class="cnt r">−17</span>
+            </div>
+            <div class="mk-prow on has-proc" title="有运行中的终端 · 点箭头向右展开">
+              <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/></svg>
+              <span class="cnt">1</span><span class="lbl">终端</span>
+              <span class="cv" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg></span>
+            </div>
+            <div class="mk-prow">
+              <svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>
+              <span class="lbl">Files</span>
+            </div>
+            <div class="mk-prow">
+              <svg viewBox="0 0 24 24"><path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"/><path d="M14 3.5V8h4.5"/></svg>
+              <span class="lbl">Notes</span>
+            </div>
+            <div class="mk-prow">
+              <svg viewBox="0 0 24 24"><rect x="4" y="7" width="11.5" height="12.5" rx="1.5"/><path d="M8.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5v9.5"/></svg>
+              <span class="lbl">Cards</span><span class="cnt">12 due</span>
+            </div>
+            <div class="mk-prow">
+              <svg viewBox="0 0 24 24"><path d="M3.5 12h4l2.5-6 4 12 2.5-6h4"/></svg>
+              <span class="lbl">Activity</span>
+            </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+      <p class="note">
+        可点:顶栏<strong>右上角面板按钮</strong>展开/收起工作面板。
+        要点:① 一体色场,左右顶无硬边界;
+        ② 工作面板开关在窗体右上角,不在上下文栏;
+        ③ 工作面板可整栏收起,展开才有 Changes/终端/…;
+        ④ 消息贴顶,不垂直居中;对话区无右缘刻度条;
+        ⑤ 面板按钮 ≠ 停止生成;
+        ⑥ <code>data-layout</code> 权威不变。
+      </p>
+    </div>
+
+    <h3>两态对照:收起 vs 展开</h3>
+    <p style="margin-top:0">
+      与标注一致:<strong>工作面板不展开时不出现</strong>;展开后才显示 Changes / 终端 / …。
+      主图可实时切换工作面板。
+    </p>
+    <div class="rp-wrap" style="align-items:stretch">
+      <div style="flex:1;min-width:280px">
+        <p class="mk-state-label">收起 · 右栏不显示</p>
+        <div class="mk" data-right="collapsed" aria-hidden="true" style="pointer-events:none">
+          <div class="mkA-band">
+            <div class="tl"><i></i><i></i><i></i></div>
+            <span class="mkbtn"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M9.5 5v14"/></svg></span>
+            <span style="margin-left:auto"></span>
+            <span class="mkbtn mk-panel-toggle" aria-pressed="false" title="展开右侧工作面板"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/></svg></span>
+          </div>
+          <div class="mkA-body" style="height:220px">
+            <div class="mkA-side" style="width:120px">
+              <div class="mkA-proj" style="font-size:9.5px">piwin</div>
+              <div class="mk-group">今天</div>
+              <div class="mk-sess on"><span class="dot"></span>notes 分支合并</div>
+              <div class="mk-sess">修 dispose 顺序</div>
+            </div>
+            <div class="mkA-main">
+              <div class="mkA-ctx">
+                <span class="ttl">notes 分支合并</span>
+                <span class="mk-run"><span class="rd"></span>运行中 · 12s</span>
+              </div>
+              <div class="mkA-stage">
+                <div class="mkA-chat" style="padding:10px 8px">
+                  <div class="mk-user" style="font-size:9px">把 worktree 合并到 main</div>
+                  <div class="mk-asst" style="font-size:9px">
+                    <div class="role"><svg viewBox="0 0 24 24"><path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg>piwin</div>
+                    合并完成。工作面板已收起,对话吃满宽度。
+                  </div>
+                </div>
+              </div>
+            </div>
+            <aside class="mkA-panel" style="width:0;opacity:0;border:0"></aside>
+          </div>
+        </div>
+        <p class="note">收起:无工作面板目录;对话列独占中区。</p>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <p class="mk-state-label">展开 · 右栏目录可见</p>
+        <div class="mk" data-right="expanded" aria-hidden="true" style="pointer-events:none">
+          <div class="mkA-band">
+            <div class="tl"><i></i><i></i><i></i></div>
+            <span class="mkbtn"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M9.5 5v14"/></svg></span>
+            <span style="margin-left:auto"></span>
+            <span class="mkbtn mk-panel-toggle" aria-pressed="true" style="background:var(--mk-acc-soft);color:var(--mk-acc)" title="收起右侧工作面板"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/></svg></span>
+          </div>
+          <div class="mkA-body" style="height:220px">
+            <div class="mkA-side" style="width:100px">
+              <div class="mkA-proj" style="font-size:9.5px">piwin</div>
+              <div class="mk-sess on"><span class="dot"></span>notes…</div>
+            </div>
+            <div class="mkA-main">
+              <div class="mkA-ctx">
+                <span class="ttl">notes…</span>
+                <span class="mk-run"><span class="rd"></span>运行中</span>
+              </div>
+              <div class="mkA-chat" style="padding:10px 12px">
+                <div class="mk-asst" style="font-size:9px">对话仍在中间…</div>
+              </div>
+            </div>
+            <aside class="mkA-panel">
+              <div class="mkA-panel-inner" style="width:150px">
+                <div class="mk-group" style="padding-top:8px">piwin</div>
+                <div class="mk-prow" style="font-size:9px"><span class="lbl">Changes</span><span class="cnt g">+6k</span></div>
+                <div class="mk-prow on has-proc" style="font-size:9px"><span class="cnt">1</span><span class="lbl">终端</span><span class="cv" style="margin-left:auto"><svg viewBox="0 0 24 24" style="width:8px;height:8px"><path d="M10 6l6 6-6 6"/></svg></span></div>
+                <div class="mk-prow" style="font-size:9px"><span class="lbl">Files</span></div>
+                <div class="mk-prow" style="font-size:9px"><span class="lbl">Notes</span></div>
+                <div class="mk-prow" style="font-size:9px"><span class="lbl">Cards</span></div>
+                <div class="mk-prow" style="font-size:9px"><span class="lbl">Activity</span></div>
+              </div>
+            </aside>
+          </div>
+        </div>
+        <p class="note">展开:目录条目才渲染;点行再钻入详情(见下方交互)。</p>
+      </div>
+    </div>
+
+    <h3>右栏内部:目录 → 钻入</h3>
+    <div class="rp-wrap">
+      <div class="rp-demo" id="rp-demo" data-view="home">
+        <div class="rp-head">
+          <button class="mkbtn" id="rp-back" hidden aria-label="返回目录" style="border:none;background:transparent;cursor:pointer;font-family:inherit;padding:0">
+            <svg viewBox="0 0 24 24"><path d="M14 6l-6 6 6 6"/></svg>
+          </button>
+          <span class="rp-title" id="rp-title">工作区</span>
+          <span class="rp-chips mono" id="rp-chips" hidden>
+            <span class="rp-chip on">pnpm dev:tauri</span>
+            <span class="rp-chip">+</span>
+          </span>
+          <span class="mkbtn" style="margin-left:auto" title="弹出为独立窗口">
+            <svg viewBox="0 0 24 24"><path d="M9 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19h11a1.5 1.5 0 0 0 1.5-1.5V15"/><path d="M14 4.5h5.5V10M19 5l-7 7"/></svg>
+          </span>
+        </div>
+        <div class="rp-view">
+          <div class="rp-home" id="rp-home">
+            <div class="mk-group">piwin</div>
+            <div class="mk-prow">
+              <svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 8.2v7.6"/><path d="M17.9 9.2c-.4 4.2-6.6 3.1-9.5 6.3"/></svg>
+              <span class="lbl">Changes</span><span class="cnt g">+6 556</span><span class="cnt r">−17</span>
+            </div>
+            <div class="mk-prow has-proc" data-goto-term title="有运行中的终端 · 点箭头向右展开">
+              <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/></svg>
+              <span class="cnt">1</span><span class="lbl">终端</span>
+              <span class="cv" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg></span>
+            </div>
+            <div class="mk-prow" title="无运行进程 · 不显示箭头">
+              <svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>
+              <span class="lbl">Files</span>
+            </div>
+            <div class="mk-prow">
+              <svg viewBox="0 0 24 24"><path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"/><path d="M14 3.5V8h4.5"/></svg>
+              <span class="lbl">Notes</span>
+            </div>
+            <div class="mk-prow">
+              <svg viewBox="0 0 24 24"><rect x="4" y="7" width="11.5" height="12.5" rx="1.5"/><path d="M8.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5v9.5"/></svg>
+              <span class="lbl">Cards</span><span class="cnt">12 due</span>
+            </div>
+            <div class="mk-prow">
+              <svg viewBox="0 0 24 24"><path d="M3.5 12h4l2.5-6 4 12 2.5-6h4"/></svg>
+              <span class="lbl">Activity</span>
+            </div>
+            <div class="mk-group">对照 · 无进程</div>
+            <div class="mk-prow" title="无终端进程 · 无数量、无箭头">
+              <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/></svg>
+              <span class="lbl">终端</span>
+            </div>
+          </div>
+          <div class="rp-term mono" id="rp-term">
+            <div class="b">❯ pnpm dev:tauri</div>
+            <div>vite v6.0.3 dev server running at:</div>
+            <div>➜ Local: <span class="b">http://localhost:1420/</span></div>
+            <div>10:15:28 [vite] hmr update /src/App.tsx</div>
+            <div>10:15:31 [vite] hmr update /src/chat-thread.tsx</div>
+            <div>10:15:43 [vite] hmr update /src/right-panel.tsx</div>
+            <div class="g">✓ built in 96ms</div>
+          </div>
+        </div>
+      </div>
+      <div class="rp-notes">
+        <div class="pcard">
+          <span class="pnum">先整栏,再目录</span>
+          <h4>展开后才有条目</h4>
+          <p>外层:顶栏右上角面板按钮控制整栏有无。内层只有目录行,不另开「运行中」区。Changes 带 +/−、Cards 带到期数。</p>
+        </div>
+        <div class="pcard">
+          <span class="pnum">进程 → 箭头</span>
+          <h4>有进程才给数量和 ›</h4>
+          <p>终端有运行进程时:<code>1 终端</code> + 行尾箭头,点箭头向右钻入会话;无进程时只显示「终端」,不显示数字、也不给箭头(见目录底部对照行)。Files 等同理:无进程态不画箭头。</p>
+        </div>
+        <div class="pcard">
+          <span class="pnum">点击展开</span>
+          <h4>整面板接管,240ms 滑入</h4>
+          <p>点有箭头的终端行,该内容占满整个右面板;顶部变为会话 chip(多个终端可切换/新建),左上返回箭头回目录。← 试试点左边带 › 的「1 终端」。</p>
+        </div>
+        <div class="pcard">
+          <span class="pnum">感知</span>
+          <h4>不打断,只提示</h4>
+          <p>目录态下终端有新输出时,行尾呼吸点加速 + 状态栏脉冲;绝不自动弹开抢占视线。展开态记忆:重开面板回到上次视图。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <h4>已延后:方案 B「指挥舱」</h4>
+      <p>
+        图标导航轨、单命令带与底部终端坞全部留作下一轮演进。
+        待本轮落地、视觉基线稳定后再评估。
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ 03 conversation flow ============ -->
+  <section>
+    <p class="sec-eyebrow">03 · 对话流</p>
+    <h2>思考与等待:置灰流式,完成即折叠</h2>
+    <p>
+      运行中的每个阶段都可见:思考内容以置灰小字 + shimmer 流式滚动,工具调用逐条淡入;
+      回答开始时,过程自动折叠为一行摘要,点击可随时展开回看。下面是可交互的实机演示(自动播放一次):
+    </p>
+    <div class="demo-stage" id="flow-demo">
+      <div class="mk-user" style="float:right">检查一下 dispose() 的清理顺序有没有问题</div>
+      <div style="clear:both"></div>
+      <div class="fd-role">
+        <svg viewBox="0 0 24 24"><path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg>
+        piwin
+      </div>
+      <div class="fd-think" id="fd-think">
+        <button class="fd-chip" id="fd-chip" hidden aria-expanded="false">
+          <span class="fd-chip-label" id="fd-chip-label">思考中</span>
+          <span class="cv"><svg viewBox="0 0 24 24"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></svg></span>
+        </button>
+        <div class="fd-think-body" id="fd-body"></div>
+      </div>
+      <div class="fd-answer" id="fd-answer"></div>
+      <div class="demo-bar">
+        <button class="replay-btn" id="flow-replay">
+          <svg viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3L4.5 8.9"/><path d="M4.5 4.5v4.4h4.4"/></svg>
+          重放演示
+        </button>
+      </div>
+    </div>
+    <h3>规则</h3>
+    <div class="grid-4">
+      <div class="pcard"><span class="pnum">流式中</span><h4>置灰 + shimmer</h4><p>思考文本 12px 置灰,当前行走 shimmer 高亮;工具卡以左侧细线缩进呈现,完成打 ✓。</p></div>
+      <div class="pcard"><span class="pnum">回答开始</span><h4>自动折叠</h4><p>过程块 350ms 收起为「已思考 N 秒 · M 次工具调用」摘要行,视线自然移交给正文。</p></div>
+      <div class="pcard"><span class="pnum">随时</span><h4>可展开回看</h4><p>摘要行点击展开完整过程;流式期间也可手动折叠,偏好被记住。</p></div>
+      <div class="pcard"><span class="pnum">等待时</span><h4>永不静止</h4><p>请求发出到首 token 之间,显示 shimmer 状态行(如「正在连接模型…」),消除"卡死感"。</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 04 components ============ -->
+  <section>
+    <p class="sec-eyebrow">04 · 组件重构</p>
+    <h2>去框化:六组前后对照</h2>
+    <p>
+      下面每组「新」侧都是可交互的(试试悬停)。同时收敛底层:两套按钮体系(<code>.btn</code> 与 <code>piwin-button</code>)合并为一,
+      ui-kit 补齐 Input / Select / Switch,Mantine 退役、浮层统一 Radix。
+    </p>
+    <div class="ba-grid">
+      <div class="ba-card">
+        <h4>图标按钮</h4>
+        <p class="ba-desc">边框 + 底色的方框 → 透明 ghost,悬停浮现色块</p>
+        <div class="ba-pair">
+          <div>
+            <div class="ba-label">现状</div>
+            <div class="ba-cell">
+              <span class="ba-old-btn"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/></svg></span>
+              <span class="ba-old-btn"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l4.5 4.5"/></svg></span>
+              <span class="ba-old-btn" style="font-size:13px">×</span>
+            </div>
+          </div>
+          <div>
+            <div class="ba-label">新</div>
+            <div class="ba-cell">
+              <button class="ba-new-btn" aria-label="面板"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M14.5 5v14"/></svg></button>
+              <button class="ba-new-btn" aria-label="搜索"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l4.5 4.5"/></svg></button>
+              <button class="ba-new-btn" aria-label="关闭"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ba-card">
+        <h4>徽章 / 计数</h4>
+        <p class="ba-desc">描边胶囊 → 无边框色块字</p>
+        <div class="ba-pair">
+          <div>
+            <div class="ba-label">现状</div>
+            <div class="ba-cell"><span class="ba-old-pill">project</span><span class="ba-old-pill">3 changes</span></div>
+          </div>
+          <div>
+            <div class="ba-label">新</div>
+            <div class="ba-cell"><span class="ba-new-pill">project</span><span class="ba-new-pill" style="background:rgba(67,195,132,0.14);color:#43c384">3 changes</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="ba-card">
+        <h4>模型 / 模式选择</h4>
+        <p class="ba-desc">原生 select 方框 → 无框文本菜单</p>
+        <div class="ba-pair">
+          <div>
+            <div class="ba-label">现状</div>
+            <div class="ba-cell"><span class="ba-old-sel">fable-5 ▾</span><span class="ba-old-sel">agent ▾</span></div>
+          </div>
+          <div>
+            <div class="ba-label">新</div>
+            <div class="ba-cell">
+              <button class="ba-new-sel">fable-5 <svg viewBox="0 0 24 24"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></svg></button>
+              <button class="ba-new-sel">agent <svg viewBox="0 0 24 24"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ba-card">
+        <h4>助手消息</h4>
+        <p class="ba-desc">边框气泡 → 文档流 + 角色行</p>
+        <div class="ba-pair">
+          <div>
+            <div class="ba-label">现状</div>
+            <div class="ba-cell"><div class="ba-old-bubble">合并完成,main 现指向 d93176d,测试全绿。</div></div>
+          </div>
+          <div>
+            <div class="ba-label">新</div>
+            <div class="ba-cell">
+              <div class="ba-new-doc">
+                <div class="r"><svg style="width:9px;height:9px;stroke:#5b9dff;fill:none;stroke-width:1.6" viewBox="0 0 24 24"><path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg>piwin</div>
+                合并完成,main 现指向 d93176d,测试全绿。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ba-card">
+        <h4>工具调用卡</h4>
+        <p class="ba-desc">盒式卡片 → 细线缩进行</p>
+        <div class="ba-pair">
+          <div>
+            <div class="ba-label">现状</div>
+            <div class="ba-cell">
+              <div class="ba-old-bubble" style="font-family:ui-monospace,Menlo,monospace;font-size:9.5px">▸ Bash · git merge --ff-only</div>
+            </div>
+          </div>
+          <div>
+            <div class="ba-label">新</div>
+            <div class="ba-cell">
+              <div style="font-size:10px;color:#8d94a0;padding-left:10px;border-left:1.5px solid rgba(255,255,255,0.12)">
+                <span style="color:#dde0e5;font-weight:600">Bash</span>
+                <span class="mono"> git merge --ff-only</span>
+                <span style="color:#43c384"> ✓</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ba-card">
+        <h4>右面板条目行</h4>
+        <p class="ba-desc">emoji + 边框行 → 无框行 + 计数 + 钻入</p>
+        <div class="ba-pair">
+          <div>
+            <div class="ba-label">现状</div>
+            <div class="ba-cell" style="flex-direction:column;align-items:stretch;gap:3px;padding:12px 16px">
+              <div style="font-size:9.5px;color:#8d94a0;padding:3px 8px;border:1px solid rgba(255,255,255,0.12);border-radius:6px">📁 Files ›</div>
+              <div style="font-size:9.5px;color:#8d94a0;padding:3px 8px;border:1px solid rgba(255,255,255,0.12);border-radius:6px">⌨ Terminal ›</div>
+            </div>
+          </div>
+          <div>
+            <div class="ba-label">新</div>
+            <div class="ba-cell" style="flex-direction:column;align-items:stretch;gap:2px;padding:12px 12px">
+              <div style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#8d94a0;padding:4px 8px;border-radius:7px">
+                <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/></svg>
+                <span style="color:#5f6672;font-size:8.5px">1</span> 终端
+                <svg style="width:8px;height:8px;margin-left:auto;stroke:#5f6672;fill:none;stroke-width:1.8;stroke-linecap:round" viewBox="0 0 24 24"><path d="M10 6l6 6-6 6"/></svg>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#8d94a0;padding:4px 8px;border-radius:7px">
+                <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg>
+                Files
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:9.5px;color:#8d94a0;padding:4px 8px;border-radius:7px;background:rgba(255,255,255,0.06)">
+                <svg style="width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 8.2v7.6"/><path d="M17.9 9.2c-.4 4.2-6.6 3.1-9.5 6.3"/></svg>
+                Changes <span style="color:#43c384;font-size:8.5px">+6 556</span><span style="color:#e5665c;font-size:8.5px">−17</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 05 icons ============ -->
+  <section>
+    <p class="sec-eyebrow">05 · 图标系统</p>
+    <h2>一套语言:24 网格 · 1.6 描边 · 圆头圆角</h2>
+    <p>
+      现状是 4 个来源、8 种描边、6 档尺寸,外加约 20 处文字字符(× ★ ⚙ ▸ ✓)与 emoji 混用。
+      新系统全部图标按同一规格重绘,尺寸走 <code>--icon-size</code> token(16 / 20 两档),字符图标全数替换为 SVG。以下为首批 16 枚样张:
+    </p>
+    <div class="icon-spec">
+      <span class="chip">viewBox 24×24</span>
+      <span class="chip">stroke 1.6</span>
+      <span class="chip">linecap round</span>
+      <span class="chip">外角 rx 2</span>
+      <span class="chip">尺寸 16 / 20</span>
+    </div>
+    <div class="icon-grid">
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M6 5h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-6l-4 3v-3H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"/></svg><span>chat</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>plus</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l4.5 4.5"/></svg><span>search</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/></svg><span>folder</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.2"/><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="7" r="2.2"/><path d="M6 8.2v7.6"/><path d="M17.9 9.2c-.4 4.2-6.6 3.1-9.5 6.3"/></svg><span>branch</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M7 9.5l3 2.5-3 2.5M12.5 15h4.5"/></svg><span>terminal</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M4 7.5h16M4 16.5h16"/><circle class="knock" cx="9.5" cy="7.5" r="2.4"/><circle cx="9.5" cy="7.5" r="2.4"/><circle class="knock" cx="15" cy="16.5" r="2.4"/><circle cx="15" cy="16.5" r="2.4"/></svg><span>settings</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"/><path d="M14 3.5V8h4.5M9 12.5h6M9 16h4"/></svg><span>note</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><rect x="4" y="7" width="11.5" height="12.5" rx="1.5"/><path d="M8.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5v9.5"/></svg><span>cards</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg><span>close</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></svg><span>chevron</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><circle class="fill" cx="5.5" cy="12" r="1.5"/><circle class="fill" cx="12" cy="12" r="1.5"/><circle class="fill" cx="18.5" cy="12" r="1.5"/></svg><span>more</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M12 19V6M6.5 11.5 12 6l5.5 5.5"/></svg><span>send</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><rect class="fill" x="7.5" y="7.5" width="9" height="9" rx="2"/></svg><span>stop</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z"/></svg><span>agent</span></div>
+      <div class="ic-cell"><svg viewBox="0 0 24 24"><path d="M9.5 4.5h5l-.7 5.4 3.2 3.1H7l3.2-3.1z"/><path d="M12 13v6.5"/></svg><span>pin</span></div>
+    </div>
+    <div class="ic-ba">
+      <div class="ic-ba-card">
+        <div class="ba-label">现状 · 同排并列时</div>
+        <div class="ic-ba-row">
+          <svg style="width:22px;height:22px;stroke-width:1.2" viewBox="0 0 16 16"><path d="M3 2.5h8.5L14 5v8.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"/><path d="M5 6.5h6M5 9h6M5 11.5h4"/></svg>
+          <svg style="width:22px;height:22px;stroke-width:2.5" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+          <span style="font-size:17px">⚙</span>
+          <span style="font-size:15px">★</span>
+          <span style="font-size:15px">📄</span>
+          <svg style="width:22px;height:22px;stroke-width:1.85" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l4.5 4.5"/></svg>
+        </div>
+        <p class="ic-ba-note">16/24 网格混用、描边 1.2–2.5、字符与 emoji 夹杂——粗细与基线肉眼可见地漂移。</p>
+      </div>
+      <div class="ic-ba-card">
+        <div class="ba-label">新 · 同排并列时</div>
+        <div class="ic-ba-row" style="color:#9aa1ac">
+          <svg style="width:22px;height:22px;stroke-width:1.6" viewBox="0 0 24 24"><path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"/><path d="M14 3.5V8h4.5M9 12.5h6M9 16h4"/></svg>
+          <svg style="width:22px;height:22px;stroke-width:1.6" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+          <svg style="width:22px;height:22px;stroke-width:1.6" viewBox="0 0 24 24"><path d="M4 7.5h16M4 16.5h16"/><circle style="fill:#101114" cx="9.5" cy="7.5" r="2.4"/><circle cx="9.5" cy="7.5" r="2.4"/><circle style="fill:#101114" cx="15" cy="16.5" r="2.4"/><circle cx="15" cy="16.5" r="2.4"/></svg>
+          <svg style="width:22px;height:22px;stroke-width:1.6" viewBox="0 0 24 24"><path d="M9.5 4.5h5l-.7 5.4 3.2 3.1H7l3.2-3.1z"/><path d="M12 13v6.5"/></svg>
+          <svg style="width:22px;height:22px;stroke-width:1.6" viewBox="0 0 24 24"><path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z"/></svg>
+          <svg style="width:22px;height:22px;stroke-width:1.6" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l4.5 4.5"/></svg>
+        </div>
+        <p class="ic-ba-note">同网格同描边同圆角,视觉重量一致;settings 由齿轮改为 sliders,更贴合「工具调参」的产品语义。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 06 motion ============ -->
+  <section>
+    <p class="sec-eyebrow">06 · 动效语言</p>
+    <h2>四个场景,一套 token</h2>
+    <p>
+      现状约 20 个 keyframes 但结构性动效缺失(面板瞬开、弹层无过渡),时长硬编码散落各处。
+      新体系收敛为三档时长 + 一条主缓动,全部走 CSS 变量;<code>prefers-reduced-motion</code> 全局兜底。
+    </p>
+    <div class="motion-grid">
+      <div class="m-demo">
+        <h4>消息进场</h4>
+        <p class="md">仅新消息触发,历史挂载不重放</p>
+        <div class="zone"><div class="md-msg" id="md-msg">合并完成,测试全绿 ✓</div></div>
+        <button class="pd-toggle" id="md-replay">重放</button>
+      </div>
+      <div class="m-demo">
+        <h4>面板滑入</h4>
+        <p class="md">260ms · 保持挂载 + transform</p>
+        <div class="zone">
+          <div class="pd-shell" id="pd-shell">
+            <div class="pd-main">对话区宽度不变</div>
+            <div class="pd-panel">Files<br>Terminal<br>Changes</div>
+          </div>
+        </div>
+        <button class="pd-toggle" id="pd-toggle">开 / 关面板</button>
+      </div>
+      <div class="m-demo">
+        <h4>思考 shimmer</h4>
+        <p class="md">流式期间唯一的常驻动画</p>
+        <div class="zone"><span class="sh-line">正在梳理 dispose() 的清理顺序…</span></div>
+      </div>
+      <div class="m-demo">
+        <h4>运行脉冲</h4>
+        <p class="md">状态点呼吸,替代旋转 spinner</p>
+        <div class="zone"><span class="st-wrap"><span class="st-dot"></span>运行中 · 12s</span></div>
+      </div>
+    </div>
+    <div class="mtok-wrap">
+      <table class="mtok">
+        <thead><tr><th>Token</th><th>值</th><th>用途</th></tr></thead>
+        <tbody>
+          <tr><td>--motion-quick</td><td>120ms</td><td>悬停、按下、图标着色</td></tr>
+          <tr><td>--motion-standard</td><td>200ms</td><td>菜单、弹层、折叠展开</td></tr>
+          <tr><td>--motion-large</td><td>260ms</td><td>面板滑入滑出、抽屉</td></tr>
+          <tr><td>--motion-ease</td><td>cubic-bezier(0.22, 1, 0.36, 1)</td><td>唯一主缓动(出场用 ease-in 变体)</td></tr>
+          <tr><td>reduced-motion</td><td>全局降级</td><td>进场/滑动关闭,保留状态色变化</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 07 landing ============ -->
+  <section>
+    <p class="sec-eyebrow">07 · 落地</p>
+    <h2>四个工作包,守住现有护栏</h2>
+    <div class="scope-cols">
+      <div class="scope-card">
+        <h4>实施顺序</h4>
+        <ul>
+          <li><strong>W1 基座</strong> — 图标库重绘 + 动效 token + ghost 按钮体系(ui-kit)</li>
+          <li><strong>W2 布局</strong> — 一体色场、右面板整栏展开/收起 + 目录钻入、composer 悬浮化</li>
+          <li><strong>W3 对话流</strong> — 去气泡、thinking 流式折叠、工具行、等待态</li>
+          <li><strong>W4 收尾</strong> — reduced-motion 全局策略、视觉基线重生成、testid 迁移</li>
+        </ul>
+      </div>
+      <div class="scope-card">
+        <h4>护栏(不动的东西)</h4>
+        <ul>
+          <li>host / reducer / 持久化逻辑 <strong>零改动</strong></li>
+          <li><code>data-layout</code> 单一布局权威与响应式断点保持</li>
+          <li>新 CSS 不使用 <code>!important</code></li>
+          <li>testid 若改名,同 commit 迁移测试断言</li>
+          <li>8 张 darwin 视觉基线在 W4 一次性重生成</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    piwin shell UI 重设计 · v2.3:一体色场 + 可收起工作面板 · 本页为私有 Artifact。
+    确认无误请在对话里回复;有想调整的点也直接说。
+  </footer>
+</div>
+
+<script>
+(function () {
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- flow demo ---------- */
+  var think = document.getElementById('fd-think');
+  var body = document.getElementById('fd-body');
+  var chip = document.getElementById('fd-chip');
+  var chipLabel = document.getElementById('fd-chip-label');
+  var answer = document.getElementById('fd-answer');
+  var replay = document.getElementById('flow-replay');
+
+  var THINK_LINES = [
+    '正在阅读 packages/agent-host/src/host-runtime.ts,定位 dispose() …',
+    '梳理清理顺序:activeRuns 取消 → 挂起权限排空 → notes 索引关闭 → PTY 宿主释放',
+    '对照 ADR 0018 的资源生命周期约定,确认索引关闭时机在事务落盘之后'
+  ];
+  var TOOLS = [
+    ['Read', 'host-runtime.ts · 2 001 行'],
+    ['Grep', 'notesServices · 12 处匹配']
+  ];
+  var ANSWER = 'dispose() 的清理顺序是安全的:活动 run 先行取消并发布终态事件,notes 索引在挂起权限排空之后、PTY 宿主释放之前关闭,与 ADR 0018 的生命周期约定一致,无需改动。';
+
+  var timers = [];
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+  function clearAll() { timers.forEach(clearTimeout); timers = []; }
+
+  function typeInto(el, text, cps, done) {
+    if (reduced) { el.textContent = text; if (done) done(); return; }
+    var i = 0;
+    var t = setInterval(function () {
+      i += 2;
+      el.textContent = text.slice(0, i);
+      if (i >= text.length) { clearInterval(t); if (done) done(); }
+    }, cps);
+    timers.push(t);
+  }
+
+  function makeTool(t) {
+    var d = document.createElement('div');
+    d.className = 'fd-tool';
+    d.innerHTML = '<span class="tn">' + t[0] + '</span><span class="mono">' + t[1] + '</span><span class="ok">✓</span>';
+    return d;
+  }
+
+  function runFlow() {
+    if (!think || !body || !chip || !answer) return;
+    clearAll();
+    think.classList.remove('collapsed', 'open');
+    body.innerHTML = '';
+    chip.hidden = false;
+    chip.setAttribute('aria-expanded', 'false');
+    chipLabel.textContent = '思考中';
+    answer.textContent = '';
+
+    if (reduced) {
+      THINK_LINES.forEach(function (l) {
+        var d = document.createElement('div'); d.className = 'fd-tline'; d.textContent = l; body.appendChild(d);
+      });
+      TOOLS.forEach(function (t) {
+        var d = makeTool(t); d.classList.add('in'); body.appendChild(d);
+      });
+      think.classList.add('collapsed');
+      chipLabel.textContent = '已思考 8 秒 · 2 次工具调用';
+      answer.textContent = ANSWER;
+      return;
+    }
+
+    var li = 0;
+    function nextLine() {
+      if (li >= THINK_LINES.length) { showTools(0); return; }
+      var d = document.createElement('div');
+      d.className = 'fd-tline active';
+      body.appendChild(d);
+      typeInto(d, THINK_LINES[li], 24, function () {
+        d.classList.remove('active');
+        li += 1;
+        later(nextLine, 180);
+      });
+    }
+    function showTools(i) {
+      if (i >= TOOLS.length) { later(collapse, 700); return; }
+      var d = makeTool(TOOLS[i]);
+      body.appendChild(d);
+      later(function () { d.classList.add('in'); }, 30);
+      later(function () { showTools(i + 1); }, 480);
+    }
+    function collapse() {
+      think.classList.add('collapsed');
+      chipLabel.textContent = '已思考 8 秒 · 2 次工具调用';
+      later(function () { typeInto(answer, ANSWER, 16); }, 420);
+    }
+    later(nextLine, 350);
+  }
+
+  if (chip) {
+    chip.addEventListener('click', function () {
+      var open = think.classList.toggle('open');
+      chip.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+  if (replay) replay.addEventListener('click', runFlow);
+
+  var flowStage = document.getElementById('flow-demo');
+  if (flowStage && 'IntersectionObserver' in window) {
+    var played = false;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting && !played) { played = true; runFlow(); io.disconnect(); }
+      });
+    }, { threshold: 0.4 });
+    io.observe(flowStage);
+  } else {
+    runFlow();
+  }
+
+  /* ---------- motion demos ---------- */
+  var mdMsg = document.getElementById('md-msg');
+  var mdReplay = document.getElementById('md-replay');
+  if (mdMsg && mdReplay) {
+    mdMsg.classList.add('enter');
+    mdReplay.addEventListener('click', function () {
+      mdMsg.classList.remove('enter');
+      void mdMsg.offsetWidth;
+      mdMsg.classList.add('enter');
+    });
+  }
+  var pdShell = document.getElementById('pd-shell');
+  var pdToggle = document.getElementById('pd-toggle');
+  if (pdShell && pdToggle) {
+    pdToggle.addEventListener('click', function () { pdShell.classList.toggle('pd-open'); });
+    setTimeout(function () { pdShell.classList.add('pd-open'); }, 600);
+  }
+
+  /* ---------- main shell: outer right panel collapse ---------- */
+  var mkShell = document.getElementById('mk-shell');
+  var mkPanelToggle = document.getElementById('mk-panel-toggle');
+  if (mkShell && mkPanelToggle) {
+    function setRightPanel(expanded) {
+      mkShell.setAttribute('data-right', expanded ? 'expanded' : 'collapsed');
+      mkPanelToggle.setAttribute('aria-pressed', expanded ? 'true' : 'false');
+      mkPanelToggle.setAttribute('title', expanded ? '收起右侧工作面板' : '展开右侧工作面板');
+    }
+    mkPanelToggle.addEventListener('click', function () {
+      var expanded = mkShell.getAttribute('data-right') !== 'collapsed';
+      setRightPanel(!expanded);
+    });
+  }
+
+  /* ---------- right-panel drill-down demo ---------- */
+  var rpDemo = document.getElementById('rp-demo');
+  if (rpDemo) {
+    var rpBack = document.getElementById('rp-back');
+    var rpTitle = document.getElementById('rp-title');
+    var rpChips = document.getElementById('rp-chips');
+    function rpGo(view) {
+      rpDemo.setAttribute('data-view', view);
+      var inTerm = view === 'term';
+      rpBack.hidden = !inTerm;
+      rpTitle.hidden = inTerm;
+      rpChips.hidden = !inTerm;
+    }
+    rpDemo.querySelectorAll('[data-goto-term]').forEach(function (row) {
+      row.addEventListener('click', function () { rpGo('term'); });
+    });
+    rpBack.addEventListener('click', function () { rpGo('home'); });
+  }
+})();
+</script>
+
+</body>
+</html>
