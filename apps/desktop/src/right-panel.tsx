@@ -16,7 +16,7 @@ import {
   IconUsers,
 } from './shell-icons';
 
-export type RightPanelTab = 'execution' | 'changes' | 'git' | 'agents';
+export type RightPanelTab = 'execution' | 'changes' | 'git' | 'agents' | 'notes' | 'cards';
 
 export type RightPanelProps = {
   open: boolean;
@@ -26,6 +26,10 @@ export type RightPanelProps = {
   agentsContent: ReactNode;
   changesContent: ReactNode;
   gitContent: ReactNode;
+  /** Notes library panel (ADR 0018 S6). */
+  notesContent?: ReactNode;
+  /** Flashcards review panel (ADR 0018 S7). */
+  cardsContent?: ReactNode;
   tools: ToolCardUi[];
   plan: SessionPlan | null;
   changesCount?: number;
@@ -44,7 +48,31 @@ const TAB_ITEMS: { id: RightPanelTab; label: string; icon: ReactElement }[] = [
   { id: 'changes', label: 'Changes', icon: <IconFolder /> },
   { id: 'git', label: 'Git', icon: <IconGit /> },
   { id: 'agents', label: 'Agents', icon: <IconUsers /> },
+  { id: 'notes', label: 'Notes', icon: <IconNote /> },
+  { id: 'cards', label: 'Cards', icon: <IconCards /> },
 ];
+
+function IconNote(): ReactElement {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3 2.5h8.5L14 5v8.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path d="M5 6.5h6M5 9h6M5 11.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconCards(): ReactElement {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <rect x="2" y="4" width="9" height="10" rx="1" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M5 2h9a1 1 0 0 1 1 1v9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 export function RightPanel(props: RightPanelProps): ReactElement | null {
   if (!props.open) {
@@ -270,6 +298,14 @@ export function RightPanel(props: RightPanelProps): ReactElement | null {
 
         {props.activeTab === 'agents' ? (
           <div className="right-panel-section">{props.agentsContent}</div>
+        ) : null}
+
+        {props.activeTab === 'notes' ? (
+          <div className="right-panel-section">{props.notesContent}</div>
+        ) : null}
+
+        {props.activeTab === 'cards' ? (
+          <div className="right-panel-section">{props.cardsContent}</div>
         ) : null}
       </div>
     </aside>

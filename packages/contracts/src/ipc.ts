@@ -40,6 +40,7 @@ import type {
   MemoryWriteInput,
 } from './memory.js';
 import type { FlashcardCreateInput, ReviewRating } from './flashcards.js';
+import type { NoteSearchQuery, NoteUpdateInput, NoteWriteInput } from './notes.js';
 import type {
   ManagedProcessLogChunk,
   ManagedProcessLogsQuery,
@@ -209,6 +210,16 @@ export type HostCommand =
       scope?: MemoryListFilter['scope'];
       projectKey?: string;
     }
+  /** Notes library (ADR 0018): CRUD + hybrid search + recall eval. */
+  | { id?: string; type: 'notes/list'; collection?: string; tags?: string[] }
+  | { id?: string; type: 'notes/read'; noteId: string }
+  | { id?: string; type: 'notes/search'; query: NoteSearchQuery }
+  | { id?: string; type: 'notes/write'; input: NoteWriteInput }
+  | { id?: string; type: 'notes/update'; input: NoteUpdateInput }
+  | { id?: string; type: 'notes/delete'; noteId: string }
+  | { id?: string; type: 'notes/reindex' }
+  | { id?: string; type: 'notes/eval-run'; k?: number }
+  | { id?: string; type: 'notes/eval-history' }
   /** Flashcards (ADR 0018): CRUD + FSRS review, incl. artifact rate actions. */
   | { id?: string; type: 'flashcards/create'; input: FlashcardCreateInput }
   | { id?: string; type: 'flashcards/list'; deck?: string; sourceNoteId?: string }

@@ -158,6 +158,11 @@ export class HostRuntime {
   private processRegistry: ProcessRegistry | null = null;
   private memoryStore: MemoryStore | null = null;
   private cardStore: import('@piwin/flashcards').CardStore | null = null;
+  private notesServices: {
+    store: import('@piwin/notes').NoteStore;
+    index: import('@piwin/notes').NoteIndex;
+    searchOptions: import('@piwin/notes').SearchNotesOptions;
+  } | null = null;
   private readonly options: HostRuntimeOptions;
   private ready = true;
 
@@ -1338,6 +1343,85 @@ export class HostRuntime {
           return ok(requestId, 'memory/quota', { summaries });
         }
 
+        case 'notes/list': {
+          const { store } = await this.getNotesServices();
+          const filter: { collection?: string; tags?: string[] } = {};
+          if (command.collection) filter.collection = command.collection;
+          if (command.tags && command.tags.length > 0) filter.tags = command.tags;
+          const records = await store.list(filter);
+          return ok(requestId, 'notes/list', { records });
+        }
+        case 'notes/read': {
+          const { store } = await this.getNotesServices();
+          const record = await store.read(command.noteId);
+          return ok(requestId, 'notes/read', { record });
+        }
+        case 'notes/search': {
+          const services = await this.getNotesServices();
+          const { searchNotes } = await import('@piwin/notes');
+          const hits = await searchNotes(services.index, command.query, services.searchOptions);
+          return ok(requestId, 'notes/search', { hits });
+        }
+        case 'notes/write': {
+          const { store } = await this.getNotesServices();
+          const record = await store.write(command.input);
+          return ok(requestId, 'notes/write', { record });
+        }
+        case 'notes/update': {
+          const { store } = await this.getNotesServices();
+          const record = await store.update(command.input);
+          return ok(requestId, 'notes/update', { record });
+        }
+        case 'notes/delete': {
+          const { store } = await this.getNotesServices();
+          const result = await store.delete(command.noteId);
+          return ok(requestId, 'notes/delete', result);
+        }
+        case 'notes/reindex': {
+          const { index } = await this.getNotesServices();
+          await index.rebuild();
+          return ok(requestId, 'notes/reindex', { rebuilt: true });
+        }
+        case 'notes/eval-run': {
+          const services = await this.getNotesServices();
+          const { loadGoldenSet, runRecallEval, searchNotes } = await import('@piwin/notes');
+          const { cases, warnings } = await loadGoldenSet(services.store.getNotesRoot());
+          if (cases.length === 0) {
+            return fail(
+              requestId,
+              'notes/eval-run',
+              'Golden set empty. Pin cases first (piwin notes pin / search result pin).',
+            );
+          }
+          const k = command.k && command.k > 0 ? Math.floor(command.k) : 5;
+          const modes: Array<'fts' | 'vector' | 'hybrid'> = services.searchOptions
+            .embeddingProvider
+            ? ['fts', 'vector', 'hybrid']
+            : ['fts'];
+          const reports = [];
+          for (const mode of modes) {
+            const report = await runRecallEval({
+              cases,
+              mode,
+              k,
+              search: async (query, limit, searchMode) =>
+                searchNotes(
+                  services.index,
+                  { query, limit, mode: searchMode },
+                  services.searchOptions,
+                ),
+            });
+            services.index.saveEvalRun(report);
+            reports.push(report);
+          }
+          return ok(requestId, 'notes/eval-run', { reports, warnings });
+        }
+        case 'notes/eval-history': {
+          const { index } = await this.getNotesServices();
+          const runs = index.listEvalRuns();
+          return ok(requestId, 'notes/eval-history', { runs });
+        }
+
         case 'flashcards/create': {
           const store = await this.getCardStore();
           const card = await store.create(command.input);
@@ -1614,6 +1698,40 @@ export class HostRuntime {
       this.memoryStore = createMemoryStore({ piwinRoot: rootDir });
     }
     return this.memoryStore;
+  }
+
+  private async getNotesServices(): Promise<{
+    store: import('@piwin/notes').NoteStore;
+    index: import('@piwin/notes').NoteIndex;
+    searchOptions: import('@piwin/notes').SearchNotesOptions;
+  }> {
+    if (!this.notesServices) {
+      const rootDir = getPiwinRoot(this.options.piwinRoot);
+      const config = await loadPiwinConfig(rootDir);
+      if (config.notes?.enabled === false) {
+        throw new Error('Notes are disabled (config.notes.enabled=false).');
+      }
+      const { createNoteStore, openNoteIndex, createEmbeddingProvider } = await import(
+        '@piwin/notes'
+      );
+      const { resolveNotesEmbeddingApiKey } = await import('./notes-embedding-secret.js');
+      const store = createNoteStore({ piwinRoot: rootDir });
+      const index = await openNoteIndex(store);
+      const searchOptions: import('@piwin/notes').SearchNotesOptions = {};
+      if (config.notes?.embedding) {
+        const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
+        const provider = createEmbeddingProvider({
+          config: config.notes.embedding,
+          ...(apiKey ? { apiKey } : {}),
+        });
+        if (provider) searchOptions.embeddingProvider = provider;
+      }
+      if (typeof config.notes?.search?.rrfK === 'number') {
+        searchOptions.rrfK = config.notes.search.rrfK;
+      }
+      this.notesServices = { store, index, searchOptions };
+    }
+    return this.notesServices;
   }
 
   private async getCardStore(): Promise<import('@piwin/flashcards').CardStore> {

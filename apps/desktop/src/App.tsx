@@ -69,6 +69,8 @@ import { petStateFromChatFlags } from '@piwin/pet/agent-state';
 import type { PetRuntimeSnapshot } from '@piwin/contracts';
 import { appendHostLogEntry, type HostLogEntry } from './HostLogPanel';
 import { SubAgentPanel } from './SubAgentPanel';
+import { NotesPanel } from './NotesPanel';
+import { FlashcardsPanel } from './FlashcardsPanel';
 import { RightPanel, type RightPanelTab } from './right-panel';
 import { ToolCallCard, collectSessionTools } from './tool-call-card';
 import { MessageActions } from './message-actions';
@@ -2463,6 +2465,8 @@ export function App() {
         changesContent={
           <ChangesPanel projectPath={state.projectPath} request={requestGit as never} />
         }
+        notesContent={<NotesPanel request={(command) => hostClient.request(command)} />}
+        cardsContent={<FlashcardsPanel request={(command) => hostClient.request(command)} />}
         gitContent={
           <GitPanel
             projectPath={state.projectPath}
