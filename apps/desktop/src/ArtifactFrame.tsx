@@ -5,7 +5,7 @@ import {
   type ReactElement,
   type RefObject,
 } from 'react';
-import type { ArtifactPreviewDecision } from '@piwin/artifact';
+import type { ArtifactActionMessage, ArtifactPreviewDecision } from '@piwin/artifact';
 import {
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
   ARTIFACT_READY_TIMEOUT_MS,
@@ -15,6 +15,7 @@ import {
   MIN_ARTIFACT_IFRAME_HEIGHT,
   clampArtifactHeight,
   isArtifactBridgeReadyMessage,
+  parseArtifactActionMessage,
   parseArtifactBridgeMessage,
   releaseArtifactInit,
   requestArtifactInit,
@@ -28,6 +29,11 @@ export type ArtifactFrameProps = {
     | Extract<ArtifactPreviewDecision, { kind: 'render' } | { kind: 'blocked' } | { kind: 'preparing' }>;
   /** Higher = sooner init when many artifacts mount (history). */
   initPriority?: number;
+  /**
+   * Validated whitelisted action from the sandboxed artifact (e.g. flashcard
+   * rating). Absent = actions are ignored (render-only artifact).
+   */
+  onArtifactAction?: (action: ArtifactActionMessage) => void;
 };
 
 /**
@@ -40,6 +46,7 @@ export type ArtifactFrameProps = {
 export function ArtifactFrame({
   decision,
   initPriority = 0,
+  onArtifactAction,
 }: ArtifactFrameProps): ReactElement {
   if (decision.kind === 'blocked') {
     return (
@@ -83,15 +90,20 @@ export function ArtifactFrame({
   }
 
   return (
-    <ArtifactRenderFrame decision={decision} initPriority={initPriority} />
+    <ArtifactRenderFrame
+      decision={decision}
+      initPriority={initPriority}
+      {...(onArtifactAction ? { onArtifactAction } : {})}
+    />
   );
 }
 
 function ArtifactRenderFrame(props: {
   decision: Extract<ArtifactPreviewDecision, { kind: 'render' }>;
   initPriority: number;
+  onArtifactAction?: (action: ArtifactActionMessage) => void;
 }): ReactElement {
-  const { decision, initPriority } = props;
+  const { decision, initPriority, onArtifactAction } = props;
   const channelId =
     decision.mode === 'stream-preview'
       ? `${decision.descriptor.id}-stream`
@@ -160,6 +172,16 @@ function ArtifactRenderFrame(props: {
     const onMessage = (event: MessageEvent): void => {
       const iframeWindow = iframeRef.current?.contentWindow;
       if (iframeWindow && event.source && event.source !== iframeWindow) {
+        return;
+      }
+
+      // Whitelisted user-intent actions (flashcard rating etc). Same origin
+      // checks as height bridge: event.source + channelId must match.
+      const actionMessage = parseArtifactActionMessage(event.data);
+      if (actionMessage) {
+        if (actionMessage.channelId === channelId && onArtifactAction) {
+          onArtifactAction(actionMessage);
+        }
         return;
       }
 

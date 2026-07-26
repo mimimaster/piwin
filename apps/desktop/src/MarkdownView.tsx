@@ -3,6 +3,7 @@ import {
   evaluateCodeFence,
   normalizeStreamingArtifactFences,
   splitMarkdownBlocks,
+  type ArtifactActionMessage,
   type ArtifactPreviewDecision,
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
@@ -31,6 +32,8 @@ type MarkdownViewProps = {
   initPriorityBase?: number;
   /** Bumped on theme switch so ArtifactFrame remounts with new tokens. */
   artifactThemeKey?: string;
+  /** Forwarded to ArtifactFrame for whitelisted artifact actions (flashcards). */
+  onArtifactAction?: (action: ArtifactActionMessage) => void;
 };
 
 /**
@@ -45,6 +48,7 @@ export function MarkdownView({
   artifactTheme,
   initPriorityBase = 0,
   artifactThemeKey = 'default',
+  onArtifactAction,
 }: MarkdownViewProps): ReactElement {
   const normalized = normalizeStreamingArtifactFences(
     text,
@@ -67,6 +71,7 @@ export function MarkdownView({
             initPriority: number;
             artifactThemeKey: string;
             artifactTheme?: ArtifactThemeVariables;
+            onArtifactAction?: (action: ArtifactActionMessage) => void;
           } = {
             language: block.language,
             source: block.source,
@@ -78,6 +83,9 @@ export function MarkdownView({
           };
           if (artifactTheme) {
             fenceProps.artifactTheme = artifactTheme;
+          }
+          if (onArtifactAction) {
+            fenceProps.onArtifactAction = onArtifactAction;
           }
           return <CodeFenceView key={index} {...fenceProps} />;
         }
@@ -113,6 +121,7 @@ function CodeFenceView(props: {
   artifactTheme?: ArtifactThemeVariables;
   initPriority: number;
   artifactThemeKey?: string;
+  onArtifactAction?: (action: ArtifactActionMessage) => void;
 }): ReactElement {
   if (isMermaidFenceLanguage(props.language)) {
     // While streaming an incomplete fence, show source instead of partial mermaid.
@@ -154,6 +163,7 @@ function CodeFenceView(props: {
           key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}
           decision={decision}
           initPriority={props.initPriority}
+          {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
         />
       </div>
     );

@@ -132,6 +132,21 @@ export type ArtifactBridgeMessage = {
   mode: ArtifactHeightMeasurementMode;
 };
 
+/** Whitelisted user-intent action from artifact UI (untrusted origin). */
+export type ArtifactActionName = 'flashcard/rate';
+
+export type FlashcardRateActionPayload = {
+  cardId: string;
+  rating: 'again' | 'hard' | 'good' | 'easy';
+};
+
+export type ArtifactActionMessage = {
+  type: 'piwin-artifact:action';
+  channelId: string;
+  action: 'flashcard/rate';
+  payload: FlashcardRateActionPayload;
+};
+
 export type ArtifactPreviewDecision =
   | {
       kind: 'render';

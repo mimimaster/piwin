@@ -39,6 +39,7 @@ import type {
   MemoryUpdateInput,
   MemoryWriteInput,
 } from './memory.js';
+import type { FlashcardCreateInput, ReviewRating } from './flashcards.js';
 import type {
   ManagedProcessLogChunk,
   ManagedProcessLogsQuery,
@@ -208,6 +209,13 @@ export type HostCommand =
       scope?: MemoryListFilter['scope'];
       projectKey?: string;
     }
+  /** Flashcards (ADR 0018): CRUD + FSRS review, incl. artifact rate actions. */
+  | { id?: string; type: 'flashcards/create'; input: FlashcardCreateInput }
+  | { id?: string; type: 'flashcards/list'; deck?: string; sourceNoteId?: string }
+  | { id?: string; type: 'flashcards/delete'; cardId: string }
+  | { id?: string; type: 'flashcards/decks' }
+  | { id?: string; type: 'flashcards/queue'; deck?: string }
+  | { id?: string; type: 'flashcards/rate'; cardId: string; rating: ReviewRating }
   /** CE-PROC: managed process registry. */
   | { id?: string; type: 'process/list'; sessionId?: string; projectPath?: string }
   | { id?: string; type: 'process/get'; processId: string }

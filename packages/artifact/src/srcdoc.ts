@@ -4,6 +4,8 @@
  * Includes height postMessage bridge (ported from openwebui_m, renamed piwin).
  */
 import {
+  ARTIFACT_ACTION_NAMES,
+  ARTIFACT_BRIDGE_ACTION_TYPE,
   ARTIFACT_BRIDGE_READY_TYPE,
   ARTIFACT_BRIDGE_RESIZE_TYPE,
   ARTIFACT_HEIGHT_MEASURE_LADDER_MS,
@@ -125,6 +127,21 @@ export function buildArtifactBridgeBootstrapScript(channelId: string): string {
   var measureLadder = ${ladder};
   var post = function (type, payload) {
     parent.postMessage(Object.assign({ type: type, channelId: channelId }, payload || {}), '*');
+  };
+  // Whitelisted action channel for interactive artifacts (e.g. flashcards).
+  // Model HTML calls window.piwinArtifact.postAction(name, payload); the
+  // parent validates name/payload again before acting.
+  var actionType = ${JSON.stringify(ARTIFACT_BRIDGE_ACTION_TYPE)};
+  var allowedActions = ${JSON.stringify([...ARTIFACT_ACTION_NAMES])};
+  window.piwinArtifact = {
+    postAction: function (action, payload) {
+      if (allowedActions.indexOf(action) === -1) return false;
+      parent.postMessage(
+        { type: actionType, channelId: channelId, action: action, payload: payload || {} },
+        '*'
+      );
+      return true;
+    }
   };
   var readHeight = function (height) {
     return Math.max(0, Math.ceil(height || 0));

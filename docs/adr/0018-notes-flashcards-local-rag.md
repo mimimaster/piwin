@@ -114,6 +114,36 @@ exists as a fallback surface.
   feature. Scheduler and queue logic are pure functions.
 - Cards are exportable to Anki-importable TSV; user data stays portable.
 
+### 7a. Artifact action channel for in-chat review (S5c amendment)
+
+Flip-card flashcards render in chat via the existing HTML-artifact sandbox.
+Rating clicks flow back to the product through a new **whitelisted action
+message** in the artifact postMessage bridge:
+
+```
+sandboxed card HTML → window.piwinArtifact.postAction('flashcard/rate', {cardId, rating})
+  → parent (ArtifactFrame): parseArtifactActionMessage (strict validation)
+    + event.source + channelId checks (same as height bridge)
+  → HostCommand flashcards/rate → FSRS state update
+```
+
+Security invariants:
+
+- `ARTIFACT_ACTION_NAMES` is a deliberate whitelist (`flashcard/rate` only in
+  v1). Unknown actions are dropped at both the sandbox helper and the parent
+  parser.
+- Payloads are strictly validated: card ids must match the product id pattern,
+  ratings must be one of the four FSRS grades. Malformed input → null, no log
+  of attacker-controlled content.
+- The action channel grants no new capabilities to model HTML beyond what a
+  user click in the product UI could do; `flashcards/rate` is user intent,
+  not agent privilege, so it is not permission-gated.
+- CSP/sandbox posture is unchanged (`allow-scripts`, no external resources).
+
+`flashcard_create` returns `artifactHtml` (a product-owned flip-card template,
+HTML-escaped content, theme variables only) so models embed a working card by
+pasting it into a ```html fence — models never hand-write the action wiring.
+
 ## Consequences
 
 - Zero-config install ships working CJK full-text search, card generation,

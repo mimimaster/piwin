@@ -34,6 +34,14 @@ export const ARTIFACT_HEIGHT_MEASURE_LADDER_MS = [0, 80, 180, 360, 720, 1200] as
 /** postMessage types from sandboxed artifact iframe → parent. */
 export const ARTIFACT_BRIDGE_READY_TYPE = 'piwin-artifact:ready' as const;
 export const ARTIFACT_BRIDGE_RESIZE_TYPE = 'piwin-artifact:resize' as const;
+/** User-intent actions from artifact UI → product (strict whitelist). */
+export const ARTIFACT_BRIDGE_ACTION_TYPE = 'piwin-artifact:action' as const;
+
+/**
+ * Allowed artifact action names. Extend deliberately — every entry is a
+ * capability the sandboxed (untrusted) HTML can invoke on the product.
+ */
+export const ARTIFACT_ACTION_NAMES = ['flashcard/rate'] as const;
 
 /** YouTube / Maps embeds allowed under default allowlist mode. */
 export const DEFAULT_ARTIFACT_IFRAME_ALLOWED_URL_PREFIXES = [

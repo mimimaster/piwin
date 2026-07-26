@@ -238,6 +238,28 @@ export function App() {
     [hostClient],
   );
 
+  // Flashcard rating from artifact flip cards (ADR 0018 S5c): validated
+  // whitelisted action → flashcards/rate HostCommand → FSRS state update.
+  const handleArtifactAction = useCallback(
+    (action: import('@piwin/artifact').ArtifactActionMessage) => {
+      if (action.action !== 'flashcard/rate') {
+        return;
+      }
+      void hostClient
+        .request({
+          type: 'flashcards/rate',
+          cardId: action.payload.cardId,
+          rating: action.payload.rating,
+        })
+        .then((response) => {
+          if (!response.success) {
+            console.warn(`[piwin] flashcard rate failed: ${response.error}`);
+          }
+        });
+    },
+    [hostClient],
+  );
+
   const requestConfig = useCallback(
 
     async (command: {
@@ -2103,6 +2125,7 @@ export function App() {
                         artifactTheme={mapThemeToArtifactVariables(activeTheme)}
                         initPriorityBase={messageIndex * 10}
                         artifactThemeKey={`${activeTheme?.id ?? 'none'}:${artifactThemeKey}`}
+                        onArtifactAction={handleArtifactAction}
                       />
                     ) : editingMessageId === message.id ? (
                       <div className="message-edit-box" data-testid="message-edit-box">

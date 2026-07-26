@@ -7,6 +7,7 @@
  */
 import type { FlashcardCreateInput, PermissionDecision } from '@piwin/contracts';
 import type { CardStore } from '@piwin/flashcards';
+import { buildFlashcardArtifactHtml } from '@piwin/flashcards';
 import type { HostToolDefinition } from '@piwin/tools-web';
 import type { ToolPermissionGate } from './session-tools.js';
 
@@ -26,7 +27,7 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
     {
       name: 'flashcard_create',
       description:
-        'Create a flashcard in the user card library. Call flashcard_list first for the target deck and avoid duplicating existing fronts. When generating from a note, pass sourceNoteId and a short sourceExcerpt.',
+        'Create a flashcard in the user card library. Call flashcard_list first for the target deck and avoid duplicating existing fronts. When generating from a note, pass sourceNoteId and a short sourceExcerpt. The result includes artifactHtml — to show an interactive flip card in chat, output it inside a ```html fence verbatim.',
       parameters: {
         type: 'object',
         properties: {
@@ -56,7 +57,11 @@ export function buildFlashcardTools(options: BuildFlashcardToolsOptions): HostTo
           if (tags.length > 0) input.tags = tags;
         }
         const card = await store.create(input);
-        return JSON.stringify(card, null, 2);
+        return JSON.stringify(
+          { card, artifactHtml: buildFlashcardArtifactHtml(card) },
+          null,
+          2,
+        );
       },
     },
     {

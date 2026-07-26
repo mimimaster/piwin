@@ -157,6 +157,7 @@ export class HostRuntime {
   private mcpManager: McpLifecycleManager | null = null;
   private processRegistry: ProcessRegistry | null = null;
   private memoryStore: MemoryStore | null = null;
+  private cardStore: import('@piwin/flashcards').CardStore | null = null;
   private readonly options: HostRuntimeOptions;
   private ready = true;
 
@@ -1337,6 +1338,57 @@ export class HostRuntime {
           return ok(requestId, 'memory/quota', { summaries });
         }
 
+        case 'flashcards/create': {
+          const store = await this.getCardStore();
+          const card = await store.create(command.input);
+          return ok(requestId, 'flashcards/create', { card });
+        }
+        case 'flashcards/list': {
+          const store = await this.getCardStore();
+          const filter: { deck?: string; sourceNoteId?: string } = {};
+          if (command.deck) filter.deck = command.deck;
+          if (command.sourceNoteId) filter.sourceNoteId = command.sourceNoteId;
+          const cards = await store.list(filter);
+          return ok(requestId, 'flashcards/list', { cards });
+        }
+        case 'flashcards/delete': {
+          const store = await this.getCardStore();
+          const result = await store.delete(command.cardId);
+          return ok(requestId, 'flashcards/delete', result);
+        }
+        case 'flashcards/decks': {
+          const store = await this.getCardStore();
+          const decks = await store.listDecks();
+          return ok(requestId, 'flashcards/decks', { decks });
+        }
+        case 'flashcards/queue': {
+          const store = await this.getCardStore();
+          const rootDir = getPiwinRoot(this.options.piwinRoot);
+          const config = await loadPiwinConfig(rootDir);
+          const { buildReviewQueue } = await import('@piwin/flashcards');
+          const cards = await store.list();
+          const states = await store.loadReviewStates();
+          const queue = buildReviewQueue({
+            cards,
+            states,
+            ...(command.deck ? { deck: command.deck } : {}),
+            ...(typeof config.flashcards?.newPerDay === 'number'
+              ? { newPerDay: config.flashcards.newPerDay }
+              : {}),
+            ...(typeof config.flashcards?.maxReviewsPerDay === 'number'
+              ? { maxReviewsPerDay: config.flashcards.maxReviewsPerDay }
+              : {}),
+          });
+          return ok(requestId, 'flashcards/queue', { queue });
+        }
+        case 'flashcards/rate': {
+          // Direct user intent from UI (review panel / artifact rate button);
+          // no permission gate — equivalent to clicking in the product shell.
+          const store = await this.getCardStore();
+          const state = await store.rate(command.cardId, command.rating);
+          return ok(requestId, 'flashcards/rate', { state });
+        }
+
         case 'session/export': {
           const rootDir = getPiwinRoot(this.options.piwinRoot);
           const indexPath = getPiwinSessionIndexPath(rootDir);
@@ -1562,6 +1614,19 @@ export class HostRuntime {
       this.memoryStore = createMemoryStore({ piwinRoot: rootDir });
     }
     return this.memoryStore;
+  }
+
+  private async getCardStore(): Promise<import('@piwin/flashcards').CardStore> {
+    if (!this.cardStore) {
+      const rootDir = getPiwinRoot(this.options.piwinRoot);
+      const config = await loadPiwinConfig(rootDir);
+      if (config.flashcards?.enabled === false) {
+        throw new Error('Flashcards are disabled (config.flashcards.enabled=false).');
+      }
+      const { createCardStore } = await import('@piwin/flashcards');
+      this.cardStore = createCardStore({ piwinRoot: rootDir });
+    }
+    return this.cardStore;
   }
 
   private async requireMemoryEnabled(): Promise<void> {

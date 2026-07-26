@@ -15,6 +15,8 @@ export {
   ARTIFACT_HEIGHT_MEASURE_LADDER_MS,
   ARTIFACT_BRIDGE_READY_TYPE,
   ARTIFACT_BRIDGE_RESIZE_TYPE,
+  ARTIFACT_BRIDGE_ACTION_TYPE,
+  ARTIFACT_ACTION_NAMES,
   DEFAULT_ARTIFACT_IFRAME_ALLOWED_URL_PREFIXES,
 } from './constants.js';
 
@@ -40,6 +42,9 @@ export type {
   OpenArtifactFence,
   ArtifactBridgeMessageType,
   ArtifactBridgeMessage,
+  ArtifactActionName,
+  ArtifactActionMessage,
+  FlashcardRateActionPayload,
   ArtifactPreviewDecision,
 } from './types.js';
 
@@ -82,6 +87,7 @@ export type { BuildHtmlArtifactSrcdocInput } from './srcdoc.js';
 export {
   parseArtifactBridgeMessage,
   isArtifactBridgeReadyMessage,
+  parseArtifactActionMessage,
 } from './bridge-protocol.js';
 
 export {
