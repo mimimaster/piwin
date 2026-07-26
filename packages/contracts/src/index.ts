@@ -19,3 +19,5 @@ export * from './memory.js';
 export * from './process.js';
 export * from './usage.js';
 export * from './session-ops.js';
+export * from './notes.js';
+export * from './flashcards.js';

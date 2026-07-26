@@ -7,6 +7,8 @@ import type { PromptsConfig } from './prompts.js';
 import type { MemoryConfig } from './memory.js';
 import type { ProcessConfig } from './process.js';
 import type { ExecutionConfig } from './session-ops.js';
+import type { NotesConfig } from './notes.js';
+import type { FlashcardsConfig } from './flashcards.js';
 
 export type OpenAiCompatibleProviderConfig = {
   id: string;
@@ -71,6 +73,10 @@ export type PiwinConfig = {
   process?: ProcessConfig;
   /** Default execution mode for new sessions (CE-CHAT / CE-MODE). */
   execution?: ExecutionConfig;
+  /** Notes library + local-first RAG (ADR 0018). */
+  notes?: NotesConfig;
+  /** Flashcards + FSRS review (ADR 0018). */
+  flashcards?: FlashcardsConfig;
 };
 
 export function createDefaultCompactionConfig(): CompactionConfig {
