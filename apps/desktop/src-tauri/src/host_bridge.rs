@@ -8,7 +8,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 pub struct HostBridgeState {
     pub inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
@@ -65,7 +65,55 @@ fn emit_log(app: &AppHandle, level: &str, message: impl Into<String>) {
     );
 }
 
-fn resolve_host_command(mock: bool) -> Result<(String, Vec<String>), String> {
+/// How the host process was resolved (ADR 0017 two-tier spawn).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HostCommandTier {
+    /// Packaged sidecar: bundled Node + host-serve.mjs under resources.
+    Packaged,
+    /// Dev: pnpm/tsx against the workspace checkout (unchanged).
+    Dev,
+}
+
+/// Optional filesystem layout for the packaged tier (unit-testable without Tauri).
+#[derive(Debug, Clone)]
+pub(crate) struct PackagedHostPaths {
+    pub node_bin: PathBuf,
+    pub host_js: PathBuf,
+    pub bundled_assets: PathBuf,
+    pub cwd: PathBuf,
+}
+
+/// Pure resolution decision used by spawn and unit tests.
+pub(crate) fn resolve_host_command_tiered(
+    mock: bool,
+    packaged: Option<&PackagedHostPaths>,
+) -> Result<(String, Vec<String>, HostCommandTier, Option<PathBuf>), String> {
+    if let Some(paths) = packaged {
+        if paths.node_bin.is_file() && paths.host_js.is_file() {
+            let mut args = vec![
+                paths.host_js.to_string_lossy().into_owned(),
+                "host".to_string(),
+                "serve".to_string(),
+                "--mode".to_string(),
+                "sdk".to_string(),
+            ];
+            if mock {
+                args.push("--mock".to_string());
+            }
+            let assets = if paths.bundled_assets.is_dir() {
+                Some(paths.bundled_assets.clone())
+            } else {
+                None
+            };
+            return Ok((
+                paths.node_bin.to_string_lossy().into_owned(),
+                args,
+                HostCommandTier::Packaged,
+                assets,
+            ));
+        }
+    }
+
     let pnpm = which("pnpm").unwrap_or_else(|| "pnpm".to_string());
     let mut args = vec![
         "--filter".to_string(),
@@ -82,7 +130,87 @@ fn resolve_host_command(mock: bool) -> Result<(String, Vec<String>), String> {
         args.push("--mock".to_string());
     }
 
-    Ok((pnpm, args))
+    Ok((pnpm, args, HostCommandTier::Dev, None))
+}
+
+fn detect_host_triple() -> String {
+    let arch = std::env::consts::ARCH;
+    let os = std::env::consts::OS;
+    match (os, arch) {
+        ("macos", "aarch64") => "aarch64-apple-darwin".to_string(),
+        ("macos", "x86_64") => "x86_64-apple-darwin".to_string(),
+        ("linux", "x86_64") => "x86_64-unknown-linux-gnu".to_string(),
+        ("linux", "aarch64") => "aarch64-unknown-linux-gnu".to_string(),
+        ("windows", "x86_64") => "x86_64-pc-windows-msvc".to_string(),
+        _ => format!("{arch}-unknown-{os}"),
+    }
+}
+
+fn find_sidecar_node(resource_dir: &std::path::Path) -> Option<PathBuf> {
+    let triple = detect_host_triple();
+    let exe_name = if cfg!(windows) {
+        "piwin-host.exe"
+    } else {
+        "piwin-host"
+    };
+    let triple_name = if cfg!(windows) {
+        format!("piwin-host-{triple}.exe")
+    } else {
+        format!("piwin-host-{triple}")
+    };
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join(exe_name));
+            candidates.push(dir.join(&triple_name));
+        }
+    }
+    candidates.push(resource_dir.join(exe_name));
+    candidates.push(resource_dir.join(&triple_name));
+    // Dev packaging dry-run: binaries next to Cargo.toml
+    let manifest_binaries = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
+    candidates.push(manifest_binaries.join(&triple_name));
+    candidates.push(manifest_binaries.join(exe_name));
+
+    candidates.into_iter().find(|path| path.is_file())
+}
+
+fn packaged_host_paths_from_resource_dir(resource_dir: &std::path::Path) -> Option<PackagedHostPaths> {
+    let host_js = resource_dir.join("host").join("host-serve.mjs");
+    let node_bin = find_sidecar_node(resource_dir)?;
+    if !host_js.is_file() {
+        return None;
+    }
+    Some(PackagedHostPaths {
+        node_bin,
+        host_js: host_js.clone(),
+        bundled_assets: resource_dir.join("host").join("bundled-assets"),
+        cwd: resource_dir.join("host"),
+    })
+}
+
+fn resolve_host_command(
+    mock: bool,
+    resource_dir: Option<PathBuf>,
+) -> Result<(String, Vec<String>, HostCommandTier, Option<PathBuf>, PathBuf), String> {
+    let packaged = resource_dir
+        .as_ref()
+        .and_then(|dir| packaged_host_paths_from_resource_dir(dir));
+    let (program, args, tier, assets) = resolve_host_command_tiered(mock, packaged.as_ref())?;
+
+    let cwd = match (&tier, packaged) {
+        (HostCommandTier::Packaged, Some(paths)) => paths.cwd,
+        _ => {
+            let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+            manifest_dir
+                .join("../../..")
+                .canonicalize()
+                .map_err(|error| format!("resolve repo root: {error}"))?
+        }
+    };
+
+    Ok((program, args, tier, assets, cwd))
 }
 
 fn which(bin: &str) -> Option<String> {
@@ -180,35 +308,47 @@ fn host_start_blocking(
         }
     }
 
-    let (program, args) = resolve_host_command(mock)?;
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let repo_root = manifest_dir
-        .join("../../..")
-        .canonicalize()
-        .map_err(|error| format!("resolve repo root: {error}"))?;
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .ok()
+        .and_then(|path| path.canonicalize().ok());
+    let (program, args, tier, assets_root, cwd) = resolve_host_command(mock, resource_dir)?;
     emit_log(
         &app,
         "info",
         format!(
-            "starting host: {program} {} (cwd={})",
+            "host spawn tier={tier:?} program={program} args={} cwd={}",
             args.join(" "),
-            repo_root.display()
+            cwd.display()
         ),
     );
 
-    let mut child = Command::new(&program)
+    let mut command = Command::new(&program);
+    command
         .args(&args)
-        .current_dir(&repo_root)
+        .current_dir(&cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .env("PIWIN_MOCK", if mock { "1" } else { "0" })
-        .spawn()
-        .map_err(|error| {
-            format!(
-                "failed to spawn host serve via `{program}`: {error}. Ensure pnpm/tsx are on PATH."
-            )
-        })?;
+        .env("PIWIN_MOCK", if mock { "1" } else { "0" });
+    if let Some(assets) = assets_root {
+        command.env("PIWIN_BUNDLED_ASSETS_ROOT", assets);
+    }
+    // Packaged host resolves externals from host/node_modules next to host-serve.mjs.
+    if tier == HostCommandTier::Packaged {
+        let nm = cwd.join("node_modules");
+        if nm.is_dir() {
+            command.env("NODE_PATH", nm);
+        }
+    }
+
+    let mut child = command.spawn().map_err(|error| {
+        format!(
+            "failed to spawn host serve via `{program}` (tier={tier:?}): {error}. \
+             Dev requires pnpm/tsx on PATH; packaged builds need the host sidecar."
+        )
+    })?;
 
     let stdin = child
         .stdin
@@ -630,5 +770,72 @@ mod tests {
         let response = receiver.try_recv().expect("pending request failure");
         assert_eq!(response["success"], false);
         assert!(pending.lock().expect("pending lock").is_empty());
+    }
+
+    #[test]
+    fn resolve_host_command_defaults_to_dev_when_packaged_absent() {
+        let (program, args, tier, assets) =
+            resolve_host_command_tiered(false, None).expect("dev resolve");
+        assert_eq!(tier, HostCommandTier::Dev);
+        assert!(assets.is_none());
+        assert!(program.contains("pnpm") || program == "pnpm");
+        assert!(args.iter().any(|arg| arg == "tsx"));
+        assert!(args.iter().any(|arg| arg == "host"));
+    }
+
+    #[test]
+    fn resolve_host_command_uses_packaged_when_paths_exist() {
+        let dir = std::env::temp_dir().join(format!(
+            "piwin-host-resolve-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(dir.join("host")).expect("mkdir host");
+        let node_bin = dir.join("piwin-host");
+        let host_js = dir.join("host").join("host-serve.mjs");
+        let assets = dir.join("host").join("bundled-assets");
+        std::fs::write(&node_bin, b"#!/bin/sh\n").expect("write node");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&node_bin).expect("meta").permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&node_bin, perms).expect("chmod");
+        }
+        std::fs::write(&host_js, b"// host\n").expect("write js");
+        std::fs::create_dir_all(&assets).expect("mkdir assets");
+
+        let packaged = PackagedHostPaths {
+            node_bin: node_bin.clone(),
+            host_js: host_js.clone(),
+            bundled_assets: assets.clone(),
+            cwd: dir.join("host"),
+        };
+        let (program, args, tier, assets_env) =
+            resolve_host_command_tiered(true, Some(&packaged)).expect("packaged resolve");
+        assert_eq!(tier, HostCommandTier::Packaged);
+        assert_eq!(program, node_bin.to_string_lossy());
+        assert_eq!(args[0], host_js.to_string_lossy());
+        assert!(args.iter().any(|arg| arg == "--mock"));
+        assert_eq!(assets_env, Some(assets));
+
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn resolve_host_command_falls_back_when_packaged_incomplete() {
+        let packaged = PackagedHostPaths {
+            node_bin: PathBuf::from("/nonexistent/piwin-host"),
+            host_js: PathBuf::from("/nonexistent/host-serve.mjs"),
+            bundled_assets: PathBuf::from("/nonexistent/bundled-assets"),
+            cwd: PathBuf::from("/nonexistent"),
+        };
+        let (_program, _args, tier, assets) =
+            resolve_host_command_tiered(false, Some(&packaged)).expect("fallback");
+        assert_eq!(tier, HostCommandTier::Dev);
+        assert!(assets.is_none());
     }
 }

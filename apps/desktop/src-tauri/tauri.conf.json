@@ -63,6 +63,15 @@
       "icons/icon.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "externalBin": [
+      "binaries/piwin-host"
+    ],
+    "resources": {
+      "../../../dist-host/host-serve.mjs": "host/host-serve.mjs",
+      "../../../dist-host/node_modules": "host/node_modules",
+      "../../../dist-host/bundled-assets": "host/bundled-assets",
+      "../../../dist-host/package.json": "host/package.json"
+    }
   }
 }
