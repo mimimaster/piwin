@@ -301,6 +301,7 @@ function wrapMemoryToolWithPermission(
             action: `memory:${action}`,
             detail,
             defaultDecision: 'ask',
+            ...(signal ? { signal } : {}),
           });
         } else {
           decision = resolveNonInteractiveDecision(evaluation);

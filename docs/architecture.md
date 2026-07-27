@@ -137,7 +137,7 @@ Modes: `allow` | `ask` | `deny`, with project-scoped remember.
 
 ```text
 ~/.piwin/
-  config.json                 # product config (host mode, providers, UI)
+  config.json                 # product config (host mode, providers, Desktop composer/session restore)
   credentials/                # secrets (prefer OS keychain)
   sessions-index/             # SQLite or JSONL index over Pi sessions
   skills/
@@ -153,6 +153,12 @@ Pi native paths remain under `~/.pi/agent/`. piwin maps:
 - sessions: prefer Pi session files; maintain index for UI
 - skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs
 - extensions: optional Pi extensions under `extensions/` shipped with piwin
+
+`config.json` may retain the Desktop's per-next-turn composer profile (model
+and thinking effort) and last selected session. These are product settings,
+not browser-local presentation preferences. Restoring a project session opens
+the project without granting new trust; sending remains gated by its current
+trust state.
 
 ## 6. Model protocols
 
@@ -232,3 +238,44 @@ Commands mirror host capabilities; no separate business logic.
 | Session index DB | SQLite |
 | Default host mode | SDK |
 | Sidecar vs in-process for Tauri | Sidecar host process |
+
+## 12. Capability honesty (2026-07-24)
+
+| Layer | States (truthful labels) | Notes |
+|-------|--------------------------|-------|
+| **Desktop transport** | Browser mock · Tauri sidecar | Browser Playwright uses mock host; Tauri spawns workspace `pnpm`/`tsx` host bridge. **Developer preview only** — no bundled Node runtime for installed apps yet (PSR D1; plan: ADR 0017). Wire-protocol rules: [`ipc-transport-discipline.md`](./ipc-transport-discipline.md). |
+| **Agent backend** | mock session · SDK · SDK fallback | UI never claims a live model when mock is active. RPC custom-tools may fall back to SDK (ADR 0011). |
+| **Desktop host mode** | **SDK-only preview** | Desktop does **not** honor a selectable RPC `PiwinConfig.hostMode`. RPC remains CLI/host architecture until isolation worker ships (ADR 0012). |
+| **Terminal** | Tauri PTY authorized · unavailable | Interactive Terminal is a **desktop capability** (ADR 0013). Host `capabilities.pty` is **not** proof that Tauri Terminal is unavailable or available. |
+| **Host shell preview** | `capabilities.shellPreview` | Line-oriented host shell remains for non-Tauri / mock paths. |
+| **Provider** | unconfigured · credential unavailable · configured | Best-effort status only. Provider readiness must **not** gate workspace browse/trust (PSR D7). |
+| **Packages** | `memory`, `process`, `automation` first-class | Host domain commands; Advanced/Experimental in Desktop Settings. |
+| **Evidence coverage** | browser mock · live JSONL sidecar · native macOS | [See automated prerequisites](../README.md#automated-prerequisite-sequence) and [trace recipe](plans/2026-07-24-responsiveness-trace-recipe.md). Automated prerequisites are not a release candidate; a separately reviewed dated native macOS evidence manifest is required before declaring one. |
+
+### Evidence layers
+
+| Layer | What it proves | Cannot claim |
+|-------|----------------|--------------|
+| **Vite + in-browser mock renderer** | UI rendering isolation, render counts, frame-batching, Stop path under mock | Native responsiveness, real transport latency, main-thread behavior |
+| **Live JSONL sidecar** | Sidecar stdio framing, control-lane priority, abort/status ordering, clean shutdown, malformed-input handling | WebView rendering, macOS window behavior |
+| **Native macOS / Tauri** | Real window drag/resize during streaming, Instruments traces, PID cleanup, bundle/notarization | Cross-platform parity, bundled Node distribution |
+
+Always surface these layers via status UI + `host/status` + doctor matrix; never silent-degrade or conflate transport connection with provider readiness.
+
+### Intentionally deferred (not in release gate)
+
+The following remain explicitly outside the responsiveness evidence gate and
+must not be claimed:
+
+1. **Packaged host distribution:** current Tauri development topology starts a
+   workspace `pnpm`/`tsx` host from the source checkout. A clean installed app
+   requires a bundled executable or Node runtime, resource resolution,
+   signing/notarization, and clean-machine verification — planned in
+   [ADR 0017](./adr/0017-host-sidecar-bundling.md).
+2. **ADR 0012 true RPC worker isolation:** SDK fallback remains compatible but
+   is not process isolation. The worker strategy needs separate contracts,
+   lifecycle design, and failure semantics.
+3. **Follow-up turn lifecycle:** `session/follow_up` now validates run
+   ownership, but a distinct foreground lifecycle is not introduced here.
+   Decide in a separate ADR/plan whether it appends to an existing run or
+   starts a new run with its own `runId` and terminal event.

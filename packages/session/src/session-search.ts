@@ -7,6 +7,7 @@ import type {
   SessionSearchHit,
   SessionSearchQuery,
   SessionSearchResult,
+  SessionScope,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
 import { listAllSessionRecords } from './session-index-store.js';
@@ -27,7 +28,9 @@ export async function searchSessions(
   const rawQuery = query.query.trim();
   const normalizedQuery = rawQuery.toLowerCase();
   const limit = clampLimit(query.limit);
-  const records = await listAllSessionRecords(options.indexPath, query.projectPath);
+  const scopeFilter: string | SessionScope | undefined =
+    query.scope ?? query.projectPath;
+  const records = await listAllSessionRecords(options.indexPath, scopeFilter);
   const candidates = query.pinnedOnly
     ? records.filter((record) => record.isPinned === true)
     : records;
@@ -88,6 +91,8 @@ function indexHit(record: SessionIndexRecord, score: number): SessionSearchHit {
     projectPath: record.projectPath,
     score,
   };
+  if (record.scope) hit.scope = record.scope;
+  if (record.workingDirectory) hit.workingDirectory = record.workingDirectory;
   if (record.name) hit.name = record.name;
   if (record.updatedAt) hit.updatedAt = record.updatedAt;
   if (record.isPinned === true) hit.isPinned = true;

@@ -1,0 +1,400 @@
+/* Region: overlays & dialogs (app-dialogs.tsx, ui-kit Dialog/ConfirmDialog,
+   command-palette.tsx, NotificationRegion.tsx, session-row-menu.tsx,
+   transcript-outline-popover.tsx, permission-request-card.tsx dialog usage,
+   ui-kit DropdownMenu/Popover, shell overlay scrim).
+   Owns .modal*, .ui-dialog-content, .notification-*, .session-row-menu*,
+   .session-menu-backdrop, .session-rename-form, .command-palette-*,
+   .shell-overlay-scrim, .ui-menu-*, .ui-popover-content, .permission-detail,
+   .checkbox-row, .settings-modal, .drawer-panel/.drawer-header/.drawer-body.
+   All z-index values come from the tokens.css --layer-* contract.
+   Semantic runtime tokens only; no forced declarations. */
+
+/* ── Modal / dialog ───────────────────────────────────────────────── */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--layer-dialog);
+}
+
+.modal {
+  width: min(480px, calc(100vw - 32px));
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-overlay);
+  padding: 18px;
+  box-shadow: var(--shadow-overlay);
+}
+
+.modal h3 {
+  margin: 0 0 10px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.ui-dialog-content {
+  position: fixed;
+  z-index: calc(var(--layer-dialog) + 1);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  /* Let inner panels size themselves; avoid nested width fights. */
+  width: auto;
+  max-width: min(520px, calc(100vw - 32px));
+  max-height: min(80vh, 640px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--shadow-overlay);
+}
+
+/* Models picker: keep a single solid panel, no nested 480 vs 620 war. */
+.modal.ui-dialog-content:has(.cherry-dialog) {
+  width: min(460px, calc(100vw - 32px));
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 16px;
+  background: var(--panel);
+}
+
+.modal.ui-dialog-content:has(.cherry-dialog) > .cherry-dialog {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+.settings-modal {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+.permission-detail {
+  white-space: pre-wrap;
+  background: var(--surface-inset);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  max-height: 180px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+/* ── Drawer panels (settings/skills fallbacks still use) ──────────── */
+
+.drawer-panel {
+  position: fixed;
+  z-index: var(--layer-drawer);
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(380px, 100vw);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  box-shadow: var(--shadow-overlay);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.drawer-body {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.drawer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.embedded-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.embedded-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Shell overlay scrim ──────────────────────────────────────────── */
+
+.shell-overlay-scrim {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  /* Cover full stage; desktop has no permanent top chrome. */
+  left: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.45); /* scrim tint — deliberate literal */
+  z-index: var(--layer-scrim);
+}
+
+.app-shell[data-layout='compact'] .shell-overlay-scrim {
+  top: var(--topbar-height);
+}
+
+/* ── Session row context menu ─────────────────────────────────────── */
+
+.session-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--layer-menu-backdrop);
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.session-row-menu {
+  position: fixed;
+  z-index: var(--layer-menu);
+  min-width: 168px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-overlay);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-row-menu-item {
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  border-radius: 7px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.session-row-menu-item:hover,
+.session-row-menu-item:focus-visible {
+  background: var(--surface-hover);
+  outline: none;
+}
+
+.session-row-menu-item.danger {
+  color: var(--danger);
+}
+
+.session-rename-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: min(360px, 80vw);
+}
+
+/* Workspace-path input inside the open-project dialog. Element+class ties
+   the .ui-field-control input specificity; later import order wins. */
+input.project-path-input {
+  margin: 0;
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 8px 9px;
+}
+
+/* ── Toast notifications ──────────────────────────────────────────── */
+
+.notification-region {
+  position: fixed;
+  z-index: var(--layer-toast);
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.notification-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.notification-toast.level-error {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+}
+
+.notification-toast.level-success {
+  border-color: color-mix(in srgb, var(--ok) 40%, transparent);
+}
+
+.notification-toast.level-warning {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.notification-message {
+  flex: 1;
+}
+
+.notification-dismiss {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+/* ── Command palette ──────────────────────────────────────────────── */
+
+.command-palette-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.command-palette-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 10px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.command-palette-item:hover:not(:disabled),
+.command-palette-item:focus-visible {
+  background: var(--surface-hover);
+}
+
+.command-palette-item:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.command-palette-shortcut {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.command-palette-reason {
+  width: 100%;
+  font-size: 11px;
+}
+
+/* ── ui-kit menu / popover surfaces ───────────────────────────────── */
+/* Radix portals render above everything; keep the toast layer so menus
+   opened from dialogs stay clickable (matches previous cascade). */
+
+.ui-menu-content,
+.ui-popover-content {
+  z-index: var(--layer-toast);
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: var(--shadow-overlay);
+  color: var(--text);
+}
+
+.ui-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.ui-menu-item:hover,
+.ui-menu-item[data-highlighted] {
+  background: var(--surface-hover);
+  outline: none;
+}
+
+.ui-menu-item.danger {
+  color: var(--danger);
+}
+
+.ui-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line-soft);
+}
+
+/* Non-interactive caption / static row inside a menu. */
+.ui-menu-label {
+  padding: 6px 10px;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+/* Entrance animation shared by menu-like overlay surfaces. */
+.ui-menu-content,
+.ui-popover-content {
+  animation: overlay-pop-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes overlay-pop-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-menu-content,
+  .ui-popover-content {
+    animation: none;
+  }
+}

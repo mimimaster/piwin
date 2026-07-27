@@ -1,11 +1,155 @@
-import type { AgentEvent, AgentMessageRole } from '@piwin/contracts';
+import type { AgentEvent, AgentEventEnvelope, AgentMessageRole } from '@piwin/contracts';
 import { mapUsageSnapshot } from './usage-map.js';
+import { boundToolOutput, buildToolPresentation } from './tool-presentation.js';
+
+/**
+ * Wrapped event with an envelope for idempotent delivery.
+ * The envelope carries a unique eventId and ascending sequence number so the
+ * consumer can detect replayed, reordered, or stale events.
+ */
+export type WrappedAgentEvent = {
+  event: AgentEvent;
+  envelope: AgentEventEnvelope;
+};
+
+/**
+ * Creates a sequential envelope generator scoped to an optional runId.
+ * Each call to `next()` produces a monotonically increasing sequence number
+ * paired with a unique eventId.
+ */
+export function createEventEnvelopeGenerator(runId?: string): {
+  next: (runIdOverride?: string) => AgentEventEnvelope;
+} {
+  let sequence = 0;
+  return {
+    next(runIdOverride?: string): AgentEventEnvelope {
+      sequence++;
+      const envelope: AgentEventEnvelope = {
+        eventId: `evt-${Date.now().toString(36)}-${sequence}`,
+        sequence,
+      };
+      const resolvedRunId = runIdOverride ?? runId;
+      if (resolvedRunId !== undefined) {
+        envelope.runId = resolvedRunId;
+      }
+      return envelope;
+    },
+  };
+}
+
+/**
+ * Wraps a single AgentEvent with the next envelope from a generator.
+ */
+export function wrapEvent(
+  event: AgentEvent,
+  envelopeGenerator: ReturnType<typeof createEventEnvelopeGenerator>,
+): WrappedAgentEvent {
+  return {
+    event,
+    envelope: envelopeGenerator.next(),
+  };
+}
+
+/**
+ * Wraps an array of AgentEvent objects with sequential envelopes.
+ */
+export function wrapEvents(
+  events: AgentEvent[],
+  envelopeGenerator: ReturnType<typeof createEventEnvelopeGenerator>,
+): WrappedAgentEvent[] {
+  return events.map((event) => ({
+    event,
+    envelope: envelopeGenerator.next(extractRunId(event)),
+  }));
+}
+
+/**
+ * Extract a runId from an event if it has one, for envelope scoping.
+ */
+function extractRunId(event: AgentEvent): string | undefined {
+  return 'runId' in event ? (event as { runId?: string }).runId : undefined;
+}
+
+export type PiSessionEventMapper = {
+  map: (raw: unknown) => WrappedAgentEvent[];
+};
+
+/**
+ * Pi can omit message ids on SDK lifecycle events. The mapper must keep the
+ * generated id for the whole message lifecycle; a constant fallback such as
+ * "unknown" merges separate thinking/tool turns in the renderer.
+ *
+ * Returned events are wrapped with sequential envelopes for idempotent delivery.
+ */
+export function createPiSessionEventMapper(): PiSessionEventMapper {
+  let activeMessageId: string | null = null;
+  let generatedMessageSequence = 0;
+  const toolNamesById = new Map<string, string>();
+  const rawToolOutputById = new Map<string, string>();
+  const envelopeGenerator = createEventEnvelopeGenerator();
+
+  return {
+    map(raw: unknown): WrappedAgentEvent[] {
+      if (!raw || typeof raw !== 'object') {
+        return [];
+      }
+
+      const record = raw as Record<string, unknown>;
+      const type = typeof record.type === 'string' ? record.type : '';
+      if (type === 'message_start') {
+        const explicitMessageId = readString(record.messageId) ?? readNestedId(record, 'message');
+        activeMessageId =
+          explicitMessageId ?? `pi-message-${++generatedMessageSequence}`;
+      }
+
+      const mappedEvents = mapPiSessionEvent(raw, activeMessageId).map((event) => {
+        if (event.type === 'tool/start') {
+          toolNamesById.set(event.toolCallId, event.toolName);
+          rawToolOutputById.set(event.toolCallId, '');
+          return event;
+        }
+        if (event.type === 'tool/update') {
+          const rawEvent = raw as Record<string, unknown>;
+          const rawDelta =
+            typeof rawEvent.delta === 'string'
+              ? rawEvent.delta
+              : typeof rawEvent.output === 'string'
+                ? rawEvent.output
+                : event.delta;
+          const fullOutput = `${rawToolOutputById.get(event.toolCallId) ?? ''}${rawDelta}`;
+          // Keep the cross-chunk redaction buffer bounded. This still preserves
+          // enough cumulative context to catch secrets split across chunks,
+          // while preventing a long-running tool from growing host memory.
+          const boundedOutput = boundToolOutput(fullOutput).text;
+          rawToolOutputById.set(event.toolCallId, boundedOutput);
+          const toolName = toolNamesById.get(event.toolCallId) ?? 'unknown';
+          return {
+            ...event,
+            presentation: buildToolPresentation({
+              toolName,
+              outputText: boundedOutput,
+            }),
+          };
+        }
+        if (event.type === 'tool/end') {
+          toolNamesById.delete(event.toolCallId);
+          rawToolOutputById.delete(event.toolCallId);
+        }
+        return event;
+      });
+      if (type === 'message_end') {
+        activeMessageId = null;
+      }
+      return wrapEvents(mappedEvents, envelopeGenerator);
+    },
+  };
+}
 
 /**
  * Map Pi SDK / RPC-like session events into normalized AgentEvent[].
  * Defensive: unknown shapes return [] (never throw).
  */
-export function mapPiSessionEvent(raw: unknown): AgentEvent[] {
+export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null): AgentEvent[] {
   if (!raw || typeof raw !== 'object') {
     return [];
   }
@@ -15,12 +159,16 @@ export function mapPiSessionEvent(raw: unknown): AgentEvent[] {
 
   switch (type) {
     case 'message_start': {
-      const messageId = readString(event.messageId) ?? readNestedId(event, 'message') ?? 'unknown';
+      const messageId =
+        readString(event.messageId) ??
+        readNestedId(event, 'message') ??
+        activeMessageId ??
+        'unknown';
       const role = readRole(event.role) ?? readNestedRole(event, 'message') ?? 'assistant';
       return [{ type: 'message/start', messageId, role }];
     }
     case 'message_update': {
-      const messageId = readString(event.messageId) ?? 'unknown';
+      const messageId = readString(event.messageId) ?? activeMessageId ?? 'unknown';
       const assistantEvent = asRecord(event.assistantMessageEvent);
       if (!assistantEvent) {
         return [];
@@ -36,23 +184,51 @@ export function mapPiSessionEvent(raw: unknown): AgentEvent[] {
       return [];
     }
     case 'message_end': {
-      const messageId = readString(event.messageId) ?? readNestedId(event, 'message') ?? 'unknown';
+      const messageId =
+        readString(event.messageId) ??
+        readNestedId(event, 'message') ??
+        activeMessageId ??
+        'unknown';
       return [{ type: 'message/end', messageId }];
     }
     case 'tool_execution_start': {
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
       const toolName = readString(event.toolName) ?? readString(event.name) ?? 'unknown';
-      return [{ type: 'tool/start', toolCallId, toolName }];
+      const args = event.args ?? event.arguments ?? event.input;
+      const presentation = buildToolPresentation({
+        toolName,
+        ...(args !== undefined ? { args } : {}),
+      });
+      return [{ type: 'tool/start', toolCallId, toolName, presentation }];
     }
     case 'tool_execution_update': {
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
-      const delta = readString(event.delta) ?? readString(event.output) ?? '';
+      const rawDelta = readString(event.delta) ?? readString(event.output) ?? '';
+      const delta = boundToolOutput(rawDelta).text;
       return [{ type: 'tool/update', toolCallId, delta }];
     }
     case 'tool_execution_end': {
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
       const isError = Boolean(event.isError ?? event.error);
-      return [{ type: 'tool/end', toolCallId, isError }];
+      const toolName = readString(event.toolName) ?? readString(event.name) ?? 'unknown';
+      const outputText =
+        readString(event.output) ??
+        readString(event.result) ??
+        readString(event.delta) ??
+        undefined;
+      const exitCode =
+        typeof event.exitCode === 'number'
+          ? event.exitCode
+          : typeof event.exit_code === 'number'
+            ? event.exit_code
+            : undefined;
+      const presentation = buildToolPresentation({
+        toolName,
+        isError,
+        ...(outputText !== undefined ? { outputText } : {}),
+        ...(exitCode !== undefined ? { exitCode } : {}),
+      });
+      return [{ type: 'tool/end', toolCallId, isError, presentation }];
     }
     case 'compaction_start':
       return [{ type: 'compaction/start' }];

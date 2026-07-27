@@ -12,6 +12,23 @@
 
 ## 1. What openwebui_m already solved
 
+## 0. piwin coding-agent rendering policy
+
+The artifact security model remains independent from the chat presentation
+phase. In the coding-agent transcript:
+
+- `streaming` renders Markdown source safely; HTML fences remain source-only,
+  Mermaid is not executed, and no Artifact iframe is mounted.
+- `completed` may render normal Markdown and shows Artifact source first. An
+  Artifact iframe is mounted only after the user explicitly chooses `Preview
+  artifact`.
+- `explicit-artifact-review` is the same source-first policy with an explicit
+  review intent; it does not bypass the security classifier or CSP.
+- Thinking, tool output, permission waits, and process activity belong in the
+  run timeline/cards rather than becoming HTML artifacts.
+
+Copy actions always copy raw model source, never an iframe `srcdoc` wrapper.
+
 Path: `src/lib/components/chat/Messages/Artifacts/`
 
 ### 1.1 Module map (must understand before port)

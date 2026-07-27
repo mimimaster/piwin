@@ -18,12 +18,11 @@ describe('provider-presets', () => {
     expect(grouped.cloud.length).toBeGreaterThan(0);
     expect(grouped.local.length).toBeGreaterThan(0);
   });
-});
 
-  it('includes Gemini-class OpenAI-compatible presets', () => {
+  it('includes Google Gemini native and OpenAI-compatible proxy presets', () => {
     const gemini = getProviderPreset('gemini');
-    expect(gemini?.protocol).toBe('openai-compatible');
-    expect(gemini?.baseUrl).toContain('generativelanguage.googleapis.com');
+    expect(gemini?.protocol).toBe('google-gemini');
+    expect(gemini?.baseUrl).toBe('https://generativelanguage.googleapis.com/v1beta');
     expect(gemini?.apiKeyEnv).toBe('GEMINI_API_KEY');
     expect(gemini?.models.length).toBeGreaterThan(0);
 
@@ -32,9 +31,11 @@ describe('provider-presets', () => {
     expect(proxy?.group).toBe('gateway');
   });
 
-  it('only uses openai-compatible or anthropic-compatible protocols', () => {
+  it('only uses supported protocol adapters', () => {
     for (const preset of PROVIDER_PRESETS) {
-      expect(['openai-compatible', 'anthropic-compatible']).toContain(preset.protocol);
+      expect(['openai-compatible', 'anthropic-compatible', 'google-gemini']).toContain(
+        preset.protocol,
+      );
     }
   });
-
+});

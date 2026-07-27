@@ -8,6 +8,7 @@ import type {
   GitCommitGraph,
   GitCommitInput,
   GitDiffSummary,
+  GitFileDiff,
   GitMutationResult,
   GitStageInput,
   GitStatusSnapshot,
@@ -16,6 +17,7 @@ import type {
 import { probeGitRepository } from './repository-probe.js';
 import { readGitStatus } from './status-reader.js';
 import { readGitDiffSummary } from './diff-summary.js';
+import { readGitFileDiff } from './file-diff.js';
 import { readGitCommitGraph } from './commit-graph.js';
 import {
   checkoutRef,
@@ -28,6 +30,11 @@ import {
 export type GitService = {
   getStatus(projectPath: string): Promise<GitStatusSnapshot>;
   getDiffSummary(projectPath: string): Promise<GitDiffSummary>;
+  getFileDiff(
+    projectPath: string,
+    path: string,
+    scope?: 'worktree' | 'staged' | 'combined',
+  ): Promise<GitFileDiff>;
   getCommitGraph(projectPath: string, limit?: number): Promise<GitCommitGraph>;
   stage(input: GitStageInput): Promise<GitMutationResult>;
   unstage(input: GitUnstageInput): Promise<GitMutationResult>;
@@ -45,6 +52,17 @@ export function createGitService(): GitService {
     async getDiffSummary(projectPath) {
       const repository = await probeGitRepository(projectPath);
       return readGitDiffSummary({ repository });
+    },
+    async getFileDiff(projectPath, path, scope) {
+      const repository = await probeGitRepository(projectPath);
+      const options: Parameters<typeof readGitFileDiff>[0] = {
+        repository,
+        path,
+      };
+      if (scope !== undefined) {
+        options.scope = scope;
+      }
+      return readGitFileDiff(options);
     },
     async getCommitGraph(projectPath, limit) {
       const repository = await probeGitRepository(projectPath);

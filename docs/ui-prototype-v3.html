@@ -1,0 +1,1531 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>piwin — UI Prototype v3 · Copper Workbench</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #090807;
+      --ink-2: #100e0c;
+      --panel: #151311;
+      --panel-2: #1b1916;
+      --panel-3: #221f1b;
+      --line: rgba(255, 236, 210, 0.09);
+      --line-strong: rgba(255, 236, 210, 0.16);
+      --text: #f4efe7;
+      --muted: #a89f93;
+      --faint: #6f675d;
+      --copper: #d89a4a;
+      --copper-hi: #f0c27a;
+      --copper-deep: #b07a36;
+      --sage: #8fbfb0;
+      --sage-deep: #5f8f82;
+      --danger: #e07a6a;
+      --ok: #79c4a3;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+      --radius: 14px;
+      --radius-sm: 10px;
+      --font: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      --nav-w: 280px;
+      --signal-w: 320px;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--ink); min-width: 1100px; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 500px at 12% -10%, rgba(216, 154, 74, 0.14), transparent 55%),
+        radial-gradient(900px 420px at 88% 110%, rgba(143, 191, 176, 0.10), transparent 50%),
+        var(--ink);
+      font: 13.5px/1.45 var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    img { display: block; max-width: 100%; }
+    svg.icon { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
+
+    /* ========== Gallery chrome ========== */
+    .gallery {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      min-height: 64px;
+      padding: 0 28px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(9, 8, 7, 0.88);
+      backdrop-filter: blur(18px);
+    }
+    .gallery-brand { display: flex; align-items: center; gap: 12px; min-width: 220px; }
+    .gallery-brand img {
+      width: 30px; height: 30px; border-radius: 9px;
+      object-fit: cover;
+      box-shadow: 0 0 0 1px rgba(216,154,74,0.28), 0 6px 16px rgba(0,0,0,0.35);
+    }
+    .brand-lockup img {
+      object-fit: cover;
+      box-shadow: 0 0 0 1px rgba(216,154,74,0.22);
+    }
+    .gallery-brand strong { display: block; font-size: 14px; letter-spacing: -0.02em; }
+    .gallery-brand span { color: var(--faint); font-size: 11px; }
+    .view-tabs { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.02); }
+    .view-tab {
+      border: 0;
+      border-radius: 9px;
+      padding: 8px 14px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: 140ms ease;
+    }
+    .view-tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .view-tab.active {
+      color: #1a140e;
+      background: linear-gradient(180deg, var(--copper-hi), var(--copper));
+      box-shadow: 0 6px 18px rgba(216, 154, 74, 0.28);
+    }
+    .gallery-note { margin-left: auto; color: var(--faint); font-size: 12px; }
+
+    .page { max-width: 1480px; margin: 0 auto; padding: 28px 28px 64px; }
+    .hero-strip {
+      position: relative;
+      height: 168px;
+      margin-bottom: 22px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: #0b0a09;
+      box-shadow: 0 18px 48px rgba(0,0,0,0.35);
+    }
+    .hero-strip img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 35%;
+      filter: saturate(1.08) contrast(1.05);
+    }
+    .hero-strip-fade {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(90deg, rgba(9,8,7,0.82) 0%, rgba(9,8,7,0.35) 48%, rgba(9,8,7,0.55) 100%),
+        linear-gradient(180deg, transparent 40%, rgba(9,8,7,0.55) 100%);
+      pointer-events: none;
+    }
+    .hero-strip-copy {
+      position: absolute;
+      left: 22px;
+      bottom: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .hero-strip-copy span {
+      color: var(--copper-hi);
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .hero-strip-copy strong {
+      font-size: 20px;
+      letter-spacing: -0.03em;
+      font-weight: 650;
+    }
+    .asset-row {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1.4fr);
+      gap: 14px;
+      margin: 0 0 22px;
+    }
+    .asset-card {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.02);
+    }
+    .asset-card img {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      display: block;
+    }
+    .asset-card.brand img {
+      height: 110px;
+      object-fit: contain;
+      background: #0b0a09;
+      padding: 18px;
+    }
+    .asset-card figcaption {
+      padding: 10px 12px 12px;
+      color: var(--muted);
+      font-size: 11.5px;
+      border-top: 1px solid var(--line);
+    }
+    .asset-card figcaption strong {
+      display: block;
+      color: var(--text);
+      font-size: 12.5px;
+      margin-bottom: 2px;
+    }
+    .intro {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+      gap: 28px;
+      margin-bottom: 22px;
+    }
+    .kicker {
+      margin: 0 0 8px;
+      color: var(--copper-hi);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .intro h1 {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.12;
+      letter-spacing: -0.04em;
+      font-weight: 650;
+    }
+    .intro p {
+      max-width: 58ch;
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 14.5px;
+      line-height: 1.55;
+    }
+    .principles { display: flex; flex-wrap: wrap; gap: 8px; align-content: start; padding-top: 8px; }
+    .principles span {
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.02);
+      font-size: 11.5px;
+    }
+
+    /* ========== Button system (the fix) ========== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      height: 34px;
+      padding: 0 14px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: transparent;
+      font-size: 12.5px;
+      font-weight: 560;
+      letter-spacing: -0.01em;
+      transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 100ms ease;
+      white-space: nowrap;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .btn-primary {
+      color: #1a140e;
+      background: linear-gradient(180deg, #f0c27a 0%, #d89a4a 100%);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.22) inset, 0 8px 20px rgba(216, 154, 74, 0.22);
+    }
+    .btn-primary:hover { filter: brightness(1.05); }
+
+    .btn-secondary {
+      color: var(--text);
+      border-color: var(--line-strong);
+      background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02));
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,236,210,0.24); }
+
+    .btn-ghost {
+      color: var(--muted);
+      background: transparent;
+    }
+    .btn-ghost:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+
+    .btn-danger-soft {
+      color: #f2b4aa;
+      background: rgba(224, 122, 106, 0.12);
+      border-color: rgba(224, 122, 106, 0.25);
+    }
+
+    .btn-icon {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border-radius: 10px;
+      color: var(--muted);
+      border: 1px solid transparent;
+      background: transparent;
+    }
+    .btn-icon:hover {
+      color: var(--text);
+      background: rgba(255,255,255,0.05);
+      border-color: var(--line);
+    }
+    .btn-icon.active {
+      color: var(--copper-hi);
+      background: rgba(216, 154, 74, 0.12);
+      border-color: rgba(216, 154, 74, 0.22);
+    }
+
+    .btn-send {
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 0;
+      border-radius: 12px;
+      color: #1a140e;
+      background: linear-gradient(180deg, #f0c27a, #d89a4a);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 0 10px 22px rgba(216, 154, 74, 0.28);
+    }
+    .btn-send:hover { filter: brightness(1.06); }
+    .btn-send svg { width: 17px; height: 17px; }
+
+    .seg {
+      display: inline-flex;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(0,0,0,0.28);
+      gap: 2px;
+    }
+    .seg button {
+      height: 28px;
+      padding: 0 11px;
+      border: 0;
+      border-radius: 8px;
+      color: var(--muted);
+      background: transparent;
+      font-size: 11.5px;
+      font-weight: 520;
+    }
+    .seg button.active {
+      color: var(--text);
+      background: rgba(255,255,255,0.08);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset;
+    }
+
+    /* ========== Screen frame ========== */
+    .screen {
+      position: relative;
+      height: 860px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 236, 210, 0.12);
+      border-radius: 18px;
+      background: var(--ink-2);
+      box-shadow: var(--shadow);
+    }
+    .screen::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(9,8,7,0.55) 0%, rgba(9,8,7,0.78) 48%, rgba(9,8,7,0.92) 100%),
+        url("./ui-prototype-v3/assets/piwin-hero-atmosphere.jpg") center/cover no-repeat;
+      opacity: 1;
+      pointer-events: none;
+    }
+    .screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 0%, rgba(216,154,74,0.10), transparent 60%),
+        radial-gradient(ellipse 50% 40% at 90% 90%, rgba(143,191,176,0.08), transparent 55%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .screen > * { position: relative; z-index: 1; }
+    .view { display: none; height: 100%; }
+    .view.active { display: grid; }
+
+    /* ========== NEW LAYOUT: top bar + nav + stage + signal ========== */
+    .layout-workbench {
+      grid-template-rows: 52px minmax(0, 1fr);
+      grid-template-columns: var(--nav-w) minmax(0, 1fr) var(--signal-w);
+    }
+    .layout-workbench .topbar { grid-column: 1 / -1; }
+    .layout-empty {
+      grid-template-rows: 52px minmax(0, 1fr);
+      grid-template-columns: var(--nav-w) minmax(0, 1fr);
+    }
+    .layout-empty .topbar { grid-column: 1 / -1; }
+    .layout-review {
+      grid-template-rows: 52px minmax(0, 1fr);
+      grid-template-columns: 240px minmax(0, 1fr) 360px;
+    }
+    .layout-review .topbar { grid-column: 1 / -1; }
+    .layout-focus {
+      grid-template-rows: 52px minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .layout-focus .topbar { grid-column: 1; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 14px 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(16, 14, 12, 0.88);
+      backdrop-filter: blur(14px);
+    }
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 108px;
+      padding-right: 8px;
+      border-right: 1px solid var(--line);
+    }
+    .brand-lockup img { width: 26px; height: 26px; border-radius: 8px; }
+    .brand-lockup strong { font-size: 13px; font-weight: 650; letter-spacing: -0.02em; }
+    .crumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      color: var(--faint);
+      font-size: 12px;
+    }
+    .crumb b { color: var(--text); font-weight: 600; }
+    .crumb .sep { opacity: 0.5; }
+    .top-search {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: min(360px, 34vw);
+      height: 34px;
+      margin-left: 8px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      color: var(--faint);
+      background: rgba(0,0,0,0.28);
+      font-size: 12px;
+    }
+    .top-search kbd {
+      margin-left: auto;
+      padding: 2px 6px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font-family: var(--font);
+      font-size: 10px;
+      color: var(--faint);
+    }
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 30px;
+      padding: 0 10px;
+      border: 1px solid rgba(121, 196, 163, 0.22);
+      border-radius: 999px;
+      color: #cfe9dc;
+      background: rgba(121, 196, 163, 0.08);
+      font-size: 11.5px;
+    }
+    .status-pill i {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 0 3px rgba(121, 196, 163, 0.15);
+    }
+
+    /* Navigator — unified sessions/files, no icon rail */
+    .navigator {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border-right: 1px solid var(--line);
+      background: rgba(15, 13, 11, 0.92);
+    }
+    .nav-head {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px 12px 10px;
+    }
+    .project-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.035), rgba(255,255,255,0.015));
+      text-align: left;
+    }
+    .project-card:hover { border-color: var(--line-strong); background: rgba(255,255,255,0.05); }
+    .project-mark {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      color: var(--copper-hi);
+      background: rgba(216, 154, 74, 0.12);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .project-card strong { display: block; font-size: 12.5px; font-weight: 620; }
+    .project-card span { display: block; color: var(--faint); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+    .project-card .chev { margin-left: auto; color: var(--faint); }
+
+    .nav-switch { width: 100%; }
+    .nav-switch.seg { width: 100%; }
+    .nav-switch.seg button { flex: 1; }
+
+    .nav-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 10px 12px; }
+    .nav-section-label {
+      margin: 10px 6px 6px;
+      color: var(--faint);
+      font-size: 10.5px;
+      font-weight: 650;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .session-item {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+      min-height: 38px;
+      padding: 7px 8px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      color: var(--muted);
+      background: transparent;
+      text-align: left;
+    }
+    .session-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+    .session-item.active {
+      color: var(--text);
+      border-color: rgba(216, 154, 74, 0.2);
+      background: linear-gradient(90deg, rgba(216, 154, 74, 0.12), rgba(255,255,255,0.02));
+    }
+    .session-item .sym { color: var(--faint); font-family: var(--mono); font-size: 10px; }
+    .session-item .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+    .session-item .meta { color: var(--faint); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+
+    .file-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 30px;
+      padding: 4px 8px;
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .file-row:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+    .file-row .indent { width: calc(var(--d, 0) * 12px); }
+    .nav-foot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-top: 1px solid var(--line);
+      color: var(--faint);
+      font-size: 11px;
+    }
+    .nav-foot .branch { margin-left: auto; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+    /* Stage */
+    .stage {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      min-width: 0;
+      min-height: 0;
+      background: rgba(9, 8, 7, 0.35);
+    }
+    .run-strip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 40px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(216, 154, 74, 0.06);
+    }
+    .run-strip .pulse {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--copper);
+      box-shadow: 0 0 0 4px rgba(216, 154, 74, 0.15);
+      animation: pulse 1.6s ease infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.45; }
+    }
+    .run-strip strong { font-size: 12px; font-weight: 600; }
+    .run-strip span { color: var(--muted); font-size: 12px; }
+    .run-strip .spacer { flex: 1; }
+
+    .transcript {
+      overflow: auto;
+      padding: 28px 0 12px;
+    }
+    .thread {
+      width: min(100% - 48px, 760px);
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+    .turn-meta {
+      margin-bottom: 8px;
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .user-bubble {
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.035);
+      color: #ebe4da;
+      font-size: 13.5px;
+      line-height: 1.55;
+    }
+    .assistant {
+      color: #e8e0d5;
+      font-size: 13.5px;
+      line-height: 1.62;
+    }
+    .assistant p { margin: 0 0 12px; }
+    .assistant ul { margin: 0 0 12px; padding-left: 18px; color: #d8d0c5; }
+    .tool-stack { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+    .tool-card {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(0,0,0,0.22);
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .tool-card .state { color: var(--sage); }
+    .tool-card .path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tool-card .dur { color: var(--faint); }
+    .code-card {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #0c0b0a;
+    }
+    .code-card header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 10.5px;
+    }
+    .code-card header b { color: var(--copper-hi); font-weight: 500; }
+    .code-card pre {
+      margin: 0;
+      padding: 14px 16px;
+      overflow: auto;
+      color: #d8d2c8;
+      font: 11.5px/1.65 var(--mono);
+    }
+    .tok-copper { color: #e8b56b; }
+    .tok-sage { color: #9dcebf; }
+    .tok-mute { color: #7a7369; }
+    .tok-text { color: #d8d2c8; }
+
+    /* Composer island — redesigned, not chip soup */
+    .composer-zone {
+      padding: 8px 18px 16px;
+      background: linear-gradient(180deg, transparent, rgba(9,8,7,0.92) 28%);
+    }
+    .composer {
+      width: min(100%, 760px);
+      margin: 0 auto;
+      padding: 12px 12px 10px;
+      border: 1px solid rgba(216, 154, 74, 0.22);
+      border-radius: 16px;
+      background: linear-gradient(180deg, #1c1916 0%, #151311 100%);
+      box-shadow: 0 18px 40px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.02) inset;
+    }
+    .composer-input {
+      min-height: 52px;
+      padding: 6px 6px 10px;
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+    .composer-input em { color: var(--faint); font-style: normal; }
+    .composer-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .composer-bar .grow { flex: 1; }
+    .model-select {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(0,0,0,0.2);
+      font-size: 11.5px;
+    }
+    .model-select i {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--ok);
+    }
+    .ctx-ring {
+      width: 28px; height: 28px; border-radius: 50%;
+      background:
+        conic-gradient(var(--copper) 0 62%, rgba(255,255,255,0.08) 62% 100%);
+      display: grid; place-items: center;
+    }
+    .ctx-ring span {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #151311;
+      display: grid; place-items: center;
+      font-size: 8px;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    /* Signal panel */
+    .signal {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border-left: 1px solid var(--line);
+      background: rgba(15, 13, 11, 0.94);
+    }
+    .signal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 12px 12px 0;
+    }
+    .signal-head h2 {
+      margin: 0;
+      font-size: 12.5px;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+    .signal-body { flex: 1; min-height: 0; overflow: auto; padding: 12px; }
+    .signal-block { margin-bottom: 18px; }
+    .signal-label {
+      margin: 0 2px 8px;
+      color: var(--faint);
+      font-size: 10.5px;
+      font-weight: 650;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .progress {
+      height: 4px;
+      margin-bottom: 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      overflow: hidden;
+    }
+    .progress i {
+      display: block;
+      width: 62%;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--copper), var(--sage));
+    }
+    .plan-row {
+      display: flex;
+      gap: 10px;
+      padding: 8px 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .plan-row.done { color: #d9d1c5; }
+    .plan-row.now { color: var(--text); }
+    .check {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 1px solid var(--line-strong);
+      display: grid; place-items: center;
+      flex: 0 0 auto;
+      margin-top: 1px;
+      font-size: 9px;
+      color: var(--sage);
+    }
+    .plan-row.done .check {
+      border-color: rgba(143, 191, 176, 0.4);
+      background: rgba(143, 191, 176, 0.12);
+    }
+    .plan-row.now .check {
+      border-color: rgba(216, 154, 74, 0.55);
+      box-shadow: 0 0 0 3px rgba(216, 154, 74, 0.12);
+    }
+    .change-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      padding: 7px 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .change-row .add { color: var(--ok); }
+    .change-row .del { color: var(--danger); }
+    .event {
+      display: grid;
+      grid-template-columns: 12px minmax(0, 1fr) auto;
+      gap: 8px;
+      padding: 7px 2px;
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+    .event .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      margin-top: 4px;
+      background: var(--copper);
+      box-shadow: 0 0 0 3px rgba(216, 154, 74, 0.12);
+    }
+    .event time { color: var(--faint); font-family: var(--mono); font-size: 10px; }
+
+    /* Empty state */
+    .empty-stage {
+      display: grid;
+      place-items: center;
+      min-height: 0;
+      padding: 24px;
+    }
+    .empty-card {
+      width: min(100%, 680px);
+      text-align: center;
+    }
+    .empty-art {
+      width: min(100%, 560px);
+      margin: 0 auto 18px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      overflow: hidden;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(216,154,74,0.08) inset;
+      aspect-ratio: 16 / 9;
+      background: #0b0a09;
+    }
+    .empty-art img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 40%;
+      filter: saturate(1.05) contrast(1.04);
+    }
+    .empty-card h2 {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: -0.04em;
+      font-weight: 650;
+    }
+    .empty-card p {
+      margin: 10px auto 0;
+      max-width: 46ch;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .starter-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 22px 0 18px;
+      text-align: left;
+    }
+    .starter {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.025);
+      color: var(--muted);
+      transition: 140ms ease;
+    }
+    .starter:hover {
+      border-color: rgba(216, 154, 74, 0.28);
+      background: rgba(216, 154, 74, 0.07);
+      color: var(--text);
+    }
+    .starter strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 12.5px; }
+    .starter span { font-size: 12px; line-height: 1.4; }
+    .empty-composer { margin-top: 8px; text-align: left; }
+
+    /* Review layout */
+    .diff-stage {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      min-height: 0;
+      background: rgba(9,8,7,0.4);
+    }
+    .diff-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 0 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .diff-toolbar h2 { margin: 0; font-size: 13px; font-weight: 620; }
+    .diff-toolbar .spacer { flex: 1; }
+    .diff-body {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      min-height: 0;
+    }
+    .diff-files {
+      border-right: 1px solid var(--line);
+      padding: 10px;
+      overflow: auto;
+      background: rgba(0,0,0,0.18);
+    }
+    .diff-file {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      min-height: 34px;
+      padding: 6px 8px;
+      border-radius: 9px;
+      border: 0;
+      color: var(--muted);
+      background: transparent;
+      text-align: left;
+      font-size: 12px;
+    }
+    .diff-file.active {
+      color: var(--text);
+      background: rgba(216, 154, 74, 0.12);
+    }
+    .diff-file .stats { margin-left: auto; font-family: var(--mono); font-size: 10px; }
+    .diff-view { overflow: auto; padding: 16px 18px; font-family: var(--mono); font-size: 12px; line-height: 1.55; }
+    .diff-hunk { color: var(--faint); margin: 12px 0 6px; }
+    .diff-add { color: #9fd6bb; background: rgba(121, 196, 163, 0.08); }
+    .diff-del { color: #f0b0a6; background: rgba(224, 122, 106, 0.08); }
+    .diff-ctx { color: #b2aaa0; }
+
+    .review-side {
+      border-left: 1px solid var(--line);
+      background: rgba(15,13,11,0.94);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    /* Focus mode */
+    .focus-stage {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      min-height: 0;
+    }
+    .focus-hint {
+      position: absolute;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 2;
+      padding: 6px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(16,14,12,0.9);
+      font-size: 11.5px;
+      backdrop-filter: blur(10px);
+    }
+
+    /* Notes footer */
+    .notes {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 22px;
+    }
+    .note {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.02);
+    }
+    .note h3 { margin: 0 0 8px; font-size: 13px; font-weight: 620; }
+    .note p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+    .note code {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--copper-hi);
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="gallery">
+    <div class="gallery-brand">
+      <img src="./ui-prototype-v3/assets/brand-mark.jpg" alt="piwin" />
+      <div>
+        <strong>piwin prototype v3</strong>
+        <span>Copper Workbench · layout rewrite</span>
+      </div>
+    </div>
+    <div class="view-tabs" role="tablist">
+      <button class="view-tab active" data-view="workbench" type="button">Workbench</button>
+      <button class="view-tab" data-view="empty" type="button">Empty / New</button>
+      <button class="view-tab" data-view="review" type="button">Review</button>
+      <button class="view-tab" data-view="focus" type="button">Focus</button>
+    </div>
+    <div class="gallery-note">静态原型 · 布局重做 · 按钮重建 · imageGen 资产已嵌入</div>
+  </header>
+
+  <main class="page">
+    <section class="hero-strip" aria-hidden="true">
+      <img src="./ui-prototype-v3/assets/piwin-hero-atmosphere.jpg" alt="" />
+      <div class="hero-strip-fade"></div>
+      <div class="hero-strip-copy">
+        <span>IMAGE_ASSET · hero atmosphere</span>
+        <strong>Copper Workbench</strong>
+      </div>
+    </section>
+
+    <section class="intro">
+      <div>
+        <p class="kicker">Direction · Copper Obsidian</p>
+        <h1>扔掉左侧 icon rail，把工作台做成<br/>「指挥栏 + 导航器 + 舞台 + 信号」</h1>
+        <p>
+          当前桌面仍是 Cursor 克隆：细 rail、会话栏、聊天、右侧 tab 一锅粥，按钮全是幽灵 chip。
+          v3 强制换信息架构：顶部命令条接管全局操作；左侧变成统一导航（Sessions / Files）；
+          中间是干净舞台；右侧只放执行信号。Composer 是主操作台，不再塞一排看不清的小按钮。
+        </p>
+      </div>
+      <div class="principles">
+        <span>No permanent icon rail</span>
+        <span>Button hierarchy: primary / secondary / ghost / icon</span>
+        <span>Copper accent, not generic AI blue</span>
+        <span>Composer = one send action</span>
+        <span>Signal panel only when useful</span>
+        <span>Outfit + IBM Plex Mono</span>
+      </div>
+    </section>
+
+    <section class="asset-row" aria-label="Generated assets">
+      <figure class="asset-card brand">
+        <img src="./ui-prototype-v3/assets/brand-mark.jpg" alt="piwin brand mark" />
+        <figcaption><strong>Brand mark</strong>Flat monogram · UI tile</figcaption>
+      </figure>
+      <figure class="asset-card">
+        <img src="./ui-prototype-v3/assets/piwin-empty-state.jpg" alt="empty state" />
+        <figcaption><strong>Empty state</strong>New session illustration</figcaption>
+      </figure>
+      <figure class="asset-card">
+        <img src="./ui-prototype-v3/assets/piwin-hero-atmosphere.jpg" alt="hero atmosphere" />
+        <figcaption><strong>Hero atmosphere</strong>Stage wallpaper wash</figcaption>
+      </figure>
+    </section>
+
+    <!-- ================= WORKBENCH ================= -->
+    <section class="screen">
+      <div class="view layout-workbench active" id="view-workbench">
+        <header class="topbar">
+          <div class="brand-lockup">
+            <img src="./ui-prototype-v3/assets/brand-mark.jpg" alt="" />
+            <strong>piwin</strong>
+          </div>
+          <div class="crumb">
+            <b>piwin</b>
+            <span class="sep">/</span>
+            <span>apps/desktop</span>
+            <span class="sep">/</span>
+            <span>shell rewrite</span>
+          </div>
+          <div class="top-search">
+            <svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            Search sessions, files, commands
+            <kbd>⌘K</kbd>
+          </div>
+          <div class="top-actions">
+            <span class="status-pill"><i></i> Host ready</span>
+            <button class="btn btn-secondary" type="button">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              New session
+            </button>
+            <button class="btn-icon" type="button" title="Settings">
+              <svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9c.3.6.9 1 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <aside class="navigator">
+          <div class="nav-head">
+            <button class="project-card" type="button">
+              <span class="project-mark">P</span>
+              <span>
+                <strong>piwin</strong>
+                <span>~/Projects/piwin</span>
+              </span>
+              <svg class="icon chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="seg nav-switch" id="nav-switch">
+              <button type="button" class="active" data-nav="sessions">Sessions</button>
+              <button type="button" data-nav="files">Files</button>
+            </div>
+            <button class="btn btn-primary" type="button" style="width:100%">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              New session
+            </button>
+          </div>
+          <div class="nav-body" id="nav-sessions">
+            <div class="nav-section-label">Today</div>
+            <button class="session-item active" type="button">
+              <span class="sym">◈</span>
+              <span class="title">Shell layout rewrite</span>
+              <span class="meta">now</span>
+            </button>
+            <button class="session-item" type="button">
+              <span class="sym">◇</span>
+              <span class="title">Context usage ring polish</span>
+              <span class="meta">1h</span>
+            </button>
+            <button class="session-item" type="button">
+              <span class="sym">◇</span>
+              <span class="title">PTY Tauri dual-path</span>
+              <span class="meta">3h</span>
+            </button>
+            <div class="nav-section-label">Yesterday</div>
+            <button class="session-item" type="button">
+              <span class="sym">◇</span>
+              <span class="title">Provider settings Field migration</span>
+              <span class="meta">yday</span>
+            </button>
+            <button class="session-item" type="button">
+              <span class="sym">◇</span>
+              <span class="title">Permission revoke IPC</span>
+              <span class="meta">yday</span>
+            </button>
+          </div>
+          <div class="nav-body hidden" id="nav-files">
+            <div class="nav-section-label">Workspace</div>
+            <div class="file-row"><span class="indent" style="--d:0"></span>📁 apps</div>
+            <div class="file-row"><span class="indent" style="--d:1"></span>📁 desktop</div>
+            <div class="file-row"><span class="indent" style="--d:2"></span>📄 App.tsx</div>
+            <div class="file-row"><span class="indent" style="--d:2"></span>📄 composer-dock.tsx</div>
+            <div class="file-row"><span class="indent" style="--d:0"></span>📁 packages</div>
+            <div class="file-row"><span class="indent" style="--d:1"></span>📁 ui-kit</div>
+            <div class="file-row"><span class="indent" style="--d:1"></span>📁 agent-host</div>
+            <div class="file-row"><span class="indent" style="--d:0"></span>📁 docs</div>
+          </div>
+          <div class="nav-foot">
+            <span class="status-pill" style="height:24px;padding:0 8px;font-size:10.5px"><i></i> trusted</span>
+            <span class="branch">main</span>
+          </div>
+        </aside>
+
+        <section class="stage">
+          <div class="run-strip">
+            <span class="pulse"></span>
+            <strong>Running</strong>
+            <span>Editing shell layout · step 2 of 4</span>
+            <span class="spacer"></span>
+            <button class="btn btn-ghost" type="button">Outline</button>
+            <button class="btn btn-danger-soft" type="button">Stop</button>
+          </div>
+          <div class="transcript">
+            <div class="thread">
+              <article>
+                <div class="turn-meta">You · 14:02</div>
+                <div class="user-bubble">把 desktop shell 从「rail + 四栏」改成更耐看的工作台布局，按钮体系重做，别再一排 chip 了。</div>
+              </article>
+              <article>
+                <div class="turn-meta">piwin · agent</div>
+                <div class="assistant">
+                  <p>收到。我会先锁定信息架构，再动视觉。目标是：</p>
+                  <ul>
+                    <li>顶部命令栏接管全局动作</li>
+                    <li>左侧统一导航：Sessions / Files</li>
+                    <li>中间舞台专注对话与产物</li>
+                    <li>右侧只显示执行信号与变更</li>
+                  </ul>
+                  <div class="tool-stack">
+                    <div class="tool-card">
+                      <span class="state">✓</span>
+                      <span class="path">read apps/desktop/src/styles/shell.css</span>
+                      <span class="dur">42ms</span>
+                    </div>
+                    <div class="tool-card">
+                      <span class="state">✓</span>
+                      <span class="path">read apps/desktop/src/composer-dock.tsx</span>
+                      <span class="dur">31ms</span>
+                    </div>
+                    <div class="tool-card">
+                      <span class="state">…</span>
+                      <span class="path">edit docs/ui-prototype-v3.html</span>
+                      <span class="dur">running</span>
+                    </div>
+                  </div>
+                  <div class="code-card">
+                    <header>
+                      <span>layout tokens</span>
+                      <b>proposed</b>
+                    </header>
+                    <pre><span class="tok-mute">/* kill permanent icon rail */</span>
+<span class="tok-copper">.app-shell</span> {
+  <span class="tok-sage">display</span>: <span class="tok-text">grid</span>;
+  <span class="tok-sage">grid-template-columns</span>: <span class="tok-text">var(--nav-w) 1fr var(--signal-w)</span>;
+  <span class="tok-sage">grid-template-rows</span>: <span class="tok-text">52px 1fr</span>;
+}</pre>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+          <div class="composer-zone">
+            <div class="composer">
+              <div class="composer-input">Continue with the signal panel microcopy… <em>|</em></div>
+              <div class="composer-bar">
+                <button class="btn-icon" type="button" title="Attach">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                </button>
+                <div class="seg">
+                  <button type="button" class="active">Agent</button>
+                  <button type="button">Plan</button>
+                  <button type="button">Ask</button>
+                </div>
+                <span class="model-select"><i></i> Claude Sonnet · 128k</span>
+                <span class="grow"></span>
+                <div class="ctx-ring" title="Context 62%"><span>62</span></div>
+                <button class="btn-icon" type="button" title="Compact">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                </button>
+                <button class="btn-send" type="button" title="Send">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="signal">
+          <div class="signal-head">
+            <h2>Signal</h2>
+            <div class="seg">
+              <button type="button" class="active">Run</button>
+              <button type="button">Diff</button>
+              <button type="button">Term</button>
+            </div>
+          </div>
+          <div class="signal-body">
+            <div class="signal-block">
+              <div class="signal-label">Plan</div>
+              <div class="progress"><i></i></div>
+              <div class="plan-row done"><span class="check">✓</span><span>Audit current shell chrome</span></div>
+              <div class="plan-row now"><span class="check">2</span><span>Define Copper Workbench layout</span></div>
+              <div class="plan-row"><span class="check">3</span><span>Rebuild button hierarchy</span></div>
+              <div class="plan-row"><span class="check">4</span><span>Ship static prototype</span></div>
+            </div>
+            <div class="signal-block">
+              <div class="signal-label">Changes</div>
+              <div class="change-row"><span>docs/ui-prototype-v3.html</span><span class="add">+842</span><span class="del">−0</span></div>
+              <div class="change-row"><span>assets/brand-mark.jpg</span><span class="add">+24</span><span class="del">−0</span></div>
+              <div class="change-row"><span>assets/piwin-empty-state.jpg</span><span class="add">+48</span><span class="del">−0</span></div>
+            </div>
+            <div class="signal-block">
+              <div class="signal-label">Events</div>
+              <div class="event"><span class="dot"></span><span>tool.edit started</span><time>14:03:12</time></div>
+              <div class="event"><span class="dot"></span><span>context 62% · 79.4k / 128k</span><time>14:03:08</time></div>
+              <div class="event"><span class="dot"></span><span>session resumed</span><time>14:02:51</time></div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- ================= EMPTY ================= -->
+      <div class="view layout-empty" id="view-empty">
+        <header class="topbar">
+          <div class="brand-lockup">
+            <img src="./ui-prototype-v3/assets/brand-mark.jpg" alt="" />
+            <strong>piwin</strong>
+          </div>
+          <div class="crumb"><b>piwin</b><span class="sep">/</span><span>new session</span></div>
+          <div class="top-search">Search or jump… <kbd>⌘K</kbd></div>
+          <div class="top-actions">
+            <span class="status-pill"><i></i> Host ready</span>
+            <button class="btn btn-primary" type="button">New session</button>
+          </div>
+        </header>
+        <aside class="navigator">
+          <div class="nav-head">
+            <button class="project-card" type="button">
+              <span class="project-mark">P</span>
+              <span><strong>piwin</strong><span>~/Projects/piwin</span></span>
+              <svg class="icon chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <div class="seg nav-switch">
+              <button type="button" class="active">Sessions</button>
+              <button type="button">Files</button>
+            </div>
+            <button class="btn btn-primary" type="button" style="width:100%">New session</button>
+          </div>
+          <div class="nav-body">
+            <div class="nav-section-label">Recent</div>
+            <button class="session-item" type="button"><span class="sym">◇</span><span class="title">Context usage ring polish</span><span class="meta">1h</span></button>
+            <button class="session-item" type="button"><span class="sym">◇</span><span class="title">PTY Tauri dual-path</span><span class="meta">3h</span></button>
+          </div>
+          <div class="nav-foot"><span>trusted · main</span></div>
+        </aside>
+        <section class="empty-stage">
+          <div class="empty-card">
+            <div class="empty-art">
+              <img src="./ui-prototype-v3/assets/piwin-empty-state.jpg" alt="Empty session illustration" />
+            </div>
+            <h2>Start a private run</h2>
+            <p>Composer 是主入口。不要把「打开项目 / 选模型 / 一堆工具」平铺成垃圾按钮墙。</p>
+            <div class="starter-grid">
+              <button class="starter" type="button">
+                <strong>Review open changes</strong>
+                <span>看 git diff，按文件讲风险与建议提交粒度</span>
+              </button>
+              <button class="starter" type="button">
+                <strong>Explain this package</strong>
+                <span>从 contracts → agent-host 梳理依赖边界</span>
+              </button>
+              <button class="starter" type="button">
+                <strong>Fix failing tests</strong>
+                <span>定位失败用例并给最小 diff</span>
+              </button>
+              <button class="starter" type="button">
+                <strong>Design a shell layout</strong>
+                <span>输出可落地的 IA + 组件按钮规范</span>
+              </button>
+            </div>
+            <div class="composer empty-composer">
+              <div class="composer-input">Describe the task… <em>|</em></div>
+              <div class="composer-bar">
+                <div class="seg">
+                  <button type="button" class="active">Agent</button>
+                  <button type="button">Plan</button>
+                  <button type="button">Ask</button>
+                </div>
+                <span class="model-select"><i></i> Claude Sonnet</span>
+                <span class="grow"></span>
+                <button class="btn-send" type="button" title="Send">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================= REVIEW ================= -->
+      <div class="view layout-review" id="view-review">
+        <header class="topbar">
+          <div class="brand-lockup">
+            <img src="./ui-prototype-v3/assets/brand-mark.jpg" alt="" />
+            <strong>piwin</strong>
+          </div>
+          <div class="crumb"><b>Review</b><span class="sep">/</span><span>3 files changed</span></div>
+          <div class="top-actions">
+            <div class="seg">
+              <button type="button">Unified</button>
+              <button type="button" class="active">Split</button>
+            </div>
+            <button class="btn btn-secondary" type="button">Stage all</button>
+            <button class="btn btn-primary" type="button">Commit…</button>
+          </div>
+        </header>
+        <aside class="navigator" style="--nav-w: 240px">
+          <div class="nav-head">
+            <div class="nav-section-label" style="margin:0">Sessions</div>
+            <button class="session-item active" type="button"><span class="sym">◈</span><span class="title">Shell layout rewrite</span><span class="meta">now</span></button>
+            <button class="session-item" type="button"><span class="sym">◇</span><span class="title">Context ring polish</span><span class="meta">1h</span></button>
+          </div>
+          <div class="nav-body">
+            <div class="nav-section-label">Why this layout</div>
+            <p style="margin:0 6px;color:var(--muted);font-size:12px;line-height:1.5">
+              Review 不是第四个 tab 塞右边，而是独立工作模式：文件列表 + diff 主舞台 + 旁注。
+            </p>
+          </div>
+        </aside>
+        <section class="diff-stage">
+          <div class="diff-toolbar">
+            <h2>docs/ui-prototype-v3.html</h2>
+            <span class="spacer"></span>
+            <button class="btn btn-ghost" type="button">Copy path</button>
+            <button class="btn btn-secondary" type="button">Stage file</button>
+          </div>
+          <div class="diff-body">
+            <div class="diff-files">
+              <button class="diff-file active" type="button">ui-prototype-v3.html <span class="stats"><span style="color:var(--ok)">+842</span></span></button>
+              <button class="diff-file" type="button">brand-mark.jpg <span class="stats"><span style="color:var(--ok)">+24</span></span></button>
+              <button class="diff-file" type="button">empty-state.jpg <span class="stats"><span style="color:var(--ok)">+48</span></span></button>
+            </div>
+            <div class="diff-view">
+              <div class="diff-hunk">@@ layout workbench @@</div>
+              <div class="diff-del">- grid-template-columns: rail sidebar main inspector;</div>
+              <div class="diff-add">+ grid-template-columns: navigator stage signal;</div>
+              <div class="diff-add">+ grid-template-rows: topbar 1fr;</div>
+              <div class="diff-ctx">  /* button hierarchy */</div>
+              <div class="diff-del">- .btn { border-radius: 999px; opacity: .7; }</div>
+              <div class="diff-add">+ .btn-primary { solid copper, single source of truth }</div>
+              <div class="diff-add">+ .btn-secondary { quiet outline }</div>
+              <div class="diff-add">+ .btn-ghost / .btn-icon { no border clutter }</div>
+            </div>
+          </div>
+        </section>
+        <aside class="review-side">
+          <div class="signal-head">
+            <h2>Review notes</h2>
+          </div>
+          <div class="signal-body">
+            <div class="signal-block">
+              <div class="signal-label">Summary</div>
+              <p style="margin:0;color:var(--muted);font-size:12.5px;line-height:1.5">
+                布局从四栏常驻改为模式化舞台。按钮从 chip 汤变成 4 级体系。Review 获得独立主视觉。
+              </p>
+            </div>
+            <div class="signal-block">
+              <div class="signal-label">Suggested commit</div>
+              <div class="user-bubble" style="font-size:12.5px">
+                docs: add Copper Workbench UI prototype v3
+              </div>
+            </div>
+            <div class="signal-block">
+              <button class="btn btn-primary" type="button" style="width:100%">Ask agent about this diff</button>
+              <button class="btn btn-secondary" type="button" style="width:100%;margin-top:8px">Copy summary</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- ================= FOCUS ================= -->
+      <div class="view layout-focus" id="view-focus">
+        <header class="topbar">
+          <div class="brand-lockup">
+            <img src="./ui-prototype-v3/assets/brand-mark.jpg" alt="" />
+            <strong>piwin</strong>
+          </div>
+          <div class="crumb"><b>Focus mode</b><span class="sep">/</span><span>shell rewrite</span></div>
+          <div class="top-actions">
+            <button class="btn btn-ghost" type="button">Exit focus</button>
+            <button class="btn btn-secondary" type="button">Show navigator</button>
+          </div>
+        </header>
+        <section class="focus-stage">
+          <div class="focus-hint">Esc 退出 · ⌘B 导航 · ⌘J 信号面板</div>
+          <div class="transcript" style="padding-top:56px">
+            <div class="thread">
+              <article>
+                <div class="turn-meta">Focus · less chrome, more signal-to-noise</div>
+                <div class="assistant">
+                  <p>Focus 模式不是又加一排按钮，而是<strong>减法</strong>：砍掉导航与信号，只留对话与 composer。</p>
+                  <p>需要时用快捷键召回面板，而不是永远把屏幕切成四条咸菜。</p>
+                </div>
+              </article>
+            </div>
+          </div>
+          <div class="composer-zone">
+            <div class="composer">
+              <div class="composer-input">Keep going…</div>
+              <div class="composer-bar">
+                <div class="seg">
+                  <button type="button" class="active">Agent</button>
+                  <button type="button">Plan</button>
+                </div>
+                <span class="grow"></span>
+                <button class="btn-send" type="button">
+                  <svg class="icon" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <section class="notes">
+      <article class="note">
+        <h3>1. 布局必须变</h3>
+        <p>旧：<code>rail | sessions | chat | right tabs</code>。新：<code>topbar + navigator + stage + signal</code>。Icon rail 删除；Files 与 Sessions 用分段控件共面，不再左右各开一个永久栏。</p>
+      </article>
+      <article class="note">
+        <h3>2. 按钮终于像按钮</h3>
+        <p><code>primary</code> 铜金实心、<code>secondary</code> 描边、<code>ghost</code> 文本、<code>icon</code> 34×34 统一命中区。Send 单独成 <code>btn-send</code>，禁止再混在 chip 海里。</p>
+      </article>
+      <article class="note">
+        <h3>3. 视觉方向 + 生成图</h3>
+        <p>Copper Obsidian：暖墨底 + 铜强调 + sage 次强调。字体 Outfit / IBM Plex Mono。已嵌入 imageGen 资产：品牌标、空状态插画、舞台氛围底图（<code>docs/ui-prototype-v3/assets/*.jpg</code>）。</p>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    const tabs = document.querySelectorAll(".view-tab");
+    const views = {
+      workbench: document.getElementById("view-workbench"),
+      empty: document.getElementById("view-empty"),
+      review: document.getElementById("view-review"),
+      focus: document.getElementById("view-focus"),
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const key = tab.dataset.view;
+        tabs.forEach((item) => item.classList.toggle("active", item === tab));
+        Object.entries(views).forEach(([name, node]) => {
+          node.classList.toggle("active", name === key);
+        });
+      });
+    });
+
+    const navSwitch = document.getElementById("nav-switch");
+    const navSessions = document.getElementById("nav-sessions");
+    const navFiles = document.getElementById("nav-files");
+    if (navSwitch && navSessions && navFiles) {
+      navSwitch.querySelectorAll("button").forEach((button) => {
+        button.addEventListener("click", () => {
+          navSwitch.querySelectorAll("button").forEach((item) => item.classList.remove("active"));
+          button.classList.add("active");
+          const isFiles = button.dataset.nav === "files";
+          navSessions.classList.toggle("hidden", isFiles);
+          navFiles.classList.toggle("hidden", !isFiles);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

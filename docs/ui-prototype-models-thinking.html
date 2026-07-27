@@ -1,0 +1,1958 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>piwin — Models + Thinking Effort Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #090807;
+      --ink-2: #100e0c;
+      --panel: #151311;
+      --panel-2: #1b1916;
+      --panel-3: #221f1b;
+      --line: rgba(255, 236, 210, 0.09);
+      --line-strong: rgba(255, 236, 210, 0.16);
+      --text: #f4efe7;
+      --muted: #a89f93;
+      --faint: #6f675d;
+      --copper: #d89a4a;
+      --copper-hi: #f0c27a;
+      --copper-deep: #b07a36;
+      --sage: #8fbfb0;
+      --danger: #e07a6a;
+      --ok: #79c4a3;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+      --radius: 14px;
+      --radius-sm: 10px;
+      --font: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--ink); }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(1100px 480px at 10% -8%, rgba(216, 154, 74, 0.13), transparent 55%),
+        radial-gradient(900px 420px at 90% 105%, rgba(143, 191, 176, 0.09), transparent 50%),
+        var(--ink);
+      font: 13.5px/1.45 var(--font);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); border: 0;
+    }
+
+    /* ========== Gallery chrome ========== */
+    .gallery {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      min-height: 64px; padding: 10px 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(9, 8, 7, 0.9);
+      backdrop-filter: blur(18px);
+    }
+    .gallery-brand { display: flex; flex-direction: column; gap: 2px; min-width: 180px; }
+    .gallery-brand strong { font-size: 14px; letter-spacing: -0.02em; }
+    .gallery-brand span { color: var(--faint); font-size: 11px; }
+    .view-tabs {
+      display: flex; gap: 4px; padding: 4px;
+      border: 1px solid var(--line); border-radius: 12px;
+      background: rgba(255,255,255,0.02); flex-wrap: wrap;
+    }
+    .view-tab {
+      border: 0; border-radius: 9px; padding: 8px 12px;
+      color: var(--muted); background: transparent;
+      font-size: 12.5px; font-weight: 500; transition: 140ms ease;
+    }
+    .view-tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .view-tab.active {
+      color: #1a140e;
+      background: linear-gradient(180deg, var(--copper-hi), var(--copper));
+      box-shadow: 0 6px 18px rgba(216, 154, 74, 0.28);
+    }
+    .gallery-controls {
+      margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    }
+    .toggle-row {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px;
+      background: rgba(255,255,255,0.02); color: var(--muted); font-size: 12px;
+    }
+    .toggle {
+      position: relative; width: 36px; height: 20px; border-radius: 999px;
+      border: 1px solid var(--line-strong); background: var(--panel-3);
+      padding: 0; flex-shrink: 0;
+    }
+    .toggle::after {
+      content: ""; position: absolute; top: 2px; left: 2px;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--muted); transition: 160ms ease;
+    }
+    .toggle.on {
+      background: color-mix(in srgb, var(--copper) 35%, var(--panel-3));
+      border-color: color-mix(in srgb, var(--copper) 55%, transparent);
+    }
+    .toggle.on::after {
+      left: 18px; background: linear-gradient(180deg, var(--copper-hi), var(--copper));
+    }
+    .proto-badge {
+      font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--copper-hi);
+      padding: 4px 8px; border-radius: 6px;
+      border: 1px solid color-mix(in srgb, var(--copper) 35%, transparent);
+      background: color-mix(in srgb, var(--copper) 12%, transparent);
+    }
+
+    .page { max-width: 1440px; margin: 0 auto; padding: 22px 24px 72px; }
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .section-head {
+      display: flex; align-items: flex-end; justify-content: space-between;
+      gap: 16px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .section-head h1 {
+      margin: 0; font-size: 22px; letter-spacing: -0.03em; font-weight: 650;
+    }
+    .section-head p {
+      margin: 4px 0 0; color: var(--muted); font-size: 13px; max-width: 640px;
+    }
+    .callouts {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px; margin-bottom: 18px;
+    }
+    @media (max-width: 980px) {
+      .callouts { grid-template-columns: 1fr; }
+    }
+    .callout {
+      padding: 12px 14px; border-radius: 12px;
+      border: 1px solid var(--line); background: rgba(255,255,255,0.02);
+    }
+    .callout strong {
+      display: block; font-size: 12px; margin-bottom: 4px; color: var(--copper-hi);
+    }
+    .callout span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+    /* ========== Frame shells ========== */
+    .device-frame {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      background: var(--ink-2);
+      box-shadow: var(--shadow);
+    }
+    .frame-chrome {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0,0,0,0.25);
+    }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #3a342c; }
+    .dot.r { background: #6b4a3a; }
+    .dot.y { background: #7a6238; }
+    .dot.g { background: #3f5c4a; }
+    .frame-title { margin-left: 6px; color: var(--faint); font-size: 12px; }
+    .frame-body { min-height: 560px; }
+
+    /* ========== Settings Models layout ========== */
+    .settings-shell {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      min-height: 620px;
+    }
+    .settings-nav {
+      border-right: 1px solid var(--line);
+      background: #0e0c0a;
+      padding: 14px 10px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .settings-back {
+      border: 0; background: transparent; color: var(--muted);
+      text-align: left; padding: 8px 10px; border-radius: 8px; margin-bottom: 8px;
+    }
+    .settings-back:hover { color: var(--text); background: rgba(255,236,210,0.05); }
+    .settings-nav-item {
+      border: 0; background: transparent; color: var(--muted);
+      text-align: left; padding: 9px 10px; border-radius: 8px; font-size: 13px;
+    }
+    .settings-nav-item:hover { color: var(--text); background: rgba(255,236,210,0.05); }
+    .settings-nav-item.active {
+      color: var(--text);
+      background: color-mix(in srgb, var(--copper) 14%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--copper) 28%, transparent);
+    }
+    .settings-main {
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      min-height: 620px;
+    }
+    .provider-side {
+      border-right: 1px solid var(--line);
+      background: #120f0d;
+      padding: 14px 12px;
+      display: flex; flex-direction: column; gap: 14px;
+      overflow: auto;
+    }
+    .side-label {
+      font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--faint); font-weight: 600; margin-bottom: 8px;
+    }
+    .search-box {
+      width: 100%; border: 1px solid var(--line); border-radius: 9px;
+      background: rgba(0,0,0,0.22); padding: 8px 10px; outline: none;
+    }
+    .search-box:focus { border-color: color-mix(in srgb, var(--copper) 45%, transparent); }
+    .provider-item {
+      width: 100%; display: grid; grid-template-columns: 36px 1fr auto; gap: 10px;
+      align-items: center; text-align: left;
+      border: 1px solid transparent; border-radius: 12px;
+      background: transparent; padding: 10px; margin-bottom: 4px;
+    }
+    .provider-item:hover { background: rgba(255,236,210,0.04); }
+    .provider-item.active {
+      background: color-mix(in srgb, var(--copper) 10%, transparent);
+      border-color: color-mix(in srgb, var(--copper) 30%, transparent);
+    }
+    .provider-badge {
+      width: 36px; height: 36px; border-radius: 10px;
+      display: grid; place-items: center;
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      background: var(--panel-3); color: var(--copper-hi);
+      border: 1px solid var(--line);
+    }
+    .provider-item .name { display: block; font-weight: 600; font-size: 13px; }
+    .provider-item .meta { display: block; color: var(--faint); font-size: 11px; margin-top: 1px; }
+    .pill {
+      font-size: 10px; padding: 2px 7px; border-radius: 999px;
+      background: color-mix(in srgb, var(--sage) 18%, transparent);
+      color: var(--sage); border: 1px solid color-mix(in srgb, var(--sage) 30%, transparent);
+    }
+    .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .preset-chip {
+      display: flex; align-items: center; gap: 8px;
+      border: 1px solid var(--line); border-radius: 10px;
+      background: rgba(255,255,255,0.02); padding: 8px;
+      color: var(--muted); font-size: 12px;
+    }
+    .preset-chip:hover { color: var(--text); border-color: var(--line-strong); }
+    .preset-chip .mini {
+      width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center;
+      font-family: var(--mono); font-size: 9px; background: var(--panel-3); color: var(--copper-hi);
+    }
+
+    .provider-detail {
+      padding: 18px 20px 24px;
+      overflow: auto;
+      background:
+        radial-gradient(700px 240px at 100% 0%, rgba(216,154,74,0.07), transparent 55%),
+        var(--ink-2);
+    }
+    .detail-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .detail-header h2 {
+      margin: 0; font-size: 18px; letter-spacing: -0.02em; font-weight: 650;
+    }
+    .detail-header p { margin: 4px 0 0; color: var(--muted); font-size: 12.5px; }
+    .header-actions { display: flex; gap: 8px; }
+    .btn {
+      border: 1px solid var(--line); border-radius: 10px;
+      background: rgba(255,255,255,0.03); color: var(--text);
+      padding: 8px 12px; font-size: 12.5px; font-weight: 500;
+    }
+    .btn:hover { background: rgba(255,255,255,0.06); }
+    .btn.primary {
+      border: 0; color: #1a140e; font-weight: 650;
+      background: linear-gradient(180deg, var(--copper-hi), var(--copper));
+      box-shadow: 0 8px 22px rgba(216,154,74,0.25);
+    }
+    .btn.danger { color: #f0b4aa; border-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+    .btn.ghost { background: transparent; }
+
+    .card-section {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: color-mix(in srgb, var(--panel) 88%, transparent);
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .card-section-head {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-bottom: 12px;
+    }
+    .card-section-head h3 {
+      margin: 0; font-size: 12px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--faint); font-weight: 650;
+    }
+    .card-section-head .hint { color: var(--faint); font-size: 11.5px; }
+
+    .field-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field.full { grid-column: 1 / -1; }
+    .field label {
+      font-size: 11.5px; color: var(--muted); font-weight: 500;
+    }
+    .field input, .field select {
+      border: 1px solid var(--line); border-radius: 9px;
+      background: rgba(0,0,0,0.22); padding: 8px 10px; outline: none;
+    }
+    .field input:focus, .field select:focus {
+      border-color: color-mix(in srgb, var(--copper) 45%, transparent);
+    }
+    .field .desc { color: var(--faint); font-size: 11px; }
+    .seg {
+      display: inline-flex; padding: 3px; gap: 2px;
+      border: 1px solid var(--line); border-radius: 10px; background: rgba(0,0,0,0.2);
+    }
+    .seg button {
+      border: 0; border-radius: 8px; padding: 7px 12px;
+      background: transparent; color: var(--muted); font-size: 12px;
+    }
+    .seg button.active {
+      color: var(--text);
+      background: color-mix(in srgb, var(--copper) 18%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--copper) 30%, transparent);
+    }
+
+    .model-cards { display: flex; flex-direction: column; gap: 8px; }
+    .model-card {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.16);
+    }
+    .model-card.default {
+      border-color: color-mix(in srgb, var(--copper) 40%, transparent);
+      background: color-mix(in srgb, var(--copper) 8%, rgba(0,0,0,0.16));
+    }
+    .model-id {
+      font-family: var(--mono); font-size: 12.5px; font-weight: 500;
+    }
+    .model-sub {
+      color: var(--faint); font-size: 11.5px; margin-top: 2px;
+    }
+    .model-actions { display: flex; gap: 6px; align-items: center; }
+    .chip {
+      font-size: 10.5px; padding: 3px 8px; border-radius: 999px;
+      border: 1px solid var(--line); color: var(--muted); background: transparent;
+    }
+    .chip.ok {
+      color: var(--ok);
+      border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+      background: color-mix(in srgb, var(--ok) 10%, transparent);
+    }
+    .icon-btn {
+      width: 28px; height: 28px; border-radius: 8px;
+      border: 1px solid var(--line); background: transparent; color: var(--muted);
+      display: grid; place-items: center;
+    }
+    .icon-btn:hover { color: var(--text); background: rgba(255,236,210,0.05); }
+
+    .ultra-panel {
+      display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: start;
+    }
+    .ultra-panel h4 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+    .ultra-panel p { margin: 0; color: var(--muted); font-size: 12.5px; max-width: 520px; }
+    .matrix {
+      margin-top: 12px; width: 100%; border-collapse: collapse; font-size: 12px;
+    }
+    .matrix th, .matrix td {
+      text-align: left; padding: 8px 10px; border-top: 1px solid var(--line);
+    }
+    .matrix th { color: var(--faint); font-weight: 500; font-size: 11px; }
+    .matrix code {
+      font-family: var(--mono); font-size: 11.5px;
+      color: var(--copper-hi);
+    }
+    .warn-note {
+      margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid color-mix(in srgb, var(--copper) 28%, transparent);
+      background: color-mix(in srgb, var(--copper) 8%, transparent);
+      color: var(--muted); font-size: 12px;
+    }
+    .warn-note strong { color: var(--copper-hi); }
+
+    /* ========== Workspace / composer mock ========== */
+    .workspace {
+      display: grid;
+      grid-template-rows: 52px 1fr auto;
+      min-height: 640px;
+      background: var(--ink);
+    }
+    .topbar {
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 14px; border-bottom: 1px solid var(--line);
+      background: rgba(16,14,12,0.92);
+    }
+    .brand-mark {
+      width: 26px; height: 26px; border-radius: 8px;
+      background:
+        radial-gradient(circle at 30% 30%, var(--copper-hi), var(--copper-deep));
+      box-shadow: 0 0 0 1px rgba(216,154,74,0.28);
+    }
+    .topbar .title { font-weight: 600; letter-spacing: -0.02em; }
+    .topbar .spacer { flex: 1; }
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      border: 1px solid var(--line); color: var(--muted); font-size: 11.5px;
+    }
+    .status-pill i {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent);
+    }
+    .model-pill {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 10px 5px 8px; border-radius: 999px;
+      border: 1px solid var(--line); background: rgba(255,255,255,0.02);
+      color: var(--text); font-size: 12px;
+    }
+    .model-pill .mdot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: linear-gradient(180deg, var(--copper-hi), var(--copper));
+    }
+
+    .stage {
+      display: grid;
+      place-items: center;
+      padding: 28px 20px 12px;
+      background:
+        radial-gradient(800px 320px at 50% 0%, rgba(216,154,74,0.07), transparent 60%);
+    }
+    .empty-card {
+      width: min(560px, 100%);
+      text-align: center;
+      padding: 28px 20px;
+      border: 1px dashed color-mix(in srgb, var(--line-strong) 80%, transparent);
+      border-radius: 16px;
+      background: rgba(255,255,255,0.015);
+    }
+    .empty-card h3 { margin: 0 0 6px; font-size: 16px; letter-spacing: -0.02em; }
+    .empty-card p { margin: 0; color: var(--muted); font-size: 13px; }
+
+    .composer-dock {
+      padding: 10px 16px 16px;
+      border-top: 1px solid var(--line);
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,0.22));
+    }
+    .composer {
+      max-width: 820px; margin: 0 auto;
+      border: 1px solid var(--line-strong);
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--panel) 92%, #000);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.35);
+      overflow: hidden;
+    }
+    .composer-input {
+      min-height: 78px; padding: 14px 16px 8px;
+      color: var(--faint); font-size: 14px;
+    }
+    .composer-toolbar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      padding: 8px 10px 10px;
+      border-top: 1px solid var(--line);
+    }
+    .compose-icon {
+      width: 30px; height: 30px; border-radius: 9px;
+      border: 1px solid var(--line); background: transparent; color: var(--muted);
+      display: grid; place-items: center; font-size: 16px;
+    }
+    .mode-chip {
+      height: 28px; padding: 0 11px; border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--copper) 30%, transparent);
+      background: color-mix(in srgb, var(--copper) 12%, transparent);
+      color: var(--copper-hi); font-size: 11.5px; font-weight: 650;
+    }
+    .toolbar-spacer { flex: 1; }
+    .send-btn {
+      height: 32px; padding: 0 14px; border: 0; border-radius: 10px;
+      color: #1a140e; font-weight: 700; font-size: 12.5px;
+      background: linear-gradient(180deg, var(--copper-hi), var(--copper));
+      box-shadow: 0 8px 18px rgba(216,154,74,0.28);
+    }
+
+    /* ========== Thinking Effort Slider ========== */
+    .effort-wrap {
+      display: flex; align-items: center; gap: 10px;
+      min-width: 0;
+      padding: 4px 8px 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.18);
+      transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+    }
+    .effort-wrap.ultra-active {
+      border-color: color-mix(in srgb, #c084fc 40%, var(--copper));
+      background: rgba(0,0,0,0.28);
+      box-shadow:
+        0 0 0 1px color-mix(in srgb, #c084fc 18%, transparent),
+        0 0 24px color-mix(in srgb, #f0c27a 12%, transparent);
+    }
+    .effort-label {
+      font-size: 11px; font-weight: 650; letter-spacing: -0.01em;
+      color: var(--muted); white-space: nowrap; min-width: 72px;
+    }
+    .effort-wrap.ultra-active .effort-label {
+      color: #f5e6ff;
+      text-shadow: 0 0 12px rgba(192,132,252,0.45);
+    }
+    .effort-label .value {
+      color: var(--copper-hi);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .effort-wrap.ultra-active .effort-label .value {
+      background: linear-gradient(90deg, #f0c27a, #f9a8d4, #c4b5fd, #7dd3fc, #f0c27a);
+      background-size: 200% 100%;
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      animation: shimmer-text 2.4s linear infinite;
+    }
+
+    .effort-slider {
+      position: relative;
+      width: 168px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      touch-action: none;
+      user-select: none;
+    }
+    .effort-track {
+      position: absolute;
+      left: 0; right: 0; top: 50%;
+      height: 6px;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background: rgba(255,236,210,0.08);
+      overflow: hidden;
+    }
+    .effort-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--copper-deep), var(--copper), var(--copper-hi));
+      box-shadow: 0 0 12px color-mix(in srgb, var(--copper) 35%, transparent);
+      transition: width 80ms linear;
+    }
+    .effort-fill.glow {
+      background: linear-gradient(
+        90deg,
+        #b07a36,
+        #f0c27a,
+        #f9a8d4,
+        #c4b5fd,
+        #7dd3fc,
+        #86efac,
+        #f0c27a
+      );
+      background-size: 280% 100%;
+      animation: flow-bar 2.2s linear infinite;
+      box-shadow:
+        0 0 10px rgba(249, 168, 212, 0.35),
+        0 0 18px rgba(125, 211, 252, 0.25);
+    }
+    .effort-stops {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2px; pointer-events: none;
+    }
+    .effort-stop {
+      width: 4px; height: 4px; border-radius: 50%;
+      background: rgba(255,236,210,0.22);
+    }
+    .effort-stop.reached {
+      background: color-mix(in srgb, var(--copper-hi) 80%, white);
+    }
+    .effort-wrap.ultra-active .effort-stop.reached {
+      background: #fff;
+      box-shadow: 0 0 6px rgba(255,255,255,0.55);
+    }
+    .effort-thumb {
+      position: absolute;
+      top: 50%;
+      width: 16px; height: 16px;
+      margin-left: -8px;
+      transform: translateY(-50%);
+      border-radius: 50%;
+      border: 2px solid #1a140e;
+      background: linear-gradient(180deg, var(--copper-hi), var(--copper));
+      box-shadow: 0 2px 8px rgba(0,0,0,0.45), 0 0 0 1px rgba(216,154,74,0.35);
+      transition: left 80ms linear, box-shadow 160ms ease;
+      z-index: 2;
+    }
+    .effort-thumb.glow {
+      border-color: rgba(255,255,255,0.55);
+      background:
+        radial-gradient(circle at 35% 30%, #fff 0 18%, transparent 40%),
+        conic-gradient(from 0deg, #f0c27a, #f9a8d4, #c4b5fd, #7dd3fc, #86efac, #f0c27a);
+      animation: spin-glow 3.5s linear infinite;
+      box-shadow:
+        0 0 0 2px rgba(255,255,255,0.12),
+        0 0 14px rgba(249,168,212,0.55),
+        0 0 28px rgba(125,211,252,0.35);
+    }
+
+    @keyframes flow-bar {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+    @keyframes shimmer-text {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 200% 50%; }
+    }
+    @keyframes spin-glow {
+      to { filter: hue-rotate(360deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .effort-fill.glow,
+      .effort-label .value,
+      .effort-thumb.glow { animation: none; }
+      .effort-fill.glow {
+        background: linear-gradient(90deg, #f0c27a, #f9a8d4, #c4b5fd, #7dd3fc);
+      }
+    }
+
+    /* ========== Comparison strip ========== */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 16px;
+    }
+    @media (max-width: 900px) {
+      .settings-shell, .settings-main { grid-template-columns: 1fr; }
+      .compare-grid { grid-template-columns: 1fr; }
+    }
+    .compare-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.02);
+      padding: 14px;
+    }
+    .compare-card h4 {
+      margin: 0 0 4px; font-size: 13px; font-weight: 650;
+    }
+    .compare-card p {
+      margin: 0 0 12px; color: var(--muted); font-size: 12px;
+    }
+    .stop-legend {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;
+    }
+    .stop-legend span {
+      font-family: var(--mono); font-size: 10.5px;
+      padding: 3px 7px; border-radius: 999px;
+      border: 1px solid var(--line); color: var(--muted);
+    }
+    .stop-legend span.top {
+      color: var(--copper-hi);
+      border-color: color-mix(in srgb, var(--copper) 40%, transparent);
+    }
+    .stop-legend span.ultra {
+      color: #f5e6ff;
+      border-color: color-mix(in srgb, #c084fc 45%, transparent);
+      background: linear-gradient(90deg,
+        color-mix(in srgb, #f0c27a 20%, transparent),
+        color-mix(in srgb, #c4b5fd 20%, transparent));
+    }
+
+    .footer-note {
+      margin-top: 18px; color: var(--faint); font-size: 12px;
+    }
+    .footer-note code {
+      font-family: var(--mono); color: var(--muted);
+    }
+
+    /* ========== Compact Composer Thinking Control ==========
+       The trigger stays quiet in the composer. Effort only appears in a
+       lightweight popover, matching the interaction density of the reference. */
+    .thinking-control {
+      position: relative;
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+    .thinking-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 34px;
+      padding: 0 13px 0 15px;
+      border: 0;
+      border-radius: 999px;
+      background: #393836;
+      color: #f4f2ed;
+      font-size: 12.5px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+    .thinking-trigger:hover { background: #454442; }
+    .thinking-trigger:focus-visible,
+    .effort-slider:focus-visible {
+      outline: 2px solid #76b7ff;
+      outline-offset: 3px;
+    }
+    .thinking-trigger-model { color: #f4f2ed; }
+    .thinking-trigger-value { color: #aaa7a2; }
+    .thinking-trigger-value.is-ultra {
+      color: #baa5ff;
+      text-shadow: 0 0 12px rgba(157, 112, 255, 0.35);
+    }
+    .trigger-chevron {
+      width: 8px;
+      height: 8px;
+      margin-left: 3px;
+      border-right: 1.5px solid #aaa7a2;
+      border-bottom: 1.5px solid #aaa7a2;
+      transform: translateY(-2px) rotate(45deg);
+    }
+    .thinking-popover {
+      position: absolute;
+      z-index: 4;
+      left: 0;
+      bottom: calc(100% + 12px);
+      width: 372px;
+      padding: 18px 18px 20px;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 19px;
+      background: linear-gradient(145deg, rgba(48, 48, 48, 0.98), rgba(38, 38, 38, 0.98));
+      box-shadow: 0 22px 50px rgba(0, 0, 0, 0.48);
+      transform-origin: 18% 100%;
+      transition: opacity 140ms ease, transform 140ms ease;
+    }
+    .thinking-popover[hidden] {
+      display: block;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(6px) scale(0.98);
+    }
+    .thinking-popover-head {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin: 0 0 13px 2px;
+      color: #aaa7a2;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .thinking-popover-head::after {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-top: 1.5px solid currentColor;
+      border-right: 1.5px solid currentColor;
+      transform: rotate(45deg);
+    }
+    .thinking-control .effort-slider {
+      position: relative;
+      width: 100%;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      touch-action: none;
+      user-select: none;
+      cursor: pointer;
+    }
+    .thinking-control .effort-track {
+      position: absolute;
+      inset: 0;
+      height: auto;
+      transform: none;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      background: #525252;
+      overflow: hidden;
+    }
+    .thinking-control .effort-fill {
+      width: 0;
+      height: 100%;
+      border-radius: 999px;
+      background: #3b9cf3;
+      box-shadow: none;
+      transition: width 100ms ease;
+    }
+    .thinking-control .effort-fill.glow {
+      background-color: #635bff;
+      background-image:
+        radial-gradient(circle at 13% 56%, rgba(255,255,255,0.9) 0 1px, transparent 2px),
+        radial-gradient(circle at 21% 30%, rgba(255,255,255,0.75) 0 1px, transparent 2px),
+        radial-gradient(circle at 35% 65%, rgba(255,255,255,0.85) 0 1.5px, transparent 2.5px),
+        radial-gradient(circle at 47% 36%, rgba(255,255,255,0.82) 0 1px, transparent 2px),
+        linear-gradient(100deg, #2f84eb, #6f66f7 52%, #ab76ed);
+      background-size: 150px 56px, 190px 56px, 230px 56px, 260px 56px, 190% 100%;
+      background-position: 0 0, 18px 0, 0 0, 40px 0, 0 0;
+      animation: ultra-flow 2.2s linear infinite;
+      box-shadow: 0 0 18px rgba(113, 102, 247, 0.26);
+    }
+    .thinking-control .effort-stops {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 25px;
+      pointer-events: none;
+    }
+    .thinking-control .effort-stop {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.35);
+    }
+    .thinking-control .effort-stop.reached { background: rgba(255, 255, 255, 0.45); }
+    .thinking-control .effort-thumb {
+      position: absolute;
+      top: 50%;
+      width: 56px;
+      height: 56px;
+      margin-left: -28px;
+      transform: translateY(-50%);
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      border-radius: 50%;
+      background: #fbfbfb;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+      transition: left 100ms ease, box-shadow 160ms ease;
+      z-index: 2;
+    }
+    .thinking-control .effort-thumb.glow {
+      border-color: rgba(255, 255, 255, 0.58);
+      background: #fff;
+      box-shadow: 0 0 0 3px rgba(134, 113, 255, 0.16), 0 0 24px rgba(134, 113, 255, 0.42);
+      animation: none;
+    }
+    .thinking-control.ultra-active .thinking-popover-head {
+      color: #bba8ff;
+    }
+    @keyframes ultra-flow {
+      from { background-position: 0 0, 18px 0, 0 0, 40px 0, 0 0; }
+      to { background-position: -150px 0, -172px 0, -230px 0, -220px 0, 190% 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .thinking-control .effort-fill.glow { animation: none; }
+    }
+
+    /* ========== Model workbench ==========
+       Provider credentials are secondary. The editable unit is one model,
+       so its runtime limits remain visible without turning the page into a form. */
+    .provider-connection-summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 11px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.14);
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+    .provider-connection-summary strong { color: var(--text); font-weight: 600; }
+    .provider-connection-summary code {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--faint);
+      font-family: var(--mono);
+    }
+    .provider-connection-summary .btn { margin-left: auto; padding: 4px 8px; font-size: 11px; }
+    .provider-connection-bar {
+      display: grid;
+      grid-template-columns: minmax(150px, 0.65fr) minmax(220px, 1.35fr) auto;
+      gap: 8px;
+      align-items: end;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.14);
+    }
+    .provider-connection-bar .field { gap: 4px; }
+    .provider-connection-bar .field label {
+      color: var(--faint);
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+    .provider-connection-bar input,
+    .provider-connection-bar select {
+      min-width: 0;
+      height: 31px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: rgba(0,0,0,0.25);
+      color: var(--text);
+      padding: 5px 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      outline: none;
+    }
+    .provider-connection-bar input:focus,
+    .provider-connection-bar select:focus { border-color: rgba(59, 156, 243, 0.6); }
+    .provider-connection-bar .btn { height: 31px; padding: 0 10px; font-size: 11px; }
+    .model-workbench {
+      display: grid;
+      grid-template-columns: 212px minmax(0, 1fr);
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.12);
+    }
+    .model-list-pane {
+      padding: 8px;
+      border-right: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.13);
+    }
+    .model-list-pane-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 3px 4px 8px;
+      color: var(--faint);
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .model-add-button {
+      border: 0;
+      padding: 3px 5px;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--copper-hi);
+      font-size: 14px;
+      line-height: 1;
+    }
+    .model-add-button:hover { background: rgba(255, 236, 210, 0.06); }
+    .model-list-item {
+      display: block;
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--text);
+      text-align: left;
+    }
+    .model-list-item:hover { background: rgba(255, 236, 210, 0.04); }
+    .model-list-item.active {
+      border-color: color-mix(in srgb, #3b9cf3 40%, transparent);
+      background: rgba(59, 156, 243, 0.12);
+    }
+    .model-list-item-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      font-weight: 500;
+    }
+    .model-list-item-meta { margin-top: 2px; color: var(--faint); font-size: 10.5px; }
+    .model-editor-pane { padding: 13px 14px 14px; }
+    .model-editor-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .model-editor-head h4 { margin: 0; font-size: 13px; letter-spacing: -0.01em; }
+    .model-editor-head span { color: var(--faint); font-size: 11px; }
+    .model-editor-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 10px; }
+    .model-editor-fields .field label {
+      color: #b6b3ae;
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .model-editor-fields input,
+    .model-editor-fields textarea {
+      border-color: rgba(255, 255, 255, 0.12);
+      background: rgba(0, 0, 0, 0.22);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .model-editor-fields textarea {
+      min-height: 54px;
+      resize: vertical;
+      padding: 8px 10px;
+    }
+    .model-token-field { position: relative; }
+    .model-token-field input { width: 100%; padding-right: 39px; }
+    .model-token-unit {
+      position: absolute;
+      right: 10px;
+      bottom: 9px;
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 10px;
+      pointer-events: none;
+    }
+    .model-editor-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 11px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+    }
+    .model-editor-footer .model-capability {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .model-editor-footer .model-capability i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #3b9cf3;
+    }
+    @media (max-width: 760px) {
+      .model-workbench { grid-template-columns: 1fr; }
+      .model-list-pane { border-right: 0; border-bottom: 1px solid var(--line); }
+      .model-editor-fields { grid-template-columns: 1fr; }
+      .provider-connection-bar { grid-template-columns: 1fr; }
+    }
+
+    /* ========== Import models from Base URL ==========
+       Discovery is explicit: fetching returns model identities only. Runtime
+       limits stay unset until the user configures them in the workbench. */
+    .import-modal-backdrop {
+      position: fixed;
+      z-index: 100;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(0, 0, 0, 0.62);
+      backdrop-filter: blur(7px);
+    }
+    .import-modal-backdrop[hidden] { display: none; }
+    .import-modal {
+      width: min(660px, 100%);
+      max-height: min(720px, calc(100vh - 48px));
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 16px;
+      background: #20201f;
+      box-shadow: 0 32px 90px rgba(0, 0, 0, 0.66);
+    }
+    .import-modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+    .import-modal-header h3 {
+      margin: 0;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+    .import-modal-header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+    .import-close-button {
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    .import-close-button:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+    .import-modal-body { min-height: 0; padding: 14px 20px; overflow: auto; }
+    .fetch-target {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 11px;
+      border: 1px solid rgba(59, 156, 243, 0.26);
+      border-radius: 9px;
+      background: rgba(59, 156, 243, 0.08);
+      font-size: 11.5px;
+    }
+    .fetch-target i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #4bb381;
+      box-shadow: 0 0 0 3px rgba(75, 179, 129, 0.14);
+    }
+    .fetch-target code { color: #b9d9ff; font-family: var(--mono); }
+    .fetch-target span { margin-left: auto; color: var(--muted); }
+    .import-search { position: relative; margin: 12px 0 9px; }
+    .import-search input {
+      width: 100%;
+      padding: 9px 10px 9px 31px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: rgba(0, 0, 0, 0.23);
+      color: var(--text);
+      outline: none;
+    }
+    .import-search::before {
+      content: "⌕";
+      position: absolute;
+      top: 7px;
+      left: 11px;
+      color: var(--faint);
+      font-size: 16px;
+    }
+    .import-result-note { margin: 0 0 8px; color: var(--faint); font-size: 11px; }
+    .import-model-list { display: flex; flex-direction: column; gap: 4px; }
+    .import-model-row {
+      display: grid;
+      grid-template-columns: 18px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid transparent;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.018);
+      cursor: pointer;
+    }
+    .import-model-row:hover { border-color: var(--line); background: rgba(255,255,255,0.04); }
+    .import-model-row:has(input:checked) {
+      border-color: rgba(59, 156, 243, 0.42);
+      background: rgba(59, 156, 243, 0.1);
+    }
+    .import-model-row input { width: 15px; height: 15px; accent-color: #3b9cf3; }
+    .import-model-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
+    .import-model-source { color: var(--faint); font-size: 10.5px; }
+    .import-modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 13px 20px;
+      border-top: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.12);
+    }
+    .import-selection-count { color: var(--muted); font-size: 12px; }
+    .import-modal-actions { display: flex; gap: 8px; }
+  </style>
+</head>
+<body>
+  <header class="gallery">
+    <div class="gallery-brand">
+      <strong>Models + Thinking · Prototype</strong>
+      <span>Copper Workbench · static interactive mock</span>
+    </div>
+    <nav class="view-tabs" role="tablist" aria-label="Prototype views">
+      <button type="button" class="view-tab active" data-view="settings">Settings · Models</button>
+      <button type="button" class="view-tab" data-view="composer-openai">Composer · OpenAI</button>
+      <button type="button" class="view-tab" data-view="composer-anthropic">Composer · Anthropic</button>
+      <button type="button" class="view-tab" data-view="compare">Effort 对比</button>
+    </nav>
+    <div class="gallery-controls">
+      <label class="toggle-row" title="Settings 模型页解锁后，Composer 才能滑到 Ultra">
+        <span>Ultra unlocked</span>
+        <button type="button" class="toggle" id="ultraToggle" aria-pressed="false" aria-label="Unlock Ultra"></button>
+      </label>
+      <span class="proto-badge">P0 mock · no app code</span>
+    </div>
+  </header>
+
+  <main class="page">
+    <!-- ========== VIEW: Settings Models ========== -->
+    <section class="view active" id="view-settings" aria-label="Settings Models">
+      <div class="section-head">
+        <div>
+          <h1>Settings → Models</h1>
+          <p>左栏 Provider 目录 · 右栏 Connection / Model cards / Thinking。模型不再用 textarea；Ultra 只在这里解锁。</p>
+        </div>
+      </div>
+      <div class="callouts">
+        <div class="callout">
+          <strong>Connection</strong>
+          <span>协议分段、baseUrl、env / keychain。禁止粘贴 raw key（沿用现逻辑）。</span>
+        </div>
+        <div class="callout">
+          <strong>Models</strong>
+          <span>卡片列表：id · label · context window · default。批量粘贴降级到 Advanced。</span>
+        </div>
+        <div class="callout">
+          <strong>Thinking</strong>
+          <span>全局 Ultra 开关。未开时 Composer 最高 xhigh/max，无流光。</span>
+        </div>
+      </div>
+
+      <div class="device-frame">
+        <div class="frame-chrome">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          <span class="frame-title">piwin · Settings · Models</span>
+        </div>
+        <div class="frame-body settings-shell">
+          <aside class="settings-nav">
+            <button type="button" class="settings-back">← Back to workspace</button>
+            <button type="button" class="settings-nav-item">General</button>
+            <button type="button" class="settings-nav-item">Appearance</button>
+            <button type="button" class="settings-nav-item active">Models</button>
+            <button type="button" class="settings-nav-item">Skills</button>
+            <button type="button" class="settings-nav-item">Tools</button>
+            <button type="button" class="settings-nav-item">Session</button>
+          </aside>
+
+          <div class="settings-main">
+            <aside class="provider-side">
+              <div>
+                <div class="side-label">Configured</div>
+                <input class="search-box" placeholder="Search providers" />
+              </div>
+              <div>
+                <button type="button" class="provider-item active">
+                  <span class="provider-badge">OA</span>
+                  <span>
+                    <span class="name">OpenAI</span>
+                    <span class="meta">OpenAI · 3 models</span>
+                  </span>
+                  <span class="pill">default</span>
+                </button>
+                <button type="button" class="provider-item">
+                  <span class="provider-badge">AN</span>
+                  <span>
+                    <span class="name">Anthropic</span>
+                    <span class="meta">Anthropic · 2 models</span>
+                  </span>
+                </button>
+                <button type="button" class="provider-item">
+                  <span class="provider-badge">GM</span>
+                  <span>
+                    <span class="name">Gemini proxy</span>
+                    <span class="meta">OpenAI · 3 models</span>
+                  </span>
+                </button>
+              </div>
+              <div>
+                <div class="side-label">Add provider</div>
+                <div class="preset-grid">
+                  <button type="button" class="preset-chip"><span class="mini">OA</span>OpenAI</button>
+                  <button type="button" class="preset-chip"><span class="mini">AN</span>Anthropic</button>
+                  <button type="button" class="preset-chip"><span class="mini">OR</span>OpenRouter</button>
+                  <button type="button" class="preset-chip"><span class="mini">OL</span>Ollama</button>
+                </div>
+              </div>
+            </aside>
+
+            <div class="provider-detail">
+              <div class="detail-header">
+                <div>
+                  <h2>DeepSeek</h2>
+                  <p>Keys stay in env / keychain — never store raw secrets in config.</p>
+                </div>
+                <div class="header-actions">
+                  <button type="button" class="btn">Set default</button>
+                  <button type="button" class="btn danger">Remove</button>
+                </div>
+              </div>
+
+              <section class="card-section">
+                <div class="card-section-head">
+                  <h3>Models</h3>
+                  <span class="hint">Select a model to configure its runtime limits.</span>
+                  <button type="button" class="btn" data-open-import-modal style="padding:5px 9px;font-size:11px">Import from Base URL</button>
+                </div>
+                <div class="provider-connection-bar">
+                  <div class="field">
+                    <label>Protocol</label>
+                    <select id="providerProtocol" aria-label="Provider protocol">
+                      <option value="openai">OpenAI-compatible</option>
+                      <option value="anthropic">Anthropic-compatible</option>
+                      <option value="google">Google Gemini</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Base URL</label>
+                    <input id="providerBaseUrl" value="https://api.deepseek.com/v1" spellcheck="false" aria-label="Provider Base URL" />
+                  </div>
+                  <button type="button" class="btn" data-open-import-modal>Discover models</button>
+                </div>
+                <div class="model-workbench" style="margin-top:10px">
+                  <aside class="model-list-pane">
+                    <div class="model-list-pane-head">Configured models <button type="button" class="model-add-button" data-open-import-modal aria-label="Import models from Base URL">+</button></div>
+                    <button type="button" class="model-list-item active">
+                      <span class="model-list-item-title">gpt-5.4 <span class="chip ok">default</span></span>
+                      <span class="model-list-item-meta">280k context · 128k output</span>
+                    </button>
+                    <button type="button" class="model-list-item">
+                      <span class="model-list-item-title">gpt-5.4-mini</span>
+                      <span class="model-list-item-meta">128k context · 32k output</span>
+                    </button>
+                    <button type="button" class="model-list-item">
+                      <span class="model-list-item-title">o4-mini</span>
+                      <span class="model-list-item-meta">200k context · 100k output</span>
+                    </button>
+                  </aside>
+                  <div class="model-editor-pane">
+                    <div class="model-editor-head">
+                      <div><h4>gpt-5.4 <span>· default model</span></h4></div>
+                      <button type="button" class="btn danger" style="padding:4px 8px;font-size:11px">Remove</button>
+                    </div>
+                    <div class="model-editor-fields">
+                      <div class="field">
+                        <label>Model id</label>
+                        <input value="gpt-5.4" spellcheck="false" />
+                      </div>
+                      <div class="field">
+                        <label>Display name</label>
+                        <input value="GPT-5.4" />
+                      </div>
+                      <div class="field model-token-field">
+                        <label>Context token limit <span style="color:#e07a6a">*</span></label>
+                        <input value="280000" inputmode="numeric" spellcheck="false" />
+                        <span class="model-token-unit">tokens</span>
+                      </div>
+                      <div class="field model-token-field">
+                        <label>Max output tokens <span style="color:#e07a6a">*</span></label>
+                        <input value="128000" inputmode="numeric" spellcheck="false" />
+                        <span class="model-token-unit">tokens</span>
+                      </div>
+                      <div class="field full">
+                        <label>Tooltip markdown <span style="font-weight:400;text-transform:none;letter-spacing:0">(hover in model picker)</span></label>
+                        <textarea spellcheck="false">Primary coding model. Long context, high reasoning ceiling.</textarea>
+                      </div>
+                    </div>
+                    <div class="model-editor-footer">
+                      <span class="model-capability"><i></i>OpenAI reasoning · maximum API effort: xhigh</span>
+                      <button type="button" class="btn">Set as default</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="card-section">
+                <div class="card-section-head">
+                  <h3>Thinking</h3>
+                  <span class="hint">product-wide · not per provider</span>
+                </div>
+                <div class="ultra-panel">
+                  <div>
+                    <h4>Unlock Ultra thinking</h4>
+                    <p>
+                      正常 API 最高：OpenAI <code style="font-family:var(--mono);color:var(--copper-hi)">xhigh</code> ·
+                      Anthropic <code style="font-family:var(--mono);color:var(--copper-hi)">max</code>。
+                      Ultra 为产品增强档，更慢更贵；仅在此开启后 Composer 滑条可拉到 Ultra 并出现流光。
+                    </p>
+                    <table class="matrix">
+                      <thead>
+                        <tr><th>协议</th><th>API 顶</th><th>Ultra 开启后</th></tr>
+                      </thead>
+                      <tbody>
+                        <tr><td>OpenAI</td><td><code>xhigh</code></td><td><code>xhigh → ultra</code></td></tr>
+                        <tr><td>Anthropic</td><td><code>max</code></td><td><code>max → ultra</code></td></tr>
+                      </tbody>
+                    </table>
+                    <div class="warn-note" id="ultraWarn" hidden>
+                      <strong>Ultra on.</strong> Composer 最右档启用流光；请求仍映射 API 最高档（P0），编排增强可后做。
+                    </div>
+                  </div>
+                  <button type="button" class="toggle" id="ultraToggleSettings" aria-pressed="false" aria-label="Enable Ultra"></button>
+                </div>
+              </section>
+
+              <button type="button" class="btn primary">Save provider</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="footer-note">打开方式：浏览器打开 <code>docs/ui-prototype-models-thinking.html</code> · 顶部 Ultra 与 Settings 内开关联动。</p>
+    </section>
+
+    <!-- ========== VIEW: Composer OpenAI ========== -->
+    <section class="view" id="view-composer-openai" aria-label="Composer OpenAI">
+      <div class="section-head">
+        <div>
+          <h1>Composer · OpenAI protocol</h1>
+          <p>离散进度条，stops = off · minimal · low · medium · high · <strong>xhigh</strong>（+ ultra if unlocked）。xhigh 无流光，仅 ultra 流光。</p>
+        </div>
+      </div>
+
+      <div class="device-frame">
+        <div class="frame-chrome">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          <span class="frame-title">piwin · workspace · next-turn effort</span>
+        </div>
+        <div class="workspace">
+          <div class="topbar">
+            <div class="brand-mark" aria-hidden="true"></div>
+            <span class="title">piwin</span>
+            <div class="spacer"></div>
+            <span class="status-pill"><i></i>Host ready</span>
+            <span class="model-pill"><span class="mdot"></span>gpt-5.4 · OpenAI</span>
+          </div>
+          <div class="stage">
+            <div class="empty-card">
+              <h3>下一 turn 的思考深度</h3>
+              <p>拖动底栏滑条。切换顶部 <em>Ultra unlocked</em> 看最右档是否出现流光。</p>
+            </div>
+          </div>
+          <div class="composer-dock">
+            <div class="composer">
+              <div class="composer-input">Ask anything… 例如：重构 auth 模块，找出竞态</div>
+              <div class="composer-toolbar">
+                <button type="button" class="compose-icon" title="Attach">+</button>
+                <button type="button" class="mode-chip">Agent</button>
+                <div class="thinking-control" data-protocol="openai" data-effort-root title="Thinking for next turn · OpenAI API max: xhigh">
+                  <button type="button" class="thinking-trigger" data-thinking-trigger aria-expanded="true">
+                    <span class="thinking-trigger-model">GPT-5.4</span>
+                    <span class="thinking-trigger-value" data-effort-value>medium</span>
+                    <span class="trigger-chevron" aria-hidden="true"></span>
+                  </button>
+                  <div class="thinking-popover" data-thinking-popover>
+                    <div class="thinking-popover-head">Advanced</div>
+                    <div
+                      class="effort-slider"
+                      role="slider"
+                      tabindex="0"
+                      data-effort-slider
+                      aria-valuemin="0"
+                      aria-valuemax="5"
+                      aria-valuenow="3"
+                      aria-valuetext="medium"
+                    >
+                      <div class="effort-track"><div class="effort-fill" data-effort-fill></div></div>
+                      <div class="effort-stops" data-effort-stops></div>
+                      <div class="effort-thumb" data-effort-thumb></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="toolbar-spacer"></div>
+                <button type="button" class="send-btn">Send</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-grid">
+        <div class="compare-card">
+          <h4>OpenAI stops</h4>
+          <p>默认（Ultra 关）</p>
+          <div class="stop-legend" id="legend-openai-normal"></div>
+        </div>
+        <div class="compare-card">
+          <h4>OpenAI stops + Ultra</h4>
+          <p>Settings 解锁后</p>
+          <div class="stop-legend" id="legend-openai-ultra"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== VIEW: Composer Anthropic ========== -->
+    <section class="view" id="view-composer-anthropic" aria-label="Composer Anthropic">
+      <div class="section-head">
+        <div>
+          <h1>Composer · Anthropic protocol</h1>
+          <p>stops = off · low · medium · high · <strong>max</strong>（+ ultra if unlocked）。顶标是 max，不是 xhigh；无 ultra 时无流光。</p>
+        </div>
+      </div>
+
+      <div class="device-frame">
+        <div class="frame-chrome">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          <span class="frame-title">piwin · workspace · Anthropic effort</span>
+        </div>
+        <div class="workspace">
+          <div class="topbar">
+            <div class="brand-mark" aria-hidden="true"></div>
+            <span class="title">piwin</span>
+            <div class="spacer"></div>
+            <span class="status-pill"><i></i>Host ready</span>
+            <span class="model-pill"><span class="mdot"></span>claude-opus-4 · Anthropic</span>
+          </div>
+          <div class="stage">
+            <div class="empty-card">
+              <h3>协议驱动档位</h3>
+              <p>同一组件，不同 protocol → 不同 stops 与 API 顶标。切模型时 clamp 到最近合法档。</p>
+            </div>
+          </div>
+          <div class="composer-dock">
+            <div class="composer">
+              <div class="composer-input">Ask anything… 例如：做安全审计并给出修复优先级</div>
+              <div class="composer-toolbar">
+                <button type="button" class="compose-icon">+</button>
+                <button type="button" class="mode-chip">Agent</button>
+                <div class="thinking-control" data-protocol="anthropic" data-effort-root title="Thinking for next turn · Anthropic API max: max">
+                  <button type="button" class="thinking-trigger" data-thinking-trigger aria-expanded="true">
+                    <span class="thinking-trigger-model">Claude Opus</span>
+                    <span class="thinking-trigger-value" data-effort-value>high</span>
+                    <span class="trigger-chevron" aria-hidden="true"></span>
+                  </button>
+                  <div class="thinking-popover" data-thinking-popover>
+                    <div class="thinking-popover-head">Advanced</div>
+                    <div
+                      class="effort-slider"
+                      role="slider"
+                      tabindex="0"
+                      data-effort-slider
+                      aria-valuemin="0"
+                      aria-valuemax="4"
+                      aria-valuenow="3"
+                      aria-valuetext="high"
+                    >
+                      <div class="effort-track"><div class="effort-fill" data-effort-fill></div></div>
+                      <div class="effort-stops" data-effort-stops></div>
+                      <div class="effort-thumb" data-effort-thumb></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="toolbar-spacer"></div>
+                <button type="button" class="send-btn">Send</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="compare-grid">
+        <div class="compare-card">
+          <h4>Anthropic stops</h4>
+          <p>默认（Ultra 关）</p>
+          <div class="stop-legend" id="legend-anthropic-normal"></div>
+        </div>
+        <div class="compare-card">
+          <h4>Anthropic stops + Ultra</h4>
+          <p>Settings 解锁后</p>
+          <div class="stop-legend" id="legend-anthropic-ultra"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== VIEW: Compare ========== -->
+    <section class="view" id="view-compare" aria-label="Effort compare">
+      <div class="section-head">
+        <div>
+          <h1>Effort 视觉对比</h1>
+          <p>左侧协议顶档（xhigh / max）—— copper 填充、无流光。右侧 Ultra —— 炫彩流光 + 拇指光晕。</p>
+        </div>
+      </div>
+
+      <div class="compare-grid">
+        <div class="compare-card">
+          <h4>API 顶 · xhigh / max</h4>
+          <p>正常最高档。有铜质渐变，但<strong>没有</strong>流光动画。</p>
+          <div class="effort-wrap" data-static="api-top" style="width:100%;max-width:360px">
+            <div class="effort-label">Think · <span class="value">xhigh</span></div>
+            <div class="effort-slider" style="width:200px">
+              <div class="effort-track"><div class="effort-fill" style="width:100%"></div></div>
+              <div class="effort-stops">
+                <i class="effort-stop reached"></i><i class="effort-stop reached"></i>
+                <i class="effort-stop reached"></i><i class="effort-stop reached"></i>
+                <i class="effort-stop reached"></i><i class="effort-stop reached"></i>
+              </div>
+              <div class="effort-thumb" style="left:100%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="compare-card">
+          <h4>Product · ultra</h4>
+          <p>仅 Settings 解锁后可选。流光轨道 + 彩色拇指 + 标签 shimmer。</p>
+          <div class="effort-wrap ultra-active" data-static="ultra" style="width:100%;max-width:360px">
+            <div class="effort-label">Think · <span class="value">ultra</span></div>
+            <div class="effort-slider" style="width:200px">
+              <div class="effort-track"><div class="effort-fill glow" style="width:100%"></div></div>
+              <div class="effort-stops">
+                <i class="effort-stop reached"></i><i class="effort-stop reached"></i>
+                <i class="effort-stop reached"></i><i class="effort-stop reached"></i>
+                <i class="effort-stop reached"></i><i class="effort-stop reached"></i>
+                <i class="effort-stop reached"></i>
+              </div>
+              <div class="effort-thumb glow" style="left:100%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-section" style="margin-top:16px">
+        <div class="card-section-head"><h3>Mapping rules (P0)</h3></div>
+        <table class="matrix">
+          <thead>
+            <tr><th>UI value</th><th>OpenAI request</th><th>Anthropic request</th><th>Visual</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>medium</code></td><td><code>medium</code></td><td><code>medium</code></td><td>copper fill</td></tr>
+            <tr><td><code>xhigh</code></td><td><code>xhigh</code></td><td>—</td><td>copper fill, no glow</td></tr>
+            <tr><td><code>max</code></td><td>—</td><td><code>max</code></td><td>copper fill, no glow</td></tr>
+            <tr><td><code>ultra</code></td><td><code>xhigh</code> + product flag</td><td><code>max</code> + product flag</td><td>rainbow flow</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="import-modal-backdrop" id="importModal" hidden>
+    <section class="import-modal" role="dialog" aria-modal="true" aria-labelledby="importModelsTitle">
+      <header class="import-modal-header">
+        <div>
+          <h3 id="importModelsTitle">Import models from Base URL</h3>
+          <p>Choose the models exposed by this provider, then configure their token limits in the model workbench.</p>
+        </div>
+        <button type="button" class="import-close-button" data-close-import-modal aria-label="Close import dialog">×</button>
+      </header>
+      <div class="import-modal-body">
+        <div class="fetch-target">
+          <i aria-hidden="true"></i>
+          <code id="discoveryRequest">GET https://api.deepseek.com/v1/models</code>
+          <span id="discoveryResultCount">3 models found</span>
+        </div>
+        <label class="import-search">
+          <span class="sr-only">Search discovered models</span>
+          <input id="importModelSearch" placeholder="Search discovered models" autocomplete="off" />
+        </label>
+        <p class="import-result-note">Model discovery returns IDs only. Context limit and max output must be confirmed per model after import.</p>
+        <div class="import-model-list" id="importModelList"></div>
+      </div>
+      <footer class="import-modal-footer">
+        <span class="import-selection-count" id="importSelectionCount">2 selected · 1 new model</span>
+        <div class="import-modal-actions">
+          <button type="button" class="btn" data-close-import-modal>Cancel</button>
+          <button type="button" class="btn primary" id="importSelectedModels">Import selected</button>
+        </div>
+      </footer>
+    </section>
+  </div>
+
+  <script>
+    const STOPS = {
+      openai: {
+        normal: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+        ultra:  ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'ultra'],
+      },
+      anthropic: {
+        normal: ['off', 'low', 'medium', 'high', 'max'],
+        ultra:  ['off', 'low', 'medium', 'high', 'max', 'ultra'],
+      },
+    };
+
+    let ultraEnabled = false;
+    const rootState = new WeakMap();
+
+    function getStops(protocol) {
+      const pack = STOPS[protocol] || STOPS.openai;
+      return ultraEnabled ? pack.ultra : pack.normal;
+    }
+
+    function renderLegend(el, stops) {
+      if (!el) return;
+      el.innerHTML = '';
+      stops.forEach((stop, index) => {
+        const span = document.createElement('span');
+        span.textContent = stop;
+        if (stop === 'ultra') span.className = 'ultra';
+        else if (index === stops.length - 1) span.className = 'top';
+        el.appendChild(span);
+      });
+    }
+
+    function refreshLegends() {
+      renderLegend(document.getElementById('legend-openai-normal'), STOPS.openai.normal);
+      renderLegend(document.getElementById('legend-openai-ultra'), STOPS.openai.ultra);
+      renderLegend(document.getElementById('legend-anthropic-normal'), STOPS.anthropic.normal);
+      renderLegend(document.getElementById('legend-anthropic-ultra'), STOPS.anthropic.ultra);
+    }
+
+    function setUltra(next) {
+      ultraEnabled = Boolean(next);
+      document.querySelectorAll('#ultraToggle, #ultraToggleSettings').forEach((btn) => {
+        btn.classList.toggle('on', ultraEnabled);
+        btn.setAttribute('aria-pressed', String(ultraEnabled));
+      });
+      const warn = document.getElementById('ultraWarn');
+      if (warn) warn.hidden = !ultraEnabled;
+      document.querySelectorAll('[data-effort-root]').forEach((root) => rebuildSlider(root));
+    }
+
+    function rebuildSlider(root) {
+      const protocol = root.getAttribute('data-protocol') || 'openai';
+      const stops = getStops(protocol);
+      const slider = root.querySelector('[data-effort-slider]');
+      const fill = root.querySelector('[data-effort-fill]');
+      const thumb = root.querySelector('[data-effort-thumb]');
+      const stopsEl = root.querySelector('[data-effort-stops]');
+      const valueEl = root.querySelector('[data-effort-value]');
+      const triggerValue = root.querySelector('.thinking-trigger-value');
+      if (!slider || !fill || !thumb || !stopsEl || !valueEl) return;
+
+      let state = rootState.get(root);
+      if (!state) {
+        const defaultLevel = protocol === 'anthropic' ? 'high' : 'medium';
+        state = { index: Math.max(0, stops.indexOf(defaultLevel)) };
+      }
+      if (state.index >= stops.length) state.index = stops.length - 1;
+      if (state.index < 0) state.index = 0;
+      rootState.set(root, state);
+
+      stopsEl.innerHTML = '';
+      stops.forEach((_, i) => {
+        const stop = document.createElement('i');
+        stop.className = 'effort-stop' + (i <= state.index ? ' reached' : '');
+        stopsEl.appendChild(stop);
+      });
+
+      const level = stops[state.index];
+      const pct = stops.length <= 1 ? 0 : (state.index / (stops.length - 1)) * 100;
+      fill.style.width = pct + '%';
+      thumb.style.left = pct + '%';
+      valueEl.textContent = level;
+      if (triggerValue) {
+        triggerValue.classList.toggle('is-ultra', level === 'ultra');
+      }
+
+      const isUltra = level === 'ultra';
+      root.classList.toggle('ultra-active', isUltra);
+      fill.classList.toggle('glow', isUltra);
+      thumb.classList.toggle('glow', isUltra);
+
+      slider.setAttribute('aria-valuemax', String(stops.length - 1));
+      slider.setAttribute('aria-valuenow', String(state.index));
+      slider.setAttribute('aria-valuetext', level);
+    }
+
+    function setIndex(root, index) {
+      const protocol = root.getAttribute('data-protocol') || 'openai';
+      const stops = getStops(protocol);
+      const next = Math.max(0, Math.min(stops.length - 1, index));
+      rootState.set(root, { index: next });
+      rebuildSlider(root);
+    }
+
+    function wireThinkingPopover(root) {
+      const trigger = root.querySelector('[data-thinking-trigger]');
+      const popover = root.querySelector('[data-thinking-popover]');
+      if (!trigger || !popover) return;
+
+      trigger.addEventListener('click', () => {
+        const isOpen = !popover.hasAttribute('hidden');
+        if (isOpen) {
+          popover.setAttribute('hidden', '');
+          trigger.setAttribute('aria-expanded', 'false');
+          return;
+        }
+        document.querySelectorAll('[data-thinking-popover]').forEach((otherPopover) => {
+          otherPopover.setAttribute('hidden', '');
+        });
+        document.querySelectorAll('[data-thinking-trigger]').forEach((otherTrigger) => {
+          otherTrigger.setAttribute('aria-expanded', 'false');
+        });
+        popover.removeAttribute('hidden');
+        trigger.setAttribute('aria-expanded', 'true');
+      });
+    }
+
+    function indexFromPointer(root, clientX) {
+      const slider = root.querySelector('[data-effort-slider]');
+      const protocol = root.getAttribute('data-protocol') || 'openai';
+      const stops = getStops(protocol);
+      const rect = slider.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      return Math.round(ratio * (stops.length - 1));
+    }
+
+    function wireSlider(root) {
+      const slider = root.querySelector('[data-effort-slider]');
+      if (!slider) return;
+      let dragging = false;
+
+      const onMove = (event) => {
+        if (!dragging) return;
+        setIndex(root, indexFromPointer(root, event.clientX));
+      };
+      const onUp = () => {
+        dragging = false;
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+      };
+
+      slider.addEventListener('pointerdown', (event) => {
+        dragging = true;
+        slider.setPointerCapture?.(event.pointerId);
+        setIndex(root, indexFromPointer(root, event.clientX));
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+      });
+
+      slider.addEventListener('keydown', (event) => {
+        const state = rootState.get(root) || { index: 0 };
+        if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          setIndex(root, state.index + 1);
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+          event.preventDefault();
+          setIndex(root, state.index - 1);
+        } else if (event.key === 'Home') {
+          event.preventDefault();
+          setIndex(root, 0);
+        } else if (event.key === 'End') {
+          event.preventDefault();
+          setIndex(root, 99);
+        }
+      });
+
+      rebuildSlider(root);
+    }
+
+    // Tabs
+    document.querySelectorAll('.view-tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.view-tab').forEach((t) => t.classList.remove('active'));
+        document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
+        tab.classList.add('active');
+        const view = document.getElementById('view-' + tab.dataset.view);
+        if (view) view.classList.add('active');
+      });
+    });
+
+    // Ultra toggles
+    document.querySelectorAll('#ultraToggle, #ultraToggleSettings').forEach((btn) => {
+      btn.addEventListener('click', () => setUltra(!ultraEnabled));
+    });
+
+    const importModal = document.getElementById('importModal');
+    const importSearch = document.getElementById('importModelSearch');
+    const importCount = document.getElementById('importSelectionCount');
+    const importButton = document.getElementById('importSelectedModels');
+    const importModelList = document.getElementById('importModelList');
+    const providerProtocol = document.getElementById('providerProtocol');
+    const providerBaseUrl = document.getElementById('providerBaseUrl');
+    const discoveryRequest = document.getElementById('discoveryRequest');
+    const discoveryResultCount = document.getElementById('discoveryResultCount');
+
+    const discoveredModelsByProtocol = {
+      openai: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3.2-exp'],
+      anthropic: ['claude-sonnet-4-6', 'claude-opus-4-6', 'claude-haiku-4-5'],
+      google: ['gemini-3-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
+    };
+
+    function buildDiscoveryEndpoint() {
+      const protocol = providerProtocol?.value ?? 'openai';
+      const baseUrl = providerBaseUrl?.value.trim().replace(/\/$/, '') ?? '';
+      if (!baseUrl) return '';
+      if (protocol === 'google') return `${baseUrl}/models`;
+      return baseUrl.endsWith('/v1') ? `${baseUrl}/models` : `${baseUrl}/v1/models`;
+    }
+
+    function renderDiscoveredModels() {
+      const protocol = providerProtocol?.value ?? 'openai';
+      const modelIds = discoveredModelsByProtocol[protocol] ?? [];
+      if (discoveryRequest) discoveryRequest.textContent = `GET ${buildDiscoveryEndpoint()}`;
+      if (discoveryResultCount) discoveryResultCount.textContent = `${modelIds.length} models found`;
+      if (!importModelList) return;
+      importModelList.innerHTML = modelIds.map((modelId, index) => `
+        <label class="import-model-row">
+          <input type="checkbox" value="${modelId}" ${index === 0 ? 'checked' : ''} />
+          <span class="import-model-name">${modelId}</span>
+          <span class="import-model-source">${index === 0 ? 'already configured' : 'new'}</span>
+        </label>
+      `).join('');
+      getImportCheckboxes().forEach((checkbox) => checkbox.addEventListener('change', refreshImportSelection));
+      refreshImportSelection();
+    }
+
+    function getImportCheckboxes() {
+      return Array.from(document.querySelectorAll('#importModelList input[type="checkbox"]'));
+    }
+
+    function refreshImportSelection() {
+      const selected = getImportCheckboxes().filter((checkbox) => checkbox.checked);
+      const newModelCount = selected.filter((checkbox) => {
+        const source = checkbox.closest('.import-model-row')?.querySelector('.import-model-source');
+        return source?.textContent === 'new';
+      }).length;
+      if (importCount) {
+        importCount.textContent = `${selected.length} selected · ${newModelCount} new model${newModelCount === 1 ? '' : 's'}`;
+      }
+      if (importButton) importButton.disabled = selected.length === 0;
+    }
+
+    function openImportModal() {
+      if (!importModal) return;
+      renderDiscoveredModels();
+      importModal.hidden = false;
+      refreshImportSelection();
+      window.setTimeout(() => importSearch?.focus(), 0);
+    }
+
+    function closeImportModal() {
+      if (!importModal) return;
+      importModal.hidden = true;
+    }
+
+    document.querySelectorAll('[data-open-import-modal]').forEach((button) => {
+      button.addEventListener('click', openImportModal);
+    });
+    document.querySelectorAll('[data-close-import-modal]').forEach((button) => {
+      button.addEventListener('click', closeImportModal);
+    });
+    importModal?.addEventListener('click', (event) => {
+      if (event.target === importModal) closeImportModal();
+    });
+    importSearch?.addEventListener('input', () => {
+      const query = importSearch.value.trim().toLowerCase();
+      document.querySelectorAll('#importModelList .import-model-row').forEach((row) => {
+        const modelName = row.querySelector('.import-model-name')?.textContent?.toLowerCase() ?? '';
+        row.hidden = !modelName.includes(query);
+      });
+    });
+    providerProtocol?.addEventListener('change', renderDiscoveredModels);
+    providerBaseUrl?.addEventListener('input', () => {
+      if (discoveryRequest) discoveryRequest.textContent = `GET ${buildDiscoveryEndpoint()}`;
+    });
+    importButton?.addEventListener('click', () => {
+      const newSelection = getImportCheckboxes().find((checkbox) => {
+        const source = checkbox.closest('.import-model-row')?.querySelector('.import-model-source');
+        return checkbox.checked && source?.textContent === 'new';
+      });
+      if (newSelection) {
+        const modelList = document.querySelector('.model-list-pane');
+        const entry = document.createElement('button');
+        entry.type = 'button';
+        entry.className = 'model-list-item';
+        entry.innerHTML = `<span class="model-list-item-title">${newSelection.value}</span><span class="model-list-item-meta">Token limits need configuration</span>`;
+        modelList?.appendChild(entry);
+      }
+      closeImportModal();
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && importModal && !importModal.hidden) closeImportModal();
+    });
+
+    // Init
+    refreshLegends();
+    renderDiscoveredModels();
+    document.querySelectorAll('[data-effort-root]').forEach((root) => {
+      wireSlider(root);
+      wireThinkingPopover(root);
+    });
+    setUltra(false);
+  </script>
+</body>
+</html>

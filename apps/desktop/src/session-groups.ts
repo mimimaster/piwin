@@ -1,5 +1,6 @@
 /**
- * Cursor-style session list grouping (Today / Yesterday / Previous 7 days / Older).
+ * Cursor-style session list grouping:
+ * Pinned (if any) → Today / Yesterday / Previous 7 days / Older.
  */
 
 export type SessionGroupable = {
@@ -10,7 +11,7 @@ export type SessionGroupable = {
   isPinned?: boolean;
 };
 
-export type SessionTimeGroupId = 'today' | 'yesterday' | 'week' | 'older';
+export type SessionTimeGroupId = 'pinned' | 'today' | 'yesterday' | 'week' | 'older';
 
 export type SessionTimeGroup<T extends SessionGroupable = SessionGroupable> = {
   id: SessionTimeGroupId;
@@ -18,9 +19,10 @@ export type SessionTimeGroup<T extends SessionGroupable = SessionGroupable> = {
   sessions: T[];
 };
 
-const GROUP_ORDER: SessionTimeGroupId[] = ['today', 'yesterday', 'week', 'older'];
+const GROUP_ORDER: SessionTimeGroupId[] = ['pinned', 'today', 'yesterday', 'week', 'older'];
 
 const GROUP_LABELS: Record<SessionTimeGroupId, string> = {
+  pinned: 'Pinned',
   today: 'Today',
   yesterday: 'Yesterday',
   week: 'Previous 7 days',
@@ -31,7 +33,7 @@ function startOfLocalDay(date: Date): Date {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function resolveGroupId(updatedAt: string | undefined, now: Date): SessionTimeGroupId {
+function resolveTimeGroupId(updatedAt: string | undefined, now: Date): Exclude<SessionTimeGroupId, 'pinned'> {
   if (!updatedAt) {
     return 'older';
   }
@@ -55,23 +57,8 @@ function resolveGroupId(updatedAt: string | undefined, now: Date): SessionTimeGr
   return 'older';
 }
 
-export function groupSessionsByRecency<T extends SessionGroupable>(
-  sessions: readonly T[],
-  now: Date = new Date(),
-): SessionTimeGroup<T>[] {
-  const buckets: Record<SessionTimeGroupId, T[]> = {
-    today: [],
-    yesterday: [],
-    week: [],
-    older: [],
-  };
-
-  const sorted = [...sessions].sort((left, right) => {
-    const leftPinned = left.isPinned === true;
-    const rightPinned = right.isPinned === true;
-    if (leftPinned !== rightPinned) {
-      return leftPinned ? -1 : 1;
-    }
+function sortByRecencyThenName<T extends SessionGroupable>(sessions: T[]): T[] {
+  return [...sessions].sort((left, right) => {
     const leftTime = left.updatedAt ? new Date(left.updatedAt).getTime() : 0;
     const rightTime = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
     if (leftTime !== rightTime) {
@@ -79,9 +66,30 @@ export function groupSessionsByRecency<T extends SessionGroupable>(
     }
     return left.name.localeCompare(right.name);
   });
+}
 
-  for (const session of sorted) {
-    buckets[resolveGroupId(session.updatedAt, now)].push(session);
+export function groupSessionsByRecency<T extends SessionGroupable>(
+  sessions: readonly T[],
+  now: Date = new Date(),
+): SessionTimeGroup<T>[] {
+  const buckets: Record<SessionTimeGroupId, T[]> = {
+    pinned: [],
+    today: [],
+    yesterday: [],
+    week: [],
+    older: [],
+  };
+
+  for (const session of sessions) {
+    if (session.isPinned === true) {
+      buckets.pinned.push(session);
+      continue;
+    }
+    buckets[resolveTimeGroupId(session.updatedAt, now)].push(session);
+  }
+
+  for (const groupId of GROUP_ORDER) {
+    buckets[groupId] = sortByRecencyThenName(buckets[groupId]);
   }
 
   return GROUP_ORDER.filter((groupId) => buckets[groupId].length > 0).map((groupId) => ({

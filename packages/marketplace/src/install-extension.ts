@@ -3,6 +3,7 @@ import { basename, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { InstallSource } from '@piwin/contracts';
+import { resolveCloneContentRoot } from './clone-content-root.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -105,8 +106,9 @@ async function installExtensionFromGit(
     throw new Error(`git clone failed: ${message}`);
   }
 
-  const contentRoot = source.subdir ? join(clonePath, source.subdir) : clonePath;
+  let contentRoot: string;
   try {
+    contentRoot = resolveCloneContentRoot(clonePath, source.subdir);
     const result = await installExtensionFromLocal(extensionsRoot, contentRoot, nameOverride);
     await rmQuiet(clonePath);
     const resultSource: InstallSource = { kind: 'git', url: source.url };

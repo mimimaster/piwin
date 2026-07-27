@@ -1,7 +1,9 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { AppErrorBoundary } from './AppErrorBoundary';
 import { applyAppearanceToDocument, PIWIN_APPEARANCE_DARK } from './appearance-tokens';
+import { PiwinUiProvider } from '@piwin/ui-kit';
 import 'katex/dist/katex.min.css';
 import './styles.css';
 
@@ -15,6 +17,10 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+      <AppErrorBoundary>
+        <App />
+      </AppErrorBoundary>
+    </PiwinUiProvider>
   </StrictMode>,
 );

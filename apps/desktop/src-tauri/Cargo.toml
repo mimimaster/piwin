@@ -13,11 +13,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# Enables macOS full-size-content-view: the web titleband occupies the same
+# native row as the traffic lights instead of being laid out beneath it.
+tauri = { version = "2", features = ["protocol-asset", "macos-private-api"] }
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+portable-pty = "0.8"
 
 [profile.release]
 panic = "abort"

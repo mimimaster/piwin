@@ -7,6 +7,8 @@ import type {
   GitStatusSnapshot,
   HostResponse,
 } from '@piwin/contracts';
+import { Button, Field, Notice } from '@piwin/ui-kit';
+import { useConfirmDialog } from './use-confirm-dialog';
 
 type GitRequest =
   | { type: 'git/status'; projectPath: string }
@@ -36,6 +38,7 @@ export type GitPanelProps = {
  * Distinct from agent session tree. No force-push / hard reset.
  */
 export function GitPanel(props: GitPanelProps) {
+  const confirmDialog = useConfirmDialog();
   const [status, setStatus] = useState<GitStatusSnapshot | null>(null);
   const [diff, setDiff] = useState<GitDiffSummary | null>(null);
   const [graph, setGraph] = useState<GitCommitGraph | null>(null);
@@ -105,7 +108,13 @@ export function GitPanel(props: GitPanelProps) {
     command: GitRequest,
     confirmText: string,
   ): Promise<void> {
-    if (!window.confirm(confirmText)) {
+    const ok = await confirmDialog.confirm({
+      title: 'Confirm git action',
+      description: confirmText,
+      confirmLabel: 'Continue',
+      tone: 'default',
+    });
+    if (!ok) {
       return;
     }
     setBusy(true);
@@ -129,6 +138,8 @@ export function GitPanel(props: GitPanelProps) {
   const embedded = props.variant === 'embedded';
 
   return (
+    <>
+    {confirmDialog.dialog}
     <div className={embedded ? 'embedded-panel git-panel' : 'modal-backdrop'}>
       <div className={embedded ? 'embedded-body git-panel-body' : 'modal settings-modal git-panel'}>
         {embedded ? null : <h3>Git</h3>}
@@ -139,8 +150,8 @@ export function GitPanel(props: GitPanelProps) {
         </p>
         )}
         {loading ? <p className="muted">Loading git…</p> : null}
-        {error ? <div className="error-banner">{error}</div> : null}
-        {info ? <p className="muted">{info}</p> : null}
+        {error ? <Notice tone="error">{error}</Notice> : null}
+        {info ? <Notice tone="info">{info}</Notice> : null}
 
         {!status?.repository.isRepository ? (
           <p className="muted">Not a git repository (or git unavailable).</p>
@@ -192,9 +203,7 @@ export function GitPanel(props: GitPanelProps) {
                 </ul>
               )}
               <div className="row-actions" style={{ marginTop: 8 }}>
-                <button
-                  type="button"
-                  className="btn"
+                <Button
                   disabled={busy || !projectPath}
                   onClick={() =>
                     void runMutation(
@@ -209,10 +218,8 @@ export function GitPanel(props: GitPanelProps) {
                   }
                 >
                   Stage {selectedPaths.length > 0 ? 'selected' : 'all'}
-                </button>
-                <button
-                  type="button"
-                  className="btn"
+                </Button>
+                <Button
                   disabled={busy || !projectPath}
                   onClick={() =>
                     void runMutation(
@@ -227,22 +234,23 @@ export function GitPanel(props: GitPanelProps) {
                   }
                 >
                   Unstage {selectedPaths.length > 0 ? 'selected' : 'all'}
-                </button>
+                </Button>
               </div>
             </section>
 
             <section className="git-section">
               <h4>Commit</h4>
-              <textarea
-                className="text-input"
-                rows={3}
-                value={commitMessage}
-                onChange={(event) => setCommitMessage(event.target.value)}
-                placeholder="Commit message"
-              />
-              <button
-                type="button"
-                className="btn primary"
+              <Field label="Commit message" required>
+                <textarea
+                  rows={3}
+                  value={commitMessage}
+                  onChange={(event) => setCommitMessage(event.target.value)}
+                  placeholder="Summarize the staged changes"
+                  data-testid="git-commit-message"
+                />
+              </Field>
+              <Button
+                variant="primary"
                 disabled={busy || !projectPath || !commitMessage.trim()}
                 onClick={() =>
                   void runMutation(
@@ -255,21 +263,21 @@ export function GitPanel(props: GitPanelProps) {
                 }
               >
                 Commit staged
-              </button>
+              </Button>
             </section>
 
             <section className="git-section">
               <h4>Branch / checkout</h4>
-              <div className="row-actions">
+              <Field label="New branch name">
                 <input
-                  className="text-input"
                   value={branchName}
                   onChange={(event) => setBranchName(event.target.value)}
-                  placeholder="new-branch-name"
+                  placeholder="feature/my-change"
+                  data-testid="git-branch-name"
                 />
-                <button
-                  type="button"
-                  className="btn"
+              </Field>
+              <div className="row-actions">
+                <Button
                   disabled={busy || !projectPath || !branchName.trim()}
                   onClick={() =>
                     void runMutation(
@@ -286,18 +294,18 @@ export function GitPanel(props: GitPanelProps) {
                   }
                 >
                   Create+checkout
-                </button>
+                </Button>
               </div>
-              <div className="row-actions">
+              <Field label="Checkout ref" description="Branch name or commit ref">
                 <input
-                  className="text-input"
                   value={checkoutRef}
                   onChange={(event) => setCheckoutRef(event.target.value)}
-                  placeholder="branch or ref"
+                  placeholder="main"
+                  data-testid="git-checkout-ref"
                 />
-                <button
-                  type="button"
-                  className="btn"
+              </Field>
+              <div className="row-actions">
+                <Button
                   disabled={busy || !projectPath || !checkoutRef.trim()}
                   onClick={() =>
                     void runMutation(
@@ -310,7 +318,7 @@ export function GitPanel(props: GitPanelProps) {
                   }
                 >
                   Checkout
-                </button>
+                </Button>
               </div>
             </section>
 
@@ -384,16 +392,17 @@ export function GitPanel(props: GitPanelProps) {
         )}
 
         <div className={embedded ? 'drawer-actions' : 'modal-actions'}>
-          <button type="button" className="btn" onClick={() => void reload()} disabled={loading}>
+          <Button onClick={() => void reload()} disabled={loading}>
             Refresh
-          </button>
+          </Button>
           {embedded ? null : (
-            <button type="button" className="btn primary" onClick={() => props.onClose?.()}>
+            <Button variant="primary" onClick={() => props.onClose?.()}>
               Close
-            </button>
+            </Button>
           )}
         </div>
       </div>
     </div>
+    </>
   );
 }

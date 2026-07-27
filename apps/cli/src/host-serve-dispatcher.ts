@@ -1,0 +1,108 @@
+/**
+ * ADR 0015 host serve dispatcher: control lane bypasses serial work.
+ */
+import type { HostCommand, HostResponse, HostServerMessage } from '@piwin/contracts';
+import type { HostRuntime } from '@piwin/agent-host';
+import { classifyHostServeCommand } from './host-serve-command-lane.js';
+import type { JsonlWriter } from './host-serve-jsonl-writer.js';
+
+export type HostServeDispatcherOptions = {
+  runtime: HostRuntime;
+  writer: JsonlWriter;
+  /** Timeout for non-prompt request handling. Prompt is quick-ack after ADR 0015. */
+  commandTimeoutMs?: number;
+};
+
+export type HostServeDispatcher = {
+  dispatch: (command: HostCommand) => void;
+  /** Stop accepting commands and await every queued or active command. */
+  drain: () => Promise<void>;
+};
+
+const DEFAULT_COMMAND_TIMEOUT_MS = 45_000;
+
+export function createHostServeDispatcher(
+  options: HostServeDispatcherOptions,
+): HostServeDispatcher {
+  const timeoutMs = options.commandTimeoutMs ?? DEFAULT_COMMAND_TIMEOUT_MS;
+  let serializedChain: Promise<void> = Promise.resolve();
+  const inFlightCommands = new Set<Promise<void>>();
+  let acceptingCommands = true;
+  let drainPromise: Promise<void> | undefined;
+
+  function dispatch(command: HostCommand): void {
+    if (!acceptingCommands) {
+      return;
+    }
+    const lane = classifyHostServeCommand(command);
+    if (lane === 'control' || lane === 'concurrent') {
+      void trackCommand(runCommand(options.runtime, options.writer, command, timeoutMs));
+      return;
+    }
+    serializedChain = trackCommand(
+      serializedChain.then(() => runCommand(options.runtime, options.writer, command, timeoutMs)),
+    );
+  }
+
+  async function drain(): Promise<void> {
+    acceptingCommands = false;
+    if (drainPromise === undefined) {
+      drainPromise = waitForInFlightCommands();
+    }
+    await drainPromise;
+  }
+
+  function trackCommand(commandPromise: Promise<void>): Promise<void> {
+    const trackedPromise = commandPromise.catch(() => undefined);
+    inFlightCommands.add(trackedPromise);
+    void trackedPromise.then(() => {
+      inFlightCommands.delete(trackedPromise);
+    });
+    return trackedPromise;
+  }
+
+  async function waitForInFlightCommands(): Promise<void> {
+    while (inFlightCommands.size > 0) {
+      await Promise.all([...inFlightCommands]);
+    }
+  }
+
+  return { dispatch, drain };
+}
+
+async function runCommand(
+  runtime: HostRuntime,
+  writer: JsonlWriter,
+  command: HostCommand,
+  timeoutMs: number,
+): Promise<void> {
+  const commandId = typeof command.id === 'string' ? command.id : undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error(`command timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      timeoutId.unref();
+    });
+    const response: HostResponse = await Promise.race([
+      runtime.handleCommand(command),
+      timeoutPromise,
+    ]);
+    await writer.write(response);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const failure: HostServerMessage = {
+      type: 'response',
+      command: command.type,
+      success: false,
+      error: `host command '${command.type}' failed: ${message}`,
+      ...(commandId ? { id: commandId } : {}),
+    };
+    await writer.write(failure);
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId);
+    }
+  }
+}

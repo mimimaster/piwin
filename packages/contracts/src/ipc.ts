@@ -2,6 +2,7 @@
 
 import type {
   AgentEvent,
+  AgentEventEnvelope,
   CreateSessionInput,
   HostMode,
   MediaAttachmentRef,
@@ -10,7 +11,7 @@ import type {
   PromptInput,
   SessionSummary,
 } from './host.js';
-import type { PiwinConfig } from './config.js';
+import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import type { SavedMediaAsset, SaveMediaInput } from './media.js';
 import type { SkillSummary } from './skills.js';
 import type { ExtensionSummary } from './extensions.js';
@@ -30,6 +31,10 @@ import type {
 } from './git.js';
 import type { ThemeManifest, ThemeSummary } from './theme.js';
 import type { PlanStatus, PlanStepStatus, SessionPlan } from './plan.js';
+import type { SubagentSpawnOptions } from './subagent.js';
+import type { PtyOpenInput } from './pty.js';
+import type { CronJob, HookDefinition, SessionTodoList } from './automation.js';
+import type { McpServerConfig } from './mcp.js';
 import type {
   MemoryListFilter,
   MemoryQuotaSummary,
@@ -74,9 +79,47 @@ export type MediaSaveData = {
 export type HostCommand =
   | { id?: string; type: 'host/ping' }
   | { id?: string; type: 'host/status' }
+  | { id?: string; type: 'project/list' }
   | { id?: string; type: 'project/open'; path: string }
   | { id?: string; type: 'project/trust'; path: string }
-  | { id?: string; type: 'session/list'; projectPath: string }
+  | {
+      id?: string;
+      type: 'project/authorize-terminal';
+      projectPath: string;
+      cwd?: string;
+    }
+  | { id?: string; type: 'project/permissions-list'; path: string }
+  | { id?: string; type: 'project/permissions-revoke'; path: string; key: string }
+  | {
+      id?: string;
+      type: 'project/list-dir';
+      /** Absolute project root (must match opened workspace). */
+      projectPath: string;
+      /**
+       * Relative path under project root (posix-style).
+       * Empty / omitted = project root.
+       */
+      relativePath?: string;
+    }
+  | {
+      id?: string;
+      type: 'project/read-file';
+      projectPath: string;
+      /** Relative path under project root (posix-style). */
+      relativePath: string;
+      /** Soft cap in bytes (host may enforce a lower max). */
+      maxBytes?: number;
+    }
+  | {
+      id?: string;
+      type: 'session/list';
+      /** @deprecated Use `scope` field instead. */
+      projectPath?: string;
+      /** Scope-based session listing. When set, filters sessions by scope. */
+      scope?: import('./host.js').SessionScope;
+      /** When true, include archived sessions (default: active only). */
+      includeArchived?: boolean;
+    }
   | { id?: string; type: 'session/create'; input: CreateSessionInput }
   | {
       id?: string;
@@ -84,6 +127,18 @@ export type HostCommand =
       parentSessionId: string;
       task: string;
       sessionName?: string;
+      mode?: SubagentSpawnOptions['mode'];
+      applyPolicy?: SubagentSpawnOptions['applyPolicy'];
+      allowedOutputPaths?: string[];
+      retainWorktree?: boolean;
+      role?: string;
+    }
+  | {
+      id?: string;
+      type: 'session/message-child';
+      parentSessionId: string;
+      childSessionId: string;
+      text: string;
     }
   | { id?: string; type: 'session/list-children'; parentSessionId: string }
   | { id?: string; type: 'session/cancel-subagent'; sessionId: string }
@@ -101,10 +156,10 @@ export type HostCommand =
     }
   | { id?: string; type: 'session/resume'; sessionId: string }
   | { id?: string; type: 'session/messages'; sessionId: string }
-  | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
-  | { id?: string; type: 'session/abort'; sessionId: string }
-  | { id?: string; type: 'session/steer'; sessionId: string; message: string }
-  | { id?: string; type: 'session/follow_up'; sessionId: string; message: string }
+ | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
+  | { id?: string; type: 'session/abort'; sessionId: string; runId?: string }
+  | { id?: string; type: 'session/steer'; sessionId: string; message: string; runId?: string }
+  | { id?: string; type: 'session/follow_up'; sessionId: string; message: string; runId?: string }
   | {
       id?: string;
       type: 'session/compact';
@@ -159,6 +214,15 @@ export type HostCommand =
   | { id?: string; type: 'git/status'; projectPath: string }
   | { id?: string; type: 'git/diff-summary'; projectPath: string }
   | { id?: string; type: 'git/log-graph'; projectPath: string; limit?: number }
+  | {
+      id?: string;
+      type: 'git/diff-file';
+      projectPath: string;
+      /** Path relative to repo root. */
+      path: string;
+      /** Default `combined` (worktree vs HEAD). */
+      scope?: 'worktree' | 'staged' | 'combined';
+    }
   | { id?: string; type: 'git/stage'; input: GitStageInput }
   | { id?: string; type: 'git/unstage'; input: GitUnstageInput }
   | { id?: string; type: 'git/commit'; input: GitCommitInput }
@@ -188,6 +252,32 @@ export type HostCommand =
   | { id?: string; type: 'plan/set-status'; sessionId: string; status: PlanStatus }
   | { id?: string; type: 'config/get' }
   | { id?: string; type: 'config/set'; config: PiwinConfig }
+  | {
+      id?: string;
+      type: 'models/discover';
+      provider: ModelProviderConfig;
+      /** One-shot secret for this request only — never persisted by host. */
+      apiKey?: string;
+    }
+  | {
+      id?: string;
+      type: 'models/test';
+      provider: ModelProviderConfig;
+      modelId: string;
+      /** One-shot secret for this request only — never persisted by host. */
+      apiKey?: string;
+    }
+  | {
+      id?: string;
+      type: 'secrets/set';
+      providerId: string;
+      secret: string;
+    }
+  | {
+      id?: string;
+      type: 'secrets/get';
+      providerId: string;
+    }
   | {
       id?: string;
       type: 'permission/resolve';
@@ -237,6 +327,28 @@ export type HostCommand =
   /** CE-CHAT: pin / search / product truncate-resend. */
   | { id?: string; type: 'session/pin'; sessionId: string }
   | { id?: string; type: 'session/unpin'; sessionId: string }
+  /** PD-SESS: rename / archive-first lifecycle / permanent delete. */
+  | { id?: string; type: 'session/rename'; sessionId: string; name: string }
+  | { id?: string; type: 'session/archive'; sessionId: string }
+  | { id?: string; type: 'session/unarchive'; sessionId: string }
+  | {
+      id?: string;
+      type: 'session/delete';
+      sessionId: string;
+      /**
+       * Permanent delete normally requires the session to be archived first.
+       * When true, allow delete of an active (non-archived) session after UI confirm.
+       */
+      force?: boolean;
+    }
+  /** PD-SESS-05: fork-light — copy product transcript into a new session id. */
+  | {
+      id?: string;
+      type: 'session/duplicate';
+      sessionId: string;
+      /** Optional override; default "Copy of <name>". */
+      name?: string;
+    }
   | { id?: string; type: 'session/search'; query: SessionSearchQuery }
   | {
       id?: string;
@@ -254,6 +366,27 @@ export type HostCommand =
       /** Absolute path; when omitted host writes under session exports dir. */
       outputPath?: string;
     }
+  | { id?: string; type: 'pty/open'; input: PtyOpenInput }
+  | { id?: string; type: 'pty/write'; ptyId: string; data: string }
+  | { id?: string; type: 'pty/resize'; ptyId: string; cols: number; rows: number }
+  | { id?: string; type: 'pty/close'; ptyId: string }
+  | { id?: string; type: 'pty/list'; projectPath?: string }
+  | { id?: string; type: 'skills/store-list' }
+  | { id?: string; type: 'mcp/registry-list'; query?: string }
+  | {
+      id?: string;
+      type: 'mcp/registry-install-draft';
+      serverId: string;
+      draft: McpServerConfig;
+    }
+  | { id?: string; type: 'cron/list' }
+  | { id?: string; type: 'cron/upsert'; job: CronJob }
+  | { id?: string; type: 'cron/delete'; jobId: string }
+  | { id?: string; type: 'cron/run'; jobId: string }
+  | { id?: string; type: 'hooks/list' }
+  | { id?: string; type: 'hooks/set'; hooks: HookDefinition[] }
+  | { id?: string; type: 'todo/get'; sessionId: string }
+  | { id?: string; type: 'todo/set'; sessionId: string; items: SessionTodoList['items'] }
   | {
       id?: string;
       type: 'extension/ui_resolve';
@@ -275,7 +408,7 @@ export type HostResponse =
     };
 
 export type HostPush =
-  | { type: 'event'; sessionId: string; event: AgentEvent }
+  | { type: 'event'; sessionId: string; event: AgentEvent; envelope?: AgentEventEnvelope }
   | { type: 'plan/updated'; sessionId: string; plan: SessionPlan | null }
   | {
       type: 'subagent/updated';
@@ -284,15 +417,26 @@ export type HostPush =
     }
   | { type: 'subagent/merged'; parentSessionId: string; childSessionId: string; messageId: string }
   | {
+      type: 'transcript/append';
+      sessionId: string;
+      message: import('./session-transcript.js').SessionTranscriptMessage;
+    }
+  | {
       type: 'permission/request';
       sessionId: string;
       requestId: string;
       action: string;
       detail: string;
       defaultDecision: PermissionDecision;
+      context?: import('./host.js').PermissionRequestContext;
+      runId?: string;
     }
   | { type: 'host/status'; mode: HostMode; ready: boolean; mock: boolean }
   | { type: 'host/log'; level: 'info' | 'warn' | 'error'; message: string }
+  | { type: 'pty/output'; ptyId: string; data: string; at: string }
+  | { type: 'pty/exit'; ptyId: string; exitCode?: number | null }
+  | { type: 'todo/updated'; sessionId: string; items: SessionTodoList['items'] }
+  | { type: 'automation/cron_finished'; jobId: string; ok: boolean; message?: string }
   | {
       type: 'extension/ui_request';
       sessionId: string;
@@ -346,6 +490,21 @@ export type HostStatusData = {
     sessionSearch?: boolean;
     /** CE-CHAT: session pin/unpin available. */
     sessionPin?: boolean;
+    /** PD-SESS: rename / archive / delete / duplicate (product index). */
+    sessionLifecycle?: boolean;
+    /**
+     * True interactive PTY (Tauri + xterm). false until ADR 0013 ships.
+     * When false, desktop exposes Shell preview (line-oriented piped shell) only.
+     */
+    pty?: boolean;
+    /** Line-oriented shell preview available (not a full TTY emulator). */
+    shellPreview?: boolean;
+    /** CE-SUB worktree isolation. */
+    subagentWorktree?: boolean;
+    /** CE-HUB registry browse. */
+    marketplaceHub?: boolean;
+    /** CE-CRON/HOOK automation. */
+    automation?: boolean;
     /** CE-OBS: usage/update events emitted. */
     usage?: boolean;
     /** CE-SHARE-01: local session export MD/HTML. */
@@ -364,6 +523,7 @@ export type SessionCompactData = {
   tokensBefore?: number;
   tokensAfter?: number;
   durationMs?: number;
+  fileOps?: import('./compaction-fileops.js').CompactionFileOps;
 };
 
 export type SessionCompactionSettingsData = {

@@ -14,6 +14,7 @@ export type ProcessToolPermissionGate = (input: {
   action: string;
   detail: string;
   defaultDecision: PermissionDecision;
+  signal?: AbortSignal;
 }) => Promise<PermissionDecision>;
 
 export type BuildProcessToolsOptions = {
@@ -35,6 +36,7 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolDe
   async function gate(
     action: 'process:start' | 'process:stop',
     detail: string,
+    signal?: AbortSignal,
   ): Promise<void> {
     const evaluation = evaluateProcessPermission(action);
     let decision: PermissionDecision = evaluation.decision;
@@ -44,6 +46,7 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolDe
           action,
           detail,
           defaultDecision: 'ask',
+          ...(signal ? { signal } : {}),
         });
       } else {
         decision = resolveNonInteractiveDecision(evaluation);
@@ -75,7 +78,7 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolDe
       },
       required: ['command', 'argv', 'cwd'],
     },
-    async execute(args) {
+    async execute(args, signal) {
       const command = String(args.command ?? '');
       const argvRaw = args.argv;
       const argv = Array.isArray(argvRaw)
@@ -83,7 +86,7 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolDe
         : [];
       const cwd = String(args.cwd ?? projectPath ?? '');
       const label = args.label !== undefined ? String(args.label) : undefined;
-      await gate('process:start', `${command} ${argv.join(' ')} @ ${cwd}`);
+      await gate('process:start', `${command} ${argv.join(' ')} @ ${cwd}`, signal);
       const startInput: Parameters<ProcessRegistry['start']>[0] = {
         command,
         argv,
@@ -155,12 +158,12 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolDe
       },
       required: ['processId'],
     },
-    async execute(args) {
+    async execute(args, signal) {
       const processId = String(args.processId ?? '');
       if (!processId) {
         throw new Error('processId is required');
       }
-      await gate('process:stop', processId);
+      await gate('process:stop', processId, signal);
       const record = await registry.stop(processId);
       return JSON.stringify(record, null, 2);
     },

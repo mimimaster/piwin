@@ -29,4 +29,24 @@ export type {
 } from './mcp-transport.js';
 
 export { createMcpLifecycleManager } from './mcp-lifecycle-manager.js';
-export type { McpLifecycleManager } from './mcp-lifecycle-manager.js';
+export type {
+  McpLifecycleManager,
+  McpLifecycleManagerOptions,
+} from './mcp-lifecycle-manager.js';
+
+export {
+  fingerprintMcpServerConfig,
+  formatMcpToolSelector,
+  parseMcpToolSelector,
+} from './mcp-fingerprint.js';
+export {
+  createMcpMetadataCatalog,
+  emptyMetadataDocument,
+} from './mcp-metadata-catalog.js';
+export type { McpMetadataCatalog } from './mcp-metadata-catalog.js';
+export {
+  createEmptyMcpMetadataDocument,
+  getMcpMetadataPath,
+  loadMcpMetadataDocument,
+  saveMcpMetadataDocument,
+} from './mcp-metadata-store.js';

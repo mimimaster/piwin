@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>piwin icon 候选</title>
+  <style>
+    :root {
+      --bg: #0b0a09;
+      --panel: #151311;
+      --text: #f4efe7;
+      --muted: #a89f93;
+      --accent: #d89a4a;
+      --line: rgba(255, 236, 210, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(900px 500px at 20% -10%, rgba(216, 154, 74, 0.12), transparent 60%),
+        radial-gradient(700px 400px at 90% 10%, rgba(143, 191, 176, 0.08), transparent 55%),
+        var(--bg);
+      padding: 32px 24px 64px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      margin: 0 0 28px;
+      color: var(--muted);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 18px;
+      max-width: 1100px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px 16px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+    }
+    .icon-stage {
+      width: 140px;
+      height: 140px;
+      display: grid;
+      place-items: center;
+      border-radius: 28px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), transparent),
+        #1a1815;
+      border: 1px solid var(--line);
+    }
+    .icon-stage svg {
+      width: 112px;
+      height: 112px;
+      display: block;
+    }
+    .meta {
+      width: 100%;
+      text-align: center;
+    }
+    .name {
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .desc {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    footer {
+      max-width: 1100px;
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    code {
+      color: var(--accent);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>piwin icon 候选</h1>
+  <p class="sub">纯 HTML / SVG，直接浏览器打开选一张。回复编号就行，例如「要 A3」。</p>
+
+  <div class="grid">
+
+    <article class="card">
+      <div class="icon-stage">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="a1g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#1c1a17"/>
+              <stop offset="100%" stop-color="#0b0a09"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#a1g)"/>
+          <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="rgba(255,236,210,0.12)"/>
+          <path d="M40 48h48" stroke="#f4efe7" stroke-width="10" stroke-linecap="round"/>
+          <path d="M52 48v40" stroke="#f4efe7" stroke-width="10" stroke-linecap="round"/>
+          <path d="M76 48v40" stroke="#f4efe7" stroke-width="10" stroke-linecap="round"/>
+          <circle cx="88" cy="84" r="5" fill="#d89a4a"/>
+        </svg>
+      </div>
+      <div class="meta">
+        <div class="name">A1 · 纯 π</div>
+        <div class="desc">最简：π + 铜色点</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="icon-stage">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="a2g" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#1f1c18"/>
+              <stop offset="100%" stop-color="#0a0908"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#a2g)"/>
+          <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="rgba(255,236,210,0.12)"/>
+          <rect x="30" y="34" width="68" height="56" rx="10" fill="#151311" stroke="#f0e8da" stroke-width="4"/>
+          <circle cx="42" cy="46" r="2.5" fill="#d89a4a"/>
+          <circle cx="50" cy="46" r="2.5" fill="rgba(244,239,231,0.35)"/>
+          <circle cx="58" cy="46" r="2.5" fill="rgba(244,239,231,0.2)"/>
+          <path d="M42 62h18" stroke="#f4efe7" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M42 70h28" stroke="rgba(244,239,231,0.35)" stroke-width="3.5" stroke-linecap="round"/>
+          <rect x="44" y="78" width="8" height="3.5" rx="1" fill="#d89a4a"/>
+        </svg>
+      </div>
+      <div class="meta">
+        <div class="name">A2 · 终端窗</div>
+        <div class="desc">窗口 + 命令行 + 光标</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="icon-stage">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="a3g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#1b1916"/>
+              <stop offset="100%" stop-color="#090807"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#a3g)"/>
+          <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="rgba(255,236,210,0.12)"/>
+          <ellipse cx="64" cy="64" rx="42" ry="24" fill="none" stroke="#b07a36" stroke-width="2.5" transform="rotate(-18 64 64)" opacity="0.9"/>
+          <rect x="34" y="38" width="60" height="48" rx="10" fill="none" stroke="#f4efe7" stroke-width="4"/>
+          <path d="M48 50h32" stroke="#f4efe7" stroke-width="7" stroke-linecap="round"/>
+          <path d="M56 50v28" stroke="#f4efe7" stroke-width="7" stroke-linecap="round"/>
+          <path d="M72 50v28" stroke="#f4efe7" stroke-width="7" stroke-linecap="round"/>
+          <circle cx="86" cy="78" r="4" fill="#d89a4a"/>
+        </svg>
+      </div>
+      <div class="meta">
+        <div class="name">A3 · 终端 + 轨道</div>
+        <div class="desc">和当前产品气质最接近</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="icon-stage">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="a4g" cx="35%" cy="25%" r="75%">
+              <stop offset="0%" stop-color="#2a2318"/>
+              <stop offset="55%" stop-color="#12100e"/>
+              <stop offset="100%" stop-color="#080706"/>
+            </radialGradient>
+          </defs>
+          <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#a4g)"/>
+          <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="rgba(216,154,74,0.28)"/>
+          <path d="M48 36v56" stroke="#f4efe7" stroke-width="12" stroke-linecap="round"/>
+          <path d="M48 36h22c14 0 24 8 24 20s-10 20-24 20H48" fill="none" stroke="#f4efe7" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="84" cy="84" r="6" fill="#d89a4a"/>
+        </svg>
+      </div>
+      <div class="meta">
+        <div class="name">A4 · 字母 P</div>
+        <div class="desc">单字母，识别度高</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="icon-stage">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="a5g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#d89a4a"/>
+              <stop offset="100%" stop-color="#8a5f2a"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#a5g)"/>
+          <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="rgba(255,255,255,0.18)"/>
+          <path d="M40 48h48" stroke="#1a1208" stroke-width="10" stroke-linecap="round"/>
+          <path d="M52 48v40" stroke="#1a1208" stroke-width="10" stroke-linecap="round"/>
+          <path d="M76 48v40" stroke="#1a1208" stroke-width="10" stroke-linecap="round"/>
+          <circle cx="88" cy="84" r="5" fill="#fff6e8"/>
+        </svg>
+      </div>
+      <div class="meta">
+        <div class="name">A5 · 铜色底板</div>
+        <div class="desc">实色铜底，dock 里更抢眼</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="icon-stage">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="a6g" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#181613"/>
+              <stop offset="100%" stop-color="#090807"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#a6g)"/>
+          <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="rgba(255,236,210,0.12)"/>
+          <rect x="30" y="36" width="28" height="52" rx="8" fill="none" stroke="#f4efe7" stroke-width="4"/>
+          <rect x="70" y="36" width="28" height="52" rx="8" fill="none" stroke="#f4efe7" stroke-width="4"/>
+          <path d="M38 50h12" stroke="#d89a4a" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M38 58h8" stroke="rgba(244,239,231,0.4)" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M78 50h12" stroke="#d89a4a" stroke-width="3.5" stroke-linecap="round"/>
+          <path d="M78 58h8" stroke="rgba(244,239,231,0.4)" stroke-width="3.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="meta">
+        <div class="name">A6 · 双窗 twin</div>
+        <div class="desc">pi + twin 双窗语义</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="icon-stage">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="a7g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#171512"/>
+              <stop offset="100%" stop-color="#0a0908"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#a7g)"/>
+          <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="rgba(255,236,210,0.12)"/>
+          <path d="M42 44l18 20-18 20" fill="none" stroke="#f4efe7" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M68 84h22" stroke="#d89a4a" stroke-width="10" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="meta">
+        <div class="name">A7 · shell 提示符</div>
+        <div class="desc">&gt;_ 命令行最经典</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="icon-stage">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="a8g" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#1c1915"/>
+              <stop offset="100%" stop-color="#090807"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#a8g)"/>
+          <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="rgba(255,236,210,0.12)"/>
+          <circle cx="64" cy="64" r="30" fill="none" stroke="#f4efe7" stroke-width="8"/>
+          <circle cx="64" cy="64" r="10" fill="#d89a4a"/>
+          <path d="M64 28v10" stroke="#f4efe7" stroke-width="6" stroke-linecap="round"/>
+          <path d="M64 90v10" stroke="rgba(244,239,231,0.35)" stroke-width="6" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="meta">
+        <div class="name">A8 · 目标 / agent</div>
+        <div class="desc">抽象 agent 节点</div>
+      </div>
+    </article>
+
+    <article class="card">
+      <div class="icon-stage">
+        <svg viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="a9g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#191714"/>
+              <stop offset="100%" stop-color="#0a0908"/>
+            </linearGradient>
+          </defs>
+          <rect x="8" y="8" width="112" height="112" rx="28" fill="url(#a9g)"/>
+          <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="rgba(255,236,210,0.12)"/>
+          <rect x="34" y="40" width="60" height="18" rx="6" fill="#f4efe7"/>
+          <rect x="40" y="64" width="48" height="14" rx="5" fill="#d89a4a"/>
+          <rect x="46" y="84" width="36" height="10" rx="4" fill="rgba(244,239,231,0.35)"/>
+        </svg>
+      </div>
+      <div class="meta">
+        <div class="name">A9 · 分层 shell</div>
+        <div class="desc">外壳 / 宿主 / 内核三层</div>
+      </div>
+    </article>
+
+  </div>
+
+  <footer>
+    打开方式：浏览器直接打开 <code>docs/icon-candidates.html</code>。选中后回我编号，我再写进 Tauri icons / favicon。
+  </footer>
+</body>
+</html>

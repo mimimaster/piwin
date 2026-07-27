@@ -5,6 +5,7 @@ import {
   useReducer,
   useRef,
   useState,
+  type SetStateAction,
 } from 'react';
 import type {
   ExecutionMode,
@@ -161,7 +162,13 @@ export function App() {
   );
   const rightPanelResize = useRightPanelResize(rightPanelResizeOptions);
   const [hostLogEntries, setHostLogEntries] = useState<HostLogEntry[]>([]);
-  const [ptyOutput, setPtyOutput] = useState<PtyOutputLine[]>([]);
+  const [ptyOutput, setPtyOutputBase] = useState<PtyOutputLine[]>([]);
+  /** Quiet workbench: terminal produced output while directory home / panel collapsed. */
+  const [terminalAttention, setTerminalAttention] = useState(false);
+  const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
+  const watchingTerminalRef = useRef(false);
+  watchingTerminalRef.current =
+    rightPanelOpen && rightPanelTab === 'activity' && rightPanelView === 'detail';
   const [sessionSearch, setSessionSearch] = useState('');
   const [showArchivedSessions, setShowArchivedSessions] = useState(false);
   const [sessionMenu, setSessionMenu] = useState<{
@@ -261,10 +268,41 @@ export function App() {
   const {
     managedProcesses,
     refreshManagedProcesses,
-    appendProcessLog,
+    appendProcessLog: appendProcessLogBase,
   } = useManagedProcesses(hostClient, {
     refreshWhenVisible: rightPanelOpen && shell.inspectorTab === 'activity',
   });
+
+  const markTerminalAttentionIfHidden = useCallback((): void => {
+    // Hard rule: never auto-open the work panel; only pulse chrome.
+    if (!watchingTerminalRef.current) {
+      setTerminalAttention(true);
+    }
+  }, []);
+
+  const appendProcessLog = useCallback(
+    (processId: string, text: string): void => {
+      appendProcessLogBase(processId, text);
+      markTerminalAttentionIfHidden();
+    },
+    [appendProcessLogBase, markTerminalAttentionIfHidden],
+  );
+
+  const setPtyOutput = useCallback(
+    (value: SetStateAction<PtyOutputLine[]>): void => {
+      setPtyOutputBase((current) => {
+        const next = typeof value === 'function' ? value(current) : value;
+        // Only new lines (not clear/replace-empty) raise directory attention.
+        if (next.length > current.length) {
+          queueMicrotask(() => {
+            markTerminalAttentionIfHidden();
+          });
+        }
+        return next;
+      });
+    },
+    [markTerminalAttentionIfHidden],
+  );
 
   const {
     hostStatus,
@@ -1180,6 +1218,7 @@ export function App() {
             skillsCount={menuSkills.filter((s) => s.enabled).length}
             mcpCount={menuMcp.filter((m) => m.running).length}
             agentState={state.streaming ? 'running' : state.error ? 'error' : 'idle'}
+            terminalAttention={terminalAttention}
             contextPercent={
               typeof state.contextUsage?.contextRatio === 'number'
                 ? Math.round(state.contextUsage.contextRatio * 100)
@@ -1219,6 +1258,9 @@ export function App() {
         onResizeReset={() => rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX)}
         isOverlayPresentation={isOverlayPresentation}
         runningProcessCount={managedProcesses.length}
+        terminalAttention={terminalAttention}
+        onTerminalAttentionClear={() => setTerminalAttention(false)}
+        onViewChange={setRightPanelView}
         locale={desktopLocale}
         notesContent={<NotesPanel request={requestNotesPanel} />}
         cardsContent={<FlashcardsPanel request={requestCardsPanel} />}

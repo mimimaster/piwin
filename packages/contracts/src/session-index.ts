@@ -1,10 +1,21 @@
 /** Lightweight session index (product-side, not Pi JSONL internals). */
 
+import type { SessionScope } from './host.js';
+
 export type SubagentStatus = 'running' | 'done' | 'failed' | 'cancelled';
 
 export type SessionIndexRecord = {
   id: string;
+  /**
+   * Legacy project path (always set for v1 records). For v2 records, use
+   * `scope` to determine the project path.
+   * @deprecated Use `scope` field instead.
+   */
   projectPath: string;
+  /** Session scope. Absent in v1 documents; normalized on load. */
+  scope?: SessionScope;
+  /** Resolved working directory at session creation time. */
+  workingDirectory?: string;
   name?: string;
   createdAt: string;
   updatedAt: string;
@@ -29,9 +40,28 @@ export type SessionIndexRecord = {
   /** CE-CHAT pin fields (product index; not Pi JSONL). */
   isPinned?: boolean;
   pinnedAt?: string;
+  /** PD-SESS: soft-hide from default list (archive-first lifecycle). */
+  isArchived?: boolean;
+  archivedAt?: string;
+  /** CE-SUB isolation mode for child sessions. */
+  subagentMode?: 'readonly' | 'worktree';
+  subagentApplyPolicy?: 'none' | 'auto' | 'explicit';
+  subagentAllowedOutputPaths?: string[];
+  subagentRetainWorktree?: boolean;
+  subagentRole?: string;
+  worktreePath?: string;
+  worktreeBranch?: string;
 };
 
+/**
+ * Product session index document.
+ *
+ * v1 (no scope): every record has a required `projectPath`; scope defaults to
+ *   `{ kind: 'project', projectPath }` on load.
+ * v2 (scope): records carry optional `scope` and `workingDirectory` in addition
+ *   to the legacy `projectPath`. Loaders normalize v1 → v2 on read.
+ */
 export type SessionIndexDocument = {
-  version: 1;
+  version: 1 | 2;
   sessions: SessionIndexRecord[];
 };

@@ -12,6 +12,7 @@ export type GatedBashPermissionRequest = {
   action: string;
   detail: string;
   defaultDecision: PermissionDecision;
+  signal?: AbortSignal;
 };
 
 export type BuildGatedBashToolOptions = {
@@ -89,6 +90,7 @@ export async function buildGatedBashToolDefinition(
               action: 'bash',
               detail: `${evaluation.reason}: ${command}`,
               defaultDecision: 'ask',
+              ...(execOptions.signal ? { signal: execOptions.signal } : {}),
             });
           } else {
             decision = resolveNonInteractiveDecision(evaluation);

@@ -12,6 +12,9 @@ const server = new Server(
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  ...(process.env.PIWIN_FIXTURE_HANG_LIST === '1'
+    ? await new Promise(() => {})
+    : {}),
   tools: [
     {
       name: 'ping',
@@ -23,6 +26,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const toolName = request.params.name;
+  if (process.env.PIWIN_FIXTURE_HANG_CALL === '1') {
+    await new Promise(() => {});
+  }
   return {
     content: [
       {

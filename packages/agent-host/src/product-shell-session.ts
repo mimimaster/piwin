@@ -9,6 +9,7 @@ import type {
   PromptInput,
   SessionCompactResult,
   SessionHandle,
+  SessionScope,
   SessionTranscriptMessage,
   SessionTreeView,
 } from '@piwin/contracts';
@@ -17,7 +18,10 @@ type Listener = (event: AgentEvent) => void;
 
 export type ProductShellSessionOptions = {
   sessionId: string;
+  /** Legacy project path; empty string for general sessions. */
   projectPath: string;
+  scope?: SessionScope;
+  workingDirectory?: string;
   sessionName?: string;
   seedMessages?: SessionTranscriptMessage[];
   createLiveSession: (input: CreateSessionInput) => Promise<SessionHandle>;
@@ -44,6 +48,13 @@ export function createProductShellSession(
     const createInput: CreateSessionInput = {
       projectPath: options.projectPath,
     };
+    if (options.scope) {
+      createInput.scope = options.scope;
+    }
+    if (options.workingDirectory) {
+      // cwd override only when product shell needs a non-default agent dir (e.g. worktree).
+      // For general, host resolveSessionLocation recreates workspace path.
+    }
     if (options.sessionName) {
       createInput.sessionName = options.sessionName;
     }
@@ -102,6 +113,12 @@ export function createProductShellSession(
       if (live?.setAutoCompactionEnabled) {
         live.setAutoCompactionEnabled(enabled);
       }
+    },
+    needsProductHistoryInjection(): boolean {
+      // A recovered shell creates a new Pi session on its first prompt. Feed
+      // product history once for that reconstruction; subsequent prompts use
+      // the live Pi handle's own conversation state.
+      return live === null;
     },
     async getMessages(): Promise<AgentMessageView[]> {
       if (live) {

@@ -1,8 +1,13 @@
 /**
  * Map Pi contextUsage / assistant usage shapes into ContextUsageSnapshot.
- * Never invents token counts — only maps when numbers are present.
+ * Never invents token counts for totals — only maps when numbers are present.
+ * Breakdown may be host-estimated and is labeled as such.
  */
-import type { ContextUsageSnapshot, UsageSource } from '@piwin/contracts';
+import type {
+  ContextUsageBreakdown,
+  ContextUsageSnapshot,
+  UsageSource,
+} from '@piwin/contracts';
 
 export function mapUsageSnapshot(
   sessionId: string,
@@ -74,6 +79,26 @@ export function mapUsageSnapshot(
     snapshot.contextRatio = Math.min(1, Math.max(0, usedForRatio / tokensLimit));
   }
 
+  const mappedBreakdown = mapBreakdown(
+    asRecord(nested.breakdown) ??
+      asRecord(nested.contextBreakdown) ??
+      asRecord(record.breakdown),
+  );
+  if (mappedBreakdown) {
+    snapshot.breakdown = mappedBreakdown;
+  } else if (usedForRatio !== undefined) {
+    const estimateInput: {
+      tokensUsed: number;
+      promptTokens?: number;
+      completionTokens?: number;
+    } = { tokensUsed: usedForRatio };
+    if (promptTokens !== undefined) estimateInput.promptTokens = promptTokens;
+    if (completionTokens !== undefined) {
+      estimateInput.completionTokens = completionTokens;
+    }
+    snapshot.breakdown = estimateUsageBreakdown(estimateInput);
+  }
+
   return snapshot;
 }
 
@@ -97,7 +122,104 @@ export function estimateMockUsage(
     contextRatio: Math.min(1, totalTokens / tokensLimit),
     updatedAt: new Date().toISOString(),
     source: 'host-estimate',
+    breakdown: estimateUsageBreakdown({
+      tokensUsed: totalTokens,
+      promptTokens,
+      completionTokens,
+    }),
   };
+}
+
+/**
+ * Split total context into Codex-style categories.
+ * Honest host-estimate: fixed overhead buckets + remainder conversation.
+ */
+export function estimateUsageBreakdown(input: {
+  tokensUsed: number;
+  promptTokens?: number;
+  completionTokens?: number;
+}): ContextUsageBreakdown {
+  const used = Math.max(0, Math.floor(input.tokensUsed));
+  if (used === 0) {
+    return {
+      systemPromptTokens: 0,
+      toolDefinitionsTokens: 0,
+      rulesTokens: 0,
+      skillsTokens: 0,
+      mcpTokens: 0,
+      conversationTokens: 0,
+      source: 'host-estimate',
+    };
+  }
+  // Proportional buckets (sum=1) so small mock turns still show non-zero conversation.
+  const systemPromptTokens = Math.floor(used * 0.04);
+  const toolDefinitionsTokens = Math.floor(used * 0.12);
+  const rulesTokens = Math.floor(used * 0.05);
+  const skillsTokens = Math.floor(used * 0.03);
+  const mcpTokens = Math.floor(used * 0.02);
+  const overhead =
+    systemPromptTokens +
+    toolDefinitionsTokens +
+    rulesTokens +
+    skillsTokens +
+    mcpTokens;
+  const conversationTokens = Math.max(0, used - overhead);
+
+  return {
+    systemPromptTokens,
+    toolDefinitionsTokens,
+    rulesTokens,
+    skillsTokens,
+    mcpTokens,
+    conversationTokens,
+    source: 'host-estimate',
+  };
+}
+
+function mapBreakdown(raw: Record<string, unknown> | null): ContextUsageBreakdown | null {
+  if (!raw) return null;
+  const breakdown: ContextUsageBreakdown = { source: 'pi' };
+  const systemPromptTokens =
+    readNumber(raw.systemPromptTokens) ??
+    readNumber(raw.system) ??
+    readNumber(raw.system_prompt);
+  const toolDefinitionsTokens =
+    readNumber(raw.toolDefinitionsTokens) ??
+    readNumber(raw.tools) ??
+    readNumber(raw.tool_definitions);
+  const rulesTokens = readNumber(raw.rulesTokens) ?? readNumber(raw.rules);
+  const skillsTokens = readNumber(raw.skillsTokens) ?? readNumber(raw.skills);
+  const mcpTokens = readNumber(raw.mcpTokens) ?? readNumber(raw.mcp);
+  const conversationTokens =
+    readNumber(raw.conversationTokens) ??
+    readNumber(raw.conversation) ??
+    readNumber(raw.messages);
+  let hasAny = false;
+  if (systemPromptTokens !== undefined) {
+    breakdown.systemPromptTokens = systemPromptTokens;
+    hasAny = true;
+  }
+  if (toolDefinitionsTokens !== undefined) {
+    breakdown.toolDefinitionsTokens = toolDefinitionsTokens;
+    hasAny = true;
+  }
+  if (rulesTokens !== undefined) {
+    breakdown.rulesTokens = rulesTokens;
+    hasAny = true;
+  }
+  if (skillsTokens !== undefined) {
+    breakdown.skillsTokens = skillsTokens;
+    hasAny = true;
+  }
+  if (mcpTokens !== undefined) {
+    breakdown.mcpTokens = mcpTokens;
+    hasAny = true;
+  }
+  if (conversationTokens !== undefined) {
+    breakdown.conversationTokens = conversationTokens;
+    hasAny = true;
+  }
+  return hasAny ? breakdown : null;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

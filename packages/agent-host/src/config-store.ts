@@ -1,18 +1,29 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type {
+  AutomationConfig,
   CompactionConfig,
+  DesktopRestoreConfig,
+  ExecutionConfig,
   ExtensionsConfig,
+  MarketplaceConfig,
   MemoryConfig,
   PiwinConfig,
+  ProcessConfig,
   PromptsConfig,
   SkillsConfig,
+  ThinkingConfig,
+  ThinkingLevel,
   WebConfig,
 } from '@piwin/contracts';
 import {
+  createDefaultAutomationConfig,
   createDefaultCompactionConfig,
+  createDefaultExecutionConfig,
   createDefaultExtensionsConfig,
+  createDefaultMarketplaceConfig,
   createDefaultMemoryConfig,
+  createDefaultProcessConfig,
   createDefaultPromptsConfig,
   createDefaultSkillsConfig,
   createDefaultWebConfig,
@@ -42,6 +53,10 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     prompts: createDefaultPromptsConfig(),
     compaction: createDefaultCompactionConfig(),
     memory: createDefaultMemoryConfig(),
+    process: createDefaultProcessConfig(),
+    execution: createDefaultExecutionConfig(),
+    automation: createDefaultAutomationConfig(),
+    marketplace: createDefaultMarketplaceConfig(),
   };
 }
 
@@ -142,6 +157,14 @@ function normalizeConfig(value: unknown): PiwinConfig {
   if (typeof record.defaultModelId === 'string') {
     normalized.defaultModelId = record.defaultModelId;
   }
+  const thinking = normalizeThinkingConfig(record.thinking);
+  if (thinking) {
+    normalized.thinking = thinking;
+  }
+  const desktop = normalizeDesktopRestoreConfig(record.desktop);
+  if (desktop) {
+    normalized.desktop = desktop;
+  }
   normalized.web = normalizeWebConfig(record.web, defaults.web ?? createDefaultWebConfig());
   normalized.skills = normalizeSkillsConfig(
     record.skills,
@@ -162,6 +185,22 @@ function normalizeConfig(value: unknown): PiwinConfig {
   normalized.memory = normalizeMemoryConfig(
     record.memory,
     defaults.memory ?? createDefaultMemoryConfig(),
+  );
+  normalized.process = normalizeProcessConfig(
+    record.process,
+    defaults.process ?? createDefaultProcessConfig(),
+  );
+  normalized.execution = normalizeExecutionConfig(
+    record.execution,
+    defaults.execution ?? createDefaultExecutionConfig(),
+  );
+  normalized.automation = normalizeAutomationConfig(
+    record.automation,
+    defaults.automation ?? createDefaultAutomationConfig(),
+  );
+  normalized.marketplace = normalizeMarketplaceConfig(
+    record.marketplace,
+    defaults.marketplace ?? createDefaultMarketplaceConfig(),
   );
   const notes = normalizeNotesConfig(record.notes);
   if (notes) {
@@ -250,6 +289,95 @@ function normalizeFlashcardsConfig(value: unknown): PiwinConfig['flashcards'] {
   return Object.keys(flashcards).length > 0 ? flashcards : undefined;
 }
 
+function normalizeThinkingConfig(value: unknown): ThinkingConfig | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const normalized: ThinkingConfig = {
+    ultraEnabled: record.ultraEnabled === true,
+  };
+  return normalized;
+}
+
+function isThinkingLevel(value: unknown): value is ThinkingLevel {
+  return (
+    value === 'off' ||
+    value === 'minimal' ||
+    value === 'low' ||
+    value === 'medium' ||
+    value === 'high' ||
+    value === 'xhigh' ||
+    value === 'max' ||
+    value === 'ultra'
+  );
+}
+
+function normalizeDesktopRestoreConfig(value: unknown): DesktopRestoreConfig | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const normalized: DesktopRestoreConfig = {};
+  const composerProfile = normalizeDesktopComposerProfile(record.composerProfile);
+  if (composerProfile) {
+    normalized.composerProfile = composerProfile;
+  }
+  const lastSession = asRecord(record.lastSession);
+  const scopeRecord = asRecord(lastSession?.scope);
+  if (lastSession && typeof lastSession.sessionId === 'string' && lastSession.sessionId.trim()) {
+    if (scopeRecord?.kind === 'general') {
+      normalized.lastSession = {
+        sessionId: lastSession.sessionId,
+        scope: { kind: 'general' },
+      };
+    } else if (
+      scopeRecord?.kind === 'project' &&
+      typeof scopeRecord.projectPath === 'string' &&
+      scopeRecord.projectPath.trim()
+    ) {
+      normalized.lastSession = {
+        sessionId: lastSession.sessionId,
+        scope: { kind: 'project', projectPath: scopeRecord.projectPath },
+      };
+    }
+  }
+  return normalized.composerProfile || normalized.lastSession ? normalized : undefined;
+}
+
+function normalizeDesktopComposerProfile(
+  value: unknown,
+): NonNullable<DesktopRestoreConfig['composerProfile']> | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const normalized: NonNullable<DesktopRestoreConfig['composerProfile']> = {};
+  const model = asRecord(record.model);
+  if (
+    model &&
+    isModelProtocol(model.protocol) &&
+    typeof model.providerId === 'string' &&
+    model.providerId.trim() &&
+    typeof model.modelId === 'string' &&
+    model.modelId.trim()
+  ) {
+    normalized.model = {
+      protocol: model.protocol,
+      providerId: model.providerId,
+      modelId: model.modelId,
+    };
+  }
+  if (isThinkingLevel(record.thinkingLevel)) {
+    normalized.thinkingLevel = record.thinkingLevel;
+  }
+  return normalized.model || normalized.thinkingLevel ? normalized : undefined;
+}
+
+function isModelProtocol(value: unknown): value is 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' {
+  return value === 'openai-compatible' || value === 'anthropic-compatible' || value === 'google-gemini';
+}
+
 function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
   const record = asRecord(value);
   if (!record) {
@@ -257,9 +385,19 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
   }
   const provider = record.searchProvider;
   const searchProvider =
-    provider === 'brave' || provider === 'tavily' || provider === 'none'
+    provider === 'duckduckgo' ||
+    provider === 'brave' ||
+    provider === 'tavily' ||
+    provider === 'none'
       ? provider
       : defaults.searchProvider;
+  const fetchProviderRaw = record.fetchProvider;
+  const fetchProvider =
+    fetchProviderRaw === 'supermarkdown' ||
+    fetchProviderRaw === 'jina' ||
+    fetchProviderRaw === 'firecrawl'
+      ? fetchProviderRaw
+      : defaults.fetchProvider;
   return {
     searchProvider,
     searchApiKeyEnv:
@@ -268,6 +406,11 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
         : defaults.searchApiKeyEnv,
     searchMaxResults:
       asPositiveNumber(record.searchMaxResults) ?? defaults.searchMaxResults,
+    fetchProvider,
+    fetchApiKeyEnv:
+      typeof record.fetchApiKeyEnv === 'string' && record.fetchApiKeyEnv.length > 0
+        ? record.fetchApiKeyEnv
+        : defaults.fetchApiKeyEnv,
     fetchMaxBytes: asPositiveNumber(record.fetchMaxBytes) ?? defaults.fetchMaxBytes,
     fetchTimeoutMs: asPositiveNumber(record.fetchTimeoutMs) ?? defaults.fetchTimeoutMs,
     fetchBlockedUrlPrefixes:
@@ -362,6 +505,75 @@ function normalizeMemoryConfig(value: unknown, defaults: MemoryConfig): MemoryCo
   return normalized;
 }
 
+function normalizeProcessConfig(value: unknown, defaults: ProcessConfig): ProcessConfig {
+  const record = asRecord(value);
+  if (!record) {
+    return defaults;
+  }
+  const normalized: ProcessConfig = {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled ?? true,
+    maxProcesses: asPositiveInteger(record.maxProcesses) ?? defaults.maxProcesses ?? 8,
+    killOnSessionEnd:
+      typeof record.killOnSessionEnd === 'boolean'
+        ? record.killOnSessionEnd
+        : defaults.killOnSessionEnd ?? false,
+    killOnHostDispose:
+      typeof record.killOnHostDispose === 'boolean'
+        ? record.killOnHostDispose
+        : defaults.killOnHostDispose ?? true,
+  };
+  return normalized;
+}
+
+function normalizeExecutionConfig(value: unknown, defaults: ExecutionConfig): ExecutionConfig {
+  const record = asRecord(value);
+  if (!record) {
+    return defaults;
+  }
+  const defaultMode = record.defaultMode;
+  return {
+    defaultMode:
+      defaultMode === 'chat' || defaultMode === 'agent' || defaultMode === 'agent-debug'
+        ? defaultMode
+        : defaults.defaultMode ?? 'agent',
+  };
+}
+
+function normalizeAutomationConfig(value: unknown, defaults: AutomationConfig): AutomationConfig {
+  const record = asRecord(value);
+  if (!record) {
+    return defaults;
+  }
+  return {
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled ?? false,
+    cronEnabled:
+      typeof record.cronEnabled === 'boolean'
+        ? record.cronEnabled
+        : defaults.cronEnabled ?? false,
+    hooksEnabled:
+      typeof record.hooksEnabled === 'boolean'
+        ? record.hooksEnabled
+        : defaults.hooksEnabled ?? false,
+  };
+}
+
+function normalizeMarketplaceConfig(
+  value: unknown,
+  defaults: MarketplaceConfig,
+): MarketplaceConfig {
+  const record = asRecord(value);
+  if (!record) {
+    return defaults;
+  }
+  return {
+    skillSources: normalizeSkillSources(record.skillSources) ?? defaults.skillSources ?? ['static'],
+    mcpRegistrySources:
+      normalizeRegistrySources(record.mcpRegistrySources) ??
+      defaults.mcpRegistrySources ??
+      ['static'],
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== 'object') {
     return undefined;
@@ -373,12 +585,41 @@ function asPositiveNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
+function asPositiveInteger(value: unknown): number | undefined {
+  const numericValue = asPositiveNumber(value);
+  return numericValue === undefined ? undefined : Math.floor(numericValue);
+}
+
 function asStringArray(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
   // Preserve empty arrays (e.g. disabledIds: []) so defaults are not re-applied.
   return value.filter((item): item is string => typeof item === 'string');
+}
+
+function normalizeSkillSources(value: unknown): Array<'static' | 'git-index'> | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  return value.filter(
+    (source): source is 'static' | 'git-index' => source === 'static' || source === 'git-index',
+  );
+}
+
+function normalizeRegistrySources(
+  value: unknown,
+): Array<'official' | 'smithery' | 'glama' | 'static'> | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  return value.filter(
+    (source): source is 'official' | 'smithery' | 'glama' | 'static' =>
+      source === 'official' ||
+      source === 'smithery' ||
+      source === 'glama' ||
+      source === 'static',
+  );
 }
 
 function isNotFound(error: unknown): boolean {

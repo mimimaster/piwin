@@ -7,11 +7,19 @@ describe('search providers', () => {
       searchProvider: 'none',
       searchApiKeyEnv: 'X',
       searchMaxResults: 3,
+      fetchProvider: 'supermarkdown',
+      fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
       fetchMaxBytes: 1000,
       fetchTimeoutMs: 1000,
       fetchBlockedUrlPrefixes: [],
     });
     await expect(provider.search('q', { limit: 3 })).rejects.toThrow(/disabled/);
+  });
+
+  it('defaults to duckduckgo via resolveWebConfig', async () => {
+    const { resolveWebConfig } = await import('./search-provider.js');
+    expect(resolveWebConfig().searchProvider).toBe('duckduckgo');
+    expect(resolveWebConfig().fetchProvider).toBe('supermarkdown');
   });
 
   it('brave requires api key', async () => {

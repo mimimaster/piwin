@@ -5,11 +5,12 @@ import { describe, expect, it } from 'vitest';
 import {
   allowNetworkFetchHost,
   allowNetworkWebSearch,
-  allowMcpServer,
   getProjectNetworkPolicy,
-  getProjectMcpPolicy,
   listProjects,
+  listRememberedPermissions,
   openOrCreateProject,
+  revokeRememberedPermission,
+  saveProjectStore,
   setProjectTrust,
 } from './project-store.js';
 
@@ -37,13 +38,45 @@ describe('project-store', () => {
     expect(policy.allowWebSearch).toBe(true);
   });
 
-  it('remembers MCP server allowlist per project', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'piwin-project-mcp-'));
+  it('lists and revokes remembered permissions', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-project-perms-'));
     const filePath = join(dir, 'projects.json');
-    await openOrCreateProject(filePath, '/tmp/mcp-project', { trust: 'trusted' });
-    await allowMcpServer(filePath, '/tmp/mcp-project', 'fixture');
-    await allowMcpServer(filePath, '/tmp/mcp-project', 'fixture');
-    const policy = await getProjectMcpPolicy(filePath, '/tmp/mcp-project');
-    expect(policy.allowedServerIds).toEqual(['fixture']);
+    await openOrCreateProject(filePath, '/tmp/perm-project', { trust: 'trusted' });
+    await allowNetworkFetchHost(filePath, '/tmp/perm-project', 'example.com');
+    await allowNetworkWebSearch(filePath, '/tmp/perm-project');
+    const listed = await listRememberedPermissions(filePath, '/tmp/perm-project');
+    expect(listed.map((item) => item.key).sort()).toEqual([
+      'network:fetch:example.com',
+      'network:web_search',
+    ]);
+    await revokeRememberedPermission(filePath, '/tmp/perm-project', 'network:web_search');
+    await revokeRememberedPermission(filePath, '/tmp/perm-project', 'network:fetch:example.com');
+    const after = await listRememberedPermissions(filePath, '/tmp/perm-project');
+    expect(after).toEqual([]);
+    const network = await getProjectNetworkPolicy(filePath, '/tmp/perm-project');
+    expect(network.allowWebSearch).toBe(false);
+    expect(network.allowedFetchHosts).toEqual([]);
+  });
+
+  it('strips legacy mcpPolicy on save', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-project-mcp-migrate-'));
+    const filePath = join(dir, 'projects.json');
+    await saveProjectStore(filePath, {
+      version: 1,
+      projects: [
+        {
+          path: '/tmp/legacy-mcp-project',
+          trust: 'trusted',
+          lastOpenedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+          // Legacy field retained only long enough to be stripped on write.
+          mcpPolicy: { allowedServerIds: ['old-server'] },
+        } as never,
+      ],
+    });
+
+    const reloaded = await listProjects(filePath);
+    expect(reloaded).toHaveLength(1);
+    expect(reloaded[0]).not.toHaveProperty('mcpPolicy');
   });
 });

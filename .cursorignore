@@ -1,0 +1,253 @@
+# .cursorignore — reduce Cursor/agent indexing noise for piwin
+# Syntax: same as .gitignore
+# Keep source, docs, configs, and test *specs* indexed; drop deps, builds, binaries, fixtures.
+
+# ---------------------------------------------------------------------------
+# VCS / IDE / OS
+# ---------------------------------------------------------------------------
+.git/
+**/.git/
+.svn/
+.hg/
+.DS_Store
+Thumbs.db
+**/.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------------------
+# Dependencies
+# ---------------------------------------------------------------------------
+node_modules/
+**/node_modules/
+.pnpm-store/
+**/.pnpm-store/
+.yarn/
+.npm/
+.bun/
+
+# ---------------------------------------------------------------------------
+# Build / compile / bundle outputs
+# ---------------------------------------------------------------------------
+dist/
+**/dist/
+build/
+**/build/
+out/
+**/out/
+.turbo/
+**/.turbo/
+.vite/
+**/.vite/
+.cache/
+**/.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.svelte-kit/
+.output/
+.vercel/
+.netlify/
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# Rust / Tauri
+target/
+**/target/
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+apps/desktop/dist/
+
+# Local product / tool scratch (never index)
+.piwin-local/
+**/.piwin-local/
+
+# ---------------------------------------------------------------------------
+# Test runners / coverage / reports
+# ---------------------------------------------------------------------------
+coverage/
+**/coverage/
+.nyc_output/
+**/nyc_output/
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.hypothesis/
+junit.xml
+**/junit.xml
+
+# Playwright / Vitest / browser e2e artifacts (keep *.spec.ts)
+test-results/
+**/test-results/
+playwright-report/
+**/playwright-report/
+blob-report/
+**/blob-report/
+playwright/.cache/
+**/playwright/.cache/
+**/*-snapshots/
+**/*.spec.ts-snapshots/
+**/__snapshots__/
+**/__image_snapshots__/
+**/visual-regression.spec.ts-snapshots/
+
+# ---------------------------------------------------------------------------
+# Logs (including large / rotated)
+# ---------------------------------------------------------------------------
+*.log
+**/*.log
+*.log.*
+**/*.log.*
+logs/
+**/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ---------------------------------------------------------------------------
+# Secrets / env (keep examples)
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_rsa.*
+credentials.json
+
+# ---------------------------------------------------------------------------
+# Lockfiles & package manager noise (huge, rarely needed for code search)
+# ---------------------------------------------------------------------------
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+bun.lockb
+Cargo.lock
+**/Cargo.lock
+
+# ---------------------------------------------------------------------------
+# Test data / fixtures / dumps (large or generated)
+# ---------------------------------------------------------------------------
+**/fixtures/large/
+**/fixtures/bin/
+**/testdata/
+**/test-data/
+**/__fixtures__/bin/
+**/__testdata__/
+**/*.dump
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+**/*.db-journal
+**/*.parquet
+**/*.arrow
+**/*.feather
+**/*.csv.gz
+**/*.jsonl.gz
+**/*.ndjson.gz
+
+# ---------------------------------------------------------------------------
+# Media / binary assets (icons, fonts, archives, AV, wasm, maps)
+# ---------------------------------------------------------------------------
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.avif
+*.ico
+*.icns
+*.bmp
+*.tiff
+*.tif
+*.psd
+*.ai
+*.svgz
+
+# Fonts
+*.woff
+*.woff2
+*.ttf
+*.otf
+*.eot
+
+# Audio / video
+*.mp3
+*.mp4
+*.m4a
+*.wav
+*.flac
+*.ogg
+*.webm
+*.mov
+*.avi
+*.mkv
+
+# Archives / packages
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.gz
+*.bz2
+*.xz
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.appimage
+
+# Native / compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.o
+*.obj
+*.lib
+*.bin
+*.dat
+*.wasm
+*.node
+*.class
+*.jar
+*.war
+*.ear
+*.apk
+*.ipa
+
+# Maps / source maps (generated)
+*.map
+**/*.map
+
+# ---------------------------------------------------------------------------
+# Tauri / desktop packaged icons (binary; sources stay in git for builds)
+# ---------------------------------------------------------------------------
+apps/desktop/src-tauri/icons/
+
+# ---------------------------------------------------------------------------
+# Misc generated / vendor bulk
+# ---------------------------------------------------------------------------
+**/vendor/bundle/
+**/Pods/
+**/.gradle/
+**/DerivedData/

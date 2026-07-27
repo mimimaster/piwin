@@ -14,6 +14,9 @@ export type { ReadGitStatusOptions } from './status-reader.js';
 export { readGitDiffSummary, parseNumstat } from './diff-summary.js';
 export type { ReadGitDiffSummaryOptions } from './diff-summary.js';
 
+export { readGitFileDiff, countPatchStats } from './file-diff.js';
+export type { ReadGitFileDiffOptions } from './file-diff.js';
+
 export { readGitCommitGraph, parseGitLogRecords } from './commit-graph.js';
 export type { ReadGitCommitGraphOptions } from './commit-graph.js';
 
@@ -42,3 +45,20 @@ export {
 
 export { createGitService } from './git-service.js';
 export type { GitService } from './git-service.js';
+
+export {
+  createWorktree,
+  removeWorktree,
+  diffWorktreeAgainstMain,
+  applyWorktreeToMain,
+  worktreeDisplayName,
+} from './worktree.js';
+export type {
+  CreateWorktreeInput,
+  CreateWorktreeResult,
+  RemoveWorktreeInput,
+  DiffWorktreeInput,
+  DiffWorktreeResult,
+  ApplyWorktreeInput,
+  ApplyWorktreeResult,
+} from './worktree.js';

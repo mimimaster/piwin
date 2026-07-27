@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>piwin - Unified Workspace Prototype</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --canvas: #0d0e0f;
+        --canvas-glow: rgba(185, 126, 68, 0.13);
+        --chrome: rgba(25, 26, 28, 0.58);
+        --chrome-raised: rgba(34, 35, 37, 0.62);
+        --interactive: rgba(255, 255, 255, 0.045);
+        --interactive-hover: rgba(255, 255, 255, 0.085);
+        --selected: rgba(201, 143, 76, 0.14);
+        --selected-line: rgba(227, 172, 105, 0.27);
+        --hairline: rgba(244, 237, 226, 0.09);
+        --hairline-strong: rgba(244, 237, 226, 0.15);
+        --text: #f0ede7;
+        --text-muted: #aaa8a3;
+        --text-faint: #6e706f;
+        --copper: #d7a56b;
+        --copper-ink: #efca9e;
+        --green: #80c9ae;
+        --blue: #9ab6db;
+        --danger: #d78b82;
+        --shadow: 0 24px 65px rgba(0, 0, 0, 0.38);
+        --radius: 14px;
+        --radius-small: 10px;
+        --font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      }
+
+      * { box-sizing: border-box; }
+      html { min-width: 1080px; background: var(--canvas); }
+      body {
+        min-height: 100vh;
+        margin: 0;
+        overflow: hidden;
+        color: var(--text);
+        background:
+          radial-gradient(900px 560px at 4% 4%, var(--canvas-glow), transparent 70%),
+          radial-gradient(720px 470px at 95% 106%, rgba(91, 133, 119, 0.075), transparent 70%),
+          var(--canvas);
+        font: 13px/1.45 var(--font);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button, input { font: inherit; }
+      button { color: inherit; cursor: pointer; }
+      svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.75; }
+
+      .app-shell {
+        display: grid;
+        grid-template-columns: 264px minmax(0, 1fr) 48px;
+        grid-template-rows: 56px minmax(0, 1fr);
+        height: 100vh;
+      }
+
+      .topbar {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 264px minmax(280px, 500px) 1fr;
+        align-items: center;
+        gap: 18px;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--hairline);
+        background: rgba(17, 18, 19, 0.7);
+        backdrop-filter: blur(24px) saturate(120%);
+      }
+
+      .brand, .project-crumb, .topbar-actions, .model-pill, .status-pill, .nav-heading, .session-row, .workspace-header, .workspace-actions, .workspace-action, .rail-button, .composer-footer, .composer-actions, .suggestion {
+        display: flex;
+        align-items: center;
+      }
+
+      .brand { gap: 10px; font-size: 14px; font-weight: 650; letter-spacing: -0.02em; }
+      .brand-mark {
+        display: grid;
+        width: 25px;
+        height: 25px;
+        place-items: center;
+        border: 1px solid rgba(228, 174, 107, 0.3);
+        border-radius: 8px;
+        color: var(--copper-ink);
+        background: rgba(190, 133, 71, 0.12);
+        box-shadow: inset 0 1px 0 rgba(255, 244, 228, 0.08);
+      }
+
+      .command-search {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        width: 100%;
+        height: 32px;
+        padding: 0 11px;
+        border: 1px solid var(--hairline);
+        border-radius: 9px;
+        color: var(--text-faint);
+        background: rgba(8, 9, 10, 0.22);
+      }
+
+      .command-search kbd {
+        margin-left: auto;
+        padding: 1px 5px;
+        border: 1px solid var(--hairline);
+        border-radius: 4px;
+        color: var(--text-faint);
+        font: 10px var(--mono);
+      }
+
+      .topbar-actions { justify-content: flex-end; gap: 7px; }
+      .status-pill, .model-pill, .transparent-button, .icon-button, .new-session, .suggestion, .workspace-action, .send-button {
+        border: 1px solid var(--hairline);
+        background: var(--interactive);
+        transition: 140ms ease;
+      }
+      .status-pill:hover, .model-pill:hover, .transparent-button:hover, .icon-button:hover, .new-session:hover, .suggestion:hover, .workspace-action:hover { background: var(--interactive-hover); border-color: var(--hairline-strong); }
+
+      .status-pill, .model-pill { gap: 7px; height: 31px; padding: 0 10px; border-radius: 9px; white-space: nowrap; }
+      .status-pill { color: var(--text-muted); font-size: 12px; }
+      .model-pill { color: var(--text); font-size: 12px; }
+      .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px rgba(128, 201, 174, 0.45); }
+      .icon-button { display: grid; width: 31px; height: 31px; padding: 0; place-items: center; border-radius: 9px; color: var(--text-muted); }
+
+      /* The rail is always visible; its companion panel only claims width when opened. */
+      .app-shell.panel-open { grid-template-columns: 264px minmax(0, 1fr) 328px 48px; }
+      .side-panel {
+        display: none;
+        min-width: 0;
+        border-left: 1px solid var(--hairline);
+        background: rgba(18, 19, 20, 0.9);
+      }
+      .panel-open .side-panel { display: grid; grid-template-rows: 48px minmax(0, 1fr); }
+      .side-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px 0 15px;
+        border-bottom: 1px solid var(--hairline);
+      }
+      .side-panel-title { color: var(--text-muted); font-size: 11px; font-weight: 570; }
+      .panel-content { overflow: auto; padding: 10px 12px; }
+      .panel-section-label { padding: 3px 4px 8px; color: var(--text-faint); font-size: 9px; font-weight: 650; letter-spacing: 0.1em; text-transform: uppercase; }
+      .panel-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 30px;
+        padding: 0 6px;
+        border-radius: 6px;
+        color: var(--text-muted);
+        font-size: 11px;
+      }
+      .panel-row:hover { color: var(--text); background: rgba(255, 255, 255, 0.035); }
+      .panel-row svg { width: 14px; height: 14px; color: var(--text-faint); }
+      .panel-row .panel-muted { margin-left: auto; color: var(--text-faint); font-size: 10px; }
+      .panel-divider { height: 1px; margin: 9px 4px; background: var(--hairline); }
+
+      .navigator {
+        min-height: 0;
+        padding: 16px 10px 12px;
+        border-right: 1px solid var(--hairline);
+        background: rgba(19, 20, 21, 0.44);
+        backdrop-filter: blur(22px) saturate(115%);
+      }
+
+      .project-card { padding: 0 6px 15px; border-bottom: 1px solid var(--hairline); }
+      .project-crumb { gap: 9px; color: var(--text); font-weight: 560; }
+      .project-symbol { display: grid; width: 24px; height: 24px; place-items: center; border-radius: 7px; color: var(--copper-ink); background: rgba(211, 161, 104, 0.09); }
+      .project-path { margin: 4px 0 0 33px; color: var(--text-faint); font: 10.5px var(--mono); }
+
+      .new-session { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; height: 34px; margin: 14px 0 18px; border-radius: 9px; color: var(--copper-ink); font-weight: 560; }
+      .new-session:hover { color: #f4d4ae; background: rgba(213, 161, 99, 0.11); border-color: var(--selected-line); }
+      .nav-heading { justify-content: space-between; padding: 0 8px; color: var(--text-faint); font-size: 10px; font-weight: 650; letter-spacing: 0.09em; text-transform: uppercase; }
+      .nav-heading button { padding: 1px; border: 0; color: var(--text-faint); background: transparent; }
+      .session-list { display: grid; gap: 2px; margin-top: 8px; }
+      .session-row { gap: 9px; width: 100%; min-height: 35px; padding: 0 8px; border: 1px solid transparent; border-radius: 8px; color: var(--text-muted); background: transparent; text-align: left; }
+      .session-row:hover { background: var(--interactive); color: var(--text); }
+      .session-row.active { border-color: rgba(220, 171, 109, 0.14); color: var(--text); background: var(--selected); }
+      .session-row .session-icon { color: var(--text-faint); }
+      .session-row.active .session-icon { color: var(--copper); }
+      .session-copy { min-width: 0; }
+      .session-title { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .session-time { margin-top: 1px; color: var(--text-faint); font-size: 10px; }
+      .navigator-footer { position: absolute; bottom: 13px; left: 10px; right: calc(100% - 254px); display: flex; align-items: center; justify-content: space-between; padding: 0 8px; color: var(--text-faint); font-size: 11px; }
+      .navigator-footer .status-dot { width: 5px; height: 5px; margin-right: 6px; display: inline-block; }
+      .navigator-footer button { border: 0; color: var(--text-faint); background: transparent; }
+
+      .workspace {
+        position: relative;
+        display: grid;
+        min-width: 0;
+        min-height: 0;
+        grid-template-rows: minmax(0, 1fr) auto;
+        background: linear-gradient(130deg, rgba(17, 18, 19, 0.1), rgba(28, 25, 22, 0.22));
+      }
+
+      .workspace::before {
+        position: absolute;
+        top: -240px;
+        left: 20%;
+        width: 650px;
+        height: 580px;
+        border-radius: 50%;
+        content: "";
+        background: radial-gradient(ellipse, rgba(201, 141, 75, 0.075), transparent 67%);
+        pointer-events: none;
+      }
+
+      .empty-state { position: relative; z-index: 1; display: flex; align-items: center; justify-content: center; padding-bottom: 52px; }
+      .empty-content { width: min(540px, 90%); text-align: center; }
+      .agent-orb { position: relative; width: 84px; height: 84px; margin: 0 auto 25px; border: 1px solid rgba(237, 186, 118, 0.21); border-radius: 50%; background: radial-gradient(circle at 35% 30%, rgba(251, 216, 162, 0.23), rgba(171, 108, 48, 0.08) 45%, rgba(14, 15, 16, 0.06) 71%); box-shadow: 0 0 50px rgba(202, 138, 70, 0.14), inset 0 0 26px rgba(237, 186, 118, 0.05); }
+      .agent-orb::before, .agent-orb::after { position: absolute; border: 1px solid rgba(239, 195, 137, 0.14); border-radius: 50%; content: ""; }
+      .agent-orb::before { inset: 12px; }
+      .agent-orb::after { inset: 25px; border-color: rgba(249, 221, 180, 0.23); }
+      h1 { margin: 0; font-size: clamp(28px, 3vw, 38px); font-weight: 620; letter-spacing: -0.052em; }
+      .empty-copy { max-width: 410px; margin: 12px auto 25px; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+      .suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
+      .suggestion { gap: 7px; height: 31px; padding: 0 10px; border-radius: 8px; color: var(--text-muted); font-size: 11.5px; }
+      .suggestion svg { width: 13px; height: 13px; color: var(--copper); }
+
+      .composer-wrap { position: relative; z-index: 1; padding: 0 25px 22px; }
+      .composer { overflow: hidden; border: 1px solid var(--hairline-strong); border-radius: var(--radius); background: rgba(32, 33, 34, 0.48); box-shadow: 0 12px 34px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.03); backdrop-filter: blur(25px) saturate(115%); }
+      .composer textarea { display: block; width: 100%; height: 68px; padding: 16px 16px 5px; resize: none; border: 0; outline: 0; color: var(--text); background: transparent; font: 13px/1.5 var(--font); }
+      .composer textarea::placeholder { color: var(--text-faint); }
+      .composer-footer { justify-content: space-between; min-height: 40px; padding: 4px 7px 7px 10px; }
+      .composer-actions { gap: 3px; }
+      .composer .icon-button { width: 29px; height: 29px; border-color: transparent; }
+      .mode-chip { display: flex; align-items: center; gap: 6px; height: 29px; padding: 0 8px; border: 0; border-radius: 7px; color: var(--text-muted); background: transparent; font-size: 11px; }
+      .mode-chip:hover { color: var(--text); background: var(--interactive-hover); }
+      .send-button { display: grid; width: 31px; height: 31px; padding: 0; place-items: center; border-color: rgba(226, 169, 101, 0.25); border-radius: 8px; color: var(--copper-ink); background: rgba(194, 134, 67, 0.13); }
+      .send-button:hover { background: rgba(211, 151, 81, 0.2); border-color: rgba(237, 187, 121, 0.4); }
+
+      .signal-rail { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 7px; border-left: 1px solid var(--hairline); background: rgba(19, 20, 21, 0.45); backdrop-filter: blur(22px) saturate(115%); }
+      .rail-button { position: relative; justify-content: center; width: 34px; height: 34px; padding: 0; border: 1px solid transparent; border-radius: 9px; color: var(--text-faint); background: transparent; }
+      .rail-button:hover { color: var(--text); background: var(--interactive-hover); }
+      .rail-button.active { color: var(--copper-ink); border-color: var(--selected-line); background: var(--selected); }
+      .rail-button.active::before { position: absolute; left: -8px; width: 2px; height: 17px; border-radius: 0 2px 2px 0; content: ""; background: var(--copper); box-shadow: 0 0 10px rgba(215, 165, 107, 0.42); }
+      .panel-toggle { margin-bottom: 8px; }
+      .panel-toggle svg:last-child { display: none; }
+      .panel-open .panel-toggle svg:first-child { display: none; }
+      .panel-open .panel-toggle svg:last-child { display: block; }
+      .rail-spacer { flex: 1; }
+      .rail-label { position: fixed; right: 56px; z-index: 5; display: none; padding: 5px 8px; border: 1px solid var(--hairline); border-radius: 6px; color: var(--text); background: rgba(28, 29, 30, 0.88); box-shadow: var(--shadow); font-size: 11px; pointer-events: none; }
+      .rail-button:hover + .rail-label { display: block; }
+
+      .prototype-note { position: fixed; z-index: 10; right: 16px; bottom: 15px; padding: 5px 8px; border: 1px solid var(--hairline); border-radius: 6px; color: var(--text-faint); background: rgba(11, 12, 13, 0.72); font: 10px var(--mono); backdrop-filter: blur(12px); }
+
+      @media (max-width: 1180px) {
+        .app-shell { grid-template-columns: 236px minmax(0, 1fr) 48px; }
+        .topbar { grid-template-columns: 236px minmax(230px, 420px) 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell" aria-label="piwin unified workspace prototype">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 7.5 12 4l6 3.5v9L12 20l-6-3.5z" /><path d="m6 7.5 6 3.5 6-3.5M12 11v9" /></svg></span>
+          <span>piwin</span>
+        </div>
+        <button class="command-search" type="button" aria-label="Open command search">
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" /><path d="m16 16 4 4" /></svg>
+          <span>Search or run a command</span>
+          <kbd>Cmd K</kbd>
+        </button>
+        <div class="topbar-actions">
+          <button class="status-pill" type="button"><span class="status-dot"></span>Host ready</button>
+          <button class="icon-button" type="button" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.3 2.3-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56v.1h-3.25v-.1a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-2.3-2.3.06-.06A1.7 1.7 0 0 0 6.4 15a1.7 1.7 0 0 0-1.56-1.03h-.1v-3.25h.1A1.7 1.7 0 0 0 6.4 9.69a1.7 1.7 0 0 0-.34-1.88L6 7.75l2.3-2.3.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.56v-.1h3.25v.1a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.3 2.3-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.56 1.03h.1v3.25h-.1A1.7 1.7 0 0 0 19.4 15Z" /></svg></button>
+        </div>
+      </header>
+
+      <nav class="navigator" aria-label="Project sessions">
+        <div class="project-card">
+          <div class="project-crumb"><span class="project-symbol"><svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /></svg></span><span>piwin</span></div>
+          <div class="project-path">~/Projects/piwin</div>
+        </div>
+        <button class="new-session" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>New chat</button>
+        <div class="nav-heading"><span>Sessions</span><button type="button" aria-label="Session options"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="19" cy="12" r="1" fill="currentColor" /></svg></button></div>
+        <div class="session-list">
+          <button class="session-row active" type="button"><span class="session-icon"><svg viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4.4A2.5 2.5 0 0 1 4 13.5z" /></svg></span><span class="session-copy"><span class="session-title">Unified workspace direction</span><span class="session-time">Just now</span></span></button>
+          <button class="session-row" type="button"><span class="session-icon"><svg viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4.4A2.5 2.5 0 0 1 4 13.5z" /></svg></span><span class="session-copy"><span class="session-title">Model provider import flow</span><span class="session-time">Today</span></span></button>
+          <button class="session-row" type="button"><span class="session-icon"><svg viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4.4A2.5 2.5 0 0 1 4 13.5z" /></svg></span><span class="session-copy"><span class="session-title">Session repair review</span><span class="session-time">Yesterday</span></span></button>
+          <button class="session-row" type="button"><span class="session-icon"><svg viewBox="0 0 24 24"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4.4A2.5 2.5 0 0 1 4 13.5z" /></svg></span><span class="session-copy"><span class="session-title">MCP resource decisions</span><span class="session-time">Jul 21</span></span></button>
+        </div>
+      </nav>
+
+      <section class="workspace" aria-label="Chat workspace">
+        <div class="empty-state">
+          <div class="empty-content">
+            <div class="agent-orb" aria-hidden="true"></div>
+            <h1>Start building with piwin</h1>
+            <p class="empty-copy">Ask about this project, plan a change, or hand off a focused task. Your workspace context stays close and visible.</p>
+            <div class="suggestions">
+              <button class="suggestion" type="button"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18" /></svg>Plan a feature</button>
+              <button class="suggestion" type="button"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z" /><path d="m8 8 2 2-2 2M13 12h3" /></svg>Explore codebase</button>
+              <button class="suggestion" type="button"><svg viewBox="0 0 24 24"><path d="M12 4v3M12 17v3M4 12h3M17 12h3M6.3 6.3l2.1 2.1M15.6 15.6l2.1 2.1M17.7 6.3l-2.1 2.1M8.4 15.6l-2.1 2.1" /><circle cx="12" cy="12" r="3" /></svg>Review a diff</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="composer-wrap">
+          <form class="composer">
+            <textarea aria-label="Message piwin" placeholder="Ask piwin anything..." spellcheck="false"></textarea>
+            <div class="composer-footer">
+              <div class="composer-actions">
+                <button class="icon-button" type="button" aria-label="Attach context"><svg viewBox="0 0 24 24"><path d="m12.5 7.5-5.2 5.2a3.1 3.1 0 1 0 4.4 4.4l6.1-6.1a4.6 4.6 0 0 0-6.5-6.5l-6.7 6.7a6 6 0 0 0 8.5 8.5l5.6-5.6" /></svg></button>
+                <button class="mode-chip" type="button"><svg viewBox="0 0 24 24"><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" /></svg>Agent</button>
+              </div>
+              <div class="composer-actions">
+                <button class="mode-chip" type="button">GPT-4.1 <svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5" /></svg></button>
+                <button class="send-button" type="submit" aria-label="Send message"><svg viewBox="0 0 24 24"><path d="m5 12 14-7-5 14-2.5-5z" /><path d="m11.5 14 3-3" /></svg></button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <aside class="side-panel" aria-label="Expanded workspace context">
+        <header class="side-panel-header">
+          <span class="side-panel-title" data-panel-title>Files</span>
+          <button class="icon-button panel-close" type="button" aria-label="Collapse side panel"><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" /><path d="M9 12h10" /></svg></button>
+        </header>
+        <div class="panel-content" data-panel-content>
+          <div class="panel-section-label">Project</div>
+          <div class="panel-row"><svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /></svg>apps <span class="panel-muted">12</span></div>
+          <div class="panel-row"><svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /></svg>packages <span class="panel-muted">11</span></div>
+          <div class="panel-row"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3 3v14H6z" /><path d="M15 3.5v3h3" /></svg>AGENTS.md</div>
+          <div class="panel-row"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3 3v14H6z" /><path d="M15 3.5v3h3" /></svg>package.json</div>
+          <div class="panel-divider"></div>
+          <div class="panel-section-label">Open tabs</div>
+          <div class="panel-row"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3 3v14H6z" /><path d="M15 3.5v3h3" /></svg>ui-prototype-v4.html</div>
+        </div>
+      </aside>
+
+      <aside class="signal-rail" aria-label="Persistent workspace destinations">
+        <button class="rail-button panel-toggle" type="button" aria-label="Expand side panel"><svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" /><path d="M5 12h10" /></svg><svg viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" /><path d="M9 12h10" /></svg></button><span class="rail-label">Expand context</span>
+        <button class="rail-button active" type="button" aria-label="Files"><svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /></svg></button><span class="rail-label">Files</span>
+        <button class="rail-button" type="button" aria-label="Changes"><svg viewBox="0 0 24 24"><path d="M7 4v16M17 4v16M4 8h16M4 16h16" /></svg></button><span class="rail-label">Changes</span>
+        <button class="rail-button" type="button" aria-label="Terminal"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z" /><path d="m7 9 3 3-3 3M13 15h4" /></svg></button><span class="rail-label">Terminal</span>
+        <div class="rail-spacer"></div>
+        <button class="rail-button" type="button" aria-label="Project settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1.1l2-1.5-2-3.4-2.4 1a8.6 8.6 0 0 0-1.9-1.1L14.3 3h-4l-.4 2.9A8.6 8.6 0 0 0 8 7L5.6 6 3.6 9.4l2 1.5A7 7 0 0 0 5.5 12c0 .4 0 .7.1 1.1l-2 1.5 2 3.4 2.4-1a8.6 8.6 0 0 0 1.9 1.1l.4 2.9h4l.4-2.9a8.6 8.6 0 0 0 1.9-1.1l2.4 1 2-3.4-2-1.5c.1-.4.1-.7.1-1.1Z" /></svg></button><span class="rail-label">Settings</span>
+      </aside>
+    </main>
+    <div class="prototype-note">v4 prototype - static concept</div>
+    <script>
+      const appShell = document.querySelector(".app-shell");
+      const railButtons = document.querySelectorAll(".rail-button");
+      const panelTitle = document.querySelector("[data-panel-title]");
+      const panelContent = document.querySelector("[data-panel-content]");
+      const panelToggle = document.querySelector(".panel-toggle");
+      const panelClose = document.querySelector(".panel-close");
+      const panelDestinations = [
+        { title: "Files", content: `<div class="panel-section-label">Project</div><div class="panel-row"><svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /></svg>apps <span class="panel-muted">12</span></div><div class="panel-row"><svg viewBox="0 0 24 24"><path d="M3.5 6.5h6l2 2h9v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" /></svg>packages <span class="panel-muted">11</span></div><div class="panel-row"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3 3v14H6z" /></svg>AGENTS.md</div><div class="panel-row"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3 3v14H6z" /></svg>package.json</div>` },
+        { title: "Changes", content: `<div class="panel-section-label">Working tree</div><div class="panel-row"><svg viewBox="0 0 24 24"><path d="m7 12 3 3 7-7" /></svg>Modified <span class="panel-muted">43</span></div><div class="panel-row"><svg viewBox="0 0 24 24"><path d="M5 12h14M12 5v14" /></svg>Added <span class="panel-muted">8</span></div><div class="panel-divider"></div><div class="panel-section-label">Recent</div><div class="panel-row"><svg viewBox="0 0 24 24"><path d="M6 3.5h9l3 3v14H6z" /></svg>ui-prototype-v4.html</div>` },
+        { title: "Terminal", content: `<div class="panel-section-label">Terminal</div><div class="panel-row"><svg viewBox="0 0 24 24"><path d="m7 9 3 3-3 3M13 15h4" /></svg>zsh <span class="panel-muted">active</span></div><div class="panel-divider"></div><div class="panel-section-label">Output</div><div class="panel-row"><span style="font-family: var(--mono); color: var(--text-faint)">piwin %</span></div>` }
+      ];
+
+      function activateDestination(destinationIndex) {
+        railButtons.forEach((railButton, index) => {
+          if (index > 0 && index < 4) railButton.classList.toggle("active", index - 1 === destinationIndex);
+        });
+        panelTitle.textContent = panelDestinations[destinationIndex].title;
+        panelContent.innerHTML = panelDestinations[destinationIndex].content;
+        appShell.classList.add("panel-open");
+      }
+
+      railButtons.forEach((railButton, index) => {
+        if (index > 0 && index < 4) railButton.addEventListener("click", () => activateDestination(index - 1));
+      });
+      panelToggle.addEventListener("click", () => appShell.classList.toggle("panel-open"));
+      panelClose.addEventListener("click", () => appShell.classList.remove("panel-open"));
+    </script>
+  </body>
+</html>

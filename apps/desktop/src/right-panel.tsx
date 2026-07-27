@@ -5,6 +5,8 @@
  * - Outer: whole rail expands/collapses from the titleband panel toggle.
  * - Inner: directory home first; drill into a section; back returns to home.
  * - Terminal shows process count + chevron only when processes are live.
+ * - Last inner view is restored from sessionStorage on reopen.
+ * - Terminal new output while on directory: row breath pulse only (never auto-open).
  *
  * Outward expand (desktop / Tauri) is unchanged: window grows, stage width holds.
  */
@@ -22,6 +24,10 @@ import {
 } from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
 import { IconButton, ListRow } from '@piwin/ui-kit';
+import {
+  readStoredRightPanelView,
+  writeStoredRightPanelView,
+} from './right-panel-memory';
 
 export type RightPanelTab = 'files' | 'activity' | 'review' | 'notes' | 'cards';
 
@@ -50,6 +56,15 @@ export type RightPanelProps = {
   runningProcessCount?: number;
   /** Optional due flashcard count for Cards row. */
   cardsDueCount?: number;
+  /**
+   * Quiet workbench: new terminal output while directory is visible (or panel
+   * was collapsed). Shows a row-end breath pulse; never auto-expands.
+   */
+  terminalAttention?: boolean;
+  /** Fired when the user opens the Terminal detail (clears attention upstream). */
+  onTerminalAttentionClear?: () => void;
+  /** Notifies shell of inner view for attention gating (home vs detail). */
+  onViewChange?: (view: RightPanelView) => void;
   locale?: DesktopLocale;
 };
 
@@ -79,11 +94,27 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const changesCount = props.changesCount ?? 0;
   const runningProcessCount = props.runningProcessCount ?? 0;
   const cardsDueCount = props.cardsDueCount;
+  const terminalAttention = props.terminalAttention === true;
   const listTitle = locale === 'zh-CN' ? '工作区' : 'Workspace';
 
-  // Remember last inner view across collapses (prototype: reopen restores view).
-  const [view, setView] = useState<RightPanelView>('home');
+  // Remember last inner view across collapses (sessionStorage survives unmount).
+  const [view, setView] = useState<RightPanelView>(() => readStoredRightPanelView());
   const previousActiveTabRef = useRef(props.activeTab);
+  const previousOpenRef = useRef(props.open);
+
+  useEffect(() => {
+    writeStoredRightPanelView(view);
+    props.onViewChange?.(view);
+  }, [view, props.onViewChange]);
+
+  useEffect(() => {
+    const wasOpen = previousOpenRef.current;
+    previousOpenRef.current = props.open;
+    // Re-hydrate from storage when the panel reopens after unmount.
+    if (props.open && !wasOpen) {
+      setView(readStoredRightPanelView());
+    }
+  }, [props.open]);
 
   useEffect(() => {
     const previousTab = previousActiveTabRef.current;
@@ -94,32 +125,58 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     }
   }, [props.activeTab, props.open]);
 
+  useEffect(() => {
+    // Viewing live terminal clears the directory-row attention pulse.
+    if (
+      props.open &&
+      view === 'detail' &&
+      props.activeTab === 'activity' &&
+      terminalAttention
+    ) {
+      props.onTerminalAttentionClear?.();
+    }
+  }, [
+    props.open,
+    view,
+    props.activeTab,
+    terminalAttention,
+    props.onTerminalAttentionClear,
+  ]);
+
   const drillInto = (tab: RightPanelTab): void => {
     props.onTabChange(tab);
     setView('detail');
+    if (tab === 'activity') {
+      props.onTerminalAttentionClear?.();
+    }
   };
 
   const returnHome = (): void => {
     setView('home');
   };
 
-  if (!props.open) {
-    return <></>;
-  }
-
   const inDetail = view === 'detail';
+  // Keep-mount when collapsed so PTY / terminal state survives reopen (quiet workbench §3.8.1).
+  const panelClass = [
+    'right-panel',
+    'outward-column',
+    props.open ? 'content-expanded' : 'is-collapsed',
+    props.isResizing ? 'is-resizing' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <aside
-      className={
-        props.isResizing
-          ? 'right-panel content-expanded outward-column is-resizing'
-          : 'right-panel content-expanded outward-column'
-      }
+      className={panelClass}
       data-testid="right-panel"
-      data-content-expanded="true"
+      data-content-expanded={props.open ? 'true' : 'false'}
+      data-open={props.open ? 'true' : 'false'}
       data-view={view}
+      data-terminal-attention={terminalAttention ? 'true' : 'false'}
       aria-label="Workspace panel"
+      aria-hidden={props.open ? undefined : true}
+      {...(!props.open ? ({ inert: true } as Record<string, boolean>) : {})}
     >
       <div
         className="right-panel-resize-handle"
@@ -178,14 +235,18 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             const label = locale === 'zh-CN' ? tab.labelZh : tab.labelEn;
             const isTerminal = tab.id === 'activity';
             const hasProcess = isTerminal && runningProcessCount > 0;
+            const showAttention = isTerminal && terminalAttention;
+            const rowClass = [
+              'right-panel-section-row',
+              hasProcess ? 'has-proc' : '',
+              showAttention ? 'has-attention' : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
             return (
               <ListRow
                 key={tab.id}
-                className={
-                  hasProcess
-                    ? 'right-panel-section-row has-proc'
-                    : 'right-panel-section-row'
-                }
+                className={rowClass}
                 selected={false}
                 role="button"
                 id={`inspector-tab-${tab.id}`}
@@ -216,6 +277,15 @@ export function RightPanel(props: RightPanelProps): ReactElement {
                   <span className="right-panel-section-count is-due">
                     {cardsDueCount} due
                   </span>
+                ) : null}
+                {showAttention ? (
+                  <span
+                    className="right-panel-section-attention"
+                    data-testid="right-panel-terminal-attention"
+                    aria-label={
+                      locale === 'zh-CN' ? '终端有新输出' : 'New terminal output'
+                    }
+                  />
                 ) : null}
                 {hasProcess ? (
                   <span className="right-panel-section-chevron" aria-hidden>

@@ -20,6 +20,11 @@ export function getPiwinMediaDir(rootDir: string): string {
   return join(rootDir, 'media');
 }
 
+/** Product-owned General session workspace (not a user project root). */
+export function getPiwinGeneralWorkspacePath(rootDir: string): string {
+  return join(rootDir, 'workspace');
+}
+
 export function getPiwinMemoryDir(rootDir: string): string {
   return join(rootDir, 'memory');
 }

@@ -1,31 +1,31 @@
 {
   "id": "piwin-light",
   "name": "Piwin Light",
-  "version": "2.0.0",
-  "description": "Default light chrome for piwin shell + artifacts",
+  "version": "4.0.0",
+  "description": "Quiet workbench light companion for piwin shell + artifacts",
   "mode": "light",
   "tokens": {
-    "bg": "#f3f5f9",
+    "bg": "#f6f7f8",
     "panel": "#ffffff",
-    "panel2": "#eef1f7",
-    "border": "#d5dbe8",
-    "text": "#111827",
-    "muted": "#5f6b7c",
-    "accent": "#3b6ff5",
-    "accent2": "#2f5de0",
-    "danger": "#dc2626",
-    "ok": "#16a34a",
-    "radius": "10px",
-    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, sans-serif"
+    "panel2": "#f7f7f8",
+    "border": "rgba(0, 0, 0, 0.12)",
+    "text": "#1d1d1f",
+    "muted": "#636366",
+    "accent": "#007aff",
+    "accent2": "#0a84ff",
+    "danger": "#d70015",
+    "ok": "#248a3d",
+    "radius": "8px",
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Segoe UI\", system-ui, sans-serif"
   },
   "artifact": {
     "bg": "transparent",
-    "surface": "rgba(255, 255, 255, 0.96)",
-    "text": "#111827",
-    "muted": "#5f6b7c",
-    "accent": "#3b6ff5",
-    "border": "rgba(17, 24, 39, 0.12)",
-    "radius": "0.75rem",
-    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"Segoe UI\", system-ui, sans-serif"
+    "surface": "rgba(255, 255, 255, 0.98)",
+    "text": "#1d1d1f",
+    "muted": "#636366",
+    "accent": "#007aff",
+    "border": "rgba(0, 0, 0, 0.12)",
+    "radius": "0.5rem",
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Segoe UI\", system-ui, sans-serif"
   }
 }

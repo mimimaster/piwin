@@ -1,20 +1,29 @@
 /**
- * Changes file list — adapted from cdesktop ChangesPanel / FileTree pattern:
- * path + status + +/- stats, staged chips, quick stage actions.
- * Data from piwin git/status + git/diff-summary IPC.
+ * Changes + file diff — VS Code SCM style:
+ * left file list (checkbox for stage multi-select, click for diff),
+ * right unified / side-by-side patch.
  */
-
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import type {
   GitDiffSummary,
+  GitFileDiff,
   GitStatusSnapshot,
   HostResponse,
 } from '@piwin/contracts';
+import { Button, Notice } from '@piwin/ui-kit';
 import { IconRefresh } from './shell-icons';
+import { useConfirmDialog } from './use-confirm-dialog';
+import { DiffView, type DiffViewMode } from './diff-view';
 
 type GitReadRequest =
   | { type: 'git/status'; projectPath: string }
   | { type: 'git/diff-summary'; projectPath: string }
+  | {
+      type: 'git/diff-file';
+      projectPath: string;
+      path: string;
+      scope?: 'worktree' | 'staged' | 'combined';
+    }
   | {
       type: 'git/stage';
       input: { projectPath: string; paths: string[] };
@@ -58,9 +67,14 @@ function statusShort(status: string): string {
 }
 
 export function ChangesPanel(props: ChangesPanelProps): ReactElement {
+  const confirmDialog = useConfirmDialog();
   const [snapshot, setSnapshot] = useState<GitStatusSnapshot | null>(null);
   const [diff, setDiff] = useState<GitDiffSummary | null>(null);
-  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  const [checkedPaths, setCheckedPaths] = useState<string[]>([]);
+  const [activePath, setActivePath] = useState<string | null>(null);
+  const [fileDiff, setFileDiff] = useState<GitFileDiff | null>(null);
+  const [diffMode, setDiffMode] = useState<DiffViewMode>('split');
+  const [diffLoading, setDiffLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -71,6 +85,8 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
       setSnapshot(null);
       setDiff(null);
       setError(null);
+      setFileDiff(null);
+      setActivePath(null);
       return;
     }
     setLoading(true);
@@ -93,16 +109,52 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
     const nextDiff = (diffResponse.data as { summary: GitDiffSummary }).summary;
     setSnapshot(nextStatus);
     setDiff(nextDiff);
-    setSelectedPaths((current) =>
+    setCheckedPaths((current) =>
       current.filter((filePath) =>
         nextStatus.changedFiles.some((file) => file.path === filePath),
       ),
     );
+    setActivePath((current) => {
+      if (current && nextStatus.changedFiles.some((file) => file.path === current)) {
+        return current;
+      }
+      return nextStatus.changedFiles[0]?.path ?? null;
+    });
   }, [props]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const loadFileDiff = useCallback(
+    async (filePath: string): Promise<void> => {
+      if (!props.projectPath) return;
+      setDiffLoading(true);
+      setError(null);
+      const response = await props.request({
+        type: 'git/diff-file',
+        projectPath: props.projectPath,
+        path: filePath,
+        scope: 'combined',
+      });
+      setDiffLoading(false);
+      if (!response.success) {
+        setError(response.error);
+        setFileDiff(null);
+        return;
+      }
+      setFileDiff((response.data as { diff: GitFileDiff }).diff);
+    },
+    [props],
+  );
+
+  useEffect(() => {
+    if (!activePath) {
+      setFileDiff(null);
+      return;
+    }
+    void loadFileDiff(activePath);
+  }, [activePath, loadFileDiff]);
 
   const rows: ChangeRow[] = useMemo(() => {
     if (!snapshot) {
@@ -127,8 +179,8 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
     });
   }, [snapshot, diff]);
 
-  function togglePath(filePath: string): void {
-    setSelectedPaths((current) =>
+  function toggleChecked(filePath: string): void {
+    setCheckedPaths((current) =>
       current.includes(filePath)
         ? current.filter((item) => item !== filePath)
         : [...current, filePath],
@@ -139,14 +191,20 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
     if (!props.projectPath) {
       return;
     }
-    const paths = selectedPaths;
+    const paths = checkedPaths;
     const label =
       paths.length === 0
         ? kind === 'stage'
           ? 'Stage ALL changes?'
           : 'Unstage ALL staged changes?'
         : `${kind === 'stage' ? 'Stage' : 'Unstage'} ${paths.length} path(s)?`;
-    if (!window.confirm(label)) {
+    const ok = await confirmDialog.confirm({
+      title: kind === 'stage' ? 'Stage changes?' : 'Unstage changes?',
+      description: label,
+      confirmLabel: kind === 'stage' ? 'Stage' : 'Unstage',
+      tone: 'default',
+    });
+    if (!ok) {
       return;
     }
     setBusy(true);
@@ -163,13 +221,19 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
     }
     setInfo(kind === 'stage' ? 'Staged' : 'Unstaged');
     await reload();
+    if (activePath) {
+      await loadFileDiff(activePath);
+    }
   }
 
   if (!props.projectPath) {
     return (
-      <div className="changes-panel" data-testid="changes-panel">
-        <div className="right-panel-empty muted">Open a project to see file changes.</div>
-      </div>
+      <>
+        {confirmDialog.dialog}
+        <div className="changes-panel" data-testid="changes-panel">
+          <div className="right-panel-empty muted">Open a project to see file changes.</div>
+        </div>
+      </>
     );
   }
 
@@ -180,96 +244,142 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
     : '…';
 
   return (
-    <div className="changes-panel" data-testid="changes-panel">
-      <div className="changes-toolbar">
-        <div className="changes-branch muted" title={branchLabel}>
-          <span className="changes-branch-dot" aria-hidden />
-          {branchLabel}
-        </div>
-        <button
-          type="button"
-          className="changes-icon-button"
-          disabled={loading || busy}
-          onClick={() => void reload()}
-          title="Refresh changes"
-          aria-label="Refresh changes"
-        >
-          <IconRefresh />
-        </button>
-      </div>
-
-      {error ? <div className="error-banner">{error}</div> : null}
-      {info ? <div className="muted changes-info">{info}</div> : null}
-
-      {!snapshot?.repository.isRepository ? (
-        <div className="right-panel-empty muted">Not a git repository.</div>
-      ) : rows.length === 0 ? (
-        <div className="right-panel-empty muted" data-testid="changes-clean">
-          Working tree clean
-          {diff ? (
-            <div className="changes-totals muted">
-              +{diff.totalAdditions} / −{diff.totalDeletions}
+    <>
+      {confirmDialog.dialog}
+      <div className="changes-panel changes-panel-split" data-testid="changes-panel">
+        <div className="changes-list-pane">
+          <div className="changes-toolbar">
+            <div className="changes-branch muted" title={branchLabel}>
+              <span className="changes-branch-dot" aria-hidden />
+              {branchLabel}
             </div>
-          ) : null}
+            <button
+              type="button"
+              className="changes-icon-button"
+              disabled={loading || busy}
+              onClick={() => void reload()}
+              title="Refresh changes"
+              aria-label="Refresh changes"
+            >
+              <IconRefresh />
+            </button>
+          </div>
+
+          {error ? <Notice tone="error">{error}</Notice> : null}
+          {info ? <Notice tone="info">{info}</Notice> : null}
+
+          {!snapshot?.repository.isRepository ? (
+            <div className="right-panel-empty muted">Not a git repository.</div>
+          ) : rows.length === 0 ? (
+            <div className="right-panel-empty muted" data-testid="changes-clean">
+              Working tree clean
+              {diff ? (
+                <div className="changes-totals muted">
+                  +{diff.totalAdditions} / −{diff.totalDeletions}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <div className="changes-totals muted">
+                {rows.length} file{rows.length === 1 ? '' : 's'}
+                {diff ? ` · +${diff.totalAdditions} −${diff.totalDeletions}` : ''}
+              </div>
+              <ul className="changes-list" data-testid="changes-list">
+                {rows.map((row) => (
+                  <li key={row.path}>
+                    <div
+                      className={
+                        activePath === row.path
+                          ? 'changes-row selected'
+                          : 'changes-row'
+                      }
+                      data-testid="changes-row"
+                    >
+                      <input
+                        type="checkbox"
+                        className="changes-check"
+                        checked={checkedPaths.includes(row.path)}
+                        onChange={() => toggleChecked(row.path)}
+                        aria-label={`Select ${row.path} for stage`}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                      <button
+                        type="button"
+                        className="changes-row-main"
+                        onClick={() => setActivePath(row.path)}
+                      >
+                        <span className={`changes-code status-${row.status}`}>
+                          {statusShort(row.status)}
+                        </span>
+                        <span className="changes-path" title={row.path}>
+                          {row.path}
+                        </span>
+                        <span className="changes-stats">
+                          {row.additions > 0 ? (
+                            <span className="add">+{row.additions}</span>
+                          ) : null}
+                          {row.deletions > 0 ? (
+                            <span className="del">−{row.deletions}</span>
+                          ) : null}
+                        </span>
+                        {row.staged ? <span className="changes-chip">S</span> : null}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <div className="changes-actions">
+                <Button size="compact" disabled={busy} onClick={() => void runStage('stage')}>
+                  Stage {checkedPaths.length > 0 ? 'selected' : 'all'}
+                </Button>
+                <Button size="compact" disabled={busy} onClick={() => void runStage('unstage')}>
+                  Unstage {checkedPaths.length > 0 ? 'selected' : 'all'}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
-      ) : (
-        <>
-          <div className="changes-totals muted">
-            {rows.length} file{rows.length === 1 ? '' : 's'}
-            {diff ? ` · +${diff.totalAdditions} −${diff.totalDeletions}` : ''}
+
+        <div className="changes-diff-pane" data-testid="changes-diff-pane">
+          <div className="changes-diff-toolbar">
+            <span className="muted">Review</span>
+            <div className="diff-mode-toggle" role="group" aria-label="Diff layout">
+              <button
+                type="button"
+                className={diffMode === 'split' ? 'active' : undefined}
+                onClick={() => setDiffMode('split')}
+              >
+                Side by side
+              </button>
+              <button
+                type="button"
+                className={diffMode === 'unified' ? 'active' : undefined}
+                onClick={() => setDiffMode('unified')}
+              >
+                Unified
+              </button>
+            </div>
           </div>
-          <ul className="changes-list" data-testid="changes-list">
-            {rows.map((row) => (
-              <li key={row.path}>
-                <button
-                  type="button"
-                  className={
-                    selectedPaths.includes(row.path)
-                      ? 'changes-row selected'
-                      : 'changes-row'
-                  }
-                  onClick={() => togglePath(row.path)}
-                  data-testid="changes-row"
-                >
-                  <span className={`changes-code status-${row.status}`}>
-                    {statusShort(row.status)}
-                  </span>
-                  <span className="changes-path" title={row.path}>
-                    {row.path}
-                  </span>
-                  <span className="changes-stats">
-                    {row.additions > 0 ? (
-                      <span className="add">+{row.additions}</span>
-                    ) : null}
-                    {row.deletions > 0 ? (
-                      <span className="del">−{row.deletions}</span>
-                    ) : null}
-                  </span>
-                  {row.staged ? <span className="changes-chip">S</span> : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-          <div className="changes-actions">
-            <button
-              type="button"
-              className="btn btn-compact"
-              disabled={busy}
-              onClick={() => void runStage('stage')}
-            >
-              Stage {selectedPaths.length > 0 ? 'selected' : 'all'}
-            </button>
-            <button
-              type="button"
-              className="btn btn-compact"
-              disabled={busy}
-              onClick={() => void runStage('unstage')}
-            >
-              Unstage {selectedPaths.length > 0 ? 'selected' : 'all'}
-            </button>
-          </div>
-        </>
-      )}
-    </div>
+          {diffLoading ? (
+            <div className="right-panel-empty muted">Loading patch…</div>
+          ) : (
+            <DiffView
+              mode={diffMode}
+              patch={fileDiff?.patch ?? ''}
+              {...(fileDiff?.path || activePath
+                ? { path: fileDiff?.path ?? activePath ?? '' }
+                : {})}
+              {...(fileDiff?.isBinary !== undefined
+                ? { isBinary: fileDiff.isBinary }
+                : {})}
+              {...(fileDiff?.truncated !== undefined
+                ? { truncated: fileDiff.truncated }
+                : {})}
+            />
+          )}
+        </div>
+      </div>
+    </>
   );
 }

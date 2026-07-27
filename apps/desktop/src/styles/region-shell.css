@@ -1,0 +1,206 @@
+/* Region: shell frame (App.tsx root + workspace-shell.tsx).
+   Owns the .app-shell grid (all data-layout / nav-open / has-right-panel /
+   settings-open combinations), .workspace / .chat-column stage sizing,
+   global scrollbar + ::selection styling, and app-level error boundary.
+   Geometry tokens come from tokens.css; colors from appearance-tokens.ts.
+   Values re-derived from the effective post-cascade rendering
+   (shell.css + responsive-early.css + cursor-workspace.css +
+   visual-overhaul.css layers). No forced declarations. */
+
+/* ── Grid frame ───────────────────────────────────────────────────── */
+
+.app-shell {
+  --workspace-control-height: 30px;
+  height: 100%;
+  display: grid;
+  /* Desktop: left navigator + stage. Right panel becomes a real third column
+     after outward window expansion. */
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas:
+    "nav stage";
+  min-width: 0;
+  overflow: hidden;
+  /* Prevent sparse auto tracks from stealing layout height. */
+  grid-auto-rows: minmax(0, auto);
+  background: var(--canvas);
+}
+
+/* Outward expand: window is grown by --right-panel-width before this class
+   applies, so the stage keeps the same pixel width. */
+.app-shell.has-right-panel {
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
+  grid-template-areas:
+    "nav stage signal";
+}
+
+/* Desktop keeps a compact titleband beneath the macOS traffic lights. */
+.app-shell[data-layout='desktop'] {
+  grid-template-rows: var(--titleband-height) minmax(0, 1fr);
+  grid-template-areas:
+    "topbar topbar"
+    "nav stage";
+}
+
+.app-shell[data-layout='desktop'].has-right-panel {
+  grid-template-areas:
+    "topbar topbar topbar"
+    "nav stage signal";
+}
+
+/* Desktop: the titlebar toggle can collapse the navigator entirely. */
+.app-shell[data-layout='desktop']:not(.nav-open) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "topbar"
+    "stage";
+}
+
+.app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
+  grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 320px);
+  grid-template-areas:
+    "topbar topbar"
+    "stage signal";
+}
+
+/* Compact: navigator and inspector are fixed drawers; stage is full-width. */
+.app-shell[data-layout='compact'],
+.app-shell[data-layout='compact'].has-right-panel {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
+  grid-template-areas:
+    "topbar"
+    "stage";
+}
+
+/* Narrow desktop windows: let the navigator shrink before layout flips
+   to compact. */
+@media (max-width: 1050px) {
+  .app-shell[data-layout='desktop'] {
+    grid-template-columns: minmax(220px, var(--sidebar-width)) minmax(0, 1fr);
+    grid-template-areas:
+      "topbar topbar"
+      "nav stage";
+  }
+  .app-shell[data-layout='desktop'].has-right-panel {
+    grid-template-columns: minmax(220px, var(--sidebar-width)) minmax(0, 1fr) var(--right-panel-width, 320px);
+    grid-template-areas:
+      "topbar topbar topbar"
+      "nav stage signal";
+  }
+  /* The responsive rule above must not recreate a blank navigator track
+     after the titlebar collapses it. */
+  .app-shell[data-layout='desktop']:not(.nav-open) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "topbar"
+      "stage";
+  }
+  .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
+    grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 320px);
+    grid-template-areas:
+      "topbar topbar"
+      "stage signal";
+  }
+}
+
+/* ── Band / column placement ──────────────────────────────────────── */
+
+.app-shell > .titlebar,
+.app-shell > .workbench-topbar {
+  grid-area: topbar;
+}
+
+.app-shell > .workspace {
+  grid-area: stage;
+  min-width: 0;
+  min-height: 0;
+  /* The stage must not clip upward-opening popovers from the composer;
+     the transcript viewport handles its own scroll clipping. */
+  overflow: visible;
+}
+
+/* Non-layout shell children must not occupy grid tracks. */
+.app-shell > .notification-region,
+.app-shell > .shell-overlay-scrim {
+  grid-area: unset;
+  position: fixed;
+}
+
+/* ── Stage ────────────────────────────────────────────────────────── */
+
+.workspace {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--canvas);
+}
+
+.chat-column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--canvas);
+}
+
+/* Empty stage packs from the top; hero + composer own the vertical rhythm
+   (see region-transcript.css / region-composer.css). */
+.chat-column-empty {
+  padding: 0;
+  overflow: hidden;
+}
+
+/* ── App-level error boundary ─────────────────────────────────────── */
+
+.app-error-boundary {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 40px;
+  background: var(--canvas);
+  color: var(--text);
+}
+
+.app-error-boundary h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+/* ── Global scrollbar / selection / motion ────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 3px;
+  transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto;
+  }
+}

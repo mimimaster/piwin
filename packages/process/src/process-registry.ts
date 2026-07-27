@@ -59,6 +59,8 @@ export type ProcessRegistry = {
   get: (processId: string) => ManagedProcessRecord | undefined;
   readLogs: (query: ManagedProcessLogsQuery) => ManagedProcessLogChunk[];
   stop: (processId: string) => Promise<ManagedProcessRecord>;
+  /** Stop active processes explicitly marked to end with a given session. */
+  stopForSession: (sessionId: string) => Promise<ManagedProcessRecord[]>;
   /** Kill remaining children when killOnHostDispose is true (default). */
   dispose: () => Promise<void>;
   /** Running + starting count (not exited/stopped/error). */
@@ -446,6 +448,18 @@ export function createProcessRegistry(options: ProcessRegistryOptions = {}): Pro
     return publicRecord(entry);
   }
 
+  async function stopForSession(sessionId: string): Promise<ManagedProcessRecord[]> {
+    const processIds = [...entries.values()]
+      .filter(
+        (entry) =>
+          entry.record.sessionId === sessionId &&
+          entry.record.killOnSessionEnd === true &&
+          isActiveStatus(entry.record.status),
+      )
+      .map((entry) => entry.record.id);
+    return Promise.all(processIds.map((processId) => stop(processId)));
+  }
+
   async function dispose(): Promise<void> {
     if (disposed) {
       return;
@@ -474,6 +488,7 @@ export function createProcessRegistry(options: ProcessRegistryOptions = {}): Pro
     get,
     readLogs,
     stop,
+    stopForSession,
     dispose,
     activeCount,
   };

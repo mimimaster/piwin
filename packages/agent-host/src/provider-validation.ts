@@ -30,11 +30,12 @@ export function validateProviders(
 
     if (
       provider.protocol !== 'openai-compatible' &&
-      provider.protocol !== 'anthropic-compatible'
+      provider.protocol !== 'anthropic-compatible' &&
+      provider.protocol !== 'google-gemini'
     ) {
       issues.push({
         path: `${base}.protocol`,
-        message: 'protocol must be openai-compatible or anthropic-compatible',
+        message: 'protocol must be openai-compatible, anthropic-compatible, or google-gemini',
       });
     }
 
@@ -58,9 +59,10 @@ export function validateProviders(
       }
     }
 
-    if (!Array.isArray(provider.models) || provider.models.length === 0) {
-      issues.push({ path: `${base}.models`, message: 'at least one model is required' });
+    if (!Array.isArray(provider.models)) {
+      issues.push({ path: `${base}.models`, message: 'models must be an array' });
     } else {
+      // Empty models are allowed: user can add via discovery after saving connection.
       provider.models.forEach((model, modelIndex) => {
         if (!model.id?.trim()) {
           issues.push({
@@ -68,7 +70,75 @@ export function validateProviders(
             message: 'model id is required',
           });
         }
+        if (
+          model.contextWindow !== undefined &&
+          (!Number.isSafeInteger(model.contextWindow) || model.contextWindow <= 0)
+        ) {
+          issues.push({
+            path: `${base}.models[${modelIndex}].contextWindow`,
+            message: 'contextWindow must be a positive integer',
+          });
+        }
+        if (
+          model.maxOutputTokens !== undefined &&
+          (!Number.isSafeInteger(model.maxOutputTokens) || model.maxOutputTokens <= 0)
+        ) {
+          issues.push({
+            path: `${base}.models[${modelIndex}].maxOutputTokens`,
+            message: 'maxOutputTokens must be a positive integer',
+          });
+        }
+        if (model.tooltipMarkdown !== undefined && model.tooltipMarkdown.length > 4096) {
+          issues.push({
+            path: `${base}.models[${modelIndex}].tooltipMarkdown`,
+            message: 'tooltipMarkdown must be 4096 characters or fewer',
+          });
+        }
       });
+    }
+
+    if (provider.headers !== undefined) {
+      if (typeof provider.headers !== 'object' || provider.headers === null || Array.isArray(provider.headers)) {
+        issues.push({ path: `${base}.headers`, message: 'headers must be an object of string pairs' });
+      } else {
+        const entries = Object.entries(provider.headers);
+        if (entries.length > 32) {
+          issues.push({ path: `${base}.headers`, message: 'headers supports at most 32 entries' });
+        }
+        const seenNames = new Set<string>();
+        for (const [headerName, headerValue] of entries) {
+          const name = headerName.trim();
+          if (!name) {
+            issues.push({ path: `${base}.headers`, message: 'header name is required' });
+            continue;
+          }
+          if (name.length > 128 || /[\r\n]/.test(name)) {
+            issues.push({
+              path: `${base}.headers.${name}`,
+              message: 'header name is invalid',
+            });
+          }
+          const lower = name.toLowerCase();
+          if (seenNames.has(lower)) {
+            issues.push({
+              path: `${base}.headers.${name}`,
+              message: 'duplicate header name',
+            });
+          }
+          seenNames.add(lower);
+          if (typeof headerValue !== 'string') {
+            issues.push({
+              path: `${base}.headers.${name}`,
+              message: 'header value must be a string',
+            });
+          } else if (headerValue.length > 4096 || /[\r\n]/.test(headerValue)) {
+            issues.push({
+              path: `${base}.headers.${name}`,
+              message: 'header value is invalid or too long',
+            });
+          }
+        }
+      }
     }
 
     if (provider.apiKeyEnv !== undefined && provider.apiKeyEnv !== '') {

@@ -8,13 +8,31 @@ export {
   listChildSessions,
   pinSessionRecord,
   unpinSessionRecord,
+  renameSessionRecord,
+  archiveSessionRecord,
+  unarchiveSessionRecord,
+  deleteSessionRecord,
+  normalizeSessionName,
   listAllSessionRecords,
   sortSessionRecords,
 } from './session-index-store.js';
+export type { ListSessionsForProjectOptions } from './session-index-store.js';
+
+export {
+  buildDuplicateSessionName,
+  cloneTranscriptForDuplicate,
+  duplicateProductSession,
+} from './duplicate-session.js';
+export type {
+  DuplicateSessionInput,
+  DuplicateSessionPaths,
+  DuplicateSessionResult,
+} from './duplicate-session.js';
 
 export {
   loadSessionTranscript,
   saveSessionTranscript,
+  saveSessionTranscriptAtomic,
   ensureSessionTranscript,
   appendTranscriptMessage,
   patchTranscriptMessage,
@@ -60,6 +78,12 @@ export type {
   SubagentMergeSummaryInput,
   SubagentMergeSummaryResult,
 } from './build-subagent-merge-summary.js';
+
+export {
+  buildSubagentActivityView,
+  formatSubagentActivityText,
+  mapSubagentStatusToActivityState,
+} from './subagent-activity-card.js';
 
 export {
   applyPlanStepUpdate,

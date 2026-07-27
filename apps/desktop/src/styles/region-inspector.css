@@ -27,6 +27,23 @@
   app-region: no-drag;
 }
 
+/* Collapsed: keep-mounted (PTY) but out of layout and focus. */
+.right-panel.is-collapsed {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 0;
+  max-width: 0;
+  height: 0;
+  min-height: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  border: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
 /* In-flow third column: window is grown by --right-panel-width before this
    class applies, so the stage keeps the same pixel width. */
 .app-shell.has-right-panel > .right-panel.outward-column {
@@ -186,6 +203,32 @@
 .right-panel-section-chevron svg {
   width: 12px;
   height: 12px;
+}
+
+/* Quiet workbench: directory-row breath when terminal has new output (never auto-open). */
+.right-panel-section-attention {
+  width: 6px;
+  height: 6px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: var(--ok, #43c384);
+  flex-shrink: 0;
+  animation: wb-pulse var(--motion-pulse, 1.6s) ease-in-out infinite;
+}
+
+.piwin-list-row.right-panel-section-row.has-proc .right-panel-section-attention {
+  margin-left: 0;
+}
+
+.piwin-list-row.right-panel-section-row.has-attention {
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .right-panel-section-attention {
+    animation: none;
+    opacity: 1;
+  }
 }
 
 .right-panel[data-view='home'] {
@@ -909,6 +952,20 @@
 @keyframes diff-in {
   from { opacity: 0; transform: translateY(6px) scale(0.99); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .right-panel {
+    transition: none;
+  }
+
+  .diff-view {
+    animation: none;
+  }
+
+  .right-panel-resize-handle::after {
+    transition: none;
+  }
 }
 
 .diff-view.empty {

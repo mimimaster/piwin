@@ -23,6 +23,7 @@ import {
   resolveInteractiveArtifactShrink,
   type ArtifactHeightPhase,
 } from '@piwin/artifact';
+import { Button } from '@piwin/ui-kit';
 
 export type ArtifactFrameProps = {
   decision:
@@ -291,9 +292,9 @@ function ArtifactRenderFrame(props: {
             theme adjusted ({decision.themeRepairs.length})
           </span>
         ) : null}
-        <button
-          type="button"
-          className="btn ghost artifact-expand-toggle"
+        <Button
+          variant="ghost"
+          className="artifact-expand-toggle"
           onClick={() => setExpanded((previous) => !previous)}
           title={
             expanded
@@ -302,7 +303,7 @@ function ArtifactRenderFrame(props: {
           }
         >
           {expanded ? 'Collapse' : 'Expand'}
-        </button>
+        </Button>
       </div>
       {granted ? (
         <iframe

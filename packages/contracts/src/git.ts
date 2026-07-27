@@ -63,6 +63,28 @@ export type GitDiffSummary = {
   totalFiles: number;
 };
 
+/** Single-file patch text for Review split view (VS Code SCM style). */
+export type GitFileDiff = {
+  repository: GitRepositoryIdentity;
+  /** Path relative to repo root. */
+  path: string;
+  /**
+   * Which tree the patch is against.
+   * - `worktree`: unstaged vs index/HEAD
+   * - `staged`: index vs HEAD
+   * - `combined`: worktree vs HEAD (default)
+   */
+  scope: 'worktree' | 'staged' | 'combined';
+  /** True when git reports binary for this path. */
+  isBinary: boolean;
+  /** Unified diff body (may be empty when clean / binary). */
+  patch: string;
+  /** Truncated when patch exceeded host size cap. */
+  truncated: boolean;
+  additions?: number;
+  deletions?: number;
+};
+
 export type GitCommitGraphNode = {
   hash: string;
   shortHash: string;

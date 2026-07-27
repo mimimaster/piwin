@@ -7,6 +7,8 @@ import type {
   PiwinConfig,
 } from '@piwin/contracts';
 import { createDefaultMemoryConfig } from '@piwin/contracts';
+import { Button, Field, FieldCheckbox, Notice } from '@piwin/ui-kit';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type MemoryPanelProps = {
   projectPath: string | null;
@@ -33,6 +35,9 @@ export type MemoryPanelProps = {
  * Settings → Agent → Memory: list / search / delete / accept / quota + toggles.
  */
 export function MemoryPanel(props: MemoryPanelProps) {
+  const { locale, translator } = useDesktopLocale();
+  const isChinese = locale === 'zh-CN';
+  const common = translator.common;
   const [config, setConfig] = useState<PiwinConfig | null>(null);
   const [records, setRecords] = useState<MemoryRecord[]>([]);
   const [hits, setHits] = useState<MemorySearchHit[] | null>(null);
@@ -110,7 +115,7 @@ export function MemoryPanel(props: MemoryPanelProps) {
       return;
     }
     setConfig(next);
-    setInfo('Memory settings saved');
+    setInfo(isChinese ? '记忆设置已保存。' : 'Memory settings saved.');
     await loadData();
   }
 
@@ -142,7 +147,7 @@ export function MemoryPanel(props: MemoryPanelProps) {
       setError(response.error);
       return;
     }
-    setInfo(`Deleted ${memoryId.slice(0, 8)}…`);
+    setInfo(isChinese ? `已删除 ${memoryId.slice(0, 8)}…` : `Deleted ${memoryId.slice(0, 8)}…`);
     await loadData();
   }
 
@@ -155,7 +160,7 @@ export function MemoryPanel(props: MemoryPanelProps) {
       setError(response.error);
       return;
     }
-    setInfo(`Accepted ${memoryId.slice(0, 8)}…`);
+    setInfo(isChinese ? `已接受 ${memoryId.slice(0, 8)}…` : `Accepted ${memoryId.slice(0, 8)}…`);
     await loadData();
   }
 
@@ -168,43 +173,32 @@ export function MemoryPanel(props: MemoryPanelProps) {
     <div className="settings-section" data-testid="memory-panel">
       <div className="settings-card-heading">
         <div>
-          <h4>Memory</h4>
-          <p>Cross-session facts under ~/.piwin/memory (host-mediated).</p>
+          <h4>{isChinese ? '记忆' : 'Memory'}</h4>
+          <p>{isChinese ? '跨会话事实存储在 ~/.piwin/memory（由 Host 处理）。' : 'Cross-session facts under ~/.piwin/memory (host-mediated).'}</p>
         </div>
       </div>
 
-      {error ? <div className="error-banner">{error}</div> : null}
-      {info ? <p className="muted">{info}</p> : null}
+      {error ? <Notice tone="error">{error}</Notice> : null}
+      {info ? <Notice tone="info">{info}</Notice> : null}
 
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={enabled}
-          disabled={!config || saving}
-          data-testid="memory-enabled-toggle"
-          onChange={(event) => void saveMemoryConfig({ enabled: event.target.checked })}
-        />
-        <span>Enable memory tools &amp; IPC</span>
-      </label>
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={injectOverview}
-          disabled={!config || saving || !enabled}
-          data-testid="memory-inject-toggle"
-          onChange={(event) =>
-            void saveMemoryConfig({ injectOverview: event.target.checked })
-          }
-        />
-        <span>Inject overview each prompt (trusted projects)</span>
-      </label>
-      <p className="muted">
-        Off by default until enabled. Tools: memory_list|search|read|write|update|delete|accept.
-        Set injectOverview=false to keep tools without per-prompt index injection.
-      </p>
-
+      <FieldCheckbox
+        label={isChinese ? '启用记忆工具与 IPC' : 'Enable memory tools & IPC'}
+        description={isChinese ? '默认关闭。工具：memory_list|search|read|write|update|delete|accept' : 'Off by default. Tools: memory_list|search|read|write|update|delete|accept'}
+        checked={enabled}
+        disabled={!config || saving}
+        testId="memory-enabled-toggle"
+        onCheckedChange={(checked) => void saveMemoryConfig({ enabled: checked })}
+      />
+      <FieldCheckbox
+        label={isChinese ? '在每次提示中注入概览' : 'Inject overview each prompt'}
+        description={isChinese ? '仅限已信任项目。关闭后仍保留工具，但不在每次提示中注入索引。' : 'Trusted projects only. Disable to keep tools without per-prompt index injection.'}
+        checked={injectOverview}
+        disabled={!config || saving || !enabled}
+        testId="memory-inject-toggle"
+        onCheckedChange={(checked) => void saveMemoryConfig({ injectOverview: checked })}
+      />
       {!enabled ? (
-        <p className="muted">Enable memory to list, search, and manage entries.</p>
+        <p className="muted">{isChinese ? '启用记忆后，可列出、搜索和管理条目。' : 'Enable memory to list, search, and manage entries.'}</p>
       ) : (
         <>
           {quota.length > 0 ? (
@@ -213,40 +207,39 @@ export function MemoryPanel(props: MemoryPanelProps) {
                 <li key={`${item.scope}-${item.projectKey ?? ''}`}>
                   {item.scope}
                   {item.projectKey ? `:${item.projectKey.slice(0, 12)}…` : ''}:{' '}
-                  {item.ordinaryCount}/{item.ordinaryLimit} ordinary, {item.dailyCount} daily
+                  {item.ordinaryCount}/{item.ordinaryLimit} {isChinese ? '常规' : 'ordinary'}，{item.dailyCount} {isChinese ? '每日' : 'daily'}
                 </li>
               ))}
             </ul>
           ) : null}
 
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search memories…"
-              data-testid="memory-search-input"
-              style={{ flex: 1 }}
-            />
-            <button type="button" className="btn" onClick={() => void handleSearch()}>
-              Search
-            </button>
-            <button
-              type="button"
-              className="btn"
+          <div className="settings-search-row">
+              <Field label={isChinese ? '搜索记忆' : 'Search memories'}>
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder={isChinese ? '搜索记忆…' : 'Search memories…'}
+                  data-testid="memory-search-input"
+                />
+              </Field>
+            <Button onClick={() => void handleSearch()}>
+              {isChinese ? '搜索' : 'Search'}
+            </Button>
+            <Button
               onClick={() => {
                 setHits(null);
                 setSearchQuery('');
                 void loadData();
               }}
             >
-              Refresh
-            </button>
+              {common.refresh}
+            </Button>
           </div>
 
           {loading ? (
-            <p className="muted">Loading…</p>
+            <p className="muted">{common.loading}</p>
           ) : displayRecords.length === 0 ? (
-            <p className="muted">No memories yet. Agent can write via memory_write.</p>
+            <p className="muted">{isChinese ? '暂无记忆。Agent 可通过 memory_write 写入。' : 'No memories yet. Agent can write via memory_write.'}</p>
           ) : (
             <ul className="provider-list" data-testid="memory-list">
               {displayRecords.map((record) => (
@@ -255,27 +248,23 @@ export function MemoryPanel(props: MemoryPanelProps) {
                   <span className="muted">
                     {' '}
                     · {record.scope}/{record.type} · {record.confidence}
-                    {record.reviewedAt ? ' · reviewed' : ''}
+                    {record.reviewedAt ? (isChinese ? ' · 已审核' : ' · reviewed') : ''}
                   </span>
                   <br />
                   <span className="muted">{record.content.slice(0, 160)}</span>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                    <button
-                      type="button"
-                      className="btn"
+                  <div className="settings-inline-actions">
+                    <Button
                       disabled={busyId === record.id}
                       onClick={() => void handleAccept(record.id)}
                     >
-                      Accept
-                    </button>
-                    <button
-                      type="button"
-                      className="btn"
+                      {isChinese ? '接受' : 'Accept'}
+                    </Button>
+                    <Button
                       disabled={busyId === record.id}
                       onClick={() => void handleDelete(record.id)}
                     >
-                      Delete
-                    </button>
+                      {common.delete}
+                    </Button>
                   </div>
                 </li>
               ))}

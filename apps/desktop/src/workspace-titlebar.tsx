@@ -124,19 +124,6 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
       />
 
       <div className="titlebar-actions" role="toolbar" aria-label="Tools">
-        <label className="sr-only">
-          New session default
-          <select
-            data-testid="execution-mode-select"
-            value={props.executionMode}
-            onChange={(event) => props.onExecutionModeChange(event.target.value as ExecutionMode)}
-          >
-            <option value="chat">New session: Chat</option>
-            <option value="agent">New session: Agent</option>
-            <option value="agent-debug">New session: Agent Debug</option>
-          </select>
-        </label>
-
         <div className="more-menu-wrap">
           <DropdownMenu
             label="More tools"
@@ -158,6 +145,27 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
             <DropdownMenuItem testId="more-mcp" onSelect={() => props.onOpenMcp?.()}>
               <IconPlug /> MCP
             </DropdownMenuItem>
+            {/* Quiet workbench: frameless new-session mode (no boxed select on titleband). */}
+            {(
+              [
+                { mode: 'chat' as const, label: 'New session: Chat' },
+                { mode: 'agent' as const, label: 'New session: Agent' },
+                { mode: 'agent-debug' as const, label: 'New session: Agent Debug' },
+              ] as const
+            ).map((entry) => (
+              <DropdownMenuItem
+                key={entry.mode}
+                testId={
+                  entry.mode === props.executionMode
+                    ? 'execution-mode-select'
+                    : `execution-mode-${entry.mode}`
+                }
+                onSelect={() => props.onExecutionModeChange(entry.mode)}
+              >
+                {props.executionMode === entry.mode ? '✓ ' : ''}
+                {entry.label}
+              </DropdownMenuItem>
+            ))}
             <DropdownMenuItem
               testId="more-appearance"
               onSelect={() => props.onToggleAppearance?.()}

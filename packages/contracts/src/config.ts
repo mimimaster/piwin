@@ -9,6 +9,28 @@ import type { ProcessConfig } from './process.js';
 import type { ExecutionConfig } from './session-ops.js';
 import type { NotesConfig } from './notes.js';
 import type { FlashcardsConfig } from './flashcards.js';
+import type { AutomationConfig } from './automation.js';
+import type { MarketplaceConfig } from './marketplace-registry.js';
+import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
+
+/** Per-model identity and optional runtime limits. */
+export type ModelConfigEntry = {
+  id: string;
+  label?: string;
+  /**
+   * Model context window in tokens.
+   * Used for usage ring / limit when host does not report tokensLimit.
+   * Default applied at UI/host edges: {@link DEFAULT_MODEL_CONTEXT_WINDOW}.
+   */
+  contextWindow?: number;
+  /** Maximum output tokens accepted by this model endpoint. */
+  maxOutputTokens?: number;
+  /** Optional Markdown shown when the model is hovered in a picker. */
+  tooltipMarkdown?: string;
+};
+
+/** Default context window when a model omits `contextWindow`. */
+export const DEFAULT_MODEL_CONTEXT_WINDOW = 128_000;
 
 export type OpenAiCompatibleProviderConfig = {
   id: string;
@@ -17,7 +39,9 @@ export type OpenAiCompatibleProviderConfig = {
   baseUrl: string;
   apiKeyEnv?: string;
   apiKeyRef?: string;
-  models: Array<{ id: string; label?: string }>;
+  /** Extra HTTP headers sent with discovery and (when wired) provider requests. */
+  headers?: Record<string, string>;
+  models: ModelConfigEntry[];
 };
 
 export type AnthropicCompatibleProviderConfig = {
@@ -27,12 +51,41 @@ export type AnthropicCompatibleProviderConfig = {
   baseUrl: string;
   apiKeyEnv?: string;
   apiKeyRef?: string;
-  models: Array<{ id: string; label?: string }>;
+  /** Extra HTTP headers sent with discovery and (when wired) provider requests. */
+  headers?: Record<string, string>;
+  models: ModelConfigEntry[];
+};
+
+/** Google Generative Language API-compatible provider configuration. */
+export type GoogleGeminiProviderConfig = {
+  id: string;
+  protocol: 'google-gemini';
+  name: string;
+  baseUrl: string;
+  apiKeyEnv?: string;
+  apiKeyRef?: string;
+  /** Extra HTTP headers sent with discovery and (when wired) provider requests. */
+  headers?: Record<string, string>;
+  models: ModelConfigEntry[];
 };
 
 export type ModelProviderConfig =
   | OpenAiCompatibleProviderConfig
-  | AnthropicCompatibleProviderConfig;
+  | AnthropicCompatibleProviderConfig
+  | GoogleGeminiProviderConfig;
+
+/** Normalized model identity returned from a provider's discovery endpoint. */
+export type DiscoveredModel = {
+  id: string;
+  label?: string;
+};
+
+/** Safe model discovery payload. Never includes API credentials. */
+export type ModelDiscoveryResult = {
+  providerId: string;
+  protocol: ModelProviderConfig['protocol'];
+  models: DiscoveredModel[];
+};
 
 /** Product-level compaction defaults (applied when a live session is ready). */
 export type CompactionConfig = {
@@ -48,12 +101,35 @@ export type CompactionConfig = {
   writeTranscriptNote?: boolean;
 };
 
+/** Product opt-in for the enhanced Ultra composer effort stop. */
+export type ThinkingConfig = {
+  ultraEnabled: boolean;
+};
+
+/** Restorable desktop navigation state, stored with the product config. */
+export type DesktopComposerProfile = {
+  /** Per-next-turn model selection for the Desktop composer only. */
+  model?: ModelRef;
+  /** Per-next-turn thinking selection for the Desktop composer only. */
+  thinkingLevel?: ThinkingLevel;
+};
+
+export type DesktopRestoreConfig = {
+  composerProfile?: DesktopComposerProfile;
+  lastSession?: {
+    sessionId: string;
+    scope: SessionScope;
+  };
+};
+
 export type PiwinConfig = {
   hostMode: 'sdk' | 'rpc';
   agentMock?: boolean;
   providers: ModelProviderConfig[];
   defaultProviderId?: string;
   defaultModelId?: string;
+  thinking?: ThinkingConfig;
+  desktop?: DesktopRestoreConfig;
   media: {
     maxPasteBytes: number;
     allowedMimeTypes: string[];
@@ -77,6 +153,10 @@ export type PiwinConfig = {
   notes?: NotesConfig;
   /** Flashcards + FSRS review (ADR 0018). */
   flashcards?: FlashcardsConfig;
+  /** CE-CRON / CE-HOOK (default disabled). */
+  automation?: AutomationConfig;
+  /** CE-HUB registry source toggles. */
+  marketplace?: MarketplaceConfig;
 };
 
 export function createDefaultCompactionConfig(): CompactionConfig {
@@ -88,9 +168,11 @@ export function createDefaultCompactionConfig(): CompactionConfig {
 
 export function createDefaultWebConfig(): WebConfig {
   return {
-    searchProvider: 'brave',
-    searchApiKeyEnv: 'BRAVE_API_KEY',
+    searchProvider: 'duckduckgo',
+    searchApiKeyEnv: '',
     searchMaxResults: 5,
+    fetchProvider: 'supermarkdown',
+    fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
     fetchMaxBytes: 65536,
     fetchTimeoutMs: 15000,
     fetchBlockedUrlPrefixes: ['file:', 'localhost', '127.0.0.1'],

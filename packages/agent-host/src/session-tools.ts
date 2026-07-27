@@ -21,6 +21,7 @@ export type ToolPermissionGate = (input: {
   action: string;
   detail: string;
   defaultDecision: PermissionDecision;
+  signal?: AbortSignal;
 }) => Promise<PermissionDecision>;
 
 export type BuildSessionToolsOptions = {
@@ -113,6 +114,7 @@ function wrapWebToolWithPermission(
             action: `network:${action}`,
             detail: target,
             defaultDecision: 'ask',
+            ...(signal ? { signal } : {}),
           });
         } else {
           decision = resolveNonInteractiveDecision(evaluation);

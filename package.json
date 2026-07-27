@@ -20,8 +20,10 @@
     "dev:tauri": "pnpm --dir apps/desktop dev:tauri",
     "package:desktop": "pnpm --dir apps/desktop package",
     "e2e:smoke": "tsx scripts/e2e-host-smoke.mjs",
+    "e2e:host-jsonl": "NODE_ENV=test node scripts/e2e-host-jsonl.mjs",
     "audit:prod": "pnpm audit --prod || true",
-    "e2e:desktop": "pnpm --dir apps/desktop e2e"
+    "e2e:desktop": "pnpm --dir apps/desktop e2e",
+    "automated-prerequisite-gate": "pnpm check && pnpm e2e:desktop && pnpm e2e:host-jsonl && cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml"
   },
   "devDependencies": {
     "typescript": "^5.7.3",

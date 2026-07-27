@@ -7,6 +7,7 @@ import {
   getPiwinRoot,
   getPiwinMediaDir,
   HostRuntime,
+  type HostRuntimeTestFixture,
   initPiwinConfig,
   loadPiwinConfig,
   savePiwinConfig,
@@ -17,7 +18,8 @@ import {
   createSecretResolver,
   getPiwinSessionIndexPath,
 } from '@piwin/agent-host';
-import type { AgentEvent, HostCommand, HostMode, HostServerMessage } from '@piwin/contracts';
+import type { AgentEvent, HostCommand, HostMode, HostServerMessage, HostStatusData } from '@piwin/contracts';
+import { formatCapabilityMatrixLines } from '@piwin/contracts';
 import { formatTextModelImageInjection } from '@piwin/contracts';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import {
@@ -28,6 +30,9 @@ import {
 } from '@piwin/mcp';
 import { installSkill, installExtension, RECOMMENDED_SKILLS } from '@piwin/marketplace';
 import { createMediaService } from '@piwin/media';
+import { createHostServeDispatcher } from './host-serve-dispatcher.js';
+import { createJsonlWriter } from './host-serve-jsonl-writer.js';
+import { createHostServeStreamBatcher } from './host-serve-stream-batcher.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -44,7 +49,7 @@ Usage:
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin status [--project <path>] [--mock]
   piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>]
-  piwin host serve [--mode sdk|rpc] [--mock]
+  piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>]
   piwin skill list [--project <path>]
   piwin skill install --local <dir> | --git <url> [--name <id>]
   piwin skill ensure-bundled
@@ -67,10 +72,12 @@ Usage:
   piwin cards due [--deck d]
   piwin cards review [--deck d]             (interactive FSRS loop)
   piwin cards export [--deck d] [--out <path>]   (Anki TSV)
+  piwin cron list [--mock]
 
 Host modes: sdk | rpc
 Offline: --mock or PIWIN_MOCK=1
 host serve: JSONL IPC on stdin/stdout for desktop sidecar
+test fixture: harness-only delayed session; rejected outside NODE_ENV=test
 `);
 }
 
@@ -108,12 +115,40 @@ function parseMode(argv: string[]): HostMode {
   return value === 'rpc' ? 'rpc' : 'sdk';
 }
 
+/** Explicit --project path, or null when the user did not pass --project. */
+function parseOptionalProject(argv: string[]): string | null {
+  const value = readOption(argv, '--project');
+  if (!value) {
+    return null;
+  }
+  return resolve(value);
+}
+
+/** Legacy helper: --project or process.cwd() for project-bound commands. */
 function parseProject(argv: string[]): string {
-  return resolve(readOption(argv, '--project') ?? process.cwd());
+  return parseOptionalProject(argv) ?? resolve(process.cwd());
 }
 
 function parseMock(argv: string[]): boolean {
   return hasFlag(argv, '--mock') || process.env.PIWIN_MOCK === '1';
+}
+
+function parseHostServeTestFixture(argv: string[]): HostRuntimeTestFixture | undefined {
+  const value = readOption(argv, '--test-fixture') ?? process.env.PIWIN_HOST_TEST_FIXTURE;
+  if (value === undefined) {
+    return undefined;
+  }
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error('--test-fixture is available only when NODE_ENV=test');
+  }
+  if (
+    value === 'hang-until-abort' ||
+    value === 'slow-first-token' ||
+    value === 'high-rate-tool-output'
+  ) {
+    return value;
+  }
+  throw new Error(`Unknown host test fixture: ${value}`);
 }
 
 function formatEvent(event: AgentEvent): string | null {
@@ -221,6 +256,32 @@ async function commandDoctor(): Promise<void> {
   console.log('- bash: permission-gated (deny hard patterns; ask destructive)');
   console.log('- IPC: HostCommand/HostPush + `host serve` available');
   console.log('- packages: media tools-web skills mcp marketplace git theme pet artifact');
+  try {
+    const runtime = new HostRuntime({
+      mode: config.hostMode === 'rpc' ? 'rpc' : 'sdk',
+      mock: config.agentMock === true || process.env.PIWIN_MOCK === '1',
+    });
+    try {
+      const status = await runtime.handleCommand({ type: 'host/status' });
+      if (status.success) {
+        const data = status.data as HostStatusData;
+        console.log('--- capability matrix (live host) ---');
+        console.log(`- host mode: ${data.mode} mock=${data.mock}`);
+        for (const line of formatCapabilityMatrixLines(data.capabilities, {
+          mode: data.mode,
+          mock: data.mock,
+        })) {
+          console.log(`- ${line}`);
+        }
+      }
+    } finally {
+      await runtime.dispose();
+    }
+  } catch (error) {
+    console.log(
+      `- capability matrix: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
   console.log(`- session index path: ${getPiwinSessionIndexPath(root)}`);
   console.log(`- CI scripts: typecheck/test present in package.json`);
   try {
@@ -291,8 +352,12 @@ async function commandSession(argv: string[]): Promise<void> {
 
   try {
     if (sub === 'list') {
-      const projectPath = parseProject(argv);
-      const response = await runtime.handleCommand({ type: 'session/list', projectPath });
+      const projectPath = parseOptionalProject(argv);
+      const response = await runtime.handleCommand(
+        projectPath
+          ? { type: 'session/list', projectPath }
+          : { type: 'session/list', scope: { kind: 'general' } },
+      );
       if (!response.success) {
         console.error(response.error);
         process.exitCode = 1;
@@ -307,7 +372,11 @@ async function commandSession(argv: string[]): Promise<void> {
           lastPreview?: string;
         }> })?.sessions ?? [];
       if (sessions.length === 0) {
-        console.log(`(no sessions for ${projectPath})`);
+        console.log(
+          projectPath
+            ? `(no sessions for ${projectPath})`
+            : '(no general sessions)',
+        );
         return;
       }
       for (const session of sessions) {
@@ -452,23 +521,20 @@ async function commandStatus(argv: string[]): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    const data = response.data as {
-      mode: string;
-      ready: boolean;
-      mock: boolean;
-      piwinRoot: string;
-      activeSessionIds: string[];
-      capabilities: Record<string, boolean | undefined>;
-    };
+    const data = response.data as HostStatusData;
     console.log('piwin status');
     console.log(`- mode: ${data.mode}`);
     console.log(`- ready: ${data.ready}`);
     console.log(`- mock: ${data.mock}`);
     console.log(`- piwinRoot: ${data.piwinRoot}`);
     console.log(`- activeSessions: ${data.activeSessionIds.join(', ') || '(none)'}`);
-    console.log(
-      `- capabilities: sessionPin=${Boolean(data.capabilities.sessionPin)} sessionSearch=${Boolean(data.capabilities.sessionSearch)} usage=${Boolean(data.capabilities.usage)}`,
-    );
+    console.log('--- capability matrix ---');
+    for (const line of formatCapabilityMatrixLines(data.capabilities, {
+      mode: data.mode as 'sdk' | 'rpc',
+      mock: data.mock,
+    })) {
+      console.log(`- ${line}`);
+    }
     console.log(
       '- usage: chip/events available after first assistant turn (see usage/update); CLI chat prints [usage] lines',
     );
@@ -526,7 +592,7 @@ async function commandChat(argv: string[]): Promise<void> {
     console.error(`[media] saved ${saved.absolutePath}`);
   }
 
-  const projectPath = parseProject(argv);
+  const projectPath = parseOptionalProject(argv);
   const mock = parseMock(argv);
   const mode = parseMode(argv);
   if (mode === 'rpc' && !mock) {
@@ -539,7 +605,11 @@ async function commandChat(argv: string[]): Promise<void> {
     return;
   }
   const host = createAgentHost({ mode, mock });
-  const session = await host.createSession({ projectPath });
+  const session = await host.createSession(
+    projectPath
+      ? { scope: { kind: 'project', projectPath }, projectPath }
+      : { scope: { kind: 'general' } },
+  );
   const unsubscribe = session.subscribe((event) => {
     const line = formatEvent(event);
     if (line !== null) {
@@ -1495,17 +1565,27 @@ async function commandCards(argv: string[]): Promise<void> {
 }
 
 async function commandHostServe(argv: string[]): Promise<void> {
+  redirectHostLogsToStandardError();
   const mode = parseMode(argv);
   const mock = parseMock(argv);
-  const runtime = new HostRuntime({
+  const testFixture = parseHostServeTestFixture(argv);
+  const writer = createJsonlWriter(process.stdout);
+  const streamBatcher = createHostServeStreamBatcher({
+    write: (message) => writer.write(message),
+  });
+  const runtimeOptions: ConstructorParameters<typeof HostRuntime>[0] = {
     mode,
     mock,
     onPush: (message) => {
-      writeJsonLine(message);
+      streamBatcher.push(message);
     },
-  });
+  };
+  if (testFixture !== undefined) {
+    runtimeOptions.testFixture = testFixture;
+  }
+  const runtime = new HostRuntime(runtimeOptions);
 
-  writeJsonLine({
+  await writer.write({
     type: 'host/status',
     mode: runtime.getMode(),
     ready: true,
@@ -1517,9 +1597,28 @@ async function commandHostServe(argv: string[]): Promise<void> {
     crlfDelay: Infinity,
   });
 
-  const shutdown = async (): Promise<void> => {
-    readlineInterface.close();
-    await runtime.dispose();
+  // ADR 0015: control-lane commands (abort, permission resolve, …) bypass
+  // the serialized mutation queue so Stop can reach an in-flight turn.
+  const dispatcher = createHostServeDispatcher({
+    runtime,
+    writer,
+    commandTimeoutMs: 45_000,
+  });
+
+  let shutdownPromise: Promise<void> | undefined;
+  const shutdown = (): Promise<void> => {
+    if (shutdownPromise !== undefined) {
+      return shutdownPromise;
+    }
+    shutdownPromise = (async (): Promise<void> => {
+      // Stop reading first so EOF and SIGINT cannot admit more commands while
+      // the existing command and stream work is being drained.
+      readlineInterface.close();
+      await dispatcher.drain();
+      await streamBatcher.flush();
+      await runtime.dispose();
+    })();
+    return shutdownPromise;
   };
 
   process.on('SIGINT', () => {
@@ -1535,7 +1634,7 @@ async function commandHostServe(argv: string[]): Promise<void> {
     try {
       command = JSON.parse(trimmed) as HostCommand;
     } catch {
-      writeJsonLine({
+      await writer.write({
         type: 'response',
         command: 'parse',
         success: false,
@@ -1543,15 +1642,60 @@ async function commandHostServe(argv: string[]): Promise<void> {
       });
       continue;
     }
-    const response = await runtime.handleCommand(command);
-    writeJsonLine(response);
+
+    dispatcher.dispatch(command);
   }
 
   await shutdown();
 }
 
-function writeJsonLine(message: HostServerMessage | Record<string, unknown>): void {
-  process.stdout.write(`${JSON.stringify(message)}\n`);
+/**
+ * The desktop sidecar treats stdout as a strict JSONL protocol. Agent-host and
+ * third-party extensions use console.info/warn for diagnostics, which otherwise
+ * insert plain text between protocol messages and corrupt the stream.
+ */
+function redirectHostLogsToStandardError(): void {
+  const writeDiagnostic = console.error.bind(console);
+  console.log = writeDiagnostic;
+  console.info = writeDiagnostic;
+  console.warn = writeDiagnostic;
+}
+
+
+
+
+async function commandCron(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? 'list';
+  if (sub !== 'list') {
+    console.error('Usage: piwin cron list [--mock]');
+    process.exitCode = 1;
+    return;
+  }
+  const mock = hasFlag(argv, '--mock') || process.env.PIWIN_MOCK === '1';
+  const runtime = new HostRuntime({
+    mode: 'sdk',
+    mock: mock === true,
+  });
+  try {
+    const response = await runtime.handleCommand({ type: 'cron/list' });
+    if (!response.success) {
+      console.error(response.error);
+      process.exitCode = 1;
+      return;
+    }
+    const jobs = (response.data as { jobs?: Array<Record<string, unknown>> }).jobs ?? [];
+    if (jobs.length === 0) {
+      console.log('No cron jobs (host-local; no background daemon).');
+      return;
+    }
+    for (const job of jobs) {
+      const last = job.lastStatus ? ` last=${job.lastStatus}` : '';
+      const when = job.lastRunAt ? ` at=${job.lastRunAt}` : '';
+      console.log(`${job.id}\t${job.enabled ? 'on' : 'off'}\t${job.schedule}\t${job.name}${last}${when}`);
+    }
+  } finally {
+    await runtime.dispose();
+  }
 }
 
 async function main(argv: string[]): Promise<void> {
@@ -1603,6 +1747,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'process') {
     await commandProcess(argv);
+    return;
+  }
+  if (command === 'cron') {
+    await commandCron(argv);
     return;
   }
   if (command === 'memory') {

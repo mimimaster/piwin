@@ -1,5 +1,16 @@
 /** Web search / fetch contracts for @piwin/tools-web */
 
+/** Free-by-default first; API-key providers remain optional. */
+export type WebSearchProvider = 'duckduckgo' | 'brave' | 'tavily' | 'none';
+
+/**
+ * How web_fetch turns a page into readable text.
+ * - supermarkdown: local HTML→text/markdown-like extract (zero config)
+ * - jina: r.jina.ai reader proxy (handles JS-heavy pages)
+ * - firecrawl: Firecrawl scrape API (self-hostable / cloud key)
+ */
+export type WebFetchProvider = 'supermarkdown' | 'jina' | 'firecrawl';
+
 export type SearchHit = {
   title: string;
   url: string;
@@ -24,9 +35,16 @@ export type WebFetchResult = {
 };
 
 export type WebConfig = {
-  searchProvider: 'brave' | 'tavily' | 'none';
+  searchProvider: WebSearchProvider;
   searchApiKeyEnv: string;
   searchMaxResults: number;
+  /** Reader backend for HTML pages. Default: local supermarkdown. */
+  fetchProvider: WebFetchProvider;
+  /**
+   * Env var name for fetch providers that need a key (e.g. Firecrawl).
+   * Jina usually works without a key; optional `JINA_API_KEY` still accepted.
+   */
+  fetchApiKeyEnv: string;
   fetchMaxBytes: number;
   fetchTimeoutMs: number;
   fetchBlockedUrlPrefixes: string[];

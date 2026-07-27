@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.80.10",
+    "@piwin/automation": "workspace:*",
     "@piwin/contracts": "workspace:*",
     "@piwin/flashcards": "workspace:*",
     "@piwin/git": "workspace:*",

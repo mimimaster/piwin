@@ -1,0 +1,114 @@
+/**
+ * Settings context: carries the host request adapters and shared settings
+ * state that used to be drilled prop-by-prop into every section branch of
+ * SettingsPanel. Section pages read everything through useSettings().
+ */
+import { createContext, useContext, type PropsWithChildren, type ReactElement } from 'react';
+import type {
+  HostResponse,
+  HostStatusData,
+  ModelDiscoveryResult,
+  ModelProviderConfig,
+  PiwinConfig,
+} from '@piwin/contracts';
+import type { SkillsPanelProps } from '../SkillsPanel';
+import type { McpPanelProps } from '../McpPanel';
+import type { ExtensionsPanelProps } from '../ExtensionsPanel';
+import type { PromptsPanelProps } from '../PromptsPanel';
+import type { ThemePanelProps } from '../ThemePanel';
+import type { PetPanelProps } from '../PetPanel';
+import type { MemoryPanelProps } from '../MemoryPanel';
+import type { AutomationPanelProps } from '../AutomationPanel';
+import type { SubAgentPanelProps } from '../SubAgentPanel';
+import type { DesktopPreferences } from '../ui-preferences';
+import type { SettingsSectionId } from './section-registry';
+import type { DraftWeb } from './web-draft';
+
+/** Config-scope host request surface (config, models, secrets, permissions). */
+export type SettingsConfigRequest = (command: {
+  type:
+    | 'config/get'
+    | 'config/set'
+    | 'models/discover'
+    | 'models/test'
+    | 'secrets/set'
+    | 'secrets/get'
+    | 'project/permissions-list'
+    | 'project/permissions-revoke';
+  config?: PiwinConfig;
+  provider?: ModelProviderConfig;
+  apiKey?: string;
+  modelId?: string;
+  providerId?: string;
+  secret?: string;
+  path?: string;
+  key?: string;
+}) => Promise<HostResponse>;
+
+export type SettingsContextValue = {
+  request: SettingsConfigRequest;
+  config: PiwinConfig | null;
+  root: string;
+  saving: boolean;
+  setError: (message: string | null) => void;
+  setInfo: (message: string | null) => void;
+  /** Persist config through the host; returns false (and sets error) on failure. */
+  saveConfig: (next: PiwinConfig) => Promise<boolean>;
+  /** Web tools draft lives above the section so it survives nav switches. */
+  webDraft: DraftWeb;
+  setWebDraft: (draft: DraftWeb) => void;
+  saveWeb: () => Promise<void>;
+  preferences: DesktopPreferences;
+  onPreferencesChange: (prefs: DesktopPreferences) => void;
+  projectPath: string | null;
+  hostStatus: HostStatusData | null;
+  activeSessionId: string | null;
+  onOpenSubagentSession: ((sessionId: string) => void) | undefined;
+  /** In-settings navigation (e.g. General → "Open Models settings…"). */
+  selectSection: (section: SettingsSectionId) => void;
+  requestSkills: SkillsPanelProps['request'];
+  requestMcp: McpPanelProps['request'];
+  requestExtensions: ExtensionsPanelProps['request'];
+  requestPrompts: PromptsPanelProps['request'];
+  requestTheme: ThemePanelProps['request'];
+  requestPet: PetPanelProps['request'];
+  requestMemory: MemoryPanelProps['request'];
+  requestAutomation: AutomationPanelProps['request'];
+  requestSubAgent: SubAgentPanelProps['request'] | undefined;
+  onThemeApplied: ThemePanelProps['onApplied'];
+  onPetActiveChanged: PetPanelProps['onActiveChanged'];
+  discoverProviderModels: (
+    provider: ModelProviderConfig,
+    options?: { apiKey?: string },
+  ) => Promise<ModelDiscoveryResult>;
+  testProviderModel: (
+    provider: ModelProviderConfig,
+    modelId: string,
+    options?: { apiKey?: string },
+  ) => Promise<{ durationMs: number }>;
+  storeProviderSecret: (providerId: string, secret: string) => Promise<string>;
+  loadProviderSecret: (providerId: string) => Promise<string | null>;
+};
+
+const SettingsContext = createContext<SettingsContextValue | null>(null);
+
+export type SettingsProviderProps = PropsWithChildren<{
+  value: SettingsContextValue;
+}>;
+
+export function SettingsProvider(props: SettingsProviderProps): ReactElement {
+  return (
+    <SettingsContext.Provider value={props.value}>{props.children}</SettingsContext.Provider>
+  );
+}
+
+export function useSettings(): SettingsContextValue {
+  const value = useContext(SettingsContext);
+  if (!value) {
+    throw new Error(
+      'useSettings() must be called inside <SettingsProvider>. ' +
+        'Settings section components can only render within the settings shell.',
+    );
+  }
+  return value;
+}

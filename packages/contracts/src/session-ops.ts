@@ -20,7 +20,9 @@ export function createDefaultExecutionConfig(): ExecutionConfig {
 /** FTS / projection search over product session index. */
 export type SessionSearchQuery = {
   query: string;
+  /** @deprecated Use scope-based filtering. */
   projectPath?: string;
+  scope?: import('./host.js').SessionScope;
   limit?: number;
   /** When true, only pinned sessions (if pin index is available). */
   pinnedOnly?: boolean;
@@ -28,7 +30,10 @@ export type SessionSearchQuery = {
 
 export type SessionSearchHit = {
   sessionId: string;
+  /** @deprecated Use scope to determine project path. */
   projectPath: string;
+  scope?: import('./host.js').SessionScope;
+  workingDirectory?: string;
   score?: number;
   snippet?: string;
   /** Message id when hit is message-level rather than session metadata. */

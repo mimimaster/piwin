@@ -1,9 +1,19 @@
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { MediaSaveData } from '@piwin/contracts';
+import {
+  allowNetworkFetchHost,
+  allowNetworkWebSearch,
+} from '@piwin/project';
 import { HostRuntime } from './host-runtime.js';
+import {
+  getPiwinGeneralWorkspacePath,
+  getPiwinProjectsPath,
+  getPiwinSessionIndexPath,
+} from './paths.js';
+import { getSessionRecord, listSessionsForProject } from '@piwin/session';
 
 describe('HostRuntime', () => {
   it('handles ping and mock session prompt', async () => {
@@ -38,6 +48,31 @@ describe('HostRuntime', () => {
     });
     expect(prompted, JSON.stringify(prompted)).toMatchObject({ success: true });
     expect(pushes).toContain('event');
+
+    await runtime.dispose();
+  });
+
+  it('installs an MCP registry draft at the canonical mcp.json path', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-mcp-registry-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+
+    const installed = await runtime.handleCommand({
+      type: 'mcp/registry-install-draft',
+      serverId: 'memory',
+      draft: { command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'] },
+    });
+    expect(installed.success).toBe(true);
+
+    const configPath = join(rootDir, 'mcp.json');
+    expect((await stat(configPath)).isFile()).toBe(true);
+    const raw = await readFile(configPath, 'utf8');
+    expect(raw).toContain('server-memory');
+
+    const loaded = await runtime.handleCommand({ type: 'mcp/get' });
+    expect(loaded.success).toBe(true);
+    if (!loaded.success) throw new Error(loaded.error);
+    expect((loaded.data as { document: { mcpServers: Record<string, unknown> } }).document.mcpServers)
+      .toHaveProperty('memory');
 
     await runtime.dispose();
   });
@@ -107,6 +142,17 @@ describe('HostRuntime', () => {
       },
     });
     expect(prompted.success).toBe(true);
+    // ADR 0015: prompt returns on accept; wait for background stream to finish.
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      const joinedSoFar = textDeltas.join('');
+      if (
+        joinedSoFar.includes('[attached image]') &&
+        joinedSoFar.includes(asset.absolutePath)
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
     const joined = textDeltas.join('');
     expect(joined).toContain('[attached image]');
     expect(joined).toContain(asset.absolutePath);
@@ -188,6 +234,24 @@ describe('HostRuntime', () => {
     });
     expect(decision).toBe('allow');
     expect(seenRequestId).toBeTruthy();
+    await runtime.dispose();
+  });
+
+  it('denies a pending permission when its run signal is aborted', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-perm-abort-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const abortController = new AbortController();
+    const decisionPromise = runtime.requestPermission({
+      sessionId: 'sess-abort',
+      action: 'mcp:tool-call',
+      detail: 'fixture/ping',
+      defaultDecision: 'ask',
+      signal: abortController.signal,
+    });
+
+    abortController.abort();
+
+    await expect(decisionPromise).resolves.toBe('deny');
     await runtime.dispose();
   });
 
@@ -730,6 +794,300 @@ describe('HostRuntime', () => {
     expect(resolved.success).toBe(true);
 
     await expect(pending).resolves.toEqual({ kind: 'confirm', confirmed: true });
+    await runtime.dispose();
+  });
+
+  it('cron/run respects automation.enabled and cronEnabled gates', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-cron-gate-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+
+    const job = {
+      id: 'cron-test-1',
+      name: 'gate-test',
+      enabled: true,
+      schedule: 'every:1m',
+      type: 'prompt' as const,
+      promptText: 'hello',
+      projectPath: '/tmp/project',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const upserted = await runtime.handleCommand({ type: 'cron/upsert', job });
+    expect(upserted.success).toBe(true);
+
+    const blockedMaster = await runtime.handleCommand({ type: 'cron/run', jobId: job.id });
+    expect(blockedMaster.success).toBe(true);
+    if (!blockedMaster.success) throw new Error(blockedMaster.error);
+    expect((blockedMaster.data as { ok: boolean; message?: string }).ok).toBe(false);
+    expect((blockedMaster.data as { message?: string }).message).toMatch(/automation disabled/i);
+
+    const cfgRes = await runtime.handleCommand({ type: 'config/get' });
+    expect(cfgRes.success).toBe(true);
+    if (!cfgRes.success) throw new Error(cfgRes.error);
+    const config = (cfgRes.data as { config: import('@piwin/contracts').PiwinConfig }).config;
+    const enabledOnly = await runtime.handleCommand({
+      type: 'config/set',
+      config: {
+        ...config,
+        automation: { enabled: true, cronEnabled: false, hooksEnabled: false },
+      },
+    });
+    expect(enabledOnly.success).toBe(true);
+
+    const blockedCron = await runtime.handleCommand({ type: 'cron/run', jobId: job.id });
+    expect(blockedCron.success).toBe(true);
+    if (!blockedCron.success) throw new Error(blockedCron.error);
+    expect((blockedCron.data as { ok: boolean; message?: string }).ok).toBe(false);
+    expect((blockedCron.data as { message?: string }).message).toMatch(/cron disabled/i);
+
+    await runtime.dispose();
+  });
+
+  it('session rename/archive/delete follows archive-first policy', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-sess-lifecycle-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/lifecycle-project', sessionName: 'Original' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const renamed = await runtime.handleCommand({
+      type: 'session/rename',
+      sessionId,
+      name: '  Renamed Agent  ',
+    });
+    expect(renamed.success).toBe(true);
+    expect((renamed as { data: { name: string } }).data.name).toBe('Renamed Agent');
+
+    const activeList = await runtime.handleCommand({
+      type: 'session/list',
+      projectPath: '/tmp/lifecycle-project',
+    });
+    expect(activeList.success).toBe(true);
+    expect(
+      ((activeList as { data: { sessions: { id: string; name?: string }[] } }).data.sessions).map(
+        (item) => item.name,
+      ),
+    ).toContain('Renamed Agent');
+
+    const deleteTooSoon = await runtime.handleCommand({
+      type: 'session/delete',
+      sessionId,
+    });
+    expect(deleteTooSoon.success).toBe(false);
+
+    const archived = await runtime.handleCommand({ type: 'session/archive', sessionId });
+    expect(archived.success).toBe(true);
+
+    const afterArchive = await runtime.handleCommand({
+      type: 'session/list',
+      projectPath: '/tmp/lifecycle-project',
+    });
+    expect(
+      ((afterArchive as { data: { sessions: { id: string }[] } }).data.sessions).map((item) => item.id),
+    ).not.toContain(sessionId);
+
+    const withArchived = await runtime.handleCommand({
+      type: 'session/list',
+      projectPath: '/tmp/lifecycle-project',
+      includeArchived: true,
+    });
+    expect(
+      ((withArchived as { data: { sessions: { id: string; isArchived?: boolean }[] } }).data.sessions).some(
+        (item) => item.id === sessionId && item.isArchived === true,
+      ),
+    ).toBe(true);
+
+    const deleted = await runtime.handleCommand({ type: 'session/delete', sessionId });
+    expect(deleted.success).toBe(true);
+
+    const finalList = await runtime.handleCommand({
+      type: 'session/list',
+      projectPath: '/tmp/lifecycle-project',
+      includeArchived: true,
+    });
+    expect(
+      ((finalList as { data: { sessions: { id: string }[] } }).data.sessions).map((item) => item.id),
+    ).not.toContain(sessionId);
+
+    await runtime.dispose();
+  });
+
+
+  it('session/duplicate copies product transcript into a new session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-dup-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/dup-project', sessionName: 'Source Chat' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sourceId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId: sourceId,
+      input: { text: 'remember this for the fork' },
+    });
+    expect(prompted.success).toBe(true);
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const messages = await runtime.handleCommand({
+        type: 'session/messages',
+        sessionId: sourceId,
+      });
+      if (
+        messages.success &&
+        (messages.data as { messages: Array<{ role: string }> }).messages.some(
+          (message) => message.role === 'user',
+        )
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    const duplicated = await runtime.handleCommand({
+      type: 'session/duplicate',
+      sessionId: sourceId,
+    });
+    expect(duplicated.success).toBe(true);
+    if (!duplicated.success) throw new Error(duplicated.error);
+    const data = duplicated.data as {
+      sessionId: string;
+      sourceSessionId: string;
+      session: { name?: string; messageCount: number };
+      messages: Array<{ text: string; role: string }>;
+    };
+    expect(data.sourceSessionId).toBe(sourceId);
+    expect(data.sessionId).not.toBe(sourceId);
+    expect(data.session.name).toBe('Copy of Source Chat');
+    expect(data.messages.some((message) => message.role === 'user')).toBe(true);
+
+    const listed = await runtime.handleCommand({
+      type: 'session/list',
+      projectPath: '/tmp/dup-project',
+    });
+    expect(listed.success).toBe(true);
+    if (!listed.success) throw new Error(listed.error);
+    const sessions = (listed.data as { sessions: Array<{ id: string }> }).sessions;
+    expect(sessions.map((item) => item.id).sort()).toEqual(
+      [sourceId, data.sessionId].sort(),
+    );
+
+    await runtime.dispose();
+  });
+
+
+  it('lists and revokes project remembered permissions', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-perms-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const projectPath = join(rootDir, 'workspace');
+    await runtime.handleCommand({ type: 'project/open', path: projectPath });
+    await runtime.handleCommand({ type: 'project/trust', path: projectPath });
+
+    const projectsPath = getPiwinProjectsPath(rootDir);
+    await allowNetworkWebSearch(projectsPath, projectPath);
+    await allowNetworkFetchHost(projectsPath, projectPath, 'example.com');
+
+    const listed = await runtime.handleCommand({
+      type: 'project/permissions-list',
+      path: projectPath,
+    });
+    expect(listed.success).toBe(true);
+    if (!listed.success) throw new Error(listed.error);
+    const keys = (listed.data as { permissions: Array<{ key: string }> }).permissions.map(
+      (item) => item.key,
+    );
+    expect(keys.sort()).toEqual([
+      'network:fetch:example.com',
+      'network:web_search',
+    ]);
+
+    const revoked = await runtime.handleCommand({
+      type: 'project/permissions-revoke',
+      path: projectPath,
+      key: 'network:web_search',
+    });
+    expect(revoked.success).toBe(true);
+    if (!revoked.success) throw new Error(revoked.error);
+    const afterKeys = (revoked.data as { permissions: Array<{ key: string }> }).permissions.map(
+      (item) => item.key,
+    );
+    expect(afterKeys).not.toContain('network:web_search');
+
+    await runtime.dispose();
+  });
+
+  it('creates general sessions without project open/trust and isolates lists', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-general-'));
+    const textDeltas: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'event' && message.event.type === 'message/text_delta') {
+          textDeltas.push(message.event.delta);
+        }
+      },
+    });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { scope: { kind: 'general' } },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const record = await getSessionRecord(indexPath, sessionId);
+    expect(record?.scope).toEqual({ kind: 'general' });
+    expect(record?.workingDirectory).toBe(getPiwinGeneralWorkspacePath(rootDir));
+    expect(record?.projectPath).toBe('');
+
+    const workspaceStats = await stat(getPiwinGeneralWorkspacePath(rootDir));
+    expect(workspaceStats.isDirectory()).toBe(true);
+
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'hello general' },
+    });
+    expect(prompted.success).toBe(true);
+
+    // Wait for mock stream chunks
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(textDeltas.join('')).toContain('hello general');
+
+    const generalList = await runtime.handleCommand({
+      type: 'session/list',
+      scope: { kind: 'general' },
+    });
+    expect(generalList.success).toBe(true);
+    if (!generalList.success) throw new Error(generalList.error);
+    const generalSessions = (generalList.data as { sessions: Array<{ id: string }> }).sessions;
+    expect(generalSessions.some((item) => item.id === sessionId)).toBe(true);
+
+    // Project list must not include general sessions
+    const projectList = await runtime.handleCommand({
+      type: 'session/list',
+      projectPath: '/tmp/some-project',
+    });
+    expect(projectList.success).toBe(true);
+    if (!projectList.success) throw new Error(projectList.error);
+    const projectSessions = (projectList.data as { sessions: Array<{ id: string }> }).sessions;
+    expect(projectSessions.some((item) => item.id === sessionId)).toBe(false);
+
+    const fromStore = await listSessionsForProject(indexPath, { kind: 'general' });
+    expect(fromStore.map((item) => item.id)).toContain(sessionId);
+
     await runtime.dispose();
   });
 

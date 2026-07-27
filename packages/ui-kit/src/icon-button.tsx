@@ -1,4 +1,9 @@
-import type { ButtonHTMLAttributes, ReactElement } from 'react';
+import { ActionIcon } from '@mantine/core';
+import type {
+  ButtonHTMLAttributes,
+  ComponentPropsWithoutRef,
+  ReactElement,
+} from 'react';
 
 export type IconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'> & {
   label: string;
@@ -10,15 +15,21 @@ export function IconButton({
   className,
   title,
   type = 'button',
+  color: _nativeColor,
   ...buttonProps
 }: IconButtonProps): ReactElement {
+  // Keep the stable piwin HTML-button API while adapting Mantine's narrower
+  // optional DOM attribute contract at this library boundary.
+  const mantineActionIconProps = buttonProps as ComponentPropsWithoutRef<typeof ActionIcon>;
   return (
-    <button
-      {...buttonProps}
+    <ActionIcon
+      {...mantineActionIconProps}
       type={type}
-      className={className ? `icon-btn ${className}` : 'icon-btn'}
+      className={className ? `piwin-icon-button ${className}` : 'piwin-icon-button'}
       aria-label={label}
       title={title ?? label}
+      variant="subtle"
+      size="md"
     />
   );
 }

@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>piwin - Agent workspace directions</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --page: #111113;
+        --chrome: #18181b;
+        --surface: #202024;
+        --surface-raised: #29292e;
+        --border: rgba(255, 255, 255, 0.105);
+        --border-strong: rgba(255, 255, 255, 0.18);
+        --text: #f5f5f7;
+        --muted: #a1a1a8;
+        --faint: #74747c;
+        --blue: #0a84ff;
+        --blue-soft: rgba(10, 132, 255, 0.16);
+        --green: #32d74b;
+        --orange: #ff9f0a;
+        --red: #ff6961;
+        --purple: #bf8cff;
+        --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        --mono: "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        min-width: 1160px;
+        margin: 0;
+        background: var(--page);
+        color: var(--text);
+        font: 13px/1.45 var(--font);
+        -webkit-font-smoothing: antialiased;
+      }
+      button, input, textarea { font: inherit; }
+      button { color: inherit; cursor: pointer; }
+      svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+
+      .prototype-page { max-width: 1580px; margin: 0 auto; padding: 36px 34px 70px; }
+      .intro { display: flex; justify-content: space-between; align-items: end; gap: 32px; margin-bottom: 22px; }
+      .eyebrow { margin: 0 0 7px; color: var(--blue); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: 30px; letter-spacing: -.04em; }
+      .intro-copy { max-width: 660px; margin: 10px 0 0; color: var(--muted); font-size: 15px; }
+      .choice-note { max-width: 300px; color: var(--muted); font-size: 12px; text-align: right; }
+
+      .direction-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+      .direction-tab {
+        display: grid;
+        grid-template-columns: 26px auto;
+        gap: 10px;
+        min-width: 222px;
+        padding: 11px 13px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: #18181b;
+        text-align: left;
+      }
+      .direction-tab:hover { border-color: var(--border-strong); background: #202024; }
+      .direction-tab.active { border-color: rgba(10,132,255,.7); background: var(--blue-soft); }
+      .direction-number { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid var(--border); border-radius: 7px; color: var(--muted); font: 11px var(--mono); }
+      .direction-tab.active .direction-number { border-color: rgba(10,132,255,.55); color: #a7d2ff; }
+      .direction-name { display: block; font-size: 13px; font-weight: 650; }
+      .direction-meta { display: block; margin-top: 2px; color: var(--faint); font-size: 11px; }
+
+      .direction-summary { display: none; grid-template-columns: 1fr 1fr 1fr; gap: 1px; overflow: hidden; margin-bottom: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--border); }
+      .direction-summary.active { display: grid; }
+      .summary-cell { min-height: 58px; padding: 10px 12px; background: #1b1b1e; }
+      .summary-label { display: block; color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+      .summary-copy { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+
+      .prototype { display: none; height: 760px; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 14px; background: #151518; box-shadow: 0 25px 70px rgba(0,0,0,.28); }
+      .prototype.active { display: grid; }
+      .traffic-lights { display: flex; gap: 7px; }
+      .traffic-lights i { display: block; width: 12px; height: 12px; border-radius: 50%; }
+      .traffic-lights i:nth-child(1) { background: #ff5f57; } .traffic-lights i:nth-child(2) { background: #febc2e; } .traffic-lights i:nth-child(3) { background: #28c840; }
+      .icon-button { display: grid; width: 28px; height: 28px; padding: 0; place-items: center; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; }
+      .icon-button:hover { border-color: var(--border); background: var(--surface-raised); color: var(--text); }
+      .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+      .pill { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: #212125; color: var(--muted); font-size: 11px; }
+      .pill.blue { border-color: rgba(10,132,255,.5); background: var(--blue-soft); color: #add6ff; }
+      .shortcut { padding: 1px 4px; border: 1px solid var(--border); border-radius: 4px; color: var(--faint); font: 10px var(--mono); }
+
+      /* 01 Quiet Workspace: Linear-like structured, calm, high readability. */
+      .quiet { grid-template-columns: 244px minmax(0, 1fr) 290px; grid-template-rows: 50px minmax(0, 1fr); }
+      .quiet-topbar { grid-column: 1 / -1; display: grid; grid-template-columns: 244px minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 0 14px; border-bottom: 1px solid var(--border); background: #1b1b1e; }
+      .quiet-brand { display: flex; align-items: center; gap: 10px; font-weight: 680; }
+      .brand-cube { display: grid; width: 23px; height: 23px; place-items: center; border-radius: 6px; background: #0a84ff; color: white; font-size: 12px; font-weight: 800; }
+      .quiet-command { display: flex; align-items: center; gap: 8px; width: min(540px, 100%); height: 29px; padding: 0 9px; border: 1px solid var(--border); border-radius: 6px; color: var(--faint); background: #151518; }
+      .quiet-command span:last-child { margin-left: auto; }
+      .quiet-actions { display: flex; align-items: center; gap: 5px; }
+      .quiet-sidebar { min-height: 0; padding: 12px 9px; border-right: 1px solid var(--border); background: #19191c; }
+      .sidebar-caption { display: flex; justify-content: space-between; padding: 8px 7px 5px; color: var(--faint); font-size: 10px; font-weight: 720; letter-spacing: .08em; text-transform: uppercase; }
+      .sidebar-row { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 34px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; text-align: left; }
+      .sidebar-row:hover { background: #242428; color: var(--text); }
+      .sidebar-row.selected { border-color: rgba(10,132,255,.42); background: var(--blue-soft); color: var(--text); }
+      .sidebar-row small { margin-left: auto; color: var(--faint); }
+      .session-row { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 8px; align-items: center; width: 100%; padding: 8px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; text-align: left; }
+      .session-row:hover { background: #242428; } .session-row.selected { background: #27272b; color: var(--text); }
+      .session-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 560; }
+      .session-meta { margin-top: 2px; color: var(--faint); font-size: 10px; }
+      .quiet-main { display: grid; min-width: 0; min-height: 0; grid-template-rows: 51px minmax(0,1fr) auto; }
+      .conversation-head { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid var(--border); }
+      .conversation-title { display: flex; align-items: center; gap: 9px; } .conversation-title strong { font-size: 13px; } .conversation-title span { color: var(--faint); font-size: 11px; }
+      .conversation-body { overflow: auto; padding: 31px max(28px, calc((100% - 740px) / 2)); }
+      .turn { max-width: 740px; margin: 0 auto 24px; }
+      .turn-label { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; color: var(--muted); font-size: 11px; font-weight: 640; }
+      .avatar { display: grid; width: 19px; height: 19px; place-items: center; border: 1px solid var(--border); border-radius: 5px; color: var(--faint); font-size: 9px; }
+      .avatar.agent { border-color: rgba(10,132,255,.5); background: var(--blue-soft); color: #9bd0ff; }
+      .message { color: #e7e7e9; font-size: 14px; line-height: 1.65; }
+      .message.user { padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: #202024; }
+      .work-item { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; min-height: 38px; margin-top: 12px; padding: 0 9px; border: 1px solid var(--border); border-radius: 7px; background: #1d1d20; }
+      .work-item svg { color: var(--purple); } .work-item strong { font-size: 12px; font-weight: 590; } .work-item span { color: var(--faint); font-size: 11px; }
+      .quiet-composer { padding: 14px 20px 19px; border-top: 1px solid var(--border); background: #19191c; }
+      .composer-shell { max-width: 760px; margin: 0 auto; border: 1px solid rgba(10,132,255,.65); border-radius: 9px; background: #242428; box-shadow: 0 0 0 2px rgba(10,132,255,.1); }
+      .composer-input { width: 100%; height: 64px; padding: 12px; border: 0; resize: none; outline: 0; color: var(--text); background: transparent; }
+      .composer-input::placeholder { color: var(--faint); }
+      .composer-footer { display: flex; align-items: center; justify-content: space-between; padding: 6px 7px 7px; }
+      .composer-tools, .composer-actions { display: flex; align-items: center; gap: 5px; }
+      .send { display: grid; width: 29px; height: 29px; padding: 0; place-items: center; border: 0; border-radius: 6px; background: var(--blue); color: white; }
+      .quiet-inspector { padding: 14px 11px; border-left: 1px solid var(--border); background: #19191c; }
+      .inspector-head { display: flex; justify-content: space-between; align-items: center; padding: 3px 5px 12px; }
+      .inspector-head strong { font-size: 12px; } .inspector-section { margin-bottom: 20px; }
+      .file-row { display: flex; align-items: center; gap: 7px; min-height: 29px; padding: 0 6px; color: var(--muted); font: 11px var(--mono); }
+      .file-row.changed { color: #c9e7d1; } .file-row span { margin-left: auto; color: var(--green); font: 10px var(--mono); }
+
+      /* 02 Command Desk: density, keyboard affordances, no persistent inspector. */
+      .command { grid-template-columns: 52px 224px minmax(0,1fr); grid-template-rows: 42px minmax(0,1fr); }
+      .command-topbar { grid-column: 1 / -1; display: grid; grid-template-columns: 52px 224px minmax(0,1fr) auto; align-items: center; border-bottom: 1px solid var(--border); background: #19191c; }
+      .command-traffic { padding-left: 16px; } .command-project { padding-left: 12px; color: var(--muted); font-size: 12px; }
+      .command-breadcrumb { display: flex; align-items: center; gap: 7px; color: var(--faint); font-size: 12px; } .command-breadcrumb strong { color: var(--text); font-weight: 600; }
+      .command-top-actions { display: flex; gap: 4px; padding-right: 10px; }
+      .activity-rail { display: flex; flex-direction: column; align-items: center; gap: 7px; padding-top: 11px; border-right: 1px solid var(--border); background: #171719; }
+      .activity-rail .icon-button.active { position: relative; background: #26262a; color: #d2e8ff; } .activity-rail .icon-button.active::before { position: absolute; left: -11px; width: 2px; height: 18px; background: var(--blue); content: ""; }
+      .command-nav { min-height: 0; padding: 11px 8px; border-right: 1px solid var(--border); background: #1b1b1e; }
+      .command-nav-head { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 10px; } .command-nav-head strong { font-size: 12px; } .command-nav-search { width: 100%; height: 28px; padding: 0 8px; border: 1px solid var(--border); border-radius: 5px; outline: 0; color: var(--text); background: #161619; }
+      .command-nav-search::placeholder { color: var(--faint); } .command-group { margin-top: 16px; }
+      .command-group-title { padding: 0 6px 5px; color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      .command-session { display: flex; align-items: center; gap: 7px; min-height: 29px; padding: 0 6px; border-left: 2px solid transparent; color: var(--muted); font-size: 11px; } .command-session.active { border-left-color: var(--blue); background: #252529; color: var(--text); }
+      .command-main { display: grid; min-width: 0; grid-template-rows: 42px minmax(0,1fr) auto; }
+      .command-tabbar { display: flex; align-items: stretch; gap: 2px; padding-left: 8px; border-bottom: 1px solid var(--border); background: #1b1b1e; } .command-tab { display: flex; align-items: center; gap: 7px; padding: 0 11px; border: 0; border-bottom: 2px solid transparent; color: var(--faint); background: transparent; font-size: 11px; } .command-tab.active { border-bottom-color: var(--blue); color: var(--text); background: #202024; }
+      .command-transcript { overflow: auto; padding: 27px clamp(26px, 8vw, 118px); }
+      .command-transcript-inner { max-width: 800px; }
+      .command-user { display: grid; grid-template-columns: 29px 1fr; gap: 10px; margin-bottom: 25px; } .command-user-mark { display: grid; width: 29px; height: 29px; place-items: center; border-radius: 5px; background: #343438; color: #e4e4e7; font-weight: 700; } .command-user-copy { padding-top: 4px; color: #eeeef0; font-size: 14px; }
+      .command-agent { display: grid; grid-template-columns: 29px 1fr; gap: 10px; } .command-agent-mark { display: grid; width: 29px; height: 29px; place-items: center; border: 1px solid rgba(10,132,255,.5); border-radius: 5px; background: var(--blue-soft); color: #b6dbff; font-weight: 800; } .command-agent-body { min-width: 0; } .command-agent-title { display: flex; align-items: center; gap: 8px; margin: 4px 0 11px; color: var(--muted); font-size: 11px; font-weight: 650; }
+      .command-tool { margin: 13px 0; border: 1px solid var(--border); border-radius: 6px; background: #1b1b1e; } .command-tool-head { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 10px; border-bottom: 1px solid var(--border); color: var(--muted); font: 11px var(--mono); } .tool-check { color: var(--green); } .command-code { padding: 10px; color: #c2c2c8; font: 11px/1.6 var(--mono); }
+      .command-composer { padding: 11px 24px 14px; border-top: 1px solid var(--border); background: #1b1b1e; } .command-composer-inner { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: end; gap: 8px; max-width: 950px; margin: 0 auto; padding: 7px; border: 1px solid var(--border-strong); border-radius: 7px; background: #242428; } .mode-chip { height: 27px; padding: 0 8px; border: 1px solid rgba(10,132,255,.5); border-radius: 5px; background: var(--blue-soft); color: #b5daff; font-size: 11px; } .command-composer textarea { min-height: 29px; max-height: 50px; padding: 5px 2px; border: 0; outline: 0; resize: none; color: var(--text); background: transparent; } .command-composer textarea::placeholder { color: var(--faint); }
+
+      /* 03 Conversation Canvas: spacious transcript, fewer rails, inspector is contextual. */
+      .canvas { grid-template-columns: 76px minmax(0,1fr); grid-template-rows: 50px minmax(0,1fr); }
+      .canvas-topbar { grid-column: 1 / -1; display: grid; grid-template-columns: 76px minmax(0,1fr) auto; align-items: center; border-bottom: 1px solid var(--border); background: rgba(24,24,27,.96); }
+      .canvas-app { display: grid; height: 100%; place-items: center; border-right: 1px solid var(--border); font-weight: 750; letter-spacing: -.05em; } .canvas-app b { display: grid; width: 27px; height: 27px; place-items: center; border-radius: 8px; background: #2f2f34; color: #d5d5da; }
+      .canvas-top-center { display: flex; align-items: center; justify-content: center; gap: 12px; } .canvas-top-center strong { font-size: 13px; } .canvas-top-center span { color: var(--faint); font-size: 11px; }
+      .canvas-top-actions { display: flex; align-items: center; gap: 6px; padding-right: 14px; }
+      .canvas-rail { display: flex; flex-direction: column; align-items: center; gap: 10px; padding-top: 14px; border-right: 1px solid var(--border); background: #19191c; } .canvas-rail .icon-button.active { background: var(--blue-soft); color: #a9d4ff; } .canvas-rail-bottom { margin-top: auto; margin-bottom: 14px; }
+      .canvas-main { display: grid; min-width: 0; min-height: 0; grid-template-columns: minmax(0, 1fr) 314px; }
+      .canvas-thread-area { display: grid; min-width: 0; grid-template-rows: minmax(0,1fr) auto; }
+      .canvas-thread { overflow: auto; padding: 54px clamp(42px, 11vw, 170px); }
+      .canvas-thread-inner { max-width: 720px; }
+      .canvas-kicker { display: flex; align-items: center; gap: 7px; margin-bottom: 30px; color: var(--faint); font-size: 11px; } .canvas-kicker i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+      .canvas-question { margin: 0 0 30px; font-size: 22px; font-weight: 570; letter-spacing: -.035em; line-height: 1.35; }
+      .canvas-response { color: #e3e3e7; font-size: 15px; line-height: 1.72; }
+      .canvas-response p { margin: 0 0 16px; } .canvas-response strong { color: white; }
+      .canvas-callout { display: grid; grid-template-columns: 3px 1fr; gap: 12px; margin: 22px 0; padding: 11px 0; } .canvas-callout i { background: var(--blue); border-radius: 9px; } .canvas-callout span { color: var(--muted); font-size: 13px; }
+      .canvas-activity { margin-top: 30px; border-top: 1px solid var(--border); } .canvas-activity-row { display: grid; grid-template-columns: 72px 18px 1fr auto; gap: 9px; align-items: center; min-height: 35px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; } .canvas-activity-row time { color: var(--faint); font: 10px var(--mono); } .canvas-activity-row svg { color: var(--purple); } .canvas-activity-row span:last-child { color: var(--green); font-size: 10px; }
+      .canvas-composer { padding: 16px 28px 22px; background: #19191c; } .canvas-composer-shell { max-width: 760px; margin: 0 auto; padding: 4px; border: 1px solid var(--border-strong); border-radius: 12px; background: #252529; } .canvas-composer-shell:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10,132,255,.12); } .canvas-composer textarea { width: 100%; height: 72px; padding: 11px 12px; border: 0; outline: none; resize: none; color: var(--text); background: transparent; } .canvas-composer textarea::placeholder { color: var(--faint); } .canvas-composer-footer { display: flex; justify-content: space-between; align-items: center; padding: 3px; } .canvas-controls { display: flex; gap: 5px; }
+      .canvas-context { border-left: 1px solid var(--border); background: #1a1a1d; } .canvas-context-head { display: flex; align-items: center; justify-content: space-between; height: 50px; padding: 0 13px; border-bottom: 1px solid var(--border); } .canvas-context-head strong { font-size: 12px; } .context-section { padding: 13px; border-bottom: 1px solid var(--border); } .context-label { margin-bottom: 8px; color: var(--faint); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; } .context-card { padding: 10px; border: 1px solid var(--border); border-radius: 7px; background: #222226; } .context-card + .context-card { margin-top: 7px; } .context-card strong { display: block; font-size: 12px; } .context-card span { display: block; margin-top: 3px; color: var(--faint); font-size: 11px; } .progress { height: 5px; margin-top: 9px; overflow: hidden; border-radius: 99px; background: #343439; } .progress i { display: block; width: 48%; height: 100%; border-radius: inherit; background: var(--blue); }
+
+      .prototype footer { display: none; }
+      .selection-panel { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 15px; padding: 13px 15px; border: 1px solid var(--border); border-radius: 10px; background: #18181b; }
+      .selection-panel strong { display: block; font-size: 13px; } .selection-panel span { color: var(--muted); font-size: 12px; }
+      .select-button { height: 32px; padding: 0 13px; border: 1px solid rgba(10,132,255,.65); border-radius: 7px; background: var(--blue); color: white; font-weight: 620; }
+      .select-button:hover { background: #2491ff; }
+    </style>
+  </head>
+  <body>
+    <main class="prototype-page">
+      <section class="intro">
+        <div>
+          <p class="eyebrow">piwin desktop / design directions</p>
+          <h1>Pick a work model, not a paint job.</h1>
+          <p class="intro-copy">Each option redesigns the shell, conversation hierarchy, tool feedback, controls and composer as one system. They deliberately avoid the current giant outlined cards, tiny low-contrast copy, and stacked legacy panels.</p>
+        </div>
+        <div class="choice-note">Click a direction, inspect the full workspace, then tell me the number or combine specific elements.</div>
+      </section>
+
+      <nav class="direction-tabs" aria-label="Prototype directions">
+        <button class="direction-tab active" data-target="quiet"><span class="direction-number">01</span><span><strong class="direction-name">Quiet Workspace</strong><span class="direction-meta">Calm, structured, balanced</span></span></button>
+        <button class="direction-tab" data-target="command"><span class="direction-number">02</span><span><strong class="direction-name">Command Desk</strong><span class="direction-meta">Dense, keyboard-first, technical</span></span></button>
+        <button class="direction-tab" data-target="canvas"><span class="direction-number">03</span><span><strong class="direction-name">Conversation Canvas</strong><span class="direction-meta">Focused, spacious, agent-first</span></span></button>
+      </nav>
+
+      <section class="direction-summary active" data-summary="quiet"><div class="summary-cell"><span class="summary-label">Best for</span><span class="summary-copy">Everyday project work with visible sessions and files.</span></div><div class="summary-cell"><span class="summary-label">Hierarchy</span><span class="summary-copy">Stable three-column layout; the transcript remains central.</span></div><div class="summary-cell"><span class="summary-label">Character</span><span class="summary-copy">Native, quiet, precise — closest to a polished macOS dev tool.</span></div></section>
+      <section class="direction-summary" data-summary="command"><div class="summary-cell"><span class="summary-label">Best for</span><span class="summary-copy">Power users switching among sessions, files, terminals and review.</span></div><div class="summary-cell"><span class="summary-label">Hierarchy</span><span class="summary-copy">Activity rail + contextual tabs; very little unused space.</span></div><div class="summary-cell"><span class="summary-label">Character</span><span class="summary-copy">An agent console: technical, fast, compact, keyboard-native.</span></div></section>
+      <section class="direction-summary" data-summary="canvas"><div class="summary-cell"><span class="summary-label">Best for</span><span class="summary-copy">Long agent conversations, planning, review and explainability.</span></div><div class="summary-cell"><span class="summary-label">Hierarchy</span><span class="summary-copy">Transcript dominates; supporting context lives in a calm secondary column.</span></div><div class="summary-cell"><span class="summary-label">Character</span><span class="summary-copy">Editorial and focused without becoming a consumer chat app.</span></div></section>
+
+      <section class="prototype quiet active" data-prototype="quiet">
+        <header class="quiet-topbar"><div class="quiet-brand"><span class="brand-cube">P</span>piwin</div><button class="quiet-command">⌘ &nbsp; Search commands, sessions, files <span class="shortcut">⌘K</span></button><div class="quiet-actions"><span class="pill"><i class="status-dot"></i>Host ready</span><button class="icon-button" aria-label="Settings">⚙</button></div></header>
+        <aside class="quiet-sidebar"><div class="sidebar-caption"><span>Workspace</span><span>⌘1</span></div><button class="sidebar-row selected">▣ <span>General chat</span><small>active</small></button><button class="sidebar-row">⌑ <span>piwin</span><small>trusted</small></button><div class="sidebar-caption"><span>Sessions</span><button class="icon-button" aria-label="New session">+</button></div><button class="session-row selected"><span>◌</span><span><span class="session-name">Improve desktop shell</span><span class="session-meta">Now · 4 messages</span></span></button><button class="session-row"><span>◌</span><span><span class="session-name">Review streaming reliability</span><span class="session-meta">12m ago · 8 messages</span></span></button><button class="session-row"><span>◌</span><span><span class="session-name">Plan MCP tool policy</span><span class="session-meta">Yesterday</span></span></button></aside>
+        <section class="quiet-main"><header class="conversation-head"><div class="conversation-title"><strong>Improve desktop shell</strong><span>General chat</span></div><div><span class="pill blue">Agent</span><button class="icon-button" aria-label="Session actions">•••</button></div></header><div class="conversation-body"><div class="turn"><div class="turn-label"><span class="avatar">Y</span>You</div><div class="message user">The UI still feels unfinished. Give me a concrete system that makes project work easier, not just new colors.</div></div><div class="turn"><div class="turn-label"><span class="avatar agent">P</span>piwin <span>Working</span></div><div class="message">I am replacing the legacy component stack with a single visual language: stable navigation, readable transcript turns, compact operational feedback, and a composer that behaves like a workspace tool.</div><div class="work-item"><span>⌘</span><strong>Inspecting current workspace components</strong><span>completed</span></div><div class="work-item"><span>◇</span><strong>Drafting component migration plan</strong><span>in progress</span></div></div></div><div class="quiet-composer"><div class="composer-shell"><textarea class="composer-input" placeholder="Ask piwin to plan, implement, or review…"></textarea><div class="composer-footer"><div class="composer-tools"><button class="icon-button">+</button><span class="pill">Plan</span><span class="pill">deepseek-v4-flash</span><span class="pill">Thinking · High</span></div><div class="composer-actions"><span class="pill">42%</span><button class="send" aria-label="Send">➤</button></div></div></div></div></section>
+        <aside class="quiet-inspector"><div class="inspector-head"><strong>Workspace</strong><button class="icon-button">⌄</button></div><div class="inspector-section"><div class="sidebar-caption"><span>Changed files</span><span>3</span></div><div class="file-row changed">M <span>App.tsx</span><span>+42</span></div><div class="file-row changed">M <span>composer-dock.tsx</span><span>+18</span></div><div class="file-row">○ <span>desktop-foundations.md</span></div></div><div class="inspector-section"><div class="sidebar-caption"><span>Run</span></div><div class="work-item"><span>✓</span><strong>Typecheck</strong><span>pass</span></div><div class="work-item"><span>◌</span><strong>Desktop tests</strong><span>135 / 135</span></div></div></aside>
+      </section>
+
+      <section class="prototype command" data-prototype="command">
+        <header class="command-topbar"><div class="command-traffic"><span class="traffic-lights"><i></i><i></i><i></i></span></div><div class="command-project">PIWIN / DESKTOP</div><div class="command-breadcrumb"><span>sessions</span><span>›</span><strong>improve-shell</strong><span>›</span><span>Agent run</span></div><div class="command-top-actions"><span class="pill"><i class="status-dot"></i>live</span><button class="icon-button">⌘</button><button class="icon-button">⚙</button></div></header>
+        <aside class="activity-rail"><button class="icon-button active">☷</button><button class="icon-button">⌕</button><button class="icon-button">⌘</button><button class="icon-button">⌁</button><button class="icon-button">◈</button><div class="canvas-rail-bottom"><button class="icon-button">⚙</button></div></aside>
+        <aside class="command-nav"><div class="command-nav-head"><strong>Sessions</strong><button class="icon-button">+</button></div><input class="command-nav-search" placeholder="Filter sessions" /><section class="command-group"><div class="command-group-title">Today</div><div class="command-session active">◌ &nbsp; Improve desktop shell</div><div class="command-session">◌ &nbsp; Explore Mantine wrappers</div><div class="command-session">◌ &nbsp; Tauri titlebar behavior</div></section><section class="command-group"><div class="command-group-title">Yesterday</div><div class="command-session">◌ &nbsp; Session persistence</div><div class="command-session">◌ &nbsp; Project trust gating</div></section></aside>
+        <section class="command-main"><div class="command-tabbar"><button class="command-tab active">◌&nbsp; Improve desktop shell <small>×</small></button><button class="command-tab">+ New</button></div><div class="command-transcript"><div class="command-transcript-inner"><div class="command-user"><div class="command-user-mark">Y</div><div class="command-user-copy">Rebuild the UI as a coherent desktop tool. I want components that feel intentional at every interaction.</div></div><div class="command-agent"><div class="command-agent-mark">P</div><div class="command-agent-body"><div class="command-agent-title">piwin <span class="pill blue">Agent run</span><span>00:42</span></div><div class="message">I mapped the component inventory and identified the visual seams. The first work slice is the application shell, shared controls, and conversation workspace.</div><div class="command-tool"><div class="command-tool-head"><span class="tool-check">✓</span><span>read_file</span><span>apps/desktop/src/styles.css</span><span style="margin-left:auto;color:var(--faint)">124 ms</span></div><div class="command-code">Found 10 cascading style layers. Replacing late overrides with component-owned style contracts.</div></div><div class="message">The migration keeps the host and permission boundaries unchanged. The UI kit becomes the only place feature code gets visual controls.</div></div></div></div><div class="command-composer"><div class="command-composer-inner"><button class="mode-chip">Agent ▾</button><textarea placeholder="Tell piwin what to do next"></textarea><div class="composer-actions"><span class="shortcut">⌘↵</span><button class="send">➤</button></div></div></div></section>
+      </section>
+
+      <section class="prototype canvas" data-prototype="canvas">
+        <header class="canvas-topbar"><div class="canvas-app"><b>P</b></div><div class="canvas-top-center"><strong>Improve desktop shell</strong><span>General / Agent</span><span class="pill"><i class="status-dot"></i>Ready</span></div><div class="canvas-top-actions"><button class="icon-button">⌕</button><button class="icon-button">•••</button></div></header>
+        <aside class="canvas-rail"><button class="icon-button active">◌</button><button class="icon-button">▣</button><button class="icon-button">⌁</button><button class="icon-button">⌘</button><div class="canvas-rail-bottom"><button class="icon-button">⚙</button></div></aside>
+        <section class="canvas-main"><section class="canvas-thread-area"><div class="canvas-thread"><div class="canvas-thread-inner"><div class="canvas-kicker"><i></i> Agent run completed · 48 seconds · 2 files changed</div><h2 class="canvas-question">The UI still feels like an unfinished admin tool. Rebuild the component system, not just the theme.</h2><article class="canvas-response"><p>Agreed. A visual system has to make the <strong>next action obvious</strong>, make run state legible without shouting, and keep your work visible while an agent is active.</p><div class="canvas-callout"><i></i><span>The redesign starts with the work surface: readable transcript turns, contextual tool results, and one focused composer instead of a loose pile of floating controls.</span></div><p>I will preserve the existing host behavior and session model, then replace UI components behind a stable shared interface.</p></article><div class="canvas-activity"><div class="canvas-activity-row"><time>14:04:12</time><svg viewBox="0 0 24 24"><path d="M4 12h16M12 4v16"/></svg><span>Read component inventory</span><span>done</span></div><div class="canvas-activity-row"><time>14:04:20</time><svg viewBox="0 0 24 24"><path d="M5 12 10 17 19 7"/></svg><span>Mapped interaction states</span><span>done</span></div><div class="canvas-activity-row"><time>14:04:31</time><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg><span>Drafting workspace directions</span><span style="color:var(--orange)">active</span></div></div></div></div><div class="canvas-composer"><div class="canvas-composer-shell"><textarea placeholder="Continue the work, steer the agent, or ask a follow-up…"></textarea><div class="canvas-composer-footer"><div class="canvas-controls"><button class="icon-button">+</button><span class="pill blue">Agent</span><span class="pill">deepseek-v4-flash ▾</span><span class="pill">High ▾</span></div><div class="composer-actions"><span class="pill">Context 42%</span><button class="send">➤</button></div></div></div></div></section><aside class="canvas-context"><div class="canvas-context-head"><strong>Run context</strong><button class="icon-button">×</button></div><section class="context-section"><div class="context-label">Current work</div><div class="context-card"><strong>Desktop UI foundations</strong><span>4 files updated · no host behavior changed</span><div class="progress"><i></i></div></div></section><section class="context-section"><div class="context-label">Files</div><div class="context-card"><strong>composer-dock.tsx</strong><span>Input workbench and control groups</span></div><div class="context-card"><strong>ui-kit / button.tsx</strong><span>Shared control contract</span></div></section><section class="context-section"><div class="context-label">Controls</div><div class="context-card"><strong>Stop run</strong><span>⌘ . &nbsp; Abort the active operation</span></div></section></aside></section>
+      </section>
+
+      <section class="selection-panel"><div><strong>Choose a direction or a deliberate combination.</strong><span>Example: “01 shell + 02 tool cards + 03 conversation layout.” I will then implement it as a component-led migration, not a CSS overlay.</span></div><button class="select-button" id="select-direction">Choose Quiet Workspace</button></section>
+    </main>
+    <script>
+      const directionNames = { quiet: 'Quiet Workspace', command: 'Command Desk', canvas: 'Conversation Canvas' };
+      const tabs = Array.from(document.querySelectorAll('[data-target]'));
+      const prototypes = Array.from(document.querySelectorAll('[data-prototype]'));
+      const summaries = Array.from(document.querySelectorAll('[data-summary]'));
+      const selectButton = document.getElementById('select-direction');
+
+      function activateDirection(target) {
+        tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.target === target));
+        prototypes.forEach((prototype) => prototype.classList.toggle('active', prototype.dataset.prototype === target));
+        summaries.forEach((summary) => summary.classList.toggle('active', summary.dataset.summary === target));
+        selectButton.textContent = `Choose ${directionNames[target]}`;
+      }
+
+      tabs.forEach((tab) => tab.addEventListener('click', () => activateDirection(tab.dataset.target)));
+      selectButton.addEventListener('click', () => {
+        selectButton.textContent = 'Tell me this direction in chat';
+        selectButton.style.background = '#32d74b';
+        setTimeout(() => { selectButton.style.background = ''; }, 800);
+      });
+    </script>
+  </body>
+</html>

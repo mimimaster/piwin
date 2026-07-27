@@ -2,7 +2,15 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { mapCompactionEndEvent, mapPiSessionEvent } from './event-map.js';
+import type { AgentEvent } from '@piwin/contracts';
+import {
+  createEventEnvelopeGenerator,
+  createPiSessionEventMapper,
+  mapCompactionEndEvent,
+  mapPiSessionEvent,
+  wrapEvent,
+  wrapEvents,
+} from './event-map.js';
 
 const fixtureDir = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 
@@ -18,22 +26,83 @@ describe('mapPiSessionEvent', () => {
     ]);
   });
 
-  it('maps tool start and end', () => {
-    expect(
-      mapPiSessionEvent({
-        type: 'tool_execution_start',
-        toolCallId: 't1',
-        toolName: 'bash',
+  it('keeps separate SDK messages distinct when Pi omits message ids', () => {
+    const mapper = createPiSessionEventMapper();
+    const unwrap = (raw: unknown) => mapper.map(raw).map((w) => w.event);
+    const firstMessage = [
+      ...unwrap({ type: 'message_start', role: 'assistant' }),
+      ...unwrap({
+        type: 'message_update',
+        assistantMessageEvent: { type: 'thinking_delta', delta: 'thinking' },
       }),
-    ).toEqual([{ type: 'tool/start', toolCallId: 't1', toolName: 'bash' }]);
+      ...unwrap({ type: 'message_end' }),
+    ];
+    const secondMessage = [
+      ...unwrap({ type: 'message_start', role: 'assistant' }),
+      ...unwrap({
+        type: 'message_update',
+        assistantMessageEvent: { type: 'text_delta', delta: 'answer' },
+      }),
+      ...unwrap({ type: 'message_end' }),
+    ];
 
-    expect(
-      mapPiSessionEvent({
-        type: 'tool_execution_end',
-        toolCallId: 't1',
-        isError: false,
-      }),
-    ).toEqual([{ type: 'tool/end', toolCallId: 't1', isError: false }]);
+    const firstMessageId = firstMessage[0]?.type === 'message/start'
+      ? firstMessage[0].messageId
+      : undefined;
+    const secondMessageId = secondMessage[0]?.type === 'message/start'
+      ? secondMessage[0].messageId
+      : undefined;
+
+    expect(firstMessageId).toMatch(/^pi-message-/);
+    expect(secondMessageId).toMatch(/^pi-message-/);
+    expect(secondMessageId).not.toBe(firstMessageId);
+    expect(firstMessage[1]).toMatchObject({
+      type: 'message/thinking_delta',
+      messageId: firstMessageId,
+    });
+    expect(secondMessage[1]).toMatchObject({
+      type: 'message/text_delta',
+      messageId: secondMessageId,
+    });
+  });
+
+  it('maps tool start and end', () => {
+    const startEvents = mapPiSessionEvent({
+      type: 'tool_execution_start',
+      toolCallId: 't1',
+      toolName: 'bash',
+      args: { command: 'echo hi' },
+    });
+    expect(startEvents).toHaveLength(1);
+    expect(startEvents[0]).toMatchObject({
+      type: 'tool/start',
+      toolCallId: 't1',
+      toolName: 'bash',
+      presentation: {
+        kind: 'shell',
+        title: 'bash',
+        command: 'echo hi',
+      },
+    });
+
+    const endEvents = mapPiSessionEvent({
+      type: 'tool_execution_end',
+      toolCallId: 't1',
+      toolName: 'bash',
+      isError: false,
+      exitCode: 0,
+      output: 'hi',
+    });
+    expect(endEvents).toHaveLength(1);
+    expect(endEvents[0]).toMatchObject({
+      type: 'tool/end',
+      toolCallId: 't1',
+      isError: false,
+      presentation: {
+        kind: 'shell',
+        exitCode: 0,
+      },
+    });
   });
 
   it('maps errors', () => {
@@ -89,5 +158,80 @@ describe('mapCompactionEndEvent fixtures', () => {
     });
     expect(end.ok).toBe(true);
     expect(end.tokensBefore).toBeUndefined();
+  });
+});
+
+describe('C1: createEventEnvelopeGenerator', () => {
+  it('produces monotonically increasing sequence numbers', () => {
+    const gen = createEventEnvelopeGenerator('run-1');
+    const e1 = gen.next();
+    const e2 = gen.next();
+    const e3 = gen.next();
+    expect(e1.sequence).toBe(1);
+    expect(e2.sequence).toBe(2);
+    expect(e3.sequence).toBe(3);
+    expect(e1.runId).toBe('run-1');
+    expect(e2.runId).toBe('run-1');
+    expect(e3.runId).toBe('run-1');
+  });
+
+  it('produces unique eventIds per call', () => {
+    const gen = createEventEnvelopeGenerator();
+    const e1 = gen.next();
+    const e2 = gen.next();
+    expect(e1.eventId).not.toBe(e2.eventId);
+  });
+
+  it('allows per-call runId override', () => {
+    const gen = createEventEnvelopeGenerator('default-run');
+    const e1 = gen.next('override-run');
+    expect(e1.runId).toBe('override-run');
+    const e2 = gen.next();
+    expect(e2.runId).toBe('default-run');
+  });
+});
+
+describe('C1: wrapEvent and wrapEvents', () => {
+  it('wraps a single event with an envelope', () => {
+    const gen = createEventEnvelopeGenerator('run-a');
+    const event = { type: 'message/text_delta' as const, messageId: 'm1', delta: 'hello' };
+    const wrapped = wrapEvent(event, gen);
+    expect(wrapped.event).toBe(event);
+    expect(wrapped.envelope.sequence).toBe(1);
+    expect(wrapped.envelope.runId).toBe('run-a');
+  });
+
+  it('wraps multiple events with sequential envelopes', () => {
+    const gen = createEventEnvelopeGenerator('run-b');
+    const events: AgentEvent[] = [
+      { type: 'message/start', messageId: 'm1', role: 'assistant' },
+      { type: 'message/text_delta', messageId: 'm1', delta: 'hi' },
+      { type: 'message/end', messageId: 'm1' },
+    ];
+    const wrapped = wrapEvents(events, gen);
+    expect(wrapped).toHaveLength(3);
+    const w0 = wrapped[0]!;
+    const w1 = wrapped[1]!;
+    const w2 = wrapped[2]!;
+    expect(w0.envelope.sequence).toBe(1);
+    expect(w0.event.type).toBe('message/start');
+    expect(w1.envelope.sequence).toBe(2);
+    expect(w1.event.type).toBe('message/text_delta');
+    expect(w2.envelope.sequence).toBe(3);
+    expect(w2.event.type).toBe('message/end');
+  });
+
+  it('createsPiSessionEventMapper returns wrapped events with envelopes', () => {
+    const mapper = createPiSessionEventMapper();
+    const rawEvents = mapper.map({
+      type: 'message_start',
+      messageId: 'm1',
+      role: 'assistant',
+    });
+    expect(rawEvents).toHaveLength(1);
+    const first = rawEvents[0]!;
+    expect(first.event.type).toBe('message/start');
+    expect(first.envelope.sequence).toBe(1);
+    expect(first.envelope.eventId).toBeTruthy();
   });
 });

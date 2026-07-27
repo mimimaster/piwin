@@ -151,4 +151,196 @@ describe('createMcpLifecycleManager', () => {
       await manager.dispose();
     }
   });
+
+  it('discards a client when a tool call times out', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-timeout-'));
+    const { fileURLToPath } = await import('node:url');
+    const fixtureServerPath = fileURLToPath(
+      new URL('./fixtures/fixture-mcp-server-official.mjs', import.meta.url),
+    );
+    await writeFile(
+      join(root, 'mcp.json'),
+      JSON.stringify({
+        mcpServers: {
+          fixture: {
+            command: process.execPath,
+            args: [fixtureServerPath],
+            env: { PIWIN_FIXTURE_HANG_CALL: '1' },
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    const manager = createMcpLifecycleManager(root, {
+      callTimeoutMs: 50,
+    });
+    try {
+      await expect(manager.callTool('fixture', 'ping', {})).rejects.toThrow(
+        'MCP tool call timeout',
+      );
+      expect(manager.getClient('fixture')).toBeNull();
+    } finally {
+      await manager.dispose();
+    }
+  });
+
+  it('aborts a hung tools/list and disposes the client', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-abort-list-'));
+    const { fileURLToPath } = await import('node:url');
+    const fixtureServerPath = fileURLToPath(
+      new URL('./fixtures/fixture-mcp-server-official.mjs', import.meta.url),
+    );
+    await writeFile(
+      join(root, 'mcp.json'),
+      JSON.stringify({
+        mcpServers: {
+          fixture: {
+            command: process.execPath,
+            args: [fixtureServerPath],
+            env: { PIWIN_FIXTURE_HANG_LIST: '1' },
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    const manager = createMcpLifecycleManager(root, {
+      listToolsTimeoutMs: 5_000,
+    });
+    const abortController = new AbortController();
+    try {
+      const listing = manager.discoverTools('fixture', abortController.signal);
+      setTimeout(() => abortController.abort(), 50);
+      await expect(listing).rejects.toThrow('MCP operation aborted');
+      expect(manager.getClient('fixture')).toBeNull();
+    } finally {
+      await manager.dispose();
+    }
+  });
+
+  it('aborts a hung tools/call and disposes the client', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-abort-call-'));
+    const { fileURLToPath } = await import('node:url');
+    const fixtureServerPath = fileURLToPath(
+      new URL('./fixtures/fixture-mcp-server-official.mjs', import.meta.url),
+    );
+    await writeFile(
+      join(root, 'mcp.json'),
+      JSON.stringify({
+        mcpServers: {
+          fixture: {
+            command: process.execPath,
+            args: [fixtureServerPath],
+            env: { PIWIN_FIXTURE_HANG_CALL: '1' },
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    const manager = createMcpLifecycleManager(root, {
+      callTimeoutMs: 5_000,
+    });
+    const abortController = new AbortController();
+    try {
+      const call = manager.callTool('fixture', 'ping', {}, abortController.signal);
+      setTimeout(() => abortController.abort(), 50);
+      await expect(call).rejects.toThrow('MCP operation aborted');
+      expect(manager.getClient('fixture')).toBeNull();
+    } finally {
+      await manager.dispose();
+    }
+  });
+
+  it('reports error when connect hangs (no init response)', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-connect-hang-'));
+    const { fileURLToPath } = await import('node:url');
+    const hangFixturePath = fileURLToPath(
+      new URL('./fixtures/fixture-mcp-server-hanging-connect.mjs', import.meta.url),
+    );
+    await writeFile(
+      join(root, 'mcp.json'),
+      JSON.stringify({
+        mcpServers: {
+          hangFixture: {
+            command: process.execPath,
+            args: [hangFixturePath],
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    const manager = createMcpLifecycleManager(root, {
+      connectTimeoutMs: 2_000,
+    });
+    try {
+      const health = await manager.start('hangFixture');
+      // After connect timeout, the server should be in error state.
+      expect(health.status).toBe('error');
+      expect(health.lastError).toBeTruthy();
+      // The long-running process should have been cleaned up.
+      expect(manager.getClient('hangFixture')).toBeNull();
+    } finally {
+      await manager.dispose();
+    }
+  });
+
+  it('late MCP connect hang does not pollute a subsequent start', async () => {
+    // Regression: after a hanging connect, starting the same server again
+    // must produce a fresh, healthy client.
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-late-pollute-'));
+    const { fileURLToPath } = await import('node:url');
+    const hangFixturePath = fileURLToPath(
+      new URL('./fixtures/fixture-mcp-server-hanging-connect.mjs', import.meta.url),
+    );
+    const officialFixturePath = fileURLToPath(
+      new URL('./fixtures/fixture-mcp-server-official.mjs', import.meta.url),
+    );
+    await writeFile(
+      join(root, 'mcp.json'),
+      JSON.stringify({
+        mcpServers: {
+          fixture: {
+            command: process.execPath,
+            args: [hangFixturePath],
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    const manager = createMcpLifecycleManager(root, {
+      connectTimeoutMs: 1_000,
+    });
+    try {
+      // First connect attempt hangs and times out.
+      const firstHealth = await manager.start('fixture');
+      expect(firstHealth.status).toBe('error');
+      expect(manager.getClient('fixture')).toBeNull();
+
+      // Now change the config to point to the healthy fixture (simulates config change).
+      await writeFile(
+        join(root, 'mcp.json'),
+        JSON.stringify({
+          mcpServers: {
+            fixture: {
+              command: process.execPath,
+              args: [officialFixturePath],
+            },
+          },
+        }),
+        'utf8',
+      );
+
+      // Second start must pick up the new config and connect successfully.
+      const secondHealth = await manager.start('fixture');
+      expect(secondHealth.status).toBe('running');
+      expect(typeof secondHealth.pid).toBe('number');
+      expect(manager.getClient('fixture')).not.toBeNull();
+    } finally {
+      await manager.dispose();
+    }
+  });
 });

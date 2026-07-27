@@ -2,10 +2,11 @@
  * Persist product chat transcripts under ~/.piwin/sessions/<id>/transcript.json.
  * Independent of Pi session JSONL; enables UI hydration after process restart.
  */
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type {
   MediaAttachmentRef,
+  SessionScope,
   SessionTranscriptDocument,
   SessionTranscriptMessage,
   SessionToolCardView,
@@ -15,14 +16,26 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
-function emptyDoc(sessionId: string, projectPath: string): SessionTranscriptDocument {
-  return {
+function emptyDoc(
+  sessionId: string,
+  projectPath: string,
+  scope?: SessionScope,
+  workingDirectory?: string,
+): SessionTranscriptDocument {
+  const doc: SessionTranscriptDocument = {
     version: 1,
     sessionId,
     projectPath,
     messages: [],
     updatedAt: nowIso(),
   };
+  if (scope) {
+    doc.scope = scope;
+  }
+  if (workingDirectory) {
+    doc.workingDirectory = workingDirectory;
+  }
+  return doc;
 }
 
 export async function loadSessionTranscript(
@@ -38,13 +51,20 @@ export async function loadSessionTranscript(
     const messages = Array.isArray(record.messages)
       ? record.messages.filter(isTranscriptMessage)
       : [];
-    return {
+    const document: SessionTranscriptDocument = {
       version: 1,
       sessionId: record.sessionId,
       projectPath: typeof record.projectPath === 'string' ? record.projectPath : '',
       messages,
       updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : nowIso(),
     };
+    if (record.scope && typeof record.scope === 'object') {
+      document.scope = record.scope as SessionScope;
+    }
+    if (typeof record.workingDirectory === 'string') {
+      document.workingDirectory = record.workingDirectory;
+    }
+    return document;
   } catch (error) {
     if (isNotFound(error)) return null;
     throw error;
@@ -59,10 +79,37 @@ export async function saveSessionTranscript(
   await writeFile(filePath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
 }
 
+/**
+ * Persist a transcript through a same-directory temporary file so readers
+ * never observe a partially written JSON document during a stream flush.
+ */
+export async function saveSessionTranscriptAtomic(
+  filePath: string,
+  document: SessionTranscriptDocument,
+): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true });
+  const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
+  try {
+    await writeFile(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+    await rename(temporaryPath, filePath);
+  } catch (error) {
+    try {
+      await unlink(temporaryPath);
+    } catch {
+      // Preserve the original write/rename error.
+    }
+    throw error;
+  }
+}
+
 export async function ensureSessionTranscript(
   filePath: string,
   sessionId: string,
   projectPath: string,
+  scope?: SessionScope,
+  workingDirectory?: string,
 ): Promise<SessionTranscriptDocument> {
   const existing = await loadSessionTranscript(filePath);
   if (existing) {
@@ -72,7 +119,7 @@ export async function ensureSessionTranscript(
     }
     return existing;
   }
-  const created = emptyDoc(sessionId, projectPath);
+  const created = emptyDoc(sessionId, projectPath, scope, workingDirectory);
   await saveSessionTranscript(filePath, created);
   return created;
 }
@@ -82,8 +129,10 @@ export async function appendTranscriptMessage(
   sessionId: string,
   projectPath: string,
   message: SessionTranscriptMessage,
+  scope?: SessionScope,
+  workingDirectory?: string,
 ): Promise<SessionTranscriptDocument> {
-  const document = await ensureSessionTranscript(filePath, sessionId, projectPath);
+  const document = await ensureSessionTranscript(filePath, sessionId, projectPath, scope, workingDirectory);
   const existingIndex = document.messages.findIndex((item) => item.id === message.id);
   if (existingIndex === -1) {
     document.messages.push(message);

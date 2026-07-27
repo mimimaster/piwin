@@ -26,6 +26,13 @@ export async function webFetch(
   options: WebFetchOptions = {},
 ): Promise<WebFetchResult> {
   const config = resolveWebConfig(options.config);
+  if (config.fetchProvider === 'jina') {
+    return fetchViaJina(url, config, options);
+  }
+  if (config.fetchProvider === 'firecrawl') {
+    return fetchViaFirecrawl(url, config, options);
+  }
+  // Default: built-in local HTML→readable text ("supermarkdown").
   const fetchImpl = options.fetchImpl ?? fetch;
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
   const resolveHost =
@@ -261,6 +268,126 @@ async function extractReadableText(
     title: extractTitleFallback(html),
     text: stripHtml(html),
   };
+}
+
+/**
+ * Jina Reader proxy: `https://r.jina.ai/<url>` returns markdown/plain without local parsing.
+ * Optional JINA_API_KEY improves rate limits.
+ */
+async function fetchViaJina(
+  url: string,
+  config: WebConfig,
+  options: WebFetchOptions,
+): Promise<WebFetchResult> {
+  const validated = validateFetchUrl(url, config.fetchBlockedUrlPrefixes);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.fetchTimeoutMs);
+  const signal = options.signal
+    ? anySignal([options.signal, controller.signal])
+    : controller.signal;
+  try {
+    const headers: Record<string, string> = {
+      Accept: 'text/plain',
+      'User-Agent': 'piwin-web-fetch/0.1',
+      'X-Return-Format': 'markdown',
+    };
+    const apiKey =
+      process.env[config.fetchApiKeyEnv] ??
+      process.env.JINA_API_KEY ??
+      process.env.JINA_READER_API_KEY;
+    if (apiKey) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
+    const response = await (options.fetchImpl ?? fetch)(`https://r.jina.ai/${validated}`, {
+      headers,
+      signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Jina Reader failed: HTTP ${response.status} for ${validated}`);
+    }
+    const text = await response.text();
+    const truncated = text.length > config.fetchMaxBytes;
+    return {
+      url: validated,
+      finalUrl: validated,
+      title: extractMarkdownTitle(text),
+      text: truncated ? text.slice(0, config.fetchMaxBytes) : text,
+      contentType: response.headers.get('content-type') ?? 'text/markdown',
+      byteSize: new TextEncoder().encode(text).byteLength,
+      truncated,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Firecrawl scrape API — requires API key in env (fetchApiKeyEnv / FIRECRAWL_API_KEY).
+ */
+async function fetchViaFirecrawl(
+  url: string,
+  config: WebConfig,
+  options: WebFetchOptions,
+): Promise<WebFetchResult> {
+  const validated = validateFetchUrl(url, config.fetchBlockedUrlPrefixes);
+  const apiKey =
+    process.env[config.fetchApiKeyEnv] ??
+    process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      `Missing API key env ${config.fetchApiKeyEnv} (or FIRECRAWL_API_KEY) for Firecrawl`,
+    );
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), config.fetchTimeoutMs);
+  const signal = options.signal
+    ? anySignal([options.signal, controller.signal])
+    : controller.signal;
+  try {
+    const response = await (options.fetchImpl ?? fetch)('https://api.firecrawl.dev/v1/scrape', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        url: validated,
+        formats: ['markdown'],
+      }),
+      signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Firecrawl scrape failed: HTTP ${response.status} for ${validated}`);
+    }
+    const payload = (await response.json()) as {
+      success?: boolean;
+      data?: {
+        markdown?: string;
+        metadata?: { title?: string; sourceURL?: string };
+      };
+    };
+    const markdown = payload.data?.markdown ?? '';
+    if (!markdown.trim()) {
+      throw new Error(`Firecrawl returned empty markdown for ${validated}`);
+    }
+    const truncated = markdown.length > config.fetchMaxBytes;
+    return {
+      url: validated,
+      finalUrl: payload.data?.metadata?.sourceURL ?? validated,
+      title: payload.data?.metadata?.title ?? extractMarkdownTitle(markdown),
+      text: truncated ? markdown.slice(0, config.fetchMaxBytes) : markdown,
+      contentType: 'text/markdown',
+      byteSize: new TextEncoder().encode(markdown).byteLength,
+      truncated,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function extractMarkdownTitle(markdown: string): string | null {
+  const match = markdown.match(/^#\s+(.+)$/m);
+  return match?.[1]?.trim() || null;
 }
 
 function extractTitleFallback(html: string): string | null {

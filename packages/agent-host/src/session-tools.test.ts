@@ -30,6 +30,8 @@ describe('buildSessionTools permission gate', () => {
     const { tools } = buildSessionTools({
       webConfig: {
         searchProvider: 'brave',
+        fetchProvider: 'supermarkdown',
+        fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
         searchApiKeyEnv: 'MISSING_BRAVE_KEY_FOR_TEST',
         searchMaxResults: 3,
         fetchMaxBytes: 1000,
@@ -73,6 +75,8 @@ describe('buildSessionTools permission gate', () => {
         searchProvider: 'brave',
         searchApiKeyEnv: 'MISSING_BRAVE_KEY_FOR_TEST',
         searchMaxResults: 3,
+        fetchProvider: 'supermarkdown',
+        fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
         fetchMaxBytes: 1000,
         fetchTimeoutMs: 1000,
         fetchBlockedUrlPrefixes: [],

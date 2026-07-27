@@ -64,8 +64,13 @@ Sanitize paths; drop oversize paths entirely (no mid-string truncate).
 After read/write + compact, UI lists paths; list not fed as instructions to summarizer.
 
 ## 5. CE-PTY Real terminal
-xterm.js (desktop) ↔ HostCommand pty/open|input|resize|close ↔ node-pty (or Tauri plugin ADR if packaging fails).
-Trusted project only; Activity stays tool logs; Terminal is interactive shell.
+
+> **2026-07-21 product path locked:** interactive PTY is **Tauri (Rust) + xterm.js**, not Node `node-pty`.  
+> See [ADR 0013](../adr/0013-pty-tauri.md) and Product Depth L4 / `PD-PTY-*` in [`product-depth-competitive-alignment.md`](./product-depth-competitive-alignment.md).  
+> Host `pty/*` piped shell remains Shell preview until Tauri path ships.
+
+xterm.js (desktop) ↔ **Tauri PTY commands/events** (primary).  
+Trusted project only; Activity stays tool logs; Terminal is interactive shell when `capabilities.pty` is true.
 W2 does not require agent-driven PTY (ManagedProcess remains for non-interactive).
 
 ### Accept

@@ -64,7 +64,8 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
         return;
       }
 
-      const reply = buildMockReply(userText, input.projectPath);
+      const locationLabel = resolveMockLocationLabel(input);
+      const reply = buildMockReply(userText, locationLabel);
       messages.push({
         id: assistantMessageId,
         role: 'assistant',
@@ -82,12 +83,35 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
         emit({ type: 'tool/end', toolCallId, isError: false });
       }
 
+      let assembled = '';
       for (const chunk of chunkText(reply, 24)) {
         if (aborted) {
-          emit({ type: 'error', message: 'aborted', retriable: false });
+          const existing = messages.find((message) => message.id === assistantMessageId);
+          if (existing) {
+            existing.text = assembled;
+          }
+          emit({
+            type: 'session/aborted',
+            sessionId,
+            messageId: assistantMessageId,
+          });
           return;
         }
+        assembled += chunk;
         emit({ type: 'message/text_delta', messageId: assistantMessageId, delta: chunk });
+        // Yield so concurrent abort() can land between chunks.
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, 8);
+        });
+      }
+
+      if (aborted) {
+        const existing = messages.find((message) => message.id === assistantMessageId);
+        if (existing) {
+          existing.text = assembled;
+        }
+        emit({ type: 'session/aborted', sessionId, messageId: assistantMessageId });
+        return;
       }
 
       emit({ type: 'message/end', messageId: assistantMessageId });
@@ -176,6 +200,19 @@ function transcriptToView(message: SessionTranscriptMessage): AgentMessageView {
     view.attachments = message.attachments;
   }
   return view;
+}
+
+function resolveMockLocationLabel(input: CreateMockSessionOptions): string {
+  if (input.scope?.kind === 'general') {
+    return 'general';
+  }
+  if (input.scope?.kind === 'project') {
+    return input.scope.projectPath;
+  }
+  if (input.projectPath && input.projectPath.trim().length > 0) {
+    return input.projectPath;
+  }
+  return 'general';
 }
 
 function buildMockReply(userText: string, projectPath: string): string {

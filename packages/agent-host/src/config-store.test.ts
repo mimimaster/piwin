@@ -50,4 +50,54 @@ describe('config-store', () => {
     const loaded = await loadPiwinConfig(rootDir);
     expect(loaded.compaction?.autoEnabledDefault).toBe(false);
   });
+
+  it('round-trips desktop model, effort, and session restoration preferences', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-desktop-restore-'));
+    const config = createDefaultPiwinConfig();
+    config.desktop = {
+      composerProfile: {
+        model: {
+          protocol: 'openai-compatible',
+          providerId: 'cpa',
+          modelId: 'deepseek-v4-flash',
+        },
+        thinkingLevel: 'high',
+      },
+    };
+    config.desktop.lastSession = {
+      sessionId: 'session-last-used',
+      scope: { kind: 'project', projectPath: '/tmp/restored-project' },
+    };
+
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+
+    expect(loaded.desktop?.composerProfile).toEqual(config.desktop.composerProfile);
+    expect(loaded.desktop?.lastSession).toEqual(config.desktop.lastSession);
+  });
+
+  it('round-trips all capability-expansion config sections', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-expanded-'));
+    const config = createDefaultPiwinConfig();
+    config.process = {
+      enabled: false,
+      maxProcesses: 3,
+      killOnSessionEnd: true,
+      killOnHostDispose: false,
+    };
+    config.execution = { defaultMode: 'agent-debug' };
+    config.automation = { enabled: true, cronEnabled: true, hooksEnabled: false };
+    config.marketplace = {
+      skillSources: ['static', 'git-index'],
+      mcpRegistrySources: ['static', 'official'],
+    };
+
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+
+    expect(loaded.process).toEqual(config.process);
+    expect(loaded.execution).toEqual(config.execution);
+    expect(loaded.automation).toEqual(config.automation);
+    expect(loaded.marketplace).toEqual(config.marketplace);
+  });
 });

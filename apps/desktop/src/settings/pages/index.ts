@@ -1,0 +1,34 @@
+/**
+ * Settings page registration. Importing this module registers every section
+ * page; the registry covers all sections (no legacy fallback remains).
+ */
+import { registerSettingsSection } from '../section-registry';
+import { GeneralPage } from './general-page';
+import { AppearancePage } from './appearance-page';
+import { SessionPage } from './session-page';
+import { RulesPage } from './rules-page';
+import { WebPage } from './web-page';
+import { ModelsPage } from './models-page';
+import { MemoryPage } from './memory-page';
+import { ToolsPage } from './tools-page';
+import { AgentsPage } from './agents-page';
+import { SkillsPage } from './skills-page';
+import { ExtensionsPage } from './extensions-page';
+import { PromptsPage } from './prompts-page';
+import { AutomationPage } from './automation-page';
+import { PetsPage } from './pets-page';
+
+registerSettingsSection('general', GeneralPage);
+registerSettingsSection('appearance', AppearancePage);
+registerSettingsSection('session', SessionPage);
+registerSettingsSection('rules', RulesPage);
+registerSettingsSection('web', WebPage);
+registerSettingsSection('models', ModelsPage);
+registerSettingsSection('memory', MemoryPage);
+registerSettingsSection('tools', ToolsPage);
+registerSettingsSection('agents', AgentsPage);
+registerSettingsSection('skills', SkillsPage);
+registerSettingsSection('extensions', ExtensionsPage);
+registerSettingsSection('prompts', PromptsPage);
+registerSettingsSection('automation', AutomationPage);
+registerSettingsSection('pets', PetsPage);

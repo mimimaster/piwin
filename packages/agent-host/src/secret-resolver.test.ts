@@ -43,6 +43,24 @@ describe('createSecretResolver', () => {
     expect(report.source).toBe('keychain');
   });
 
+  it('writes secrets via injected keychain and returns apiKeyRef', async () => {
+    const stored = new Map<string, string>();
+    const resolver = createSecretResolver({
+      writeKeychain: async (ref, secret) => {
+        stored.set(ref, secret);
+      },
+      readKeychain: async (ref) => stored.get(ref) ?? null,
+    });
+    const apiKeyRef = await resolver.writeProviderSecret('cpa', '123456');
+    expect(apiKeyRef).toBe('keychain:piwin-cpa');
+    const value = await resolver.resolveProviderSecret({
+      ...provider,
+      id: 'cpa',
+      apiKeyRef,
+    });
+    expect(value).toBe('123456');
+  });
+
   it('reports missing when unset', async () => {
     const resolver = createSecretResolver({ env: {} });
     const report = await resolver.reportProviderSecret(provider);

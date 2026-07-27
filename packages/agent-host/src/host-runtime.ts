@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import type {
@@ -15,7 +16,8 @@ import type {
   PermissionDecision,
   PromptInput,
   SessionHandle,
-} from '@piwin/contracts';
+  AgentEventEnvelope,
+  } from '@piwin/contracts';
 import { formatTextModelImageInjection } from '@piwin/contracts';
 import { assertInsideMediaRoot, createMediaService } from '@piwin/media';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
@@ -27,6 +29,7 @@ import { ensureBundledPromptsInstalled } from './ensure-bundled-prompts.js';
 import {
   createMcpLifecycleManager,
   getMcpConfigPath,
+  listEnabledServers,
   loadMcpConfig,
   saveMcpConfig,
   tryValidateMcpConfig,
@@ -40,7 +43,25 @@ import {
   prependMemoryOverview,
   shouldInjectMemoryOverview,
 } from './memory-inject.js';
-import { createGitService } from '@piwin/git';
+import { createGitService, createWorktree, removeWorktree, applyWorktreeToMain } from '@piwin/git';
+import {
+  deleteCronJob,
+  getCronStorePath,
+  getHooksStorePath,
+  isCronDue,
+  loadCronJobs,
+  loadHooks,
+  runMatchingHooks,
+  SessionTodoStore,
+  setHooks,
+  upsertCronJob,
+} from '@piwin/automation';
+import { listMcpRegistryCards, listSkillStoreEntries, draftToServerConfig } from '@piwin/marketplace';
+import { PtyHost } from './pty-host.js';
+import {
+  extractFileOpsFromUnknown,
+  formatFilesTouchedBlock,
+} from './compaction-file-ops.js';
 import {
   getActiveTheme,
   installThemeFromLocalPath,
@@ -57,7 +78,6 @@ import {
 import {
   allowNetworkFetchHost,
   allowNetworkWebSearch,
-  allowMcpServer,
   listProjects,
   openOrCreateProject,
   setProjectTrust,
@@ -66,7 +86,6 @@ import {
 import {
   createSessionRecord,
   getSessionRecord,
-  listSessionsForProject,
   listTranscriptMessages,
   upsertSessionRecord,
   buildSessionOutline,
@@ -78,11 +97,9 @@ import {
   appendTranscriptMessage,
   buildSubagentMergeSummary,
   formatSubagentMergeCard,
+  buildSubagentActivityView,
   applyPlanStepUpdate,
   applyPlanStatus,
-  pinSessionRecord,
-  unpinSessionRecord,
-  searchSessions,
   truncateTranscriptFrom,
   buildProductHistoryContext,
   mergeProductHistoryIntoPrompt,
@@ -97,6 +114,14 @@ import type {
 } from '@piwin/contracts';
 import { estimateMockUsage } from './usage-map.js';
 import { createTranscriptRecorder } from './transcript-recorder.js';
+import { createDelayedSessionHandle } from './delayed-session-fixture.js';
+import {
+  buildRunPhaseEvent,
+  buildRunTerminalEvent,
+  createActiveRunRegistry,
+  type ActiveRun,
+  type ActiveRunRegistry,
+} from './active-run.js';
 import { createProductShellSession } from './product-shell-session.js';
 import { formatPlanForModelContext } from './format-plan-context.js';
 import { createAgentHost } from './create-host.js';
@@ -110,6 +135,17 @@ import {
   getPiwinSessionPlanPath,
   getPiwinSessionDir,
 } from './paths.js';
+import { buildPermissionRequestContext } from './permission-context.js';
+import { fail, ok } from './response-helpers.js';
+import { indexRecordToSummary } from './session-summary-map.js';
+import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
+import {
+  handleSessionLiveCommand,
+  type SessionLiveContext,
+} from './commands/session-live-commands.js';
+import type { HostCommandContext } from './commands/host-command-context.js';
+import { RunEventCorrelator } from './run-event-correlator.js';
+import { createEventEnvelopeGenerator } from './event-map.js';
 
 export type HostRuntimeOptions = {
   mode: HostMode;
@@ -117,6 +153,31 @@ export type HostRuntimeOptions = {
   piwinRoot?: string;
   rpcCommand?: string;
   onPush?: (message: HostPush) => void;
+  /**
+   * Explicit test seam used only by the JSONL integration harness. Production
+   * callers omit it and always create sessions through the Pi adapter.
+   */
+  testFixture?: HostRuntimeTestFixture;
+};
+
+export type HostRuntimeTestFixture =
+  | 'hang-until-abort'
+  | 'slow-first-token'
+  | 'high-rate-tool-output';
+
+type SessionLineage = {
+  parentSessionId?: string;
+  kind?: 'main' | 'subagent';
+  depth?: number;
+  subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
+  task?: string;
+  subagentMode?: 'readonly' | 'worktree';
+  subagentApplyPolicy?: 'none' | 'auto' | 'explicit';
+  subagentAllowedOutputPaths?: string[];
+  subagentRetainWorktree?: boolean;
+  subagentRole?: string;
+  worktreePath?: string;
+  worktreeBranch?: string;
 };
 
 export class HostRuntime {
@@ -133,14 +194,33 @@ export class HostRuntime {
   private readonly sessionAutoCompactionOverrides = new Map<string, boolean>();
   /** Serialize merge-subagent per parent session. */
   private readonly mergeLocks = new Map<string, Promise<unknown>>();
+  private ptyHost: PtyHost | null = null;
+  private readonly todoStore = new SessionTodoStore();
+  /** CE-COMP: last files-touched block per session for prompt inject. */
+  private readonly sessionFilesTouched = new Map<string, string>();
+  /** ADR 0015: at most one foreground run per session. */
+  private readonly activeRuns: ActiveRunRegistry = createActiveRunRegistry();
+  /** Preserves the run identity across asynchronous SDK event callbacks. */
+  private readonly runExecutionContext = new AsyncLocalStorage<string>();
+  private readonly runEventCorrelator = new RunEventCorrelator();
+  /** Host-side guard for context-owned events after terminal cleanup. */
+  private readonly terminalRunIdsBySession = new Map<string, Set<string>>();
+  /** C1: one ordered envelope stream per runtime session. */
+  private readonly eventEnvelopeGenerators = new Map<
+    string,
+    ReturnType<typeof createEventEnvelopeGenerator>
+  >();
   private readonly unsubscribers = new Map<string, () => void>();
   private readonly pendingPermissions = new Map<
     string,
     {
       resolve: (decision: PermissionDecision) => void;
       sessionId: string;
+      runId?: string;
+      projectPath?: string;
       action: string;
       detail: string;
+      cleanup?: () => void;
     }
   >();
   private readonly pendingExtensionUi = new Map<
@@ -215,6 +295,31 @@ export class HostRuntime {
   }
 
   async dispose(): Promise<void> {
+    for (const run of this.activeRuns.cancelAll()) {
+      // Mark ownership before publishing shutdown so re-entrant or late SDK
+      // events cannot cross the terminal boundary during cleanup.
+      this.runEventCorrelator.markRunTerminal(run.sessionId, run.runId);
+      this.rememberTerminalRun(run.sessionId, run.runId);
+      this.push({
+        type: 'event',
+        sessionId: run.sessionId,
+        event: buildRunTerminalEvent(
+          run.sessionId,
+          run.runId,
+          'cancelled',
+          'host-shutdown',
+          'host disposed',
+        ),
+      });
+    }
+    for (const pendingPermission of this.pendingPermissions.values()) {
+      pendingPermission.resolve('deny');
+    }
+    for (const pendingUiRequest of this.pendingExtensionUi.values()) {
+      pendingUiRequest.resolve(createCancelledExtensionUiResponse(pendingUiRequest.kind));
+    }
+    this.pendingPermissions.clear();
+    this.pendingExtensionUi.clear();
     if (this.notesServices) {
       try {
         this.notesServices.index.close();
@@ -222,6 +327,10 @@ export class HostRuntime {
         // best-effort shutdown
       }
       this.notesServices = null;
+    }
+    if (this.ptyHost) {
+      this.ptyHost.dispose();
+      this.ptyHost = null;
     }
     if (this.processRegistry) {
       try {
@@ -243,10 +352,14 @@ export class HostRuntime {
       unsubscribe();
     }
     this.unsubscribers.clear();
+    for (const sessionId of this.sessions.keys()) {
+      this.runEventCorrelator.clear(sessionId);
+      this.eventEnvelopeGenerators.delete(sessionId);
+    }
     this.sessions.clear();
     this.sessionProjects.clear();
-    this.pendingPermissions.clear();
-    this.pendingExtensionUi.clear();
+    await Promise.all([...this.transcriptRecorders.values()].map((recorder) => recorder.flush()));
+    this.transcriptRecorders.clear();
     await this.host.dispose();
     this.ready = false;
   }
@@ -254,1102 +367,27 @@ export class HostRuntime {
   async handleCommand(command: HostCommand): Promise<HostResponse> {
     const requestId = typeof command.id === 'string' ? command.id : undefined;
     try {
+      const domain = await dispatchDomainCommands(command, requestId, this.buildDomainContext());
+      if (domain) {
+        return domain;
+      }
+      const sessionLive = await handleSessionLiveCommand(
+        command,
+        requestId,
+        this.buildSessionLiveContext(),
+      );
+      if (sessionLive) {
+        return sessionLive;
+      }
       switch (command.type) {
         case 'host/ping':
           return ok(requestId, 'host/ping', { pong: true });
         case 'host/status':
           return ok(requestId, 'host/status', this.getStatus());
-        case 'project/open': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const projectsPath = getPiwinProjectsPath(rootDir);
-          // Opening alone does not trust; client must confirm.
-          const project = await openOrCreateProject(projectsPath, command.path);
-          return ok(requestId, 'project/open', {
-            path: project.path,
-            trusted: project.trust === 'trusted',
-            trust: project.trust,
-            project,
-          });
-        }
-        case 'project/trust': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const projectsPath = getPiwinProjectsPath(rootDir);
-          const project = await setProjectTrust(projectsPath, command.path, 'trusted');
-          return ok(requestId, 'project/trust', {
-            path: project.path,
-            trusted: true,
-            trust: project.trust,
-            project,
-          });
-        }
-        case 'session/list': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const indexPath = getPiwinSessionIndexPath(rootDir);
-          const indexed = await listSessionsForProject(indexPath, command.projectPath);
-          const sessions = indexed.map((item) => indexRecordToSummary(item));
-          return ok(requestId, 'session/list', { sessions });
-        }
-        case 'session/create': {
-          const session = await this.host.createSession(command.input);
-          const lineage: {
-            parentSessionId?: string;
-            kind?: 'main' | 'subagent';
-            depth?: number;
-            subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
-            task?: string;
-          } = {
-            kind: command.input.parentSessionId ? 'subagent' : 'main',
-            depth: command.input.parentSessionId ? 1 : 0,
-          };
-          if (command.input.parentSessionId) {
-            lineage.parentSessionId = command.input.parentSessionId;
-            lineage.subagentStatus = 'running';
-          }
-          if (command.input.task) {
-            lineage.task = command.input.task;
-          }
-          const executionMode = resolveExecutionMode(command.input.executionMode);
-          this.sessionExecutionModes.set(session.id, executionMode);
-          await this.bindSession(
-            session,
-            command.input.projectPath,
-            command.input.sessionName,
-            lineage,
-          );
-          this.pushStatus();
-          return ok(requestId, 'session/create', {
-            sessionId: session.id,
-            executionMode,
-          });
-        }
-        case 'session/spawn': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const indexPath = getPiwinSessionIndexPath(rootDir);
-          const parent = await getSessionRecord(indexPath, command.parentSessionId);
-          if (!parent) {
-            return fail(
-              requestId,
-              'session/spawn',
-              `Unknown parent session: ${command.parentSessionId}`,
-            );
-          }
-          if (parent.kind === 'subagent' || (parent.depth ?? 0) >= 1) {
-            return fail(
-              requestId,
-              'session/spawn',
-              'sub-agent depth max is 1 (cannot nest sub-agents)',
-            );
-          }
-          const task = command.task.trim();
-          if (!task) {
-            return fail(requestId, 'session/spawn', 'task is required');
-          }
-          const childName =
-            command.sessionName?.trim() ||
-            `subagent-${task.slice(0, 32).replace(/\s+/g, '-')}`;
-          const child = await this.host.createSession({
-            projectPath: parent.projectPath,
-            sessionName: childName,
-            parentSessionId: parent.id,
-            task,
-          });
-          await this.bindSession(child, parent.projectPath, childName, {
-            parentSessionId: parent.id,
-            kind: 'subagent',
-            depth: 1,
-            subagentStatus: 'running',
-            task,
-          });
-          // Seed task into child session (best-effort).
-          try {
-            await this.recordUserPrompt(child.id, { text: task });
-            await child.prompt({ text: task });
-            await this.touchSession(child.id, task);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `subagent seed prompt failed: ${message}`,
-            });
-          }
-          this.pushStatus();
-          return ok(requestId, 'session/spawn', {
-            sessionId: child.id,
-            parentSessionId: parent.id,
-          });
-        }
-        case 'session/list-children': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const children = await listChildSessions(
-            getPiwinSessionIndexPath(rootDir),
-            command.parentSessionId,
-          );
-          return ok(requestId, 'session/list-children', {
-            parentSessionId: command.parentSessionId,
-            sessions: children,
-          });
-        }
-        case 'session/cancel-subagent': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const indexPath = getPiwinSessionIndexPath(rootDir);
-          const record = await getSessionRecord(indexPath, command.sessionId);
-          if (!record) {
-            return fail(
-              requestId,
-              'session/cancel-subagent',
-              `Unknown session: ${command.sessionId}`,
-            );
-          }
-          if (record.kind !== 'subagent') {
-            return fail(
-              requestId,
-              'session/cancel-subagent',
-              'session is not a sub-agent',
-            );
-          }
-          const live = this.sessions.get(command.sessionId);
-          if (live) {
-            try {
-              await live.abort();
-            } catch {
-              // ignore abort errors
-            }
-          }
-          record.subagentStatus = 'cancelled';
-          record.updatedAt = new Date().toISOString();
-          await upsertSessionRecord(indexPath, record);
-          return ok(requestId, 'session/cancel-subagent', {
-            sessionId: command.sessionId,
-            status: 'cancelled',
-          });
-        }
-        case 'session/complete-subagent': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const indexPath = getPiwinSessionIndexPath(rootDir);
-          const record = await getSessionRecord(indexPath, command.sessionId);
-          if (!record) {
-            return fail(
-              requestId,
-              'session/complete-subagent',
-              `Unknown session: ${command.sessionId}`,
-            );
-          }
-          if (record.kind !== 'subagent') {
-            return fail(
-              requestId,
-              'session/complete-subagent',
-              'session is not a sub-agent',
-            );
-          }
-          const live = this.sessions.get(command.sessionId);
-          if (live) {
-            try {
-              await live.abort();
-            } catch {
-              // ignore abort errors
-            }
-          }
-          const nextStatus = command.status === 'failed' ? 'failed' : 'done';
-          record.subagentStatus = nextStatus;
-          record.updatedAt = new Date().toISOString();
-          await upsertSessionRecord(indexPath, record);
-          if (record.parentSessionId) {
-            this.push({
-              type: 'subagent/updated',
-              parentSessionId: record.parentSessionId,
-              child: indexRecordToSummary(record),
-            });
-          }
-          this.push({
-            type: 'host/log',
-            level: 'info',
-            message: `subagent ${command.sessionId} marked ${nextStatus}`,
-          });
-          return ok(requestId, 'session/complete-subagent', {
-            sessionId: command.sessionId,
-            status: nextStatus,
-          });
-        }
-        case 'session/merge-subagent': {
-          return this.handleMergeSubagent(requestId, command.childSessionId, command.force === true);
-        }
 
-        case 'session/pin': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const record = await pinSessionRecord(
-            getPiwinSessionIndexPath(rootDir),
-            command.sessionId,
-          );
-          if (!record) {
-            return fail(requestId, 'session/pin', `Unknown session: ${command.sessionId}`);
-          }
-          return ok(requestId, 'session/pin', {
-            sessionId: record.id,
-            isPinned: true,
-            pinnedAt: record.pinnedAt,
-            session: indexRecordToSummary(record),
-          });
-        }
-        case 'session/unpin': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const record = await unpinSessionRecord(
-            getPiwinSessionIndexPath(rootDir),
-            command.sessionId,
-          );
-          if (!record) {
-            return fail(requestId, 'session/unpin', `Unknown session: ${command.sessionId}`);
-          }
-          return ok(requestId, 'session/unpin', {
-            sessionId: record.id,
-            isPinned: false,
-            session: indexRecordToSummary(record),
-          });
-        }
-        case 'session/search': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const result = await searchSessions(
-            {
-              indexPath: getPiwinSessionIndexPath(rootDir),
-              resolveTranscriptPath: (sessionId) =>
-                getPiwinSessionTranscriptPath(rootDir, sessionId),
-            },
-            command.query,
-          );
-          return ok(requestId, 'session/search', result);
-        }
-        case 'session/truncate-from': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const indexPath = getPiwinSessionIndexPath(rootDir);
-          const record = await getSessionRecord(indexPath, command.sessionId);
-          if (!record) {
-            return fail(
-              requestId,
-              'session/truncate-from',
-              `Unknown session: ${command.sessionId}`,
-            );
-          }
-          const transcriptPath = getPiwinSessionTranscriptPath(rootDir, command.sessionId);
-          const truncated = await truncateTranscriptFrom(transcriptPath, command.messageId);
-          // Drop live handle so next prompt rebuilds from product transcript only.
-          const live = this.sessions.get(command.sessionId);
-          if (live) {
-            try {
-              await live.abort();
-            } catch {
-              // ignore
-            }
-            const unsub = this.unsubscribers.get(command.sessionId);
-            if (unsub) {
-              unsub();
-              this.unsubscribers.delete(command.sessionId);
-            }
-            this.transcriptRecorders.delete(command.sessionId);
-            this.sessions.delete(command.sessionId);
-          }
-          const remaining = truncated.document?.messages ?? [];
-          record.messageCount = remaining.length;
-          const last = remaining[remaining.length - 1];
-          if (last?.text) {
-            record.lastPreview = last.text.slice(0, 160);
-          } else {
-            delete record.lastPreview;
-          }
-          record.updatedAt = new Date().toISOString();
-          await upsertSessionRecord(indexPath, record);
-          return ok(requestId, 'session/truncate-from', {
-            sessionId: command.sessionId,
-            removedCount: truncated.removedCount,
-            remainingCount: truncated.remainingCount,
-            messages: remaining,
-            session: indexRecordToSummary(record),
-          });
-        }
-        case 'session/resume': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const existing = await getSessionRecord(
-            getPiwinSessionIndexPath(rootDir),
-            command.sessionId,
-          );
-          if (!existing) {
-            return fail(requestId, 'session/resume', `Unknown session: ${command.sessionId}`);
-          }
-          const messages = await this.loadTranscriptMessages(command.sessionId);
-          let session: SessionHandle;
-          let live = true;
-          try {
-            session = await this.host.resumeSession(command.sessionId);
-          } catch (error) {
-            // Cross-process: adapter may not hold the Pi handle. Bind a product shell
-            // that keeps stable id + transcript and creates a live session on first prompt.
-            const message = error instanceof Error ? error.message : String(error);
-            this.push({
-              type: 'host/log',
-              level: 'info',
-              message: `resume fallback to product shell: ${message}`,
-            });
-            const shellOptions: Parameters<typeof createProductShellSession>[0] = {
-              sessionId: command.sessionId,
-              projectPath: existing.projectPath,
-              seedMessages: messages,
-              createLiveSession: async (input) => this.host.createSession(input),
-            };
-            if (existing.name) {
-              shellOptions.sessionName = existing.name;
-            }
-            session = createProductShellSession(shellOptions);
-            live = true;
-          }
-          await this.bindSession(session, existing.projectPath, existing.name);
-          const data: SessionResumeData = {
-            sessionId: session.id,
-            live,
-            messages,
-            projectPath: existing.projectPath,
-            outline: buildSessionOutline(messages),
-          };
-          if (existing.name) {
-            data.name = existing.name;
-          }
-          return ok(requestId, 'session/resume', data);
-        }
-        case 'session/messages': {
-          const messages = await this.loadTranscriptMessages(command.sessionId);
-          return ok(requestId, 'session/messages', {
-            sessionId: command.sessionId,
-            messages,
-          });
-        }
-        case 'session/prompt': {
-          // Persist original user text + attachments (before path-injection rewrite).
-          try {
-            await this.recordUserPrompt(command.sessionId, command.input);
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `transcript user write failed: ${message}`,
-            });
-          }
-          const promptInput = this.buildModelPromptInput(command.input);
-          // CE-CHAT / ADR 0009: rebuild next model prompt from product transcript.
-          try {
-            const transcriptMessages = await this.loadTranscriptMessages(command.sessionId);
-            const lastMessageId = transcriptMessages[transcriptMessages.length - 1]?.id;
-            const history = buildProductHistoryContext(
-              transcriptMessages,
-              lastMessageId ? { excludeMessageId: lastMessageId } : {},
-            );
-            if (history) {
-              promptInput.text = mergeProductHistoryIntoPrompt(history, promptInput.text);
-            }
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `product history inject failed: ${message}`,
-            });
-          }
-          const planPath = getPiwinSessionPlanPath(
-            getPiwinRoot(this.options.piwinRoot),
-            command.sessionId,
-          );
-          const activePlan = await loadSessionPlan(planPath);
-          if (
-            activePlan &&
-            (activePlan.status === 'approved' || activePlan.status === 'executing')
-          ) {
-            promptInput.text =
-              `${formatPlanForModelContext(activePlan)}\n\n${promptInput.text}`;
-          }
-          try {
-            promptInput.text = await this.maybeInjectMemoryOverview(
-              command.sessionId,
-              promptInput.text,
-            );
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `memory overview inject failed: ${message}`,
-            });
-          }
-          this.sessionLastPromptText.set(command.sessionId, command.input.text);
-          // Ensure a live session exists after truncate (product shell rebuild).
-          const liveSession = await this.ensureLiveSession(command.sessionId);
-          await liveSession.prompt(promptInput);
-          try {
-            await this.touchSession(command.sessionId, command.input.text);
-          } catch (error) {
-            // Index persistence is best-effort; never fail the live prompt path.
-            const message = error instanceof Error ? error.message : String(error);
-            this.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `session index touch failed: ${message}`,
-            });
-          }
-          return ok(requestId, 'session/prompt', { sessionId: command.sessionId });
-        }
-        case 'session/abort': {
-          await this.requireSession(command.sessionId).abort();
-          return ok(requestId, 'session/abort', { sessionId: command.sessionId });
-        }
-        case 'session/steer': {
-          await this.requireSession(command.sessionId).steer(command.message);
-          return ok(requestId, 'session/steer', { sessionId: command.sessionId });
-        }
-        case 'session/follow_up': {
-          await this.requireSession(command.sessionId).followUp(command.message);
-          return ok(requestId, 'session/follow_up', { sessionId: command.sessionId });
-        }
-        case 'session/compact': {
-          const session = this.requireSession(command.sessionId);
-          if (!session.compact) {
-            return fail(
-              requestId,
-              'session/compact',
-              'compaction is not supported on this session (RPC or inactive product shell)',
-            );
-          }
-          const startedAt = Date.now();
-          const result = command.customInstructions
-            ? await session.compact(command.customInstructions)
-            : await session.compact();
-          const durationMs =
-            typeof result.durationMs === 'number' ? result.durationMs : Date.now() - startedAt;
-          const data: {
-            ok: boolean;
-            message?: string;
-            summary?: string;
-            tokensBefore?: number;
-            tokensAfter?: number;
-            durationMs?: number;
-          } = { ok: result.ok, durationMs };
-          if (result.message) data.message = result.message;
-          if (result.summary) data.summary = result.summary;
-          if (typeof result.tokensBefore === 'number') data.tokensBefore = result.tokensBefore;
-          if (typeof result.tokensAfter === 'number') data.tokensAfter = result.tokensAfter;
-          return ok(requestId, 'session/compact', data);
-        }
-        case 'session/compact-abort': {
-          const session = this.requireSession(command.sessionId);
-          if (session.abortCompaction) {
-            session.abortCompaction();
-          }
-          return ok(requestId, 'session/compact-abort', { sessionId: command.sessionId });
-        }
-        case 'session/compaction-settings': {
-          const session = this.requireSession(command.sessionId);
-          const supported = typeof session.getAutoCompactionEnabled === 'function';
-          const resolved = await this.resolveAutoCompaction(command.sessionId);
-          return ok(requestId, 'session/compaction-settings', {
-            supported,
-            autoCompactionEnabled: supported
-              ? Boolean(session.getAutoCompactionEnabled?.())
-              : resolved.enabled,
-            source: resolved.source,
-            globalDefault: resolved.globalDefault,
-          });
-        }
-        case 'session/set-auto-compaction': {
-          const session = this.requireSession(command.sessionId);
-          if (!session.setAutoCompactionEnabled) {
-            return fail(
-              requestId,
-              'session/set-auto-compaction',
-              'auto-compaction settings not supported on this session',
-            );
-          }
-          this.sessionAutoCompactionOverrides.set(command.sessionId, command.enabled);
-          session.setAutoCompactionEnabled(command.enabled);
-          return ok(requestId, 'session/set-auto-compaction', {
-            enabled: command.enabled,
-            source: 'session' as const,
-          });
-        }
-        case 'media/save': {
-          this.requireSession(command.input.sessionId);
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const config = await loadPiwinConfig(rootDir);
-          const mediaService = createMediaService({
-            mediaRoot: getPiwinMediaDir(rootDir),
-            maxPasteBytes: config.media.maxPasteBytes,
-            allowedMimeTypes: config.media.allowedMimeTypes,
-          });
-          const bytes = decodeBase64Media(command.input.base64Data);
-          const asset = await mediaService.saveMediaAsset({
-            sessionId: command.input.sessionId,
-            bytes,
-            mimeType: command.input.mimeType,
-            source: command.input.source,
-          });
-          const data: MediaSaveData = { asset };
-          return ok(requestId, 'media/save', data);
-        }
-        case 'skills/list': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          await ensureBundledSkillsInstalled(rootDir);
-          const config = await loadPiwinConfig(rootDir);
-          const scanOptions: Parameters<typeof scanSkills>[0] = {
-            piwinRoot: rootDir,
-          };
-          if (config.skills) {
-            scanOptions.skillsConfig = config.skills;
-          }
-          if (typeof command.projectPath === 'string' && command.projectPath.trim()) {
-            scanOptions.projectPath = command.projectPath;
-          }
-          const skills = await scanSkills(scanOptions);
-          return ok(requestId, 'skills/list', { skills });
-        }
-        case 'skills/set_enabled': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const config = await loadPiwinConfig(rootDir);
-          const skillsConfig = config.skills ?? { extraPaths: [], disabledIds: [] };
-          const disabled = new Set(skillsConfig.disabledIds);
-          if (command.enabled) {
-            disabled.delete(command.skillId);
-          } else {
-            disabled.add(command.skillId);
-          }
-          config.skills = {
-            extraPaths: skillsConfig.extraPaths,
-            disabledIds: [...disabled],
-          };
-          await savePiwinConfig(config, rootDir);
-          return ok(requestId, 'skills/set_enabled', {
-            skillId: command.skillId,
-            enabled: command.enabled,
-            disabledIds: config.skills.disabledIds,
-          });
-        }
-        case 'skills/install': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const installOptions: Parameters<typeof installSkill>[0] = {
-            piwinRoot: rootDir,
-            source: command.source,
-          };
-          if (typeof command.name === 'string' && command.name.trim()) {
-            installOptions.name = command.name.trim();
-          }
-          const result = await installSkill(installOptions);
-          return ok(requestId, 'skills/install', {
-            skillId: result.skillId,
-            targetPath: result.targetPath,
-          });
-        }
-        case 'extensions/list': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          await ensureBundledExtensionsInstalled(rootDir);
-          const config = await loadPiwinConfig(rootDir);
-          const scanOptions: Parameters<typeof scanExtensions>[0] = {
-            piwinRoot: rootDir,
-          };
-          if (config.extensions) {
-            scanOptions.extensionsConfig = config.extensions;
-          }
-          if (typeof command.projectPath === 'string' && command.projectPath.trim()) {
-            scanOptions.projectPath = command.projectPath;
-          }
-          const extensions = await scanExtensions(scanOptions);
-          return ok(requestId, 'extensions/list', { extensions });
-        }
-        case 'extensions/set_enabled': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const config = await loadPiwinConfig(rootDir);
-          const extensionsConfig = config.extensions ?? {
-            extraPaths: [],
-            disabledIds: [],
-          };
-          const disabled = new Set(extensionsConfig.disabledIds);
-          if (command.enabled) {
-            disabled.delete(command.extensionId);
-          } else {
-            disabled.add(command.extensionId);
-          }
-          config.extensions = {
-            extraPaths: extensionsConfig.extraPaths,
-            disabledIds: [...disabled],
-          };
-          await savePiwinConfig(config, rootDir);
-          return ok(requestId, 'extensions/set_enabled', {
-            extensionId: command.extensionId,
-            enabled: command.enabled,
-            disabledIds: config.extensions.disabledIds,
-          });
-        }
-        case 'extensions/ensure-bundled': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const installed = await ensureBundledExtensionsInstalled(rootDir);
-          return ok(requestId, 'extensions/ensure-bundled', {
-            installed,
-          });
-        }
-        case 'extensions/install': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const installOptions: Parameters<typeof installExtension>[0] = {
-            piwinRoot: rootDir,
-            source: command.source,
-          };
-          if (typeof command.name === 'string' && command.name.trim()) {
-            installOptions.name = command.name.trim();
-          }
-          const result = await installExtension(installOptions);
-          return ok(requestId, 'extensions/install', {
-            extensionId: result.extensionId,
-            targetPath: result.targetPath,
-          });
-        }
-        case 'prompts/list': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          await ensureBundledPromptsInstalled(rootDir);
-          const config = await loadPiwinConfig(rootDir);
-          const scanOptions: Parameters<typeof scanPrompts>[0] = {
-            piwinRoot: rootDir,
-          };
-          if (config.prompts) {
-            scanOptions.promptsConfig = config.prompts;
-          }
-          if (typeof command.projectPath === 'string' && command.projectPath.trim()) {
-            scanOptions.projectPath = command.projectPath;
-          }
-          const prompts = await scanPrompts(scanOptions);
-          return ok(requestId, 'prompts/list', { prompts });
-        }
-        case 'prompts/set_enabled': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const config = await loadPiwinConfig(rootDir);
-          const promptsConfig = config.prompts ?? {
-            extraPaths: [],
-            disabledIds: [],
-          };
-          const disabled = new Set(promptsConfig.disabledIds);
-          if (command.enabled) {
-            disabled.delete(command.promptId);
-          } else {
-            disabled.add(command.promptId);
-          }
-          config.prompts = {
-            extraPaths: promptsConfig.extraPaths,
-            disabledIds: [...disabled],
-          };
-          await savePiwinConfig(config, rootDir);
-          return ok(requestId, 'prompts/set_enabled', {
-            promptId: command.promptId,
-            enabled: command.enabled,
-            disabledIds: config.prompts.disabledIds,
-          });
-        }
-        case 'mcp/get': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const document = await loadMcpConfig(rootDir);
-          return ok(requestId, 'mcp/get', {
-            document,
-            path: getMcpConfigPath(rootDir),
-          });
-        }
-        case 'mcp/validate': {
-          const result = tryValidateMcpConfig(command.document);
-          if (result.ok) {
-            return ok(requestId, 'mcp/validate', { valid: true, document: result.document });
-          }
-          return ok(requestId, 'mcp/validate', { valid: false, issues: result.issues });
-        }
-        case 'mcp/save': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const validated = tryValidateMcpConfig(command.document);
-          if (!validated.ok) {
-            return fail(
-              requestId,
-              'mcp/save',
-              validated.issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '),
-            );
-          }
-          const path = await saveMcpConfig(rootDir, validated.document);
-          return ok(requestId, 'mcp/save', { path, document: validated.document });
-        }
-        case 'mcp/list_tools': {
-          const tools = await this.getMcpManager().listTools(command.serverId);
-          return ok(requestId, 'mcp/list_tools', { serverId: command.serverId, tools });
-        }
-        case 'mcp/status': {
-          const servers = await this.getMcpManager().listHealth();
-          return ok(requestId, 'mcp/status', { servers });
-        }
-        case 'mcp/start': {
-          const health = await this.getMcpManager().start(command.serverId);
-          return ok(requestId, 'mcp/start', { health });
-        }
-        case 'mcp/stop': {
-          const health = await this.getMcpManager().stop(command.serverId);
-          return ok(requestId, 'mcp/stop', { health });
-        }
-        case 'git/status': {
-          const git = createGitService();
-          const snapshot = await git.getStatus(command.projectPath);
-          return ok(requestId, 'git/status', { snapshot });
-        }
-        case 'git/diff-summary': {
-          const git = createGitService();
-          const summary = await git.getDiffSummary(command.projectPath);
-          return ok(requestId, 'git/diff-summary', { summary });
-        }
-        case 'git/log-graph': {
-          const git = createGitService();
-          const graph = await git.getCommitGraph(
-            command.projectPath,
-            typeof command.limit === 'number' ? command.limit : undefined,
-          );
-          return ok(requestId, 'git/log-graph', { graph });
-        }
-        case 'git/stage': {
-          const git = createGitService();
-          const result = await git.stage(command.input);
-          return ok(requestId, 'git/stage', { result });
-        }
-        case 'git/unstage': {
-          const git = createGitService();
-          const result = await git.unstage(command.input);
-          return ok(requestId, 'git/unstage', { result });
-        }
-        case 'git/commit': {
-          const git = createGitService();
-          const result = await git.commit(command.input);
-          return ok(requestId, 'git/commit', { result });
-        }
-        case 'git/branch-create': {
-          const git = createGitService();
-          const result = await git.createBranch(command.input);
-          return ok(requestId, 'git/branch-create', { result });
-        }
-        case 'git/checkout': {
-          const git = createGitService();
-          const result = await git.checkout(command.input);
-          return ok(requestId, 'git/checkout', { result });
-        }
-        case 'theme/list': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const data = await listThemes(rootDir);
-          return ok(requestId, 'theme/list', data);
-        }
-        case 'theme/get-active': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const theme = await getActiveTheme(rootDir);
-          return ok(requestId, 'theme/get-active', { theme });
-        }
-        case 'theme/set-active': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const theme = await setActiveTheme(rootDir, command.themeId);
-          return ok(requestId, 'theme/set-active', { theme });
-        }
-        case 'theme/install-local': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const installed = await installThemeFromLocalPath(rootDir, command.sourcePath);
-          return ok(requestId, 'theme/install-local', installed);
-        }
-        case 'pet/list': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const data = await listPets(rootDir);
-          return ok(requestId, 'pet/list', data);
-        }
-        case 'pet/get-active': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const pet = await getActivePet(rootDir);
-          return ok(requestId, 'pet/get-active', { pet });
-        }
-        case 'pet/set-active': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const pet = await setActivePet(rootDir, command.petId);
-          return ok(requestId, 'pet/set-active', { pet });
-        }
-        case 'pet/install-local': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const installed = await installPetFromLocalPath(rootDir, command.sourcePath);
-          return ok(requestId, 'pet/install-local', installed);
-        }
-        case 'pet/import-codex': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const result = await importPetsFromCodex(rootDir);
-          return ok(requestId, 'pet/import-codex', result);
-        }
 
-        case 'plan/get': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const planPath = getPiwinSessionPlanPath(rootDir, command.sessionId);
-          const plan = await loadSessionPlan(planPath);
-          return ok(requestId, 'plan/get', { sessionId: command.sessionId, plan });
-        }
-        case 'plan/set': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const existing = await getSessionRecord(
-            getPiwinSessionIndexPath(rootDir),
-            command.sessionId,
-          );
-          if (!existing) {
-            return fail(requestId, 'plan/set', `Unknown session: ${command.sessionId}`);
-          }
-          const validated = validateSessionPlan(command.plan);
-          if (!validated.ok) {
-            return fail(
-              requestId,
-              'plan/set',
-              validated.issues.map((issue) => `${issue.path}: ${issue.message}`).join('; '),
-            );
-          }
-          const now = new Date().toISOString();
-          const previous = await loadSessionPlan(
-            getPiwinSessionPlanPath(rootDir, command.sessionId),
-          );
-          const plan = {
-            ...validated.plan,
-            sessionId: command.sessionId,
-            projectPath: existing.projectPath,
-            id: previous?.id ?? validated.plan.id,
-            createdAt: previous?.createdAt ?? validated.plan.createdAt ?? now,
-            updatedAt: now,
-            revision: previous ? previous.revision + 1 : validated.plan.revision,
-          };
-          await saveSessionPlan(getPiwinSessionPlanPath(rootDir, command.sessionId), plan);
-          this.push({ type: 'plan/updated', sessionId: command.sessionId, plan });
-          return ok(requestId, 'plan/set', { plan });
-        }
-        case 'plan/clear': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          await clearSessionPlan(getPiwinSessionPlanPath(rootDir, command.sessionId));
-          this.push({ type: 'plan/updated', sessionId: command.sessionId, plan: null });
-          return ok(requestId, 'plan/clear', { sessionId: command.sessionId });
-        }
-        case 'plan/approve': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const planPath = getPiwinSessionPlanPath(rootDir, command.sessionId);
-          const plan = await loadSessionPlan(planPath);
-          if (!plan) {
-            return fail(requestId, 'plan/approve', 'No plan for session');
-          }
-          if (plan.status !== 'draft' && plan.status !== 'approved') {
-            return fail(
-              requestId,
-              'plan/approve',
-              `Cannot approve plan in status ${plan.status}`,
-            );
-          }
-          const approved = {
-            ...plan,
-            status: 'approved' as const,
-            revision: plan.revision + 1,
-            updatedAt: new Date().toISOString(),
-          };
-          await saveSessionPlan(planPath, approved);
-          this.push({ type: 'plan/updated', sessionId: command.sessionId, plan: approved });
-          return ok(requestId, 'plan/approve', { plan: approved });
-        }
-        case 'plan/update-step': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const planPath = getPiwinSessionPlanPath(rootDir, command.sessionId);
-          const plan = await loadSessionPlan(planPath);
-          if (!plan) {
-            return fail(requestId, 'plan/update-step', 'No plan for session');
-          }
-          const result = applyPlanStepUpdate({
-            plan,
-            stepId: command.stepId,
-            status: command.status,
-            ...(typeof command.detail === 'string' ? { detail: command.detail } : {}),
-          });
-          if (!result.ok) {
-            return fail(requestId, 'plan/update-step', result.error);
-          }
-          await saveSessionPlan(planPath, result.plan);
-          this.push({ type: 'plan/updated', sessionId: command.sessionId, plan: result.plan });
-          if (result.plan.status !== plan.status) {
-            this.push({
-              type: 'host/log',
-              level: 'info',
-              message: `plan ${command.sessionId} status ${plan.status} → ${result.plan.status}`,
-            });
-          }
-          return ok(requestId, 'plan/update-step', { plan: result.plan });
-        }
-        case 'plan/set-status': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const planPath = getPiwinSessionPlanPath(rootDir, command.sessionId);
-          const plan = await loadSessionPlan(planPath);
-          if (!plan) {
-            return fail(requestId, 'plan/set-status', 'No plan for session');
-          }
-          const result = applyPlanStatus({ plan, status: command.status });
-          if (!result.ok) {
-            return fail(requestId, 'plan/set-status', result.error);
-          }
-          await saveSessionPlan(planPath, result.plan);
-          this.push({ type: 'plan/updated', sessionId: command.sessionId, plan: result.plan });
-          return ok(requestId, 'plan/set-status', { plan: result.plan });
-        }
 
-        case 'config/get': {
-          const configRoot = getPiwinRoot(this.options.piwinRoot);
-          const config = await loadPiwinConfig(configRoot);
-          return ok(requestId, 'config/get', { config, root: configRoot });
-        }
-        case 'config/set': {
-          const configRoot = getPiwinRoot(this.options.piwinRoot);
-          const path = await savePiwinConfig(command.config, configRoot);
-          return ok(requestId, 'config/set', { path });
-        }
-        case 'permission/resolve': {
-          const pending = this.pendingPermissions.get(command.requestId);
-          if (pending) {
-            if (
-              command.decision === 'allow' &&
-              command.rememberScope === 'project'
-            ) {
-              await this.rememberProjectPermission(
-                pending.sessionId,
-                pending.action,
-                pending.detail,
-              );
-            }
-            pending.resolve(command.decision);
-            this.pendingPermissions.delete(command.requestId);
-          }
-          const resolveData: {
-            requestId: string;
-            decision: PermissionDecision;
-            rememberScope?: 'once' | 'project';
-          } = {
-            requestId: command.requestId,
-            decision: command.decision,
-          };
-          if (command.rememberScope) {
-            resolveData.rememberScope = command.rememberScope;
-          }
-          return ok(requestId, 'permission/resolve', resolveData);
-        }
-        case 'extension/ui_resolve': {
-          const pending = this.pendingExtensionUi.get(command.requestId);
-          if (!pending) {
-            return fail(
-              requestId,
-              'extension/ui_resolve',
-              `Unknown extension UI request: ${command.requestId}`,
-            );
-          }
-          this.pendingExtensionUi.delete(command.requestId);
-          if (pending.kind === 'confirm') {
-            pending.resolve({
-              kind: 'confirm',
-              confirmed: command.confirmed === true && command.cancelled !== true,
-            });
-          } else if (pending.kind === 'select') {
-            if (command.cancelled === true || command.value === undefined) {
-              pending.resolve({ kind: 'select', cancelled: true });
-            } else {
-              pending.resolve({ kind: 'select', value: command.value });
-            }
-          } else if (command.cancelled === true || command.value === undefined) {
-            pending.resolve({ kind: 'input', cancelled: true });
-          } else {
-            pending.resolve({ kind: 'input', value: command.value });
-          }
-          return ok(requestId, 'extension/ui_resolve', {
-            requestId: command.requestId,
-            ok: true,
-          });
-        }
-        case 'process/list': {
-          const registry = this.getProcessRegistry();
-          const filter: { sessionId?: string; projectPath?: string } = {};
-          if (command.sessionId) filter.sessionId = command.sessionId;
-          if (command.projectPath) filter.projectPath = command.projectPath;
-          const processes = registry.list(
-            Object.keys(filter).length > 0 ? filter : undefined,
-          );
-          return ok(requestId, 'process/list', { processes });
-        }
-        case 'process/get': {
-          const registry = this.getProcessRegistry();
-          const processRecord = registry.get(command.processId);
-          if (!processRecord) {
-            return fail(requestId, 'process/get', `Unknown process: ${command.processId}`);
-          }
-          return ok(requestId, 'process/get', { process: processRecord });
-        }
-        case 'process/start': {
-          // IPC start is host-authoritative (Desktop/CLI). Agent tools gate via process:start ask.
-          const registry = this.getProcessRegistry();
-          const processRecord = await registry.start(command.input);
-          return ok(requestId, 'process/start', { process: processRecord });
-        }
-        case 'process/logs': {
-          const registry = this.getProcessRegistry();
-          const chunks = registry.readLogs(command.query);
-          return ok(requestId, 'process/logs', {
-            processId: command.query.processId,
-            chunks,
-          });
-        }
-        case 'process/stop': {
-          // UI Stop is explicit user intent; tools still gate via process:stop ask.
-          const registry = this.getProcessRegistry();
-          const processRecord = await registry.stop(command.processId);
-          return ok(requestId, 'process/stop', { process: processRecord });
-        }
 
-        case 'memory/list': {
-          await this.requireMemoryEnabled();
-          const store = this.getMemoryStore();
-          const records = await store.list(command.filter ?? {});
-          return ok(requestId, 'memory/list', { records });
-        }
-        case 'memory/read': {
-          await this.requireMemoryEnabled();
-          const store = this.getMemoryStore();
-          const record = await store.read(command.memoryId);
-          return ok(requestId, 'memory/read', { record });
-        }
-        case 'memory/search': {
-          await this.requireMemoryEnabled();
-          const store = this.getMemoryStore();
-          const hits = await store.search(command.query);
-          return ok(requestId, 'memory/search', { hits });
-        }
-        case 'memory/write': {
-          await this.requireMemoryEnabled();
-          const store = this.getMemoryStore();
-          const record = await store.write(command.input);
-          return ok(requestId, 'memory/write', { record });
-        }
-        case 'memory/update': {
-          await this.requireMemoryEnabled();
-          const store = this.getMemoryStore();
-          const record = await store.update(command.input);
-          return ok(requestId, 'memory/update', { record });
-        }
-        case 'memory/delete': {
-          await this.requireMemoryEnabled();
-          const store = this.getMemoryStore();
-          const result = await store.delete(command.memoryId);
-          return ok(requestId, 'memory/delete', result);
-        }
-        case 'memory/accept': {
-          await this.requireMemoryEnabled();
-          const store = this.getMemoryStore();
-          const record = await store.accept(command.memoryId);
-          return ok(requestId, 'memory/accept', { record });
-        }
-        case 'memory/quota': {
-          await this.requireMemoryEnabled();
-          const store = this.getMemoryStore();
-          const quotaOptions: { scope?: 'global' | 'project'; projectKey?: string } = {};
-          if (command.scope) quotaOptions.scope = command.scope;
-          if (command.projectKey) quotaOptions.projectKey = command.projectKey;
-          const summaries = await store.quotaSummary(quotaOptions);
-          return ok(requestId, 'memory/quota', { summaries });
-        }
 
         case 'notes/list': {
           const { store } = await this.getNotesServices();
@@ -1493,51 +531,6 @@ export class HostRuntime {
             count: cards.length,
           });
         }
-
-        case 'session/export': {
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const indexPath = getPiwinSessionIndexPath(rootDir);
-          const record = await getSessionRecord(indexPath, command.sessionId);
-          if (!record) {
-            return fail(
-              requestId,
-              'session/export',
-              `Unknown session: ${command.sessionId}`,
-            );
-          }
-          const format = command.format === 'html' ? 'html' : 'md';
-          const redactTools = command.redactTools === true;
-          const messages = await this.loadTranscriptMessages(command.sessionId);
-          const exported = exportTranscript(messages, {
-            format,
-            redactTools,
-            sessionId: command.sessionId,
-            projectPath: record.projectPath,
-            ...(record.name ? { title: record.name } : {}),
-          });
-          let outputPath: string;
-          if (command.outputPath && command.outputPath.trim()) {
-            const candidate = command.outputPath.trim();
-            outputPath = isAbsolute(candidate) ? candidate : resolvePath(candidate);
-          } else {
-            const basename = suggestSessionExportBasename(command.sessionId, format);
-            outputPath = resolvePath(
-              getPiwinSessionDir(rootDir, command.sessionId),
-              'exports',
-              basename,
-            );
-          }
-          await mkdir(dirname(outputPath), { recursive: true });
-          await writeFile(outputPath, exported.content, 'utf8');
-          const byteLength = Buffer.byteLength(exported.content, 'utf8');
-          return ok(requestId, 'session/export', {
-            sessionId: command.sessionId,
-            format,
-            redactTools,
-            path: outputPath,
-            byteLength,
-          });
-        }
         default:
           return fail(requestId, 'unknown', 'Unhandled command');
       }
@@ -1559,18 +552,49 @@ export class HostRuntime {
    */
   requestPermission(input: {
     sessionId: string;
+    projectPath?: string;
     action: string;
     detail: string;
     defaultDecision: PermissionDecision;
+    signal?: AbortSignal;
   }): Promise<PermissionDecision> {
     const requestId = randomUUID();
+    const context = buildPermissionRequestContext(input.action, input.detail);
     return new Promise((resolve) => {
-      this.pendingPermissions.set(requestId, {
-        resolve,
+      const activeRun = this.activeRuns.get(input.sessionId);
+      const executionRunId = this.runExecutionContext.getStore();
+      const permissionRunId = executionRunId ?? activeRun?.runId;
+      let settled = false;
+      const cleanup = (): void => {
+        input.signal?.removeEventListener('abort', abortHandler);
+      };
+      const settle = (decision: PermissionDecision): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        cleanup();
+        this.pendingPermissions.delete(requestId);
+        resolve(decision);
+      };
+      const abortHandler = (): void => {
+        settle('deny');
+      };
+      const pendingPermission = {
+        resolve: settle,
         sessionId: input.sessionId,
+        ...(permissionRunId ? { runId: permissionRunId } : {}),
+        ...(input.projectPath ? { projectPath: input.projectPath } : {}),
         action: input.action,
         detail: input.detail,
-      });
+        cleanup,
+      };
+      this.pendingPermissions.set(requestId, pendingPermission);
+      if (input.signal?.aborted) {
+        settle('deny');
+        return;
+      }
+      input.signal?.addEventListener('abort', abortHandler, { once: true });
       this.push({
         type: 'permission/request',
         sessionId: input.sessionId,
@@ -1578,6 +602,8 @@ export class HostRuntime {
         action: input.action,
         detail: input.detail,
         defaultDecision: input.defaultDecision,
+        context,
+        ...(permissionRunId ? { runId: permissionRunId } : {}),
       });
       this.push({
         type: 'event',
@@ -1588,6 +614,8 @@ export class HostRuntime {
           action: input.action,
           detail: input.detail,
           defaultDecision: input.defaultDecision,
+          context,
+          ...(permissionRunId ? { runId: permissionRunId } : {}),
         },
       });
     });
@@ -1648,25 +676,19 @@ export class HostRuntime {
     sessionId: string,
     action: string,
     detail: string,
+    scope: 'project' = 'project',
+    pendingProjectPath?: string,
   ): Promise<void> {
-    if (!action.startsWith('network:') && !action.startsWith('mcp:')) {
+    if (!action.startsWith('network:')) {
       return;
     }
-    const projectPath = this.sessionProjects.get(sessionId);
-    if (!projectPath) {
+    const projectPath = pendingProjectPath ?? this.sessionProjects.get(sessionId);
+    // Empty path / general workspace path = no project allowlist to mutate.
+    if (!projectPath || projectPath.trim().length === 0) {
       return;
     }
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const projectsFile = getPiwinProjectsPath(rootDir);
-    if (action === 'mcp:connect' || action === 'mcp:tool-call') {
-      // Connect: "<serverId>: <command>"; tool-call: "<serverId>/<toolName>"
-      // Both persist the same server-level allowlist entry.
-      const serverId = parseMcpServerIdFromPermissionDetail(action, detail);
-      if (serverId) {
-        await allowMcpServer(projectsFile, projectPath, serverId);
-      }
-      return;
-    }
     if (action === 'network:web_search') {
       await allowNetworkWebSearch(projectsFile, projectPath);
       return;
@@ -1826,11 +848,189 @@ export class HostRuntime {
     return prependMemoryOverview(promptText, overview);
   }
 
+
+  private getPtyHost(): PtyHost {
+    if (!this.ptyHost) {
+      this.ptyHost = new PtyHost({
+        isProjectTrusted: async (projectPath) => {
+          try {
+            const rootDir = getPiwinRoot(this.options.piwinRoot);
+            const project = await openOrCreateProject(
+              getPiwinProjectsPath(rootDir),
+              projectPath,
+            );
+            return project.trust === 'trusted';
+          } catch {
+            return false;
+          }
+        },
+        onOutput: (ptyId, data) => {
+          this.push({
+            type: 'pty/output',
+            ptyId,
+            data,
+            at: new Date().toISOString(),
+          });
+        },
+        onExit: (ptyId, exitCode) => {
+          const payload: { type: 'pty/exit'; ptyId: string; exitCode?: number | null } = {
+            type: 'pty/exit',
+            ptyId,
+          };
+          if (exitCode !== undefined) {
+            payload.exitCode = exitCode;
+          }
+          this.push(payload);
+        },
+      });
+    }
+    return this.ptyHost;
+  }
+
+  /**
+   * Maps normalized AgentEvent → CE-HOOK events and runs matching hooks.
+   * Failures are logged only; they never fail the original agent turn.
+   */
+  private async dispatchHooksForAgentEvent(
+    sessionId: string,
+    event: AgentEvent,
+  ): Promise<void> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const config = await loadPiwinConfig(rootDir);
+    if (config.automation?.enabled !== true || config.automation?.hooksEnabled !== true) {
+      return;
+    }
+    let hookEvent: import('@piwin/contracts').HookEventName | null = null;
+    let toolName: string | undefined;
+    if (event.type === 'session/started') {
+      hookEvent = 'agent_start';
+    } else if (event.type === 'session/ended') {
+      hookEvent = 'agent_end';
+    } else if (event.type === 'message/start' && event.role === 'user') {
+      hookEvent = 'turn_start';
+    } else if (event.type === 'session/aborted' || event.type === 'usage/update') {
+      // Abort or completed turn usage → turn_end (message/end has no role).
+      hookEvent = 'turn_end';
+    } else if (event.type === 'tool/end') {
+      hookEvent = 'tool_execution_end';
+    }
+    if (!hookEvent) {
+      return;
+    }
+    const hooksDocument = await loadHooks(getHooksStorePath(rootDir));
+    if (hooksDocument.hooks.length === 0) {
+      return;
+    }
+    const projectPath = this.sessionProjects.get(sessionId);
+    const results = await runMatchingHooks(hooksDocument.hooks, {
+      sessionId,
+      event: hookEvent,
+      ...(projectPath ? { projectPath } : {}),
+      ...(toolName ? { toolName } : {}),
+    });
+    for (const result of results) {
+      this.push({
+        type: 'host/log',
+        level: result.ok ? 'info' : 'warn',
+        message: result.ok
+          ? `hook ${result.hookId} ok (${hookEvent})`
+          : `hook ${result.hookId} failed: ${result.message ?? 'error'}`,
+      });
+    }
+  }
+
+  private async runCronJob(job: import('@piwin/contracts').CronJob): Promise<{
+    ok: boolean;
+    message?: string;
+  }> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const config = await loadPiwinConfig(rootDir);
+    if (config.automation?.enabled !== true) {
+      return { ok: false, message: 'automation disabled (config.automation.enabled)' };
+    }
+    if (config.automation?.cronEnabled !== true) {
+      return { ok: false, message: 'cron disabled (config.automation.cronEnabled)' };
+    }
+    if (job.enabled !== true) {
+      return { ok: false, message: `job ${job.id} is disabled` };
+    }
+    const now = new Date().toISOString();
+    try {
+      if (job.type === 'prompt') {
+        const projectPath = job.projectPath;
+        if (!projectPath) {
+          throw new Error('prompt cron requires projectPath');
+        }
+        const text = job.promptText?.trim() || job.name;
+        const session = await this.host.createSession({
+          projectPath,
+          sessionName: `cron-${job.id.slice(0, 8)}`,
+          executionMode: 'agent',
+        });
+        await this.bindSession(session, projectPath, `cron-${job.id.slice(0, 8)}`, {
+          kind: 'main',
+          depth: 0,
+        });
+        await session.prompt({ text: `[cron:${job.id}] ${text}` });
+        const updated = {
+          ...job,
+          lastRunAt: now,
+          lastStatus: 'ok' as const,
+        };
+        delete (updated as { lastError?: string }).lastError;
+        await upsertCronJob(getCronStorePath(rootDir), updated);
+        this.push({ type: 'automation/cron_finished', jobId: job.id, ok: true });
+        return { ok: true, message: `prompt session ${session.id}` };
+      }
+      throw new Error(`cron type ${job.type} not enabled in this slice`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const updated = {
+        ...job,
+        lastRunAt: now,
+        lastStatus: 'error' as const,
+        lastError: message,
+      };
+      await upsertCronJob(getCronStorePath(rootDir), updated);
+      this.push({
+        type: 'automation/cron_finished',
+        jobId: job.id,
+        ok: false,
+        message,
+      });
+      return { ok: false, message };
+    }
+  }
+
   private getProcessRegistry(): ProcessRegistry {
     if (!this.processRegistry) {
       throw new Error('Process registry is not available');
     }
     return this.processRegistry;
+  }
+
+  private async stopProcessesForSession(sessionId: string): Promise<void> {
+    const processRegistry = this.processRegistry;
+    if (!processRegistry) {
+      return;
+    }
+    try {
+      const stopped = await processRegistry.stopForSession(sessionId);
+      if (stopped.length > 0) {
+        this.push({
+          type: 'host/log',
+          level: 'info',
+          message: `stopped ${stopped.length} session-bound process(es) for ${sessionId}`,
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `session-bound process cleanup failed: ${message}`,
+      });
+    }
   }
 
   private emitProcessEvent(event: {
@@ -1925,6 +1125,136 @@ export class HostRuntime {
     return process.env.PIWIN_RPC_STOCK !== '1';
   }
 
+
+
+  private buildSessionLiveContext(): SessionLiveContext {
+    return {
+      ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
+      host: this.host,
+      createSession: (input) => this.createSession(input),
+      sessions: this.sessions,
+      sessionExecutionModes: this.sessionExecutionModes,
+      sessionFilesTouched: this.sessionFilesTouched,
+      sessionLastPromptText: this.sessionLastPromptText,
+      sessionAutoCompactionOverrides: this.sessionAutoCompactionOverrides,
+      unsubscribers: this.unsubscribers,
+      transcriptRecorders: this.transcriptRecorders,
+      push: (message) => this.push(message),
+      pushStatus: () => this.pushStatus(),
+      requireSession: (sessionId) => this.requireSession(sessionId),
+      bindSession: (session, projectPath, sessionName, lineage) =>
+        this.bindSession(session, projectPath, sessionName, lineage),
+      loadTranscriptMessages: (sessionId) => this.loadTranscriptMessages(sessionId),
+      stopProcessesForSession: (sessionId) => this.stopProcessesForSession(sessionId),
+      recordUserPrompt: (sessionId, input) => this.recordUserPrompt(sessionId, input),
+      touchSession: (sessionId, previewText) => this.touchSession(sessionId, previewText),
+      needsProductHistoryInjection: (sessionId) =>
+        this.sessions.get(sessionId)?.needsProductHistoryInjection?.() === true,
+      ensureLiveSession: (sessionId) => this.ensureLiveSession(sessionId),
+      resolveAutoCompaction: (sessionId) => this.resolveAutoCompaction(sessionId),
+      maybeInjectMemoryOverview: (sessionId, text) =>
+        this.maybeInjectMemoryOverview(sessionId, text),
+      handleMergeSubagent: (requestId, childSessionId, force) =>
+        this.handleMergeSubagent(requestId, childSessionId, force),
+      buildModelPromptInput: (input) => this.buildModelPromptInput(input),
+      runWithContext: (runId, operation) => {
+        void this.runExecutionContext.run(runId, operation);
+      },
+      getActiveRun: (sessionId) => this.activeRuns.get(sessionId),
+      // RunEventCorrelator observes active-run changes on each provider event.
+      // The registry rejects overlapping registration, so there is no separate
+      // host-side replacement transition to mark here.
+      registerActiveRun: (sessionId) => this.activeRuns.register(sessionId),
+      requestCancelActiveRun: (sessionId, runId) =>
+        this.activeRuns.requestCancel(sessionId, runId),
+      markActiveRunTerminal: (sessionId, runId) =>
+        this.activeRuns.markTerminal(sessionId, runId),
+      clearActiveRun: (sessionId, runId) => this.activeRuns.clear(sessionId, runId),
+      emitRunPhase: (sessionId, runId, phase, detail) => {
+        this.push({
+          type: 'event',
+          sessionId,
+          event:
+            detail === undefined
+              ? buildRunPhaseEvent(sessionId, runId, phase)
+              : buildRunPhaseEvent(sessionId, runId, phase, detail),
+        });
+      },
+      emitRunTerminal: (sessionId, runId, outcome, code, message) => {
+        if (!this.activeRuns.markTerminal(sessionId, runId)) {
+          return false;
+        }
+        // The terminal event is emitted directly by the host, so explicitly
+        // close correlator ownership before the active run is cleared.
+        this.runEventCorrelator.markRunTerminal(sessionId, runId);
+        this.rememberTerminalRun(sessionId, runId);
+        this.push({
+          type: 'event',
+          sessionId,
+          event: buildRunTerminalEvent(
+            sessionId,
+            runId,
+            outcome,
+            code,
+            message,
+          ),
+        });
+        this.activeRuns.clear(sessionId, runId);
+        const recorder = this.transcriptRecorders.get(sessionId);
+        if (recorder) {
+          void recorder.flush().catch((error: unknown) => {
+            const detail = error instanceof Error ? error.message : String(error);
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `transcript terminal flush failed: ${detail}`,
+            });
+          });
+        }
+        return true;
+      },
+      settlePendingPermissionsForSession: (sessionId) => {
+        for (const [requestId, pending] of this.pendingPermissions.entries()) {
+          if (pending.sessionId === sessionId) {
+            pending.resolve('deny');
+            this.pendingPermissions.delete(requestId);
+          }
+        }
+      },
+    };
+  }
+
+  private buildDomainContext(): import('./commands/domain-command-dispatch.js').DomainDispatchContext {
+    const hostContext: HostCommandContext = {
+      ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
+      push: (message) => this.push(message),
+      requireSession: (sessionId) => this.requireSession(sessionId),
+      getMcpManager: () => this.getMcpManager(),
+      getProcessRegistry: () => this.getProcessRegistry(),
+      getMemoryStore: () => this.getMemoryStore(),
+      requireMemoryEnabled: () => this.requireMemoryEnabled(),
+      getPtyHost: () => this.getPtyHost(),
+      todoStore: this.todoStore,
+      runCronJob: (job) => this.runCronJob(job),
+      pendingPermissions: this.pendingPermissions,
+      pendingExtensionUi: this.pendingExtensionUi,
+      rememberProjectPermission: (sessionId, action, detail, scope, projectPath) =>
+        this.rememberProjectPermission(sessionId, action, detail, scope, projectPath),
+    };
+    return {
+      ...hostContext,
+      sessionProduct: {
+        ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
+        host: this.host,
+        abortLiveSession: (sessionId) => this.abortLiveSession(sessionId),
+        disposeLiveSession: (sessionId) => this.disposeLiveSession(sessionId),
+        bindSession: (session, projectPath, sessionName, lineage) =>
+          this.bindSession(session, projectPath, sessionName, lineage),
+        pushStatus: () => this.pushStatus(),
+      },
+    };
+  }
+
   private getStatus(): HostStatusData {
     return {
       mode: this.host.mode,
@@ -1951,9 +1281,16 @@ export class HostRuntime {
         memory: true,
         sessionSearch: true,
         sessionPin: true,
+        sessionLifecycle: true,
         usage: true,
         process: true,
         sessionExport: true,
+        // ADR 0013: real Tauri PTY not shipped — do not claim interactive PTY.
+        pty: false,
+        shellPreview: true,
+        subagentWorktree: true,
+        marketplaceHub: true,
+        automation: true,
       },
     };
   }
@@ -1972,20 +1309,15 @@ export class HostRuntime {
     session: SessionHandle,
     projectPath?: string,
     sessionName?: string,
-    lineage?: {
-      parentSessionId?: string;
-      kind?: 'main' | 'subagent';
-      depth?: number;
-      subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
-      task?: string;
-    },
+    lineage?: SessionLineage,
   ): Promise<void> {
     const existing = this.unsubscribers.get(session.id);
     if (existing) {
       existing();
     }
     this.sessions.set(session.id, session);
-    if (projectPath) {
+    // projectPath may be '' for General sessions — still bind maps + index.
+    if (projectPath !== undefined) {
       this.sessionProjects.set(session.id, projectPath);
       const rootDir = getPiwinRoot(this.options.piwinRoot);
       const indexPath = getPiwinSessionIndexPath(rootDir);
@@ -2011,6 +1343,7 @@ export class HostRuntime {
           if (lineage?.task) {
             current.task = lineage.task;
           }
+          applySubagentLineage(current, lineage);
           await upsertSessionRecord(indexPath, current);
         } else {
           const recordInput: Parameters<typeof createSessionRecord>[0] = {
@@ -2018,6 +1351,13 @@ export class HostRuntime {
             projectPath,
             name: sessionName ?? `session-${session.id.slice(0, 8)}`,
           };
+          if (!projectPath) {
+            recordInput.scope = { kind: 'general' };
+            // workingDirectory filled by adapter persist or on next resolve
+          } else {
+            recordInput.scope = { kind: 'project', projectPath };
+            recordInput.workingDirectory = projectPath;
+          }
           if (lineage?.parentSessionId) {
             recordInput.parentSessionId = lineage.parentSessionId;
           }
@@ -2033,6 +1373,7 @@ export class HostRuntime {
           if (lineage?.task) {
             recordInput.task = lineage.task;
           }
+          copySubagentLineage(recordInput, lineage);
           await upsertSessionRecord(indexPath, createSessionRecord(recordInput));
         }
       } catch {
@@ -2046,27 +1387,81 @@ export class HostRuntime {
     );
 
     const unsubscribe = session.subscribe((event: AgentEvent) => {
-      this.push({ type: 'event', sessionId: session.id, event });
-      if (event.type === 'permission/request') {
+      const activeRun = this.activeRuns.get(session.id);
+      const correlation = this.runEventCorrelator.correlate(
+        session.id,
+        event,
+        activeRun?.runId,
+        this.runExecutionContext.getStore(),
+      );
+      if (!correlation.accepted) {
+        if (hasExplicitRunId(event)) {
+          // Stale explicit events are dropped at the host boundary. In
+          // particular, do not let them reach hooks, usage, or transcript.
+          return;
+        }
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `discarded uncorrelated session event: ${event.type}`,
+        });
+        return;
+      }
+      const correlatedEvent = correlation.event;
+      const correlatedRunId = readEventRunId(correlatedEvent);
+      const activeRunId = activeRun?.runId;
+      if (
+        correlatedRunId !== undefined &&
+        (this.isTerminalRun(session.id, correlatedRunId) ||
+          (activeRunId !== undefined && correlatedRunId !== activeRunId))
+      ) {
+        // Context-owned events can have no explicit runId. The correlator
+        // annotates them, and this second check prevents old async callbacks
+        // from reaching push, hooks, usage, or transcript recording.
+        return;
+      }
+      this.push({ type: 'event', sessionId: session.id, event: correlatedEvent });
+      const nextPhase = this.activeRuns.noteAgentEvent(session.id, correlatedEvent);
+      if (nextPhase !== null) {
+        const active = this.activeRuns.get(session.id);
+        if (active) {
+          this.push({
+            type: 'event',
+            sessionId: session.id,
+            event: buildRunPhaseEvent(session.id, active.runId, nextPhase),
+          });
+        }
+      }
+      if (correlatedEvent.type === 'permission/request') {
         this.push({
           type: 'permission/request',
           sessionId: session.id,
-          requestId: event.requestId,
-          action: event.action,
-          detail: event.detail,
-          defaultDecision: event.defaultDecision,
+          requestId: correlatedEvent.requestId,
+          action: correlatedEvent.action,
+          detail: correlatedEvent.detail,
+          defaultDecision: correlatedEvent.defaultDecision,
+          ...(correlatedEvent.runId ? { runId: correlatedEvent.runId } : {}),
         });
       }
       if (event.type === 'usage/update') {
         this.sessionUsage.set(session.id, event.usage);
       }
       // CE-OBS: if mock/host did not emit usage, estimate after assistant message ends.
-      if (event.type === 'message/end') {
-        void this.maybeEmitUsageOnMessageEnd(session.id, event.messageId);
+      if (correlatedEvent.type === 'message/end') {
+        void this.maybeEmitUsageOnMessageEnd(session.id, correlatedEvent.messageId);
       }
+      // CE-HOOK: arm matching hooks on normalized AgentEvent (best-effort, never fails turn).
+      void this.dispatchHooksForAgentEvent(session.id, correlatedEvent).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `hook dispatch failed: ${message}`,
+        });
+      });
       const recorder = this.transcriptRecorders.get(session.id);
       if (recorder) {
-        void recorder.recordEvent(event).catch((error: unknown) => {
+        void recorder.recordEvent(correlatedEvent).catch((error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
           this.push({
             type: 'host/log',
@@ -2173,18 +1568,34 @@ export class HostRuntime {
         childSessionId,
       });
       const now = new Date().toISOString();
+      const activity = buildSubagentActivityView({
+        childSessionId,
+        status: latestChild.subagentStatus ?? 'done',
+        merged: true,
+        updatedAt: now,
+        ...(latestChild.name ? { displayName: latestChild.name } : {}),
+        ...(latestChild.task ? { task: latestChild.task } : {}),
+        ...(latestChild.worktreePath ? { worktreePath: latestChild.worktreePath } : {}),
+      });
+      const mergeMessage = {
+        id: messageId,
+        role: 'system' as const,
+        text: cardText,
+        createdAt: now,
+        status: 'done' as const,
+        subagentActivity: activity,
+      };
       await appendTranscriptMessage(
         getPiwinSessionTranscriptPath(rootDir, parentSessionId),
         parentSessionId,
         parent.projectPath,
-        {
-          id: messageId,
-          role: 'system',
-          text: cardText,
-          createdAt: now,
-          status: 'done',
-        },
+        mergeMessage,
       );
+      this.push({
+        type: 'transcript/append',
+        sessionId: parentSessionId,
+        message: mergeMessage,
+      });
 
       latestChild.mergedAt = now;
       latestChild.mergeMessageId = messageId;
@@ -2305,7 +1716,7 @@ export class HostRuntime {
         seedMessages: messages,
         createLiveSession: async (input) => {
           const createInput = { ...input, executionMode };
-          return this.host.createSession(createInput);
+          return this.createSession(createInput);
         },
       };
       if (record.name) {
@@ -2347,6 +1758,54 @@ export class HostRuntime {
     }
   }
 
+
+  private async abortLiveSession(sessionId: string): Promise<void> {
+    const live = this.sessions.get(sessionId);
+    if (!live) {
+      return;
+    }
+    try {
+      await live.abort();
+    } catch {
+      // best-effort
+    }
+  }
+
+  private async disposeLiveSession(sessionId: string): Promise<void> {
+    const live = this.sessions.get(sessionId);
+    const activeRun = this.activeRuns.get(sessionId);
+    if (activeRun) {
+      // Abort can synchronously produce provider events; close ownership
+      // before invoking it so explicit old-run events are rejected.
+      this.runEventCorrelator.markRunTerminal(sessionId, activeRun.runId);
+      this.rememberTerminalRun(sessionId, activeRun.runId);
+    }
+    if (live) {
+      try {
+        await live.abort();
+      } catch {
+        // best-effort
+      }
+      this.sessions.delete(sessionId);
+    }
+    const unsub = this.unsubscribers.get(sessionId);
+    if (unsub) {
+      unsub();
+      this.unsubscribers.delete(sessionId);
+    }
+    this.sessionProjects.delete(sessionId);
+    this.sessionExecutionModes.delete(sessionId);
+    const recorder = this.transcriptRecorders.get(sessionId);
+    if (recorder) {
+      try {
+        await recorder.flush();
+      } catch {
+        // best-effort
+      }
+      this.transcriptRecorders.delete(sessionId);
+    }
+  }
+
   private requireSession(sessionId: string): SessionHandle {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -2355,42 +1814,68 @@ export class HostRuntime {
     return session;
   }
 
+  private async createSession(input: CreateSessionInput): Promise<SessionHandle> {
+    switch (this.options.testFixture) {
+      case 'hang-until-abort':
+        return createDelayedSessionHandle({
+          ...(input.projectPath ? { projectPath: input.projectPath } : {}),
+          delays: { firstTokenMs: 60_000, hangUntilAbort: true, cancellationAckMs: 200 },
+          chunkCount: 0,
+        });
+      case 'slow-first-token':
+        return createDelayedSessionHandle({
+          ...(input.projectPath ? { projectPath: input.projectPath } : {}),
+          delays: { firstTokenMs: 750 },
+          chunkCount: 1,
+        });
+      case 'high-rate-tool-output':
+        return createDelayedSessionHandle({
+          ...(input.projectPath ? { projectPath: input.projectPath } : {}),
+          chunkCount: 1,
+          toolOutputBytes: 10 * 1024 * 1024,
+          toolOutputChunkBytes: 64 * 1024,
+        });
+      case undefined:
+        return this.host.createSession(input);
+      default:
+        throw new Error(`Unsupported host test fixture: ${this.options.testFixture}`);
+    }
+  }
+
   private push(message: HostPush): void {
+    if (message.type === 'event') {
+      const generator = this.eventEnvelopeGenerators.get(message.sessionId) ??
+        createEventEnvelopeGenerator();
+      this.eventEnvelopeGenerators.set(message.sessionId, generator);
+      const envelope: AgentEventEnvelope = generator.next(readEventRunId(message.event));
+      this.options.onPush?.({ ...message, envelope });
+      return;
+    }
     if (this.options.onPush) {
       this.options.onPush(message);
     }
   }
+
+  private rememberTerminalRun(sessionId: string, runId: string): void {
+    let terminalRunIds = this.terminalRunIdsBySession.get(sessionId);
+    if (!terminalRunIds) {
+      terminalRunIds = new Set<string>();
+      this.terminalRunIdsBySession.set(sessionId, terminalRunIds);
+    }
+    terminalRunIds.add(runId);
+  }
+
+  private isTerminalRun(sessionId: string, runId: string): boolean {
+    return this.terminalRunIdsBySession.get(sessionId)?.has(runId) === true;
+  }
 }
 
-function ok(id: string | undefined, command: string, data?: unknown): HostResponse {
-  if (id === undefined) {
-    return { type: 'response', command, success: true, data };
-  }
-  return { id, type: 'response', command, success: true, data };
+function readEventRunId(event: AgentEvent): string | undefined {
+  return 'runId' in event && typeof event.runId === 'string' ? event.runId : undefined;
 }
 
-function fail(id: string | undefined, command: string, error: string): HostResponse {
-  if (id === undefined) {
-    return { type: 'response', command, success: false, error };
-  }
-  return { id, type: 'response', command, success: false, error };
-}
-
-function decodeBase64Media(base64Data: string): Uint8Array {
-  const normalized = base64Data.replace(/\s/g, '');
-  if (
-    normalized.length === 0 ||
-    normalized.length % 4 !== 0 ||
-    !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)
-  ) {
-    throw new Error('media payload must be valid base64');
-  }
-
-  const bytes = Buffer.from(normalized, 'base64');
-  if (bytes.byteLength === 0) {
-    throw new Error('media payload is empty');
-  }
-  return bytes;
+function hasExplicitRunId(event: AgentEvent): boolean {
+  return 'runId' in event && typeof event.runId === 'string';
 }
 
 function validateMediaAttachment(
@@ -2414,70 +1899,53 @@ function validateMediaAttachment(
   return safeAttachment;
 }
 
-/**
- * Extract MCP server id from permission detail strings produced by the session bridge.
- * - mcp:connect  → "<serverId>: <command>"
- * - mcp:tool-call → "<serverId>/<toolName>"
- */
-function parseMcpServerIdFromPermissionDetail(
-  action: string,
-  detail: string,
-): string | null {
-  const trimmed = detail.trim();
-  if (!trimmed) {
-    return null;
+
+
+function applySubagentLineage(
+  record: import('@piwin/contracts').SessionIndexRecord,
+  lineage: SessionLineage | undefined,
+): void {
+  if (!lineage) {
+    return;
   }
-  if (action === 'mcp:tool-call') {
-    const slashIndex = trimmed.indexOf('/');
-    return (slashIndex === -1 ? trimmed : trimmed.slice(0, slashIndex)).trim() || null;
+  if (lineage.subagentMode) record.subagentMode = lineage.subagentMode;
+  if (lineage.subagentApplyPolicy) record.subagentApplyPolicy = lineage.subagentApplyPolicy;
+  if (lineage.subagentAllowedOutputPaths) {
+    record.subagentAllowedOutputPaths = [...lineage.subagentAllowedOutputPaths];
   }
-  const colonIndex = trimmed.indexOf(':');
-  return (colonIndex === -1 ? trimmed : trimmed.slice(0, colonIndex)).trim() || null;
+  if (typeof lineage.subagentRetainWorktree === 'boolean') {
+    record.subagentRetainWorktree = lineage.subagentRetainWorktree;
+  }
+  if (lineage.subagentRole) record.subagentRole = lineage.subagentRole;
+  if (lineage.worktreePath) record.worktreePath = lineage.worktreePath;
+  if (lineage.worktreeBranch) record.worktreeBranch = lineage.worktreeBranch;
 }
 
-
-function indexRecordToSummary(record: {
-  id: string;
-  projectPath: string;
-  name?: string;
-  updatedAt: string;
-  messageCount: number;
-  lastPreview?: string;
-  parentSessionId?: string;
-  depth?: number;
-  kind?: 'main' | 'subagent';
-  subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
-  task?: string;
-  mergedAt?: string;
-  mergeMessageId?: string;
-  summaryPreview?: string;
-  isPinned?: boolean;
-  pinnedAt?: string;
-}): import('@piwin/contracts').SessionSummary {
-  const summary: import('@piwin/contracts').SessionSummary = {
-    id: record.id,
-    projectPath: record.projectPath,
-    updatedAt: record.updatedAt,
-    messageCount: record.messageCount,
-  };
-  if (record.name) summary.name = record.name;
-  if (record.lastPreview) summary.lastPreview = record.lastPreview;
-  if (record.parentSessionId) summary.parentSessionId = record.parentSessionId;
-  if (typeof record.depth === 'number') summary.depth = record.depth;
-  if (record.kind) summary.kind = record.kind;
-  if (record.subagentStatus) summary.subagentStatus = record.subagentStatus;
-  if (record.task) summary.task = record.task;
-  if (record.mergedAt) summary.mergedAt = record.mergedAt;
-  if (record.mergeMessageId) summary.mergeMessageId = record.mergeMessageId;
-  if (record.summaryPreview) summary.summaryPreview = record.summaryPreview;
-  if (record.isPinned === true) summary.isPinned = true;
-  if (record.pinnedAt) summary.pinnedAt = record.pinnedAt;
-  return summary;
+function copySubagentLineage(
+  input: Parameters<typeof createSessionRecord>[0],
+  lineage: SessionLineage | undefined,
+): void {
+  if (!lineage) {
+    return;
+  }
+  if (lineage.subagentMode) input.subagentMode = lineage.subagentMode;
+  if (lineage.subagentApplyPolicy) input.subagentApplyPolicy = lineage.subagentApplyPolicy;
+  if (lineage.subagentAllowedOutputPaths) {
+    input.subagentAllowedOutputPaths = [...lineage.subagentAllowedOutputPaths];
+  }
+  if (typeof lineage.subagentRetainWorktree === 'boolean') {
+    input.subagentRetainWorktree = lineage.subagentRetainWorktree;
+  }
+  if (lineage.subagentRole) input.subagentRole = lineage.subagentRole;
+  if (lineage.worktreePath) input.worktreePath = lineage.worktreePath;
+  if (lineage.worktreeBranch) input.worktreeBranch = lineage.worktreeBranch;
 }
 
-function resolveExecutionMode(mode: ExecutionMode | undefined): ExecutionMode {
-  if (mode === 'chat' || mode === 'agent' || mode === 'agent-debug') {
-    return mode;
+function createCancelledExtensionUiResponse(
+  kind: import('./extension-ui-bridge.js').ExtensionUiKind,
+): import('./extension-ui-bridge.js').ExtensionUiResponse {
+  if (kind === 'confirm') {
+    return { kind, confirmed: false };
   }
-  return 'agent';
+  return { kind, cancelled: true };
 }

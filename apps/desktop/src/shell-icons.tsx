@@ -339,3 +339,22 @@ export function IconAgent(props: IconProps): ReactElement {
     </IconBase>
   );
 }
+
+/** File leaf in trees (stroke only). */
+export function IconFile(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z" />
+      <path d="M14 3.5V8h4.5" />
+    </IconBase>
+  );
+}
+
+/** Default / favorite mark (stroke star). */
+export function IconStar(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="m12 4.5 1.9 3.9 4.3.6-3.1 3 0.7 4.3L12 14.5l-3.8 2 0.7-4.3-3.1-3 4.3-.6z" />
+    </IconBase>
+  );
+}

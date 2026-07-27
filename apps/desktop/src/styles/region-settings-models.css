@@ -1,0 +1,267 @@
+/* Region: settings → models page model directory (ModelWorkbench.tsx).
+   Owns every .model-dir* selector. Provider tabs / connection form keep their
+   legacy classes (settings-resources.css) until R3 rewrites the settings region.
+   Semantic runtime tokens only (appearance-tokens.ts); no !important, no hex. */
+
+/* Directory header */
+
+.model-dir-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.model-dir-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--content-primary);
+}
+
+.model-dir-count {
+  padding: 1px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-hover);
+  color: var(--content-secondary);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Banners */
+
+.model-dir-banner {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.model-dir-banner--error {
+  border: 1px solid var(--state-danger);
+  color: var(--state-danger);
+}
+
+.model-dir-banner--info {
+  border: 1px solid var(--line-soft);
+  color: var(--content-secondary);
+}
+
+/* Directory rows */
+
+.model-dir {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.model-dir-empty {
+  margin: 0;
+  padding: var(--space-4);
+  text-align: center;
+}
+
+.model-dir-row + .model-dir-row {
+  border-top: 1px solid var(--line-soft);
+}
+
+.model-dir-row--expanded {
+  background: var(--surface-inset);
+}
+
+.model-dir-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height-large);
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--content-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-dir-row-main:hover {
+  background: var(--surface-hover);
+}
+
+.model-dir-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+}
+
+.model-dir-id {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--content-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-dir-label {
+  font-size: 12px;
+  color: var(--content-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-dir-pill {
+  flex-shrink: 0;
+  max-width: 260px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-dir-pill--default {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.model-dir-pill--ok {
+  background: var(--surface-hover);
+  color: var(--state-success);
+}
+
+.model-dir-pill--error {
+  background: var(--surface-hover);
+  color: var(--state-danger);
+}
+
+.model-dir-pill--busy {
+  background: var(--surface-hover);
+  color: var(--content-secondary);
+}
+
+.model-dir-summary {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--content-muted);
+  white-space: nowrap;
+}
+
+/* Inline expanded editor */
+
+.model-dir-editor {
+  padding: var(--space-3);
+  border-top: 1px solid var(--line-soft);
+}
+
+.model-dir-editor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.model-dir-editor-heading {
+  margin: 0 0 var(--space-2);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--content-muted);
+}
+
+.model-dir-editor-field {
+  margin-bottom: var(--space-2);
+}
+
+.model-dir-editor-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+  font-size: 12px;
+  color: var(--content-secondary);
+}
+
+.model-dir-editor-unit {
+  font-size: 11px;
+  color: var(--content-muted);
+}
+
+.model-dir-editor-input,
+.model-dir-editor-textarea {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--content-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.model-dir-editor-input:focus,
+.model-dir-editor-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.model-dir-editor-input--code {
+  font-family: var(--mono);
+}
+
+.model-dir-editor-textarea {
+  resize: vertical;
+}
+
+.model-dir-editor-hint {
+  margin: var(--space-1) 0 0;
+  font-size: 11px;
+  color: var(--content-muted);
+}
+
+.model-dir-editor-advanced-toggle {
+  margin-top: var(--space-1);
+}
+
+.model-dir-editor-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.model-dir-editor-actions-left,
+.model-dir-editor-actions-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.model-dir-editor-remove {
+  color: var(--state-danger);
+}
+
+/* Directory-level actions under the list */
+
+.model-dir-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}

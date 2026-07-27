@@ -20,6 +20,11 @@ export default defineConfig({
   timeout: 60_000,
   expect: {
     timeout: 10_000,
+    toHaveScreenshot: {
+      // Stable baselines for dark shell chrome; allow tiny antialiasing noise.
+      maxDiffPixelRatio: 0.02,
+      animations: 'disabled',
+    },
   },
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: {

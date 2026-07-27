@@ -3,6 +3,7 @@ import { basename, join, resolve } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { InstallSource } from '@piwin/contracts';
+import { resolveCloneContentRoot } from './clone-content-root.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -74,7 +75,13 @@ async function installFromGit(
     throw new Error(`git clone failed: ${message}`);
   }
 
-  const contentRoot = source.subdir ? join(clonePath, source.subdir) : clonePath;
+  let contentRoot: string;
+  try {
+    contentRoot = resolveCloneContentRoot(clonePath, source.subdir);
+  } catch (error) {
+    await rmQuiet(clonePath);
+    throw error;
+  }
   try {
     await assertHasSkillMarkdown(contentRoot);
   } catch (error) {

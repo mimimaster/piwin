@@ -31,7 +31,16 @@ button, input, textarea, select { font: inherit; color: inherit; }
   border: 0;
 }
 
-/* Quiet Workbench motion language: state changes only; respect reduced motion. */
+/*
+ * Quiet Workbench motion language (W1/W4):
+ * - Motion only for state changes (shimmer, panel, msg-in, pulse).
+ * - prefers-reduced-motion: kill slide/fade/shimmer; keep static state colors.
+ *
+ * !important policy for Quiet Workbench CSS:
+ * - Allowed only in this reduced-motion kill-switch (MDN-standard a11y pattern)
+ *   and the xterm viewport overflow override in region-inspector.css (must
+ *   outrank xterm inline styles). Product chrome must not add more !important.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -40,6 +49,29 @@ button, input, textarea, select { font: inherit; color: inherit; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* Named state animations: drop name entirely (duration kill alone still flashes
+     a first keyframe in some engines). Keep final semantic colors. */
+  .turn-shimmer-text,
+  .bubble.is-streaming,
+  .tool-call-card,
+  .msg-row.is-new,
+  .context-bar-phase-dot.is-running,
+  .status-bar-agent.state-running .status-bar-dot,
+  .status-bar,
+  .ui-menu-content,
+  .ui-popover-content,
+  .stream-dot,
+  .diff-view,
+  .right-panel {
+    animation: none;
+  }
+
+  .turn-shimmer-text {
+    -webkit-text-fill-color: var(--wb-dim, var(--faint));
+    color: var(--wb-dim, var(--faint));
+    background: none;
   }
 }
 

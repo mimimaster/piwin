@@ -1,0 +1,416 @@
+/**
+ * Host IPC handlers: catalog.
+ */
+import type { HostCommand, HostResponse, MediaSaveData } from '@piwin/contracts';
+import { createMediaService } from '@piwin/media';
+import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
+import { installSkill, installExtension, listSkillStoreEntries } from '@piwin/marketplace';
+import {
+  getActiveTheme,
+  installThemeFromLocalPath,
+  listThemes,
+  setActiveTheme,
+} from '@piwin/theme';
+import {
+  getActivePet,
+  importPetsFromCodex,
+  installPetFromLocalPath,
+  listPets,
+  setActivePet,
+} from '@piwin/pet';
+import { loadPiwinConfig, savePiwinConfig } from '../config-store.js';
+import { ensureBundledExtensionsInstalled } from '../ensure-bundled-extensions.js';
+import { scanExtensions } from '../extension-scanner.js';
+import { ensureBundledPromptsInstalled } from '../ensure-bundled-prompts.js';
+import { scanPrompts } from '../prompt-scanner.js';
+import { decodeBase64Media } from '../media-decode.js';
+import { discoverProviderModels } from '../provider-model-discovery.js';
+import { testProviderModel } from '../provider-model-test.js';
+import { fail, ok } from '../response-helpers.js';
+import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
+import { createSecretResolver } from '../secret-resolver.js';
+import type { HostCommandContext } from './host-command-context.js';
+
+
+const TYPES = new Set<HostCommand['type']>([
+  'media/save',
+  'skills/list',
+  'skills/set_enabled',
+  'skills/install',
+  'skills/store-list',
+  'extensions/list',
+  'extensions/set_enabled',
+  'extensions/ensure-bundled',
+  'extensions/install',
+  'prompts/list',
+  'prompts/set_enabled',
+  'theme/list',
+  'theme/get-active',
+  'theme/set-active',
+  'theme/install-local',
+  'pet/list',
+  'pet/get-active',
+  'pet/set-active',
+  'pet/install-local',
+  'pet/import-codex',
+  'config/get',
+  'config/set',
+  'models/discover',
+  'models/test',
+  'secrets/set',
+  'secrets/get',
+]);
+
+export function isCatalogCommand(
+  command: HostCommand,
+): boolean {
+  return TYPES.has(command.type);
+}
+
+export async function handleCatalogCommand(
+  command: HostCommand,
+  requestId: string | undefined,
+  context: HostCommandContext,
+): Promise<HostResponse | null> {
+  if (!TYPES.has(command.type)) {
+    return null;
+  }
+  switch (command.type) {
+        case 'media/save': {
+          context.requireSession(command.input.sessionId);
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const config = await loadPiwinConfig(rootDir);
+          const mediaService = createMediaService({
+            mediaRoot: getPiwinMediaDir(rootDir),
+            maxPasteBytes: config.media.maxPasteBytes,
+            allowedMimeTypes: config.media.allowedMimeTypes,
+          });
+          const bytes = decodeBase64Media(command.input.base64Data);
+          const asset = await mediaService.saveMediaAsset({
+            sessionId: command.input.sessionId,
+            bytes,
+            mimeType: command.input.mimeType,
+            source: command.input.source,
+          });
+          const data: MediaSaveData = { asset };
+          return ok(requestId, 'media/save', data);
+        }
+        case 'skills/list': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          await ensureBundledSkillsInstalled(rootDir);
+          const config = await loadPiwinConfig(rootDir);
+          const scanOptions: Parameters<typeof scanSkills>[0] = {
+            piwinRoot: rootDir,
+          };
+          if (config.skills) {
+            scanOptions.skillsConfig = config.skills;
+          }
+          if (typeof command.projectPath === 'string' && command.projectPath.trim()) {
+            scanOptions.projectPath = command.projectPath;
+          }
+          const skills = await scanSkills(scanOptions);
+          return ok(requestId, 'skills/list', { skills });
+        }
+        case 'skills/set_enabled': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const config = await loadPiwinConfig(rootDir);
+          const skillsConfig = config.skills ?? { extraPaths: [], disabledIds: [] };
+          const disabled = new Set(skillsConfig.disabledIds);
+          if (command.enabled) {
+            disabled.delete(command.skillId);
+          } else {
+            disabled.add(command.skillId);
+          }
+          config.skills = {
+            extraPaths: skillsConfig.extraPaths,
+            disabledIds: [...disabled],
+          };
+          await savePiwinConfig(config, rootDir);
+          return ok(requestId, 'skills/set_enabled', {
+            skillId: command.skillId,
+            enabled: command.enabled,
+            disabledIds: config.skills.disabledIds,
+          });
+        }
+        case 'skills/install': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const installOptions: Parameters<typeof installSkill>[0] = {
+            piwinRoot: rootDir,
+            source: command.source,
+          };
+          if (typeof command.name === 'string' && command.name.trim()) {
+            installOptions.name = command.name.trim();
+          }
+          const result = await installSkill(installOptions);
+          return ok(requestId, 'skills/install', {
+            skillId: result.skillId,
+            targetPath: result.targetPath,
+          });
+        }
+        case 'skills/store-list': {
+          const entries = listSkillStoreEntries();
+          return ok(requestId, 'skills/store-list', { entries });
+        }
+        case 'extensions/list': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          await ensureBundledExtensionsInstalled(rootDir);
+          const config = await loadPiwinConfig(rootDir);
+          const scanOptions: Parameters<typeof scanExtensions>[0] = {
+            piwinRoot: rootDir,
+          };
+          if (config.extensions) {
+            scanOptions.extensionsConfig = config.extensions;
+          }
+          if (typeof command.projectPath === 'string' && command.projectPath.trim()) {
+            scanOptions.projectPath = command.projectPath;
+          }
+          const extensions = await scanExtensions(scanOptions);
+          return ok(requestId, 'extensions/list', { extensions });
+        }
+        case 'extensions/set_enabled': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const config = await loadPiwinConfig(rootDir);
+          const extensionsConfig = config.extensions ?? {
+            extraPaths: [],
+            disabledIds: [],
+          };
+          const disabled = new Set(extensionsConfig.disabledIds);
+          if (command.enabled) {
+            disabled.delete(command.extensionId);
+          } else {
+            disabled.add(command.extensionId);
+          }
+          config.extensions = {
+            extraPaths: extensionsConfig.extraPaths,
+            disabledIds: [...disabled],
+          };
+          await savePiwinConfig(config, rootDir);
+          return ok(requestId, 'extensions/set_enabled', {
+            extensionId: command.extensionId,
+            enabled: command.enabled,
+            disabledIds: config.extensions.disabledIds,
+          });
+        }
+        case 'extensions/ensure-bundled': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const installed = await ensureBundledExtensionsInstalled(rootDir);
+          return ok(requestId, 'extensions/ensure-bundled', {
+            installed,
+          });
+        }
+        case 'extensions/install': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const installOptions: Parameters<typeof installExtension>[0] = {
+            piwinRoot: rootDir,
+            source: command.source,
+          };
+          if (typeof command.name === 'string' && command.name.trim()) {
+            installOptions.name = command.name.trim();
+          }
+          const result = await installExtension(installOptions);
+          return ok(requestId, 'extensions/install', {
+            extensionId: result.extensionId,
+            targetPath: result.targetPath,
+          });
+        }
+        case 'prompts/list': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          await ensureBundledPromptsInstalled(rootDir);
+          const config = await loadPiwinConfig(rootDir);
+          const scanOptions: Parameters<typeof scanPrompts>[0] = {
+            piwinRoot: rootDir,
+          };
+          if (config.prompts) {
+            scanOptions.promptsConfig = config.prompts;
+          }
+          if (typeof command.projectPath === 'string' && command.projectPath.trim()) {
+            scanOptions.projectPath = command.projectPath;
+          }
+          const prompts = await scanPrompts(scanOptions);
+          return ok(requestId, 'prompts/list', { prompts });
+        }
+        case 'prompts/set_enabled': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const config = await loadPiwinConfig(rootDir);
+          const promptsConfig = config.prompts ?? {
+            extraPaths: [],
+            disabledIds: [],
+          };
+          const disabled = new Set(promptsConfig.disabledIds);
+          if (command.enabled) {
+            disabled.delete(command.promptId);
+          } else {
+            disabled.add(command.promptId);
+          }
+          config.prompts = {
+            extraPaths: promptsConfig.extraPaths,
+            disabledIds: [...disabled],
+          };
+          await savePiwinConfig(config, rootDir);
+          return ok(requestId, 'prompts/set_enabled', {
+            promptId: command.promptId,
+            enabled: command.enabled,
+            disabledIds: config.prompts.disabledIds,
+          });
+        }
+        case 'theme/list': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const data = await listThemes(rootDir);
+          return ok(requestId, 'theme/list', data);
+        }
+        case 'theme/get-active': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const theme = await getActiveTheme(rootDir);
+          return ok(requestId, 'theme/get-active', { theme });
+        }
+        case 'theme/set-active': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const theme = await setActiveTheme(rootDir, command.themeId);
+          return ok(requestId, 'theme/set-active', { theme });
+        }
+        case 'theme/install-local': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const installed = await installThemeFromLocalPath(rootDir, command.sourcePath);
+          return ok(requestId, 'theme/install-local', installed);
+        }
+        case 'pet/list': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const data = await listPets(rootDir);
+          return ok(requestId, 'pet/list', data);
+        }
+        case 'pet/get-active': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const pet = await getActivePet(rootDir);
+          return ok(requestId, 'pet/get-active', { pet });
+        }
+        case 'pet/set-active': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const pet = await setActivePet(rootDir, command.petId);
+          return ok(requestId, 'pet/set-active', { pet });
+        }
+        case 'pet/install-local': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const installed = await installPetFromLocalPath(rootDir, command.sourcePath);
+          return ok(requestId, 'pet/install-local', installed);
+        }
+        case 'pet/import-codex': {
+          const rootDir = getPiwinRoot(context.piwinRoot);
+          const result = await importPetsFromCodex(rootDir);
+          return ok(requestId, 'pet/import-codex', result);
+        }
+
+        case 'config/get': {
+          const configRoot = getPiwinRoot(context.piwinRoot);
+          const config = await loadPiwinConfig(configRoot);
+          return ok(requestId, 'config/get', { config, root: configRoot });
+        }
+        case 'config/set': {
+          const configRoot = getPiwinRoot(context.piwinRoot);
+          const path = await savePiwinConfig(command.config, configRoot);
+          return ok(requestId, 'config/set', { path });
+        }
+        case 'models/discover': {
+          try {
+            const secretResolver = createSecretResolver();
+            const oneShotApiKey = command.apiKey?.trim();
+            const result = await discoverProviderModels(command.provider, {
+              resolveSecret: async (provider) => {
+                if (oneShotApiKey) {
+                  return oneShotApiKey;
+                }
+                // Soft resolve: missing env/keychain must not block local no-auth endpoints.
+                try {
+                  if (provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()) {
+                    return await secretResolver.resolveProviderSecret(provider);
+                  }
+                } catch {
+                  return null;
+                }
+                return null;
+              },
+            });
+            return ok(requestId, 'models/discover', result);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return fail(requestId, 'models/discover', message);
+          }
+        }
+        case 'models/test': {
+          try {
+            const secretResolver = createSecretResolver();
+            const oneShotApiKey = command.apiKey?.trim();
+            const result = await testProviderModel(command.provider, command.modelId, {
+              resolveSecret: async (provider) => {
+                if (oneShotApiKey) {
+                  return oneShotApiKey;
+                }
+                try {
+                  if (provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()) {
+                    return await secretResolver.resolveProviderSecret(provider);
+                  }
+                } catch {
+                  return null;
+                }
+                return null;
+              },
+            });
+            return ok(requestId, 'models/test', result);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return fail(requestId, 'models/test', message);
+          }
+        }
+        case 'secrets/set': {
+          try {
+            const secretResolver = createSecretResolver();
+            const apiKeyRef = await secretResolver.writeProviderSecret(
+              command.providerId,
+              command.secret,
+            );
+            return ok(requestId, 'secrets/set', { apiKeyRef, providerId: command.providerId });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return fail(requestId, 'secrets/set', message);
+          }
+        }
+        case 'secrets/get': {
+          try {
+            const secretResolver = createSecretResolver();
+            const raw = await secretResolver.readProviderSecret(command.providerId);
+            if (!raw || !raw.trim()) {
+              return ok(requestId, 'secrets/get', {
+                providerId: command.providerId,
+                keys: [] as Array<{ index: number; preview: string }>,
+              });
+            }
+            const keys = raw
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0)
+              .map((value, index) => ({
+                index,
+                preview: maskSecretPreview(value),
+              }));
+            return ok(requestId, 'secrets/get', {
+              providerId: command.providerId,
+              keys,
+              /** Full multi-line payload only for key-manager edit path; UI must not log. */
+              secret: raw,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return fail(requestId, 'secrets/get', message);
+          }
+        }
+    default:
+      return null;
+  }
+}
+
+function maskSecretPreview(secret: string): string {
+  const value = secret.trim();
+  if (value.length <= 10) {
+    return `${value.slice(0, 2)}${'*'.repeat(Math.max(4, value.length - 2))}`;
+  }
+  return `${value.slice(0, 6)}${'*'.repeat(6)}${value.slice(-4)}`;
+}

@@ -25,10 +25,11 @@ export function Dialog({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="modal-backdrop" data-testid={testId} />
+        <DialogPrimitive.Overlay className="modal-backdrop" />
         <DialogPrimitive.Content
           className="modal ui-dialog-content"
           aria-label={label}
+          {...(testId ? { "data-testid": testId } : {})}
           onPointerDownOutside={(event) => {
             if (!closeOnInteractOutside) {
               event.preventDefault();

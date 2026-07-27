@@ -12,8 +12,12 @@ export type McpTransportClient = {
   serverId: string;
   /** OS process id when available. */
   pid?: number;
-  listTools: () => Promise<McpListedTool[]>;
-  callTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+  listTools: (signal?: AbortSignal) => Promise<McpListedTool[]>;
+  callTool: (
+    name: string,
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+  ) => Promise<unknown>;
   close: () => Promise<void>;
   /**
    * Notify when the underlying process exits after a successful connect.
@@ -34,4 +38,6 @@ export type CreateMcpClientOptions = {
    * Default: try official SDK, fall back to handcrafted on failure.
    */
   prefer?: McpClientKind | 'auto';
+  /** Abort connection setup when the owning foreground run is cancelled. */
+  signal?: AbortSignal;
 };

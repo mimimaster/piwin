@@ -102,6 +102,27 @@ function parametersForHostTool(tool: HostToolDefinition): unknown {
       processId: Type.String({ description: 'Managed process id' }),
     });
   }
-  // MCP / generic tools: free-form object arguments
+  if (tool.name === 'mcp_gateway') {
+    return Type.Object({
+      action: Type.String({
+        description: 'search | describe | call | status',
+      }),
+      query: Type.Optional(Type.String({ description: 'search query' })),
+      serverId: Type.Optional(Type.String({ description: 'optional server filter' })),
+      selector: Type.Optional(
+        Type.String({ description: 'server.tool selector for describe/call' }),
+      ),
+      arguments: Type.Optional(
+        Type.Record(Type.String(), Type.Any(), {
+          description: 'arguments object for call',
+        }),
+      ),
+      limit: Type.Optional(Type.Number({ description: 'search result limit' })),
+    });
+  }
+  if (tool.name.startsWith('mcp__')) {
+    return Type.Unsafe(tool.parameters);
+  }
+  // Other generic tools: free-form object arguments
   return Type.Record(Type.String(), Type.Any());
 }

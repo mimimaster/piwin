@@ -5,6 +5,21 @@
 
 export type UsageSource = 'pi-contextUsage' | 'assistant-usage' | 'host-estimate';
 
+/**
+ * Optional category breakdown for context ring popover.
+ * Values are token estimates when known; omitted categories render as unknown.
+ */
+export type ContextUsageBreakdown = {
+  systemPromptTokens?: number;
+  toolDefinitionsTokens?: number;
+  rulesTokens?: number;
+  skillsTokens?: number;
+  mcpTokens?: number;
+  conversationTokens?: number;
+  /** How the breakdown was produced when not from the model. */
+  source?: 'pi' | 'host-estimate';
+};
+
 /** Snapshot of context window and last-turn token accounting. */
 export type ContextUsageSnapshot = {
   sessionId: string;
@@ -19,4 +34,6 @@ export type ContextUsageSnapshot = {
   contextRatio?: number;
   updatedAt: string;
   source?: UsageSource;
+  /** Category split for UI ring details (optional). */
+  breakdown?: ContextUsageBreakdown;
 };

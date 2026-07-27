@@ -4,6 +4,7 @@ import type {
   CreateSessionInput,
   PermissionDecision,
   SessionHandle,
+  SessionScope,
   SessionSummary,
 } from '@piwin/contracts';
 import {
@@ -17,8 +18,9 @@ import { createMcpLifecycleManager, type McpLifecycleManager } from '@piwin/mcp'
 import { createProcessRegistry, type ProcessRegistry } from '@piwin/process';
 import { createMockSessionHandle } from './mock-session.js';
 import { createProductShellSession } from './product-shell-session.js';
-import { mapPiSessionEvent } from './event-map.js';
+import { createPiSessionEventMapper } from './event-map.js';
 import { loadPiwinConfig } from './config-store.js';
+import { mapThinkingLevelToApi } from './map-thinking-level.js';
 import {
   getPiwinRoot,
   getPiwinProjectsPath,
@@ -44,15 +46,31 @@ import { buildNotesTools } from './notes-tools.js';
 import { resolveNotesEmbeddingApiKey } from './notes-embedding-secret.js';
 import { createCardStore } from '@piwin/flashcards';
 import { buildFlashcardTools } from './flashcard-tools.js';
+import { createSecretResolver } from './secret-resolver.js';
+import {
+  buildPiProviderRegistration,
+  type PiModelRuntime,
+  type PiModelRegistration,
+} from './pi-model-runtime.js';
 import { listProjects } from '@piwin/project';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { extractFileOpsFromUnknown } from './compaction-file-ops.js';
+import { indexRecordToSummary } from './session-summary-map.js';
+import {
+  indexProjectPathForScope,
+  resolveAgentCwd,
+  resolveSessionLocation,
+  scopeFromIndexRecord,
+} from './session-scope.js';
 
 export type PiSdkPermissionRequest = {
   sessionId: string;
+  projectPath: string;
   action: string;
   detail: string;
   defaultDecision: PermissionDecision;
+  signal?: AbortSignal;
 };
 
 export type PiSdkAdapterOptions = {
@@ -100,22 +118,29 @@ export class PiSdkAdapter implements AgentHost {
 
   async createSession(input: CreateSessionInput): Promise<SessionHandle> {
     const useMock = await this.shouldUseMock();
+    const location = await resolveSessionLocation(input, this.options.piwinRoot);
+    const resolvedInput: CreateSessionInput = {
+      ...input,
+      scope: location.scope,
+      // Keep index projectPath empty for general; cwd resolved inside createPiSdkSession.
+      projectPath: indexProjectPathForScope(location.scope),
+    };
     if (useMock) {
-      const session = createMockSessionHandle(input);
+      const session = createMockSessionHandle(resolvedInput);
       this.sessions.set(session.id, session);
-      await this.persistSessionMeta(session.id, input.projectPath, input.sessionName);
+      await this.persistSessionMeta(session.id, location.scope, location.workingDirectory, input.sessionName);
       return session;
     }
 
     try {
-      const session = await createPiSdkSession(input, this.sessionAdapterOptions());
+      const session = await createPiSdkSession(resolvedInput, this.sessionAdapterOptions());
       this.sessions.set(session.id, session);
       const cleanup = (session as SessionHandle & { __piwinCleanup?: () => Promise<void> })
         .__piwinCleanup;
       if (cleanup) {
         this.sessionCleanups.set(session.id, cleanup);
       }
-      await this.persistSessionMeta(session.id, input.projectPath, input.sessionName);
+      await this.persistSessionMeta(session.id, location.scope, location.workingDirectory, input.sessionName);
       return session;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -143,10 +168,13 @@ export class PiSdkAdapter implements AgentHost {
     const transcriptPath = getPiwinSessionTranscriptPath(rootDir, sessionId);
     const seedMessages = await listTranscriptMessages(transcriptPath);
     const useMock = await this.shouldUseMock();
+    const scope = scopeFromIndexRecord(record);
+    const location = await resolveSessionLocation({ scope, projectPath: record.projectPath }, this.options.piwinRoot);
 
     if (useMock) {
       const mockOptions: Parameters<typeof createMockSessionHandle>[0] = {
-        projectPath: record.projectPath,
+        projectPath: indexProjectPathForScope(scope) || location.workingDirectory,
+        scope,
         sessionId,
         seedMessages,
       };
@@ -161,7 +189,9 @@ export class PiSdkAdapter implements AgentHost {
     // Live mode: product shell keeps stable id + transcript; Pi handle is created on first prompt.
     const shellOptions: Parameters<typeof createProductShellSession>[0] = {
       sessionId,
-      projectPath: record.projectPath,
+      projectPath: indexProjectPathForScope(scope) || location.workingDirectory,
+      scope,
+      workingDirectory: location.workingDirectory,
       seedMessages,
       createLiveSession: async (input) => {
         const live = await createPiSdkSession(input, this.sessionAdapterOptions());
@@ -181,32 +211,31 @@ export class PiSdkAdapter implements AgentHost {
     return shell;
   }
 
-  async listSessions(projectPath: string): Promise<SessionSummary[]> {
+  async listSessions(scopeOrProjectPath: string | SessionScope): Promise<SessionSummary[]> {
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const indexPath = getPiwinSessionIndexPath(rootDir);
     try {
-      const indexed = await listSessionsForProject(indexPath, projectPath);
+      const indexed = await listSessionsForProject(indexPath, scopeOrProjectPath);
       if (indexed.length > 0) {
-        return indexed.map((item) => {
-          const summary: SessionSummary = {
-            id: item.id,
-            projectPath: item.projectPath,
-            updatedAt: item.updatedAt,
-            messageCount: item.messageCount,
-          };
-          if (item.name) {
-            summary.name = item.name;
-          }
-          return summary;
-        });
+        return indexed.map((item) => indexRecordToSummary(item));
       }
     } catch {
       // fall through to in-memory
     }
     const now = new Date().toISOString();
+    const fallbackScope: SessionScope =
+      typeof scopeOrProjectPath === 'string'
+        ? { kind: 'project', projectPath: scopeOrProjectPath }
+        : scopeOrProjectPath;
+    const fallbackProjectPath =
+      fallbackScope.kind === 'project' ? fallbackScope.projectPath : '';
+    const fallbackWorkingDirectory =
+      fallbackScope.kind === 'project' ? fallbackScope.projectPath : rootDir;
     return [...this.sessions.entries()].map(([id]) => ({
       id,
-      projectPath,
+      scope: fallbackScope,
+      workingDirectory: fallbackWorkingDirectory,
+      projectPath: fallbackProjectPath,
       updatedAt: now,
       messageCount: 0,
       name: `session-${id.slice(0, 8)}`,
@@ -281,14 +310,17 @@ export class PiSdkAdapter implements AgentHost {
 
   private async persistSessionMeta(
     sessionId: string,
-    projectPath: string,
+    scope: SessionScope,
+    workingDirectory: string,
     sessionName?: string,
   ): Promise<void> {
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const indexPath = getPiwinSessionIndexPath(rootDir);
     const record = createSessionRecord({
       id: sessionId,
-      projectPath,
+      projectPath: indexProjectPathForScope(scope),
+      scope,
+      workingDirectory,
       name: sessionName ?? `session-${sessionId.slice(0, 8)}`,
     });
     await upsertSessionRecord(indexPath, record);
@@ -302,6 +334,10 @@ async function createPiSdkSession(
   const piwinRoot = adapterOptions.piwinRoot;
   const config = await loadPiwinConfig(piwinRoot);
   applyProviderEnv(config);
+  const location = await resolveSessionLocation(input, piwinRoot);
+  const agentCwd = resolveAgentCwd(location, input.cwd);
+  const permissionProjectPath =
+    location.scope.kind === 'project' ? location.scope.projectPath : location.workingDirectory;
 
   const piModule = await import('@earendil-works/pi-coding-agent');
   const createAgentSession = (piModule as { createAgentSession?: unknown }).createAgentSession;
@@ -317,20 +353,24 @@ async function createPiSdkSession(
   const permissionHandler = adapterOptions.onPermissionRequest;
   const requestPermission = permissionHandler
     ? async (gateInput: {
-        action: string;
-        detail: string;
-        defaultDecision: PermissionDecision;
+      action: string;
+      detail: string;
+      defaultDecision: PermissionDecision;
+      signal?: AbortSignal;
       }) =>
         permissionHandler({
           sessionId,
+          projectPath: permissionProjectPath,
           action: gateInput.action,
           detail: gateInput.detail,
           defaultDecision: gateInput.defaultDecision,
+          ...(gateInput.signal ? { signal: gateInput.signal } : {}),
         })
     : undefined;
 
+  const readonlySubagent = input.subagent?.mode === 'readonly';
   const toolBuildOptions: import('./session-tools.js').BuildSessionToolsOptions = {
-    projectPath: input.projectPath,
+    projectPath: agentCwd,
     projectsFilePath: getPiwinProjectsPath(rootDir),
   };
   if (config.web) {
@@ -345,8 +385,6 @@ async function createPiSdkSession(
   const mcpBridge = await createMcpSessionBridge({
     piwinRoot: rootDir,
     sessionId,
-    projectPath: input.projectPath,
-    projectsFilePath: getPiwinProjectsPath(rootDir),
     ...(adapterOptions.lifecycleManager
       ? { lifecycleManager: adapterOptions.lifecycleManager }
       : {}),
@@ -383,13 +421,14 @@ async function createPiSdkSession(
   }
   const processToolOptions: import('./process-tools.js').BuildProcessToolsOptions = {
     registry: processRegistry,
-    projectPath: input.projectPath,
+    projectPath: agentCwd,
     sessionId,
   };
   if (requestPermission) {
     processToolOptions.requestPermission = requestPermission;
   }
-  const processTools = chatMode ? [] : buildProcessTools(processToolOptions);
+  // readonly sub-agents: no process_start (long-running writers)
+  const processTools = chatMode || readonlySubagent ? [] : buildProcessTools(processToolOptions);
 
   const memoryEnabled = config.memory?.enabled === true;
   const memoryStore = createMemoryStore({
@@ -401,7 +440,7 @@ async function createPiSdkSession(
   const memoryToolOptions: import('./memory-tools.js').BuildMemoryToolsOptions = {
     store: memoryStore,
     enabled: memoryEnabled && !chatMode,
-    defaultProjectKey: projectKeyFromPath(input.projectPath),
+    defaultProjectKey: projectKeyFromPath(permissionProjectPath),
   };
   if (requestPermission) {
     memoryToolOptions.requestPermission = requestPermission;
@@ -463,6 +502,7 @@ async function createPiSdkSession(
   }
 
   // CE-MODE light: chat strips host custom tools and gated bash.
+  // readonly: keep read-oriented host tools (web/memory/mcp/plan), drop process
   const hostTools = chatMode
     ? []
     : [
@@ -477,7 +517,7 @@ async function createPiSdkSession(
   const customTools = toPiCustomTools(hostTools);
 
   // Replace built-in bash with permission-gated bash (hard-deny + ask UI).
-  if (!chatMode) {
+  if (!chatMode && !readonlySubagent) {
     try {
       const gatedBashOptions: {
         cwd: string;
@@ -485,15 +525,18 @@ async function createPiSdkSession(
           action: string;
           detail: string;
           defaultDecision: PermissionDecision;
+          signal?: AbortSignal;
         }) => Promise<PermissionDecision>;
-      } = { cwd: input.projectPath };
+      } = { cwd: agentCwd };
       if (permissionHandler) {
         gatedBashOptions.requestPermission = async (gateInput) =>
           permissionHandler({
             sessionId,
+            projectPath: permissionProjectPath,
             action: gateInput.action,
             detail: gateInput.detail,
             defaultDecision: gateInput.defaultDecision,
+            ...(gateInput.signal ? { signal: gateInput.signal } : {}),
           });
       }
       const gatedBash = await buildGatedBashToolDefinition(gatedBashOptions);
@@ -512,10 +555,14 @@ async function createPiSdkSession(
   const extraPromptPaths = config.prompts?.extraPaths ?? [];
   const disabledPromptIds = config.prompts?.disabledIds ?? [];
   const { resourceLoader, skillPaths, extensionPaths, promptPaths } = await createPiResourceLoader({
-    cwd: input.projectPath,
+    cwd: agentCwd,
     agentDir,
     piwinRoot: rootDir,
-    projectPath: input.projectPath,
+    scope: location.scope,
+    // General: never walk project-local skill/extension/prompt trees.
+    ...(location.scope.kind === 'project'
+      ? { projectPath: location.scope.projectPath }
+      : {}),
     ...(extraSkillPaths.length > 0 ? { extraSkillPaths } : {}),
     ...(disabledSkillIds.length > 0 ? { disabledSkillIds } : {}),
     ...(extraExtensionPaths.length > 0 ? { extraExtensionPaths } : {}),
@@ -525,19 +572,38 @@ async function createPiSdkSession(
   });
 
   const sessionOptions: Record<string, unknown> = {
-    cwd: input.projectPath,
+    cwd: agentCwd,
     agentDir,
     // Gated bash is registered as customTools name "bash" and overrides the built-in.
     customTools,
     resourceLoader,
   };
 
-  if (input.model) {
-    sessionOptions.modelId = input.model.modelId;
-    sessionOptions.provider = input.model.providerId;
-  } else if (config.defaultModelId) {
-    sessionOptions.modelId = config.defaultModelId;
+  const modelRuntime = await createPiModelRuntime(piModule, config, agentDir);
+  const requestedModel = input.model ?? (
+    config.defaultProviderId && config.defaultModelId
+      ? {
+          protocol: config.providers.find(
+            (provider) => provider.id === config.defaultProviderId,
+          )?.protocol,
+          providerId: config.defaultProviderId,
+          modelId: config.defaultModelId,
+        }
+      : undefined
+  );
+  if (requestedModel?.protocol) {
+    const selectedModel = modelRuntime.getModel(
+      requestedModel.providerId,
+      requestedModel.modelId,
+    );
+    if (!selectedModel) {
+      throw new Error(
+        `Configured model is unavailable: ${requestedModel.providerId}/${requestedModel.modelId}`,
+      );
+    }
+    sessionOptions.model = selectedModel;
   }
+  sessionOptions.modelRuntime = modelRuntime;
 
   const result = (await (
     createAgentSession as (options: Record<string, unknown>) => Promise<unknown>
@@ -582,7 +648,7 @@ async function createPiSdkSession(
     `[piwin] session tools mode=${executionMode} custom=${customTools.length} (web=${webTools.length}, mcp=${mcpBridge.toolCount}, memory=${memoryTools.length}) skills=${skillPaths.length} extensions=${extensionPaths.length} prompts=${promptPaths.length}`,
   );
 
-  const handle = wrapPiSession(piSession, sessionId);
+  const handle = wrapPiSession(piSession, sessionId, modelRuntime);
   // Attach cleanup via weak side channel on handle id — stored by adapter after return.
   (handle as SessionHandle & { __piwinCleanup?: () => Promise<void> }).__piwinCleanup =
     async () => {
@@ -590,6 +656,49 @@ async function createPiSdkSession(
       await mcpBridge.close();
     };
   return handle;
+}
+
+async function createPiModelRuntime(
+  piModule: Record<string, unknown>,
+  config: Awaited<ReturnType<typeof loadPiwinConfig>>,
+  agentDir: string,
+): Promise<PiModelRuntime> {
+  const runtimeConstructor = piModule.ModelRuntime as
+    | {
+        create: (options: {
+          authPath: string;
+          modelsPath: string;
+        }) => Promise<PiModelRuntime>;
+      }
+    | undefined;
+  if (!runtimeConstructor?.create) {
+    throw new Error('Pi ModelRuntime export missing from @earendil-works/pi-coding-agent');
+  }
+
+  const modelRuntime = await runtimeConstructor.create({
+    authPath: join(agentDir, 'auth.json'),
+    modelsPath: join(agentDir, 'models.json'),
+  });
+  const secretResolver = createSecretResolver();
+
+  for (const provider of config.providers) {
+    let apiKey: string | undefined;
+    try {
+      const resolved = await secretResolver.resolveProviderSecret(provider);
+      if (resolved) {
+        apiKey = resolved;
+      }
+    } catch {
+      // Keep the provider registered so Pi can report a precise unavailable
+      // model error instead of silently dropping it from the model catalog.
+    }
+    modelRuntime.registerProvider(
+      provider.id,
+      buildPiProviderRegistration(provider, apiKey),
+    );
+  }
+  await modelRuntime.refresh({ allowNetwork: false });
+  return modelRuntime;
 }
 
 function applyProviderEnv(config: Awaited<ReturnType<typeof loadPiwinConfig>>): void {
@@ -643,15 +752,51 @@ type PiLikeSession = {
   abortCompaction?: () => void;
   setAutoCompactionEnabled?: (enabled: boolean) => void;
   autoCompactionEnabled?: boolean;
+  /** Optional per-turn model switch (Pi SDK when present). */
+  setModel?: (model: PiModelRegistration) => Promise<void> | void;
+  setThinkingLevel?: (level: string) => Promise<void> | void;
   subscribe: (listener: (event: unknown) => void) => () => void;
 };
 
-function wrapPiSession(piSession: PiLikeSession, forcedId?: string): SessionHandle {
+function wrapPiSession(
+  piSession: PiLikeSession,
+  forcedId: string | undefined,
+  modelRuntime: PiModelRuntime,
+): SessionHandle {
   const sessionId = forcedId ?? piSession.sessionId ?? cryptoRandomId();
+  const eventMapper = createPiSessionEventMapper();
 
   return {
     id: sessionId,
     async prompt(promptInput) {
+      // Apply per-turn profile when the installed SDK exposes setters.
+      if (promptInput.thinkingLevel && piSession.setThinkingLevel) {
+        await piSession.setThinkingLevel(
+          mapThinkingLevelToApi(promptInput.thinkingLevel, promptInput.model?.protocol),
+        );
+      }
+      if (promptInput.model && piSession.setModel) {
+        try {
+          const model = modelRuntime.getModel(
+            promptInput.model.providerId,
+            promptInput.model.modelId,
+          );
+          if (!model) {
+            throw new Error(
+              `Configured model is unavailable: ${promptInput.model.providerId}/${promptInput.model.modelId}`,
+            );
+          }
+          await piSession.setModel(model);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(
+            `model-unavailable: cannot switch model for this turn (${message})`,
+          );
+        }
+      } else if (promptInput.model && !piSession.setModel) {
+        // Product history is re-injected by session-live-commands; continue without silent drop.
+        // Callers that require a hard switch must rebuild the live handle (ensureLiveSession).
+      }
       await piSession.prompt(promptInput.text);
     },
     async steer(message) {
@@ -708,8 +853,8 @@ function wrapPiSession(piSession: PiLikeSession, forcedId?: string): SessionHand
     },
     subscribe(listener) {
       return piSession.subscribe((raw) => {
-        for (const event of mapPiSessionEvent(raw)) {
-          listener(event);
+        for (const wrapped of eventMapper.map(raw)) {
+          listener(wrapped.event);
         }
       });
     },
@@ -752,6 +897,10 @@ function mapPiCompactResult(
   }
   if (!out.message) {
     out.message = 'Compaction finished';
+  }
+  const fileOps = extractFileOpsFromUnknown(result);
+  if (fileOps) {
+    out.fileOps = fileOps;
   }
   return out;
 }

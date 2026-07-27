@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | **Spec ready · not implemented** |
+| Status | **Implemented · W1–W4 complete (2026-07-27)** |
 | Date | 2026-07-27 |
 | Source of truth | `docs/design/quiet-workbench-proposal.html` **v2.3** |
 | Product | piwin desktop shell only |
@@ -522,6 +522,29 @@ Tasks:
 
 Exit: `pnpm typecheck`、touched tests、Playwright 全绿；手动 smoke 清单勾完。
 
+**Done 2026-07-27**
+
+- reduced-motion: global kill-switch in `styles/base.css` + regional none for status/context/overlays/inspector/transcript shimmer fill.
+- `!important`: only reduced-motion a11y kill-switch + xterm viewport overflow (documented in base.css).
+- e2e: directory→drill assertions; tool cards via summary expand; session-menu baseline moved to desktop 1280 (compact mutually excludes sidebar/inspector).
+- 8 darwin baselines regenerated under `apps/desktop/e2e/visual-regression.spec.ts-snapshots/`.
+- foundations: Quiet Workbench section + links to prototype v2.3 and this plan.
+- Optional Mantine→Radix: deferred (non-blocking).
+
+**Residuals closed 2026-07-27 (post-W4)**
+
+- Last-view restore via `right-panel-memory.ts` (sessionStorage).
+- Terminal attention: row breath + status-bar pulse; never auto-open panel.
+- Titleband boxed execution-mode `<select>` removed; mode picks from More menu (three items).
+
+**Polish (non-manual) 2026-07-27**
+
+- Character icons → shell SVG across desktop functional UI + `shell-icon-policy.test.ts`.
+- Right panel **keep-mount** when collapsed (`is-collapsed`, no focus steal).
+- Deleted dead `transcript-mini-nav` + CSS; thin native transcript scrollbar.
+- Bundled themes + mock host fonts: system stack (no Outfit); graphite quiet-workbench tokens.
+- Message entrance `is-new` only for post-mount incremental messages.
+
 ---
 
 ## 9. Acceptance / QA
@@ -530,27 +553,27 @@ Exit: `pnpm typecheck`、touched tests、Playwright 全绿；手动 smoke 清单
 
 在 1400×900 左右窗口，dark 主题：
 
-- [ ] 左/中/右/顶 **看不出明显分割盒**
-- [ ] 收起右栏：对话变宽，无残留右轨
-- [ ] 展开右栏：先见目录，不见强 tab 条
-- [ ] 终端无进程：无数字无箭头；有进程：有数字+箭头
-- [ ] 点终端钻入：整栏终端 + 返回；不丢进程
-- [ ] titleband 右上 panel 钮 pressed 态与原型一致
-- [ ] context bar **无** panel 钮；有运行态与 stop
-- [ ] 助手无气泡；用户有 soft 气泡
-- [ ] 思考完成摘要文案格式正确
-- [ ] composer 悬浮、控件无框
-- [ ] 无右缘消息刻度
-- [ ] 图标同排粗细一致
-- [ ] reduced-motion 开时无滑动/shimmer
+- [x] 左/中/右/顶 **看不出明显分割盒**
+- [x] 收起右栏：对话变宽，无残留右轨
+- [x] 展开右栏：先见目录，不见强 tab 条
+- [x] 终端无进程：无数字无箭头；有进程：有数字+箭头
+- [x] 点终端钻入：整栏终端 + 返回；不丢进程
+- [x] titleband 右上 panel 钮 pressed 态与原型一致
+- [x] context bar **无** panel 钮；有运行态与 stop
+- [x] 助手无气泡；用户有 soft 气泡
+- [x] 思考完成摘要文案格式正确
+- [x] composer 悬浮、控件无框
+- [x] 无右缘消息刻度
+- [x] 图标同排粗细一致
+- [x] reduced-motion 开时无滑动/shimmer
 
 ### 9.2 行为清单
 
-- [ ] 面板钮不停止生成
-- [ ] 目录态终端输出不自动打开右栏
-- [ ] 重开右栏恢复 last view
-- [ ] compact `data-layout` 下右栏仍为 overlay 语义
-- [ ] ⌘K / 新会话 / 侧栏切换仍可用
+- [x] 面板钮不停止生成
+- [x] 目录态终端输出不自动打开右栏（行尾呼吸点 + 状态栏脉冲）
+- [x] 重开右栏恢复 last view（sessionStorage）
+- [x] compact `data-layout` 下右栏仍为 overlay 语义
+- [x] ⌘K / 新会话 / 侧栏切换仍可用
 
 ### 9.3 命令
 

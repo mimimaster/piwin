@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { ExtensionSummary } from '@piwin/contracts';
+import type { ExtensionSummary, SessionScope } from '@piwin/contracts';
 import { collectExtensionEntryPaths, scanExtensions } from './extension-scanner.js';
 import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
 import { collectPromptEntryPaths, scanPrompts } from './prompt-scanner.js';
@@ -11,7 +11,13 @@ export type CreatePiResourceLoaderOptions = {
   agentDir: string;
   piwinRoot: string;
   extraSkillPaths?: string[];
+  /**
+   * Project root for project-local skills/extensions/prompts.
+   * Omitted (or general scope) → user/bundled only.
+   */
   projectPath?: string;
+  /** When general, project-local discovery is skipped even if projectPath is set. */
+  scope?: SessionScope;
   disabledSkillIds?: string[];
   extraExtensionPaths?: string[];
   disabledExtensionIds?: string[];
@@ -38,6 +44,11 @@ export async function createPiResourceLoader(
     throw new Error('DefaultResourceLoader missing from @earendil-works/pi-coding-agent');
   }
 
+  const projectLocalPath =
+    options.scope?.kind === 'general'
+      ? undefined
+      : options.projectPath?.trim() || undefined;
+
   const skillPaths = collectSkillPaths(options);
   const disabled = new Set(
     (options.disabledSkillIds ?? []).map((id) => id.toLowerCase()),
@@ -48,7 +59,7 @@ export async function createPiResourceLoader(
 
   const discoveredExtensions = await scanExtensions({
     piwinRoot: options.piwinRoot,
-    ...(options.projectPath ? { projectPath: options.projectPath } : {}),
+    ...(projectLocalPath ? { projectPath: projectLocalPath } : {}),
     extensionsConfig: {
       extraPaths: options.extraExtensionPaths ?? [],
       disabledIds: options.disabledExtensionIds ?? [],
@@ -62,7 +73,7 @@ export async function createPiResourceLoader(
 
   const discoveredPrompts = await scanPrompts({
     piwinRoot: options.piwinRoot,
-    ...(options.projectPath ? { projectPath: options.projectPath } : {}),
+    ...(projectLocalPath ? { projectPath: projectLocalPath } : {}),
     promptsConfig: {
       extraPaths: options.extraPromptPaths ?? [],
       disabledIds: options.disabledPromptIds ?? [],
@@ -145,11 +156,14 @@ export function collectSkillPaths(options: {
   piwinRoot: string;
   extraSkillPaths?: string[];
   projectPath?: string;
+  scope?: SessionScope;
 }): string[] {
   const paths: string[] = [getPiwinSkillsDir(options.piwinRoot)];
-  if (options.projectPath) {
-    paths.push(join(options.projectPath, '.pi', 'skills'));
-    paths.push(join(options.projectPath, '.agents', 'skills'));
+  const allowProjectLocal = options.scope?.kind !== 'general';
+  const projectPath = options.projectPath?.trim();
+  if (allowProjectLocal && projectPath) {
+    paths.push(join(projectPath, '.pi', 'skills'));
+    paths.push(join(projectPath, '.agents', 'skills'));
   }
   for (const extra of options.extraSkillPaths ?? []) {
     if (extra.trim().length > 0) {

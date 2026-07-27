@@ -91,6 +91,38 @@ describe('ProcessRegistry', () => {
     await registry.dispose();
   });
 
+  it('stops only processes marked for session cleanup', async () => {
+    const trusted = await makeTrustedProject();
+    const registry = createProcessRegistry({
+      config: { enabled: true, maxProcesses: 8, killOnHostDispose: true },
+      getTrustedProjectRoots: () => [trusted],
+      killGraceMs: 500,
+    });
+    const [boundProcess, persistentProcess] = await Promise.all([
+      registry.start({
+        command: process.execPath,
+        argv: ['-e', 'setInterval(() => {}, 1000)'],
+        cwd: trusted,
+        sessionId: 'session-1',
+        killOnSessionEnd: true,
+      }),
+      registry.start({
+        command: process.execPath,
+        argv: ['-e', 'setInterval(() => {}, 1000)'],
+        cwd: trusted,
+        sessionId: 'session-1',
+        killOnSessionEnd: false,
+      }),
+    ]);
+
+    const stopped = await registry.stopForSession('session-1');
+    expect(stopped.map((processRecord) => processRecord.id)).toEqual([boundProcess.id]);
+    expect(registry.get(boundProcess.id)?.status).toBe('stopped');
+    expect(registry.get(persistentProcess.id)?.status).toBe('running');
+
+    await registry.dispose();
+  });
+
   it('dispose kills remaining children (no orphans)', async () => {
     const trusted = await makeTrustedProject();
     const registry = createProcessRegistry({

@@ -7,6 +7,8 @@ export {
   getProjectNetworkPolicy,
   allowNetworkFetchHost,
   allowNetworkWebSearch,
-  getProjectMcpPolicy,
-  allowMcpServer,
+} from './project-store.js';
+export {
+  listRememberedPermissions,
+  revokeRememberedPermission,
 } from './project-store.js';

@@ -42,4 +42,24 @@ describe('toPiCustomTool', () => {
     expect(tools).toHaveLength(1);
     expect(tools[0]?.name).toBe('web_fetch');
   });
+
+  it('preserves a direct MCP JSON schema for Pi', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        query: { type: 'string' },
+      },
+      required: ['query'],
+    };
+    const piTool = toPiCustomTool({
+      name: 'mcp__docs__search',
+      description: 'Search docs',
+      parameters: schema,
+      async execute() {
+        return '{}';
+      },
+    });
+
+    expect(piTool.parameters).toMatchObject(schema);
+  });
 });

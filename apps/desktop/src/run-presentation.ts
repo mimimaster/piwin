@@ -124,8 +124,8 @@ export function buildTurnPresentation(input: BuildTurnPresentationInput): TurnPr
       thinkingLength: message.thinking.trim().length,
       phaseCount: phaseHistory.length,
       toolCallCount,
-      thoughtSeconds,
       locale,
+      ...(thoughtSeconds !== undefined ? { thoughtSeconds } : {}),
       ...(runRecord?.outcome ? { outcome: runRecord.outcome } : {}),
     }),
   };

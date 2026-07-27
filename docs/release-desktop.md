@@ -5,6 +5,13 @@
 Build an installable Desktop artifact from a clean checkout. Store signing /
 notarization is **optional** (residual **D-ENG-03b** when certs unavailable).
 
+> **Distribution caveat (current state):** the packaged app still spawns the
+> host via `pnpm … tsx` (dev-mode spawn, ADR 0006), so the target machine
+> needs the source checkout + pnpm + tsx. Public distribution requires the
+> self-contained host sidecar — see **ADR 0017
+> (`adr/0017-host-sidecar-bundling.md`)** for the bundling plan and smoke
+> gate. Until ADR 0017 lands, treat artifacts as internal-only.
+
 ## Prerequisites
 
 - Node `>= 20`, pnpm `9.x`

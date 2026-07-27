@@ -25,6 +25,9 @@ describe('HostRuntime status capabilities', () => {
     expect(data.capabilities.usage).toBe(true);
     expect(data.capabilities.process).toBe(true);
     expect(data.capabilities.sessionExport).toBe(true);
+    expect(data.capabilities.sessionLifecycle).toBe(true);
+    expect(data.capabilities.pty).toBe(false);
+    expect(data.capabilities.shellPreview).toBe(true);
     await runtime.dispose();
   });
 

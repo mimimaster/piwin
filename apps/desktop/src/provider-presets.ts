@@ -2,10 +2,13 @@
  * Built-in provider catalog — interaction model from Cherry Studio ProviderList
  * (preset chips → add configured provider) and Open WebUI connection list.
  *
- * Maps to piwin contracts: openai-compatible | anthropic-compatible only.
+ * Presets are convenience only. Custom providers use one of the protocol adapters.
  */
 
-export type ProviderProtocol = 'openai-compatible' | 'anthropic-compatible';
+export type ProviderProtocol =
+  | 'openai-compatible'
+  | 'anthropic-compatible'
+  | 'google-gemini';
 
 export type ProviderPreset = {
   /** Stable preset key (not necessarily config id). */
@@ -59,8 +62,8 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     presetId: 'gemini',
     id: 'gemini',
     name: 'Google Gemini',
-    protocol: 'openai-compatible',
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    protocol: 'google-gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     apiKeyEnv: 'GEMINI_API_KEY',
     models: [
       { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
@@ -69,7 +72,7 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     ],
     badge: 'GM',
     group: 'cloud',
-    docsHint: 'OpenAI-compatible Gemini endpoint (no second agent SDK)',
+    docsHint: 'Google Generative Language API endpoint',
   },
   {
     presetId: 'gemini-proxy',
@@ -189,7 +192,7 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     protocol: 'openai-compatible',
     baseUrl: 'https://api.example.com/v1',
     apiKeyEnv: 'CUSTOM_API_KEY',
-    models: [{ id: 'model-id', label: 'Model' }],
+    models: [],
     badge: '∞',
     group: 'custom',
   },
@@ -200,7 +203,7 @@ export const PROVIDER_PRESETS: readonly ProviderPreset[] = [
     protocol: 'anthropic-compatible',
     baseUrl: 'https://api.example.com',
     apiKeyEnv: 'CUSTOM_ANTHROPIC_KEY',
-    models: [{ id: 'claude-model', label: 'Model' }],
+    models: [],
     badge: '∞',
     group: 'custom',
   },

@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>piwin - Cursor-inspired agent workspace</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --canvas: #171719;
+        --sidebar: #1c1c1f;
+        --sidebar-deep: #18181a;
+        --panel: #212124;
+        --panel-raised: #29292d;
+        --field: #252529;
+        --line: rgba(255, 255, 255, 0.09);
+        --line-strong: rgba(255, 255, 255, 0.16);
+        --text: #f3f3f5;
+        --soft: #c6c6cb;
+        --muted: #94949c;
+        --faint: #696970;
+        --blue: #5b9cff;
+        --blue-deep: #397fec;
+        --blue-soft: rgba(91, 156, 255, 0.14);
+        --blue-line: rgba(91, 156, 255, 0.42);
+        --green: #6ccf91;
+        --orange: #e9ae63;
+        --purple: #bd9af5;
+        --red: #f17878;
+        --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", sans-serif;
+        --mono: "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      * { box-sizing: border-box; }
+      body { min-width: 1180px; min-height: 100vh; margin: 0; background: #101011; color: var(--text); font: 13px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+      button, textarea { font: inherit; }
+      button { color: inherit; cursor: pointer; }
+      svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+
+      .page { max-width: 1600px; margin: 0 auto; padding: 30px 32px 52px; }
+      .page-header { display: flex; justify-content: space-between; align-items: end; gap: 28px; margin: 0 0 19px; }
+      .eyebrow { margin: 0 0 7px; color: var(--blue); font-size: 10px; font-weight: 740; letter-spacing: .11em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: 29px; font-weight: 680; letter-spacing: -.045em; }
+      .page-copy { max-width: 765px; margin: 9px 0 0; color: var(--muted); font-size: 14px; }
+      .direction { max-width: 325px; margin: 0; color: var(--soft); font-size: 12px; text-align: right; }
+      .direction strong { display: block; margin-bottom: 3px; color: var(--text); font-size: 13px; }
+
+      .shell { display: grid; grid-template-columns: 254px minmax(620px, 1fr) 305px; grid-template-rows: 48px minmax(0, 1fr); height: 792px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 13px; background: var(--canvas); box-shadow: 0 28px 72px rgba(0, 0, 0, .34); }
+      .titlebar { grid-column: 1 / -1; display: grid; grid-template-columns: 254px minmax(0, 1fr) 305px; align-items: center; border-bottom: 1px solid var(--line); background: #1b1b1e; }
+      .titlebar-left { display: flex; align-items: center; gap: 11px; padding: 0 15px; border-right: 1px solid var(--line); }
+      .traffic { display: flex; gap: 6px; } .traffic i { display: block; width: 11px; height: 11px; border-radius: 50%; } .traffic i:first-child { background: #ff5e57; } .traffic i:nth-child(2) { background: #febc2f; } .traffic i:last-child { background: #28c840; }
+      .brand { display: flex; align-items: center; gap: 7px; color: var(--soft); font-size: 12px; font-weight: 700; letter-spacing: -.02em; } .brand-mark { display: grid; width: 19px; height: 19px; place-items: center; border-radius: 5px; background: linear-gradient(145deg, #7ab2ff, #377ce7); color: #fff; font-size: 10px; }
+      .titlebar-center { display: flex; align-items: center; justify-content: space-between; min-width: 0; padding: 0 16px; } .breadcrumb { display: flex; align-items: center; min-width: 0; gap: 7px; color: var(--faint); font-size: 11px; } .breadcrumb strong { overflow: hidden; color: var(--soft); font-weight: 620; text-overflow: ellipsis; white-space: nowrap; } .breadcrumb .sep { color: #515158; }
+      .titlebar-actions { display: flex; justify-content: flex-end; gap: 5px; padding: 0 12px; border-left: 1px solid var(--line); }
+
+      .icon { display: grid; width: 28px; height: 28px; padding: 0; place-items: center; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; transition: background .12s ease, border-color .12s ease, color .12s ease; }
+      .icon:hover { border-color: var(--line); background: #2a2a2e; color: var(--text); } .icon.active { border-color: rgba(91,156,255,.33); background: var(--blue-soft); color: #b9d9ff; }
+      .sidebar { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto auto minmax(0, 1fr) auto; padding: 12px 9px 10px; border-right: 1px solid var(--line); background: var(--sidebar); }
+      .workspace-switcher { display: flex; align-items: center; justify-content: space-between; min-width: 0; height: 34px; padding: 0 7px; border: 1px solid transparent; border-radius: 7px; } .workspace-switcher:hover { border-color: var(--line); background: #242427; } .workspace-name { display: flex; align-items: center; min-width: 0; gap: 8px; } .workspace-glyph { display: grid; width: 21px; height: 21px; place-items: center; border-radius: 5px; background: #313137; color: #d0d0d6; font-size: 11px; } .workspace-copy { min-width: 0; } .workspace-copy strong { display: block; overflow: hidden; color: var(--soft); font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; } .workspace-copy span { display: block; overflow: hidden; color: var(--faint); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+      .new-session { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; height: 32px; margin: 13px 0 13px; border: 1px solid var(--blue-line); border-radius: 7px; background: var(--blue-soft); color: #c3e0ff; font-size: 12px; font-weight: 640; } .new-session:hover { background: rgba(91,156,255,.23); }
+      .session-area { min-height: 0; overflow: hidden auto; padding-right: 2px; } .section-title { display: flex; align-items: center; justify-content: space-between; height: 28px; padding: 0 7px; color: var(--faint); font-size: 10px; font-weight: 720; letter-spacing: .08em; text-transform: uppercase; } .section-title button { padding: 0; border: 0; color: var(--faint); background: none; }
+      .session { display: grid; grid-template-columns: 15px minmax(0, 1fr) 15px; gap: 7px; align-items: center; width: 100%; min-height: 38px; padding: 0 7px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); background: transparent; text-align: left; } .session:hover { background: #27272b; color: var(--soft); } .session.active { border-color: rgba(91,156,255,.38); background: var(--blue-soft); color: var(--text); } .session-symbol { color: var(--faint); font-size: 12px; } .session.active .session-symbol { color: #a8d2ff; } .session-copy { min-width: 0; } .session-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; font-weight: 570; } .session-preview { display: block; overflow: hidden; margin-top: 1px; color: var(--faint); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; } .session-more { color: transparent; font-size: 14px; } .session:hover .session-more { color: var(--faint); }
+      .sidebar-footer { display: flex; align-items: center; justify-content: space-between; padding: 9px 5px 0; border-top: 1px solid var(--line); } .host-state { display: flex; align-items: center; gap: 6px; color: var(--faint); font-size: 10px; } .host-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+      .main { display: grid; min-width: 0; min-height: 0; grid-template-rows: 54px minmax(0, 1fr) auto; }
+      .thread-header { display: flex; align-items: center; justify-content: space-between; padding: 0 22px; border-bottom: 1px solid var(--line); background: #1c1c1f; } .thread-title { display: flex; align-items: center; gap: 9px; min-width: 0; } .thread-title h2 { overflow: hidden; margin: 0; color: var(--text); font-size: 13px; font-weight: 660; letter-spacing: -.015em; text-overflow: ellipsis; white-space: nowrap; } .thread-title span { color: var(--faint); font-size: 11px; } .thread-actions { display: flex; align-items: center; gap: 6px; } .compact-pill { display: inline-flex; align-items: center; gap: 5px; height: 25px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: #242428; font-size: 10.5px; } .compact-pill.agent { border-color: rgba(91,156,255,.35); background: var(--blue-soft); color: #abd5ff; }
+      .thread { overflow: auto; padding: 42px clamp(34px, 7vw, 118px) 28px; background: var(--canvas); } .thread-inner { max-width: 790px; }
+      .turn { margin-bottom: 33px; } .turn-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; color: var(--muted); font-size: 11px; font-weight: 640; } .turn-meta time { color: var(--faint); font-size: 10px; font-weight: 450; } .avatar { display: grid; width: 20px; height: 20px; place-items: center; border: 1px solid var(--line); border-radius: 5px; color: var(--faint); font-size: 9px; font-weight: 700; } .avatar.agent { border-color: rgba(91,156,255,.44); background: var(--blue-soft); color: #b8daff; }
+      .user-message { max-width: 675px; padding: 13px 15px; border: 1px solid var(--line-strong); border-radius: 9px; background: #242428; color: #ededf0; font-size: 14px; line-height: 1.62; }
+      .agent-message { max-width: 740px; color: #e2e2e7; font-size: 14px; line-height: 1.7; } .agent-message p { margin: 0 0 14px; } .agent-message strong { color: var(--text); font-weight: 650; }
+      .run-summary { display: flex; align-items: center; gap: 8px; max-width: 740px; margin: 17px 0; padding: 10px 11px; border-left: 2px solid var(--blue); background: rgba(91,156,255,.06); color: var(--soft); font-size: 12px; } .run-summary span { color: var(--muted); }
+      .tool { max-width: 740px; margin: 14px 0; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #1e1e21; } .tool-head { display: grid; grid-template-columns: 17px auto minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 36px; padding: 0 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; } .tool-status { color: var(--green); font-size: 13px; } .tool-name { color: var(--soft); font: 11px var(--mono); } .tool-path { overflow: hidden; color: var(--faint); font: 10px var(--mono); text-overflow: ellipsis; white-space: nowrap; } .tool-time { color: var(--faint); font-size: 10px; } .tool-body { padding: 10px 12px; color: #a9a9b1; font: 10.5px/1.65 var(--mono); }
+      .agent-plan { display: grid; gap: 5px; max-width: 740px; margin: 16px 0 0; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: #1e1e21; } .plan-row { display: grid; grid-template-columns: 18px 1fr auto; gap: 7px; align-items: center; min-height: 25px; color: var(--muted); font-size: 11px; } .plan-row.done i { color: var(--green); } .plan-row.active { color: var(--soft); } .plan-row.active i { color: var(--blue); } .plan-row em { color: var(--faint); font-size: 10px; font-style: normal; }
+      .composer-zone { padding: 13px 20px 19px; border-top: 1px solid var(--line); background: #1b1b1e; } .composer { max-width: 820px; margin: 0 auto; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 10px; background: #242428; } .composer:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(91,156,255,.11); } .composer textarea { display: block; width: 100%; height: 67px; padding: 12px 13px 5px; border: 0; outline: 0; resize: none; color: var(--text); background: transparent; font-size: 13px; } .composer textarea::placeholder { color: var(--faint); } .composer-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px 7px; } .composer-left, .composer-right { display: flex; align-items: center; gap: 5px; } .selector { display: inline-flex; align-items: center; gap: 5px; height: 27px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: #2b2b30; font-size: 10.5px; } .selector:hover { border-color: var(--line-strong); color: var(--soft); } .selector.mode { color: #b7d9ff; border-color: rgba(91,156,255,.34); background: var(--blue-soft); } .send { display: grid; width: 29px; height: 29px; padding: 0; place-items: center; border: 0; border-radius: 6px; color: #fff; background: var(--blue-deep); } .send:hover { background: var(--blue); }
+
+      .inspector { display: grid; min-height: 0; grid-template-rows: 54px auto minmax(0, 1fr); border-left: 1px solid var(--line); background: var(--sidebar); } .inspector-header { display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-bottom: 1px solid var(--line); } .inspector-header strong { font-size: 12px; } .inspector-tabs { display: flex; gap: 2px; padding: 8px 9px; border-bottom: 1px solid var(--line); } .inspector-tab { flex: 1; height: 27px; padding: 0; border: 1px solid transparent; border-radius: 5px; color: var(--faint); background: transparent; font-size: 10px; } .inspector-tab.active { border-color: var(--line); background: #28282c; color: var(--soft); } .inspector-content { overflow: auto; padding: 10px; } .inspector-label { margin: 5px 5px 8px; color: var(--faint); font-size: 10px; font-weight: 730; letter-spacing: .08em; text-transform: uppercase; } .change-item { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; align-items: center; gap: 6px; min-height: 32px; padding: 0 6px; border-radius: 5px; color: var(--muted); font: 10.5px var(--mono); } .change-item:hover { background: #28282c; } .change-kind { color: var(--green); font: 10px var(--mono); } .change-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .change-stat { color: var(--green); font-size: 10px; } .commit-card { margin: 13px 0 0; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: #232327; } .commit-card strong { display: block; color: var(--soft); font-size: 11px; } .commit-card p { margin: 4px 0 0; color: var(--faint); font-size: 10px; } .context-card { margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 7px; background: #202023; } .context-head { display: flex; align-items: center; justify-content: space-between; color: var(--soft); font-size: 11px; } .context-head i { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); } .context-card p { margin: 6px 0 0; color: var(--faint); font-size: 10px; } .context-progress { height: 5px; margin-top: 9px; overflow: hidden; border-radius: 4px; background: #36363b; } .context-progress i { display: block; width: 43%; height: 100%; border-radius: inherit; background: var(--blue); }
+
+      .rationale { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 1px; overflow: hidden; margin-top: 15px; border: 1px solid var(--line); border-radius: 10px; background: var(--line); } .rationale div { padding: 12px 14px; background: #19191c; } .rationale strong { display: block; color: var(--soft); font-size: 11px; } .rationale span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">piwin / selected direction</p>
+          <h1>Cursor-like workspace, rebuilt for an agent-first desktop.</h1>
+          <p class="page-copy">A spacious central work log, persistent project/session navigation, and a contextual inspector. The goal is a credible coding environment — not a dark chat app, and not an old-fashioned admin panel.</p>
+        </div>
+        <p class="direction"><strong>Reference logic</strong>Cursor workspace structure<br />+ spacious agent transcript</p>
+      </header>
+
+      <section class="shell" aria-label="Cursor-inspired piwin workspace prototype">
+        <header class="titlebar">
+          <div class="titlebar-left"><span class="traffic"><i></i><i></i><i></i></span><span class="brand"><b class="brand-mark">P</b>piwin</span></div>
+          <div class="titlebar-center"><div class="breadcrumb"><span>piwin</span><span class="sep">/</span><strong>Improve desktop shell</strong></div><button class="icon" title="Command palette">⌘</button></div>
+          <div class="titlebar-actions"><button class="icon" title="Toggle sidebar">☷</button><button class="icon active" title="Inspector">◫</button><button class="icon" title="Settings">⚙</button></div>
+        </header>
+
+        <aside class="sidebar">
+          <button class="workspace-switcher"><span class="workspace-name"><b class="workspace-glyph">⌘</b><span class="workspace-copy"><strong>piwin</strong><span>/Volumes/BigDisk/Projects</span></span></span><span>⌄</span></button>
+          <button class="new-session">＋&nbsp; New session <span style="margin-left:auto;color:#85b8ff;font:10px var(--mono)">⌘N</span></button>
+          <div class="session-area">
+            <div class="section-title"><span>General</span><button>•••</button></div>
+            <button class="session"><span class="session-symbol">◌</span><span class="session-copy"><span class="session-name">General chat</span><span class="session-preview">No project required</span></span><span class="session-more">•••</span></button>
+            <div class="section-title" style="margin-top:10px"><span>Today</span><button>⌕</button></div>
+            <button class="session active"><span class="session-symbol">◌</span><span class="session-copy"><span class="session-name">Improve desktop shell</span><span class="session-preview">Component system and interaction audit</span></span><span class="session-more">•••</span></button>
+            <button class="session"><span class="session-symbol">◌</span><span class="session-copy"><span class="session-name">Review streaming reliability</span><span class="session-preview">Find render and cancellation risks</span></span><span class="session-more">•••</span></button>
+            <button class="session"><span class="session-symbol">◌</span><span class="session-copy"><span class="session-name">Plan MCP permission policy</span><span class="session-preview">Architecture decision draft</span></span><span class="session-more">•••</span></button>
+            <div class="section-title" style="margin-top:10px"><span>Earlier</span></div>
+            <button class="session"><span class="session-symbol">◌</span><span class="session-copy"><span class="session-name">Session restoration</span><span class="session-preview">Yesterday · 18 messages</span></span><span class="session-more">•••</span></button>
+            <button class="session"><span class="session-symbol">◌</span><span class="session-copy"><span class="session-name">Artifact sandbox review</span><span class="session-preview">Jul 23 · 11 messages</span></span><span class="session-more">•••</span></button>
+          </div>
+          <footer class="sidebar-footer"><span class="host-state"><i class="host-dot"></i>Host ready · live</span><button class="icon" style="width:24px;height:24px">⚙</button></footer>
+        </aside>
+
+        <section class="main">
+          <header class="thread-header"><div class="thread-title"><h2>Improve desktop shell</h2><span>General</span></div><div class="thread-actions"><span class="compact-pill agent">✦ Agent</span><span class="compact-pill">42% context</span><button class="icon">•••</button></div></header>
+          <div class="thread"><div class="thread-inner">
+            <article class="turn"><div class="turn-meta"><span class="avatar">Y</span>You <time>14:02</time></div><div class="user-message">The UI still feels like an unfinished admin tool. Rebuild the component system, not just the theme. I need it to feel intentional at every interaction.</div></article>
+            <article class="turn"><div class="turn-meta"><span class="avatar agent">P</span>piwin <time>14:03</time></div><div class="agent-message"><p>Agreed. A mature agent workspace needs a <strong>stable working surface</strong>, not a pile of isolated cards. I am replacing the legacy component language with shared controls, meaningful run feedback, and a transcript that remains easy to audit.</p><div class="run-summary"><span>✦</span><span>Run completed in 48s</span><span>·</span><span>2 files changed</span><span>·</span><span>135 checks passed</span></div><p>The first slice keeps navigation persistent, gives each turn a clear author and timestamp, and groups tool activity as compact evidence rather than visual noise.</p></div>
+              <div class="tool"><header class="tool-head"><span class="tool-status">✓</span><strong class="tool-name">read_file</strong><span class="tool-path">apps/desktop/src/styles.css</span><span class="tool-time">124 ms</span></header><div class="tool-body">Found 10 global cascade layers. Migrating visual contracts to shared UI primitives before feature-level changes.</div></div>
+              <div class="agent-plan"><div class="plan-row done"><i>✓</i><span>Map existing shell and interaction surfaces</span><em>complete</em></div><div class="plan-row done"><i>✓</i><span>Choose a primary workspace model</span><em>complete</em></div><div class="plan-row active"><i>◉</i><span>Build component-led visual prototype</span><em>active</em></div><div class="plan-row"><i>○</i><span>Migrate shell, transcript, and composer</span><em>next</em></div></div>
+            </article>
+          </div></div>
+          <div class="composer-zone"><div class="composer"><textarea placeholder="Continue the work, steer the agent, or ask a follow-up…"></textarea><footer class="composer-bar"><div class="composer-left"><button class="icon">＋</button><button class="selector mode">✦ Agent&nbsp;⌄</button><button class="selector">deepseek-v4-flash&nbsp;⌄</button><button class="selector">Thinking · High&nbsp;⌄</button></div><div class="composer-right"><span style="color:var(--faint);font-size:10px">⌘↵ to send</span><button class="send" title="Send">➤</button></div></footer></div></div>
+        </section>
+
+        <aside class="inspector"><header class="inspector-header"><strong>Workspace</strong><button class="icon">×</button></header><nav class="inspector-tabs"><button class="inspector-tab active">Changes <b style="color:var(--green)">3</b></button><button class="inspector-tab">Files</button><button class="inspector-tab">Activity</button></nav><div class="inspector-content"><div class="inspector-label">Uncommitted</div><div class="change-item"><span class="change-kind">M</span><span class="change-name">composer-dock.tsx</span><span class="change-stat">+18</span></div><div class="change-item"><span class="change-kind">M</span><span class="change-name">ui-kit/button.tsx</span><span class="change-stat">+42</span></div><div class="change-item"><span class="change-kind">A</span><span class="change-name">desktop-foundations.md</span><span class="change-stat">+1</span></div><div class="commit-card"><strong>Component migration</strong><p>Shared UI controls, shell anatomy, transcript hierarchy.</p></div><div class="inspector-label" style="margin-top:18px">Current run</div><div class="context-card"><div class="context-head"><span>Design direction</span><i></i></div><p>Cursor-style workspace with a spacious agent work log.</p><div class="context-progress"><i></i></div></div><div class="context-card"><div class="context-head"><span>Verification</span><span style="color:var(--green)">Passed</span></div><p>Typecheck · UI Kit tests · Desktop tests</p></div></div></aside>
+      </section>
+
+      <section class="rationale"><div><strong>What this fixes</strong><span>No giant empty header, no detached message bubble, no random big blue button, no floating legacy cards. Every surface has a job.</span></div><div><strong>Cursor-inspired structure</strong><span>Project/session navigator, stable title context, optional work inspector, and one central work surface.</span></div><div><strong>piwin-specific agent layer</strong><span>Run summaries, tool evidence, plan state, trust prompts, model/effort controls and session restore fit the same hierarchy.</span></div></section>
+    </main>
+  </body>
+</html>

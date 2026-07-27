@@ -13,6 +13,7 @@ export type MessageActionsProps = {
   showEdit?: boolean;
   onEdit?: (() => void) | undefined;
   disabled?: boolean;
+  onFeedback?: ((message: string, level: 'success' | 'error') => void) | undefined;
 };
 
 export function MessageActions(props: MessageActionsProps): ReactElement {
@@ -27,8 +28,9 @@ export function MessageActions(props: MessageActionsProps): ReactElement {
       await navigator.clipboard.writeText(payload);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1500);
+      props.onFeedback?.('Copied to clipboard', 'success');
     } catch {
-      // clipboard may be denied
+      props.onFeedback?.('Could not copy to clipboard', 'error');
     }
   }
 

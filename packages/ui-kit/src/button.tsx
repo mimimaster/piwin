@@ -1,4 +1,9 @@
-import type { ButtonHTMLAttributes, ReactElement } from 'react';
+import { Button as MantineButton } from '@mantine/core';
+import type {
+  ButtonHTMLAttributes,
+  ComponentPropsWithoutRef,
+  ReactElement,
+} from 'react';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'default' | 'compact';
@@ -13,11 +18,7 @@ function buildButtonClassName(
   size: ButtonSize,
   className: string | undefined,
 ): string {
-  const classNames = ['btn'];
-  if (variant === 'primary') classNames.push('primary');
-  if (variant === 'ghost') classNames.push('btn-ghost');
-  if (variant === 'danger') classNames.push('btn-danger');
-  if (size === 'compact') classNames.push('btn-compact');
+  const classNames = ['piwin-button', `piwin-button--${variant}`, `piwin-button--${size}`];
   if (className) classNames.push(className);
   return classNames.join(' ');
 }
@@ -28,13 +29,21 @@ export function Button({
   size = 'default',
   className,
   type = 'button',
+  color: _nativeColor,
   ...buttonProps
 }: ButtonProps): ReactElement {
+  const mantineVariant =
+    variant === 'primary' ? 'filled' : variant === 'ghost' ? 'subtle' : 'default';
+  // Mantine intentionally narrows optional DOM attributes under exactOptionalPropertyTypes.
+  const mantineButtonProps = buttonProps as ComponentPropsWithoutRef<typeof MantineButton>;
   return (
-    <button
-      {...buttonProps}
+    <MantineButton
+      {...mantineButtonProps}
       type={type}
       className={buildButtonClassName(variant, size, className)}
+      variant={mantineVariant}
+      size={size === 'compact' ? 'compact-sm' : 'sm'}
+      {...(variant === 'danger' ? { color: 'red' } : {})}
     />
   );
 }

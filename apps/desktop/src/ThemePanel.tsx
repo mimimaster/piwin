@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { HostResponse, ThemeManifest, ThemeSummary } from '@piwin/contracts';
 import { applyAppearanceToDocument } from './appearance-tokens';
+import { Button, Field, Notice } from '@piwin/ui-kit';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type ThemePanelProps = {
   request: (command: {
@@ -14,6 +16,9 @@ export type ThemePanelProps = {
 };
 
 export function ThemePanel(props: ThemePanelProps) {
+  const { locale, translator } = useDesktopLocale();
+  const isChinese = locale === 'zh-CN';
+  const common = translator.common;
   const [themes, setThemes] = useState<ThemeSummary[]>([]);
   const [activeId, setActiveId] = useState('piwin-dark');
   const [error, setError] = useState<string | null>(null);
@@ -49,14 +54,14 @@ export function ThemePanel(props: ThemePanelProps) {
     }
     const theme = (response.data as { theme: ThemeManifest }).theme;
     props.onApplied(theme);
-    setInfo(`Active theme: ${theme.name}`);
+    setInfo(isChinese ? `当前主题：${theme.name}` : `Active theme: ${theme.name}`);
     await reload();
   }
 
   async function handleInstall(): Promise<void> {
     const sourcePath = installPath.trim();
     if (!sourcePath) {
-      setError('Provide a local directory containing theme.json');
+      setError(isChinese ? '请提供包含 theme.json 的本地目录。' : 'Provide a local directory containing theme.json.');
       return;
     }
     setBusy(true);
@@ -69,7 +74,7 @@ export function ThemePanel(props: ThemePanelProps) {
       return;
     }
     const data = response.data as { themeId: string; path: string };
-    setInfo(`Installed ${data.themeId}`);
+    setInfo(isChinese ? `已安装 ${data.themeId}` : `Installed ${data.themeId}`);
     setInstallPath('');
     await reload();
   }
@@ -77,13 +82,14 @@ export function ThemePanel(props: ThemePanelProps) {
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
       <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
-        <h3>Themes</h3>
+        <h3>{isChinese ? '主题' : 'Themes'}</h3>
         <p className="muted">
-          Token packages only (colors/radius/font). No executable CSS/JS. Stored under
-          ~/.piwin/themes.
+          {isChinese
+            ? <>主题包仅包含 token（颜色、圆角、字体），不执行 CSS 或 JavaScript，存储于 ~/.piwin/themes。</>
+            : <>Token packages only (colors/radius/font). No executable CSS/JS. Stored under ~/.piwin/themes.</>}
         </p>
-        {error ? <div className="error-banner">{error}</div> : null}
-        {info ? <p className="muted">{info}</p> : null}
+        {error ? <Notice tone="error">{error}</Notice> : null}
+        {info ? <Notice tone="info">{info}</Notice> : null}
 
         <ul className="ext-list">
           {themes.map((theme) => (
@@ -94,41 +100,46 @@ export function ThemePanel(props: ThemePanelProps) {
                   <span className="pill">{theme.mode}</span>
                   <span className="pill">{theme.source}</span>
                   {theme.active || theme.id === activeId ? (
-                    <span className="pill ok">active</span>
+                    <span className="pill ok">{isChinese ? '当前' : 'active'}</span>
                   ) : null}
                 </div>
                 <div className="muted ext-path">
                   {theme.id} · v{theme.version}
                 </div>
               </div>
-              <button
-                type="button"
-                className="btn primary"
+              <Button
+                variant="primary"
                 disabled={busy || theme.id === activeId}
                 onClick={() => void handleActivate(theme.id)}
               >
-                Apply
-              </button>
+                {common.apply}
+              </Button>
             </li>
           ))}
         </ul>
 
-        <h4>Install local theme</h4>
-        <input
-          className="text-input"
-          value={installPath}
-          onChange={(event) => setInstallPath(event.target.value)}
-          placeholder="Absolute path to theme directory (contains theme.json)"
-        />
-        <button type="button" className="btn" disabled={busy} onClick={() => void handleInstall()}>
-          Install
-        </button>
+        <h4>{isChinese ? '安装本地主题' : 'Install local theme'}</h4>
+        <Field
+          label={isChinese ? '主题目录' : 'Theme directory'}
+          description={isChinese ? '包含 theme.json 的目录绝对路径。' : 'Absolute path to a directory containing theme.json.'}
+          required
+        >
+          <input
+            value={installPath}
+            onChange={(event) => setInstallPath(event.target.value)}
+            placeholder="/path/to/my-theme"
+            data-testid="theme-install-path"
+          />
+        </Field>
+        <Button disabled={busy} onClick={() => void handleInstall()}>
+          {common.install}
+        </Button>
 
         <div className="manager-actions">
-          <button type="button" className="btn" onClick={() => void reload()}>
-            Refresh
-          </button>
-          {props.variant !== 'inline' ? <button type="button" className="btn" onClick={props.onClose}>Close</button> : null}
+          <Button onClick={() => void reload()}>
+            {common.refresh}
+          </Button>
+          {props.variant !== 'inline' ? <Button onClick={props.onClose}>{common.close}</Button> : null}
         </div>
       </div>
     </div>

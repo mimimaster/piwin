@@ -1,0 +1,41 @@
+/**
+ * Shared session action catalog for dropdown + context menus.
+ */
+import type { SessionRowMenuAction } from './session-row-menu';
+
+export type SessionActionItem = {
+  action: SessionRowMenuAction;
+  label: string;
+  danger?: boolean;
+  testId: string;
+};
+
+export function sessionActionItems(options: {
+  isPinned: boolean;
+  isArchived: boolean;
+}): SessionActionItem[] {
+  if (options.isArchived) {
+    return [
+      { action: 'unarchive', label: 'Restore', testId: 'session-menu-unarchive' },
+      { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
+      { action: 'export', label: 'Export…', testId: 'session-menu-export' },
+      {
+        action: 'delete',
+        label: 'Delete permanently',
+        danger: true,
+        testId: 'session-menu-delete',
+      },
+    ];
+  }
+  return [
+    {
+      action: options.isPinned ? 'unpin' : 'pin',
+      label: options.isPinned ? 'Unpin' : 'Pin',
+      testId: 'session-menu-pin',
+    },
+    { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
+    { action: 'duplicate', label: 'Duplicate', testId: 'session-menu-duplicate' },
+    { action: 'export', label: 'Export…', testId: 'session-menu-export' },
+    { action: 'archive', label: 'Archive', testId: 'session-menu-archive' },
+  ];
+}

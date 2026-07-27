@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Living execution backlog |
-| Updated | 2026-07-21 |
+| Updated | 2026-07-24 |
 | Roadmap | [`v1-completion-roadmap.md`](./specs/v1-completion-roadmap.md) |
 | Rule | This is the **only** task backlog. Specs explain design and acceptance; this file tracks execution state. |
 
@@ -26,6 +26,12 @@
 5. **Parallel (other sessions):** **D-EXT-04** extension confirm→Desktop · **D-HOST-01b** RPC worker isolation — do not thrash those files.
 6. **Capability Expansion program (queued):** LiveAgent-class features via Pi ecosystem —  
    [`docs/specs/program-capability-expansion.md`](./specs/program-capability-expansion.md) · W1–W4 `docs/specs/w*.md` · backlog **CE-*** in §2.9.
+7. **Product Depth (recommended next for “too rough”):** main-path depth + competitive alignment —  
+   [`docs/specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) · ADR [`0013-pty-tauri.md`](./adr/0013-pty-tauri.md) · backlog **PD-***.  
+   **Locked 2026-07-21:** archive-first sessions; fork-light=duplicate transcript; post-event hooks only (thin); **Tauri PTY** (not node-pty). Prefer this before new CE surface area.
+8. **Product-Shell Repair (PSR-*) — Active 2026-07-22:** developer-preview desktop shell repair —  
+   plan [`docs/plans/2026-07-22-desktop-product-shell-repair.md`](plans/2026-07-22-desktop-product-shell-repair.md).  
+   **D1 lock:** remains developer preview; bundled Node/host sidecar distribution is intentionally deferred (not a completed release path).
 
 ---
 
@@ -115,6 +121,7 @@
 | D-HOST-03c | ~~Sub-agent Complete & merge~~ | **Done 2026-07-20** session/complete-subagent + merge-subagent → parent system message; extractive summary | done |
 | D-HOST-03d | ~~Plan step progress L1+L2~~ | **Done 2026-07-20** plan/update-step + PlanPanel checklist + piwin_plan_set_step tool (SDK); L3 fence parse still deferred | done |
 | D-HOST-03d-L3 | Plan fence parsing → plan progress | Untrusted free-text; deferred per residual plan §5.2 | deferred |
+| D-HOST-03e | Follow-up turn lifecycle design: `session/follow_up` validates run ownership but a distinct foreground lifecycle (new `runId` + terminal event vs. append to existing run) is not introduced yet. | ADR/plan decision deferred from responsiveness evidence plan §5 item 3 — not a correctness blocker. | later ADR |
 | D-HOST-04b | ~~Richer compaction end summary~~ | **Done 2026-07-20** full map of Pi CompactionResult (summary/tokens/durationMs) + banner details; spike note in docs/notes | done |
 | D-HOST-04c | ~~Global auto-compact defaults~~ | **Done 2026-07-20** `compaction.autoEnabledDefault` + Settings toggle + session override source; project override deferred | done |
 
@@ -162,29 +169,107 @@
 
 | ID | Item | Wave | Spec | Status |
 |----|------|------|------|--------|
-| CE-MEM-01..04 | Memory store, tools, inject, Settings/CLI | W1 | [`w1-memory-process-chat.md`](./specs/w1-memory-process-chat.md) | Queued |
+| CE-MEM-01..04 | Memory store, tools, inject, Settings/CLI | W1 | [`w1-memory-process-chat.md`](./specs/w1-memory-process-chat.md) | **Partial 2026-07-21** — store/tools/Settings/CLI; extract residual |
 | CE-MEM-05 | Silent memory extract (opt-in) | W1.5 | same | Future |
 | CE-MEM-06 | Memory organizer | later | same | Future |
 | CE-PROC-01..04 | ManagedProcess registry + tools + UI | W1 | same | **Done 2026-07-21** (WT-2) |
-| CE-CHAT-01..05 | Pin, search, edit-resend, modes light | W1 | same | Queued |
-| CE-OBS-01..02 | Token/context usage events + UI | W1 | same | Queued |
-| CE-SUB-01..05 | Worktree sub-agent, apply policy, concurrency | W2 | [`w2-subagent-compaction-pty.md`](./specs/w2-subagent-compaction-pty.md) | Queued |
-| CE-COMP-01..03 | Pi FileOperations surface + Files touched inject | W2 | same | Queued |
-| CE-PTY-01..03 | Real PTY terminal dock | W2 | same | Queued |
-| CE-MD-01..02 | KaTeX + Mermaid | W2 | same | Queued |
+| CE-CHAT-01..05 | Pin, search, edit-resend, modes light | W1 | same | **Partial** — pin/search/edit; modes light residual |
+| CE-OBS-01..02 | Token/context usage events + UI | W1 | same | **Partial** — usage chip + execution usage; densify residual |
+| CE-SUB-01..05 | Worktree sub-agent, apply policy, concurrency | W2 | [`w2-subagent-compaction-pty.md`](./specs/w2-subagent-compaction-pty.md) | **Partial 2026-07-21** — worktree spawn/apply/UI; batch concurrency deferred |
+| CE-COMP-01..03 | Pi FileOperations surface + Files touched inject | W2 | same | **Partial 2026-07-21** — normalize/inject/banner state; Pi extract best-effort |
+| CE-PTY-01..03 | Real PTY terminal dock | W2 | same | **Partial 2026-07-21** — host pty/* + Desktop Activity/Terminal dock tabs (piped shell; node-pty later) |
+| CE-MD-01..02 | KaTeX + Mermaid | W2 | same | **Done** (soft-fail fences) |
 | CE-MODE-01 | chat / agent / agent-debug polish | W2 | same | Queued |
 | CE-PROV-01 | Gemini-class provider presets | W2 | same | Queued |
-| CE-HUB-SK-01..03 | Skills Hub + install jobs + sources | W3 | [`w3-marketplace-automation.md`](./specs/w3-marketplace-automation.md) | Queued |
-| CE-HUB-MCP-01..03 | MCP registry cards + install draft | W3 | same | Queued |
-| CE-CRON-01..03 | Cron prompt/bash/http | W3 | same | Queued |
-| CE-HOOK-01..02 | Lifecycle hooks runner | W3 | same | Queued |
-| CE-TODO-01 | Session todo tool + Execution panel | W3 | same | Queued |
+| CE-HUB-SK-01..03 | Skills Hub + install jobs + sources | W3 | [`w3-marketplace-automation.md`](./specs/w3-marketplace-automation.md) | **Partial 2026-07-21** — Installed/Store tabs + store-list/install |
+| CE-HUB-MCP-01..03 | MCP registry cards + install draft | W3 | same | **Partial 2026-07-21** — Configured/Registry tabs + install draft |
+| CE-CRON-01..03 | Cron prompt/bash/http | W3 | same | **Partial 2026-07-21** — Settings Automation UI + prompt cron; bash/http later |
+| CE-HOOK-01..02 | Lifecycle hooks runner | W3 | same | **Partial 2026-07-21** — Settings hooks UI + store; host arm on events residual |
+| CE-TODO-01 | Session todo tool + Execution panel | W3 | same | **Partial 2026-07-21** — todo/get|set IPC + store; tool+panel deferred |
 | CE-SHARE-01 | Local session export MD/HTML | W4 | [`w4-remote-gateway.md`](./specs/w4-remote-gateway.md) | Queued |
 | CE-GW-01..04 | Personal gateway + WebUI + reconnect | W4 | same | Future (ADR first) |
 | CE-TUN-01 | Tunnel manager | W4 | same | Future |
 
 **Start order:** CE-MEM + CE-PROC + CE-OBS → CE-CHAT → CE-SUB/CE-COMP → CE-PTY/CE-MD → W3 → W4.  
 **New packages:** `@piwin/memory`, `@piwin/process`, `@piwin/automation` (+ optional `apps/gateway`).
+
+
+### 2.10 Product Depth (PD-*) — Active after polish priority
+
+> Spec: [`docs/specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md)  
+> Locks: archive-first · fork-light duplicate · post-event hooks only · Tauri PTY (ADR 0013)
+
+| ID | Item | Status |
+|----|------|--------|
+| PD-SESS-01 | session/rename | **Done 2026-07-21** |
+| PD-SESS-02 | session/archive + unarchive | **Done 2026-07-21** |
+| PD-SESS-03 | session/delete permanent (from archive) | **Done 2026-07-21** |
+| PD-SESS-04 | Session row context menu | **Done 2026-07-21** |
+| PD-SESS-05 | session/duplicate (fork-light) | **Done 2026-07-21** |
+| PD-SESS-06..07 | Pinned section + show archived | **Done 2026-07-21** (pinned group + archive toggle) |
+| PD-TRUE-01..04 | Capability honesty / Shell wording | **Done 2026-07-21** (pty=false, matrix, pills) |
+| PD-STR-01..06 | App/host-runtime/host-client/ui-kit split | **Done** — domain command modules (catalog/mcp/git/plan/process/memory/pty/automation/resolve) + dispatchDomainCommands; session-live-commands extracted; HostRuntime is orchestrator+services |
+| PD-UX-01..05 | Notifications, ErrorBoundary, empty states, a11y, remember manager | **Partial** — notify + ErrorBoundary + ChatEmptyState; a11y/remember residual |
+| PD-DOC-01..04 | Backlog/status docs + bundled skills | **Partial** — product-status.md; bundled skills residual |
+| PD-PTY-01..05 | Tauri PTY + xterm (ADR 0013) | Queued |
+| PD-AUTO-01..02 | Post-event hooks only; no PreToolUse | Queued (thin) |
+| PD-AUTO-04..05 | Todo tool+panel; cron run history | Queued |
+| PD-SUB-01..03 | Sub-agent isolation labels | Queued |
+
+**Start:** S0 docs → S1 rename/archive menu → S2 honesty → … → S7 Tauri PTY. Hooks are low product priority (user: rarely used).
+
+
+### 2.11 Product Optimization (PO-*) — **Active execution program**
+
+> Spec: [`docs/specs/product-optimization-program.md`](./specs/product-optimization-program.md)  
+> Priority (L5): **A polish → B half-built honesty → C PTY spike-gated**  
+> Locks: L1–L4 (from Product Depth) + L5–L8 (PO program)  
+> Residual of PD-UX/DOC/PTY/AUTO/SUB is **tracked here** (PO-*), not re-opened under PD-*.
+
+| ID | Item | Track | Status |
+|----|------|-------|--------|
+| PO-TRUST-01..03 | Permission remember list/revoke + trust copy | A P0 | **Done 2026-07-22** |
+| PO-UX-01..04 | EmptyState/Spinner adoption + notification audit | A P0 | **Partial** — EmptyState/Spinner on main panels; notify residual |
+| PO-SESS-01..02 | Session micro-UX + destructive confirm consistency | A P0 | **Partial** — archive-first + empty copy |
+| PO-A11Y-01 | Focus / Escape e2e chains | A P0 | **Done 2026-07-22** — Settings Escape + session menu dismiss |
+| PO-SKILL-01..06 | Bundled skills thin pack (6) | B P0 | **Done 2026-07-22** |
+| PO-DOC-01..04 | Backlog/CE sync, product-status, README, architecture | B P0 | **Done 2026-07-22** |
+| PO-AUTO-01..04 | Hooks/cron/todo honesty (time-boxed; hooks thin) | C P1 | **Partial** — banners + CLI cron list; last-run on jobs |
+| PO-SUB-01..03 | Sub-agent mode chip + worktree + merge guidance | C P1 | **Done 2026-07-22** |
+| PO-HUB-01..02 | Skills/MCP hub install path harden | C P1 | **Partial** — existing install + empty/spinner; progress residual |
+| PO-OBS-01 | Usage chip + compaction banner density | C P1 | **Partial** — unknown usage wording already |
+| PO-PTY-00 | Tauri PTY spike note (go/no-go) | D P2 | **Done 2026-07-22** |
+| PO-PTY-01..04 | Full Tauri PTY + xterm **or** permanent Shell preview | D P2 | **Done 2026-07-22** — dual path: Tauri live PTY+xterm; mock Shell preview retained |
+| PO-RES-01..05 | RPC isolation / gateway / JSONL tree / keychain / signing | E residual | Deferred (out of PO ship) |
+
+**Slice order:** S0 docs → S1 trust → S2 UX → S3 skills → S4 a11y → S5 auto → S6 sub/obs → S7 hubs → S8 PTY spike → S9 PTY full or freeze.
+
+
+
+### 2.12 Product-Shell Repair (PSR-*) — **Active execution program 2026-07-22**
+
+> Plan: [`docs/plans/2026-07-22-desktop-product-shell-repair.md`](plans/2026-07-22-desktop-product-shell-repair.md)  
+> Locks D1–D10 from product review. Removal-first; no new agent kernel, dashboard, or visual redesign.  
+> **D1 (developer preview):** workspace `pnpm`/`tsx` host bridge only. Bundled Node runtime / installed-app sidecar packaging is **intentionally deferred** — not a completed release path.
+
+| ID | Item | Status |
+|----|------|--------|
+| PSR-S0 | Baseline, contracts map, explicit preview truth, boundary viewport tests | **Done 2026-07-22** |
+| PSR-S1 | Deterministic responsive shell + overlay ownership (`data-layout`, layer tokens) | **Done 2026-07-22** |
+| PSR-S2 | Session-first work loop; Files / Activity / Review inspector; no auto-session on trust | **Done 2026-07-22** |
+| PSR-S3 | Per-turn Model+Thinking profile; full-history continuity; Steer / Follow-up | **Done 2026-07-22** (host product history inject + setModel when SDK exposes) |
+| PSR-S4 | Structured permissions; truthful status; native PTY trusted-project authorization | **Done 2026-07-22** (authorize-terminal + PermissionRequestCard; Tauri smoke residual) |
+| PSR-S5 | Core vs Advanced Settings; transcript-visible subagent activity (no permanent panel) | **Done 2026-07-22** |
+| PSR-S6 | Delete obsolete rail/dock paths; CSS ownership consolidation | **Done 2026-07-22** |
+| PSR-S7 | Verification, docs, developer-preview release gate | **Done 2026-07-22** (browser e2e; Tauri smoke checklist in docs/notes) |
+| PSR-D1 | Bundled host/Node runtime for installed Desktop | **Deferred by D1** — developer preview only. See also evidence-plan §5: packaged host distribution (bundled executable/Node, resource resolution, signing/notarization, clean-machine verification) requires a separate plan. |
+| PSR-D2 | Desktop RPC mode / selectable `PiwinConfig.hostMode` on Desktop | **Deferred by D2** — Desktop SDK-only until worker isolation ships |
+| PSR-D3 | First-run provider wizard / readiness gate blocking trust | **Deferred by D7** — out of scope |
+| PSR-D4 | Pi JSONL multi-leaf session tree UI | **Deferred** — product shell remains linear |
+| PSR-D5 | Provider-specific context compression beyond honest over-limit | **Deferred** |
+| PSR-D6 | Terminal outside Tauri / CLI PTY parity | **Deferred by D3 scope** |
+
+**Slice order:** S0 baseline → S1 layout → S2 session loop → S3 profile/intervention → S4 permissions+PTY → S5 advanced surfaces → S6 delete obsolete → S7 gate.
 
 
 ---
@@ -214,6 +299,8 @@
 | 2026-07-20 | D-HOST-03 H3 Sub-agent multi-session | spawn/list-children/cancel + SubAgentPanel |
 | 2026-07-21 | D-EXT-01 Pi Extensions channel Slice 1 | ADR 0010, host scanner, path-guard, CLI |
 | 2026-07-21 | Capability Expansion program specs (W1–W4) | `docs/specs/program-capability-expansion.md` + `w1`–`w4` |
+| 2026-07-21 | CE batch-2 partial (SUB/COMP/PTY/Hubs/Automation host) | git worktree, compaction-file-ops, pty-host, @piwin/automation, marketplace registry |
+| 2026-07-21 | Desktop PTY + Settings Hub/Automation UI | terminal-dock Terminal tab, Skills Store, MCP Registry, AutomationPanel |
 | 2026-07-21 | D-EXT-02 Desktop Extensions panel | ExtensionsPanel, rail, Settings, mock host, e2e |
 | 2026-07-21 | D-EXT-03/05/06/07 extensions install, prompts, skill maps, RPC SDK fallback | ADR 0011 + marketplace + panels |
 | 2026-07-21 | D-EXT-04 Extension UI bridge (confirm/select/input) | extension-ui-bridge + Desktop dialog; ADR 0012 worker residual |

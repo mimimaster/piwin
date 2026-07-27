@@ -1,0 +1,61 @@
+# piwin Product Status
+
+| Field | Value |
+|-------|-------|
+| Updated | 2026-07-22 |
+| Backlog | [`todo-deferred.md`](./todo-deferred.md) |
+| Depth program | [`specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) |
+| Optimization program | [`specs/product-optimization-program.md`](./specs/product-optimization-program.md) **Active** |
+
+Legend: **green** usable · **yellow** partial / honest degrade · **red** not shipped
+
+## Main path
+
+| Surface | Status | Notes |
+|---------|--------|-------|
+| Open workspace + trust | green | Tauri picker + path dialog |
+| Chat stream (mock/SDK) | green | Product transcript resume |
+| Session rename/archive/delete/duplicate | green | PD-SESS archive-first |
+| Pin + search | green | Pinned group in sidebar |
+| Skills / MCP panels | green | stdio lifecycle |
+| Permissions | green | Host-owned policy |
+| Media paste path inject | green | No base64 dumps |
+| Markdown + KaTeX/Mermaid | green | Soft-fail fences |
+| Artifact HTML | green | Sandbox iframe |
+| Git status/commit | green | No force-push |
+| Memory / process tools | green | Feature-flagged config |
+| Shell dock | yellow→green on Tauri | **Tauri PTY + xterm** when running desktop; browser mock stays Shell preview (`host capabilities.pty=false`) |
+| RPC isolation | yellow | SDK fallback under `hostMode=rpc` |
+| Hooks / cron | yellow | Thin post-event; cron needs host up |
+| Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; mock remains shell preview |
+| Personal gateway | red | W4 future |
+
+## Architecture health
+
+| Area | Status |
+|------|--------|
+| Package boundary (apps ↛ Pi) | green |
+| App shell modularity | green | App ~800 lines orchestration + hooks/components |
+| host-client mock isolation | green | `host-client-mock.ts` |
+| HostRuntime modularity | green | domain + session-live command modules |
+| ui-kit primitives | green | Menu/Popover/Confirm/Notice/Status/Tabs/Field + Button/Dialog |
+| Desktop UI modernization | green | Shell IA + run strip + palette + confirms + CSS split + viewport e2e + visual baselines (darwin) |
+
+## Product Optimization focus (PO-*)
+
+| Priority | Focus | Status |
+|----------|-------|--------|
+| P0 | Permission remember manager | **green** |
+| P0 | Empty/Loading panel adoption | yellow→green (main panels) |
+| P0 | Bundled skills thin pack (≥6) | **green** (11 skills) |
+| P0 | Docs/backlog truth | **green** |
+| P1 | Automation honesty · sub-agent labels · hubs | yellow→improved |
+| P2 | Tauri PTY spike-gated | **green code path** — dual-mode TerminalDock |
+
+## Verify
+
+```bash
+pnpm typecheck
+pnpm test
+pnpm e2e:desktop
+```

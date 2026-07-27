@@ -3,7 +3,14 @@ export type { CreateAgentHostOptions } from './create-host.js';
 export { PiSdkAdapter } from './sdk-adapter.js';
 export { PiRpcAdapter } from './rpc-adapter.js';
 export type { PiRpcAdapterOptions } from './rpc-adapter.js';
-export { mapPiSessionEvent } from './event-map.js';
+export { mapPiSessionEvent, createEventEnvelopeGenerator, wrapEvent, wrapEvents } from './event-map.js';
+export type { WrappedAgentEvent } from './event-map.js';
+export {
+  buildToolPresentation,
+  classifyToolKind,
+  boundToolOutput,
+  redactToolText,
+} from './tool-presentation.js';
 export {
   evaluateBashPermission,
   evaluateWebPermission,
@@ -34,6 +41,7 @@ export {
   getPiwinRoot,
   getPiwinConfigPath,
   getPiwinMediaDir,
+  getPiwinGeneralWorkspacePath,
   getPiwinMemoryDir,
   getPiwinLogsDir,
   getPiwinProjectsPath,
@@ -52,9 +60,17 @@ export type {
   ToolPermissionGate,
   BuildSessionToolsOptions,
 } from './session-tools.js';
+export { ensureGeneralWorkspace } from './general-workspace.js';
+export {
+  resolveSessionLocation,
+  resolveSessionScopeFromInput,
+  resolveListFilter,
+  indexProjectPathForScope,
+  scopeFromIndexRecord,
+} from './session-scope.js';
 export { createMockSessionHandle } from './mock-session.js';
 export { HostRuntime } from './host-runtime.js';
-export type { HostRuntimeOptions } from './host-runtime.js';
+export type { HostRuntimeOptions, HostRuntimeTestFixture } from './host-runtime.js';
 
 export { toPiCustomTool, toPiCustomTools } from './pi-tool-adapter.js';
 export type { PiCustomToolDefinition } from './pi-tool-adapter.js';
@@ -109,3 +125,23 @@ export {
   shouldInjectMemoryOverview,
 } from './memory-inject.js';
 
+
+export { createDelayedSessionHandle } from './delayed-session-fixture.js';
+export type {
+  DelayedSessionDelays,
+  DelayedSessionOptions,
+  DelayFn,
+} from './delayed-session-fixture.js';
+export { createTransportTimingBuffer } from './transport-timing.js';
+export type {
+  TransportTimingBuffer,
+  TransportTimingRecord,
+  TransportTimingBufferOptions,
+} from './transport-timing.js';
+
+export {
+  createActiveRunRegistry,
+  buildRunPhaseEvent,
+  buildRunTerminalEvent,
+} from './active-run.js';
+export type { ActiveRun, ActiveRunRegistry } from './active-run.js';

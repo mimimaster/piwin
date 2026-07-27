@@ -3,6 +3,7 @@ import type {
   AgentHost,
   CreateSessionInput,
   SessionHandle,
+  SessionScope,
   SessionSummary,
 } from '@piwin/contracts';
 import { mapPiSessionEvent } from './event-map.js';
@@ -109,13 +110,21 @@ export class PiRpcAdapter implements AgentHost {
     throw new Error(`PiRpcAdapter.resumeSession: unknown session ${sessionId}`);
   }
 
-  async listSessions(projectPath: string): Promise<SessionSummary[]> {
+  async listSessions(scopeOrProjectPath: string | SessionScope): Promise<SessionSummary[]> {
     if (this.usesSdkFallback() && this.sdkBackend) {
-      return this.sdkBackend.listSessions(projectPath);
+      return this.sdkBackend.listSessions(scopeOrProjectPath);
     }
     const now = new Date().toISOString();
+    const scope: SessionScope =
+      typeof scopeOrProjectPath === 'string'
+        ? { kind: 'project', projectPath: scopeOrProjectPath }
+        : scopeOrProjectPath;
+    const projectPath = scope.kind === 'project' ? scope.projectPath : '';
+    const workingDirectory = scope.kind === 'project' ? scope.projectPath : '';
     return [...this.sessions.keys()].map((id) => ({
       id,
+      scope,
+      workingDirectory,
       projectPath,
       updatedAt: now,
       messageCount: 0,

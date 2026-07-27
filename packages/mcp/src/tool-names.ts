@@ -28,13 +28,18 @@ export function toMcpToolSummary(
   serverId: string,
   name: string,
   description: string,
+  inputSchema?: Record<string, unknown>,
 ): McpToolSummary {
-  return {
+  const summary: McpToolSummary = {
     serverId,
     name,
     exposedName: formatMcpExposedName(serverId, name),
     description,
   };
+  if (inputSchema) {
+    summary.inputSchema = inputSchema;
+  }
+  return summary;
 }
 
 function sanitizeSegment(value: string): string {

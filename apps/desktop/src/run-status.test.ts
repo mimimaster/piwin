@@ -1,0 +1,78 @@
+import { describe, expect, it } from 'vitest';
+import { createInitialChatUiState } from './chat-reducer';
+import { deriveRunStatus } from './run-status';
+
+describe('deriveRunStatus', () => {
+  it('maps aborting phase to stopping', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      runPhase: 'aborting' as const,
+      streaming: true,
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    expect(status.kind).toBe('stopping');
+    expect(status.canStop).toBe(false);
+  });
+
+  it('maps permission prompt to waiting-permission', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      permissionPrompt: {
+        requestId: 'r1',
+        sessionId: 's1',
+        action: 'bash',
+        detail: 'rm -rf /',
+        defaultDecision: 'deny' as const,
+      },
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    expect(status.kind).toBe('waiting-permission');
+    expect(status.primaryAction).toBe('review-permission');
+  });
+
+  it('maps running tools to working', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      runPhase: 'streaming' as const,
+      streaming: true,
+    };
+    const status = deriveRunStatus({
+      chat,
+      tools: [
+        { toolCallId: 't1', toolName: 'read_file', status: 'running', output: '' },
+        { toolCallId: 't2', toolName: 'search', status: 'done', output: 'ok' },
+      ],
+      plan: null,
+      processes: [],
+    });
+    expect(status.kind).toBe('working');
+    expect(status.activeToolName).toBe('read_file');
+    expect(status.completedToolCount).toBe(1);
+    expect(status.canStop).toBe(true);
+  });
+
+  it('maps stopped terminal state', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      runTerminal: { kind: 'stopped' as const, at: 1 },
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    expect(status.kind).toBe('stopped');
+  });
+
+  it('makes slow model phases visible and keeps Stop enabled', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      activeRunId: 'run-1',
+      activeRunPhase: 'waiting-first-token' as const,
+      activeRunStartedAt: Date.now() - 2_000,
+      runPhase: 'streaming' as const,
+      streaming: true,
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    expect(status.kind).toBe('waiting-first-token');
+    expect(status.summary).toContain('first model token');
+    expect(status.canStop).toBe(true);
+    expect(status.elapsedMs).toBeGreaterThanOrEqual(2_000);
+  });
+});

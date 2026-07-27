@@ -32,4 +32,27 @@ describe('groupSessionsByRecency', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0]?.label).toBe('Today');
   });
+
+  it('puts pinned sessions in a dedicated Pinned group above recency', () => {
+    const groups = groupSessionsByRecency(
+      [
+        {
+          id: 'p1',
+          name: 'Pinned old',
+          isPinned: true,
+          updatedAt: new Date(2026, 5, 10, 12, 0, 0).toISOString(),
+        },
+        {
+          id: 't1',
+          name: 'Today free',
+          updatedAt: new Date(2026, 6, 20, 12, 0, 0).toISOString(),
+        },
+      ],
+      now,
+    );
+    expect(groups.map((group) => group.id)).toEqual(['pinned', 'today']);
+    expect(groups[0]?.sessions.map((session) => session.id)).toEqual(['p1']);
+    expect(groups[1]?.sessions.map((session) => session.id)).toEqual(['t1']);
+  });
+
 });

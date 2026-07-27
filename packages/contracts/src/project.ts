@@ -10,18 +10,6 @@ export type ProjectNetworkPolicy = {
   allowWebSearch: boolean;
 };
 
-/**
- * Project-scoped MCP allowlist (remembered after explicit user allow).
- *
- * `allowedServerIds` is **server-level**: once a server id is listed, both
- * `mcp:connect` and `mcp:tool-call` for that server skip re-prompt for the project.
- * Per-tool fine grain is intentionally not modeled here (see residual D-MCP-02d-tool-fine).
- */
-export type ProjectMcpPolicy = {
-  /** MCP server ids allowed for connect + all tool calls without re-prompt. */
-  allowedServerIds: string[];
-};
-
 export type ProjectRecord = {
   path: string;
   trust: ProjectTrustLevel;
@@ -29,11 +17,15 @@ export type ProjectRecord = {
   lastOpenedAt: string;
   createdAt: string;
   networkPolicy?: ProjectNetworkPolicy;
-  mcpPolicy?: ProjectMcpPolicy;
 };
 
 export type ProjectStoreDocument = {
   version: 1;
+  projects: ProjectRecord[];
+};
+
+/** Response for `project/list`; ordered by most recently opened first. */
+export type ProjectListData = {
   projects: ProjectRecord[];
 };
 
@@ -44,8 +36,57 @@ export function createEmptyNetworkPolicy(): ProjectNetworkPolicy {
   };
 }
 
-export function createEmptyMcpPolicy(): ProjectMcpPolicy {
-  return {
-    allowedServerIds: [],
-  };
-}
+/**
+ * Flattened view of project-remembered tool permissions for Settings UI.
+ * `key` is stable for revoke (e.g. network:web_search, network:fetch:example.com).
+ */
+export type RememberedPermission = {
+  key: string;
+  action: string;
+  detail: string;
+  createdAt?: string;
+};
+
+export type ProjectPermissionsListData = {
+  projectPath: string;
+  permissions: RememberedPermission[];
+};
+
+export type ProjectPermissionsRevokeData = {
+  projectPath: string;
+  key: string;
+  ok: true;
+};
+
+/** Single directory entry for the workspace file tree. */
+export type ProjectDirEntry = {
+  name: string;
+  /** Relative path from project root (posix-style, no leading slash). */
+  relativePath: string;
+  kind: 'file' | 'directory';
+  /** Bytes when known for files; omitted for directories. */
+  sizeBytes?: number;
+};
+
+/** Response for `project/list-dir`. */
+export type ProjectListDirData = {
+  projectPath: string;
+  /** Relative directory listed (empty string = root). */
+  relativePath: string;
+  entries: ProjectDirEntry[];
+};
+
+/** Response for `project/read-file` (text preview only). */
+export type ProjectReadFileData = {
+  projectPath: string;
+  relativePath: string;
+  /** Absolute path under project root. */
+  absolutePath: string;
+  /** UTF-8 text (may be truncated). */
+  content: string;
+  byteSize: number;
+  truncated: boolean;
+  /** When true, host refused to decode as text (binary/too large). */
+  isBinary: boolean;
+  mimeHint?: string;
+};

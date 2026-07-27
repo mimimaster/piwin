@@ -203,3 +203,90 @@ export function resolveNonInteractiveDecision(
   }
   return evaluation.decision;
 }
+
+export type McpToolRisk =
+  | 'read'
+  | 'network'
+  | 'external-write'
+  | 'local-write'
+  | 'process'
+  | 'credential'
+  | 'unknown';
+
+const READ_TOOL_NAME_HINTS = /^(get_|list_|search_|find_|read_|fetch_|query_|describe_|lookup_)/i;
+const WRITE_TOOL_NAME_HINTS =
+  /^(write_|create_|update_|delete_|remove_|put_|post_|patch_|send_|upload_|install_)/i;
+const PROCESS_TOOL_NAME_HINTS = /^(run_|exec_|spawn_|bash|shell|terminal)/i;
+const CREDENTIAL_TOOL_NAME_HINTS = /(auth|token|secret|password|credential|api[_-]?key)/i;
+const NETWORK_TOOL_NAME_HINTS = /(http|fetch|request|webhook|email|slack|browser)/i;
+
+const SECRET_ARG_KEYS =
+  /^(password|passwd|secret|token|api[_-]?key|access[_-]?key|authorization|auth|cookie|private[_-]?key)$/i;
+
+/**
+ * Classify an MCP tool call for host permission gating.
+ * Pure function — server descriptions are untrusted hints only.
+ */
+export function evaluateMcpToolCallRisk(input: {
+  serverId: string;
+  toolName: string;
+  arguments?: Record<string, unknown>;
+}): PermissionEvaluation & { risk: McpToolRisk } {
+  const toolName = input.toolName.trim();
+  if (!toolName) {
+    return { decision: 'deny', reason: 'empty-tool-name', risk: 'unknown' };
+  }
+
+  if (CREDENTIAL_TOOL_NAME_HINTS.test(toolName)) {
+    return { decision: 'ask', reason: 'mcp-credential', risk: 'credential' };
+  }
+  if (PROCESS_TOOL_NAME_HINTS.test(toolName)) {
+    return { decision: 'ask', reason: 'mcp-process', risk: 'process' };
+  }
+  if (WRITE_TOOL_NAME_HINTS.test(toolName)) {
+    const risk: McpToolRisk = NETWORK_TOOL_NAME_HINTS.test(toolName)
+      ? 'external-write'
+      : 'local-write';
+    return { decision: 'ask', reason: `mcp-write:${risk}`, risk };
+  }
+  if (NETWORK_TOOL_NAME_HINTS.test(toolName)) {
+    return { decision: 'ask', reason: 'mcp-network', risk: 'network' };
+  }
+  if (READ_TOOL_NAME_HINTS.test(toolName)) {
+    // A server controls its tool names. A read-looking name is useful for
+    // displaying risk, but cannot be trusted as an authorization decision.
+    return { decision: 'ask', reason: 'mcp-read-review', risk: 'read' };
+  }
+
+  // Unknown tools always ask — never trust server-supplied "safe" claims.
+  return { decision: 'ask', reason: 'mcp-unknown', risk: 'unknown' };
+}
+
+/** Redact secret-like keys and bound summary length for permission UI/logs. */
+export function redactMcpArgumentsSummary(
+  args: Record<string, unknown>,
+  maxLength = 280,
+): string {
+  const redacted: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(args)) {
+    if (SECRET_ARG_KEYS.test(key)) {
+      redacted[key] = '[redacted]';
+      continue;
+    }
+    if (typeof value === 'string' && value.length > 80) {
+      redacted[key] = `${value.slice(0, 80)}…`;
+      continue;
+    }
+    redacted[key] = value;
+  }
+  let text: string;
+  try {
+    text = JSON.stringify(redacted);
+  } catch {
+    text = String(redacted);
+  }
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength)}…`;
+}

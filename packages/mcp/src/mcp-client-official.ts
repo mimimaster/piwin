@@ -19,7 +19,11 @@ function toStringEnv(source: NodeJS.ProcessEnv): Record<string, string> {
 export async function connectOfficialMcpStdio(
   serverId: string,
   config: McpServerConfig,
+  signal?: AbortSignal,
 ): Promise<McpTransportClient> {
+  if (signal?.aborted) {
+    throw new Error(`MCP connect aborted: ${serverId}`);
+  }
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
   const { StdioClientTransport } = await import(
     '@modelcontextprotocol/sdk/client/stdio.js'
@@ -40,7 +44,16 @@ export async function connectOfficialMcpStdio(
     { capabilities: {} },
   );
 
-  await client.connect(transport);
+  try {
+    await client.connect(transport, signal ? { signal } : undefined);
+  } catch (error) {
+    try {
+      await transport.close();
+    } catch {
+      // Cleanup is best effort when connection setup is cancelled.
+    }
+    throw error;
+  }
 
   let intentionalClose = false;
   const exitHandlers = new Set<(reason: string) => void>();
@@ -72,8 +85,8 @@ export async function connectOfficialMcpStdio(
 
   const session: McpTransportClient = {
     serverId,
-    async listTools() {
-      const result = await client.listTools();
+    async listTools(signal) {
+      const result = await client.listTools({}, signal ? { signal } : undefined);
       return (result.tools ?? []).map((tool) => {
         const item: McpListedTool = { name: tool.name };
         if (typeof tool.description === 'string') {
@@ -85,8 +98,12 @@ export async function connectOfficialMcpStdio(
         return item;
       });
     },
-    async callTool(name, args) {
-      return client.callTool({ name, arguments: args });
+    async callTool(name, args, signal) {
+      return client.callTool(
+        { name, arguments: args },
+        undefined,
+        signal ? { signal } : undefined,
+      );
     },
     async close() {
       intentionalClose = true;

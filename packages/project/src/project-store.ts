@@ -2,12 +2,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type {
   ProjectNetworkPolicy,
-  ProjectMcpPolicy,
   ProjectRecord,
   ProjectStoreDocument,
   ProjectTrustLevel,
+  RememberedPermission,
 } from '@piwin/contracts';
-import { createEmptyMcpPolicy, createEmptyNetworkPolicy } from '@piwin/contracts';
+import { createEmptyNetworkPolicy } from '@piwin/contracts';
 
 
 function nowIso(): string {
@@ -49,6 +49,13 @@ export async function saveProjectStore(
   document: ProjectStoreDocument,
 ): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
+  // One-release migration: drop legacy project MCP allowlists on write.
+  // MCP connection is no longer a project-scoped permission.
+  for (const project of document.projects) {
+    if ('mcpPolicy' in project) {
+      delete (project as ProjectRecord & { mcpPolicy?: unknown }).mcpPolicy;
+    }
+  }
   await writeFile(filePath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
 }
 
@@ -168,51 +175,6 @@ export async function allowNetworkFetchHost(
   return policy;
 }
 
-export async function getProjectMcpPolicy(
-  filePath: string,
-  projectPath: string,
-): Promise<ProjectMcpPolicy> {
-  const absolutePath = resolve(projectPath);
-  const document = await loadProjectStore(filePath);
-  const existing = document.projects.find((item) => item.path === absolutePath);
-  return existing?.mcpPolicy
-    ? {
-        allowedServerIds: [...existing.mcpPolicy.allowedServerIds],
-      }
-    : createEmptyMcpPolicy();
-}
-
-export async function allowMcpServer(
-  filePath: string,
-  projectPath: string,
-  serverId: string,
-): Promise<ProjectMcpPolicy> {
-  const normalizedId = serverId.trim();
-  if (!normalizedId) {
-    return getProjectMcpPolicy(filePath, projectPath);
-  }
-  const absolutePath = resolve(projectPath);
-  await openOrCreateProject(filePath, absolutePath);
-  const document = await loadProjectStore(filePath);
-  const existing = document.projects.find((item) => item.path === absolutePath);
-  if (!existing) {
-    return createEmptyMcpPolicy();
-  }
-  const policy = existing.mcpPolicy
-    ? {
-        allowedServerIds: [...existing.mcpPolicy.allowedServerIds],
-      }
-    : createEmptyMcpPolicy();
-  if (!policy.allowedServerIds.includes(normalizedId)) {
-    policy.allowedServerIds.push(normalizedId);
-    policy.allowedServerIds.sort();
-  }
-  existing.mcpPolicy = policy;
-  existing.lastOpenedAt = nowIso();
-  await saveProjectStore(filePath, document);
-  return policy;
-}
-
 export async function allowNetworkWebSearch(
   filePath: string,
   projectPath: string,
@@ -234,4 +196,85 @@ export async function allowNetworkWebSearch(
   existing.lastOpenedAt = nowIso();
   await saveProjectStore(filePath, document);
   return policy;
+}
+
+const NETWORK_WEB_SEARCH_KEY = 'network:web_search';
+
+function networkFetchKey(hostname: string): string {
+  return `network:fetch:${hostname}`;
+}
+
+/** Flatten network remembered allowlists into a Settings-friendly list. */
+export async function listRememberedPermissions(
+  filePath: string,
+  projectPath: string,
+): Promise<RememberedPermission[]> {
+  const absolutePath = resolve(projectPath);
+  const document = await loadProjectStore(filePath);
+  const existing = document.projects.find((item) => item.path === absolutePath);
+  if (!existing) {
+    return [];
+  }
+  const permissions: RememberedPermission[] = [];
+  const network = existing.networkPolicy;
+  if (network?.allowWebSearch) {
+    permissions.push({
+      key: NETWORK_WEB_SEARCH_KEY,
+      action: 'network:web_search',
+      detail: 'Web search allowed for this project',
+    });
+  }
+  for (const hostname of network?.allowedFetchHosts ?? []) {
+    permissions.push({
+      key: networkFetchKey(hostname),
+      action: 'network:web_fetch',
+      detail: `Fetch host allowed: ${hostname}`,
+    });
+  }
+  permissions.sort((left, right) => left.key.localeCompare(right.key));
+  return permissions;
+}
+
+/**
+ * Revoke one remembered permission by stable key.
+ * Unknown keys are no-ops (returns current list semantics via ok).
+ */
+export async function revokeRememberedPermission(
+  filePath: string,
+  projectPath: string,
+  key: string,
+): Promise<RememberedPermission[]> {
+  const absolutePath = resolve(projectPath);
+  const normalizedKey = key.trim();
+  if (!normalizedKey) {
+    return listRememberedPermissions(filePath, absolutePath);
+  }
+  const document = await loadProjectStore(filePath);
+  const existing = document.projects.find((item) => item.path === absolutePath);
+  if (!existing) {
+    return [];
+  }
+
+  if (normalizedKey === NETWORK_WEB_SEARCH_KEY) {
+    if (existing.networkPolicy) {
+      existing.networkPolicy = {
+        allowedFetchHosts: [...existing.networkPolicy.allowedFetchHosts],
+        allowWebSearch: false,
+      };
+    }
+  } else if (normalizedKey.startsWith('network:fetch:')) {
+    const hostname = normalizedKey.slice('network:fetch:'.length).toLowerCase();
+    if (existing.networkPolicy) {
+      existing.networkPolicy = {
+        allowedFetchHosts: existing.networkPolicy.allowedFetchHosts.filter(
+          (host) => host !== hostname,
+        ),
+        allowWebSearch: existing.networkPolicy.allowWebSearch,
+      };
+    }
+  }
+
+  existing.lastOpenedAt = nowIso();
+  await saveProjectStore(filePath, document);
+  return listRememberedPermissions(filePath, absolutePath);
 }

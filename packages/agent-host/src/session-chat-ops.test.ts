@@ -39,14 +39,40 @@ describe('CE-CHAT session ops', () => {
       input: { text: 'unique-widget-refactor-please' },
     });
     expect(prompt1.success).toBe(true);
+    if (!prompt1.success) throw new Error(prompt1.error);
+    const accepted = prompt1.data as { runId?: string; sessionId: string };
+    expect(typeof accepted.runId).toBe('string');
 
-    // Wait for mock stream + usage
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Wait for background turn terminal (ADR 0015 prompt ack).
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const terminal = pushes.find(
+        (push) =>
+          push.type === 'event' &&
+          push.event.type === 'run/terminal' &&
+          push.event.sessionId === sessionId,
+      );
+      if (terminal) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    let listed = await runtime.handleCommand({ type: 'session/list', projectPath });
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      if (
+        listed.success &&
+        (listed.data as { sessions: Array<{ id: string }> }).sessions.some(
+          (session) => session.id === sessionId,
+        )
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      listed = await runtime.handleCommand({ type: 'session/list', projectPath });
+    }
 
     const pin = await runtime.handleCommand({ type: 'session/pin', sessionId });
     expect(pin.success).toBe(true);
 
-    const listed = await runtime.handleCommand({ type: 'session/list', projectPath });
+    listed = await runtime.handleCommand({ type: 'session/list', projectPath });
     expect(listed.success).toBe(true);
     if (!listed.success) throw new Error(listed.error);
     const sessions = (listed.data as { sessions: Array<{ id: string; isPinned?: boolean }> })
@@ -120,7 +146,16 @@ describe('CE-CHAT session ops', () => {
       sessionId,
       input: { text: 'hello chat mode' },
     });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const terminal = pushes.find(
+        (push) =>
+          push.type === 'event' &&
+          push.event.type === 'run/terminal' &&
+          push.event.sessionId === sessionId,
+      );
+      if (terminal) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
     const toolStarts = pushes.filter(
       (push) => push.type === 'event' && push.event.type === 'tool/start',
     );

@@ -1,7 +1,7 @@
 /**
  * Scrollable assistant/user message list with edit/retry actions.
  */
-import { memo, type ReactElement } from 'react';
+import { memo, useEffect, useRef, type ReactElement } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
@@ -67,6 +67,30 @@ export type ChatThreadProps = {
 };
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
+  // Quiet workbench: msg-in only for messages that arrive after first mount
+  // (history hydrate must not replay entrance animation).
+  const knownIdsRef = useRef<Set<string> | null>(null);
+  const isInitialMountRef = useRef(true);
+  if (knownIdsRef.current === null) {
+    knownIdsRef.current = new Set(props.messages.map((message) => message.id));
+  }
+  const enteringIds = new Set<string>();
+  if (!isInitialMountRef.current) {
+    for (const message of props.messages) {
+      if (!knownIdsRef.current.has(message.id)) {
+        enteringIds.add(message.id);
+      }
+    }
+  }
+  useEffect(() => {
+    isInitialMountRef.current = false;
+    const known = knownIdsRef.current ?? new Set<string>();
+    for (const message of props.messages) {
+      known.add(message.id);
+    }
+    knownIdsRef.current = known;
+  }, [props.messages]);
+
   return (
     <div className="chat-thread">
       {props.messages.map((message, messageIndex) => (
@@ -74,6 +98,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           key={message.id}
           message={message}
           messageIndex={messageIndex}
+          isNew={enteringIds.has(message.id)}
           streaming={props.streaming}
           editingMessageId={props.editingMessageId}
           lastUserMessageId={props.lastUserMessageId}
@@ -100,6 +125,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
 type ChatMessageRowProps = {
   message: ChatMessageUi;
   messageIndex: number;
+  /** Quiet workbench: entrance animation for messages that arrived after mount. */
+  isNew: boolean;
   streaming: boolean;
   editingMessageId: string | null;
   lastUserMessageId: string | null;
@@ -134,10 +161,19 @@ const ChatMessageRow = memo(function ChatMessageRow(props: ChatMessageRowProps):
     );
   }
 
+  const rowClass = [
+    'bubble',
+    `role-${message.role}`,
+    message.status === 'streaming' ? 'is-streaming' : '',
+    props.isNew ? 'is-new' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <article
       id={`msg-${message.id}`}
-      className={`bubble role-${message.role}${message.status === 'streaming' ? ' is-streaming' : ''}`}
+      className={rowClass}
       data-testid="message-bubble"
       data-role={message.role}
     >

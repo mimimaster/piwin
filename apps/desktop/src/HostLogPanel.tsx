@@ -1,4 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react';
+import { Button } from '@piwin/ui-kit';
+import { IconChevronDown, IconChevronRight } from './shell-icons';
 
 export type HostLogLevel = 'info' | 'warn' | 'error';
 
@@ -54,14 +56,17 @@ export function HostLogPanel({
   return (
     <section className={`host-log-panel ${open ? 'open' : 'collapsed'}`}>
       <header className="host-log-header">
-        <button type="button" className="btn ghost host-log-toggle" onClick={onToggle}>
-          {open ? '▾' : '▸'} Host log
+        <Button variant="ghost" className="host-log-toggle" onClick={onToggle}>
+          <span className="host-log-toggle-icon" aria-hidden>
+            {open ? <IconChevronDown width={12} height={12} /> : <IconChevronRight width={12} height={12} />}
+          </span>
+          Host log
           <span className="muted host-log-counts">
             {entries.length}
             {warnCount > 0 ? ` · ${warnCount} warn` : ''}
             {errorCount > 0 ? ` · ${errorCount} err` : ''}
           </span>
-        </button>
+        </Button>
         {open ? (
           <div className="host-log-actions">
             <select
@@ -79,12 +84,12 @@ export function HostLogPanel({
                 </option>
               ))}
             </select>
-            <button type="button" className="btn" onClick={() => void handleCopy()}>
+            <Button onClick={() => void handleCopy()}>
               Copy
-            </button>
-            <button type="button" className="btn" onClick={onClear}>
+            </Button>
+            <Button onClick={onClear}>
               Clear
-            </button>
+            </Button>
           </div>
         ) : null}
       </header>

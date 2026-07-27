@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>piwin — Coding Agent Shell Prototype</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+@keyframes typing { 0%{opacity:0.3} 50%{opacity:1} 100%{opacity:0.3} }
+@keyframes spin { to { transform: rotate(360deg); } }
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,236,210,0.12); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,236,210,0.2); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef } = React;
+
+/* === piwin Copper Workbench Design Tokens === */
+const T = {
+  canvas: "#090807",
+  bg: "#090807",
+  rail: "#0c0b0a",
+  sidebar: "#100e0c",
+  panel: "#151311",
+  panel2: "#1b1916",
+  surface: "#1b1916",
+  surfaceRaised: "#221f1b",
+  surfaceHover: "rgba(255,236,210,0.06)",
+  border: "rgba(255,236,210,0.10)",
+  lineSoft: "rgba(255,236,210,0.07)",
+  lineStrong: "rgba(255,236,210,0.16)",
+  text: "#f4efe7",
+  muted: "#a89f93",
+  faint: "#6f675d",
+  accent: "#d89a4a",
+  accent2: "#f0c27a",
+  accentSoft: "rgba(216,154,74,0.14)",
+  sage: "#8fbfb0",
+  sageSoft: "rgba(143,191,176,0.12)",
+  danger: "#e07a6a",
+  dangerSoft: "rgba(224,122,106,0.10)",
+  ok: "#79c4a3",
+  okSoft: "rgba(121,196,163,0.10)",
+  font: "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'PingFang SC', system-ui, sans-serif",
+  mono: "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace",
+  radius: "12px",
+  radiusSm: "10px",
+  shadow: "0 0 0 1px rgba(255,236,210,0.04), 0 18px 48px rgba(0,0,0,0.55)",
+};
+
+/* === SVG Icons === */
+const I = ({ d, size = 16, color = "currentColor", ...p }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...p}>
+    {typeof d === "string" ? <path d={d} /> : d}
+  </svg>
+);
+const ic = {
+  chat: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+  folder: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z",
+  terminal: <><polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" /></>,
+  file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></>,
+  git: <><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path d="M6 21V9a9 9 0 0 0 9 9" /></>,
+  check: "M20 6L9 17l-5-5",
+  x: <><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>,
+  chevD: "M6 9l6 6 6-6",
+  chevR: "M9 18l6-6-6-6",
+  brain: <><path d="M12 2a7 7 0 0 1 7 7c0 2.38-1.19 4.47-3 5.74V17a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2v-2.26C6.19 13.47 5 11.38 5 9a7 7 0 0 1 7-7z" /><line x1="9" y1="21" x2="15" y2="21" /></>,
+  layers: <><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></>,
+  zap: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
+  plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
+  search: <><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></>,
+  settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68h.09A1.65 1.65 0 0 0 10 3.17V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></>,
+  panelR: <><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="15" y1="3" x2="15" y2="21" /></>,
+  panelL: <><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="9" y1="3" x2="9" y2="21" /></>,
+  list: <><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></>,
+  send: "M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z",
+  clip: "M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48",
+  code: <><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></>,
+  activity: "M22 12h-4l-3 9L9 3l-3 9H2",
+  back: "M19 12H5M12 19l-7-7 7-7",
+  fwd: "M5 12h14M12 5l7 7-7 7",
+  puzzle: <><path d="M19.439 7.85c-.049.322.059.648.289.878l1.568 1.568c.47.47.706 1.087.706 1.704s-.235 1.233-.706 1.704l-1.611 1.611a.98.98 0 0 1-.837.276c-.47-.07-.802-.48-.968-.925a2.501 2.501 0 1 0-3.214 3.214c.446.166.855.497.925.968a.979.979 0 0 1-.276.837l-1.61 1.61a2.404 2.404 0 0 1-1.705.707 2.402 2.402 0 0 1-1.704-.706l-1.568-1.568a1.026 1.026 0 0 0-.877-.29c-.493.074-.84.504-1.02.968a2.5 2.5 0 1 1-3.237-3.237c.464-.18.894-.527.967-1.02a1.026 1.026 0 0 0-.289-.877l-1.568-1.568A2.402 2.402 0 0 1 1.998 12c0-.617.236-1.234.706-1.704L4.23 8.77c.24-.24.581-.353.917-.303.515.077.877.528 1.073 1.01a2.5 2.5 0 1 0 3.259-3.259c-.482-.196-.933-.558-1.01-1.073-.05-.336.062-.676.303-.917l1.525-1.525A2.402 2.402 0 0 1 12 1.998c.617 0 1.234.236 1.704.706l1.568 1.568c.23.23.556.338.877.29.493-.074.84-.504 1.02-.968a2.5 2.5 0 1 1 3.237 3.237c-.464.18-.894.527-.967 1.02Z" /></>,
+  globe: <><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></>,
+};
+
+/* === Sub Components === */
+const ThinkingBlock = () => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ margin: "10px 0", borderRadius: T.radiusSm, border: `1px solid ${T.lineSoft}`, overflow: "hidden" }}>
+      <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", cursor: "pointer", background: "rgba(143,191,176,0.06)" }}>
+        <I d={ic.brain} size={13} color={T.sage} />
+        <span style={{ fontSize: 12, color: T.sage, fontWeight: 600 }}>Thinking</span>
+        <span style={{ fontSize: 11, color: T.faint, flex: 1 }}>读取 3 个文件 · 规划 2 步修改 · 4.2s</span>
+        <I d={open ? ic.chevD : ic.chevR} size={12} color={T.faint} />
+      </div>
+      {open && (
+        <div style={{ padding: "10px 14px", fontSize: 12, lineHeight: 1.75, color: T.muted, borderTop: `1px solid ${T.lineSoft}`, background: "rgba(143,191,176,0.03)", fontFamily: T.mono }}>
+          <div style={{ marginBottom: 4, opacity: 0.8 }}>1. 分析 src/auth/ 架构 → JWT + Session 混合模式</div>
+          <div style={{ marginBottom: 4, opacity: 0.8 }}>2. 决定在 middleware 层添加 OAuth2 provider 抽象</div>
+          <div style={{ marginBottom: 4, opacity: 0.7 }}>3. 需修改: auth.service.ts, middleware/auth.ts</div>
+          <div style={{ opacity: 0.5 }}>4. 新增: providers/oauth2.ts, strategies/google.ts, strategies/github.ts</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const DiffCard = ({ fileName, adds, dels, isNew }) => {
+  const [state, setState] = useState(null);
+  return (
+    <div style={{ margin: "10px 0", borderRadius: T.radiusSm, border: `1px solid ${T.lineSoft}`, overflow: "hidden", fontFamily: T.mono, fontSize: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", background: T.surfaceRaised, borderBottom: `1px solid ${T.lineSoft}` }}>
+        <I d={ic.file} size={12} color={isNew ? T.ok : T.accent} />
+        <span style={{ color: T.text, fontWeight: 500, fontFamily: T.mono, fontSize: 11.5 }}>{fileName}</span>
+        {isNew && <span style={{ fontSize: 9, color: T.ok, padding: "1px 5px", borderRadius: 4, background: T.okSoft }}>new</span>}
+        <span style={{ color: T.ok, fontSize: 11 }}>+{adds}</span>
+        <span style={{ color: T.danger, fontSize: 11 }}>-{dels}</span>
+        <div style={{ flex: 1 }} />
+        {state === null ? (
+          <div style={{ display: "flex", gap: 5 }}>
+            <button onClick={() => setState("ok")} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 9px", borderRadius: 6, border: `1px solid rgba(121,196,163,0.3)`, background: T.okSoft, color: T.ok, fontSize: 10.5, cursor: "pointer", fontWeight: 500 }}>
+              <I d={ic.check} size={10} color={T.ok} /> Accept
+            </button>
+            <button onClick={() => setState("no")} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 9px", borderRadius: 6, border: `1px solid rgba(224,122,106,0.3)`, background: T.dangerSoft, color: T.danger, fontSize: 10.5, cursor: "pointer", fontWeight: 500 }}>
+              <I d={ic.x} size={10} color={T.danger} /> Reject
+            </button>
+          </div>
+        ) : (
+          <span style={{ fontSize: 10.5, color: state === "ok" ? T.ok : T.danger, fontWeight: 600 }}>
+            {state === "ok" ? "✓ Accepted" : "✗ Rejected"}
+          </span>
+        )}
+      </div>
+      <div style={{ padding: "6px 0", background: T.canvas, lineHeight: 1.7 }}>
+        <div style={{ padding: "1px 12px", color: T.faint }}><span style={{ display: "inline-block", width: 22, userSelect: "none" }}>14</span> import {'{'} JWTService {'}'} from './jwt';</div>
+        <div style={{ padding: "1px 12px", background: T.okSoft, color: T.ok }}><span style={{ display: "inline-block", width: 22, userSelect: "none" }}>15</span> +import {'{'} OAuth2Provider {'}'} from './providers/oauth2';</div>
+        <div style={{ padding: "1px 12px", background: T.okSoft, color: T.ok }}><span style={{ display: "inline-block", width: 22, userSelect: "none" }}>16</span> +import {'{'} GoogleStrategy, GitHubStrategy {'}'} from './strategies';</div>
+        <div style={{ padding: "1px 12px", color: T.faint }}><span style={{ display: "inline-block", width: 22, userSelect: "none" }}>17</span></div>
+        <div style={{ padding: "1px 12px", color: T.danger, background: T.dangerSoft, opacity: 0.85 }}><span style={{ display: "inline-block", width: 22, userSelect: "none" }}>18</span> -const auth = new JWTService(config.secret);</div>
+        <div style={{ padding: "1px 12px", background: T.okSoft, color: T.ok }}><span style={{ display: "inline-block", width: 22, userSelect: "none" }}>18</span> +const auth = new OAuth2Provider({'{'} strategies: [google, github] {'}'});</div>
+      </div>
+    </div>
+  );
+};
+
+const ToolCallCard = ({ name, status, detail }) => (
+  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 11px", margin: "4px 0", borderRadius: 8, border: `1px solid ${T.lineSoft}`, background: T.panel, fontSize: 11.5 }}>
+    <div style={{ width: 18, height: 18, borderRadius: 5, display: "grid", placeItems: "center", background: status === "done" ? T.okSoft : T.accentSoft }}>
+      {status === "done" ? <I d={ic.check} size={10} color={T.ok} /> : <div style={{ width: 10, height: 10, border: `1.5px solid ${T.accent}`, borderTop: "1.5px solid transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />}
+    </div>
+    <span style={{ color: T.text, fontWeight: 500, fontFamily: T.mono, fontSize: 11 }}>{name}</span>
+    <span style={{ color: T.faint, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{detail}</span>
+    <span style={{ color: status === "done" ? T.ok : T.accent, fontSize: 10 }}>{status === "done" ? "done" : "running"}</span>
+  </div>
+);
+
+const ContextChip = ({ label, type }) => {
+  const c = { file: T.accent, folder: T.accent2, symbol: T.sage, url: "#7ab8d4" }[type] || T.accent;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 7px", borderRadius: 5, fontSize: 10.5, color: c, background: `${c}14`, border: `1px solid ${c}22`, fontFamily: T.mono }}>
+      <I d={type === "file" ? ic.file : type === "folder" ? ic.folder : ic.code} size={9} color={c} />
+      {label}
+    </span>
+  );
+};
+
+const TaskRow = ({ label, status, sub }) => {
+  const cfg = { done: { c: T.ok, i: "✓" }, running: { c: T.accent, i: "●" }, pending: { c: T.faint, i: "○" } }[status];
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "5px 0" }}>
+      <span style={{ color: cfg.c, fontSize: 11, marginTop: 2, animation: status === "running" ? "pulse 1.5s infinite" : "none" }}>{cfg.i}</span>
+      <div>
+        <div style={{ fontSize: 12, color: status === "pending" ? T.faint : T.text }}>{label}</div>
+        {sub && <div style={{ fontSize: 10.5, color: T.faint, marginTop: 1 }}>{sub}</div>}
+      </div>
+    </div>
+  );
+};
+
+/* === Main App === */
+function PiwinShell() {
+  const [navOpen, setNavOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(false);
+  const [rightTab, setRightTab] = useState("activity");
+  const [activeTask, setActiveTask] = useState(0);
+  const [input, setInput] = useState("");
+
+  const tasks = [
+    { id: 0, name: "OAuth2 集成", status: "running" },
+    { id: 1, name: "修复 #342 内存泄漏", status: "done" },
+    { id: 2, name: "重构 DB 连接池", status: "pending" },
+  ];
+
+  return (
+    <div style={{ width: "100%", height: "100vh", display: "flex", flexDirection: "column", background: T.canvas, color: T.text, fontFamily: T.font, fontSize: 13, lineHeight: 1.45, overflow: "hidden", letterSpacing: "-0.01em" }}>
+
+      {/* === Titleband (macOS overlay style) === */}
+      <div style={{ height: 36, display: "flex", alignItems: "center", gap: 5, padding: "0 42px 0 76px", background: navOpen ? `linear-gradient(to right, ${T.sidebar} 0, ${T.sidebar} 260px, ${T.canvas} 260px, ${T.canvas} 100%)` : T.canvas, borderBottom: "none", position: "relative", flexShrink: 0, zIndex: 10 }}>
+        {/* Traffic lights (decorative) */}
+        <div style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", display: "flex", gap: 7 }}>
+          <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ff5f57" }} />
+          <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#febc2e" }} />
+          <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#28c840" }} />
+        </div>
+        {/* Nav toggle */}
+        <button onClick={() => setNavOpen(!navOpen)} style={{ width: 28, height: 28, display: "grid", placeItems: "center", border: "none", borderRadius: 6, background: "transparent", color: T.text, cursor: "pointer" }}>
+          <I d={ic.panelL} size={14} color={navOpen ? T.text : T.muted} />
+        </button>
+        {/* History nav */}
+        <div style={{ display: "flex", gap: 2, marginLeft: 4 }}>
+          <button style={{ width: 24, height: 24, display: "grid", placeItems: "center", border: "none", borderRadius: 5, background: "transparent", cursor: "pointer" }}><I d={ic.back} size={12} color={T.faint} /></button>
+          <button style={{ width: 24, height: 24, display: "grid", placeItems: "center", border: "none", borderRadius: 5, background: "transparent", cursor: "pointer" }}><I d={ic.fwd} size={12} color="rgba(111,103,93,0.4)" /></button>
+        </div>
+        {/* Search */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: "1 1 280px", maxWidth: 420, height: 30, padding: "0 12px", border: `1px solid ${T.lineSoft}`, borderRadius: 11, color: T.faint, background: T.panel2, fontSize: 12, cursor: "pointer", marginLeft: 8 }}>
+          <I d={ic.search} size={12} color={T.faint} />
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Search or ask...</span>
+          <kbd style={{ marginLeft: "auto", padding: "2px 6px", border: `1px solid ${T.lineSoft}`, borderRadius: 5, fontSize: 10, color: T.faint }}>⌘K</kbd>
+        </div>
+        <div style={{ flex: 1 }} />
+        {/* Right panel toggle */}
+        <button onClick={() => setRightOpen(!rightOpen)} style={{ width: 28, height: 28, display: "grid", placeItems: "center", border: "none", borderRadius: 6, background: rightOpen ? T.accentSoft : "transparent", cursor: "pointer" }}>
+          <I d={ic.panelR} size={14} color={rightOpen ? T.accent2 : T.muted} />
+        </button>
+        {/* Settings */}
+        <button style={{ width: 28, height: 28, display: "grid", placeItems: "center", border: "none", borderRadius: 6, background: "transparent", cursor: "pointer" }}>
+          <I d={ic.settings} size={14} color={T.muted} />
+        </button>
+      </div>
+
+      {/* === Body === */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+        {/* === Left Sidebar (Navigator) === */}
+        {navOpen && (
+          <div style={{ width: 260, display: "flex", flexDirection: "column", background: T.sidebar, borderRight: `1px solid ${T.lineSoft}`, flexShrink: 0, overflow: "hidden" }}>
+            {/* Brand + Project */}
+            <div style={{ padding: "12px 12px 8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 9, display: "grid", placeItems: "center", background: `linear-gradient(180deg, ${T.accent2}, ${T.accent})`, color: "#1a140e", fontSize: 14, fontWeight: 750, boxShadow: "0 0 0 1px rgba(216,154,74,0.28)" }}>π</div>
+                <strong style={{ fontSize: 14, fontWeight: 650, letterSpacing: "-0.02em" }}>piwin</strong>
+              </div>
+              {/* Project card */}
+              <button style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: 10, border: `1px solid ${T.lineSoft}`, borderRadius: 12, background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015))", cursor: "pointer", textAlign: "left", color: "inherit" }}>
+                <div style={{ width: 32, height: 32, borderRadius: 9, display: "grid", placeItems: "center", color: T.accent2, background: T.accentSoft, fontWeight: 700, fontSize: 13 }}>A</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 620, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>acme-api</div>
+                  <div style={{ fontSize: 11, color: T.faint, fontFamily: T.mono }}>~/Projects/acme-api</div>
+                </div>
+                <I d={ic.chevD} size={14} color={T.faint} />
+              </button>
+            </div>
+
+            {/* Search sessions */}
+            <div style={{ padding: "0 12px 8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, height: 34, padding: "0 10px", border: `1px solid ${T.lineSoft}`, borderRadius: 9, background: T.panel2, color: T.faint, fontSize: 12 }}>
+                <I d={ic.search} size={12} />
+                <input placeholder="Search conversations" style={{ flex: 1, border: 0, outline: 0, background: "transparent", color: T.text, font: "inherit", fontSize: 12 }} />
+              </div>
+            </div>
+
+            {/* New session */}
+            <div style={{ padding: "0 12px 10px" }}>
+              <button style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, height: 36, borderRadius: 10, border: "none", background: `linear-gradient(135deg, ${T.accent}, ${T.accent2})`, color: "#1a140e", fontWeight: 650, fontSize: 12.5, cursor: "pointer", boxShadow: "0 6px 18px rgba(216,154,74,0.18)" }}>
+                <I d={ic.plus} size={13} color="#1a140e" /> New Session
+              </button>
+            </div>
+
+            {/* Session list */}
+            <div style={{ flex: 1, overflow: "auto", padding: "0 8px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: T.faint, padding: "4px 6px 6px" }}>Today</div>
+              {[
+                { name: "OAuth2 集成", preview: "正在修改 middleware/auth.ts...", active: true, running: true },
+                { name: "修复 #342 内存泄漏", preview: "已修复 EventEmitter 未解绑", active: false },
+              ].map((s, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 9, marginBottom: 2, cursor: "pointer", background: s.active ? T.accentSoft : "transparent", border: s.active ? `1px solid rgba(216,154,74,0.2)` : "1px solid transparent" }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: s.running ? T.accent : T.ok, flexShrink: 0, animation: s.running ? "pulse 1.5s infinite" : "none", boxShadow: s.running ? `0 0 6px ${T.accent}` : "none" }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, color: s.active ? T.text : T.muted, fontWeight: s.active ? 550 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                    <div style={{ fontSize: 11, color: T.faint, marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.preview}</div>
+                  </div>
+                </div>
+              ))}
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: T.faint, padding: "12px 6px 6px" }}>Yesterday</div>
+              {["重构 DB 连接池", "API 文档生成", "CI/CD 流水线优化"].map((n, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 10px", borderRadius: 9, marginBottom: 2, cursor: "pointer" }}>
+                  <div style={{ width: 7, height: 7, borderRadius: "50%", background: T.faint, flexShrink: 0, opacity: 0.5 }} />
+                  <div style={{ fontSize: 12.5, color: T.muted }}>{n}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Sidebar footer */}
+            <div style={{ padding: "10px 12px", borderTop: `1px solid ${T.lineSoft}`, display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 7, height: 7, borderRadius: "50%", background: T.ok, boxShadow: `0 0 6px ${T.ok}` }} />
+                <span style={{ fontSize: 10.5, color: T.muted, fontFamily: T.mono }}>host: sdk</span>
+              </div>
+              <div style={{ flex: 1 }} />
+              {/* Pet companion */}
+              <div style={{ width: 26, height: 26, borderRadius: 7, border: `1px solid ${T.lineSoft}`, background: T.panel2, display: "grid", placeItems: "center", fontSize: 12 }}>🐱</div>
+              <button style={{ width: 26, height: 26, display: "grid", placeItems: "center", border: "none", borderRadius: 7, background: "transparent", color: T.faint, cursor: "pointer" }}>
+                <I d={ic.settings} size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* === Center: Chat Stage === */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, background: T.canvas }}>
+          {/* Workspace context header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, height: 44, padding: "0 20px", borderBottom: `1px solid ${T.lineSoft}`, flexShrink: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 620, color: T.text }}>OAuth2 集成</span>
+            <span style={{ fontSize: 11, color: T.faint, padding: "2px 7px", borderRadius: 5, background: T.panel2, border: `1px solid ${T.lineSoft}` }}>Project</span>
+            <div style={{ flex: 1 }} />
+            {/* Run status */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: T.accent2 }}>
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.accent, animation: "pulse 1.5s infinite" }} />
+              Working · 12s
+            </div>
+          </div>
+
+          {/* Task Tabs (multi-session parallel) */}
+          <div style={{ display: "flex", alignItems: "center", padding: "6px 20px 0", gap: 2, borderBottom: `1px solid ${T.lineSoft}` }}>
+            {tasks.map(t => (
+              <button key={t.id} onClick={() => setActiveTask(t.id)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: "8px 8px 0 0", border: "none", borderBottom: activeTask === t.id ? `2px solid ${T.accent}` : "2px solid transparent", background: activeTask === t.id ? T.surface : "transparent", color: activeTask === t.id ? T.text : T.faint, fontSize: 11.5, cursor: "pointer", fontWeight: activeTask === t.id ? 550 : 400 }}>
+                <span style={{ width: 5, height: 5, borderRadius: "50%", background: t.status === "running" ? T.accent : t.status === "done" ? T.ok : T.faint, animation: t.status === "running" ? "pulse 1.5s infinite" : "none", display: "inline-block" }} />
+                {t.name}
+              </button>
+            ))}
+            <button style={{ padding: "4px 7px", border: "none", background: "transparent", cursor: "pointer", display: "flex" }}><I d={ic.plus} size={12} color={T.faint} /></button>
+          </div>
+
+          {/* Messages */}
+          <div style={{ flex: 1, overflow: "auto", padding: "20px 28px", maxWidth: 760, width: "100%", margin: "0 auto" }}>
+            {/* User message */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 22 }}>
+              <div style={{ maxWidth: "75%", padding: "10px 14px", borderRadius: "14px 14px 4px 14px", background: T.accentSoft, border: `1px solid rgba(216,154,74,0.18)`, fontSize: 13.5, lineHeight: 1.65, color: T.text }}>
+                帮我在现有的 auth 模块中添加 OAuth2 支持，需要支持 Google 和 GitHub 登录。保持和现有 JWT 机制的兼容。
+              </div>
+            </div>
+
+            {/* Agent response */}
+            <div style={{ marginBottom: 24 }}>
+              {/* Agent header */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg, ${T.accent}, ${T.accent2})`, display: "grid", placeItems: "center", boxShadow: "0 0 0 1px rgba(216,154,74,0.28)" }}>
+                  <I d={ic.zap} size={11} color="#1a140e" />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>piwin agent</span>
+                <span style={{ fontSize: 11, color: T.faint }}>· claude-4-sonnet · 12s</span>
+              </div>
+
+              {/* Context chips */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 12 }}>
+                <ContextChip label="src/auth/auth.service.ts" type="file" />
+                <ContextChip label="src/auth/" type="folder" />
+                <ContextChip label="AuthService" type="symbol" />
+              </div>
+
+              {/* Thinking */}
+              <ThinkingBlock />
+
+              {/* Agent text */}
+              <div style={{ fontSize: "var(--chat-font-size, 14px)", lineHeight: 1.8, color: T.muted, margin: "12px 0" }}>
+                我已经分析了现有的认证架构。当前使用 JWT + Session 混合模式，我会在 middleware 层添加 OAuth2 抽象，保持与现有机制完全兼容。以下是修改方案：
+              </div>
+
+              {/* Tool calls */}
+              <ToolCallCard name="read_file" status="done" detail="src/auth/auth.service.ts (142 lines)" />
+              <ToolCallCard name="read_file" status="done" detail="src/auth/middleware/auth.ts (67 lines)" />
+              <ToolCallCard name="write_file" status="running" detail="src/auth/providers/oauth2.ts" />
+
+              {/* Diffs */}
+              <DiffCard fileName="src/auth/auth.service.ts" adds={12} dels={3} />
+              <DiffCard fileName="src/auth/providers/oauth2.ts" adds={48} dels={0} isNew />
+
+              {/* Plan / Progress */}
+              <div style={{ margin: "14px 0", padding: "12px 14px", borderRadius: T.radiusSm, border: `1px solid ${T.lineSoft}`, background: T.panel }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8 }}>
+                  <I d={ic.list} size={12} color={T.accent} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: T.text }}>Plan</span>
+                  <span style={{ fontSize: 10.5, color: T.faint, marginLeft: "auto", fontFamily: T.mono }}>3/5</span>
+                </div>
+                <TaskRow label="分析现有 auth 架构" status="done" />
+                <TaskRow label="创建 OAuth2 Provider 抽象层" status="done" />
+                <TaskRow label="实现 Google / GitHub Strategy" status="done" />
+                <TaskRow label="集成到现有 middleware" status="running" sub="正在修改 middleware/auth.ts ..." />
+                <TaskRow label="编写单元测试" status="pending" />
+              </div>
+
+              {/* Follow-up */}
+              <div style={{ fontSize: 14, lineHeight: 1.8, color: T.muted }}>
+                接下来我会完成 middleware 集成并运行测试。需要我同时配置 <code style={{ padding: "1px 5px", borderRadius: 4, background: T.panel2, fontFamily: T.mono, fontSize: 12, color: T.accent2 }}>.env.example</code> 模板吗？
+              </div>
+            </div>
+
+            {/* Typing indicator */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 22, height: 22, borderRadius: 7, background: `linear-gradient(135deg, ${T.accent}, ${T.accent2})`, display: "grid", placeItems: "center" }}>
+                <I d={ic.zap} size={11} color="#1a140e" />
+              </div>
+              <div style={{ display: "flex", gap: 3, padding: "8px 12px", borderRadius: 9, background: T.surface, border: `1px solid ${T.lineSoft}` }}>
+                {[0, 1, 2].map(i => <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: T.faint, animation: `typing 1.2s ${i * 0.2}s infinite` }} />)}
+              </div>
+            </div>
+          </div>
+
+          {/* Composer Dock */}
+          <div style={{ padding: "10px 28px 16px", maxWidth: 760, width: "100%", margin: "0 auto" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, padding: "10px 12px", borderRadius: 14, border: `1px solid ${T.lineSoft}`, background: T.panel, boxShadow: T.shadow }}>
+              {/* Plus menu */}
+              <button style={{ width: 28, height: 28, display: "grid", placeItems: "center", border: `1px solid ${T.lineSoft}`, borderRadius: 8, background: T.panel2, cursor: "pointer", color: T.muted, flexShrink: 0 }}>
+                <I d={ic.plus} size={14} />
+              </button>
+              <input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder="Ask piwin anything... (⏎ send)"
+                style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: T.text, fontSize: 13.5, lineHeight: 1.5, fontFamily: T.font }}
+              />
+              {/* Agent mode */}
+              <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 6, border: `1px solid ${T.lineSoft}`, background: T.panel2, fontSize: 10.5, color: T.accent2, cursor: "pointer", flexShrink: 0 }}>
+                <I d={ic.zap} size={10} color={T.accent} /> agent
+              </div>
+              {/* Send */}
+              <button style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 9, border: "none", background: `linear-gradient(135deg, ${T.accent}, ${T.accent2})`, cursor: "pointer", flexShrink: 0, boxShadow: "0 4px 12px rgba(216,154,74,0.25)" }}>
+                <I d={ic.send} size={13} color="#1a140e" />
+              </button>
+            </div>
+            {/* Composer footer */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 7, paddingLeft: 4 }}>
+              <span style={{ fontSize: 10, color: T.faint }}>⌘K Commands</span>
+              <span style={{ fontSize: 10, color: T.faint }}>⌘. Context</span>
+              <span style={{ fontSize: 10, color: T.faint }}>⌘⇧T New task</span>
+              <div style={{ flex: 1 }} />
+              {/* Context usage ring */}
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <svg width="14" height="14" viewBox="0 0 14 14">
+                  <circle cx="7" cy="7" r="5.5" fill="none" stroke={T.lineSoft} strokeWidth="2" />
+                  <circle cx="7" cy="7" r="5.5" fill="none" stroke={T.accent} strokeWidth="2" strokeDasharray="7.2 27.4" strokeLinecap="round" transform="rotate(-90 7 7)" />
+                </svg>
+                <span style={{ fontSize: 10, color: T.faint, fontFamily: T.mono }}>42k / 200k</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* === Right Panel (Inspector) === */}
+        {rightOpen && (
+          <div style={{ width: 320, display: "flex", flexDirection: "column", background: T.panel, borderLeft: `1px solid ${T.lineSoft}`, flexShrink: 0, overflow: "hidden" }}>
+            {/* Panel header */}
+            <div style={{ padding: "14px 14px 8px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: T.faint, marginBottom: 4 }}>Workspace</div>
+              <div style={{ fontSize: 14, fontWeight: 620, color: T.text }}>
+                {rightTab === "files" ? "Files" : rightTab === "activity" ? "Terminal" : "Changes"}
+              </div>
+            </div>
+            {/* Tab list */}
+            <div style={{ padding: "0 10px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+              {[
+                { id: "files", icon: ic.folder, label: "Files" },
+                { id: "activity", icon: ic.terminal, label: "Terminal" },
+                { id: "review", icon: ic.git, label: "Changes", badge: 3 },
+              ].map(tab => (
+                <button key={tab.id} onClick={() => setRightTab(tab.id)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 8, border: "none", background: rightTab === tab.id ? T.surfaceHover : "transparent", color: rightTab === tab.id ? T.text : T.muted, fontSize: 12, cursor: "pointer", textAlign: "left", border: rightTab === tab.id ? `1px solid ${T.lineSoft}` : "1px solid transparent" }}>
+                  <I d={tab.icon} size={14} color={rightTab === tab.id ? T.accent : T.faint} />
+                  <span style={{ fontWeight: rightTab === tab.id ? 550 : 400 }}>{tab.label}</span>
+                  {tab.badge && <span style={{ marginLeft: "auto", fontSize: 10, padding: "1px 6px", borderRadius: 99, background: T.accentSoft, color: T.accent2, fontWeight: 600 }}>{tab.badge}</span>}
+                  <I d={ic.chevR} size={12} color={T.faint} style={{ marginLeft: tab.badge ? 4 : "auto", opacity: 0.5 }} />
+                </button>
+              ))}
+            </div>
+
+            {/* Panel body */}
+            <div style={{ flex: 1, overflow: "auto", padding: "8px 12px", borderTop: `1px solid ${T.lineSoft}` }}>
+              {rightTab === "activity" && (
+                <div style={{ fontFamily: T.mono, fontSize: 11, lineHeight: 1.9 }}>
+                  <div style={{ color: T.faint, marginBottom: 6 }}>$ npm run test -- --watch auth</div>
+                  <div style={{ color: T.muted }}><span style={{ color: T.ok }}>✓</span> AuthService - JWT validation <span style={{ color: T.faint }}>(23ms)</span></div>
+                  <div style={{ color: T.muted }}><span style={{ color: T.ok }}>✓</span> AuthService - Session refresh <span style={{ color: T.faint }}>(11ms)</span></div>
+                  <div style={{ color: T.muted }}><span style={{ color: T.ok }}>✓</span> OAuth2Provider - Google init <span style={{ color: T.faint }}>(45ms)</span></div>
+                  <div style={{ color: T.accent2 }}><span style={{ animation: "pulse 1s infinite" }}>●</span> OAuth2Provider - GitHub callback <span style={{ color: T.faint }}>running...</span></div>
+                  <div style={{ color: T.faint, marginTop: 8, borderTop: `1px solid ${T.lineSoft}`, paddingTop: 6 }}>Tests: 3 passed, 1 running, 4 total</div>
+                  <div style={{ marginTop: 6, color: T.accent }}><span style={{ animation: "pulse 1s infinite" }}>▊</span></div>
+
+                  {/* Context window usage */}
+                  <div style={{ marginTop: 20, padding: "10px 12px", borderRadius: T.radiusSm, border: `1px solid ${T.lineSoft}`, background: T.surface }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                      <I d={ic.layers} size={11} color={T.sage} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: T.text, fontFamily: T.font }}>Context Window</span>
+                    </div>
+                    <div style={{ height: 4, borderRadius: 2, background: T.lineSoft, overflow: "hidden", marginBottom: 6 }}>
+                      <div style={{ height: "100%", width: "21%", borderRadius: 2, background: `linear-gradient(90deg, ${T.accent}, ${T.accent2})` }} />
+                    </div>
+                    <div style={{ fontSize: 10, color: T.faint, fontFamily: T.mono }}>42,380 / 200,000 tokens (21%)</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                      <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: T.accentSoft, color: T.accent2 }}>system: 8k</span>
+                      <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: T.okSoft, color: T.ok }}>code: 22k</span>
+                      <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: T.sageSoft, color: T.sage }}>chat: 12k</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {rightTab === "files" && (
+                <div style={{ fontSize: 12 }}>
+                  {[
+                    { name: "src/", indent: 0, type: "folder", open: true },
+                    { name: "auth/", indent: 1, type: "folder", open: true },
+                    { name: "auth.service.ts", indent: 2, type: "file", modified: true },
+                    { name: "middleware/", indent: 2, type: "folder", open: false },
+                    { name: "providers/", indent: 2, type: "folder", open: false, isNew: true },
+                    { name: "jwt.service.ts", indent: 2, type: "file" },
+                    { name: "config/", indent: 1, type: "folder", open: false },
+                    { name: "utils/", indent: 1, type: "folder", open: false },
+                    { name: "package.json", indent: 0, type: "file" },
+                    { name: "tsconfig.json", indent: 0, type: "file" },
+                  ].map((item, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 6px", paddingLeft: 6 + item.indent * 16, borderRadius: 5, cursor: "pointer", color: item.modified ? T.accent2 : T.muted }}>
+                      {item.type === "folder" && <I d={item.open ? ic.chevD : ic.chevR} size={9} color={T.faint} />}
+                      <I d={item.type === "folder" ? ic.folder : ic.file} size={12} color={item.modified ? T.accent2 : item.isNew ? T.ok : T.faint} />
+                      <span style={{ fontFamily: T.mono, fontSize: 11.5 }}>{item.name}</span>
+                      {item.modified && <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.accent2, marginLeft: "auto" }} />}
+                      {item.isNew && <span style={{ fontSize: 8.5, color: T.ok, marginLeft: "auto", padding: "0 4px", borderRadius: 3, background: T.okSoft }}>new</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {rightTab === "review" && (
+                <div style={{ fontSize: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${T.lineSoft}` }}>
+                    <I d={ic.git} size={12} color={T.accent} />
+                    <span style={{ color: T.text, fontWeight: 550 }}>Changes</span>
+                    <span style={{ fontSize: 10, color: T.faint, marginLeft: "auto", fontFamily: T.mono }}>⎇ main</span>
+                  </div>
+                  {[
+                    { file: "src/auth/auth.service.ts", status: "M", color: T.accent2 },
+                    { file: "src/auth/providers/oauth2.ts", status: "A", color: T.ok },
+                    { file: "src/auth/strategies/google.ts", status: "A", color: T.ok },
+                  ].map((f, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 8px", borderRadius: 6, cursor: "pointer", marginBottom: 2 }}>
+                      <span style={{ width: 16, height: 16, borderRadius: 4, display: "grid", placeItems: "center", fontSize: 9, fontWeight: 700, color: f.color, background: `${f.color}18`, border: `1px solid ${f.color}30` }}>{f.status}</span>
+                      <span style={{ fontFamily: T.mono, fontSize: 11, color: T.muted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file}</span>
+                    </div>
+                  ))}
+                  {/* Mini diff preview */}
+                  <div style={{ marginTop: 12, padding: "8px 10px", borderRadius: 8, background: T.canvas, border: `1px solid ${T.lineSoft}`, fontFamily: T.mono, fontSize: 10.5, lineHeight: 1.7 }}>
+                    <div style={{ color: T.faint, marginBottom: 4 }}>auth.service.ts</div>
+                    <div style={{ color: T.ok }}>+ import {'{'} OAuth2Provider {'}'}</div>
+                    <div style={{ color: T.ok }}>+ import {'{'} GoogleStrategy {'}'}</div>
+                    <div style={{ color: T.danger, opacity: 0.8 }}>- const auth = new JWTService()</div>
+                    <div style={{ color: T.ok }}>+ const auth = new OAuth2Provider()</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* === Status Bar === */}
+      <div style={{ height: 24, display: "flex", alignItems: "center", padding: "0 12px", borderTop: `1px solid ${T.lineSoft}`, background: T.sidebar, flexShrink: 0, gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: T.ok, boxShadow: `0 0 4px ${T.ok}` }} />
+          <span style={{ fontSize: 10, color: T.muted }}>SDK connected</span>
+        </div>
+        <span style={{ fontSize: 10, color: T.faint }}>|</span>
+        <span style={{ fontSize: 10, color: T.faint, fontFamily: T.mono }}>claude-4-sonnet</span>
+        <span style={{ fontSize: 10, color: T.faint }}>|</span>
+        <span style={{ fontSize: 10, color: T.faint, fontFamily: T.mono }}>↑12.4k ↓3.2k</span>
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: 10, color: T.faint }}>⎇ main</span>
+        <span style={{ fontSize: 10, color: T.faint }}>|</span>
+        <span style={{ fontSize: 10, color: T.accent2 }}>● 2M</span>
+        <span style={{ fontSize: 10, color: T.ok, marginLeft: 4 }}>+1A</span>
+        <span style={{ fontSize: 10, color: T.faint, marginLeft: 8 }}>skills: 12 · mcp: 3</span>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.render(<PiwinShell />, document.getElementById("root"));
+</script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+import { describe, expect, it } from 'vitest';
+import type { HostCommand } from '@piwin/contracts';
+import {
+  classifyHostServeCommand,
+  isControlLaneCommand,
+} from './host-serve-command-lane.js';
+
+describe('classifyHostServeCommand', () => {
+  it('classifies abort and permission resolve as control', () => {
+    const abort: HostCommand = { type: 'session/abort', sessionId: 's1' };
+    const permission: HostCommand = {
+      type: 'permission/resolve',
+      requestId: 'r1',
+      decision: 'allow',
+    };
+    expect(classifyHostServeCommand(abort)).toBe('control');
+    expect(classifyHostServeCommand(permission)).toBe('control');
+    expect(isControlLaneCommand(abort)).toBe(true);
+  });
+
+  it('classifies config/set as serialized', () => {
+    const command: HostCommand = {
+      type: 'config/set',
+      config: {
+        version: 1,
+        hostMode: 'sdk',
+        providers: [],
+      } as never,
+    };
+    expect(classifyHostServeCommand(command)).toBe('serialized');
+  });
+
+  it('classifies session/prompt as concurrent (quick-ack path)', () => {
+    const command: HostCommand = {
+      type: 'session/prompt',
+      sessionId: 's1',
+      input: { text: 'hi' },
+    };
+    expect(classifyHostServeCommand(command)).toBe('concurrent');
+  });
+
+  it('classifies session/list as concurrent', () => {
+    const command: HostCommand = {
+      type: 'session/list',
+      projectPath: '/tmp/p',
+    };
+    expect(classifyHostServeCommand(command)).toBe('concurrent');
+  });
+});

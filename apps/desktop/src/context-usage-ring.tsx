@@ -1,0 +1,226 @@
+/**
+ * Context window usage ring for the composer footer.
+ * Click opens a breakdown popover (Codex / Cursor style).
+ */
+import { useState, type ReactElement } from 'react';
+import { IconButton, Popover } from '@piwin/ui-kit';
+import type { ContextUsageSnapshot } from '@piwin/contracts';
+import { DEFAULT_MODEL_CONTEXT_WINDOW } from '@piwin/contracts';
+import { IconClose } from './shell-icons';
+
+export type ContextUsageRingProps = {
+  usage: ContextUsageSnapshot | null;
+  /** Fallback limit from selected model config when host omits tokensLimit. */
+  modelContextWindow?: number;
+  /** Optional category estimates for the popover (overrides usage.breakdown). */
+  breakdown?: {
+    systemPromptTokens?: number;
+    toolDefinitionsTokens?: number;
+    rulesTokens?: number;
+    skillsTokens?: number;
+    mcpTokens?: number;
+    conversationTokens?: number;
+    source?: 'pi' | 'host-estimate';
+  };
+  onOpenModelSettings?: () => void;
+};
+
+function resolveLimit(
+  usage: ContextUsageSnapshot | null,
+  modelContextWindow: number | undefined,
+): number {
+  if (typeof usage?.tokensLimit === 'number' && usage.tokensLimit > 0) {
+    return usage.tokensLimit;
+  }
+  if (typeof modelContextWindow === 'number' && modelContextWindow > 0) {
+    return modelContextWindow;
+  }
+  return DEFAULT_MODEL_CONTEXT_WINDOW;
+}
+
+function resolveUsed(
+  usage: ContextUsageSnapshot | null,
+): number | undefined {
+  if (typeof usage?.tokensUsed === 'number') return usage.tokensUsed;
+  if (typeof usage?.totalTokens === 'number') return usage.totalTokens;
+  if (
+    typeof usage?.promptTokens === 'number' ||
+    typeof usage?.completionTokens === 'number'
+  ) {
+    return (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0);
+  }
+  return undefined;
+}
+
+function formatTokens(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 10_000) return `${Math.round(value / 1000)}K`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  return value.toLocaleString();
+}
+
+export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
+  const [open, setOpen] = useState(false);
+  const limit = resolveLimit(props.usage, props.modelContextWindow);
+  const used = resolveUsed(props.usage);
+  const ratio =
+    typeof props.usage?.contextRatio === 'number'
+      ? Math.min(1, Math.max(0, props.usage.contextRatio))
+      : typeof used === 'number' && limit > 0
+        ? Math.min(1, Math.max(0, used / limit))
+        : 0;
+  const percent = Math.round(ratio * 100);
+  const circumference = 2 * Math.PI * 9;
+  const dashOffset = circumference * (1 - ratio);
+  const tone =
+    percent >= 90 ? 'critical' : percent >= 70 ? 'warn' : 'ok';
+
+  const breakdown = props.breakdown ?? props.usage?.breakdown;
+  const rows: Array<{ label: string; tokens: number | undefined; color: string }> = [
+    {
+      label: 'System prompt',
+      tokens: breakdown?.systemPromptTokens,
+      color: '#9ca3af',
+    },
+    {
+      label: 'Tool definitions',
+      tokens: breakdown?.toolDefinitionsTokens,
+      color: '#a78bfa',
+    },
+    {
+      label: 'Rules',
+      tokens: breakdown?.rulesTokens,
+      color: '#34d399',
+    },
+    {
+      label: 'Skills',
+      tokens: breakdown?.skillsTokens,
+      color: '#fbbf24',
+    },
+    {
+      label: 'MCP',
+      tokens: breakdown?.mcpTokens,
+      color: '#c084fc',
+    },
+    {
+      label: 'Conversation',
+      tokens:
+        breakdown?.conversationTokens ??
+        (typeof used === 'number' ? used : undefined),
+      color: '#f87171',
+    },
+  ];
+
+  // Radix owns the portal, positioning, outside dismissal, Escape, and focus
+  // return; the trigger's aria-expanded/aria-controls come from the primitive.
+  return (
+    <div className="context-usage-ring-root">
+      <Popover
+        open={open}
+        onOpenChange={setOpen}
+        side="top"
+        align="end"
+        label="Context usage"
+        testId="context-usage-popover"
+        contentClassName="context-usage-popover"
+        trigger={
+          <button
+            type="button"
+            className={`context-usage-ring tone-${tone}${open ? ' open' : ''}`}
+            data-testid="context-usage-ring"
+            title={
+              typeof used === 'number'
+                ? `Context ${formatTokens(used)} / ${formatTokens(limit)} (${percent}%)`
+                : `Context window ${formatTokens(limit)} · no usage yet`
+            }
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden>
+              <circle
+                className="context-usage-ring-track"
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                strokeWidth="2.5"
+              />
+              <circle
+                className="context-usage-ring-progress"
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                strokeWidth="2.5"
+                strokeDasharray={circumference}
+                strokeDashoffset={dashOffset}
+                strokeLinecap="round"
+                transform="rotate(-90 12 12)"
+              />
+            </svg>
+            <span className="sr-only">
+              Context usage {percent} percent. Click for details.
+            </span>
+          </button>
+        }
+      >
+        <header className="context-usage-popover-header">
+          <strong>Context Usage</strong>
+          <IconButton label="Close" onClick={() => setOpen(false)}>
+            <IconClose width={14} height={14} />
+          </IconButton>
+        </header>
+        <div className="context-usage-popover-summary">
+          <span className={`context-usage-pill tone-${tone}`}>
+            {percent}% Full
+          </span>
+          <span className="muted">
+            ~
+            {typeof used === 'number' ? formatTokens(used) : '0'} /{' '}
+            {formatTokens(limit)} Tokens
+          </span>
+        </div>
+        <div className="context-usage-bar" aria-hidden>
+          <i style={{ width: `${percent}%` }} />
+        </div>
+        <ul className="context-usage-rows">
+          {rows.map((row) => (
+            <li key={row.label}>
+              <span className="context-usage-row-label">
+                <i style={{ background: row.color }} aria-hidden />
+                {row.label}
+              </span>
+              <span className="context-usage-row-value muted">
+                {typeof row.tokens === 'number'
+                  ? formatTokens(row.tokens)
+                  : '—'}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <footer className="context-usage-popover-footer muted">
+          Limit source:{' '}
+          {typeof props.usage?.tokensLimit === 'number'
+            ? 'host report'
+            : typeof props.modelContextWindow === 'number'
+              ? 'model config'
+              : 'default 128K'}
+          {breakdown?.source ? ` · breakdown: ${breakdown.source}` : null}
+          {props.onOpenModelSettings ? (
+            <>
+              {' · '}
+              <button
+                type="button"
+                className="linkish-btn"
+                onClick={() => {
+                  setOpen(false);
+                  props.onOpenModelSettings?.();
+                }}
+              >
+                Edit context window
+              </button>
+            </>
+          ) : null}
+        </footer>
+      </Popover>
+    </div>
+  );
+}

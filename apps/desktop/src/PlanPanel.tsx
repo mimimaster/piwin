@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { HostResponse, PlanStepStatus, SessionPlan } from '@piwin/contracts';
+import { Button, Field, FieldCheckbox, Notice } from '@piwin/ui-kit';
 
 type PlanRequest =
   | { type: 'plan/get'; sessionId: string }
@@ -234,9 +235,9 @@ export function PlanPanel(props: PlanPanelProps) {
       {embedded ? null : (
         <header className="drawer-header">
           <strong>Plan</strong>
-          <button type="button" className="btn" onClick={() => props.onClose?.()}>
+          <Button onClick={() => props.onClose?.()}>
             Close
-          </button>
+          </Button>
         </header>
       )}
       <div className={embedded ? 'embedded-body' : 'drawer-body'}>
@@ -255,22 +256,19 @@ export function PlanPanel(props: PlanPanelProps) {
         )}
         {isDraft ? (
           <>
-            <label className="field">
-              <span>Title</span>
+            <Field label="Title" required>
               <input value={title} onChange={(event) => setTitle(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>Goal</span>
+            </Field>
+            <Field label="Goal">
               <textarea rows={3} value={goal} onChange={(event) => setGoal(event.target.value)} />
-            </label>
-            <label className="field">
-              <span>Steps (one per line)</span>
+            </Field>
+            <Field label="Steps" description="One step per line">
               <textarea
                 rows={6}
                 value={stepsText}
                 onChange={(event) => setStepsText(event.target.value)}
               />
-            </label>
+            </Field>
           </>
         ) : (
           <>
@@ -280,68 +278,43 @@ export function PlanPanel(props: PlanPanelProps) {
             <p className="muted">{props.plan?.goal}</p>
           </>
         )}
-        {error ? <div className="error-banner">{error}</div> : null}
+        {error ? <Notice tone="error">{error}</Notice> : null}
         <div className="drawer-actions">
-          <button type="button" className="btn" disabled={busy} onClick={() => void reload()}>
+          <Button disabled={busy} onClick={() => void reload()}>
             Reload
-          </button>
+          </Button>
           {isDraft ? (
-            <button
-              type="button"
-              className="btn"
-              disabled={busy}
-              onClick={() => void handleSaveDraft()}
-            >
+            <Button disabled={busy} onClick={() => void handleSaveDraft()}>
               Save draft
-            </button>
+            </Button>
           ) : null}
-          <button
-            type="button"
-            className="btn primary"
+          <Button
+            variant="primary"
             disabled={busy || !props.sessionId}
             onClick={() => void handleApprove()}
           >
             Approve
-          </button>
+          </Button>
           {!isDraft && props.plan ? (
-            <button
-              type="button"
-              className="btn"
-              disabled={busy}
-              onClick={() => void handleMarkNextActive()}
-            >
+            <Button disabled={busy} onClick={() => void handleMarkNextActive()}>
               Mark next active
-            </button>
+            </Button>
           ) : null}
-          <button
-            type="button"
-            className="btn"
-            disabled={busy || !props.plan}
-            onClick={() => void handleClear()}
-          >
+          <Button disabled={busy || !props.plan} onClick={() => void handleClear()}>
             Clear
-          </button>
+          </Button>
         </div>
         {props.plan ? (
           <ol className="plan-step-list">
             {props.plan.steps.map((step) => (
               <li key={step.id}>
-                <label className="checkbox-row" style={{ alignItems: 'flex-start' }}>
-                  <input
-                    type="checkbox"
-                    checked={step.status === 'done' || step.status === 'skipped'}
-                    disabled={busy}
-                    onChange={() => void handleStepToggle(step.id, step.status)}
-                  />
-                  <span>
-                    <span className="muted">[{step.status}]</span> {step.title}
-                    {step.detail ? (
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        {step.detail}
-                      </div>
-                    ) : null}
-                  </span>
-                </label>
+                <FieldCheckbox
+                  label={`[${step.status}] ${step.title}`}
+                  {...(step.detail ? { description: step.detail } : {})}
+                  checked={step.status === 'done' || step.status === 'skipped'}
+                  disabled={busy}
+                  onCheckedChange={() => void handleStepToggle(step.id, step.status)}
+                />
                 <select
                   value={step.status}
                   disabled={busy}

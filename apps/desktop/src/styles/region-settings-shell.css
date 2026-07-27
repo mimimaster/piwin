@@ -1,0 +1,182 @@
+/* Region: settings shell chrome (settings/settings-shell.tsx).
+   Owns the settings page frame ONLY: .settings-page, .settings-nav*,
+   .settings-search, .settings-main, .settings-main-header,
+   .settings-main-content (+ models flush modifiers), .settings-config-path.
+   Section-content classes (.settings-card, .settings-section, provider-*,
+   ui-field overrides, etc.) stay in settings-resources.css until R4 migrates
+   the section bodies. Semantic runtime tokens only; no forced declarations. */
+
+.settings-page {
+  position: fixed;
+  /* Leave the permanent window titleband free for traffic lights + chrome. */
+  top: var(--titleband-height, 34px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--layer-settings);
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  min-height: 0;
+  background:
+    radial-gradient(
+      900px 420px at 8% -8%,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      transparent 55%
+    ),
+    var(--canvas);
+  font-family: var(--font);
+  font-size: 13px;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Compact shell uses the taller workbench topbar as the permanent chrome row. */
+.app-shell[data-layout='compact'] .settings-page {
+  top: var(--topbar-height);
+}
+
+@media (max-width: 1023px) {
+  .settings-page {
+    grid-template-columns: minmax(172px, 28vw) minmax(0, 1fr);
+  }
+}
+
+/* ── Category nav ─────────────────────────────────────────────────── */
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 12px 14px;
+  min-height: 0;
+  overflow: hidden;
+  border-right: 1px solid var(--line-soft);
+  background: var(--sidebar);
+}
+
+/* .settings-nav-brand root, .settings-nav-mark, .settings-nav-footer and
+   .settings-connection-dot are intentionally unstyled (matches the shipped
+   rendering); only the typographic children carry rules. */
+
+.settings-nav-brand strong {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.settings-nav-brand small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--faint);
+  letter-spacing: 0;
+}
+
+.settings-nav-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.settings-nav-group-label {
+  margin: 12px 10px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--faint);
+}
+
+.settings-nav-item {
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 10px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 450;
+  letter-spacing: -0.01em;
+}
+
+.settings-nav-item:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.settings-nav-item.active {
+  color: var(--text);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+/* ── Content page frame ───────────────────────────────────────────── */
+
+.settings-main {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 22px 32px;
+}
+
+@media (max-width: 1023px) {
+  .settings-main {
+    padding: 24px 28px 48px;
+  }
+}
+
+.settings-main-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin: 0 0 14px;
+  min-width: 0;
+}
+
+.settings-main-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  font-family: var(--font);
+  line-height: 1.3;
+}
+
+.settings-config-path {
+  margin: 0;
+  min-width: 0;
+  max-width: min(52%, 360px);
+  overflow: hidden;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-main-content {
+  width: min(100%, 840px);
+  min-width: 0;
+}
+
+/* Models page: directory list uses the full content width. */
+.settings-main-content.settings-content--models {
+  width: 100%;
+}
+
+.settings-content--models-flush {
+  height: auto;
+}
+
+.settings-content--models-flush .settings-card-flush {
+  margin: 0;
+  padding: 0;
+}

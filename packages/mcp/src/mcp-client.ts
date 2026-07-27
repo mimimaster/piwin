@@ -17,7 +17,11 @@ import type {
 export async function connectHandcraftedMcpStdio(
   serverId: string,
   config: McpServerConfig,
+  signal?: AbortSignal,
 ): Promise<McpTransportClient> {
+  if (signal?.aborted) {
+    throw new Error(`MCP connect aborted: ${serverId}`);
+  }
   const env = {
     ...process.env,
     ...expandEnvMap(config.env),
@@ -113,9 +117,16 @@ export async function connectHandcraftedMcpStdio(
     pending.clear();
   }
 
-  function send(method: string, params?: Record<string, unknown>): Promise<unknown> {
+  function send(
+    method: string,
+    params?: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
     if (closed) {
       return Promise.reject(new Error(`MCP server ${serverId} is closed`));
+    }
+    if (signal?.aborted) {
+      return Promise.reject(new Error(`MCP operation aborted: ${serverId}`));
     }
     const id = nextId;
     nextId += 1;
@@ -126,10 +137,28 @@ export async function connectHandcraftedMcpStdio(
       params: params ?? {},
     };
     return new Promise((resolve, reject) => {
-      pending.set(id, { resolve, reject });
+      const abortHandler = (): void => {
+        pending.delete(id);
+        reject(new Error(`MCP operation aborted: ${serverId}`));
+        void closeChild(child);
+      };
+      if (signal) {
+        signal.addEventListener('abort', abortHandler, { once: true });
+      }
+      pending.set(id, {
+        resolve: (value) => {
+          signal?.removeEventListener('abort', abortHandler);
+          resolve(value);
+        },
+        reject: (error) => {
+          signal?.removeEventListener('abort', abortHandler);
+          reject(error);
+        },
+      });
       child.stdin.write(`${JSON.stringify(payload)}\n`, (writeError) => {
         if (writeError) {
           pending.delete(id);
+          signal?.removeEventListener('abort', abortHandler);
           reject(writeError);
         }
       });
@@ -142,7 +171,7 @@ export async function connectHandcraftedMcpStdio(
       protocolVersion: '2024-11-05',
       capabilities: {},
       clientInfo: { name: 'piwin', version: '0.0.0' },
-    });
+    }, signal);
     // notifications/initialized (no id)
     child.stdin.write(
       `${JSON.stringify({
@@ -157,8 +186,8 @@ export async function connectHandcraftedMcpStdio(
 
   const session: McpTransportClient = {
     serverId,
-    async listTools() {
-      const result = (await send('tools/list', {})) as {
+    async listTools(signal) {
+      const result = (await send('tools/list', {}, signal)) as {
         tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
       };
       return (result.tools ?? []).map((tool) => {
@@ -172,8 +201,8 @@ export async function connectHandcraftedMcpStdio(
         return item;
       });
     },
-    async callTool(name, args) {
-      return send('tools/call', { name, arguments: args });
+    async callTool(name, args, signal) {
+      return send('tools/call', { name, arguments: args }, signal);
     },
     async close() {
       intentionalClose = true;
@@ -211,30 +240,49 @@ export async function connectMcpStdio(
   config: McpServerConfig,
   options: CreateMcpClientOptions = {},
 ): Promise<McpTransportClient> {
+  if (options.signal?.aborted) {
+    throw new Error(`MCP connect aborted: ${serverId}`);
+  }
   const prefer = resolveClientPreference(options.prefer);
 
   if (prefer === 'handcrafted') {
-    return connectHandcraftedMcpStdio(serverId, config);
+    return connectHandcraftedMcpStdio(serverId, config, options.signal);
   }
 
   if (prefer === 'official') {
     const { connectOfficialMcpStdio } = await import('./mcp-client-official.js');
-    return connectOfficialMcpStdio(serverId, config);
+    return connectOfficialMcpStdio(serverId, config, options.signal);
   }
 
   // auto: official first, handcrafted fallback
   try {
     const { connectOfficialMcpStdio } = await import('./mcp-client-official.js');
+    const officialConnection = connectOfficialMcpStdio(
+      serverId,
+      config,
+      options.signal,
+    );
     return await withTimeout(
-      connectOfficialMcpStdio(serverId, config),
+      officialConnection,
       8_000,
       `official MCP connect timeout for ${serverId}`,
+      options.signal,
+      () => {
+        void officialConnection.then(
+          (lateClient) => lateClient.close(),
+          () => undefined,
+        );
+      },
     );
   } catch (officialError) {
     const officialMessage =
       officialError instanceof Error ? officialError.message : String(officialError);
     try {
-      const client = await connectHandcraftedMcpStdio(serverId, config);
+      const client = await connectHandcraftedMcpStdio(
+        serverId,
+        config,
+        options.signal,
+      );
       console.warn(
         `[piwin/mcp] official MCP client failed for ${serverId} (${officialMessage}); using handcrafted fallback`,
       );
@@ -268,18 +316,33 @@ function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
   message: string,
+  signal?: AbortSignal,
+  onTimeout?: () => void,
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
+    const abortHandler = (): void => {
+      clearTimeout(timer);
+      reject(new Error(message.replace('timeout', 'aborted')));
+    };
     const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abortHandler);
+      onTimeout?.();
       reject(new Error(message));
     }, timeoutMs);
+    if (signal?.aborted) {
+      abortHandler();
+      return;
+    }
+    signal?.addEventListener('abort', abortHandler, { once: true });
     promise.then(
       (value) => {
         clearTimeout(timer);
+        signal?.removeEventListener('abort', abortHandler);
         resolve(value);
       },
       (error: unknown) => {
         clearTimeout(timer);
+        signal?.removeEventListener('abort', abortHandler);
         reject(error);
       },
     );
