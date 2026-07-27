@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button } from '@piwin/ui-kit';
 import type {
   FlashcardRecord,
   HostResponse,
@@ -218,29 +219,20 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
                 {currentItem.card.back}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <button type="button" className="btn" onClick={() => void handleRate('again')}>
-                  1 忘了
-                </button>
-                <button type="button" className="btn" onClick={() => void handleRate('hard')}>
-                  2 较难
-                </button>
-                <button type="button" className="btn" onClick={() => void handleRate('good')}>
-                  3 记住了
-                </button>
-                <button type="button" className="btn" onClick={() => void handleRate('easy')}>
-                  4 简单
-                </button>
+                <Button onClick={() => void handleRate('again')}>1 忘了</Button>
+                <Button onClick={() => void handleRate('hard')}>2 较难</Button>
+                <Button onClick={() => void handleRate('good')}>3 记住了</Button>
+                <Button onClick={() => void handleRate('easy')}>4 简单</Button>
               </div>
             </>
           ) : (
-            <button
-              type="button"
-              className="btn primary"
+            <Button
+              variant="primary"
               data-testid="flashcards-reveal"
               onClick={() => setRevealed(true)}
             >
               Reveal answer
-            </button>
+            </Button>
           )}
         </div>
       ) : (
@@ -258,9 +250,8 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
                 </option>
               ))}
             </select>
-            <button
-              type="button"
-              className="btn primary"
+            <Button
+              variant="primary"
               data-testid="flashcards-start-review"
               disabled={queue.length === 0}
               onClick={() => {
@@ -271,20 +262,16 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
               }}
             >
               Review {queue.length} due
-            </button>
-            <button type="button" className="btn" onClick={() => void loadData()}>
-              Refresh
-            </button>
-            <button
-              type="button"
-              className="btn"
+            </Button>
+            <Button onClick={() => void loadData()}>Refresh</Button>
+            <Button
               data-testid="flashcards-export"
               disabled={cards.length === 0}
               onClick={() => void handleExport()}
               title="Export as Anki-importable TSV"
             >
               Export TSV
-            </button>
+            </Button>
           </div>
 
           {loading ? (
@@ -303,13 +290,7 @@ export function FlashcardsPanel(props: FlashcardsPanelProps) {
                     <span className="muted"> · from {card.sourceNoteId.slice(0, 16)}…</span>
                   ) : null}
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={() => void handleDelete(card.id)}
-                    >
-                      Delete
-                    </button>
+                    <Button onClick={() => void handleDelete(card.id)}>Delete</Button>
                   </div>
                 </li>
               ))}

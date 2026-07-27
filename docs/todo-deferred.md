@@ -272,12 +272,25 @@
 **Slice order:** S0 baseline → S1 layout → S2 session loop → S3 profile/intervention → S4 permissions+PTY → S5 advanced surfaces → S6 delete obsolete → S7 gate.
 
 
+### 2.13 Quiet Workbench P0 convergence (QW-*) — post-P0 debt 2026-07-27
+
+> Plan: [`docs/plans/2026-07-27-quiet-workbench-p0-convergence-plan.md`](plans/2026-07-27-quiet-workbench-p0-convergence-plan.md)
+> Cleanup execution plan: [`docs/plans/2026-07-27-quiet-workbench-p0-debt-cleanup.md`](plans/2026-07-27-quiet-workbench-p0-debt-cleanup.md)
+> Primitive base styles now live in `@piwin/ui-kit/styles.css`; desktop keeps region refinements + z-layers only.
+
+| ID | Item | Status |
+|----|------|--------|
+| QW-BTN-01 | Migrate 21 raw `.btn*` usages in `NotesPanel.tsx` / `FlashcardsPanel.tsx` to ui-kit `Button` | **Done 2026-07-27** |
+| QW-BTN-02 | Remove legacy `.btn*` rules from `ui-foundations.css` once QW-BTN-01 lands | **Done 2026-07-27** |
+| QW-BTN-03 | Verify + delete `.icon-btn` rule in `ui-foundations.css` (no bare TSX consumer found; suspected dead) | **Done 2026-07-27** |
+
 ---
 
 ## 3. Done archive (recent)
 
 | Date | Item | Where |
 |------|------|-------|
+| 2026-07-27 | QW-BTN-01/02/03 retire legacy `.btn` / `.icon-btn` (NotesPanel + FlashcardsPanel → ui-kit `Button`) | desktop + `ui-foundations.css` |
 | 2026-07-20 | M2 Agent Window MVP | `docs/specs/m2-execution-plan.md` |
 | 2026-07-20 | M3 media + tools-web kernel/CLI | `docs/specs/m3-media-web.md` |
 | 2026-07-20 | M4 skills/mcp/marketplace + CLI | `docs/specs/m4-skills-mcp.md` |

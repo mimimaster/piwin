@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Button } from '@piwin/ui-kit';
 import type {
   HostResponse,
   NoteRecord,
@@ -202,12 +203,8 @@ export function NotesPanel(props: NotesPanelProps) {
           <option value="vector">vector</option>
           <option value="hybrid">hybrid</option>
         </select>
-        <button type="button" className="btn" onClick={() => void handleSearch()}>
-          Search
-        </button>
-        <button
-          type="button"
-          className="btn"
+        <Button onClick={() => void handleSearch()}>Search</Button>
+        <Button
           onClick={() => {
             setHits(null);
             setSearchQuery('');
@@ -215,13 +212,11 @@ export function NotesPanel(props: NotesPanelProps) {
           }}
         >
           Refresh
-        </button>
+        </Button>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button
-          type="button"
-          className="btn"
+        <Button
           data-testid="notes-new"
           onClick={() => {
             setSelected(null);
@@ -230,16 +225,16 @@ export function NotesPanel(props: NotesPanelProps) {
           }}
         >
           New note
-        </button>
-        <button type="button" className="btn" disabled={busy} onClick={() => void handleReindex()}>
+        </Button>
+        <Button disabled={busy} onClick={() => void handleReindex()}>
           Rebuild index
-        </button>
-        <button type="button" className="btn" disabled={busy} onClick={() => void handleEvalRun()}>
+        </Button>
+        <Button disabled={busy} onClick={() => void handleEvalRun()}>
           Run recall eval
-        </button>
-        <button type="button" className="btn" onClick={() => void handleEvalHistory()}>
+        </Button>
+        <Button onClick={() => void handleEvalHistory()}>
           {evalHistory !== null ? 'Hide history' : 'Eval history'}
-        </button>
+        </Button>
       </div>
 
       {evalHistory !== null ? (
@@ -299,20 +294,11 @@ export function NotesPanel(props: NotesPanelProps) {
           </span>
           <pre style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{selected.content}</pre>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn" onClick={() => setEditing(true)}>
-              Edit
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={busy}
-              onClick={() => void handleDelete(selected.id)}
-            >
+            <Button onClick={() => setEditing(true)}>Edit</Button>
+            <Button disabled={busy} onClick={() => void handleDelete(selected.id)}>
               Delete
-            </button>
-            <button type="button" className="btn" onClick={() => setSelected(null)}>
-              Close
-            </button>
+            </Button>
+            <Button onClick={() => setSelected(null)}>Close</Button>
           </div>
         </div>
       ) : null}
@@ -330,9 +316,8 @@ export function NotesPanel(props: NotesPanelProps) {
             const hit = hits?.[index];
             return (
               <li key={record.id}>
-                <button
-                  type="button"
-                  className="btn ghost"
+                <Button
+                  variant="ghost"
                   style={{ textAlign: 'left', width: '100%' }}
                   onClick={() => void handleOpen(record.id)}
                 >
@@ -347,7 +332,7 @@ export function NotesPanel(props: NotesPanelProps) {
                   <span className="muted">
                     {(hit?.snippet ?? record.content).slice(0, 140)}
                   </span>
-                </button>
+                </Button>
               </li>
             );
           })}
@@ -384,18 +369,15 @@ function NoteEditor(props: {
         style={{ width: '100%' }}
       />
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button
-          type="button"
-          className="btn primary"
+        <Button
+          variant="primary"
           disabled={props.busy || !title.trim() || !content.trim()}
           data-testid="notes-editor-save"
           onClick={() => props.onSave({ title: title.trim(), content })}
         >
           Save
-        </button>
-        <button type="button" className="btn" onClick={props.onCancel}>
-          Cancel
-        </button>
+        </Button>
+        <Button onClick={props.onCancel}>Cancel</Button>
       </div>
     </div>
   );
