@@ -18,7 +18,11 @@
     "dev:desktop": "pnpm --dir apps/desktop dev",
     "check": "pnpm typecheck && pnpm test",
     "dev:tauri": "pnpm --dir apps/desktop dev:tauri",
-    "package:desktop": "pnpm --dir apps/desktop package",
+    "bundle:host": "node scripts/bundle-host.mjs",
+    "fetch:node-runtime": "node scripts/fetch-node-runtime.mjs",
+    "ensure:packaging-placeholders": "node scripts/ensure-packaging-placeholders.mjs",
+    "test:bundle": "node scripts/smoke-bundled-host.mjs",
+    "package:desktop": "pnpm bundle:host && pnpm fetch:node-runtime && pnpm --dir apps/desktop package",
     "e2e:smoke": "tsx scripts/e2e-host-smoke.mjs",
     "e2e:host-jsonl": "NODE_ENV=test node scripts/e2e-host-jsonl.mjs",
     "audit:prod": "pnpm audit --prod || true",
@@ -30,6 +34,7 @@
     "vitest": "^3.0.5",
     "prettier": "^3.4.2",
     "@types/node": "^22.10.5",
-    "tsx": "^4.19.2"
+    "tsx": "^4.19.2",
+    "esbuild": "^0.25.0"
   }
 }

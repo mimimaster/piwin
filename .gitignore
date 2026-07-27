@@ -1,6 +1,8 @@
 node_modules/
 dist/
+dist-host/
 build/
+apps/desktop/src-tauri/binaries/
 .turbo/
 .DS_Store
 *.log

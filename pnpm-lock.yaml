@@ -11,6 +11,9 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.1
+      esbuild:
+        specifier: ^0.25.0
+        version: 0.25.12
       prettier:
         specifier: ^3.4.2
         version: 3.9.5
