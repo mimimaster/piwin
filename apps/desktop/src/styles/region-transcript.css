@@ -641,76 +641,109 @@
   color: var(--muted);
 }
 
-/* ─── Turn work details ─────────────────────────────────────────────── */
+/* ─── Turn work details (quiet workbench process → chip) ───────────── */
 
 .turn-work-details {
   max-width: 760px;
-  margin: 4px 0 8px;
-  padding: 2px 0;
+  margin: 4px 0 10px;
+  padding: 0;
   border: none;
-  border-radius: 0;
   background: transparent;
   font-size: 12.5px;
 }
 
-.turn-work-details.is-active,
-.turn-work-details.has-failure {
-  background: transparent;
-}
-
 .turn-work-details-summary {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 36px;
-  padding: 0 10px;
-  list-style: none;
-  color: var(--faint);
-  font-size: 12px;
+  gap: 7px;
+  min-height: 28px;
+  padding: 4px 11px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 11.5px;
   font-weight: 500;
-  letter-spacing: 0.01em;
   cursor: pointer;
-  transition: color 0.12s ease;
-}
-
-.turn-work-details-summary::before {
-  color: var(--accent-2);
-  content: '✦';
-  font-size: 12px;
-}
-
-.turn-work-details-summary::-webkit-details-marker {
-  display: none;
+  font-family: inherit;
+  transition:
+    background var(--motion-quick, 120ms) var(--motion-ease, ease),
+    color var(--motion-quick, 120ms) var(--motion-ease, ease);
 }
 
 .turn-work-details-summary:hover {
-  color: var(--muted);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
 }
 
-.turn-work-details[open] .turn-work-details-summary {
-  color: var(--muted);
-  margin-bottom: 6px;
-  border-bottom: 1px solid var(--line-soft);
+.turn-work-details-label {
+  white-space: nowrap;
+}
+
+.turn-work-details-chevron {
+  display: inline-flex;
+  transition: transform var(--motion-standard, 200ms) var(--motion-ease, ease);
+  color: var(--wb-dim, var(--faint));
+}
+
+.turn-work-details-chevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.turn-work-details-chevron.is-open {
+  transform: rotate(180deg);
 }
 
 .turn-work-details-body {
-  padding: 9px 10px 10px;
-  animation: tool-body-in 200ms ease-out both;
+  overflow: hidden;
+  margin-top: 8px;
+  transition:
+    max-height var(--motion-think-collapse, 350ms) var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    opacity var(--motion-standard, 200ms) ease,
+    margin var(--motion-think-collapse, 350ms) var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
 
-.turn-phase-history {
-  margin: 0 0 7px;
-  padding-left: 18px;
-  color: var(--muted);
-  font-size: 11.5px;
+.turn-work-details.is-collapsed .turn-work-details-body[hidden],
+.turn-work-details-body[hidden] {
+  display: none;
+}
+
+.turn-waiting-line {
+  margin: 3px 0 8px;
+  padding-left: 12px;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.09);
+}
+
+.turn-thinking {
+  margin: 3px 0 8px;
 }
 
 .turn-thinking pre {
-  margin: 4px 0 0;
+  margin: 0;
+  padding-left: 12px;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.09);
   white-space: pre-wrap;
-  font-family: var(--mono);
-  font-size: var(--code-font-size, 13px);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--wb-dim, var(--faint));
+  background: transparent;
+}
+
+.turn-shimmer-text {
+  background: linear-gradient(
+    90deg,
+    var(--wb-dim, #5f6672) 0%,
+    #cfd4db 45%,
+    var(--wb-dim, #5f6672) 60%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: wb-shimmer var(--motion-shimmer, 1.6s) linear infinite;
 }
 
 .turn-permission-wait {
@@ -718,8 +751,94 @@
   padding: 8px 10px;
   border: none;
   border-radius: 8px;
-  /* Deliberate literal: legacy amber warn tint (not --state-warning hue). */
-  background: color-mix(in srgb, #e3b341 8%, transparent);
+  background: color-mix(in srgb, var(--state-warning) 10%, transparent);
+}
+
+.tool-call-card {
+  margin: 2px 0;
+  padding-left: 10px;
+  border-left: 1.5px solid rgba(255, 255, 255, 0.12);
+}
+
+.tool-call-name {
+  font-weight: 600;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.tool-call-ok {
+  margin-left: auto;
+  color: var(--ok);
+  font-size: 12px;
+  font-weight: 650;
+  flex-shrink: 0;
+}
+
+.tool-call-err {
+  margin-left: auto;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.bubble-header::before {
+  display: none;
+}
+
+.bubble-agent-icon {
+  display: inline-flex;
+  color: var(--accent);
+  width: 14px;
+  height: 14px;
+}
+
+.bubble-agent-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.6;
+}
+
+.bubble-role {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--wb-dim, var(--faint));
+}
+
+/* User soft bubble (prototype .mk-user) — override plain "You" chrome. */
+.bubble.role-user {
+  width: auto;
+  max-width: 70%;
+  margin-left: auto;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 12px 12px 3px 12px;
+  background: var(--wb-accent-soft, var(--accent-soft));
+}
+
+.bubble.role-user::before {
+  content: none;
+  display: none;
+}
+
+.bubble.is-streaming {
+  animation: msg-in 0.32s var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bubble.is-streaming,
+  .tool-call-card,
+  .turn-shimmer-text {
+    animation: none;
+  }
+  .turn-shimmer-text {
+    -webkit-text-fill-color: var(--wb-dim, var(--faint));
+    color: var(--wb-dim, var(--faint));
+    background: none;
+  }
 }
 
 /* ─── Markdown content typography ───────────────────────────────────── */

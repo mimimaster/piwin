@@ -9,10 +9,6 @@ import { CitationCards } from './CitationCards';
 import { parseToolCitations } from './tool-citations';
 import {
   IconChevronDown,
-  IconFolder,
-  IconPlug,
-  IconSearch,
-  IconSpark,
 } from './shell-icons';
 
 export type ToolCallCardProps = {
@@ -35,26 +31,12 @@ function summarizeToolOutput(toolName: string, output: string, maxLength: number
   return `${trimmed.slice(0, maxLength - 1)}…`;
 }
 
-function toolKindIcon(toolName: string): ReactElement {
-  const lower = toolName.toLowerCase();
-  if (lower.includes('bash') || lower.includes('shell') || lower.includes('terminal')) {
-    return <IconSpark />;
+function formatDuration(ms: number): string {
+  if (ms < 1000) {
+    return `${ms}ms`;
   }
-  if (lower.includes('search') || lower.includes('grep') || lower.includes('glob')) {
-    return <IconSearch />;
-  }
-  if (
-    lower.includes('read') ||
-    lower.includes('write') ||
-    lower.includes('edit') ||
-    lower.includes('file')
-  ) {
-    return <IconFolder />;
-  }
-  if (lower.includes('mcp') || lower.includes('web_')) {
-    return <IconPlug />;
-  }
-  return <IconSpark />;
+  const seconds = ms / 1000;
+  return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
 }
 
 export function ToolStatusDot(props: {
@@ -101,11 +83,23 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     }
   }, [tool.status, tool.output, density]);
 
-  const citations = parseToolCitations(tool.toolName, tool.output);
+  const displayOutput = tool.presentation?.output?.text ?? tool.output;
+  const citations = parseToolCitations(tool.toolName, displayOutput);
   const previewMax = density === 'compact' ? 48 : density === 'detailed' ? 160 : 96;
-  const summary = summarizeToolOutput(tool.toolName, tool.output, previewMax);
-  const hasBody = Boolean(tool.output) || citations.kind !== 'none';
-  const showPreview = density !== 'compact' || expanded;
+  const displayName = tool.presentation?.title ?? tool.toolName;
+  const summary =
+    tool.presentation?.summary ??
+    tool.presentation?.command ??
+    (tool.presentation?.targetPaths?.length
+      ? tool.presentation.targetPaths.join(', ')
+      : summarizeToolOutput(tool.toolName, tool.output, previewMax));
+  const hasBody =
+    Boolean(displayOutput) ||
+    citations.kind !== 'none' ||
+    Boolean(tool.presentation?.command) ||
+    Boolean(tool.presentation?.targetPaths?.length) ||
+    Boolean(tool.presentation?.changedPaths?.length) ||
+    Boolean(tool.presentation?.error);
 
   return (
     <div
@@ -114,6 +108,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       }`}
       data-testid="tool-call-card"
       data-tool-name={tool.toolName}
+      data-tool-kind={tool.presentation?.kind ?? 'unknown'}
       data-tool-status={tool.status}
       data-density={density}
     >
@@ -122,35 +117,67 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         className="tool-call-summary"
         onClick={() => setExpanded((previous) => !previous)}
         aria-expanded={expanded}
+        aria-label={`${displayName} ${tool.status}`}
       >
-        <span className="tool-call-icon-wrap">
-          <span className="tool-call-icon">{toolKindIcon(tool.toolName)}</span>
+        <span className="tool-call-name">{displayName}</span>
+        <span className="tool-call-preview muted">
+          {summary === displayName || !summary ? '' : summary}
+        </span>
+        {typeof tool.presentation?.durationMs === 'number' ? (
+          <span className="tool-call-duration" data-testid="tool-call-duration">
+            {formatDuration(tool.presentation.durationMs)}
+          </span>
+        ) : tool.status === 'running' ? (
+          <span className="tool-call-duration tool-call-duration-live">…</span>
+        ) : null}
+        {tool.status === 'done' ? (
+          <span className="tool-call-ok" aria-label="done" data-testid="tool-call-ok">
+            ✓
+          </span>
+        ) : tool.status === 'error' ? (
+          <span className="tool-call-err" aria-label="error" data-testid="tool-call-err">
+            !
+          </span>
+        ) : (
           <ToolStatusDot status={tool.status} />
-        </span>
-        <span className="tool-call-meta">
-          <span className="tool-call-name">{tool.toolName}</span>
-          {showPreview ? (
-            <span className="tool-call-preview muted">
-              {summary === tool.toolName ? tool.status : summary}
-            </span>
-          ) : (
-            <span className="tool-call-preview muted">{tool.status}</span>
-          )}
-        </span>
+        )}
         <IconChevronDown className={expanded ? 'tool-call-chevron open' : 'tool-call-chevron'} />
       </button>
       {expanded && hasBody ? (
         <div className="tool-call-body">
+          {tool.presentation?.command ? (
+            <div className="tool-call-command" data-testid="tool-call-command">
+              <code>{tool.presentation.command}</code>
+              {typeof tool.presentation.exitCode === 'number' ? (
+                <span className="muted"> exit {tool.presentation.exitCode}</span>
+              ) : null}
+            </div>
+          ) : null}
+          {tool.presentation?.targetPaths && tool.presentation.targetPaths.length > 0 ? (
+            <div className="tool-call-paths muted" data-testid="tool-call-paths">
+              {tool.presentation.targetPaths.join(' · ')}
+            </div>
+          ) : null}
+          {tool.presentation?.changedPaths && tool.presentation.changedPaths.length > 0 ? (
+            <div className="tool-call-paths muted" data-testid="tool-call-changed-paths">
+              changed: {tool.presentation.changedPaths.join(' · ')}
+            </div>
+          ) : null}
+          {tool.presentation?.error ? (
+            <div className="tool-call-error" data-testid="tool-call-error" role="status">
+              {tool.presentation.error.category}: {tool.presentation.error.message}
+            </div>
+          ) : null}
           <CitationCards parsed={citations} />
-          {tool.output && citations.kind === 'none' ? (
+          {displayOutput && citations.kind === 'none' ? (
             <pre className="tool-call-output">
-              {tool.output.slice(0, density === 'compact' ? 2000 : 8000)}
+              {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
             </pre>
           ) : null}
-          {tool.output && citations.kind !== 'none' ? (
+          {displayOutput && citations.kind !== 'none' ? (
             <details open={density === 'detailed'}>
               <summary className="muted">raw tool output</summary>
-              <pre className="tool-call-output">{tool.output.slice(0, 4000)}</pre>
+              <pre className="tool-call-output">{displayOutput.slice(0, 4000)}</pre>
             </details>
           ) : null}
         </div>
