@@ -3,9 +3,10 @@
 | Field | Value |
 |-------|-------|
 | Date | 2026-07-26 |
-| Implements | [ADR 0017](../adr/0017-host-sidecar-bundling.md) (Proposed → Accepted after S6 smoke) |
+| Status | **S0–S4 implemented** on `feat/host-sidecar-bundling` (worktree `piwin-host-bundling`); **S5 clean-machine smoke pending** (gate for ADR Accepted + S6 flip) |
+| Implements | [ADR 0017](../adr/0017-host-sidecar-bundling.md) (Implementation in progress → Accepted after S5 smoke) |
 | Binding rules | [`ipc-transport-discipline.md`](../ipc-transport-discipline.md), AGENTS.md §1/§2 |
-| Branch | `feat/host-sidecar-bundling` in a dedicated worktree |
+| Branch | `feat/host-sidecar-bundling` in worktree `/Volumes/BigDisk/Projects/Projects/piwin-host-bundling` |
 
 ## Goal
 

@@ -243,7 +243,7 @@ Commands mirror host capabilities; no separate business logic.
 
 | Layer | States (truthful labels) | Notes |
 |-------|--------------------------|-------|
-| **Desktop transport** | Browser mock · Tauri sidecar | Browser Playwright uses mock host; Tauri spawns workspace `pnpm`/`tsx` host bridge. **Developer preview only** — no bundled Node runtime for installed apps yet (PSR D1; plan: ADR 0017). Wire-protocol rules: [`ipc-transport-discipline.md`](./ipc-transport-discipline.md). |
+| **Desktop transport** | Browser mock · Tauri sidecar | Browser Playwright uses mock host. Tauri uses a **two-tier** spawn (ADR 0017): packaged Node sidecar + `host/host-serve.mjs` when present, else workspace `pnpm`/`tsx` (dev). Packaged path still requires **S5 clean-machine smoke** before claiming public distribution readiness. Wire-protocol rules: [`ipc-transport-discipline.md`](./ipc-transport-discipline.md). |
 | **Agent backend** | mock session · SDK · SDK fallback | UI never claims a live model when mock is active. RPC custom-tools may fall back to SDK (ADR 0011). |
 | **Desktop host mode** | **SDK-only preview** | Desktop does **not** honor a selectable RPC `PiwinConfig.hostMode`. RPC remains CLI/host architecture until isolation worker ships (ADR 0012). |
 | **Terminal** | Tauri PTY authorized · unavailable | Interactive Terminal is a **desktop capability** (ADR 0013). Host `capabilities.pty` is **not** proof that Tauri Terminal is unavailable or available. |

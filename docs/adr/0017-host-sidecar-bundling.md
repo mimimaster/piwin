@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Proposed** |
+| Status | **Implementation in progress** (S0–S4 landed on `feat/host-sidecar-bundling`; S5 clean-machine smoke is the gate to **Accepted**) |
 | Date | 2026-07-26 |
 | Related | ADR 0006 (dev sidecar spawn), ADR 0015 (async transport), `docs/release-desktop.md`, `docs/ipc-transport-discipline.md` |
 
