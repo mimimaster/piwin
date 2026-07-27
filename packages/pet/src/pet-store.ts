@@ -5,7 +5,6 @@
 import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { homedir } from 'node:os';
-import { fileURLToPath } from 'node:url';
 import type {
   PetAnimationState,
   PetManifest,
@@ -14,6 +13,7 @@ import type {
   PetSummary,
 } from '@piwin/contracts';
 import { resolvePetLayout, validatePetManifest } from './validate-manifest.js';
+import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
 
 export function getPetsDir(piwinRoot: string): string {
   return join(piwinRoot, 'pets');
@@ -49,12 +49,17 @@ export async function savePetPreference(
   await writeFile(path, `${JSON.stringify(preference, null, 2)}\n`, 'utf8');
 }
 
-function bundledPetsRoot(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), '../bundled');
-}
-
-export async function ensureBundledPetsInstalled(piwinRoot: string): Promise<string[]> {
-  const sourceRoot = bundledPetsRoot();
+export async function ensureBundledPetsInstalled(
+  piwinRoot: string,
+  bundledRoot?: string,
+): Promise<string[]> {
+  const sourceRoot =
+    bundledRoot ??
+    resolveBundledAssetsRoot({
+      layoutPath: 'pet/bundled',
+      moduleUrl: import.meta.url,
+      relativeFallback: '../bundled',
+    });
   const targetRoot = getPetsDir(piwinRoot);
   await mkdir(targetRoot, { recursive: true });
   let entries: string[] = [];

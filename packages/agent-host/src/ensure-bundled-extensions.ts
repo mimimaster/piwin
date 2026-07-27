@@ -1,7 +1,7 @@
 import { cp, mkdir, readdir, stat } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { getPiwinExtensionsDir } from './paths.js';
+import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
 
 /**
  * Copy shipped extension modules into ~/.piwin/extensions (once; never overwrite).
@@ -11,7 +11,12 @@ export async function ensureBundledExtensionsInstalled(
   bundledRoot?: string,
 ): Promise<string[]> {
   const sourceRoot =
-    bundledRoot ?? join(dirname(fileURLToPath(import.meta.url)), '../bundled-extensions');
+    bundledRoot ??
+    resolveBundledAssetsRoot({
+      layoutPath: 'agent-host/bundled-extensions',
+      moduleUrl: import.meta.url,
+      relativeFallback: '../bundled-extensions',
+    });
   const targetRoot = getPiwinExtensionsDir(piwinRoot);
   await mkdir(targetRoot, { recursive: true });
 

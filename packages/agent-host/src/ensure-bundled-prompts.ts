@@ -1,7 +1,7 @@
 import { cp, mkdir, readdir, stat } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { getPiwinPromptsDir } from './paths.js';
+import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
 
 /**
  * Copy shipped prompt templates into ~/.piwin/prompts (once; never overwrite).
@@ -11,7 +11,12 @@ export async function ensureBundledPromptsInstalled(
   bundledRoot?: string,
 ): Promise<string[]> {
   const sourceRoot =
-    bundledRoot ?? join(dirname(fileURLToPath(import.meta.url)), '../bundled-prompts');
+    bundledRoot ??
+    resolveBundledAssetsRoot({
+      layoutPath: 'agent-host/bundled-prompts',
+      moduleUrl: import.meta.url,
+      relativeFallback: '../bundled-prompts',
+    });
   const targetRoot = getPiwinPromptsDir(piwinRoot);
   await mkdir(targetRoot, { recursive: true });
 

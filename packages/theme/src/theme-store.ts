@@ -3,9 +3,9 @@
  */
 import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { ThemeManifest, ThemePreference, ThemeSummary } from '@piwin/contracts';
 import { validateThemeManifest } from './validate-manifest.js';
+import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
 
 export function getThemesDir(piwinRoot: string): string {
   return join(piwinRoot, 'themes');
@@ -37,12 +37,17 @@ export async function saveThemePreference(
   await writeFile(path, `${JSON.stringify(preference, null, 2)}\n`, 'utf8');
 }
 
-function bundledThemesRoot(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), '../bundled');
-}
-
-export async function ensureBundledThemesInstalled(piwinRoot: string): Promise<string[]> {
-  const sourceRoot = bundledThemesRoot();
+export async function ensureBundledThemesInstalled(
+  piwinRoot: string,
+  bundledRoot?: string,
+): Promise<string[]> {
+  const sourceRoot =
+    bundledRoot ??
+    resolveBundledAssetsRoot({
+      layoutPath: 'theme/bundled',
+      moduleUrl: import.meta.url,
+      relativeFallback: '../bundled',
+    });
   const targetRoot = getThemesDir(piwinRoot);
   await mkdir(targetRoot, { recursive: true });
   let entries: string[] = [];
