@@ -91,45 +91,6 @@
   font-size: 13px;
 }
 
-/* Switch Component */
-.mcp-toggle {
-  position: relative;
-  display: inline-block;
-  flex-shrink: 0;
-  width: 36px;
-  height: 20px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: var(--faint);
-  cursor: pointer;
-  outline: none;
-  transition: background var(--motion-quick) ease;
-}
-
-.mcp-toggle.checked,
-.mcp-toggle[aria-checked="true"] {
-  background: var(--accent);
-}
-
-.mcp-toggle::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-  transition: transform var(--motion-quick) cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: transform;
-}
-
-.mcp-toggle.checked::after,
-.mcp-toggle[aria-checked="true"]::after {
-  transform: translateX(16px);
-}
-
 /* ── MCP server list ─────────────────────────────────────────── */
 
 .mcp-server-list-clean {

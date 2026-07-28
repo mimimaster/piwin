@@ -129,6 +129,7 @@ export type DesktopTranslator = {
       enableUltra: string;
       removeProviderTitle: string;
       removeProviderDescription: string;
+      deleteProvider: string;
       modelsHeading: string;
       modelsEmpty: string;
       fetchModelList: string;
@@ -316,6 +317,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         enableUltra: isChinese ? '启用 Ultra' : 'Enable Ultra',
         removeProviderTitle: isChinese ? '移除提供商？' : 'Remove provider?',
         removeProviderDescription: isChinese ? '该提供商配置将从产品配置中移除。' : 'The provider configuration will be removed from product config.',
+        deleteProvider: isChinese ? '删除提供商' : 'Delete provider',
         modelsHeading: isChinese ? '模型' : 'Models',
         modelsEmpty: isChinese ? '暂无模型。获取列表或手动添加。' : 'No models yet. Fetch the list or add one.',
         fetchModelList: isChinese ? '获取模型列表' : 'Fetch models',

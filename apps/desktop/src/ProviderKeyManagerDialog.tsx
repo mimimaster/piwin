@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { Button, Dialog, IconButton, Notice } from '@piwin/ui-kit';
+import { Button, IconButton, Modal, Notice } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { IconClose } from './shell-icons';
 
@@ -119,25 +119,18 @@ export function ProviderKeyManagerDialog({
   }
 
   return (
-    <Dialog
-      label={copy.keyManagerTitle(providerName)}
+    <Modal
+      title={copy.keyManagerTitle(providerName)}
       open={open}
       onOpenChange={onOpenChange}
       testId="provider-key-manager"
-      closeOnInteractOutside
+      size="lg"
     >
-      <div className="cherry-dialog cherry-dialog--keys" style={{ width: '480px' }}>
-        <header className="cherry-dialog-header">
-          <h3>{copy.keyManagerTitle(providerName)}</h3>
-          <IconButton label={common.close} onClick={() => onOpenChange(false)}>
-            <IconClose width={16} height={16} />
-          </IconButton>
-        </header>
-        <div className="cherry-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <p className="muted" style={{ fontSize: '13px', margin: 0 }}>{copy.keyManagerHint}</p>
-          {loadError ? <Notice tone="error">{loadError}</Notice> : null}
-          
-          <ul className="ext-list" style={{ maxHeight: '300px', overflow: 'auto' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <p className="muted" style={{ fontSize: '13px', margin: 0 }}>{copy.keyManagerHint}</p>
+        {loadError ? <Notice tone="error">{loadError}</Notice> : null}
+
+        <ul className="ext-list" style={{ maxHeight: '300px', overflow: 'auto' }}>
             {entries.map((entry) => {
               const revealed = revealedIds.has(entry.id);
               return (
@@ -196,22 +189,21 @@ export function ProviderKeyManagerDialog({
             })}
           </ul>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Button
-              variant="ghost"
-              size="compact"
-              onClick={() => setEntries((cur) => [...cur, createEmptyEntry()])}
-              disabled={loading || busy}
-            >
-              + {isChinese ? '添加密钥' : 'Add Key'}
-            </Button>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <Button variant="ghost" onClick={() => onOpenChange(false)}>{common.cancel}</Button>
-              <Button variant="primary" onClick={() => void handleSave()} disabled={loading || busy}>{common.save}</Button>
-            </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Button
+            variant="ghost"
+            size="compact"
+            onClick={() => setEntries((cur) => [...cur, createEmptyEntry()])}
+            disabled={loading || busy}
+          >
+            + {isChinese ? '添加密钥' : 'Add Key'}
+          </Button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>{common.cancel}</Button>
+            <Button variant="primary" onClick={() => void handleSave()} disabled={loading || busy}>{common.save}</Button>
           </div>
         </div>
       </div>
-    </Dialog>
+    </Modal>
   );
 }

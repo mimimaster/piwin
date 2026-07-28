@@ -6,7 +6,7 @@ import type {
   MemorySearchHit,
   PiwinConfig,
 } from '@piwin/contracts';
-import { Button, Field, Notice, Spinner } from '@piwin/ui-kit';
+import { Button, Collapse, Field, Notice, Spinner, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 import { FieldRow } from './settings/field-row';
@@ -166,38 +166,26 @@ export function MemoryPanel(props: MemoryPanelProps) {
             label={isChinese ? '启用记忆' : 'Enable Memory'}
             description={isChinese ? '开启后 Agent 可以自动存储和检索历史知识。' : 'When enabled, the agent can store and retrieve historical knowledge.'}
           >
-            <span
-              role="switch"
-              aria-checked={enabled ? 'true' : 'false'}
-              tabIndex={0}
-              className={enabled ? 'mcp-toggle checked' : 'mcp-toggle'}
-              onClick={() => void saveMemoryConfig({ enabled: !enabled })}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  void saveMemoryConfig({ enabled: !enabled });
-                }
-              }}
+            <Switch
+              checked={enabled}
+              onChange={() => void saveMemoryConfig({ enabled: !enabled })}
             />
           </FieldRow>
 
-          <div style={{ display: enabled ? 'contents' : 'none' }}>
+          <Collapse expanded={enabled}>
             <FieldRow
               label={isChinese ? '注入概览' : 'Inject Overview'}
               description={isChinese ? '在每个会话开始时注入简短的记忆摘要。' : 'Inject a brief memory summary at the start of each session.'}
             >
-              <span
-                role="switch"
-                aria-checked={config?.memory?.injectOverview !== false ? 'true' : 'false'}
-                tabIndex={0}
-                className={config?.memory?.injectOverview !== false ? 'mcp-toggle checked' : 'mcp-toggle'}
-                onClick={() => void saveMemoryConfig({ injectOverview: config?.memory?.injectOverview === false })}
+              <Switch
+                checked={config?.memory?.injectOverview !== false}
+                onChange={() => void saveMemoryConfig({ injectOverview: config?.memory?.injectOverview === false })}
               />
             </FieldRow>
-          </div>
+          </Collapse>
         </div>
 
-        <div className="settings-section" style={{ display: enabled ? '' : 'none' }}>
+        <Collapse expanded={enabled} className="settings-section">
             <PageTitle
               title={isChinese ? '管理记忆' : 'Manage Memory'}
             />
@@ -265,7 +253,7 @@ export function MemoryPanel(props: MemoryPanelProps) {
                 </div>
               </div>
             )}
-          </div>
+          </Collapse>
       </div>
     </div>
   );

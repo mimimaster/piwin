@@ -88,14 +88,3 @@ export function saveToolCallDensity(density: ToolCallDensity): void {
   writeString(TOOL_DENSITY_KEY, density);
 }
 
-export function densityToSliderValue(density: ToolCallDensity): number {
-  if (density === 'compact') return 0;
-  if (density === 'detailed') return 2;
-  return 1;
-}
-
-export function sliderValueToDensity(value: number): ToolCallDensity {
-  if (value <= 0) return 'compact';
-  if (value >= 2) return 'detailed';
-  return 'comfortable';
-}

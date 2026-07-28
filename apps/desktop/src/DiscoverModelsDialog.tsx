@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, Dialog, IconButton } from '@piwin/ui-kit';
+import { Button, Modal, TextInput } from '@piwin/ui-kit';
 import type { DiscoveredModel, ModelProviderConfig } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
-import { IconClose } from './shell-icons';
 
 export type DiscoverModelsDialogProps = {
   open: boolean;
@@ -73,70 +72,61 @@ export function DiscoverModelsDialog({
   }
 
   return (
-    <Dialog
-      label={copy.discoveryLabel}
+    <Modal
+      title={copy.discoveryTitleFor(provider.name)}
       open={open}
       onOpenChange={onOpenChange}
       testId="discover-models-dialog"
-      closeOnInteractOutside
+      size="lg"
     >
-      <div className="cherry-dialog cherry-dialog--wide">
-        <header className="cherry-dialog-header">
-          <h3>{copy.discoveryTitleFor(provider.name)}</h3>
-          <IconButton label={common.close} onClick={() => onOpenChange(false)}>
-            <IconClose width={16} height={16} />
-          </IconButton>
-        </header>
-        <div className="cherry-dialog-body">
-          <label className="cherry-discover-search">
-            <span className="sr-only">{copy.searchDiscovered}</span>
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={copy.searchDiscovered}
-            />
-          </label>
-          <div className="cherry-model-pick-list" data-testid="discover-models-list">
-            {visibleModels.map((model) => {
-              const alreadyConfigured = configuredIds.has(model.id);
-              return (
-                <label key={model.id} className="cherry-model-pick-row">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(model.id)}
-                    onChange={() => toggleModel(model.id)}
-                  />
-                  <span className="cherry-model-pick-copy">
-                    <strong>{model.label ?? model.id}</strong>
-                    {model.label ? <code>{model.id}</code> : null}
-                  </span>
-                  {alreadyConfigured ? <small>{copy.configured}</small> : null}
-                </label>
-              );
-            })}
-            {visibleModels.length === 0 ? <p className="muted">{copy.noMatchingModels}</p> : null}
-          </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <TextInput
+          value={query}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+          placeholder={copy.searchDiscovered}
+          data-testid="discover-models-search"
+          autoFocus
+        />
+        <div className="cherry-model-pick-list" data-testid="discover-models-list">
+          {visibleModels.map((model) => {
+            const alreadyConfigured = configuredIds.has(model.id);
+            return (
+              <label key={model.id} className="cherry-model-pick-row">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.has(model.id)}
+                  onChange={() => toggleModel(model.id)}
+                />
+                <span className="cherry-model-pick-copy">
+                  <strong>{model.label ?? model.id}</strong>
+                  {model.label ? <code>{model.id}</code> : null}
+                </span>
+                {alreadyConfigured ? <small>{copy.configured}</small> : null}
+              </label>
+            );
+          })}
+          {visibleModels.length === 0 ? <p className="muted">{copy.noMatchingModels}</p> : null}
         </div>
-        <footer className="cherry-dialog-footer cherry-dialog-footer--split">
-          <span className="muted">{copy.selectedModels(selectedModels.length, newModelCount)}</span>
-          <div className="cherry-dialog-footer-actions">
-            <Button onClick={() => onOpenChange(false)}>
-              {common.cancel}
-            </Button>
-            <Button
-              variant="primary"
-              disabled={selectedModels.length === 0}
-              onClick={() => {
-                onImport(selectedModels);
-                onOpenChange(false);
-              }}
-              data-testid="discover-models-import"
-            >
-              {copy.importSelected}
-            </Button>
-          </div>
-        </footer>
       </div>
-    </Dialog>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
+        <span className="muted">{copy.selectedModels(selectedModels.length, newModelCount)}</span>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <Button onClick={() => onOpenChange(false)}>
+            {common.cancel}
+          </Button>
+          <Button
+            variant="primary"
+            disabled={selectedModels.length === 0}
+            onClick={() => {
+              onImport(selectedModels);
+              onOpenChange(false);
+            }}
+            data-testid="discover-models-import"
+          >
+            {copy.importSelected}
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -1,8 +1,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
-import { Button, Dialog, IconButton } from '@piwin/ui-kit';
+import { Button, Field, Modal, TextInput } from '@piwin/ui-kit';
 import type { ModelConfigEntry } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
-import { IconClose } from './shell-icons';
 
 export type AddModelDialogProps = {
   open: boolean;
@@ -71,86 +70,73 @@ export function AddModelDialog({
   }
 
   return (
-    <Dialog
-      label={copy.addModelTitle}
+    <Modal
+      title={copy.addModelTitle}
       open={open}
       onOpenChange={onOpenChange}
       testId="add-model-dialog"
-      closeOnInteractOutside
+      size="md"
     >
-      <div className="cherry-dialog">
-        <header className="cherry-dialog-header">
-          <h3>{copy.addModelTitle}</h3>
-          <IconButton label={common.close} onClick={() => onOpenChange(false)}>
-            <IconClose width={16} height={16} />
-          </IconButton>
-        </header>
-        <div className="cherry-dialog-body">
-          <label className="cherry-field">
-            <span>
-              <em aria-hidden>*</em>
-              {copy.modelId}
-            </span>
-            <input
-              value={modelId}
-              onChange={(event) => setModelId(event.target.value)}
-              placeholder={copy.modelIdPlaceholder}
-              spellCheck={false}
-              data-testid="add-model-id-input"
-              autoFocus
-            />
-          </label>
-          <label className="cherry-field">
-            <span>{copy.modelDisplayName}</span>
-            <input
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder={copy.modelNamePlaceholder}
-              data-testid="add-model-label-input"
-            />
-          </label>
-          <label className="cherry-field">
-            <span>{copy.modelGroupName}</span>
-            <input
-              value={groupName}
-              onChange={(event) => setGroupName(event.target.value)}
-              placeholder={copy.modelGroupPlaceholder}
-              data-testid="add-model-group-input"
-            />
-          </label>
-          <div className="cherry-dialog-row">
-            <label className="cherry-field">
-              <span>{copy.contextLimit}</span>
-              <input
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <Field label={copy.modelId} required error={error}>
+          <TextInput
+            value={modelId}
+            onChange={(event) => setModelId(event.currentTarget.value)}
+            placeholder={copy.modelIdPlaceholder}
+            spellCheck={false}
+            data-testid="add-model-id-input"
+            autoFocus
+          />
+        </Field>
+        <Field label={copy.modelDisplayName}>
+          <TextInput
+            value={label}
+            onChange={(event) => setLabel(event.currentTarget.value)}
+            placeholder={copy.modelNamePlaceholder}
+            data-testid="add-model-label-input"
+          />
+        </Field>
+        <Field label={copy.modelGroupName}>
+          <TextInput
+            value={groupName}
+            onChange={(event) => setGroupName(event.currentTarget.value)}
+            placeholder={copy.modelGroupPlaceholder}
+            data-testid="add-model-group-input"
+          />
+        </Field>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <div style={{ flex: 1 }}>
+            <Field label={copy.contextLimit}>
+              <TextInput
                 value={contextWindow}
-                onChange={(event) => setContextWindow(event.target.value)}
+                onChange={(event) => setContextWindow(event.currentTarget.value)}
                 placeholder={locale === 'zh-CN' ? '128000' : '128000'}
                 spellCheck={false}
                 data-testid="add-model-context-input"
               />
-            </label>
-            <label className="cherry-field">
-              <span>{copy.outputLimit}</span>
-              <input
+            </Field>
+          </div>
+          <div style={{ flex: 1 }}>
+            <Field label={copy.outputLimit}>
+              <TextInput
                 value={maxOutputTokens}
-                onChange={(event) => setMaxOutputTokens(event.target.value)}
+                onChange={(event) => setMaxOutputTokens(event.currentTarget.value)}
                 placeholder={locale === 'zh-CN' ? '16384' : '16384'}
                 spellCheck={false}
                 data-testid="add-model-output-input"
               />
-            </label>
+            </Field>
           </div>
-          {error ? <p className="cherry-inline-error">{error}</p> : null}
         </div>
-        <footer className="cherry-dialog-footer">
-          <Button onClick={() => onOpenChange(false)}>
-            {common.cancel}
-          </Button>
-          <Button variant="primary" onClick={submit} data-testid="add-model-submit">
-            {copy.addModelAction}
-          </Button>
-        </footer>
       </div>
-    </Dialog>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+        <Button onClick={() => onOpenChange(false)}>
+          {common.cancel}
+        </Button>
+        <Button variant="primary" onClick={submit} data-testid="add-model-submit">
+          {copy.addModelAction}
+        </Button>
+      </div>
+    </Modal>
   );
 }
