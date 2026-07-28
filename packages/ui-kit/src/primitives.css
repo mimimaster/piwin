@@ -355,3 +355,84 @@
   --mantine-primary-color-light: var(--accent-soft);
   --mantine-primary-color-light-hover: color-mix(in srgb, var(--accent) 23%, var(--panel));
 }
+
+/* ── Switch ─────────────────────────────────────────────────────── */
+
+.piwin-switch {
+  display: inline-flex;
+  align-items: center;
+}
+
+.piwin-switch-input + .piwin-switch-track.piwin-switch-track {
+  background-color: var(--faint);
+  border: none;
+}
+
+.piwin-switch-input:checked + .piwin-switch-track.piwin-switch-track {
+  background-color: var(--accent);
+}
+
+.piwin-switch-track .piwin-switch-thumb.piwin-switch-thumb {
+  background-color: var(--surface-raised);
+  border: none;
+}
+
+/* ── Collapse ────────────────────────────────────────────────────── */
+
+.piwin-collapse {
+  overflow: hidden;
+}
+
+/* ── Slider ──────────────────────────────────────────────────────── */
+
+[data-mantine-color-scheme] .piwin-slider.piwin-slider {
+  --slider-track-bg: var(--surface-inset);
+  --slider-color: var(--accent);
+}
+
+/* ── Modal ───────────────────────────────────────────────────────── */
+
+.piwin-modal-content.piwin-modal-content {
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-overlay);
+}
+
+.piwin-modal-body {
+  padding: var(--space-3) var(--space-4);
+}
+
+.piwin-modal-header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* ── TextInput / PasswordInput ──────────────────────────────────── */
+
+.piwin-text-input-field,
+.piwin-password-input-field {
+  --input-bg: var(--surface-raised);
+  --input-bd: var(--line-soft);
+  --input-color: var(--text);
+  --input-placeholder-color: var(--muted);
+  --input-bd-focus: var(--accent);
+}
+
+/* ── SegmentedControl ───────────────────────────────────────────── */
+
+[data-mantine-color-scheme] .piwin-segmented-control.piwin-segmented-control {
+  background-color: var(--surface-inset);
+  --sc-color: var(--accent);
+}
+
+.piwin-segmented-control-indicator {
+  box-shadow: none;
+}
+
+/* ── Card ────────────────────────────────────────────────────────── */
+
+.piwin-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-surface);
+}
