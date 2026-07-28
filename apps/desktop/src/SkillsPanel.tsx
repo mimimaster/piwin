@@ -9,7 +9,7 @@ import type {
   SkillStoreEntry,
 } from '@piwin/contracts';
 import { WELL_KNOWN_SKILL_PATH_PRESETS } from '@piwin/contracts';
-import { Button, EmptyState, Field, Notice, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
+import { Button, EmptyState, Field, Notice, SegmentedControl, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
@@ -265,12 +265,11 @@ export function SkillsPanel(props: SkillsPanelProps) {
               <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: 20 }}>
                 <div style={{ flex: 1 }}>
                   <Field label={isChinese ? '搜索技能' : 'Search skills'}>
-                    <input
+                    <TextInput
                       value={filter}
-                      onChange={(event) => setFilter(event.target.value)}
+                      onChange={(event) => setFilter(event.currentTarget.value)}
                       placeholder={isChinese ? '名称、ID 或描述…' : 'Search...'}
                       data-testid="skills-filter"
-                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
                     />
                   </Field>
                 </div>
@@ -334,33 +333,33 @@ export function SkillsPanel(props: SkillsPanelProps) {
                 title={isChinese ? '手动安装' : 'Install Manually'}
                 description={isChinese ? '通过本地目录或 Git 仓库安装。' : 'Install via local directory or Git.'}
               />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <div style={{ flex: 1 }}>
-                    <select
-                      value={installKind}
-                      onChange={(event) => setInstallKind(event.target.value as 'local' | 'git')}
-                      style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
-                    >
-                      <option value="local">{isChinese ? '本地目录' : 'Local Directory'}</option>
-                      <option value="git">Git URL</option>
-                    </select>
-                  </div>
-                  <div style={{ flex: 2 }}>
-                    <input
-                      value={installKind === 'local' ? installPath : installGitUrl}
-                      onChange={(event) => installKind === 'local' ? setInstallPath(event.target.value) : setInstallGitUrl(event.target.value)}
-                      placeholder={installKind === 'local' ? (isChinese ? '路径...' : 'Path...') : 'https://github.com/...'}
-                      style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
-                    />
-                  </div>
-                  <Button
-                    disabled={installing || (installKind === 'local' ? !installPath : !installGitUrl)}
-                    onClick={() => installKind === 'local' ? handleInstallLocal() : handleInstallGit()}
-                  >
-                    {isChinese ? '安装' : 'Install'}
-                  </Button>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                <div style={{ flex: 0, minWidth: '140px' }}>
+                  <SegmentedControl
+                    value={installKind}
+                    onChange={(value) => setInstallKind(value as 'local' | 'git')}
+                    data={[
+                      { value: 'local', label: isChinese ? '本地' : 'Local' },
+                      { value: 'git', label: 'Git' },
+                    ]}
+                    fullWidth
+                  />
                 </div>
+                <div style={{ flex: 2 }}>
+                  <Field label={installKind === 'local' ? (isChinese ? '本地路径' : 'Local Path') : 'Git URL'}>
+                    <TextInput
+                      value={installKind === 'local' ? installPath : installGitUrl}
+                      onChange={(event) => installKind === 'local' ? setInstallPath(event.currentTarget.value) : setInstallGitUrl(event.currentTarget.value)}
+                      placeholder={installKind === 'local' ? (isChinese ? '路径...' : 'Path...') : 'https://github.com/...'}
+                    />
+                  </Field>
+                </div>
+                <Button
+                  disabled={installing || (installKind === 'local' ? !installPath : !installGitUrl)}
+                  onClick={() => installKind === 'local' ? handleInstallLocal() : handleInstallGit()}
+                >
+                  {isChinese ? '安装' : 'Install'}
+                </Button>
               </div>
             </div>
           </TabsContent>

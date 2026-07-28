@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { Button, Collapse, DropdownMenu, DropdownMenuItem, IconButton, Modal } from '@piwin/ui-kit';
+import { Button, Collapse, DropdownMenu, DropdownMenuItem, IconButton, Modal, TextInput } from '@piwin/ui-kit';
 import type {
   ModelConfigEntry,
   ModelDiscoveryResult,
@@ -183,7 +183,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const [autoSaveAttempt, setAutoSaveAttempt] = useState(0);
   const autoSaveInFlightRef = useRef(false);
   const lastSelectedIdRef = useRef<string | null>(null);
-  const headerNameRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const lastAddedHeaderIdRef = useRef<string | null>(null);
 
   const selectedProvider = useMemo(
@@ -203,15 +202,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     }
     lastSelectedIdRef.current = selectedId;
   }, [selectedId, selectedProvider]);
-
-  // Focus the name input of a newly added header row.
-  useEffect(() => {
-    const id = lastAddedHeaderIdRef.current;
-    if (id && headerNameRefs.current[id]) {
-      headerNameRefs.current[id]?.focus();
-      lastAddedHeaderIdRef.current = null;
-    }
-  }, [draft?.headerRows]);
 
   const markDraft = useCallback((next: ProviderDraft) => {
     setDraft(next);
@@ -541,13 +531,12 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                 }
               >
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <input
-                    className="provider-secret-input"
+                  <TextInput
                     type="password"
                     data-testid="provider-apikey-env-input"
                     value={draft.apiKeyInput}
                     onChange={(event) => {
-                      markDraft({ ...draft, apiKeyInput: event.target.value });
+                      markDraft({ ...draft, apiKeyInput: event.currentTarget.value });
                     }}
                     placeholder={
                       hasKeychainSecret(draft)
@@ -556,7 +545,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                     }
                     spellCheck={false}
                     autoComplete="off"
-                    style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)', width: '200px' }}
+                    style={{ width: '220px' }}
                   />
                   <IconButton
                     label={copy.keyManager}
@@ -572,13 +561,13 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
               <FieldRow
                 label={copy.apiAddress}
               >
-                <input
+                <TextInput
                   data-testid="provider-baseurl-input"
                   value={draft.baseUrl}
-                  onChange={(event) => markDraft({ ...draft, baseUrl: event.target.value })}
+                  onChange={(event) => markDraft({ ...draft, baseUrl: event.currentTarget.value })}
                   spellCheck={false}
                   placeholder="https://api.example.com/v1"
-                  style={{ width: '320px', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                  style={{ width: '320px' }}
                 />
               </FieldRow>
 
@@ -605,38 +594,36 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                   <ul className="provider-header-list" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {draft.headerRows.map((row) => (
                       <li key={row.id} className="provider-header-row" style={{ display: 'flex', gap: '8px' }}>
-                        <input
-                          ref={(element) => {
-                            headerNameRefs.current[row.id] = element;
-                          }}
+                        <TextInput
                           value={row.name}
                           onChange={(event) =>
                             markDraft({
                               ...draft,
                               headerRows: draft.headerRows.map((item) =>
-                                item.id === row.id ? { ...item, name: event.target.value } : item,
+                                item.id === row.id ? { ...item, name: event.currentTarget.value } : item,
                               ),
                             })
                           }
                           placeholder={copy.headerName}
                           spellCheck={false}
                           data-testid="provider-header-name"
-                          style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                          autoFocus={row.id === lastAddedHeaderIdRef.current}
+                          style={{ flex: 1 }}
                         />
-                        <input
+                        <TextInput
                           value={row.value}
                           onChange={(event) =>
                             markDraft({
                               ...draft,
                               headerRows: draft.headerRows.map((item) =>
-                                item.id === row.id ? { ...item, value: event.target.value } : item,
+                                item.id === row.id ? { ...item, value: event.currentTarget.value } : item,
                               ),
                             })
                           }
                           placeholder={copy.headerValue}
                           spellCheck={false}
                           data-testid="provider-header-value"
-                          style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                          style={{ flex: 1 }}
                         />
                         <IconButton
                           label={common.remove}

@@ -3,7 +3,7 @@
  * Extracted from McpPanel so the main page stays a clean list.
  */
 import { useEffect, useState, type ReactElement } from 'react';
-import { Button, Field, Modal, Notice, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
+import { Button, Field, Modal, Notice, Tabs, TabsContent, TabsList, TabsTrigger, TextInput } from '@piwin/ui-kit';
 import type { McpConfigDocument, McpServerConfig, McpToolSummary } from '@piwin/contracts';
 
 export type McpServerEditorDialogProps = {
@@ -218,27 +218,27 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
               <div className="mcp-editor-body">
                 <div className="mcp-form-grid">
                   <Field label={isChinese ? '服务器 ID' : 'Server ID'} required>
-                    <input
+                    <TextInput
                       value={draft.id}
-                      onChange={(event) => setDraft({ ...draft, id: event.target.value })}
+                      onChange={(event) => setDraft({ ...draft, id: event.currentTarget.value })}
                       placeholder="memory"
                       data-testid="mcp-editor-id"
                       autoFocus
                     />
                   </Field>
                   <Field label={isChinese ? '命令' : 'Command'} required>
-                    <input
+                    <TextInput
                       value={draft.command}
-                      onChange={(event) => setDraft({ ...draft, command: event.target.value })}
+                      onChange={(event) => setDraft({ ...draft, command: event.currentTarget.value })}
                       placeholder="npx"
                       data-testid="mcp-editor-command"
                     />
                   </Field>
                 </div>
                 <Field label={isChinese ? '参数（以空格分隔）' : 'Args (space-separated)'}>
-                  <input
+                  <TextInput
                     value={draft.argsText}
-                    onChange={(event) => setDraft({ ...draft, argsText: event.target.value })}
+                    onChange={(event) => setDraft({ ...draft, argsText: event.currentTarget.value })}
                     placeholder="-y @modelcontextprotocol/server-memory"
                     data-testid="mcp-editor-args"
                   />

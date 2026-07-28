@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { HostResponse, PromptTemplateSummary, PromptsListData } from '@piwin/contracts';
-import { Button, Field, Notice, Spinner, Switch } from '@piwin/ui-kit';
+import { Button, Field, Notice, Spinner, Switch, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
@@ -82,11 +82,10 @@ export function PromptsPanel(props: PromptsPanelProps) {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: 20 }}>
           <div style={{ flex: 1 }}>
             <Field label={isChinese ? '搜索模板' : 'Search templates'}>
-              <input
+              <TextInput
                 value={filter}
-                onChange={(event) => setFilter(event.target.value)}
+                onChange={(event) => setFilter(event.currentTarget.value)}
                 placeholder={isChinese ? '名称、ID 或描述…' : 'Search...'}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
               />
             </Field>
           </div>
