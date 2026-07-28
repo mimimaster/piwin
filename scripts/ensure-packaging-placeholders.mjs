@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * Ensure Tauri `externalBin` + `resources` paths exist for cargo test / dev.
- * Real content is produced by `pnpm bundle:host` + `pnpm fetch:node-runtime`.
+ * Ensure Tauri `externalBin` + `resources` paths exist for cargo / tauri dev.
+ * - dist-host stubs: enough for tauri build-script path checks
+ * - piwin-host-<triple>: auto-fetch Node LTS if missing (needs network once)
+ *
+ * Real host JS for packaged apps still comes from `pnpm bundle:host`.
  */
-import { mkdir, writeFile, access, copyFile, chmod } from 'node:fs/promises';
+import { mkdir, writeFile, access, readdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -19,6 +22,14 @@ async function exists(path) {
   } catch {
     return false;
   }
+}
+
+async function hasHostBinary() {
+  if (!(await exists(binaries))) {
+    return false;
+  }
+  const names = await readdir(binaries);
+  return names.some((name) => name.startsWith('piwin-host-') || name === 'piwin-host' || name === 'piwin-host.exe');
 }
 
 async function main() {
@@ -40,16 +51,23 @@ async function main() {
   }
 
   await mkdir(binaries, { recursive: true });
-  // If no triple binary yet, fetch (needs network) or leave for package:desktop.
-  const hasBinary = spawnSync('ls', [binaries], { encoding: 'utf8' })
-    .stdout?.includes('piwin-host-');
-  if (!hasBinary) {
-    console.log('[ensure-packaging] no piwin-host binary — run pnpm fetch:node-runtime');
+  if (!(await hasHostBinary())) {
+    console.log('[ensure-packaging] piwin-host binary missing — fetching Node LTS…');
+    const result = spawnSync(process.execPath, [join(root, 'scripts/fetch-node-runtime.mjs')], {
+      cwd: root,
+      stdio: 'inherit',
+    });
+    if (result.status !== 0) {
+      throw new Error(
+        'failed to fetch piwin-host binary. Run: pnpm fetch:node-runtime (needs network once)',
+      );
+    }
   }
+
   console.log('[ensure-packaging] ok');
 }
 
 main().catch((error) => {
-  console.error(error);
+  console.error('[ensure-packaging]', error);
   process.exit(1);
 });

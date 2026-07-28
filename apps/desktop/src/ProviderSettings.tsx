@@ -17,12 +17,13 @@ import { ProviderKeyManagerDialog } from './ProviderKeyManagerDialog';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useConfirmDialog } from './use-confirm-dialog';
 import {
-  getProviderPreset,
   PROVIDER_PRESETS,
   type ProviderPreset,
   type ProviderProtocol,
 } from './provider-presets';
 import { IconClose, IconSettings, IconStar } from './shell-icons';
+import { PageTitle } from './settings/page-title';
+import { FieldRow } from './settings/field-row';
 
 export type DiscoverModelsOptions = {
   apiKey?: string;
@@ -101,101 +102,57 @@ function rowsToHeaders(rows: readonly HeaderDraftRow[]): Record<string, string> 
   return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function isEnvVarName(value: string): boolean {
-  return /^[A-Z][A-Z0-9_]*$/.test(value.trim());
-}
-
-function isLegacyPlaceholderModel(model: ModelConfigEntry): boolean {
-  // Earlier builds inserted this placeholder into saved provider config.
-  // It is not a usable model and must never be presented as one.
-  return model.id.trim().toLowerCase() === 'model-id';
-}
-
 function providerToDraft(provider: ModelProviderConfig): ProviderDraft {
   return {
     id: provider.id,
     protocol: provider.protocol,
     name: provider.name,
     baseUrl: provider.baseUrl,
-    // Never surface raw secrets; stored refs stay in hidden fields.
     apiKeyInput: '',
     storedApiKeyEnv: provider.apiKeyEnv ?? '',
     storedApiKeyRef: provider.apiKeyRef ?? '',
     headerRows: headersToRows(provider.headers),
-    models: provider.models
-      .filter((model) => !isLegacyPlaceholderModel(model))
-      .map((model) => ({ ...model })),
-  };
-}
-
-function presetToDraft(preset: ProviderPreset): ProviderDraft {
-  return {
-    id: preset.id,
-    protocol: preset.protocol,
-    name: preset.name,
-    baseUrl: preset.baseUrl,
-    // Do not pre-fill env names as "configured secrets" — user pastes a real key.
-    apiKeyInput: '',
-    storedApiKeyEnv: '',
-    storedApiKeyRef: '',
-    headerRows: [],
-    models: preset.models.map((model) => ({ ...model })),
+    models: provider.models,
   };
 }
 
 function draftToProvider(draft: ProviderDraft): ModelProviderConfig {
-  const base = {
+  const config: ModelProviderConfig = {
     id: draft.id.trim(),
     protocol: draft.protocol,
-    name: draft.name.trim() || draft.id.trim(),
+    name: draft.name.trim(),
     baseUrl: draft.baseUrl.trim(),
-    models: draft.models.filter((model) => model.id.trim().length > 0),
+    models: draft.models,
   };
-  const provider = { ...base } as ModelProviderConfig;
   const headers = rowsToHeaders(draft.headerRows);
   if (headers) {
-    provider.headers = headers;
+    config.headers = headers;
   }
-  const typed = draft.apiKeyInput.trim();
-  // Raw key in the field is one-shot / keychain material — never treat as env name.
-  if (typed && isEnvVarName(typed)) {
-    provider.apiKeyEnv = typed;
-    return provider;
+  if (draft.storedApiKeyEnv) {
+    config.apiKeyEnv = draft.storedApiKeyEnv;
   }
-  if (typed && !isEnvVarName(typed)) {
-    // Prefer keychain ref if already stored; raw secret is passed separately as one-shot.
-    if (draft.storedApiKeyRef.trim()) {
-      provider.apiKeyRef = draft.storedApiKeyRef.trim();
-    }
-    return provider;
+  if (draft.storedApiKeyRef) {
+    config.apiKeyRef = draft.storedApiKeyRef;
   }
-  // Empty input: only real keychain counts as a configured secret for auth.
-  // Bare env names are optional hints and must not block local discovery when unset.
-  if (draft.storedApiKeyRef.trim()) {
-    provider.apiKeyRef = draft.storedApiKeyRef.trim();
-  } else if (draft.storedApiKeyEnv.trim()) {
-    provider.apiKeyEnv = draft.storedApiKeyEnv.trim();
-  }
-  return provider;
-}
-
-function oneShotApiKeyFromDraft(draft: ProviderDraft): string | undefined {
-  const typed = draft.apiKeyInput.trim();
-  if (!typed || isEnvVarName(typed)) {
-    return undefined;
-  }
-  return typed;
+  return config;
 }
 
 function hasKeychainSecret(draft: ProviderDraft): boolean {
-  return Boolean(draft.storedApiKeyRef.trim());
+  return !!draft.storedApiKeyRef;
 }
 
+function oneShotApiKeyFromDraft(draft: ProviderDraft): string | undefined {
+  const input = draft.apiKeyInput.trim();
+  if (!input) {
+    return undefined;
+  }
+  // If it's an ENV_VAR_NAME, it's not a one-shot secret to be persisted.
+  if (/^[A-Z0-9_]+$/.test(input)) {
+    return undefined;
+  }
+  return input;
+}
 
-/**
- * Two-column models settings.
- * Provider tabs at top → detail panel.
- */
 export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const {
     config,
@@ -212,191 +169,74 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const copy = translator.settings.provider;
   const common = translator.common;
   const confirmDialog = useConfirmDialog();
+
   const [selectedId, setSelectedId] = useState<string | null>(
     config.defaultProviderId ?? config.providers[0]?.id ?? null,
   );
   const [draft, setDraft] = useState<ProviderDraft | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'pending' | 'saving' | 'saved' | 'error'>('idle');
-  const [autoSaveAttempt, setAutoSaveAttempt] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
-  const [addName, setAddName] = useState('');
-  const [addPresetId, setAddPresetId] = useState('custom-openai');
   const [keyManagerOpen, setKeyManagerOpen] = useState(false);
-  const draftRef = useRef<ProviderDraft | null>(null);
-  const draftRevisionRef = useRef(0);
+
+  // 'pending' | 'saving' | 'saved' | 'error'
+  const [autoSaveStatus, setAutoSaveStatus] = useState<string>('');
+  const [autoSaveAttempt, setAutoSaveAttempt] = useState(0);
   const autoSaveInFlightRef = useRef(false);
-  draftRef.current = draft;
 
   const selectedProvider = useMemo(
-    () => config.providers.find((provider) => provider.id === selectedId) ?? null,
+    () => config.providers.find((p) => p.id === selectedId) ?? null,
     [config.providers, selectedId],
   );
 
+  // Sync draft to selection.
   useEffect(() => {
     if (selectedProvider) {
-      // An older auto-save may update config after the user typed again.
-      // Keep the in-progress draft until its newer debounce cycle completes.
-      if (dirty && draftRef.current?.id === selectedProvider.id) {
-        return;
-      }
       setDraft(providerToDraft(selectedProvider));
-      draftRevisionRef.current += 1;
       setDirty(false);
-      setAutoSaveStatus('idle');
-      return;
-    }
-    if (config.providers.length === 0) {
+      setAutoSaveStatus('');
+    } else {
       setDraft(null);
-      draftRevisionRef.current += 1;
-      setSelectedId(null);
-      setDirty(false);
-      setAutoSaveStatus('idle');
-      return;
     }
-    const fallback = config.defaultProviderId ?? config.providers[0]?.id ?? null;
-    setSelectedId(fallback);
-  }, [selectedProvider, config.providers, config.defaultProviderId, dirty]);
+  }, [selectedProvider]);
 
-  function markDraft(next: ProviderDraft): void {
-    draftRevisionRef.current += 1;
+  const markDraft = useCallback((next: ProviderDraft) => {
     setDraft(next);
     setDirty(true);
     setAutoSaveStatus('pending');
-  }
+  }, []);
 
-  const configuredIds = useMemo(
-    () => new Set(config.providers.map((provider) => provider.id)),
-    [config.providers],
+  const saveDraftSnapshot = useCallback(
+    async (snapshot: ProviderDraft, revision: number): Promise<boolean> => {
+      const provider = draftToProvider(snapshot);
+
+      // If there's a one-shot key, it will be handled by the next save (persistence
+      // logic in discover/test). For auto-save, we only update other fields.
+      const nextProviders = config.providers.map((p) => (p.id === snapshot.id ? provider : p));
+      const next: PiwinConfig = {
+        ...config,
+        providers: nextProviders,
+      };
+
+      const ok = await onSave(next);
+      if (ok) {
+        // Clear dirty bit only if no newer changes happened during our request.
+        setDirty((current) => (autoSaveAttempt === revision ? false : current));
+        setAutoSaveStatus((current) => (autoSaveAttempt === revision ? 'saved' : current));
+      }
+      return ok;
+    },
+    [config, onSave, autoSaveAttempt],
   );
 
-  function openAddDialog(): void {
-    setAddName('');
-    setAddPresetId('custom-openai');
-    setAddOpen(true);
-  }
-
-  async function handleConfirmAdd(): Promise<void> {
-    const preset = getProviderPreset(addPresetId);
-    if (!preset) {
-      return;
-    }
-    const displayName = addName.trim() || preset.name;
-    let nextId = preset.id;
-    if (configuredIds.has(nextId) || config.providers.some((provider) => provider.name === displayName)) {
-      nextId = `${preset.id}-${Date.now().toString(36).slice(-4)}`;
-    }
-    const draftFromPreset = presetToDraft({ ...preset, id: nextId, name: displayName });
-    const provider = draftToProvider(draftFromPreset);
-    const next: PiwinConfig = {
-      ...config,
-      agentMock: false,
-      providers: [...config.providers, provider],
-      defaultProviderId: config.defaultProviderId ?? provider.id,
-    };
-    const defaultModelId = config.defaultModelId ?? provider.models[0]?.id;
-    if (defaultModelId) {
-      next.defaultModelId = defaultModelId;
-    }
-    if (await onSave(next)) {
-      setSelectedId(provider.id);
-      setDraft(providerToDraft(provider));
-      setAddOpen(false);
-      onInfo(locale === 'zh-CN' ? `已添加 ${provider.name}` : `Added ${provider.name}`);
-    }
-  }
-
-  const saveDraftSnapshot = useCallback(async (
-    snapshot: ProviderDraft,
-    snapshotRevision: number,
-  ): Promise<boolean> => {
-    if (!snapshot.id.trim()) {
-      onError(locale === 'zh-CN' ? '请填写提供商 ID。' : 'Provider ID is required.');
-      return false;
-    }
-    if (!snapshot.baseUrl.trim().startsWith('http')) {
-      // Incomplete URL while typing — wait for more input.
-      return false;
-    }
-    if (snapshot.models.some((model) => !model.id.trim())) {
-      onError(locale === 'zh-CN' ? '模型 ID 不能为空。' : 'Model IDs cannot be empty.');
-      return false;
-    }
-
-    let nextDraft = { ...snapshot };
-    const typedKey = snapshot.apiKeyInput.trim();
-    try {
-      if (typedKey && !isEnvVarName(typedKey)) {
-        const apiKeyRef = await onStoreSecret(snapshot.id.trim(), typedKey);
-        nextDraft = {
-          ...nextDraft,
-          apiKeyInput: '',
-          storedApiKeyEnv: '',
-          storedApiKeyRef: apiKeyRef,
-        };
-      } else if (typedKey && isEnvVarName(typedKey)) {
-        nextDraft = {
-          ...nextDraft,
-          apiKeyInput: '',
-          storedApiKeyEnv: typedKey,
-          storedApiKeyRef: '',
-        };
-      }
-    } catch (error) {
-      onError(error instanceof Error ? error.message : String(error));
-      return false;
-    }
-
-    const previousId = selectedId;
-    const provider = draftToProvider(nextDraft);
-    const nextProviders = config.providers
-      .filter((item) => item.id !== previousId && item.id !== provider.id)
-      .concat([provider]);
-    const next: PiwinConfig = {
-      ...config,
-      agentMock: false,
-      providers: nextProviders,
-      defaultProviderId:
-        config.defaultProviderId === previousId || !config.defaultProviderId
-          ? provider.id
-          : config.defaultProviderId,
-    };
-    const nextDefaultModel =
-      config.defaultProviderId === previousId || !config.defaultModelId
-        ? snapshot.models[0]?.id
-        : config.defaultModelId;
-    if (nextDefaultModel) {
-      next.defaultModelId = nextDefaultModel;
-    } else if (config.defaultProviderId === previousId) {
-      delete next.defaultModelId;
-    }
-    const saved = await onSave(next);
-    // Never let an earlier response replace a newer edit in the open form.
-    if (saved && draftRevisionRef.current === snapshotRevision) {
-      setDraft(providerToDraft(provider));
-      setDirty(false);
-      setAutoSaveStatus('saved');
-    }
-    return saved;
-  }, [config, locale, onError, onSave, onStoreSecret, selectedId]);
-
-  // Debounced auto-save when the draft is dirty.
+  // Debounced auto-save.
   useEffect(() => {
-    if (!dirty || !draft) {
+    if (!dirty || !draft || autoSaveInFlightRef.current) {
       return;
     }
-    if (!draft.baseUrl.trim().startsWith('http')) {
-      return;
-    }
+    const snapshot = draft;
+    const snapshotRevision = autoSaveAttempt;
+
     const timer = window.setTimeout(() => {
-      if (autoSaveInFlightRef.current) {
-        return;
-      }
-      const snapshot = draftRef.current;
-      if (!snapshot) {
-        return;
-      }
-      const snapshotRevision = draftRevisionRef.current;
       autoSaveInFlightRef.current = true;
       setAutoSaveStatus('saving');
       void saveDraftSnapshot(snapshot, snapshotRevision)
@@ -456,25 +296,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     if (await onSave(next)) {
       setSelectedId(nextProviders[0]?.id ?? null);
       onInfo(locale === 'zh-CN' ? '已移除提供商。' : 'Provider removed.');
-    }
-  }
-
-  async function handleSetDefault(): Promise<void> {
-    if (!selectedProvider) {
-      return;
-    }
-    const modelId = selectedProvider.models[0]?.id;
-    const next: PiwinConfig = {
-      ...config,
-      defaultProviderId: selectedProvider.id,
-      ...(modelId ? { defaultModelId: modelId } : {}),
-    };
-    if (await onSave(next)) {
-      onInfo(
-        locale === 'zh-CN'
-          ? `默认模型：${selectedProvider.name} / ${modelId ?? '—'}`
-          : `Default: ${selectedProvider.name} / ${modelId ?? '—'}`,
-      );
     }
   }
 
@@ -587,127 +408,131 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     return result;
   }
 
+  function openAddDialog() {
+    setAddOpen(true);
+  }
+
+  async function handleAddFromPreset(preset: ProviderPreset) {
+    const id = preset.id;
+    if (config.providers.find((p) => p.id === id)) {
+      onError(locale === 'zh-CN' ? '提供商已存在。' : 'Provider already exists.');
+      return;
+    }
+    const nextProviders = [...config.providers, {
+      id,
+      protocol: preset.protocol,
+      name: preset.name,
+      baseUrl: preset.baseUrl,
+      models: [],
+    }];
+    const next: PiwinConfig = { ...config, providers: nextProviders };
+    if (await onSave(next)) {
+      setSelectedId(id);
+      setAddOpen(false);
+    }
+  }
+
   return (
     <>
       {confirmDialog.dialog}
 
       <div className="provider-settings" data-testid="provider-settings">
-        {/* Provider tabs row */}
-        <div className="provider-tabs">
-          {config.providers.map((provider) => {
-            const isDefault = provider.id === config.defaultProviderId;
-            return (
-              <button
-                key={provider.id}
-                type="button"
-                className={
-                  selectedId === provider.id
-                    ? 'provider-tab provider-tab--active'
-                    : 'provider-tab'
-                }
-                data-testid="provider-tab"
-                onClick={() => setSelectedId(provider.id)}
-              >
-                <span className="provider-tab-name">{provider.name}</span>
-                {isDefault ? <span className="provider-tab-default">默认</span> : null}
-              </button>
-            );
-          })}
-          {config.providers.length < 20 ? (
+        {/* Provider selection row */}
+        <div className="segmented-control" style={{ marginBottom: 32 }}>
+          {config.providers.map((provider) => (
+            <button
+              key={provider.id}
+              type="button"
+              className="segmented-control-item"
+              data-state={selectedId === provider.id ? 'active' : 'inactive'}
+              onClick={() => setSelectedId(provider.id)}
+            >
+              {provider.name}
+              {provider.id === config.defaultProviderId && <IconStar width={10} height={10} style={{ marginLeft: 6, opacity: 0.6 }} />}
+            </button>
+          ))}
+          {config.providers.length < 20 && (
             <button
               type="button"
-              className="provider-add-button"
+              className="segmented-control-item"
               onClick={openAddDialog}
-              data-testid="provider-add-open"
-              aria-label={copy.addProvider}
               title={copy.addProvider}
             >
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M8 3v10M3 8h10" />
-              </svg>
+              +
             </button>
-          ) : null}
+          )}
         </div>
 
         {/* Detail panel */}
         {!draft ? (
-          <div className="provider-empty muted" data-testid="provider-detail-empty">
+          <div className="provider-detail-empty muted" data-testid="provider-detail-empty">
             {copy.selectOrAdd}
           </div>
         ) : (
           <div className="provider-content">
-            {/* Provider header: name + icon actions + auto-save status */}
-            <div className="provider-header">
-              <div className="provider-name-row">
-                <input
-                  className="provider-name-input"
-                  value={draft.name}
-                  onChange={(event) => markDraft({ ...draft, name: event.target.value })}
-                  aria-label={copy.displayName}
-                  data-testid="provider-name-input"
-                />
-                <div className="provider-header-actions">
-                  <button
-                    type="button"
-                    className={
-                      config.defaultProviderId === selectedId
-                        ? 'provider-icon-btn provider-icon-btn--active'
-                        : 'provider-icon-btn'
-                    }
-                    title={copy.setDefault}
-                    aria-label={copy.setDefault}
-                    aria-pressed={config.defaultProviderId === selectedId}
-                    disabled={saving || !selectedProvider || config.defaultProviderId === selectedId}
-                    onClick={() => void handleSetDefault()}
-                    data-testid="provider-default-toggle"
-                  >
-                    <IconStar width={14} height={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="provider-icon-btn provider-icon-btn--danger"
-                    title={common.remove}
-                    aria-label={common.remove}
-                    disabled={saving || !selectedId}
-                    onClick={() => void handleDelete()}
-                    data-testid="provider-remove-btn"
-                  >
-                    <svg viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M3 4h10M6 4V2.75h4V4M5 6.25v5.5M8 6.25v5.5M11 6.25v5.5M4 4l.5 9h7l.5-9" />
-                    </svg>
-                  </button>
-                  <span
-                    className={
-                      autoSaveStatus === 'error'
-                        ? 'provider-autosave-status provider-autosave-status--error'
-                        : 'provider-autosave-status'
-                    }
-                    data-testid="provider-autosave-status"
-                    aria-live="polite"
-                  >
-                    {autoSaveStatus === 'pending'
-                      ? (locale === 'zh-CN' ? '待保存…' : 'Pending…')
-                      : autoSaveStatus === 'saving' || saving
-                        ? (locale === 'zh-CN' ? '保存中…' : 'Saving…')
-                        : autoSaveStatus === 'saved'
-                          ? (locale === 'zh-CN' ? '已自动保存' : 'Saved')
-                          : autoSaveStatus === 'error'
-                            ? (locale === 'zh-CN' ? '保存失败' : 'Save failed')
-                            : ''}
-                  </span>
-                </div>
-              </div>
-            </div>
-
             {/* Connection */}
             <section className="provider-section">
-              <h4 className="provider-section-title">
-                {locale === 'zh-CN' ? '连接' : 'Connection'}
-              </h4>
+              <PageTitle
+                title={locale === 'zh-CN' ? '连接' : 'Connection'}
+                trailing={
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <span
+                      className={
+                        autoSaveStatus === 'error'
+                          ? 'provider-autosave-status provider-autosave-status--error'
+                          : 'provider-autosave-status'
+                      }
+                      style={{ fontSize: '11.5px', color: autoSaveStatus === 'error' ? 'var(--danger)' : 'var(--faint)' }}
+                    >
+                      {autoSaveStatus === 'pending'
+                        ? (locale === 'zh-CN' ? '待保存…' : 'Pending…')
+                        : autoSaveStatus === 'saving' || saving
+                          ? (locale === 'zh-CN' ? '保存中…' : 'Saving…')
+                          : autoSaveStatus === 'saved'
+                            ? (locale === 'zh-CN' ? '已保存' : 'Saved')
+                            : autoSaveStatus === 'error'
+                              ? (locale === 'zh-CN' ? '保存失败' : 'Save failed')
+                              : ''}
+                    </span>
+                    <IconButton
+                      label={common.remove}
+                      className="provider-icon-btn--danger"
+                      onClick={() => void handleDelete()}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M3 4h10M6 4V2.75h4V4M5 6.25v5.5M8 6.25v5.5M11 6.25v5.5M4 4l.5 9h7l.5-9" />
+                      </svg>
+                    </IconButton>
+                  </div>
+                }
+              />
 
-              <div className="provider-field">
-                <label className="provider-field-label">
-                  {copy.apiKeyLabel}
+              <FieldRow
+                label={copy.apiKeyLabel}
+                description={
+                  hasKeychainSecret(draft)
+                    ? copy.apiKeyStoredPlaceholder
+                    : copy.apiKeyPlaceholder
+                }
+              >
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    className="provider-secret-input"
+                    type="password"
+                    data-testid="provider-apikey-env-input"
+                    value={draft.apiKeyInput}
+                    onChange={(event) => {
+                      markDraft({ ...draft, apiKeyInput: event.target.value });
+                    }}
+                    placeholder={
+                      hasKeychainSecret(draft)
+                        ? '••••••••'
+                        : '...'
+                    }
+                    spellCheck={false}
+                    autoComplete="off"
+                    style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)', width: '200px' }}
+                  />
                   <IconButton
                     label={copy.keyManager}
                     title={copy.keyManager}
@@ -716,41 +541,28 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                   >
                     <IconSettings width={14} height={14} />
                   </IconButton>
-                </label>
-                <input
-                  className="provider-secret-input"
-                  type="password"
-                  data-testid="provider-apikey-env-input"
-                  value={draft.apiKeyInput}
-                  onChange={(event) => {
-                    markDraft({ ...draft, apiKeyInput: event.target.value });
-                  }}
-                  placeholder={
-                    hasKeychainSecret(draft)
-                      ? copy.apiKeyStoredPlaceholder
-                      : copy.apiKeyPlaceholder
-                  }
-                  spellCheck={false}
-                  autoComplete="off"
-                />
-              </div>
+                </div>
+              </FieldRow>
 
-              <div className="provider-field">
-                <label className="provider-field-label">{copy.apiAddress}</label>
+              <FieldRow
+                label={copy.apiAddress}
+              >
                 <input
                   data-testid="provider-baseurl-input"
                   value={draft.baseUrl}
                   onChange={(event) => markDraft({ ...draft, baseUrl: event.target.value })}
                   spellCheck={false}
                   placeholder="https://api.example.com/v1"
+                  style={{ width: '320px', padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
                 />
-              </div>
+              </FieldRow>
 
-              <div className="provider-field" data-testid="provider-headers">
-                <label className="provider-field-label">
-                  <span>{copy.requestHeaders}</span>
+              <div className="provider-field" data-testid="provider-headers" style={{ marginTop: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <label className="ui-field-row-label" style={{ marginBottom: 0 }}>{copy.requestHeaders}</label>
                   <Button
                     size="compact"
+                    variant="ghost"
                     onClick={() =>
                       markDraft({
                         ...draft,
@@ -761,13 +573,11 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                   >
                     + {copy.addHeader}
                   </Button>
-                </label>
-                {draft.headerRows.length === 0 ? (
-                  <p className="muted provider-hint">{copy.requestHeadersHint}</p>
-                ) : (
-                  <ul className="provider-header-list">
+                </div>
+                {draft.headerRows.length > 0 ? (
+                  <ul className="provider-header-list" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {draft.headerRows.map((row) => (
-                      <li key={row.id} className="provider-header-row">
+                      <li key={row.id} className="provider-header-row" style={{ display: 'flex', gap: '8px' }}>
                         <input
                           value={row.name}
                           onChange={(event) =>
@@ -781,6 +591,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                           placeholder={copy.headerName}
                           spellCheck={false}
                           data-testid="provider-header-name"
+                          style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
                         />
                         <input
                           value={row.value}
@@ -795,6 +606,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                           placeholder={copy.headerValue}
                           spellCheck={false}
                           data-testid="provider-header-value"
+                          style={{ flex: 1, padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
                         />
                         <IconButton
                           label={common.remove}
@@ -805,17 +617,19 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                             })
                           }
                         >
-                          −
+                          <IconClose width={12} height={12} />
                         </IconButton>
                       </li>
                     ))}
                   </ul>
+                ) : (
+                  <p className="muted" style={{ fontSize: '12.5px', marginTop: -4 }}>{copy.requestHeadersHint}</p>
                 )}
               </div>
             </section>
 
             {/* Model workbench */}
-            <div className="provider-models-section">
+            <div className="provider-models-section" style={{ marginTop: 40, paddingTop: 32, borderTop: '1px solid var(--line-soft)' }}>
               <ModelWorkbench
                 provider={draftToProvider(draft)}
                 disabled={saving}
@@ -849,89 +663,42 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
             </IconButton>
           </header>
           <div className="cherry-dialog-body">
-            <div className="cherry-add-avatar" aria-hidden>
-              {(addName.trim() || 'P').slice(0, 1).toUpperCase()}
-            </div>
-            <label className="cherry-field">
-              <span>{copy.providerNameField}</span>
-              <input
-                value={addName}
-                onChange={(event) => setAddName(event.target.value)}
-                placeholder={copy.providerNamePlaceholder}
-                data-testid="provider-add-name"
-                autoFocus
-              />
-            </label>
-            <label className="cherry-field">
-              <span>{copy.providerTypeField}</span>
-              <select
-                value={addPresetId}
-                onChange={(event) => setAddPresetId(event.target.value)}
-                data-testid="provider-add-type"
-              >
-                {PROVIDER_PRESETS.map((preset) => (
-                  <option key={preset.presetId} value={preset.presetId}>
-                    {preset.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <ul className="provider-preset-list" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {PROVIDER_PRESETS.map((preset) => (
+                <li key={preset.id}>
+                  <button
+                    type="button"
+                    className="provider-preset-item"
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                    onClick={() => void handleAddFromPreset(preset)}
+                  >
+                    <span style={{ fontSize: '20px' }}>{preset.icon || '🤖'}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <strong style={{ fontSize: '14.5px' }}>{preset.name}</strong>
+                      <span className="muted" style={{ fontSize: '12px' }}>{preset.protocol}</span>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
-          <footer className="cherry-dialog-footer">
-            <Button onClick={() => setAddOpen(false)}>
-              {common.cancel}
-            </Button>
-            <Button
-              variant="primary"
-              data-testid="provider-add-confirm"
-              onClick={() => void handleConfirmAdd()}
-            >
-              {common.confirm}
-            </Button>
-          </footer>
         </div>
       </Dialog>
 
-      {draft ? (
-        <ProviderKeyManagerDialog
-          open={keyManagerOpen}
-          providerName={draft.name || draft.id}
-          providerId={draft.id}
-          loadSecret={onLoadSecret}
-          saveSecret={onStoreSecret}
-          testKey={testManagedKey}
-          onOpenChange={setKeyManagerOpen}
-          onSaved={(apiKeyRef) => {
-            const nextDraft = {
-              ...draft,
-              apiKeyInput: '',
-              storedApiKeyEnv: '',
-              storedApiKeyRef: apiKeyRef || '',
-            };
-            setDraft(nextDraft);
-            void (async () => {
-              const provider = draftToProvider(nextDraft);
-              const previousId = selectedId;
-              const nextProviders = config.providers
-                .filter((item) => item.id !== previousId && item.id !== provider.id)
-                .concat([provider]);
-              const next: PiwinConfig = {
-                ...config,
-                agentMock: false,
-                providers: nextProviders,
-              };
-              if (config.defaultProviderId) {
-                next.defaultProviderId = config.defaultProviderId;
-              }
-              if (config.defaultModelId) {
-                next.defaultModelId = config.defaultModelId;
-              }
-              await onSave(next);
-              onInfo(locale === 'zh-CN' ? '密钥已保存。' : 'API keys saved.');
-            })();
-          }}
-        />
-      ) : null}
+      <ProviderKeyManagerDialog
+        open={keyManagerOpen}
+        onOpenChange={setKeyManagerOpen}
+        providerId={draft?.id ?? ''}
+        providerName={draft?.name ?? ''}
+        loadSecret={onLoadSecret}
+        saveSecret={onStoreSecret}
+        testKey={testManagedKey}
+        onSaved={(apiKeyRef) => {
+          if (draft) {
+            markDraft({ ...draft, storedApiKeyRef: apiKeyRef, apiKeyInput: '' });
+          }
+        }}
+      />
     </>
   );
 }

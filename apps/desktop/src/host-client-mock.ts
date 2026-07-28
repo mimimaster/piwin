@@ -995,7 +995,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
               {
                 id: 'piwin-dark',
                 name: 'Piwin Dark',
-                version: '3.0.0',
+                version: '5.0.0',
                 mode: 'dark',
                 path: '/mock/themes/piwin-dark',
                 source: 'bundled',
@@ -1004,7 +1004,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
               {
                 id: 'piwin-light',
                 name: 'Piwin Light',
-                version: '3.0.0',
+                version: '5.0.0',
                 mode: 'light',
                 path: '/mock/themes/piwin-light',
                 source: 'bundled',
@@ -1031,7 +1031,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             theme: {
               id: themeId,
               name: isLight ? 'Piwin Light' : 'Piwin Dark',
-              version: '3.0.0',
+              version: '5.0.0',
               mode: isLight ? 'light' : 'dark',
               tokens: isLight
                 ? {

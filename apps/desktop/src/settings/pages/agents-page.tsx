@@ -5,27 +5,16 @@
  */
 import type { ReactElement } from 'react';
 import { SubAgentPanel } from '../../SubAgentPanel';
-import { getDesktopCopy } from '../../desktop-locale';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { useSettings } from '../settings-context';
 
 export function AgentsPage(): ReactElement {
   const { locale } = useDesktopLocale();
-  const copy = getDesktopCopy(locale);
   const { requestSubAgent, activeSessionId, onOpenSubagentSession } = useSettings();
 
   return (
     <div className="settings-card">
       <div className="settings-section">
-        <div className="settings-heading-with-badge">
-          <h4>{locale === 'zh-CN' ? '子代理' : 'Sub-agents'}</h4>
-          <span className="settings-beta-badge" aria-label={copy.betaFeature}>Beta</span>
-        </div>
-        <p className="muted">
-          {locale === 'zh-CN'
-            ? '模型拉起的子代理会以活动卡片出现在父会话中。'
-            : 'Model-spawned sub-agents appear as activity cards in their parent session.'}
-        </p>
         {requestSubAgent ? (
           <SubAgentPanel
             parentSessionId={activeSessionId}

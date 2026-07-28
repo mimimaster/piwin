@@ -28,12 +28,12 @@
   --motion-shimmer: 1.6s;
   --motion-pulse: 1.6s;
 
-  /* Quiet Workbench hover fill fallback (runtime may override via appearance). */
-  --wb-hover: rgba(255, 255, 255, 0.055);
-  --wb-line: rgba(255, 255, 255, 0.04);
-  --wb-accent-soft: rgba(91, 157, 255, 0.14);
-  --wb-send-fg: #0b1320;
-  --wb-term-bg: #0c0d10;
+  /* Daybreak hover fill fallback (runtime may override via appearance). */
+  --wb-hover: rgba(255, 240, 225, 0.055);
+  --wb-line: rgba(255, 238, 220, 0.07);
+  --wb-accent-soft: rgba(255, 131, 89, 0.13);
+  --wb-send-fg: #2b1508;
+  --wb-term-bg: #100e12;
 
   /* Stacking contract — shell overlays use these only (PSR-S1) */
   --layer-shell: 1;

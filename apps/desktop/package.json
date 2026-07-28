@@ -21,6 +21,7 @@
   "dependencies": {
     "@piwin/artifact": "workspace:*",
     "@piwin/contracts": "workspace:*",
+    "@piwin/doc-rag": "workspace:*",
     "@piwin/pet": "workspace:*",
     "@piwin/ui-kit": "workspace:*",
     "@tauri-apps/api": "^2.11.1",

@@ -3,7 +3,7 @@
  * model info, and context usage at a glance.
  */
 import type { ReactElement } from 'react';
-import { IconSpark, IconPlug, IconExtension } from './shell-icons';
+import { IconSpark, IconMcp, IconSkill } from './shell-icons';
 
 export type StatusBarProps = {
   /** Active model label */
@@ -100,7 +100,7 @@ export function StatusBar(props: StatusBarProps): ReactElement {
           title={locale === 'zh-CN' ? `技能: ${props.skillsCount ?? 0}` : `Skills: ${props.skillsCount ?? 0}`}
           onClick={props.onOpenSkills}
         >
-          <IconExtension width={12} height={12} />
+          <IconSkill width={14} height={14} />
           <span>{props.skillsCount ?? 0}</span>
         </button>
 
@@ -111,7 +111,7 @@ export function StatusBar(props: StatusBarProps): ReactElement {
           title={locale === 'zh-CN' ? `MCP 服务: ${props.mcpCount ?? 0}` : `MCP servers: ${props.mcpCount ?? 0}`}
           onClick={props.onOpenMcp}
         >
-          <IconPlug width={12} height={12} />
+          <IconMcp width={14} height={14} />
           <span>{props.mcpCount ?? 0}</span>
         </button>
 

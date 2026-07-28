@@ -87,4 +87,116 @@ describe('card-store', () => {
     expect(await store.list({ deck: 'd1' })).toHaveLength(1);
     expect(await store.list({ sourceNoteId: 'n1' })).toHaveLength(1);
   });
+
+  it('persists and reads sourceFolder/sourceFile/sourceLine fields', async () => {
+    const card = await store.create({
+      front: 'What is RAG?',
+      back: 'Retrieval-Augmented Generation.',
+      deck: 'ai',
+      sourceFolder: '/home/user/docs',
+      sourceFile: 'intro.md',
+      sourceLine: 42,
+      sourceExcerpt: 'RAG combines retrieval with generation.',
+    });
+    const read = await store.read(card.id);
+    expect(read.sourceFolder).toBe('/home/user/docs');
+    expect(read.sourceFile).toBe('intro.md');
+    expect(read.sourceLine).toBe(42);
+    expect(read.sourceExcerpt).toBe('RAG combines retrieval with generation.');
+  });
+
+  it('list filters by sourceFolder', async () => {
+    await store.create({
+      front: 'q1',
+      back: 'a1',
+      deck: 'd',
+      sourceFolder: '/docs/a',
+      sourceFile: 'f1.md',
+      sourceLine: 1,
+    });
+    await store.create({
+      front: 'q2',
+      back: 'a2',
+      deck: 'd',
+      sourceFolder: '/docs/b',
+      sourceFile: 'f2.md',
+      sourceLine: 1,
+    });
+    expect(await store.list({ sourceFolder: '/docs/a' })).toHaveLength(1);
+    expect(await store.list({ sourceFolder: '/docs/b' })).toHaveLength(1);
+    expect(await store.list({ sourceFolder: '/docs/c' })).toHaveLength(0);
+  });
+
+  it('batchCreate creates multiple cards and skips duplicates', async () => {
+    await store.create({ front: 'existing', back: 'b', deck: 'batch' });
+    const result = await store.batchCreate({
+      cards: [
+        { front: 'card1', back: 'b1', deck: 'batch' },
+        { front: 'card2', back: 'b2', deck: 'batch' },
+        { front: 'existing', back: 'dup', deck: 'batch' },
+      ],
+    });
+    expect(result.created).toHaveLength(2);
+    expect(result.skipped).toHaveLength(1);
+    expect(result.skipped[0]?.reason).toBe('duplicate');
+  });
+
+  it('batchCreate rejects empty array', async () => {
+    await expect(store.batchCreate({ cards: [] })).rejects.toThrow('non-empty');
+  });
+
+  it('batchCreate rejects array exceeding maxBatchSize', async () => {
+    await expect(
+      store.batchCreate(
+        {
+          cards: [
+            { front: 'a', back: 'b' },
+            { front: 'c', back: 'd' },
+          ],
+        },
+        1,
+      ),
+    ).rejects.toThrow('exceeds maxBatchSize');
+  });
+
+  it('deleteBySourceFolder removes all cards from that folder', async () => {
+    await store.create({
+      front: 'q1',
+      back: 'a1',
+      deck: 'd',
+      sourceFolder: '/docs/x',
+      sourceFile: 'f1.md',
+      sourceLine: 1,
+    });
+    await store.create({
+      front: 'q2',
+      back: 'a2',
+      deck: 'd',
+      sourceFolder: '/docs/y',
+      sourceFile: 'f2.md',
+      sourceLine: 1,
+    });
+    const result = await store.deleteBySourceFolder('/docs/x');
+    expect(result.deleted).toBe(1);
+    expect(await store.list({ sourceFolder: '/docs/x' })).toHaveLength(0);
+    expect(await store.list({ sourceFolder: '/docs/y' })).toHaveLength(1);
+  });
+
+  it('rebindSourceFolder updates sourceFolder on matching cards', async () => {
+    await store.create({
+      front: 'q1',
+      back: 'a1',
+      deck: 'd',
+      sourceFolder: '/docs/old',
+      sourceFile: 'f1.md',
+      sourceLine: 1,
+    });
+    const result = await store.rebindSourceFolder('/docs/old', '/docs/new');
+    expect(result.updated).toBe(1);
+    expect(await store.list({ sourceFolder: '/docs/old' })).toHaveLength(0);
+    expect(await store.list({ sourceFolder: '/docs/new' })).toHaveLength(1);
+    const card = (await store.list({ sourceFolder: '/docs/new' }))[0];
+    expect(card?.sourceFile).toBe('f1.md'); // preserved
+    expect(card?.sourceLine).toBe(1); // preserved
+  });
 });

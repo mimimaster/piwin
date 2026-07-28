@@ -42,6 +42,9 @@ export function useRightPanelResize(
     startX: number;
     startWidth: number;
   } | null>(null);
+  // Coalesce pointermove bursts into one React render + one window setSize
+  // per animation frame so the stage does not reflow on every input event.
+  const pendingFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     widthRef.current = widthPx;
@@ -116,8 +119,16 @@ export function useRightPanelResize(
         return;
       }
       widthRef.current = next;
-      setWidthState(next);
-      liveWidthCommitRef.current?.(next);
+      // Coalesce: a single rAF will apply at most once per paint.
+      if (pendingFrameRef.current != null) {
+        return;
+      }
+      pendingFrameRef.current = requestAnimationFrame(() => {
+        pendingFrameRef.current = null;
+        const commit = widthRef.current;
+        setWidthState(commit);
+        liveWidthCommitRef.current?.(commit);
+      });
     }
 
     function endDrag(event: PointerEvent): void {
@@ -126,7 +137,22 @@ export function useRightPanelResize(
         return;
       }
       dragRef.current = null;
-      setIsResizing(false);
+      // Flush any in-flight frame so the final drag position lands before
+      // the gesture ends; otherwise the panel can snap to a stale width.
+      if (pendingFrameRef.current != null) {
+        cancelAnimationFrame(pendingFrameRef.current);
+        pendingFrameRef.current = null;
+        const commit = widthRef.current;
+        setWidthState(commit);
+        liveWidthCommitRef.current?.(commit);
+      }
+      // Keep transitions disabled briefly after drag ends so the panel
+      // doesn't animate from the drag-end width (which is already correct).
+      // The CSS .is-resizing class suppresses the width transition; removing
+      // it immediately would trigger a 260ms animation on the same value.
+      setTimeout(() => {
+        setIsResizing(false);
+      }, 60);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       saveRightPanelWidth(widthRef.current);
@@ -136,6 +162,10 @@ export function useRightPanelResize(
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
     return () => {
+      if (pendingFrameRef.current != null) {
+        cancelAnimationFrame(pendingFrameRef.current);
+        pendingFrameRef.current = null;
+      }
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);

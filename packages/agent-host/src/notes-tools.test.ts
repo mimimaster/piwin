@@ -73,6 +73,16 @@ describe('buildNotesTools', () => {
     if (!deleteTool) throw new Error('note_delete missing');
     await expect(deleteTool.execute({ noteId: 'whatever' })).rejects.toThrow('Permission deny');
   });
+
+  it('readOnly mode returns only note_search, note_list, note_read', async () => {
+    const { store, index } = await setup();
+    const tools = buildNotesTools({ store, index, enabled: true, readOnly: true });
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'note_list',
+      'note_read',
+      'note_search',
+    ]);
+  });
 });
 
 describe('evaluateNotesPermission', () => {

@@ -35,6 +35,9 @@ importers:
       '@piwin/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@piwin/doc-rag':
+        specifier: workspace:*
+        version: link:../../packages/doc-rag
       '@piwin/flashcards':
         specifier: workspace:*
         version: link:../../packages/flashcards
@@ -84,6 +87,9 @@ importers:
       '@piwin/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@piwin/doc-rag':
+        specifier: workspace:*
+        version: link:../../packages/doc-rag
       '@piwin/pet':
         specifier: workspace:*
         version: link:../../packages/pet
@@ -163,6 +169,9 @@ importers:
       '@piwin/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@piwin/doc-rag':
+        specifier: workspace:*
+        version: link:../doc-rag
       '@piwin/flashcards':
         specifier: workspace:*
         version: link:../flashcards
@@ -252,6 +261,25 @@ importers:
         version: 3.2.7(@types/node@22.20.1)(happy-dom@20.11.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
 
   packages/contracts:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.1
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.7(@types/node@22.20.1)(happy-dom@20.11.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0)
+
+  packages/doc-rag:
+    dependencies:
+      '@piwin/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@piwin/notes':
+        specifier: workspace:*
+        version: link:../notes
     devDependencies:
       '@types/node':
         specifier: ^22.10.5
@@ -538,6 +566,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.17)
+      happy-dom:
+        specifier: ^20.11.1
+        version: 20.11.1
       react-dom:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)

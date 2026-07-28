@@ -7,12 +7,12 @@ import type { ExecutionMode } from '@piwin/contracts';
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconMcp,
   IconMoon,
   IconMore,
   IconPanelLeft,
-  IconPlug,
   IconPanelRight,
-  IconSpark,
+  IconSkill,
   IconSun,
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
@@ -140,10 +140,10 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
               <IconPanelLeft /> Sessions
             </DropdownMenuItem>
             <DropdownMenuItem testId="more-skills" onSelect={() => props.onOpenSkills?.()}>
-              <IconSpark /> Skills
+              <IconSkill width={16} height={16} /> Skills
             </DropdownMenuItem>
             <DropdownMenuItem testId="more-mcp" onSelect={() => props.onOpenMcp?.()}>
-              <IconPlug /> MCP
+              <IconMcp width={16} height={16} /> MCP
             </DropdownMenuItem>
             {/* Quiet workbench: frameless new-session mode (no boxed select on titleband). */}
             {(

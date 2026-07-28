@@ -12,6 +12,7 @@ import { memo, Profiler, act, useEffect, useReducer, useRef, type ReactElement }
 import { createRoot, type Root } from 'react-dom/client';
 import type { AgentEvent } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { ChatThread } from './chat-thread';
 import { RightPanel } from './right-panel';
 import {
@@ -288,7 +289,7 @@ describe('ChatThread render isolation (E1)', () => {
     // Mount once. Updates below come only from dispatch in StreamEventBuffer.
     act(() => {
       root.render(
-        <PiwinUiProvider>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <ChatThreadRenderHarness
             initialState={initialState}
             scheduledFrames={scheduledFrames}

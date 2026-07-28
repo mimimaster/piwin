@@ -238,6 +238,7 @@ export class HostRuntime {
   private processRegistry: ProcessRegistry | null = null;
   private memoryStore: MemoryStore | null = null;
   private cardStore: import('@piwin/flashcards').CardStore | null = null;
+  private folderRag: import('@piwin/doc-rag').FolderRag | null = null;
   private notesServices: {
     store: import('@piwin/notes').NoteStore;
     index: import('@piwin/notes').NoteIndex;
@@ -479,11 +480,22 @@ export class HostRuntime {
         }
         case 'flashcards/list': {
           const store = await this.getCardStore();
-          const filter: { deck?: string; sourceNoteId?: string } = {};
+          const filter: { deck?: string; sourceNoteId?: string; sourceFolder?: string } = {};
           if (command.deck) filter.deck = command.deck;
           if (command.sourceNoteId) filter.sourceNoteId = command.sourceNoteId;
+          if (command.sourceFolder) filter.sourceFolder = command.sourceFolder;
           const cards = await store.list(filter);
           return ok(requestId, 'flashcards/list', { cards });
+        }
+        case 'flashcards/batch-create': {
+          const store = await this.getCardStore();
+          const rootDir = getPiwinRoot(this.options.piwinRoot);
+          const config = await loadPiwinConfig(rootDir);
+          const maxBatchSize = config.flashcards?.maxBatchSize ?? 40;
+          const result = await store.batchCreate(command.input, maxBatchSize);
+          const { buildFlashcardBatchArtifactHtml } = await import('@piwin/flashcards');
+          const artifactHtml = buildFlashcardBatchArtifactHtml(result.created);
+          return ok(requestId, 'flashcards/batch-create', { ...result, artifactHtml });
         }
         case 'flashcards/delete': {
           const store = await this.getCardStore();
@@ -530,6 +542,85 @@ export class HostRuntime {
             tsv: exportCardsToTsv(cards),
             count: cards.length,
           });
+        }
+        case 'doccards/scan-folder': {
+          const rag = await this.getFolderRag();
+          const result = await rag.scanFolder(command.folderPath);
+          return ok(requestId, 'doccards/scan-folder', result);
+        }
+        case 'doccards/index-folder': {
+          const rag = await this.getFolderRag();
+          const result = await rag.indexFolder(
+            command.folderPath,
+            command.includeFiles ? { includeFiles: command.includeFiles } : undefined,
+          );
+          return ok(requestId, 'doccards/index-folder', result);
+        }
+        case 'doccards/retrieve': {
+          const rag = await this.getFolderRag();
+          const { canonicalizeFolderPath } = await import('@piwin/doc-rag');
+          const canonical = await canonicalizeFolderPath(command.folderPath);
+          const chunks = await rag.retrieve(command.folderPath, command.query, {
+            ...(command.limit !== undefined ? { limit: command.limit } : {}),
+            ...(command.fileAllowlist ? { fileAllowlist: command.fileAllowlist } : {}),
+            ...(command.maxTotalChars !== undefined ? { maxTotalChars: command.maxTotalChars } : {}),
+          });
+          return ok(requestId, 'doccards/retrieve', {
+            chunks,
+            canonicalPath: canonical ?? command.folderPath,
+            degraded: !rag.hasEmbeddingProvider,
+          });
+        }
+        case 'doccards/list-by-folder': {
+          const store = await this.getCardStore();
+          const { canonicalizeFolderPath } = await import('@piwin/doc-rag');
+          const canonical = await canonicalizeFolderPath(command.folderPath);
+          const records = await store.list(
+            canonical ? { sourceFolder: canonical } : { sourceFolder: command.folderPath },
+          );
+          return ok(requestId, 'doccards/list-by-folder', {
+            records,
+            folderExists: canonical !== null,
+            canonicalPath: canonical ?? command.folderPath,
+          });
+        }
+        case 'doccards/rebind-folder': {
+          const store = await this.getCardStore();
+          const { canonicalizeFolderPath } = await import('@piwin/doc-rag');
+          const oldCanonical = await canonicalizeFolderPath(command.oldPath);
+          const newCanonical = await canonicalizeFolderPath(command.newPath);
+          const result = await store.rebindSourceFolder(
+            oldCanonical ?? command.oldPath,
+            newCanonical ?? command.newPath,
+          );
+          return ok(requestId, 'doccards/rebind-folder', result);
+        }
+        case 'doccards/forget-folder': {
+          const store = await this.getCardStore();
+          const { canonicalizeFolderPath } = await import('@piwin/doc-rag');
+          const canonical = await canonicalizeFolderPath(command.folderPath);
+          const result = await store.deleteBySourceFolder(canonical ?? command.folderPath);
+          return ok(requestId, 'doccards/forget-folder', result);
+        }
+        case 'doccards/open-source': {
+          const store = await this.getCardStore();
+          const card = await store.read(command.cardId);
+          if (!card.sourceFolder || !card.sourceFile) {
+            throw new Error('Card has no folder source attribution');
+          }
+          const { canonicalizeFolderPath, isPathConfined } = await import('@piwin/doc-rag');
+          const canonical = await canonicalizeFolderPath(card.sourceFolder);
+          if (!canonical) {
+            throw new Error(`Source folder no longer exists: ${card.sourceFolder}`);
+          }
+          if (!(await isPathConfined(canonical, card.sourceFile))) {
+            throw new Error('Source file path is not confined to the folder');
+          }
+          const { join } = await import('node:path');
+          const absPath = join(canonical, card.sourceFile);
+          // Open via OS default; Tauri shell or $EDITOR in real desktop.
+          // For host-runtime, return the resolved path so the caller can open it.
+          return ok(requestId, 'doccards/open-source', { opened: true, path: absPath });
         }
         default:
           return fail(requestId, 'unknown', 'Unhandled command');
@@ -793,6 +884,30 @@ export class HostRuntime {
       this.cardStore = createCardStore({ piwinRoot: rootDir });
     }
     return this.cardStore;
+  }
+
+  private async getFolderRag(): Promise<import('@piwin/doc-rag').FolderRag> {
+    if (!this.folderRag) {
+      const rootDir = getPiwinRoot(this.options.piwinRoot);
+      const config = await loadPiwinConfig(rootDir);
+      const { createFolderRag } = await import('@piwin/doc-rag');
+      const { createEmbeddingProvider } = await import('@piwin/notes');
+      const { resolveNotesEmbeddingApiKey } = await import('./notes-embedding-secret.js');
+      let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
+      if (config.notes?.embedding) {
+        const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
+        const provider = createEmbeddingProvider({
+          config: config.notes.embedding,
+          ...(apiKey ? { apiKey } : {}),
+        });
+        if (provider) embeddingProvider = provider;
+      }
+      this.folderRag = createFolderRag({
+        piwinRoot: rootDir,
+        ...(embeddingProvider ? { embeddingProvider } : {}),
+      });
+    }
+    return this.folderRag;
   }
 
   private async requireMemoryEnabled(): Promise<void> {

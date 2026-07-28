@@ -9,6 +9,7 @@
  *   2. Context bar (42px) — contextBar slot
  *   3. Stage content      — transcript + composerDock in chat-column
  *   4. Status bar (26px)  — statusBar slot
+ *   5. Knowledge overlay  — optional full-stage panel (e.g. Knowledge Center)
  *
  * Column structure (left to right):
  *   - Sidebar (collapsible, ~236px)
@@ -24,6 +25,8 @@ export type WorkspaceShellProps = {
   composerDock: ReactNode;
   statusBar: ReactNode;
   rightPanel: ReactNode;
+  /** Optional full-stage overlay panel (e.g. Knowledge Center). */
+  knowledgePanel?: ReactNode | undefined;
   /** Applied as className additions to the .workspace container. */
   workspaceClassName?: string | undefined;
   /** Layout-dependent class for the chat-column (e.g. centered when empty). */
@@ -41,6 +44,7 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
           {props.composerDock}
           {props.statusBar}
         </section>
+        {props.knowledgePanel !== undefined ? props.knowledgePanel : null}
       </div>
       {props.rightPanel}
     </>

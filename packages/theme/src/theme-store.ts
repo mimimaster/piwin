@@ -62,19 +62,41 @@ export async function ensureBundledThemesInstalled(
     const to = join(targetRoot, entry);
     try {
       if (!(await stat(from)).isDirectory()) continue;
+      let shouldInstall = false;
       try {
-        await stat(join(to, 'theme.json'));
-        continue;
+        // Bundled copies are product-owned caches, not user data: refresh the
+        // install whenever the shipped manifest is newer than the copy.
+        const installedRaw = await readFile(join(to, 'theme.json'), 'utf8');
+        const sourceRaw = await readFile(join(from, 'theme.json'), 'utf8');
+        const installedVersion = (JSON.parse(installedRaw) as { version?: string }).version;
+        const sourceVersion = (JSON.parse(sourceRaw) as { version?: string }).version;
+        shouldInstall = isNewerThemeVersion(sourceVersion, installedVersion);
       } catch {
-        // install
+        shouldInstall = true;
       }
-      await cp(from, to, { recursive: true });
+      if (!shouldInstall) continue;
+      await cp(from, to, { recursive: true, force: true });
       installed.push(entry);
     } catch {
       // ignore single theme failures
     }
   }
   return installed;
+}
+
+/** Compare "x.y.z" versions; true when candidate is strictly newer. */
+function isNewerThemeVersion(candidate: string | undefined, current: string | undefined): boolean {
+  if (!candidate) return false;
+  if (!current) return true;
+  const parse = (value: string): number[] =>
+    value.split('.').map((part) => Number.parseInt(part, 10) || 0);
+  const next = parse(candidate);
+  const prev = parse(current);
+  for (let index = 0; index < 3; index += 1) {
+    const diff = (next[index] ?? 0) - (prev[index] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
 }
 
 export async function listThemes(piwinRoot: string): Promise<{

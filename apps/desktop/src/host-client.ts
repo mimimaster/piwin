@@ -85,6 +85,7 @@ export class HostClient {
   private requestCounter = 0;
   private unlistenHostMessage: (() => void) | null = null;
   private unlistenHostLog: (() => void) | null = null;
+  private unlistenHostStatus: (() => void) | null = null;
   /** Prevent Strict Mode/HMR from registering the Tauri event bridge twice. */
   private pendingConnection: Promise<void> | null = null;
   private readonly mockBackend: MockHostBackend | null;
@@ -163,6 +164,30 @@ export class HostClient {
       this.unlistenHostLog();
       this.unlistenHostLog = null;
     }
+    if (this.unlistenHostStatus) {
+      this.unlistenHostStatus();
+      this.unlistenHostStatus = null;
+    }
+
+    this.unlistenHostStatus = await listen<{ state: string; attempt?: number }>(
+      'host-status',
+      (event) => {
+        const { state } = event.payload;
+        // Rust supervisor emits "reconnecting" / "restarted" / "fatal".
+        // On reconnecting, flip ready=false so the UI shows the reconnecting
+        // pill; on restarted, the new host's host/status push will flip it
+        // back to true; on fatal, keep ready=false so the UI shows offline.
+        if (state === 'reconnecting' || state === 'fatal') {
+          this.ready = false;
+          this.emit({
+            type: 'host/status',
+            mode: this.mode,
+            ready: false,
+            mock: this.hostMock,
+          });
+        }
+      },
+    );
 
     this.unlistenHostMessage = await listen<HostServerMessage>('host-message', (event) => {
       // Responses are returned through request(); only unsolicited pushes are
@@ -230,6 +255,10 @@ export class HostClient {
     if (this.unlistenHostLog) {
       this.unlistenHostLog();
       this.unlistenHostLog = null;
+    }
+    if (this.unlistenHostStatus) {
+      this.unlistenHostStatus();
+      this.unlistenHostStatus = null;
     }
 
     if (this.transport === 'live' && isTauriRuntime()) {

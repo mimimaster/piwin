@@ -73,6 +73,7 @@ const DIRECTORY_ITEMS: Array<{
   icon: ReactElement;
   labelEn: string;
   labelZh: string;
+  hint?: string;
 }> = [
   { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: 'Changes' },
   { id: 'activity', icon: <IconTerminal />, labelEn: 'Terminal', labelZh: '终端' },
@@ -265,7 +266,15 @@ export function RightPanel(props: RightPanelProps): ReactElement {
                     {runningProcessCount}
                   </span>
                 ) : null}
-                <span className="right-panel-section-label">{label}</span>
+                <span className="right-panel-section-label">
+                  {label}
+                  {tab.hint && locale === 'zh-CN' ? (
+                    <span className="right-panel-section-hint">{tab.hint}</span>
+                  ) : null}
+                </span>
+                {tab.hint && locale !== 'zh-CN' ? (
+                  <span className="right-panel-section-hint-en">{tab.hint}</span>
+                ) : null}
                 {tab.id === 'review' && changesCount > 0 ? (
                   <span className="right-panel-section-count is-changes">
                     {changesCount}

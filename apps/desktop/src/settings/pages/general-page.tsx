@@ -5,7 +5,6 @@
  */
 import type { ReactElement } from 'react';
 import { buildCapabilityMatrix } from '@piwin/contracts';
-import { Button } from '@piwin/ui-kit';
 import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { RememberedPermissionsSection } from '../../RememberedPermissionsSection';
@@ -48,9 +47,9 @@ const CAPABILITY_NOTE_ZH: Record<string, string> = {
   'Host path is shell preview; interactive PTY is Tauri desktop (ADR 0013)':
     'Host 路径为 Shell 预览；交互 PTY 由 Tauri 桌面提供（ADR 0013）',
   'Hooks are post-event only; optional': 'Hooks 仅 post-event；可选',
-  'Host mode is SDK (in-process)': '桌面 Host 模式为 SDK（进程内）',
-  'RPC host uses SDK session backend': 'RPC Host 使用 SDK 会话后端',
-  'Use SDK host mode (or live RPC with SDK fallback)': '请使用 SDK Host 模式（或带 SDK 回退的 RPC）',
+  'Host mode is SDK (in-process)': '运行模式为 SDK（进程内）',
+  'RPC host uses SDK session backend': 'RPC 模式使用 SDK 会话后端',
+  'Use SDK host mode (or live RPC with SDK fallback)': '使用 SDK 模式（或带 SDK 回退的 RPC）',
   'Not available': '不可用',
   'Superseded by real PTY': '已被真实 PTY 取代',
   'RPC mode: SDK backend (no process isolation)': 'RPC 模式：SDK 后端（无进程隔离）',
@@ -80,7 +79,6 @@ export function GeneralPage(): ReactElement {
     projectPath,
     request,
     saveConfig,
-    selectSection,
   } = useSettings();
 
   async function handleToggleMock(agentMock: boolean): Promise<void> {
@@ -89,9 +87,13 @@ export function GeneralPage(): ReactElement {
   }
 
   return (
-    <div className="settings-card settings-overview-card">
-      <div className="settings-section settings-language-section">
-        <FieldRow label={copy.language} description={copy.languageDescription}>
+    <div className="settings-card">
+      <div className="settings-section">
+        <PageTitle
+          title={copy.language}
+          description={copy.languageDescription}
+        />
+        <FieldRow label={copy.language}>
           <select
             value={locale}
             data-testid="settings-language-select"
@@ -103,18 +105,54 @@ export function GeneralPage(): ReactElement {
           </select>
         </FieldRow>
       </div>
+
+      <div className="settings-section">
+        <PageTitle
+          title={locale === 'zh-CN' ? 'Agent 运行模式' : 'Agent runtime'}
+          description={locale === 'zh-CN' ? '控制新会话是否连接到 Host 与模型。' : 'Choose whether new sessions connect to the host and configured models.'}
+        />
+        {config ? (
+          <FieldRow
+            label={locale === 'zh-CN' ? '在线模式' : 'Online mode'}
+            description={locale === 'zh-CN' ? '开启后连接到 Host 与模型；关闭则保持离线（Mock）。' : 'Connect to host/model when enabled; stay offline (Mock) when disabled.'}
+          >
+            <span
+              role="switch"
+              aria-checked={config.agentMock !== true ? 'true' : 'false'}
+              tabIndex={0}
+              className={config.agentMock === true ? 'mcp-toggle' : 'mcp-toggle checked'}
+              onClick={() => void handleToggleMock(config.agentMock !== true)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  void handleToggleMock(config.agentMock !== true);
+                }
+              }}
+            />
+          </FieldRow>
+        ) : null}
+      </div>
+
+      <RememberedPermissionsSection
+        projectPath={projectPath}
+        request={async (command) =>
+          request({
+            type: command.type,
+            path: command.path,
+            ...(command.key ? { key: command.key } : {}),
+          })
+        }
+      />
+
       {hostStatus ? (
         <div className="settings-section" data-testid="capability-matrix">
           <PageTitle
-            title={locale === 'zh-CN' ? 'Host 能力' : 'Host capabilities'}
+            title={locale === 'zh-CN' ? 'Host 能力 (高级)' : 'Host capabilities (Advanced)'}
             description={
               <>
                 {locale === 'zh-CN' ? '当前模式' : 'Current mode'}{' '}
                 <code>{hostStatus.mode}</code>
                 {hostStatus.mock ? ' · mock' : ''}
-                {locale === 'zh-CN'
-                  ? '。灰色项表示不可用或部分可用。'
-                  : '. Dimmed entries are unavailable or partially available.'}
               </>
             }
           />
@@ -146,42 +184,6 @@ export function GeneralPage(): ReactElement {
           </ul>
         </div>
       ) : null}
-      <div className="settings-section">
-        <PageTitle
-          title={locale === 'zh-CN' ? 'Agent 运行模式' : 'Agent runtime'}
-          description={locale === 'zh-CN' ? '控制新会话是否连接到 Host 与模型。' : 'Choose whether new sessions connect to the host and configured models.'}
-          trailing={<span className="settings-count">{config?.providers.length ?? 0}</span>}
-        />
-        {config ? (
-          <FieldRow
-            label={locale === 'zh-CN' ? 'Agent 模式' : 'Agent mode'}
-            description={locale === 'zh-CN' ? 'Mock 会话保持离线，不会调用真实模型 API。' : 'Mock sessions stay offline and do not call a real model API.'}
-          >
-            <select
-              value={config.agentMock === true ? 'mock' : 'live'}
-              onChange={(event) => void handleToggleMock(event.target.value === 'mock')}
-              data-testid="settings-agent-mode"
-            >
-              <option value="live">{locale === 'zh-CN' ? '在线（Host + 模型）' : 'Live (host + model)'}</option>
-              <option value="mock">{locale === 'zh-CN' ? 'Mock（离线）' : 'Mock (offline)'}</option>
-            </select>
-          </FieldRow>
-        ) : null}
-        <Button onClick={() => selectSection('models')}>
-          {locale === 'zh-CN' ? '打开模型设置…' : 'Open Models settings…'}
-        </Button>
-      </div>
-
-      <RememberedPermissionsSection
-        projectPath={projectPath}
-        request={async (command) =>
-          request({
-            type: command.type,
-            path: command.path,
-            ...(command.key ? { key: command.key } : {}),
-          })
-        }
-      />
     </div>
   );
 }

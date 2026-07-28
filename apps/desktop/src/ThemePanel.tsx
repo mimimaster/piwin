@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { HostResponse, ThemeManifest, ThemeSummary } from '@piwin/contracts';
-import { applyAppearanceToDocument } from './appearance-tokens';
 import { Button, Field, Notice } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 
@@ -109,6 +108,7 @@ export function ThemePanel(props: ThemePanelProps) {
               </div>
               <Button
                 variant="primary"
+                data-testid={`theme-apply-${theme.id}`}
                 disabled={busy || theme.id === activeId}
                 onClick={() => void handleActivate(theme.id)}
               >
@@ -144,9 +144,4 @@ export function ThemePanel(props: ThemePanelProps) {
       </div>
     </div>
   );
-}
-
-/** Apply theme tokens to document root CSS variables (shell + artifact-ready). */
-export function applyThemeToDocument(theme: ThemeManifest): void {
-  applyAppearanceToDocument(theme);
 }

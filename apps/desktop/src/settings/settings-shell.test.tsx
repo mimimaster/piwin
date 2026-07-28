@@ -8,6 +8,7 @@ import { act, useState, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { createDefaultWebConfig } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from '../appearance-tokens';
 import { SETTINGS_SECTIONS, type SettingsSectionId } from './section-registry';
 import type { SettingsContextValue } from './settings-context';
 import { SettingsShell } from './settings-shell';
@@ -73,7 +74,7 @@ function createContextValue(
 function ShellHarness(): ReactElement {
   const [section, setSection] = useState<SettingsSectionId>('rules');
   return (
-    <PiwinUiProvider>
+    <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
       <SettingsShell
         activeSection={section}
         onSelectSection={setSection}
@@ -173,7 +174,7 @@ describe('SettingsShell', () => {
     };
     act(() => {
       root.render(
-        <PiwinUiProvider>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <SettingsShell
             activeSection="models"
             onSelectSection={vi.fn()}

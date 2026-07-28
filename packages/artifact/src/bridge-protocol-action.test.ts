@@ -21,7 +21,11 @@ describe('parseArtifactActionMessage', () => {
         ...VALID,
         payload: { ...VALID.payload, rating },
       });
-      expect(parsed?.payload.rating).toBe(rating);
+      if (parsed?.action === 'flashcard/rate') {
+        expect(parsed.payload.rating).toBe(rating);
+      } else {
+        expect.fail('expected flashcard/rate action');
+      }
     }
   });
 

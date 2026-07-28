@@ -133,11 +133,22 @@ export type ArtifactBridgeMessage = {
 };
 
 /** Whitelisted user-intent action from artifact UI (untrusted origin). */
-export type ArtifactActionName = 'flashcard/rate';
+export type ArtifactActionName = 'flashcard/rate' | 'flashcard/open-source';
 
 export type FlashcardRateActionPayload = {
   cardId: string;
   rating: 'again' | 'hard' | 'good' | 'easy';
+};
+
+export type FlashcardOpenSourceActionPayload = {
+  cardId: string;
+  openFile?: boolean;
+  /**
+   * Optional UI hints — host MUST ignore these for path resolution and
+   * only trust the card store. See docs/specs/doc-flashcards.md §12.2.
+   */
+  sourceFile?: string;
+  sourceLine?: number;
 };
 
 export type ArtifactActionMessage = {
@@ -145,6 +156,11 @@ export type ArtifactActionMessage = {
   channelId: string;
   action: 'flashcard/rate';
   payload: FlashcardRateActionPayload;
+} | {
+  type: 'piwin-artifact:action';
+  channelId: string;
+  action: 'flashcard/open-source';
+  payload: FlashcardOpenSourceActionPayload;
 };
 
 export type ArtifactPreviewDecision =

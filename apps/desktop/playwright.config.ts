@@ -33,9 +33,16 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'off',
     ...devices['Desktop Chrome'],
+    // Deterministic capture contract: media/DPR fixed before page.goto(),
+    // never via post-navigation emulateMedia (see e2e/README.md).
+    colorScheme: 'dark',
+    reducedMotion: 'reduce',
+    deviceScaleFactor: 1,
   },
   webServer: {
-    command: `pnpm exec vite --port ${port} --strictPort --host 127.0.0.1`,
+    // VITE_PIWIN_E2E_FIXTURES compiles in the #/e2e/primitives gallery route;
+    // it is supplied only here, never in a checked-in env file.
+    command: `VITE_PIWIN_E2E_FIXTURES=true pnpm exec vite --port ${port} --strictPort --host 127.0.0.1`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

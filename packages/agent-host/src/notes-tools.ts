@@ -31,6 +31,11 @@ export type BuildNotesToolsOptions = {
   /** RRF constant override (config.notes.search.rrfK). */
   rrfK?: number;
   requestPermission?: ToolPermissionGate;
+  /**
+   * When true, only return read-only tools (note_search, note_list, note_read).
+   * Used by the knowledge tool profile (doc-flashcards §10.2).
+   */
+  readOnly?: boolean;
 };
 
 const NOTES_TOOL_ACTIONS: Record<string, NotesPermissionAction> = {
@@ -57,7 +62,10 @@ export function buildNotesTools(options: BuildNotesToolsOptions): HostToolDefini
     searchOptions.rrfK = options.rrfK;
   }
   const bare = createNotesToolDefinitions(options.store, options.index, searchOptions);
-  return bare.map((tool) => wrapNotesToolWithPermission(tool, options.requestPermission));
+  const filtered = options.readOnly
+    ? bare.filter((tool) => tool.name === 'note_search' || tool.name === 'note_list' || tool.name === 'note_read')
+    : bare;
+  return filtered.map((tool) => wrapNotesToolWithPermission(tool, options.requestPermission));
 }
 
 function createNotesToolDefinitions(

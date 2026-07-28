@@ -29,6 +29,7 @@ export type DesktopCopy = {
   ready: string;
   offline: string;
   betaFeature: string;
+  knowledgeCenter: string;
 };
 
 /**
@@ -181,9 +182,10 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     newSession: '新会话',
     searchSessions: '搜索会话',
     close: '关闭',
-    ready: '桌面 Host 就绪',
-    offline: '桌面 Host 离线',
+    ready: 'piwin 就绪',
+    offline: 'piwin 未连接',
     betaFeature: 'Beta 功能',
+    knowledgeCenter: '知识中心',
   },
   en: {
     settings: 'Settings',
@@ -202,9 +204,10 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     newSession: 'New session',
     searchSessions: 'Search sessions',
     close: 'Close',
-    ready: 'Desktop Host ready',
-    offline: 'Desktop Host offline',
+    ready: 'piwin ready',
+    offline: 'piwin disconnected',
     betaFeature: 'Beta feature',
+    knowledgeCenter: 'Knowledge Center',
   },
 };
 

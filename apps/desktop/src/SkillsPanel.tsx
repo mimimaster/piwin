@@ -11,6 +11,7 @@ import type {
 import { WELL_KNOWN_SKILL_PATH_PRESETS } from '@piwin/contracts';
 import { Button, EmptyState, Field, Notice, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
+import { PageTitle } from './settings/page-title';
 
 export type SkillsPanelProps = {
   projectPath: string | null;
@@ -34,15 +35,13 @@ export type SkillsPanelProps = {
 };
 
 export function SkillsPanel(props: SkillsPanelProps) {
-  const { locale, translator } = useDesktopLocale();
+  const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
-  const common = translator.common;
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [filter, setFilter] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [installKind, setInstallKind] = useState<'local' | 'git'>('local');
   const [installPath, setInstallPath] = useState('');
   const [installGitUrl, setInstallGitUrl] = useState('');
@@ -55,7 +54,6 @@ export function SkillsPanel(props: SkillsPanelProps) {
   const [mainTab, setMainTab] = useState<'installed' | 'store'>('installed');
   const [storeEntries, setStoreEntries] = useState<SkillStoreEntry[]>([]);
   const [storeLoading, setStoreLoading] = useState(false);
-  const [storeFilter, setStoreFilter] = useState('');
 
   const loadSkills = useCallback(async () => {
     setLoading(true);
@@ -106,63 +104,41 @@ export function SkillsPanel(props: SkillsPanelProps) {
   }, [mainTab, loadStore]);
 
   const visible = useMemo(() => {
-    const query = filter.trim().toLowerCase();
-    if (!query) return skills;
+    if (!filter) return skills;
+    const lower = filter.toLowerCase();
     return skills.filter(
-      (skill) =>
-        skill.name.toLowerCase().includes(query) ||
-        skill.id.toLowerCase().includes(query) ||
-        skill.description.toLowerCase().includes(query) ||
-        skill.source.toLowerCase().includes(query),
+      (s) =>
+        s.name.toLowerCase().includes(lower) ||
+        s.id.toLowerCase().includes(lower) ||
+        s.description?.toLowerCase().includes(lower),
     );
-  }, [filter, skills]);
+  }, [skills, filter]);
 
-  async function handleToggle(skill: SkillSummary): Promise<void> {
-    setBusyId(skill.id);
+  async function handleToggle(skill: SkillSummary) {
+    setError(null);
+    setInfo(null);
     const response = await props.request({
       type: 'skills/set_enabled',
       skillId: skill.id,
       enabled: !skill.enabled,
     });
-    setBusyId(null);
     if (!response.success) {
       setError(response.error);
       return;
     }
-    await loadSkills();
+    setInfo(isChinese ? `已${skill.enabled ? '关闭' : '开启'}技能：${skill.name}` : `${skill.enabled ? 'Disabled' : 'Enabled'} skill: ${skill.name}`);
+    void loadSkills();
   }
 
-  async function handleInstall(): Promise<void> {
+  async function handleInstallLocal() {
+    if (!installPath.trim()) return;
+    setInstalling(true);
     setError(null);
     setInfo(null);
-    let source: InstallSource;
-    if (installKind === 'local') {
-      const path = installPath.trim();
-      if (!path) {
-        setError(isChinese ? '必须填写本地技能目录。' : 'Local skill directory is required.');
-        return;
-      }
-      source = { kind: 'local', path };
-    } else {
-      const url = installGitUrl.trim();
-      if (!url) {
-        setError(isChinese ? '必须填写 Git URL。' : 'Git URL is required.');
-        return;
-      }
-      source = { kind: 'git', url };
-      if (installGitRef.trim()) {
-        source = { ...source, ref: installGitRef.trim() };
-      }
-      if (installGitSubdir.trim()) {
-        source = { ...source, subdir: installGitSubdir.trim() };
-      }
-    }
-    setInstalling(true);
-    const command: {
-      type: 'skills/install';
-      source: InstallSource;
-      name?: string;
-    } = { type: 'skills/install', source };
+    const command: any = {
+      type: 'skills/install',
+      source: { kind: 'local', path: installPath.trim() },
+    };
     if (installName.trim()) {
       command.name = installName.trim();
     }
@@ -173,20 +149,48 @@ export function SkillsPanel(props: SkillsPanelProps) {
       return;
     }
     const data = response.data as SkillsInstallData;
-    setInfo(
-      isChinese
-        ? `已安装 ${data.skillId} → ${data.targetPath}`
-        : `Installed ${data.skillId} → ${data.targetPath}`,
-    );
+    setInfo(isChinese ? `已安装技能到：${data.targetPath}` : `Installed skill to: ${data.targetPath}`);
     setInstallPath('');
+    setInstallName('');
+    void loadSkills();
+  }
+
+  async function handleInstallGit() {
+    if (!installGitUrl.trim()) return;
+    setInstalling(true);
+    setError(null);
+    setInfo(null);
+    const source: any = {
+      kind: 'git',
+      url: installGitUrl.trim(),
+    };
+    if (installGitRef.trim()) source.ref = installGitRef.trim();
+    if (installGitSubdir.trim()) source.subdir = installGitSubdir.trim();
+
+    const command: any = {
+      type: 'skills/install',
+      source,
+    };
+    if (installName.trim()) {
+      command.name = installName.trim();
+    }
+
+    const response = await props.request(command);
+    setInstalling(false);
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    const data = response.data as SkillsInstallData;
+    setInfo(isChinese ? `已从 Git 安装技能到：${data.targetPath}` : `Installed skill from Git to: ${data.targetPath}`);
     setInstallGitUrl('');
     setInstallGitRef('');
     setInstallGitSubdir('');
     setInstallName('');
-    await loadSkills();
+    void loadSkills();
   }
 
-  async function handleInstallStore(entry: SkillStoreEntry): Promise<void> {
+  async function handleInstallStore(entry: SkillStoreEntry) {
     setInstalling(true);
     setError(null);
     setInfo(null);
@@ -200,261 +204,202 @@ export function SkillsPanel(props: SkillsPanelProps) {
       setError(response.error);
       return;
     }
-    const data = response.data as SkillsInstallData;
-    setInfo(
-      isChinese
-        ? `已从商店安装 ${data.skillId} → ${data.targetPath}`
-        : `Installed ${data.skillId} from store → ${data.targetPath}`,
-    );
+    setInfo(isChinese ? `已安装：${entry.name}` : `Installed: ${entry.name}`);
     setMainTab('installed');
-    await loadSkills();
+    void loadSkills();
   }
 
-  async function handleMapPreset(pathValue: string): Promise<void> {
+  async function handleMapPreset(path: string) {
     setMappingBusy(true);
     setError(null);
-    setInfo(null);
-    const getResponse = await props.request({ type: 'config/get' });
-    if (!getResponse.success) {
+    const getResp = await props.request({ type: 'config/get' });
+    if (!getResp.success) {
       setMappingBusy(false);
-      setError(getResponse.error);
+      setError(getResp.error);
       return;
     }
-    const data = getResponse.data as { config: PiwinConfig };
-    const existing = data.config.skills?.extraPaths ?? [];
-    if (existing.includes(pathValue)) {
-      setInfo(isChinese ? `已映射：${pathValue}` : `Already mapped: ${pathValue}`);
+    const data = getResp.data as { config: PiwinConfig };
+    const config = data.config;
+    const extraPaths = config.skills?.extraPaths ?? [];
+    if (extraPaths.includes(path)) {
       setMappingBusy(false);
       return;
     }
-    const next: PiwinConfig = {
-      ...data.config,
+    const nextConfig: PiwinConfig = {
+      ...config,
       skills: {
-        extraPaths: [...existing, pathValue],
-        disabledIds: data.config.skills?.disabledIds ?? [],
+        extraPaths: [...extraPaths, path],
+        disabledIds: config.skills?.disabledIds ?? [],
       },
     };
-    const saveResponse = await props.request({ type: 'config/set', config: next });
+    const setResp = await props.request({ type: 'config/set', config: nextConfig });
     setMappingBusy(false);
-    if (!saveResponse.success) {
-      setError(saveResponse.error);
+    if (!setResp.success) {
+      setError(setResp.error);
       return;
     }
-    setInfo(
-      isChinese
-        ? `已映射 ${pathValue}（新会话将加载此路径）`
-        : `Mapped ${pathValue} (new sessions pick it up)`,
-    );
-    await loadMappedPaths();
-    await loadSkills();
+    setInfo(isChinese ? `已映射路径：${path}` : `Mapped path: ${path}`);
+    void loadMappedPaths();
+    void loadSkills();
   }
 
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
       <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
-        <h3>{isChinese ? '技能' : 'Skills'}</h3>
-        <p className="muted">
-          {isChinese ? (
-            <>
-              启用或停用只会影响<strong>新会话</strong>。安装会复制到 ~/.piwin/skills。商店列出推荐的 Git 来源。
-            </>
-          ) : (
-            <>
-              Enable/disable applies to <strong>new sessions</strong>. Install copies into
-              ~/.piwin/skills. Store lists recommended sources (git).
-            </>
-          )}
-        </p>
         <Tabs
           value={mainTab}
           onValueChange={(value) => setMainTab(value as 'installed' | 'store')}
           testId="skills-main-tabs"
         >
-          <TabsList className="mcp-tabs" label={isChinese ? '技能视图' : 'Skills views'}>
-            <TabsTrigger value="installed" className="mcp-tab" testId="skills-tab-installed">
+          <TabsList className="segmented-control">
+            <TabsTrigger value="installed" className="segmented-control-item" testId="skills-tab-installed">
               {isChinese ? '已安装' : 'Installed'}
             </TabsTrigger>
-            <TabsTrigger value="store" className="mcp-tab" testId="skills-tab-store">
+            <TabsTrigger value="store" className="segmented-control-item" testId="skills-tab-store">
               {isChinese ? '商店' : 'Store'}
             </TabsTrigger>
           </TabsList>
+
           <TabsContent value="installed" className="mcp-tab-content">
-        <Field label={isChinese ? '搜索已安装的技能' : 'Search installed skills'}>
-          <input
-            value={filter}
-            onChange={(event) => setFilter(event.target.value)}
-            placeholder={isChinese ? '名称、ID 或描述…' : 'Name, id, or description…'}
-            data-testid="skills-filter"
-          />
-        </Field>
-        {loading ? <div className="panel-loading"><Spinner label={isChinese ? '正在加载技能' : 'Loading skills'} /><span className="muted">{isChinese ? '正在加载技能…' : 'Loading skills…'}</span></div> : null}
-        {error ? <Notice tone="error" title={isChinese ? '技能操作失败' : 'Skills action failed'}>{error}</Notice> : null}
-        {info ? <Notice tone="info">{info}</Notice> : null}
-        <ul className="ext-list">
-          {visible.length === 0 && !loading ? (
-            <li className="skills-empty-wrap"><EmptyState title={isChinese ? '未找到技能' : 'No skills found'} description={isChinese ? '请从商店安装，或确认已安装随附的技能。' : 'Install from Store or ensure bundled skills are installed.'} testId="skills-empty" /></li>
-          ) : (
-            visible.map((skill) => (
-              <li key={skill.id} className="ext-list-item">
-                <div className="ext-list-main">
-                  <div className="ext-list-title">
-                    <strong>{skill.name}</strong>
-                    <span className="pill">{skill.source}</span>
-                    <span className="pill">{skill.enabled ? (isChinese ? '开启' : 'on') : (isChinese ? '关闭' : 'off')}</span>
-                  </div>
-                  <div className="muted ext-desc">{skill.description}</div>
-                  <div className="muted ext-path">{skill.path}</div>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: 20 }}>
+                <div style={{ flex: 1 }}>
+                  <Field label={isChinese ? '搜索技能' : 'Search skills'}>
+                    <input
+                      value={filter}
+                      onChange={(event) => setFilter(event.target.value)}
+                      placeholder={isChinese ? '名称、ID 或描述…' : 'Search...'}
+                      data-testid="skills-filter"
+                      style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                    />
+                  </Field>
                 </div>
-                <Button
-                  disabled={busyId === skill.id}
-                  onClick={() => void handleToggle(skill)}
-                >
-                  {skill.enabled ? common.disable : common.enable}
-                </Button>
-              </li>
-            ))
-          )}
-        </ul>
+                <Button size="compact" onClick={() => void loadSkills()}>{isChinese ? '刷新' : 'Refresh'}</Button>
+              </div>
 
-        <div className="settings-section">
-          <h4>{isChinese ? '映射外部技能根目录' : 'Map external skill roots'}</h4>
-          <p className="muted">
-            {isChinese ? '将路径添加到 ' : 'Adds paths to '}
-            <code>config.skills.extraPaths</code> (Cursor / Claude / Codex).
-          </p>
-          <div className="provider-list" data-testid="skills-map-presets">
-            {WELL_KNOWN_SKILL_PATH_PRESETS.map((preset) => {
-              const mapped = mappedPaths.includes(preset.path);
-              return (
-                <Button
-                  key={preset.id}
-                  style={{ marginRight: 8, marginBottom: 8 }}
-                  disabled={mappingBusy || mapped}
-                  data-testid={`skills-map-preset-${preset.id}`}
-                  onClick={() => void handleMapPreset(preset.path)}
-                >
-                  {mapped ? `✓ ${preset.label}` : isChinese ? `映射 ${preset.label}` : `Map ${preset.label}`}
-                </Button>
-              );
-            })}
-          </div>
-          {mappedPaths.length > 0 ? (
-            <p className="muted">{isChinese ? '已映射：' : 'Mapped: '}{mappedPaths.join(', ')}</p>
-          ) : null}
-        </div>
+              {loading && <div style={{ padding: '20px 0', textAlign: 'center' }}><Spinner /></div>}
+              {error ? <Notice tone="error">{error}</Notice> : null}
+              {info ? <Notice tone="info">{info}</Notice> : null}
 
-        <div className="settings-section">
-          <h4>{isChinese ? '安装技能' : 'Install skill'}</h4>
-          <Field label={isChinese ? '来源' : 'Source'}>
-            <select
-              value={installKind}
-              onChange={(event) => setInstallKind(event.target.value as 'local' | 'git')}
-            >
-              <option value="local">{isChinese ? '本地目录 (SKILL.md)' : 'Local directory (SKILL.md)'}</option>
-              <option value="git">Git URL</option>
-            </select>
-          </Field>
-          {installKind === 'local' ? (
-            <Field label={isChinese ? '目录路径' : 'Directory path'} required>
-              <input
-                value={installPath}
-                onChange={(event) => setInstallPath(event.target.value)}
-                placeholder="/path/to/my-skill"
-              />
-            </Field>
-          ) : (
-            <>
-              <Field label="Git URL" required>
-                <input
-                  value={installGitUrl}
-                  onChange={(event) => setInstallGitUrl(event.target.value)}
-                  placeholder="https://github.com/org/repo.git"
-                />
-              </Field>
-              <Field label={isChinese ? '引用（可选）' : 'Ref (optional)'}>
-                <input
-                  value={installGitRef}
-                  onChange={(event) => setInstallGitRef(event.target.value)}
-                  placeholder="main"
-                />
-              </Field>
-              <Field label={isChinese ? '子目录（可选）' : 'Subdir (optional)'}>
-                <input
-                  value={installGitSubdir}
-                  onChange={(event) => setInstallGitSubdir(event.target.value)}
-                  placeholder="skills/my-skill"
-                />
-              </Field>
-            </>
-          )}
-          <Field label={isChinese ? '名称覆盖（可选）' : 'Name override (optional)'}>
-            <input
-              value={installName}
-              onChange={(event) => setInstallName(event.target.value)}
-              placeholder={isChinese ? '~/.piwin/skills 下的文件夹名称' : 'folder name under ~/.piwin/skills'}
-            />
-          </Field>
-          <Button
-            variant="primary"
-            disabled={installing}
-            onClick={() => void handleInstall()}
-          >
-            {installing ? (isChinese ? '正在安装…' : 'Installing…') : common.install}
-          </Button>
-        </div>
-
-        <div className="manager-actions">
-          <Button onClick={() => void loadSkills()}>
-            {common.refresh}
-          </Button>
-          {props.variant !== 'inline' ? (
-            <Button onClick={props.onClose}>
-              {common.close}
-            </Button>
-          ) : null}
-        </div>
-
-          </TabsContent>
-          <TabsContent value="store" className="mcp-tab-content" testId="skills-store-panel">
-            <Field label={isChinese ? '搜索技能商店' : 'Search skill store'}>
-              <input
-                value={storeFilter}
-                onChange={(event) => setStoreFilter(event.target.value)}
-                placeholder={isChinese ? '名称、ID 或描述…' : 'Name, id, or description…'}
-                data-testid="skills-store-search"
-              />
-            </Field>
-            {storeLoading ? <p className="muted">{isChinese ? '正在加载商店…' : 'Loading store…'}</p> : null}
-            <ul className="ext-list" data-testid="skills-store-list">
-              {storeEntries
-                .filter((entry) => {
-                  const q = storeFilter.trim().toLowerCase();
-                  if (!q) return true;
-                  return (
-                    entry.name.toLowerCase().includes(q) ||
-                    entry.id.toLowerCase().includes(q) ||
-                    entry.description.toLowerCase().includes(q)
-                  );
-                })
-                .map((entry) => (
-                  <li key={entry.id} className="ext-list-item" data-testid="skills-store-item">
-                    <div className="ext-list-main">
-                      <div className="ext-list-title">
-                        <strong>{entry.name}</strong>
-                        <span className="pill">{entry.source.kind}</span>
-                      </div>
-                      <div className="muted ext-desc">{entry.description}</div>
-                    </div>
-                    <Button
-                      variant="primary"
-                      disabled={installing}
-                      data-testid="skills-store-install-btn"
-                      onClick={() => void handleInstallStore(entry)}
-                    >
-                      {common.install}
-                    </Button>
+              <ul className="ext-list">
+                {visible.length === 0 && !loading ? (
+                  <li className="muted" style={{ textAlign: 'center', padding: '40px' }}>
+                    <EmptyState title={isChinese ? '未找到技能' : 'No skills found'} description="" />
                   </li>
-                ))}
+                ) : (
+                  visible.map((skill) => (
+                    <li key={skill.id} className="ext-list-item">
+                      <div className="ext-list-main">
+                        <div className="ext-list-title">
+                          <strong>{skill.name}</strong>
+                          <span className="pill" style={{ opacity: 0.6 }}>{skill.source}</span>
+                        </div>
+                        <div className="muted ext-desc">{skill.description}</div>
+                      </div>
+                      <span
+                        role="switch"
+                        aria-checked={skill.enabled ? 'true' : 'false'}
+                        tabIndex={0}
+                        className={skill.enabled ? 'mcp-toggle checked' : 'mcp-toggle'}
+                        onClick={() => void handleToggle(skill)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            void handleToggle(skill);
+                          }
+                        }}
+                      />
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+
+            <div className="settings-section">
+              <PageTitle
+                title={isChinese ? '映射外部路径' : 'Map External Paths'}
+                description={isChinese ? '从 Cursor 或 Claude 映射已有的技能根目录。' : 'Map skill roots from Cursor or Claude.'}
+              />
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {WELL_KNOWN_SKILL_PATH_PRESETS.map((preset) => {
+                  const mapped = mappedPaths.includes(preset.path);
+                  return (
+                    <Button
+                      key={preset.id}
+                      size="compact"
+                      disabled={mappingBusy || mapped}
+                      onClick={() => void handleMapPreset(preset.path)}
+                    >
+                      {mapped ? `✓ ${preset.label}` : isChinese ? `映射 ${preset.label}` : `Map ${preset.label}`}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="settings-section">
+              <PageTitle
+                title={isChinese ? '手动安装' : 'Install Manually'}
+                description={isChinese ? '通过本地目录或 Git 仓库安装。' : 'Install via local directory or Git.'}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <select
+                      value={installKind}
+                      onChange={(event) => setInstallKind(event.target.value as 'local' | 'git')}
+                      style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                    >
+                      <option value="local">{isChinese ? '本地目录' : 'Local Directory'}</option>
+                      <option value="git">Git URL</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 2 }}>
+                    <input
+                      value={installKind === 'local' ? installPath : installGitUrl}
+                      onChange={(event) => installKind === 'local' ? setInstallPath(event.target.value) : setInstallGitUrl(event.target.value)}
+                      placeholder={installKind === 'local' ? (isChinese ? '路径...' : 'Path...') : 'https://github.com/...'}
+                      style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                    />
+                  </div>
+                  <Button
+                    disabled={installing || (installKind === 'local' ? !installPath : !installGitUrl)}
+                    onClick={() => installKind === 'local' ? handleInstallLocal() : handleInstallGit()}
+                  >
+                    {isChinese ? '安装' : 'Install'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="store" className="mcp-tab-content">
+            <div className="mcp-marketplace-header">
+              <PageTitle
+                title={isChinese ? '技能商店' : 'Skills Store'}
+                description={isChinese ? '浏览社区推荐的技能集。' : 'Browse recommended skills from the community.'}
+              />
+            </div>
+            {storeLoading && <div style={{ padding: '40px', textAlign: 'center' }}><Spinner /></div>}
+            <ul className="ext-list">
+              {storeEntries.map((entry) => (
+                <li key={entry.id} className="ext-list-item">
+                  <div className="ext-list-main">
+                    <div className="ext-list-title">
+                      <strong>{entry.name}</strong>
+                    </div>
+                    <div className="muted ext-desc">{entry.description}</div>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="compact"
+                    disabled={installing}
+                    onClick={() => void handleInstallStore(entry)}
+                  >
+                    {isChinese ? '安装' : 'Install'}
+                  </Button>
+                </li>
+              ))}
             </ul>
           </TabsContent>
         </Tabs>

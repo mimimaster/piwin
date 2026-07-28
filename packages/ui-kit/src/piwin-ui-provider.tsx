@@ -4,7 +4,7 @@ import {
   type MantineColorsTuple,
   type MantineThemeOverride,
 } from '@mantine/core';
-import type { ReactElement, ReactNode } from 'react';
+import { useMemo, type ReactElement, type ReactNode } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import '@mantine/core/styles.css';
 
@@ -46,23 +46,42 @@ function buildGraphiteScale(manifest: ThemeManifest): MantineColorsTuple {
 }
 
 /**
- * Blue / accent scale derived from the manifest's accent color.
- * Uses fixed light-end steps and two manifest-anchored mid-range values.
+ * Accent scale derived from the manifest's accent color.
+ * All steps are srgb mixes with white/black so every Mantine shade stays in
+ * the theme's hue family — no hardcoded cross-hue steps that leak foreign
+ * colors into hovers, light variants, and shade-indexed fills.
  * The primary-color index Mantine uses for filled components is index 5.
  */
 function buildAccentScale(manifest: ThemeManifest): MantineColorsTuple {
+  const accent = manifest.tokens.accent;
+  const accent2 = manifest.tokens.accent2;
   return [
-    '#eff6ff',
-    '#dcecff',
-    '#bdd9ff',
-    '#91c1ff',
-    manifest.tokens.accent2,  // 4 — secondary accent from manifest
-    manifest.tokens.accent,   // 5 — primary accent from manifest (Mantine primary index)
-    '#0074e8',
-    '#0064ca',
-    '#0055ad',
-    '#00468f',
+    mixHex(accent, '#ffffff', 0.93), // 0 — light variant bg
+    mixHex(accent, '#ffffff', 0.82), // 1 — light variant hover
+    mixHex(accent, '#ffffff', 0.66), // 2
+    mixHex(accent, '#ffffff', 0.42), // 3
+    accent2, // 4 — secondary accent from manifest
+    accent, // 5 — primary accent from manifest (Mantine primary index)
+    mixHex(accent, '#000000', 0.14), // 6 — filled hover
+    mixHex(accent, '#000000', 0.3), // 7
+    mixHex(accent, '#000000', 0.46), // 8
+    mixHex(accent, '#000000', 0.6), // 9
   ];
+}
+
+/** srgb mix of two #rrggbb colors; weight 0 → a, 1 → b. */
+function mixHex(a: string, b: string, weight: number): string {
+  const pa = Number.parseInt(a.slice(1), 16);
+  const pb = Number.parseInt(b.slice(1), 16);
+  const channel = (shift: number): number => {
+    const ca = (pa >> shift) & 0xff;
+    const cb = (pb >> shift) & 0xff;
+    return Math.round(ca + (cb - ca) * weight);
+  };
+  const r = channel(16);
+  const g = channel(8);
+  const bl = channel(0);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1)}`;
 }
 
 /**
@@ -73,6 +92,12 @@ function buildAccentScale(manifest: ThemeManifest): MantineColorsTuple {
 export function buildMantineTheme(manifest: ThemeManifest): MantineThemeOverride {
   return createTheme({
     primaryColor: 'piwinAccent',
+    // Filled components must use the manifest-anchored accent (scale index 5)
+    // in both color schemes; Mantine's default shade split ({light: 6, dark: 8})
+    // would pick interpolated ramp steps instead of the theme accent. Object
+    // form — the number form can be lost when deep-merged with the default
+    // {light, dark} object.
+    primaryShade: { light: 5, dark: 5 },
     colors: {
       piwinGraphite: buildGraphiteScale(manifest),
       piwinAccent: buildAccentScale(manifest),
@@ -109,11 +134,12 @@ export function buildMantineTheme(manifest: ThemeManifest): MantineThemeOverride
 export type PiwinUiProviderProps = {
   children: ReactNode;
   /**
-   * Active theme manifest. When provided, Mantine's color scales are derived
-   * from manifest values instead of static fallbacks. Pass the initial dark
-   * manifest at startup; update when the user switches themes.
+   * Active theme manifest (required). Mantine color scales, font, and
+   * headings derive from it; the mount owner (DesktopThemeRoot in the
+   * desktop app) must pass the same resolved manifest it projects to
+   * document CSS so both stay in sync.
    */
-  manifest?: ThemeManifest;
+  manifest: ThemeManifest;
 };
 
 /**
@@ -122,29 +148,13 @@ export type PiwinUiProviderProps = {
  * stay authoritative; control geometry and behavior are product-owned spec.
  */
 export function PiwinUiProvider({ children, manifest }: PiwinUiProviderProps): ReactElement {
-  const theme = manifest !== undefined ? buildMantineTheme(manifest) : buildMantineTheme({
-    id: 'piwin-dark',
-    name: 'Piwin Dark',
-    version: '3.0.0',
-    mode: 'dark',
-    tokens: {
-      bg: '#18181a',
-      panel: '#222225',
-      panel2: '#2a2a2d',
-      border: 'rgba(255, 255, 255, 0.12)',
-      text: '#f5f5f7',
-      muted: '#a1a1a6',
-      accent: '#0a84ff',
-      accent2: '#64a7ff',
-      danger: '#ff6961',
-      ok: '#4cd964',
-      radius: '8px',
-      font: '"Outfit", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif',
-    },
-  });
+  const theme = useMemo(() => buildMantineTheme(manifest), [manifest]);
 
+  // The manifest is the single source of light/dark identity. Following the
+  // OS media query here would let Mantine's scheme diverge from the document
+  // tokens the mount owner projects from the same manifest.
   return (
-    <MantineProvider theme={theme} defaultColorScheme="auto">
+    <MantineProvider theme={theme} forceColorScheme={manifest.mode}>
       {children}
     </MantineProvider>
   );
