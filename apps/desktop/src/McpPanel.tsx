@@ -14,6 +14,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  TextInput,
 } from '@piwin/ui-kit';
 import type {
   HostResponse,
@@ -400,10 +401,10 @@ export function McpPanel(props: McpPanelProps) {
               />
               <div className="mcp-marketplace-search">
                 <Field label={isChinese ? '筛选' : 'Filter'}>
-                  <input
+                  <TextInput
                     data-testid="mcp-registry-search"
                     value={registryQuery}
-                    onChange={(event) => setRegistryQuery(event.target.value)}
+                    onChange={(event) => setRegistryQuery(event.currentTarget.value)}
                     placeholder={isChinese ? '标题、ID 或描述…' : 'Search...'}
                   />
                 </Field>

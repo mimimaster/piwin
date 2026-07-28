@@ -6,7 +6,7 @@ import type {
   MemorySearchHit,
   PiwinConfig,
 } from '@piwin/contracts';
-import { Button, Collapse, Field, Notice, Spinner, Switch } from '@piwin/ui-kit';
+import { Button, Collapse, Field, Notice, Spinner, Switch, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 import { FieldRow } from './settings/field-row';
@@ -192,9 +192,9 @@ export function MemoryPanel(props: MemoryPanelProps) {
             <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: 20 }}>
               <div style={{ flex: 1 }}>
                 <Field label={isChinese ? '搜索' : 'Search'}>
-                  <input
+                  <TextInput
                     value={searchQuery}
-                    onChange={(event) => setSearchQuery(event.target.value)}
+                    onChange={(event) => setSearchQuery(event.currentTarget.value)}
                     onKeyDown={(e) => e.key === 'Enter' && void handleSearch()}
                     placeholder={isChinese ? '搜索记忆内容...' : 'Search memory...'}
                     style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
