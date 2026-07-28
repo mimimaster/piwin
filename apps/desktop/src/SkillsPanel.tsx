@@ -9,7 +9,7 @@ import type {
   SkillStoreEntry,
 } from '@piwin/contracts';
 import { WELL_KNOWN_SKILL_PATH_PRESETS } from '@piwin/contracts';
-import { Button, EmptyState, Field, Notice, Spinner, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
+import { Button, EmptyState, Field, Notice, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
@@ -296,18 +296,10 @@ export function SkillsPanel(props: SkillsPanelProps) {
                         </div>
                         <div className="muted ext-desc">{skill.description}</div>
                       </div>
-                      <span
-                        role="switch"
-                        aria-checked={skill.enabled ? 'true' : 'false'}
-                        tabIndex={0}
-                        className={skill.enabled ? 'mcp-toggle checked' : 'mcp-toggle'}
-                        onClick={() => void handleToggle(skill)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            void handleToggle(skill);
-                          }
-                        }}
+                      <Switch
+                        checked={skill.enabled}
+                        onChange={() => void handleToggle(skill)}
+                        aria-label={isChinese ? `启用 ${skill.name}` : `Enable ${skill.name}`}
                       />
                     </li>
                   ))

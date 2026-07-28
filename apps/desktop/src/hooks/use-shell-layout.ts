@@ -28,8 +28,12 @@ import {
   type ShellNavigationState,
   type ShellSettingsSection,
 } from '../shell-navigation';
+import {
+  normalizeSettingsSection,
+  type SettingsSectionId,
+} from '../settings/section-registry';
 
-export type { ShellLayoutMode, ShellOverlay, ShellSettingsSection };
+export type { ShellLayoutMode, ShellOverlay, SettingsSectionId, ShellSettingsSection };
 
 export function useShellLayout() {
   const [overlay, setOverlay] = useState<ShellOverlay>('none');
@@ -66,8 +70,10 @@ export function useShellLayout() {
 
   const activeRoute = currentShellRoute(navigation);
   const settingsOpen = activeRoute.kind === 'settings';
-  const settingsSection: ShellSettingsSection =
-    activeRoute.kind === 'settings' ? activeRoute.section : 'general';
+  const settingsSection: SettingsSectionId =
+    activeRoute.kind === 'settings'
+      ? normalizeSettingsSection(activeRoute.section)
+      : 'general';
 
   const rememberTrigger = useCallback(() => {
     const active = document.activeElement;
@@ -150,10 +156,11 @@ export function useShellLayout() {
   const openSettings = useCallback(
     (section: ShellSettingsSection = 'general') => {
       rememberTrigger();
+      const normalized = normalizeSettingsSection(section);
       setNavigation((current) =>
         pushShellRoute(current, {
           kind: 'settings',
-          section,
+          section: normalized,
         }),
       );
     },
@@ -166,11 +173,12 @@ export function useShellLayout() {
   }, [restoreFocus]);
 
   const setSettingsSection = useCallback((section: ShellSettingsSection) => {
+    const normalized = normalizeSettingsSection(section);
     setNavigation((current) => {
       if (currentShellRoute(current).kind !== 'settings') {
         return current;
       }
-      return pushShellRoute(current, { kind: 'settings', section });
+      return pushShellRoute(current, { kind: 'settings', section: normalized });
     });
   }, []);
 

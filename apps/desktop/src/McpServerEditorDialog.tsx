@@ -3,9 +3,10 @@
  * Extracted from McpPanel so the main page stays a clean list.
  */
 import { useEffect, useState, type ReactElement } from 'react';
-import { Button, Dialog, Field, IconButton, Notice, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
+import { Button, Field, Modal, Notice, Tabs, TabsContent, TabsList, TabsTrigger } from '@piwin/ui-kit';
 import type { McpConfigDocument, McpServerConfig, McpToolSummary } from '@piwin/contracts';
-import { IconClose } from './shell-icons';export type McpServerEditorDialogProps = {
+
+export type McpServerEditorDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** When editing an existing server, its current id. Empty for "add new". */
@@ -192,22 +193,14 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
   const isEditing = Boolean(props.serverId);
 
   return (
-    <Dialog
-      label={isEditing ? (isChinese ? '编辑 MCP 服务器' : 'Edit MCP Server') : (isChinese ? '添加 MCP 服务器' : 'Add MCP Server')}
+    <Modal
+      title={isEditing ? (isChinese ? '编辑服务器' : 'Edit Server') : (isChinese ? '添加服务器' : 'Add Server')}
       open={props.open}
       onOpenChange={props.onOpenChange}
       testId="mcp-editor-dialog"
-      closeOnInteractOutside
+      size="lg"
     >
-      <div className="cherry-dialog cherry-dialog--mcp-editor">
-        <header className="cherry-dialog-header">
-          <h3>{isEditing ? (isChinese ? '编辑服务器' : 'Edit Server') : (isChinese ? '添加服务器' : 'Add Server')}</h3>
-          <IconButton label={isChinese ? '关闭' : 'Close'} onClick={() => props.onOpenChange(false)}>
-            <IconClose width={16} height={16} />
-          </IconButton>
-        </header>
-
-        <div className="cherry-dialog-body">
+      <div className="cherry-dialog-body">
           {error ? <Notice tone="error">{error}</Notice> : null}
           {info ? <Notice tone="info">{info}</Notice> : null}
 
@@ -328,7 +321,6 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
             )}
           </div>
         </footer>
-      </div>
-    </Dialog>
+    </Modal>
   );
 }

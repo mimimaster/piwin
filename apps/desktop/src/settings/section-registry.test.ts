@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LEGACY_SETTINGS_REDIRECTS,
   SETTINGS_GROUPS,
   SETTINGS_SECTIONS,
+  isLegacySettingsSectionId,
   isSettingsSectionId,
+  normalizeSettingsSection,
   sectionsForGroup,
   type SettingsSectionId,
 } from './section-registry';
@@ -11,8 +14,6 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'general',
   'appearance',
   'models',
-  'agents',
-  'rules',
   'skills',
   'extensions',
   'prompts',
@@ -49,5 +50,15 @@ describe('section registry', () => {
     }
     expect(isSettingsSectionId('bogus')).toBe(false);
     expect(isSettingsSectionId('')).toBe(false);
+  });
+
+  it('maps legacy deep links to canonical sections', () => {
+    expect(normalizeSettingsSection('rules')).toBe('skills');
+    expect(normalizeSettingsSection('agents')).toBe('automation');
+    expect(normalizeSettingsSection('bogus')).toBe('general');
+    expect(isLegacySettingsSectionId('rules')).toBe(true);
+    expect(isLegacySettingsSectionId('agents')).toBe(true);
+    expect(isLegacySettingsSectionId('general')).toBe(false);
+    expect(Object.keys(LEGACY_SETTINGS_REDIRECTS)).toHaveLength(2);
   });
 });

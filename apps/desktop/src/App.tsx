@@ -61,7 +61,7 @@ import { useSessionActions } from './hooks/use-session-actions';
 import { useManagedProcesses } from './hooks/use-managed-processes';
 import { Button, ConfirmDialog, IconButton, Notice } from '@piwin/ui-kit';
 import { IconClose } from './shell-icons';
-import { useShellLayout } from './hooks/use-shell-layout';
+import { useShellLayout, type ShellSettingsSection } from './hooks/use-shell-layout';
 import { CommandPalette } from './command-palette';
 import { useDesktopShortcuts } from './use-desktop-shortcuts';
 import type { DesktopCommandId } from './desktop-commands';
@@ -726,21 +726,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     shell.openInspector(tab);
   }
 
-  function openSettingsSection(
-    section:
-      | 'general'
-      | 'appearance'
-      | 'skills'
-      | 'extensions'
-      | 'prompts'
-      | 'tools'
-      | 'web'
-      | 'models'
-      | 'agents'
-      | 'memory'
-      | 'automation'
-      | 'session',
-  ): void {
+  function openSettingsSection(section: ShellSettingsSection): void {
     shell.openSettings(section);
   }
 

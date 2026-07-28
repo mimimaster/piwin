@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { HostResponse, PromptTemplateSummary, PromptsListData } from '@piwin/contracts';
-import { Button, Field, Notice, Spinner } from '@piwin/ui-kit';
+import { Button, Field, Notice, Spinner, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
@@ -109,18 +109,10 @@ export function PromptsPanel(props: PromptsPanelProps) {
                   </div>
                   <div className="muted ext-desc">{prompt.description}</div>
                 </div>
-                <span
-                  role="switch"
-                  aria-checked={prompt.enabled ? 'true' : 'false'}
-                  tabIndex={0}
-                  className={prompt.enabled ? 'mcp-toggle checked' : 'mcp-toggle'}
-                  onClick={() => void handleToggle(prompt)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      void handleToggle(prompt);
-                    }
-                  }}
+                <Switch
+                  checked={prompt.enabled}
+                  onChange={() => void handleToggle(prompt)}
+                  aria-label={isChinese ? `启用 ${prompt.name}` : `Enable ${prompt.name}`}
                 />
               </li>
             ))

@@ -7,6 +7,7 @@ import type { ReactElement } from 'react';
 import { buildCapabilityMatrix } from '@piwin/contracts';
 import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
 import { useDesktopLocale } from '../../desktop-locale-context';
+import { Switch } from '@piwin/ui-kit';
 import { RememberedPermissionsSection } from '../../RememberedPermissionsSection';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
@@ -116,18 +117,9 @@ export function GeneralPage(): ReactElement {
             label={locale === 'zh-CN' ? '在线模式' : 'Online mode'}
             description={locale === 'zh-CN' ? '开启后连接到 Host 与模型；关闭则保持离线（Mock）。' : 'Connect to host/model when enabled; stay offline (Mock) when disabled.'}
           >
-            <span
-              role="switch"
-              aria-checked={config.agentMock !== true ? 'true' : 'false'}
-              tabIndex={0}
-              className={config.agentMock === true ? 'mcp-toggle' : 'mcp-toggle checked'}
-              onClick={() => void handleToggleMock(config.agentMock !== true)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  void handleToggleMock(config.agentMock !== true);
-                }
-              }}
+            <Switch
+              checked={config.agentMock !== true}
+              onChange={() => void handleToggleMock(config.agentMock !== true)}
             />
           </FieldRow>
         ) : null}

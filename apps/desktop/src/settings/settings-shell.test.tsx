@@ -71,8 +71,8 @@ function createContextValue(
   };
 }
 
-function ShellHarness(): ReactElement {
-  const [section, setSection] = useState<SettingsSectionId>('rules');
+function ShellHarness({ initialSection = 'general' }: { initialSection?: SettingsSectionId }): ReactElement {
+  const [section, setSection] = useState<SettingsSectionId>(initialSection);
   return (
     <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
       <SettingsShell
@@ -122,9 +122,10 @@ describe('SettingsShell', () => {
 
   it('switches content when a nav item is clicked', () => {
     act(() => {
-      root.render(<ShellHarness />);
+      root.render(<ShellHarness initialSection="skills" />);
     });
-    // Registered Wave-1 page (rules) renders through the registry.
+    // Registered Wave-1 page (skills) renders through the registry; it also
+    // carries the merged rules placeholder.
     expect(container.querySelector('[data-testid="settings-rules-empty"]')).not.toBeNull();
 
     // Models (Wave 3) renders through the registry; config is null in this

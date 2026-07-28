@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { Button, Dialog, IconButton } from '@piwin/ui-kit';
+import { Button, Collapse, DropdownMenu, DropdownMenuItem, IconButton, Modal } from '@piwin/ui-kit';
 import type {
   ModelConfigEntry,
   ModelDiscoveryResult,
@@ -182,22 +182,36 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const [autoSaveStatus, setAutoSaveStatus] = useState<string>('');
   const [autoSaveAttempt, setAutoSaveAttempt] = useState(0);
   const autoSaveInFlightRef = useRef(false);
+  const lastSelectedIdRef = useRef<string | null>(null);
+  const headerNameRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const lastAddedHeaderIdRef = useRef<string | null>(null);
 
   const selectedProvider = useMemo(
     () => config.providers.find((p) => p.id === selectedId) ?? null,
     [config.providers, selectedId],
   );
 
-  // Sync draft to selection.
+  // Sync draft to selection, but not on every config auto-save; that would
+  // recreate header rows and lose focus/scroll position.
   useEffect(() => {
-    if (selectedProvider) {
+    if (selectedProvider && lastSelectedIdRef.current !== selectedId) {
       setDraft(providerToDraft(selectedProvider));
       setDirty(false);
       setAutoSaveStatus('');
-    } else {
+    } else if (!selectedProvider) {
       setDraft(null);
     }
-  }, [selectedProvider]);
+    lastSelectedIdRef.current = selectedId;
+  }, [selectedId, selectedProvider]);
+
+  // Focus the name input of a newly added header row.
+  useEffect(() => {
+    const id = lastAddedHeaderIdRef.current;
+    if (id && headerNameRefs.current[id]) {
+      headerNameRefs.current[id]?.focus();
+      lastAddedHeaderIdRef.current = null;
+    }
+  }, [draft?.headerRows]);
 
   const markDraft = useCallback((next: ProviderDraft) => {
     setDraft(next);
@@ -461,6 +475,26 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
               +
             </button>
           )}
+          {selectedId && (
+            <DropdownMenu
+              align="end"
+              side="bottom"
+              label={locale === 'zh-CN' ? '提供商操作' : 'Provider actions'}
+              trigger={
+                <button
+                  type="button"
+                  className="segmented-control-item"
+                  aria-label={locale === 'zh-CN' ? '提供商操作' : 'Provider actions'}
+                >
+                  ⋮
+                </button>
+              }
+            >
+              <DropdownMenuItem danger onSelect={() => void handleDelete()}>
+                {copy.deleteProvider}
+              </DropdownMenuItem>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Detail panel */}
@@ -494,15 +528,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                               ? (locale === 'zh-CN' ? '保存失败' : 'Save failed')
                               : ''}
                     </span>
-                    <IconButton
-                      label={common.remove}
-                      className="provider-icon-btn--danger"
-                      onClick={() => void handleDelete()}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M3 4h10M6 4V2.75h4V4M5 6.25v5.5M8 6.25v5.5M11 6.25v5.5M4 4l.5 9h7l.5-9" />
-                      </svg>
-                    </IconButton>
                   </div>
                 }
               />
@@ -563,22 +588,27 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                   <Button
                     size="compact"
                     variant="ghost"
-                    onClick={() =>
+                    onClick={() => {
+                      const row = createHeaderRow();
+                      lastAddedHeaderIdRef.current = row.id;
                       markDraft({
                         ...draft,
-                        headerRows: [...draft.headerRows, createHeaderRow()],
-                      })
-                    }
+                        headerRows: [...draft.headerRows, row],
+                      });
+                    }}
                     data-testid="provider-header-add"
                   >
                     + {copy.addHeader}
                   </Button>
                 </div>
-                {draft.headerRows.length > 0 ? (
+                <Collapse expanded={draft.headerRows.length > 0}>
                   <ul className="provider-header-list" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {draft.headerRows.map((row) => (
                       <li key={row.id} className="provider-header-row" style={{ display: 'flex', gap: '8px' }}>
                         <input
+                          ref={(element) => {
+                            headerNameRefs.current[row.id] = element;
+                          }}
                           value={row.name}
                           onChange={(event) =>
                             markDraft({
@@ -622,7 +652,8 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                       </li>
                     ))}
                   </ul>
-                ) : (
+                </Collapse>
+                {draft.headerRows.length === 0 && (
                   <p className="muted" style={{ fontSize: '12.5px', marginTop: -4 }}>{copy.requestHeadersHint}</p>
                 )}
               </div>
@@ -648,42 +679,32 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
         )}
       </div>
 
-      <Dialog
-        label={copy.addProviderTitle}
+      <Modal
+        title={copy.addProviderTitle}
         open={addOpen}
         onOpenChange={setAddOpen}
         testId="provider-add-dialog"
-        closeOnInteractOutside
+        size="md"
       >
-        <div className="cherry-dialog cherry-dialog--add">
-          <header className="cherry-dialog-header">
-            <h3>{copy.addProviderTitle}</h3>
-            <IconButton label={common.close} onClick={() => setAddOpen(false)}>
-              <IconClose width={16} height={16} />
-            </IconButton>
-          </header>
-          <div className="cherry-dialog-body">
-            <ul className="provider-preset-list" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {PROVIDER_PRESETS.map((preset) => (
-                <li key={preset.id}>
-                  <button
-                    type="button"
-                    className="provider-preset-item"
-                    style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
-                    onClick={() => void handleAddFromPreset(preset)}
-                  >
-                    <span style={{ fontSize: '20px' }}>{preset.icon || '🤖'}</span>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <strong style={{ fontSize: '14.5px' }}>{preset.name}</strong>
-                      <span className="muted" style={{ fontSize: '12px' }}>{preset.protocol}</span>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </Dialog>
+        <ul className="provider-preset-list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {PROVIDER_PRESETS.map((preset) => (
+            <li key={preset.id}>
+              <button
+                type="button"
+                className="provider-preset-item"
+                style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                onClick={() => void handleAddFromPreset(preset)}
+              >
+                <span style={{ fontSize: '20px' }}>{preset.icon || '🤖'}</span>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <strong style={{ fontSize: '14.5px' }}>{preset.name}</strong>
+                  <span className="muted" style={{ fontSize: '12px' }}>{preset.protocol}</span>
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </Modal>
 
       <ProviderKeyManagerDialog
         open={keyManagerOpen}

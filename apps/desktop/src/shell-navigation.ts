@@ -16,12 +16,14 @@ export type ShellSettingsSection =
   | 'tools'
   | 'web'
   | 'models'
-  | 'agents'
-  | 'rules'
   | 'pets'
   | 'memory'
   | 'automation'
-  | 'session';
+  | 'session'
+  // Legacy deep links preserved for backward compatibility; consumers should
+  // normalize through the section registry before rendering.
+  | 'agents'
+  | 'rules';
 
 export type ShellRoute =
   | { kind: 'workspace' }

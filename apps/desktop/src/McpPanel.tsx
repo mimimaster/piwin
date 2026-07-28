@@ -9,6 +9,7 @@ import {
   Field,
   Notice,
   Spinner,
+  Switch,
   Tabs,
   TabsContent,
   TabsList,
@@ -339,22 +340,17 @@ export function McpPanel(props: McpPanelProps) {
                           </div>
                         </div>
                         <div className="mcp-server-card-actions">
-                          <span
-                            role="switch"
-                            aria-checked={isEnabled ? 'true' : 'false'}
-                            tabIndex={0}
-                            className={isEnabled ? 'mcp-toggle checked' : 'mcp-toggle'}
-                            onClick={(event) => {
+                          <Switch
+                            checked={isEnabled}
+                            onChange={(event) => {
                               event.stopPropagation();
                               void handleToggleServer(serverId, !isEnabled);
                             }}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                void handleToggleServer(serverId, !isEnabled);
-                              }
-                            }}
+                            aria-label={
+                              isChinese
+                                ? `切换 ${serverId}`
+                                : `Toggle ${serverId}`
+                            }
                           />
                           <DropdownMenu
                             align="end"

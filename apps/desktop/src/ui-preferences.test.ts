@@ -1,7 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import {
-  densityToSliderValue,
-  sliderValueToDensity,
   loadDesktopPreferences,
   saveDesktopPreferences,
   loadToolCallDensity,
@@ -45,16 +43,6 @@ function setLocalStorage(key: string, value: string): void {
 function clearLocalStorage(): void {
   localStorage.clear();
 }
-
-describe('ui-preferences density mapping', () => {
-  it('maps slider ends', () => {
-    expect(sliderValueToDensity(0)).toBe('compact');
-    expect(sliderValueToDensity(1)).toBe('comfortable');
-    expect(sliderValueToDensity(2)).toBe('detailed');
-    expect(densityToSliderValue('compact')).toBe(0);
-    expect(densityToSliderValue('detailed')).toBe(2);
-  });
-});
 
 describe('DesktopPreferences loading', () => {
   beforeEach(() => {

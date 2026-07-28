@@ -4,6 +4,7 @@
  */
 import type { ReactElement } from 'react';
 import type { PiwinConfig } from '@piwin/contracts';
+import { Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
@@ -41,18 +42,9 @@ export function SessionPage(): ReactElement {
             label={locale === 'zh-CN' ? '自动上下文压缩' : 'Auto-compaction'}
             description={locale === 'zh-CN' ? '新会话默认开启上下文压缩以节省 Token。' : 'Enable context compaction by default for new sessions to save tokens.'}
           >
-            <span
-              role="switch"
-              aria-checked={config.compaction?.autoEnabledDefault !== false ? 'true' : 'false'}
-              tabIndex={0}
-              className={config.compaction?.autoEnabledDefault !== false ? 'mcp-toggle checked' : 'mcp-toggle'}
-              onClick={() => void handleToggleAutoCompact(config.compaction?.autoEnabledDefault === false)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  void handleToggleAutoCompact(config.compaction?.autoEnabledDefault === false);
-                }
-              }}
+            <Switch
+              checked={config.compaction?.autoEnabledDefault !== false}
+              onChange={() => void handleToggleAutoCompact(config.compaction?.autoEnabledDefault === false)}
             />
           </FieldRow>
         ) : null}

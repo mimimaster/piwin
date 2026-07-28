@@ -15,8 +15,6 @@ export type SettingsSectionId =
   | 'general'
   | 'appearance'
   | 'models'
-  | 'agents'
-  | 'rules'
   | 'skills'
   | 'extensions'
   | 'prompts'
@@ -26,6 +24,14 @@ export type SettingsSectionId =
   | 'memory'
   | 'automation'
   | 'pets';
+
+/** Legacy settings deep links that now redirect to a canonical section. */
+export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionId>> = {
+  rules: 'skills',
+  agents: 'automation',
+} as const;
+
+export type LegacySettingsSectionId = keyof typeof LEGACY_SETTINGS_REDIRECTS;
 
 export type SettingsGroupId =
   | 'application'
@@ -49,14 +55,12 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'models', group: 'agent', labelKey: 'models' },
   { id: 'session', group: 'agent', labelKey: 'sessions' },
   { id: 'memory', group: 'agent', labelKey: 'memory', beta: true },
-  { id: 'rules', group: 'agent', labelKey: 'rules' },
   { id: 'skills', group: 'integrations', labelKey: 'skills' },
   { id: 'web', group: 'integrations', labelKey: 'web' },
   { id: 'tools', group: 'integrations', labelKey: 'tools' },
   { id: 'extensions', group: 'integrations', labelKey: 'extensions', beta: true },
   { id: 'prompts', group: 'integrations', labelKey: 'prompts' },
   { id: 'automation', group: 'system', labelKey: 'automation', beta: true },
-  { id: 'agents', group: 'system', labelKey: 'agents', beta: true },
   { id: 'pets', group: 'personalization', labelKey: 'pets' },
 ] as const;
 
@@ -77,6 +81,22 @@ export const SETTINGS_GROUPS: readonly {
 
 export function isSettingsSectionId(value: string): value is SettingsSectionId {
   return SETTINGS_SECTIONS.some((section) => section.id === value);
+}
+
+export function isLegacySettingsSectionId(value: string): value is LegacySettingsSectionId {
+  return Object.prototype.hasOwnProperty.call(LEGACY_SETTINGS_REDIRECTS, value);
+}
+
+/** Resolve legacy deep links (e.g. `rules`, `agents`) to their canonical section. */
+export function normalizeSettingsSection(value: string): SettingsSectionId {
+  const redirect = LEGACY_SETTINGS_REDIRECTS[value];
+  if (redirect) {
+    return redirect;
+  }
+  if (isSettingsSectionId(value)) {
+    return value;
+  }
+  return 'general';
 }
 
 export function sectionsForGroup(group: SettingsGroupId): SettingsSectionMeta[] {

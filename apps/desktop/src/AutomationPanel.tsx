@@ -6,7 +6,7 @@ import type {
   HostResponse,
   PiwinConfig,
 } from '@piwin/contracts';
-import { Button, Notice, Spinner, IconButton } from '@piwin/ui-kit';
+import { Button, Collapse, Notice, Spinner, Switch, IconButton } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 import { FieldRow } from './settings/field-row';
@@ -120,17 +120,14 @@ export function AutomationPanel(props: AutomationPanelProps) {
             label={isChinese ? '启用自动化' : 'Enable Automation'}
             description={isChinese ? '开启 Cron 调度与事件钩子。' : 'Enable Cron scheduling and event hooks.'}
           >
-            <span
-              role="switch"
-              aria-checked={enabled ? 'true' : 'false'}
-              tabIndex={0}
-              className={enabled ? 'mcp-toggle checked' : 'mcp-toggle'}
-              onClick={() => void saveAutomation({ ...config?.automation, enabled: !enabled } as any)}
+            <Switch
+              checked={enabled}
+              onChange={() => void saveAutomation({ ...config?.automation, enabled: !enabled } as any)}
             />
           </FieldRow>
         </div>
 
-        <div className="settings-collapsible" style={{ display: enabled ? 'contents' : 'none' }}>
+        <Collapse expanded={enabled} className="settings-collapsible">
           <div className="settings-section">
             <PageTitle
               title={isChinese ? '定时任务 (Cron)' : 'Scheduled Jobs (Cron)'}
@@ -187,7 +184,7 @@ export function AutomationPanel(props: AutomationPanelProps) {
               )}
             </ul>
           </div>
-        </div>
+        </Collapse>
 
         {loading && <div style={{ textAlign: 'center', padding: '20px' }}><Spinner /></div>}
         {error ? <Notice tone="error">{error}</Notice> : null}

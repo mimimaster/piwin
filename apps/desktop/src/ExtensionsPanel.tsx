@@ -6,7 +6,7 @@ import type {
   HostResponse,
   InstallSource,
 } from '@piwin/contracts';
-import { Button, Field, Notice, Spinner } from '@piwin/ui-kit';
+import { Button, Field, Notice, Spinner, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
@@ -177,18 +177,10 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                   </div>
                   <div className="muted ext-desc">{extension.description}</div>
                 </div>
-                <span
-                  role="switch"
-                  aria-checked={extension.enabled ? 'true' : 'false'}
-                  tabIndex={0}
-                  className={extension.enabled ? 'mcp-toggle checked' : 'mcp-toggle'}
-                  onClick={() => void handleToggle(extension)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      void handleToggle(extension);
-                    }
-                  }}
+                <Switch
+                  checked={extension.enabled}
+                  onChange={() => void handleToggle(extension)}
+                  aria-label={isChinese ? `启用 ${extension.name}` : `Enable ${extension.name}`}
                 />
               </li>
             ))
