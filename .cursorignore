@@ -166,6 +166,8 @@ Cargo.lock
 # ---------------------------------------------------------------------------
 # Images
 *.png
+# Reviewed visual-regression baselines must stay visible to agents/review tooling.
+!apps/desktop/e2e/visual-regression.spec.ts-snapshots/*.png
 *.jpg
 *.jpeg
 *.gif

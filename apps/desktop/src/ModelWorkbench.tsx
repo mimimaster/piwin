@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import type { DiscoveredModel, ModelConfigEntry, ModelDiscoveryResult, ModelProviderConfig } from '@piwin/contracts';
-import { Button } from '@piwin/ui-kit';
+import { Button, Field, Notice, Spinner } from '@piwin/ui-kit';
 import { AddModelDialog } from './AddModelDialog';
 import { DiscoverModelsDialog } from './DiscoverModelsDialog';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -10,6 +10,7 @@ import {
   mergeDiscoveredModels,
   type ModelConfigurationDraft,
 } from './model-configuration';
+import { PageTitle } from './settings/page-title';
 
 export type ModelWorkbenchProps = {
   provider: ModelProviderConfig;
@@ -26,26 +27,22 @@ function localizeFetchError(message: string, isChinese: boolean): string {
   const lower = message.toLowerCase();
   if (lower.includes('no api key') || lower.includes('could not be resolved') || lower.includes('没有可用')) {
     return isChinese
-      ? '没有可用的 API 密钥。请在上方粘贴密钥后重试；本地无密钥服务请留空密钥。'
-      : 'No usable API key. Paste a key above and retry, or leave blank for local no-auth.';
+      ? '没有可用的 API 密钥。'
+      : 'No usable API key.';
   }
   if (lower.includes('timed out') || lower.includes('超时')) {
-    return isChinese ? '获取超时。请检查 API 地址是否可访问。' : 'Timed out. Check that the API address is reachable.';
-  }
-  if (lower.includes('401')) {
-    return isChinese ? '认证失败（401）。请检查密钥。' : 'Auth failed (401). Check the API key.';
-  }
-  if (lower.includes('404')) {
-    return isChinese ? '找不到模型列表接口（404）。请检查 API 地址。' : 'Models endpoint not found (404). Check the API address.';
+    return isChinese ? '获取超时。' : 'Timed out.';
   }
   return message;
 }
 
-function formatTokenCount(value: number | undefined): string {
-  if (value === undefined) return '—';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(0)}K`;
-  return String(value);
+function formatTokenCount(value: string | number | undefined): string {
+  if (value === undefined || value === '') return '—';
+  const num = typeof value === 'string' ? parseInt(value, 10) : value;
+  if (isNaN(num)) return '—';
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(0)}K`;
+  return String(num);
 }
 
 type ModelTestState = {
@@ -53,12 +50,6 @@ type ModelTestState = {
   message: string;
 };
 
-/**
- * Full-width model directory: one row per model (mono name, status pill,
- * ctx/out summary), click to expand inline. Expanded area exposes identity +
- * Runtime Limits (context window / max output) editing plus row actions
- * (send test message, set default, remove).
- */
 export function ModelWorkbench({
   provider,
   disabled,
@@ -97,13 +88,9 @@ export function ModelWorkbench({
   }
 
   function removeModel(modelId: string): void {
-    if (provider.models.length <= 1) {
-      return;
-    }
+    if (provider.models.length <= 1) return;
     onModelsChange(provider.models.filter((model) => model.id !== modelId));
-    if (expandedId === modelId) {
-      setExpandedId(null);
-    }
+    if (expandedId === modelId) setExpandedId(null);
   }
 
   async function handleFetchModels(): Promise<void> {
@@ -113,25 +100,13 @@ export function ModelWorkbench({
     try {
       const result = await onDiscoverModels(provider);
       if (result.models.length === 0) {
-        setFetchError(isChinese ? '接口没有返回任何模型。' : 'The endpoint returned no models.');
-        return;
-      }
-      const configuredIds = new Set(provider.models.map((model) => model.id));
-      const newCount = result.models.filter((model) => !configuredIds.has(model.id)).length;
-      if (newCount === 0) {
-        setFetchInfo(
-          isChinese
-            ? `已获取 ${result.models.length} 个模型，均已在列表中。`
-            : `Fetched ${result.models.length} models; all already listed.`,
-        );
+        setFetchError(isChinese ? '接口未返回模型。' : 'No models returned.');
         return;
       }
       setPickerModels(result.models);
       setPickerOpen(true);
     } catch (error) {
-      setFetchError(
-        localizeFetchError(error instanceof Error ? error.message : String(error), isChinese),
-      );
+      setFetchError(localizeFetchError(error instanceof Error ? error.message : String(error), isChinese));
     } finally {
       setFetching(false);
     }
@@ -145,25 +120,15 @@ export function ModelWorkbench({
     }));
     try {
       const result = await onTestModel(provider, modelId);
-      const seconds = (result.durationMs / 1000).toFixed(result.durationMs >= 1000 ? 1 : 2);
+      const seconds = (result.durationMs / 1000).toFixed(1);
       setTestStatus((current) => ({
         ...current,
-        [modelId]: {
-          tone: 'ok',
-          message: isChinese ? `可用 · ${seconds}s` : `Available · ${seconds}s`,
-        },
+        [modelId]: { tone: 'ok', message: isChinese ? `可用 · ${seconds}s` : `Available · ${seconds}s` },
       }));
     } catch (error) {
-      const message = localizeFetchError(
-        error instanceof Error ? error.message : String(error),
-        isChinese,
-      );
       setTestStatus((current) => ({
         ...current,
-        [modelId]: {
-          tone: 'error',
-          message: isChinese ? `失败 · ${message}` : `Failed · ${message}`,
-        },
+        [modelId]: { tone: 'error', message: isChinese ? '失败' : 'Failed' },
       }));
     } finally {
       setTestingModelId(null);
@@ -172,37 +137,35 @@ export function ModelWorkbench({
 
   function handleSaveExpandedModel(originalId: string, draft: ModelConfigurationDraft): void {
     const nextModels = applyModelConfigurationDraft(provider.models, originalId, draft);
-    if (!nextModels) {
-      return;
+    if (nextModels) {
+      onModelsChange(nextModels);
+      setExpandedId(null);
     }
-    onModelsChange(nextModels);
-    setExpandedId(null);
   }
 
   return (
     <div className="model-workbench" data-testid="model-workbench">
-      {/* Header */}
-      <div className="model-dir-header">
-        <h4 className="model-dir-title">
-          {isChinese ? '模型目录' : 'Model directory'}
-          <span className="model-dir-count">{provider.models.length}</span>
-        </h4>
-      </div>
+      <PageTitle
+        title={isChinese ? '模型目录' : 'Model Directory'}
+        description={isChinese ? '管理此提供商下的模型及其运行时限制。' : 'Manage models and their runtime limits.'}
+        trailing={
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button size="compact" variant="ghost" disabled={disabled || fetching} onClick={handleFetchModels}>
+              {fetching ? <Spinner /> : (isChinese ? '自动发现' : 'Discover')}
+            </Button>
+            <Button size="compact" disabled={disabled} onClick={() => setAddOpen(true)}>
+              + {isChinese ? '添加' : 'Add'}
+            </Button>
+          </div>
+        }
+      />
 
-      {/* Banners */}
-      {fetchError ? (
-        <p className="model-dir-banner model-dir-banner--error" data-testid="discover-models-error">
-          {fetchError}
-        </p>
-      ) : null}
-      {fetchInfo ? (
-        <p className="model-dir-banner model-dir-banner--info">{fetchInfo}</p>
-      ) : null}
+      {fetchError && <Notice tone="error">{fetchError}</Notice>}
+      {fetchInfo && <Notice tone="info">{fetchInfo}</Notice>}
 
-      {/* Directory */}
-      <div className="model-dir" role="list">
+      <div className="ext-list" style={{ marginTop: 12 }}>
         {provider.models.length === 0 ? (
-          <p className="model-dir-empty muted">{copy.modelsEmpty}</p>
+          <li className="muted" style={{ textAlign: 'center', padding: '32px' }}>{copy.modelsEmpty}</li>
         ) : (
           provider.models.map((model) => {
             const isExpanded = expandedId === model.id;
@@ -212,86 +175,55 @@ export function ModelWorkbench({
             return (
               <div
                 key={model.id}
-                className={isExpanded ? 'model-dir-row model-dir-row--expanded' : 'model-dir-row'}
-                role="listitem"
+                className={isExpanded ? 'ext-list-item active' : 'ext-list-item'}
+                style={{ flexDirection: 'column', alignItems: 'stretch', padding: '4px' }}
               >
-                <button
-                  type="button"
-                  className="model-dir-row-main"
-                  onClick={() => setExpandedId(isExpanded ? null : model.id)}
-                  aria-expanded={isExpanded}
+                <div
                   data-testid="model-dir-row"
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', cursor: 'pointer' }}
+                  onClick={() => setExpandedId(isExpanded ? null : model.id)}
                 >
-                  <span className="model-dir-name">
-                    <code className="model-dir-id">{model.id}</code>
-                    {model.label && model.label !== model.id ? (
-                      <span className="model-dir-label">{model.label}</span>
-                    ) : null}
-                  </span>
-                  {isDefault ? (
-                    <span className="model-dir-pill model-dir-pill--default">
-                      {isChinese ? '默认' : 'Default'}
-                    </span>
-                  ) : null}
-                  {status ? (
-                    <span
-                      className={`model-dir-pill model-dir-pill--${status.tone}`}
-                      data-testid="model-test-status"
-                    >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ fontFamily: 'var(--mono)', fontSize: '13.5px' }}>{model.id}</strong>
+                      {isDefault && <span className="pill">默认</span>}
+                    </div>
+                    <div className="muted" style={{ fontSize: '11.5px', marginTop: 2 }}>
+                      {formatTokenCount(model.contextWindow)} ctx · {formatTokenCount(model.maxOutputTokens)} out
+                    </div>
+                  </div>
+                  {status && (
+                    <span className={`mcp-status ${status.tone === 'ok' ? 'running' : status.tone === 'error' ? 'error' : 'starting'}`} style={{ fontSize: '11.5px' }}>
                       {status.message}
                     </span>
-                  ) : null}
-                  <span className="model-dir-summary">
-                    {formatTokenCount(model.contextWindow)} ctx · {formatTokenCount(model.maxOutputTokens)} out
-                  </span>
-                </button>
+                  )}
+                  <div className="muted" style={{ fontSize: '12px', opacity: 0.5 }}>
+                    {isExpanded ? '↑' : '↓'}
+                  </div>
+                </div>
 
-                {isExpanded ? (
-                  <ModelInlineEditor
-                    key={model.id}
-                    model={model}
-                    disabled={disabled}
-                    isChinese={isChinese}
-                    isDefault={isDefault}
-                    testing={testingModelId === model.id}
-                    canRemove={provider.models.length > 1}
-                    onSave={(updated) => handleSaveExpandedModel(model.id, updated)}
-                    onCancel={() => setExpandedId(null)}
-                    onTest={() => void handleTestModel(model.id)}
-                    onSetDefault={() => onSetDefaultModel(model.id)}
-                    onRemove={() => removeModel(model.id)}
-                    removeLabel={common.remove}
-                  />
-                ) : null}
+                {isExpanded && (
+                  <div style={{ padding: '20px 12px 12px', borderTop: '1px solid var(--line-soft)', background: 'var(--surface-inset)', borderRadius: '0 0 8px 8px' }}>
+                    <ModelInlineEditor
+                      model={model}
+                      disabled={disabled}
+                      isChinese={isChinese}
+                      isDefault={isDefault}
+                      testing={testingModelId === model.id}
+                      canRemove={provider.models.length > 1}
+                      onSave={(updated) => handleSaveExpandedModel(model.id, updated)}
+                      onCancel={() => setExpandedId(null)}
+                      onTest={() => void handleTestModel(model.id)}
+                      onSetDefault={() => onSetDefaultModel(model.id)}
+                      onRemove={() => removeModel(model.id)}
+                      removeLabel={common.remove}
+                    />
+                  </div>
+                )}
               </div>
             );
           })
         )}
-      </div>
-
-      {/* Directory actions */}
-      <div className="model-dir-actions">
-        <Button
-          size="compact"
-          disabled={disabled}
-          onClick={() => setAddOpen(true)}
-          aria-label={copy.addModel}
-          data-testid="add-model-btn"
-        >
-          {isChinese ? '＋ 手动添加模型' : `+ ${copy.addModel}`}
-        </Button>
-        <Button
-          size="compact"
-          disabled={disabled || fetching}
-          onClick={() => void handleFetchModels()}
-          data-testid="discover-models-btn"
-        >
-          {fetching
-            ? (isChinese ? '获取中…' : 'Fetching…')
-            : isChinese
-              ? '从 API 发现模型'
-              : copy.fetchModelList}
-        </Button>
       </div>
 
       <DiscoverModelsDialog
@@ -304,7 +236,7 @@ export function ModelWorkbench({
       <AddModelDialog
         open={isAddOpen}
         onOpenChange={setAddOpen}
-        existingModelIds={provider.models.map((model) => model.id)}
+        existingModelIds={provider.models.map((m) => m.id)}
         onAdd={addManualModel}
       />
     </div>
@@ -343,156 +275,73 @@ function ModelInlineEditor({
   const [local, setLocal] = useState<ModelConfigurationDraft>(() =>
     createModelConfigurationDraft(model),
   );
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   return (
-    <div className="model-dir-editor" data-testid="model-dir-editor">
-      <div className="model-dir-editor-grid">
-        {/* Identity */}
-        <div className="model-dir-editor-column">
-          <h5 className="model-dir-editor-heading">{isChinese ? '基本' : 'Basic'}</h5>
-          <div className="model-dir-editor-field">
-            <label className="model-dir-editor-label">
-              {isChinese ? 'API 模型' : 'API model'}
-            </label>
-            <input
-              className="model-dir-editor-input model-dir-editor-input--code"
-              value={local.id}
-              onChange={(event) => setLocal({ ...local, id: event.target.value })}
-              spellCheck={false}
-              data-testid="model-edit-id"
-            />
-          </div>
-          <div className="model-dir-editor-field">
-            <label className="model-dir-editor-label">
-              {isChinese ? '显示名称' : 'Display name'}
-            </label>
-            <input
-              className="model-dir-editor-input"
-              value={local.label}
-              onChange={(event) => setLocal({ ...local, label: event.target.value })}
-              spellCheck={false}
-              data-testid="model-edit-label"
-            />
-          </div>
-        </div>
-
-        {/* Runtime limits */}
-        <div className="model-dir-editor-column">
-          <h5 className="model-dir-editor-heading">{isChinese ? '运行时限制' : 'Runtime limits'}</h5>
-          <div className="model-dir-editor-field">
-            <label className="model-dir-editor-label">
-              {isChinese ? '上下文窗口' : 'Context window'}
-              <span className="model-dir-editor-unit">tokens</span>
-            </label>
-            <input
-              className="model-dir-editor-input model-dir-editor-input--code"
-              value={local.contextWindow}
-              onChange={(event) => setLocal({ ...local, contextWindow: event.target.value })}
-              placeholder="128000"
-              inputMode="numeric"
-              spellCheck={false}
-              data-testid="model-edit-context"
-            />
-          </div>
-          <div className="model-dir-editor-field">
-            <label className="model-dir-editor-label">
-              {isChinese ? '最大输出' : 'Max output'}
-              <span className="model-dir-editor-unit">tokens</span>
-            </label>
-            <input
-              className="model-dir-editor-input model-dir-editor-input--code"
-              value={local.maxOutputTokens}
-              onChange={(event) => setLocal({ ...local, maxOutputTokens: event.target.value })}
-              placeholder="16384"
-              inputMode="numeric"
-              spellCheck={false}
-              data-testid="model-edit-output"
-            />
-          </div>
-          <p className="model-dir-editor-hint">
-            {isChinese
-              ? '留空回退到 provider 默认值'
-              : 'Leave blank to fall back to the provider default'}
-          </p>
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div className="mcp-form-grid">
+        <Field label={isChinese ? '模型 ID' : 'Model ID'}>
+          <input
+            className="mcp-raw-editor"
+            style={{ height: 'auto', padding: '8px 12px' }}
+            value={local.id}
+            onChange={(e) => setLocal({ ...local, id: e.target.value })}
+            spellCheck={false}
+          />
+        </Field>
+        <Field label={isChinese ? '显示名称' : 'Display Name'}>
+          <input
+            className="mcp-raw-editor"
+            style={{ height: 'auto', padding: '8px 12px' }}
+            value={local.label}
+            onChange={(e) => setLocal({ ...local, label: e.target.value })}
+            spellCheck={false}
+          />
+        </Field>
       </div>
 
-      {/* Advanced: tooltip markdown */}
-      <Button
-        variant="ghost"
-        className="model-dir-editor-advanced-toggle"
-        onClick={() => setShowAdvanced(!showAdvanced)}
-      >
-        {showAdvanced
-          ? (isChinese ? '收起高级' : 'Hide advanced')
-          : (isChinese ? '高级' : 'Advanced')}
-      </Button>
-      {showAdvanced ? (
-        <div className="model-dir-editor-field">
-          <label className="model-dir-editor-label">
-            {isChinese ? '悬停说明' : 'Tooltip (Markdown)'}
-          </label>
-          <textarea
-            className="model-dir-editor-textarea"
-            value={local.tooltipMarkdown}
-            onChange={(event) => setLocal({ ...local, tooltipMarkdown: event.target.value })}
-            rows={3}
-            spellCheck={false}
-            data-testid="model-edit-tooltip"
+      <div className="mcp-form-grid">
+        <Field label={isChinese ? '上下文窗口 (Tokens)' : 'Context Window'}>
+          <input
+            className="mcp-raw-editor"
+            style={{ height: 'auto', padding: '8px 12px' }}
+            value={local.contextWindow}
+            onChange={(e) => setLocal({ ...local, contextWindow: e.target.value })}
+            inputMode="numeric"
+            data-testid="model-edit-context"
           />
-        </div>
-      ) : null}
+        </Field>
+        <Field label={isChinese ? '最大输出 (Tokens)' : 'Max Output'}>
+          <input
+            className="mcp-raw-editor"
+            style={{ height: 'auto', padding: '8px 12px' }}
+            value={local.maxOutputTokens}
+            onChange={(e) => setLocal({ ...local, maxOutputTokens: e.target.value })}
+            inputMode="numeric"
+            data-testid="model-edit-output"
+          />
+        </Field>
+      </div>
 
-      {/* Row actions */}
-      <div className="model-dir-editor-actions">
-        <div className="model-dir-editor-actions-left">
-          <Button
-            size="compact"
-            disabled={disabled || testing}
-            onClick={onTest}
-            data-testid="model-test-btn"
-          >
-            {testing
-              ? (isChinese ? '检测中…' : 'Testing…')
-              : isChinese
-                ? '发送测试消息'
-                : 'Send test message'}
-          </Button>
-          <Button
-            size="compact"
-            disabled={disabled || isDefault}
-            onClick={onSetDefault}
-            data-testid="model-set-default-btn"
-          >
-            {isDefault
-              ? (isChinese ? '当前默认' : 'Current default')
-              : isChinese
-                ? '设为默认'
-                : 'Set default'}
-          </Button>
-          <Button
-            size="compact"
-            className="model-dir-editor-remove"
-            disabled={disabled || !canRemove}
-            onClick={onRemove}
-            data-testid="model-remove-btn"
-          >
-            {removeLabel}
-          </Button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button variant="primary" size="compact" disabled={disabled} onClick={() => onSave(local)}>保存</Button>
+          <Button variant="ghost" size="compact" onClick={onCancel}>取消</Button>
         </div>
-        <div className="model-dir-editor-actions-right">
-          <Button variant="ghost" onClick={onCancel}>
-            {isChinese ? '取消' : 'Cancel'}
+        
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button size="compact" variant="ghost" disabled={testing || disabled} onClick={onTest}>
+            {testing ? '检测中...' : '测试模型'}
           </Button>
-          <Button
-            variant="primary"
-            disabled={disabled}
-            onClick={() => onSave(local)}
-            data-testid="model-edit-save"
-          >
-            {isChinese ? '保存' : 'Save'}
-          </Button>
+          {!isDefault && (
+            <Button size="compact" variant="ghost" disabled={disabled} onClick={onSetDefault}>
+              设为默认
+            </Button>
+          )}
+          {canRemove && (
+            <Button size="compact" variant="ghost" disabled={disabled} onClick={onRemove} style={{ color: 'var(--danger)' }}>
+              {removeLabel}
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -17,6 +17,15 @@ export type FlashcardRecord = {
   sourceHash?: string;
   /** Snapshot excerpt; card survives note edits/deletion. */
   sourceExcerpt?: string;
+  /**
+   * Folder mode: absolute, canonicalized path of the folder the card was
+   * generated from. See docs/specs/doc-flashcards.md §7.2.
+   */
+  sourceFolder?: string;
+  /** Folder mode: relative path of the source file under `sourceFolder`. */
+  sourceFile?: string;
+  /** Folder mode: 1-based line in `sourceFile` the excerpt starts on. */
+  sourceLine?: number;
   tags?: string[];
   createdAt: string;
 };
@@ -27,7 +36,34 @@ export type FlashcardCreateInput = {
   back: string;
   sourceNoteId?: string;
   sourceExcerpt?: string;
+  /** Folder mode attribution. */
+  sourceFolder?: string;
+  sourceFile?: string;
+  sourceLine?: number;
   tags?: string[];
+};
+
+/** Batch creation input — the schema `flashcard_batch_create` fills in. */
+export type FlashcardBatchCreateInput = {
+  cards: FlashcardCreateInput[];
+};
+
+/** A card that was rejected during batch creation. */
+export type FlashcardBatchSkip = {
+  front: string;
+  reason: 'duplicate' | 'validation';
+  detail?: string;
+};
+
+/** Partial-success result of `flashcard_batch_create`. */
+export type FlashcardBatchCreateResult = {
+  created: FlashcardRecord[];
+  skipped: FlashcardBatchSkip[];
+  /**
+   * Combined flip-card HTML; each card keeps its own `cardId` for
+   * rate/open-source actions. Built from `created` only.
+   */
+  artifactHtml: string;
 };
 
 export type ReviewRating = 'again' | 'hard' | 'good' | 'easy';
@@ -58,4 +94,12 @@ export type FlashcardsConfig = {
   newPerDay?: number;
   /** Review cap per day; default 200. */
   maxReviewsPerDay?: number;
+  /**
+   * When true, flashcard tools also appear on the coding (agent) profile.
+   * Default false — migration hatch for existing agent-mode flashcard users.
+   * See docs/specs/doc-flashcards.md §10.3.
+   */
+  agentModeTools?: boolean;
+  /** Max cards per `flashcard_batch_create`. Default 40. */
+  maxBatchSize?: number;
 };

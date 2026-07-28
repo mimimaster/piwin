@@ -13,6 +13,9 @@ use tauri::{AppHandle, Emitter, Manager, State};
 pub struct HostBridgeState {
     pub inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
     lifecycle: Arc<Mutex<()>>,
+    /// Remembers the last mock flag so the supervisor can restart with the
+    /// same mode. Set by `host_start_blocking` on every successful spawn.
+    mock: Arc<AtomicBool>,
 }
 
 pub(crate) struct HostProcess {
@@ -33,6 +36,16 @@ static REQUEST_SEQ: AtomicU64 = AtomicU64::new(1);
 const HOST_GRACEFUL_SHUTDOWN_TIMEOUT: Duration = Duration::from_millis(750);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
+/// Auto-restart backoff schedule (ADR: host death must not require app restart).
+/// Each entry is the delay before that retry attempt. After the schedule is
+/// exhausted, the supervisor gives up and surfaces a fatal log to the UI.
+const RESTART_BACKOFF_SCHEDULE: &[Duration] = &[
+    Duration::from_millis(500),
+    Duration::from_millis(1_000),
+    Duration::from_millis(2_000),
+    Duration::from_millis(4_000),
+];
+
 #[derive(Debug, PartialEq, Eq)]
 enum StopOutcome {
     GracefulExit,
@@ -45,6 +58,7 @@ impl Default for HostBridgeState {
         Self {
             inner: Arc::new(Mutex::new(None)),
             lifecycle: Arc::new(Mutex::new(())),
+            mock: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -55,12 +69,34 @@ struct HostLogPayload {
     message: String,
 }
 
+/// Status payload emitted to the UI so it can show reconnecting / fatal states
+/// without leaking the word "host" into user-facing copy. The UI maps
+/// `reconnecting` → "piwin 正在重连" and `fatal` → "piwin 遇到问题".
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HostStatusPayload {
+    /// "reconnecting" | "restarted" | "fatal"
+    state: String,
+    /// Retry attempt number (1-based) when state == "reconnecting".
+    attempt: Option<u32>,
+}
+
 fn emit_log(app: &AppHandle, level: &str, message: impl Into<String>) {
     let _ = app.emit(
         "host-log",
         HostLogPayload {
             level: level.to_string(),
             message: message.into(),
+        },
+    );
+}
+
+fn emit_status(app: &AppHandle, state: &str, attempt: Option<u32>) {
+    let _ = app.emit(
+        "host-status",
+        HostStatusPayload {
+            state: state.to_string(),
+            attempt,
         },
     );
 }
@@ -168,7 +204,9 @@ fn find_sidecar_node(resource_dir: &std::path::Path) -> Option<PathBuf> {
     }
     candidates.push(resource_dir.join(exe_name));
     candidates.push(resource_dir.join(&triple_name));
-    // Dev packaging dry-run: binaries next to Cargo.toml
+    // Dev packaging dry-run: binaries next to Cargo.toml.
+    // `packaged_host_paths_from_resource_dir` guards against placeholder
+    // host-serve.mjs stubs, so this candidate is safe in dev too.
     let manifest_binaries = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
     candidates.push(manifest_binaries.join(&triple_name));
     candidates.push(manifest_binaries.join(exe_name));
@@ -181,6 +219,15 @@ fn packaged_host_paths_from_resource_dir(resource_dir: &std::path::Path) -> Opti
     let node_bin = find_sidecar_node(resource_dir)?;
     if !host_js.is_file() {
         return None;
+    }
+    // Reject placeholder stubs created by `ensure-packaging-placeholders`.
+    // The real bundled host-serve.mjs is several KB; the placeholder is ~65
+    // bytes. Without this guard, dev builds spawn Node on an empty file and
+    // the sidecar exits immediately.
+    if let Ok(metadata) = std::fs::metadata(&host_js) {
+        if metadata.len() < 200 {
+            return None;
+        }
     }
     Some(PackagedHostPaths {
         node_bin,
@@ -274,15 +321,19 @@ pub async fn host_start(
 ) -> Result<Value, String> {
     let inner = Arc::clone(&state.inner);
     let lifecycle = Arc::clone(&state.lifecycle);
-    tauri::async_runtime::spawn_blocking(move || host_start_blocking(app, inner, lifecycle, mock))
-        .await
-        .map_err(|error| format!("host_start worker failed: {error}"))?
+    let mock_flag = Arc::clone(&state.mock);
+    tauri::async_runtime::spawn_blocking(move || {
+        host_start_blocking(app, inner, lifecycle, mock_flag, mock)
+    })
+    .await
+    .map_err(|error| format!("host_start worker failed: {error}"))?
 }
 
 fn host_start_blocking(
     app: AppHandle,
     inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
     lifecycle: Arc<Mutex<()>>,
+    mock_flag: Arc<AtomicBool>,
     mock: bool,
 ) -> Result<Value, String> {
     let _lifecycle_guard = lifecycle.lock().map_err(|error| error.to_string())?;
@@ -372,6 +423,11 @@ fn host_start_blocking(
     let alive_reader = Arc::clone(&alive);
     let shutting_down_reader = Arc::clone(&shutting_down);
     let app_reader = app.clone();
+    // Supervisor needs these to attempt a restart on unexpected death.
+    let inner_for_supervisor = Arc::clone(&inner);
+    let lifecycle_for_supervisor = Arc::clone(&lifecycle);
+    let mock_flag_for_supervisor = Arc::clone(&mock_flag);
+    let app_for_supervisor = app.clone();
 
     thread::spawn(move || {
         let reader = BufReader::new(stdout);
@@ -425,8 +481,19 @@ fn host_start_blocking(
             emit_log(
                 &app_reader,
                 "error",
-                "host process stdout closed — host is dead",
+                "host process stdout closed unexpectedly — supervisor will restart",
             );
+            // Spawn a supervisor thread that retries host_start with backoff.
+            // The reader thread exits after launching the supervisor; the
+            // supervisor's host_start_blocking will spawn a fresh reader.
+            thread::spawn(move || {
+                supervise_restart(
+                    app_for_supervisor,
+                    inner_for_supervisor,
+                    lifecycle_for_supervisor,
+                    mock_flag_for_supervisor,
+                );
+            });
         }
     });
 
@@ -453,8 +520,69 @@ fn host_start_blocking(
     });
     let mut guard = inner.lock().map_err(|error| error.to_string())?;
     *guard = Some(process);
+    // Remember the mock flag so the supervisor can restart with the same mode.
+    mock_flag.store(mock, Ordering::Release);
 
     Ok(serde_json::json!({ "started": true, "mock": mock }))
+}
+
+/// Supervisor: retries `host_start_blocking` with exponential backoff after an
+/// unexpected sidecar death. Emits `host-status` events so the UI can surface
+/// "reconnecting" / "fatal" states without polling. Gives up after
+/// `RESTART_BACKOFF_SCHEDULE` attempts and emits a fatal status.
+fn supervise_restart(
+    app: AppHandle,
+    inner: Arc<Mutex<Option<Arc<HostProcess>>>>,
+    lifecycle: Arc<Mutex<()>>,
+    mock_flag: Arc<AtomicBool>,
+) {
+    let mock = mock_flag.load(Ordering::Acquire);
+    for (index, delay) in RESTART_BACKOFF_SCHEDULE.iter().enumerate() {
+        let attempt = (index + 1) as u32;
+        emit_status(&app, "reconnecting", Some(attempt));
+        emit_log(
+            &app,
+            "warn",
+            format!("host supervisor: retry {}/{} in {:?} (mock={mock})", attempt, RESTART_BACKOFF_SCHEDULE.len(), delay),
+        );
+        thread::sleep(*delay);
+
+        // If a manual host_stop or a concurrent host_start already replaced
+        // the process, don't fight it — check if the current one is alive.
+        if let Some(existing) = inner.lock().ok().and_then(|guard| guard.clone()) {
+            if existing.alive.load(Ordering::Acquire) {
+                emit_log(&app, "info", "host supervisor: process already alive, aborting restart");
+                return;
+            }
+        }
+
+        match host_start_blocking(
+            app.clone(),
+            Arc::clone(&inner),
+            Arc::clone(&lifecycle),
+            Arc::clone(&mock_flag),
+            mock,
+        ) {
+            Ok(_) => {
+                emit_status(&app, "restarted", None);
+                emit_log(&app, "info", "host supervisor: restart succeeded");
+                return;
+            }
+            Err(error) => {
+                emit_log(
+                    &app,
+                    "error",
+                    format!("host supervisor: restart {}/{} failed: {error}", attempt, RESTART_BACKOFF_SCHEDULE.len()),
+                );
+            }
+        }
+    }
+    emit_status(&app, "fatal", None);
+    emit_log(
+        &app,
+        "error",
+        format!("host supervisor: exhausted {} restart attempts", RESTART_BACKOFF_SCHEDULE.len()),
+    );
 }
 
 #[tauri::command]

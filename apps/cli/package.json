@@ -16,6 +16,7 @@
   "dependencies": {
     "@piwin/agent-host": "workspace:*",
     "@piwin/contracts": "workspace:*",
+    "@piwin/doc-rag": "workspace:*",
     "@piwin/flashcards": "workspace:*",
     "@piwin/marketplace": "workspace:*",
     "@piwin/mcp": "workspace:*",

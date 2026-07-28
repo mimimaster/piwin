@@ -4,6 +4,11 @@
    longer semantically significant between region files. */
 @import './styles/tokens.css';
 @import './styles/base.css';
+/* ui-kit primitive contract (structural + state rules for .piwin- / .ui-
+   primitive classes). Must come after token definitions and before desktop
+   region styles so desktop provides variables first and regions may
+   scope-refine later. */
+@import '@piwin/ui-kit/styles.css';
 @import './styles/ui-foundations.css';
 @import './styles/region-shell.css';
 @import './styles/region-titlebar.css';

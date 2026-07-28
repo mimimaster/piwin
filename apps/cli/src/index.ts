@@ -72,6 +72,13 @@ Usage:
   piwin cards due [--deck d]
   piwin cards review [--deck d]             (interactive FSRS loop)
   piwin cards export [--deck d] [--out <path>]   (Anki TSV)
+  piwin doccards scan <folder>
+  piwin doccards index <folder>
+  piwin doccards retrieve <folder> <query> [--limit n]
+  piwin doccards list <folder>
+  piwin doccards generate <folder> [--topic t] [--limit n]   (print generation prompt)
+  piwin doccards rebind <oldPath> <newPath>
+  piwin doccards forget <folder>
   piwin cron list [--mock]
 
 Host modes: sdk | rpc
@@ -1564,6 +1571,223 @@ async function commandCards(argv: string[]): Promise<void> {
   process.exitCode = 1;
 }
 
+async function commandDocCards(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? 'help';
+  const root = getPiwinRoot();
+  const config = await loadPiwinConfig(root);
+  if (config.flashcards?.enabled === false) {
+    console.error('Flashcards disabled (config.flashcards.enabled=false).');
+    process.exitCode = 1;
+    return;
+  }
+
+  const { createFolderRag, buildFlashcardGenerationPrompt, FLASHCARD_QUALITY_RULES, canonicalizeFolderPath } = await import(
+    '@piwin/doc-rag'
+  );
+  const { createEmbeddingProvider } = await import('@piwin/notes');
+  const { createCardStore } = await import('@piwin/flashcards');
+  const { resolveNotesEmbeddingApiKey } = await import('@piwin/agent-host');
+
+  let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
+  if (config.notes?.embedding) {
+    const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
+    const provider = createEmbeddingProvider({
+      config: config.notes.embedding,
+      ...(apiKey ? { apiKey } : {}),
+    });
+    if (provider) embeddingProvider = provider;
+  }
+  const rag = createFolderRag({ piwinRoot: root, ...(embeddingProvider ? { embeddingProvider } : {}) });
+  const store = createCardStore({ piwinRoot: root });
+  let host: import('@piwin/contracts').AgentHost | undefined;
+
+  try {
+    if (sub === 'scan') {
+      const folderPath = argv[2];
+      if (!folderPath) {
+        console.error('Usage: piwin doccards scan <folder>');
+        process.exitCode = 1;
+        return;
+      }
+      const result = await rag.scanFolder(folderPath);
+      console.log(`${result.files.length} supported file(s), ${result.supportedExtensions.length} extension(s):`);
+      for (const file of result.files.slice(0, 50)) {
+        console.log(`  ${file.relativePath}\t${file.sizeBytes}B\t${file.language}`);
+      }
+      if (result.files.length > 50) console.log(`  … and ${result.files.length - 50} more`);
+      return;
+    }
+
+    if (sub === 'index') {
+      const folderPath = argv[2];
+      if (!folderPath) {
+        console.error('Usage: piwin doccards index <folder> [--files a,b]');
+        process.exitCode = 1;
+        return;
+      }
+      const includeFiles = readOption(argv, '--files')?.split(',').map((s) => s.trim()).filter(Boolean);
+      const result = await rag.indexFolder(folderPath, includeFiles?.length ? { includeFiles } : undefined);
+      console.log(`indexed ${result.indexed} file(s), ${result.chunks} chunk(s)${result.degraded ? ' (FTS-only)' : ''}, skipped ${result.skipped}`);
+      for (const warning of result.warnings) console.log(`  ! ${warning}`);
+      return;
+    }
+
+    if (sub === 'retrieve') {
+      const folderPath = argv[2];
+      const query = argv[3];
+      if (!folderPath || !query) {
+        console.error('Usage: piwin doccards retrieve <folder> <query> [--limit n] [--files a,b]');
+        process.exitCode = 1;
+        return;
+      }
+      const limit = readOption(argv, '--limit') ? Number(readOption(argv, '--limit')) : undefined;
+      const fileAllowlist = readOption(argv, '--files')?.split(',').map((s) => s.trim()).filter(Boolean);
+      const chunks = await rag.retrieve(
+        folderPath,
+        query,
+        { ...(limit ? { limit } : {}), ...(fileAllowlist?.length ? { fileAllowlist } : {}) },
+      );
+      console.log(`${chunks.length} passage(s):`);
+      for (const chunk of chunks) {
+        console.log(`\n--- ${chunk.filePath}:${chunk.startLine}-${chunk.endLine} (score ${chunk.score.toFixed(3)}) ---`);
+        console.log(chunk.content);
+      }
+      return;
+    }
+
+    if (sub === 'list') {
+      const folderPath = argv[2];
+      if (!folderPath) {
+        console.error('Usage: piwin doccards list <folder>');
+        process.exitCode = 1;
+        return;
+      }
+      const canonical = await canonicalizeFolderPath(folderPath);
+      const cards = await store.list(canonical ? { sourceFolder: canonical } : { sourceFolder: folderPath });
+      console.log(`${cards.length} card(s) from ${canonical ?? folderPath}:`);
+      for (const card of cards) {
+        const source = card.sourceFile ? ` [${card.sourceFile}${typeof card.sourceLine === 'number' ? `:${card.sourceLine}` : ''}]` : '';
+        console.log(`  ${card.id}\t${card.front.slice(0, 70)}${source}`);
+      }
+      return;
+    }
+
+    if (sub === 'generate') {
+      const folderPath = argv[2];
+      if (!folderPath) {
+        console.error('Usage: piwin doccards generate <folder> [--topic t] [--limit n] [--files a,b] [--difficulty easy|medium|hard] [--count fewer|standard|more]');
+        process.exitCode = 1;
+        return;
+      }
+      const mode = parseMode(argv);
+      const mock = parseMock(argv);
+      if (mode === 'rpc' && !mock) {
+        console.error('piwin doccards generate --mode rpc: use --mock for an offline smoke, or omit --mode to use sdk.');
+        process.exitCode = 1;
+        return;
+      }
+      const topic = readOption(argv, '--topic') ?? '';
+      const limit = readOption(argv, '--limit') ? Number(readOption(argv, '--limit')) : 10;
+      const fileAllowlist = readOption(argv, '--files')?.split(',').map((s) => s.trim()).filter(Boolean);
+      const difficulty = readOption(argv, '--difficulty') as 'easy' | 'medium' | 'hard' | undefined;
+      const count = readOption(argv, '--count') as 'fewer' | 'standard' | 'more' | undefined;
+      const canonical = await canonicalizeFolderPath(folderPath);
+      if (!canonical) {
+        console.error(`Folder not found: ${folderPath}`);
+        process.exitCode = 1;
+        return;
+      }
+
+      // Step 1: index (optionally limited to selected files), then retrieve.
+      const indexOptions = fileAllowlist?.length ? { includeFiles: fileAllowlist } : undefined;
+      await rag.indexFolder(canonical, indexOptions);
+      const query = topic || canonical;
+      const retrieveOptions = {
+        limit,
+        ...(fileAllowlist?.length ? { fileAllowlist } : {}),
+      };
+      const chunks = await rag.retrieve(canonical, query, retrieveOptions);
+      if (chunks.length === 0) {
+        console.error('No passages retrieved; index the folder first or try a different topic.');
+        process.exitCode = 1;
+        return;
+      }
+
+      // Step 2: build the flashcard generation prompt.
+      const prompt = buildFlashcardGenerationPrompt({
+        folderPath: canonical,
+        chunks,
+        ...(topic ? { topic } : {}),
+        difficulty: difficulty ?? 'medium',
+        count: count ?? 'standard',
+        qualityRules: FLASHCARD_QUALITY_RULES,
+      });
+
+      // Step 3: start a chat session and stream the generation.
+      host = createAgentHost({ mode, mock, piwinRoot: root });
+      const sessionName = `Doc cards: ${basename(canonical)}`;
+      const session = await host.createSession({
+        scope: { kind: 'general' },
+        executionMode: 'chat',
+        sessionName,
+      });
+      const unsubscribe = session.subscribe((event) => {
+        const line = formatEvent(event);
+        if (line !== null) {
+          process.stdout.write(line);
+        }
+      });
+      try {
+        await session.prompt({ text: prompt });
+        process.stdout.write('\n');
+      } finally {
+        unsubscribe();
+      }
+      return;
+    }
+
+    if (sub === 'rebind') {
+      const oldPath = argv[2];
+      const newPath = argv[3];
+      if (!oldPath || !newPath) {
+        console.error('Usage: piwin doccards rebind <oldPath> <newPath>');
+        process.exitCode = 1;
+        return;
+      }
+      const oldCanonical = await canonicalizeFolderPath(oldPath);
+      const newCanonical = await canonicalizeFolderPath(newPath);
+      const result = await store.rebindSourceFolder(oldCanonical ?? oldPath, newCanonical ?? newPath);
+      console.log(`rebound ${result.updated} card(s)`);
+      return;
+    }
+
+    if (sub === 'forget') {
+      const folderPath = argv[2];
+      if (!folderPath) {
+        console.error('Usage: piwin doccards forget <folder> [--yes]');
+        process.exitCode = 1;
+        return;
+      }
+      const canonical = await canonicalizeFolderPath(folderPath);
+      const cardCount = canonical ? (await store.list({ sourceFolder: canonical })).length : 0;
+      if (cardCount > 0 && !hasFlag(argv, '--yes')) {
+        console.error(`Folder has ${cardCount} card(s). Add --yes to forget them.`);
+        process.exitCode = 1;
+        return;
+      }
+      const result = await store.deleteBySourceFolder(canonical ?? folderPath);
+      console.log(`forgot ${result.deleted} card(s)`);
+      return;
+    }
+
+    console.error('Usage: piwin doccards scan|index|retrieve|list|generate|rebind|forget');
+    process.exitCode = 1;
+  } finally {
+    if (host) await host.dispose();
+    rag.close();
+  }
+}
+
 async function commandHostServe(argv: string[]): Promise<void> {
   redirectHostLogsToStandardError();
   const mode = parseMode(argv);
@@ -1763,6 +1987,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'cards') {
     await commandCards(argv);
+    return;
+  }
+  if (command === 'doccards') {
+    await commandDocCards(argv);
     return;
   }
   if (command === 'host' && argv[1] === 'serve') {

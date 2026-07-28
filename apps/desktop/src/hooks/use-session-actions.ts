@@ -243,6 +243,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       projectPath?: string;
       alreadyTrusted?: boolean;
       scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+      executionMode?: ExecutionMode;
+      sessionName?: string;
     }): Promise<string | null> => {
       const explicitScope = options?.scope;
       const useGeneral =
@@ -270,10 +272,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         projectPath?: string;
         model?: ModelRef;
         executionMode?: ExecutionMode;
+        sessionName?: string;
       };
 
       if (useGeneral) {
-        createInput = { scope: { kind: 'general' }, executionMode };
+        createInput = { scope: { kind: 'general' }, executionMode: options?.executionMode ?? executionMode };
       } else {
         const projectPath = requestedProjectPath;
         if (!projectPath) {
@@ -288,8 +291,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         createInput = {
           scope: { kind: 'project', projectPath },
           projectPath,
-          executionMode,
+          executionMode: options?.executionMode ?? executionMode,
         };
+      }
+      if (options?.sessionName) {
+        createInput.sessionName = options.sessionName;
       }
       const model = selectedModelRef();
       if (model) {
@@ -307,7 +313,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       dispatch({
         type: 'session/add',
         sessionId,
-        name: `session-${sessionId.slice(0, 8)}`,
+        name: options?.sessionName ?? `session-${sessionId.slice(0, 8)}`,
       });
       return sessionId;
       };

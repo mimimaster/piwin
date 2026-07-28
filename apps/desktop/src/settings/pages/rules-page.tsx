@@ -5,6 +5,7 @@
 import type { ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
+import { PageTitle } from '../page-title';
 
 export function RulesPage(): ReactElement {
   const { locale } = useDesktopLocale();
@@ -12,17 +13,17 @@ export function RulesPage(): ReactElement {
   return (
     <div className="settings-card">
       <div className="settings-section">
-        <h4>{locale === 'zh-CN' ? '规则' : 'Rules'}</h4>
-        <p className="muted">
-          {locale === 'zh-CN'
-            ? '规则用于引导 Agent 行为，兼容 Cursor Rules / AGENTS.md 的工作方式。完整编辑器尚未提供；目前可直接打开项目中的 AGENTS.md。'
-            : 'Rules guide agent behavior, similar to Cursor Rules and AGENTS.md. A full editor is not available yet; edit your project AGENTS.md directly for now.'}
-        </p>
+        <PageTitle
+          title={locale === 'zh-CN' ? '自定义规则' : 'Custom Rules'}
+          description={locale === 'zh-CN'
+            ? '编辑项目中的 AGENTS.md 以自定义引导 Agent 行为的规则。'
+            : 'Edit AGENTS.md in your project to customize rules that guide agent behavior.'}
+        />
         <div className="settings-empty-rules muted" data-testid="settings-rules-empty">
-          {locale === 'zh-CN' ? '暂无规则' : 'No rules yet'}
+          {locale === 'zh-CN' ? '暂无项目规则' : 'No custom rules yet'}
         </div>
-        <Button disabled>
-          {locale === 'zh-CN' ? '新建规则（即将推出）' : 'Create rule (coming soon)'}
+        <Button size="compact" disabled>
+          {locale === 'zh-CN' ? '新建规则' : 'Create rule'}
         </Button>
       </div>
     </div>

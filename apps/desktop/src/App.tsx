@@ -32,11 +32,10 @@ import {
   notificationReducer,
 } from './notification-queue';
 import { GitPanel } from './GitPanel';
-import { applyThemeToDocument } from './ThemePanel';
-import { resolveBuiltinAppearance, resolveDesktopAppearance } from './appearance-tokens';
 import type { HostLogEntry } from './HostLogPanel';
 import { NotesPanel } from './NotesPanel';
 import { FlashcardsPanel } from './FlashcardsPanel';
+import { KnowledgeCenterPanel } from './KnowledgeCenterPanel';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
 import { collectSessionTools } from './tool-call-card';
 import { ChangesPanel } from './changes-panel';
@@ -60,7 +59,8 @@ import { useHostBootstrap } from './hooks/use-host-bootstrap';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { useSessionActions } from './hooks/use-session-actions';
 import { useManagedProcesses } from './hooks/use-managed-processes';
-import { Button, ConfirmDialog, Notice } from '@piwin/ui-kit';
+import { Button, ConfirmDialog, IconButton, Notice } from '@piwin/ui-kit';
+import { IconClose } from './shell-icons';
 import { useShellLayout } from './hooks/use-shell-layout';
 import { CommandPalette } from './command-palette';
 import { useDesktopShortcuts } from './use-desktop-shortcuts';
@@ -103,7 +103,14 @@ function modelsFromConfig(config: PiwinConfig | null): ModelOption[] {
   return options;
 }
 
-export function App() {
+export type AppProps = {
+  /** Resolved active manifest owned by DesktopThemeRoot. */
+  activeTheme: ThemeManifest;
+  /** Root callback that resolves, applies document tokens, and stores a manifest. */
+  onThemeApplied: (theme: ThemeManifest) => void;
+};
+
+export function App({ activeTheme, onThemeApplied }: AppProps) {
   const hostClient = useMemo(
     () => new HostClient({ transport: 'auto', hostMock: false }),
     [],
@@ -166,6 +173,7 @@ export function App() {
   /** Quiet workbench: terminal produced output while directory home / panel collapsed. */
   const [terminalAttention, setTerminalAttention] = useState(false);
   const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const watchingTerminalRef = useRef(false);
   watchingTerminalRef.current =
     rightPanelOpen && rightPanelTab === 'activity' && rightPanelView === 'detail';
@@ -308,11 +316,7 @@ export function App() {
     hostStatus,
     config,
     setConfig,
-    activeTheme,
-    setActiveTheme,
     setActivePet,
-    artifactThemeKey,
-    setArtifactThemeKey,
     sessionPlan,
     extensionUiRequest,
     setExtensionUiRequest,
@@ -327,28 +331,63 @@ export function App() {
     setPtyOutput,
     setHostLogEntries,
     setSelectedModelKey,
+    onThemeResolved: onThemeApplied,
   });
+
+  // Remount artifact iframes when the active theme changes so sandboxed
+  // documents pick up new artifact variables (root owns the manifest itself).
+  const [artifactThemeKey, setArtifactThemeKey] = useState(0);
+  useEffect(() => {
+    setArtifactThemeKey((previous) => previous + 1);
+  }, [activeTheme]);
 
   const modelOptions = useMemo(() => modelsFromConfig(config), [config]);
 
-  // Flashcard rating from artifact flip cards (ADR 0018 S5c): validated
-  // whitelisted action → flashcards/rate HostCommand → FSRS state update.
+  // Flashcard actions from artifact flip cards (ADR 0018 S5c, doc-flashcards §12):
+  // - flashcard/rate → flashcards/rate HostCommand → FSRS state update
+  // - flashcard/open-source → doccards/open-source HostCommand → resolve + open file
   const handleArtifactAction = useCallback(
     (action: import('@piwin/artifact').ArtifactActionMessage) => {
-      if (action.action !== 'flashcard/rate') {
+      if (action.action === 'flashcard/rate') {
+        void hostClient
+          .request({
+            type: 'flashcards/rate',
+            cardId: action.payload.cardId,
+            rating: action.payload.rating,
+          })
+          .then((response) => {
+            if (!response.success) {
+              console.warn(`[piwin] flashcard rate failed: ${response.error}`);
+            }
+          });
         return;
       }
-      void hostClient
-        .request({
-          type: 'flashcards/rate',
-          cardId: action.payload.cardId,
-          rating: action.payload.rating,
-        })
-        .then((response) => {
-          if (!response.success) {
-            console.warn(`[piwin] flashcard rate failed: ${response.error}`);
-          }
-        });
+      if (action.action === 'flashcard/open-source') {
+        void hostClient
+          .request({
+            type: 'doccards/open-source',
+            cardId: action.payload.cardId,
+          })
+          .then((response) => {
+            if (!response.success) {
+              console.warn(`[piwin] flashcard open-source failed: ${response.error}`);
+              return;
+            }
+            const result = response.data as { path?: string } | undefined;
+            if (result?.path) {
+              // Open via Tauri shell opener (OS default editor).
+              void import('@tauri-apps/plugin-shell')
+                .then(({ open }) => open(result.path as string))
+                .catch((error: unknown) => {
+                  console.warn(
+                    `[piwin] open-source shell open failed: ${
+                      error instanceof Error ? error.message : String(error)
+                    }`,
+                  );
+                });
+            }
+          });
+      }
     },
     [hostClient],
   );
@@ -363,6 +402,13 @@ export function App() {
   const requestCardsPanel = useCallback(
     (command: Parameters<import('./FlashcardsPanel').FlashcardsPanelProps['request']>[0]) =>
       hostClient.request(command),
+    [hostClient],
+  );
+  // Knowledge Center forwards commands to the same host transport; the panel
+  // accepts a union type internally.
+  const requestKnowledgeCenter = useCallback(
+    (command: Parameters<import('./KnowledgeCenterPanel').KnowledgeCenterPanelProps['request']>[0]) =>
+      hostClient.request(command as unknown as Parameters<typeof hostClient.request>[0]),
     [hostClient],
   );
   const {
@@ -400,6 +446,29 @@ export function App() {
     setRenameDraft,
     setHostLogEntries,
   });
+  /**
+   * Ensure a chat session, resume it, then send a prompt for doc-card generation.
+   * Used by DocCardsPanel to trigger flashcard generation via session/prompt.
+   */
+  const sendSessionPrompt = useCallback(
+    async (text: string, title?: string) => {
+      const sessionId = await ensureSession({
+        scope: { kind: 'general' },
+        executionMode: 'chat',
+        ...(title ? { sessionName: title } : {}),
+      });
+      if (!sessionId) {
+        throw new Error('Could not create a chat session for doc-card generation.');
+      }
+      await handleResumeSession(sessionId);
+      await hostClient.request({
+        type: 'session/prompt',
+        sessionId,
+        input: { text },
+      });
+    },
+    [ensureSession, handleResumeSession, hostClient],
+  );
 
   // Cold start: hydrate General sessions once the host is ready.
   useEffect(() => {
@@ -604,33 +673,14 @@ export function App() {
   }
 
   async function handleToggleAppearance(): Promise<void> {
-    const nextId = activeTheme?.mode === 'light' ? 'piwin-dark' : 'piwin-light';
+    const nextId = activeTheme.mode === 'light' ? 'piwin-dark' : 'piwin-light';
     const response = await hostClient.request({ type: 'theme/set-active', themeId: nextId });
     if (!response.success) {
       dispatch({ type: 'error', message: response.error });
       return;
     }
     const theme = (response.data as { theme: ThemeManifest }).theme;
-    const resolved = resolveBuiltinAppearance(theme.id);
-    const isBuiltin = theme.id === 'piwin-dark' || theme.id === 'piwin-light';
-    const next = isBuiltin
-      ? {
-          ...theme,
-          ...resolved,
-          tokens: { ...theme.tokens, ...resolved.tokens },
-          artifact: { ...theme.artifact, ...resolved.artifact },
-          mode: resolved.mode,
-        }
-      : {
-          ...resolved,
-          ...theme,
-          tokens: { ...resolved.tokens, ...theme.tokens },
-          artifact: { ...resolved.artifact, ...theme.artifact },
-          mode: theme.mode ?? resolved.mode,
-        };
-    setActiveTheme(next);
-    applyThemeToDocument(next);
-    setArtifactThemeKey((previous) => previous + 1);
+    onThemeApplied(theme);
   }
 
   async function refreshComposerMenus(): Promise<void> {
@@ -913,7 +963,17 @@ export function App() {
     if (rightPanelOpen && layoutMode === 'desktop') {
       void adjustWindowOutwardForRightPanelWidth(rightPanelResize.widthPx);
     }
-  }, [layoutMode, rightPanelOpen, rightPanelResize.widthPx]);
+  }, [layoutMode, rightPanelOpen]);
+  // Drag updates flow through handleRightPanelWidthChange (onLiveWidthCommit);
+  // including widthPx here would re-fit the window every pointermove.
+
+  useEffect(() => {
+    // Resync on resize when the panel isn't actively being dragged — the hook
+    // clamps width on window resize already, this matches the OS window frame.
+    if (rightPanelOpen && layoutMode === 'desktop' && !rightPanelResize.isResizing) {
+      void adjustWindowOutwardForRightPanelWidth(rightPanelResize.widthPx);
+    }
+  }, [rightPanelResize.isResizing, rightPanelResize.widthPx, rightPanelOpen, layoutMode]);
 
   return (
     <DesktopLocaleProvider
@@ -924,12 +984,13 @@ export function App() {
       }}
     >
       <div
-      className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}`}
+      className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}`}
       style={appShellStyle}
       data-testid="app-shell"
       data-layout={layoutMode}
       data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
       data-settings-open={settingsOpen ? 'true' : 'false'}
+      data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
     >
       <NotificationRegion
         items={notificationState.items}
@@ -939,7 +1000,7 @@ export function App() {
       <WorkspaceTitlebar
         executionMode={executionMode}
         onExecutionModeChange={setExecutionMode}
-        appearanceMode={activeTheme?.mode === 'light' ? 'light' : 'dark'}
+        appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
         sessionsExpanded={navDrawerOpen}
         onToggleSessions={() => {
           shell.toggleSessions();
@@ -994,6 +1055,8 @@ export function App() {
             onResumeSession={(sessionId) => void handleResumeSession(sessionId)}
             onOpenSessionMenu={(sessionId, x, y) => setSessionMenu({ sessionId, x, y })}
             onOpenSettings={() => openSettingsSection('general')}
+            knowledgeOpen={knowledgeOpen}
+            onToggleKnowledge={() => setKnowledgeOpen((current) => !current)}
             generalActive={state.activeScope.kind === 'general'}
             onSelectGeneral={() => {
               dispatch({ type: 'project/clear' });
@@ -1039,6 +1102,35 @@ export function App() {
           />
         }
         chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
+        knowledgePanel={
+          knowledgeOpen ? (
+            <section
+              className="knowledge-stage"
+              data-testid="knowledge-stage"
+              aria-label={desktopCopy.knowledgeCenter}
+            >
+              <header className="knowledge-stage-header">
+                <span className="knowledge-stage-kicker">
+                  {desktopCopy.knowledgeCenter}
+                </span>
+                <IconButton
+                  label={desktopLocale === 'zh-CN' ? '关闭知识中心' : 'Close Knowledge Center'}
+                  data-testid="knowledge-stage-close-btn"
+                  onClick={() => setKnowledgeOpen(false)}
+                >
+                  <IconClose />
+                </IconButton>
+              </header>
+              <div className="knowledge-stage-body">
+                <KnowledgeCenterPanel
+                  projectPath={state.projectPath}
+                  request={requestKnowledgeCenter}
+                  sendSessionPrompt={sendSessionPrompt}
+                />
+              </div>
+            </section>
+          ) : undefined
+        }
         transcript={
           <>
           {state.projectPath && !state.projectTrusted ? (
@@ -1414,12 +1506,7 @@ export function App() {
           onOpenSubagentSession={(sessionId) => {
             void handleResumeSession(sessionId);
           }}
-          onThemeApplied={(theme) => {
-            const resolvedTheme = resolveDesktopAppearance(theme);
-            setActiveTheme(resolvedTheme);
-            applyThemeToDocument(resolvedTheme);
-            setArtifactThemeKey((previous) => previous + 1);
-          }}
+          onThemeApplied={onThemeApplied}
           onPetActiveChanged={setActivePet}
           onSaved={(next) => {
             setConfig(next);

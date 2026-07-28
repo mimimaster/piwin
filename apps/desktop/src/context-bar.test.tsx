@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ContextBar, type ContextBarProps } from './context-bar.js';
 import type { RunStatusView } from './run-status.js';
 
@@ -83,7 +84,7 @@ function createBaseProps(
 
 function renderContextBar(props: ContextBarProps, root: Root): void {
   const tree: ReactElement = (
-    <PiwinUiProvider>
+    <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
       <ContextBar {...props} />
     </PiwinUiProvider>
   );

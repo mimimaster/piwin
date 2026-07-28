@@ -10,7 +10,8 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "default": "./src/index.ts"
-    }
+    },
+    "./styles.css": "./src/primitives.css"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -35,6 +36,7 @@
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.2.3",
+    "happy-dom": "^20.11.1",
     "react-dom": "^19.2.7",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"

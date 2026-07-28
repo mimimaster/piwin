@@ -20,6 +20,14 @@ html, body, #root {
 
 button, input, textarea, select { font: inherit; color: inherit; }
 
+/* Native check controls track the Daybreak accent instead of UA blue. */
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'],
+progress {
+  accent-color: var(--accent);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

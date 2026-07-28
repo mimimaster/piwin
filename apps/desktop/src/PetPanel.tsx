@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { HostResponse, PetRuntimeSnapshot, PetSummary } from '@piwin/contracts';
-import { Button, Field, Notice } from '@piwin/ui-kit';
+import { Button, Notice } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
+import { PageTitle } from './settings/page-title';
 
 export type PetPanelProps = {
   request: (command: {
@@ -15,9 +16,8 @@ export type PetPanelProps = {
 };
 
 export function PetPanel(props: PetPanelProps) {
-  const { locale, translator } = useDesktopLocale();
+  const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
-  const common = translator.common;
   const [pets, setPets] = useState<PetSummary[]>([]);
   const [activeId, setActiveId] = useState('piwin-default');
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export function PetPanel(props: PetPanelProps) {
     }
     const pet = (response.data as { pet: PetRuntimeSnapshot }).pet;
     props.onActiveChanged(pet);
-    setInfo(isChinese ? `当前伙伴：${pet.displayName}` : `Active pet: ${pet.displayName}`);
+    setInfo(isChinese ? `当前伙伴：${pet.displayName}` : `Active companion: ${pet.displayName}`);
     await reload();
   }
 
@@ -82,110 +82,64 @@ export function PetPanel(props: PetPanelProps) {
     await reload();
   }
 
-  async function handleImportCodex(): Promise<void> {
-    setBusy(true);
-    setError(null);
-    setInfo(null);
-    const response = await props.request({ type: 'pet/import-codex' });
-    setBusy(false);
-    if (!response.success) {
-      setError(response.error);
-      return;
-    }
-    const data = response.data as {
-      imported: string[];
-      skipped: string[];
-      errors: string[];
-    };
-    setInfo(
-      isChinese
-        ? `已导入 ${data.imported.length}，跳过 ${data.skipped.length}，错误 ${data.errors.length}`
-        : `Imported ${data.imported.length}, skipped ${data.skipped.length}, errors ${data.errors.length}`,
-    );
-    if (data.errors.length > 0) {
-      setError(data.errors.slice(0, 3).join('; '));
-    }
-    await reload();
-  }
-
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
       <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
-        <h3>{isChinese ? '伙伴' : 'Pets'}</h3>
-        <p className="muted">
-          {isChinese
-            ? '兼容 Codex 的包（pet.json + spritesheet），存储于 ~/.piwin/pets。从 ~/.codex/pets 导入仅复制文件。'
-            : 'Codex-compatible packages (pet.json + spritesheet). Stored under ~/.piwin/pets. Import from ~/.codex/pets is copy-only.'}
-        </p>
+        <PageTitle
+          title={isChinese ? '桌面伙伴' : 'Desktop Companions'}
+          description={isChinese
+            ? '选择一个有趣的伙伴陪您一起编码。'
+            : 'Choose a fun companion to accompany your coding sessions.'}
+        />
+
         {error ? <Notice tone="error">{error}</Notice> : null}
         {info ? <Notice tone="info">{info}</Notice> : null}
 
         <ul className="ext-list">
           {pets.map((pet) => (
             <li key={pet.id} className="ext-list-item">
-              <div className="ext-list-main">
-                <div className="ext-list-title">
-                  <strong>{pet.displayName}</strong>
-                  <span className="pill">{pet.source}</span>
-                  {pet.active || pet.id === activeId ? (
-                    <span className="pill ok">{isChinese ? '当前' : 'active'}</span>
-                  ) : null}
-                  {!pet.valid ? <span className="pill">{isChinese ? '无效' : 'invalid'}</span> : null}
+              <div className="ext-list-main" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--surface-inset)', border: '1px solid var(--line-soft)', display: 'grid', placeItems: 'center', fontSize: '20px' }}>
+                  {pet.id === 'piwin-default' ? 'π' : '🐶'}
                 </div>
-                <div className="muted ext-path">{pet.id}</div>
-                {pet.issues.length > 0 ? (
-                  <div className="muted">{pet.issues.join('; ')}</div>
-                ) : null}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <strong>{pet.displayName}</strong>
+                  <div className="muted ext-desc" style={{ fontSize: '12px' }}>{pet.id}</div>
+                </div>
               </div>
               <Button
-                variant="primary"
-                disabled={busy || !pet.valid || pet.id === activeId}
+                variant={activeId === pet.id ? 'primary' : 'ghost'}
+                size="compact"
+                disabled={busy || activeId === pet.id}
                 onClick={() => void handleActivate(pet.id)}
               >
-                {common.apply}
+                {activeId === pet.id ? (isChinese ? '已激活' : 'Active') : (isChinese ? '选择' : 'Select')}
               </Button>
             </li>
           ))}
         </ul>
 
-        <h4>{isChinese ? '安装本地伙伴' : 'Install local pet'}</h4>
-        <Field
-          label={isChinese ? '伙伴目录' : 'Pet directory'}
-          description={
-            isChinese
-              ? '包含 pet.json 与 spritesheet 的目录绝对路径。'
-              : 'Absolute path with pet.json and spritesheet.'
-          }
-          required
-        >
-          <input
-            value={installPath}
-            onChange={(event) => setInstallPath(event.target.value)}
-            placeholder="/path/to/my-pet"
-            data-testid="pet-install-path"
+        <div className="settings-section">
+          <PageTitle
+            title={isChinese ? '安装新伙伴' : 'Install New Companion'}
+            description={isChinese ? '从本地目录安装伙伴资源包。' : 'Install a companion package from a local directory.'}
           />
-        </Field>
-        <div className="row-actions">
-          <Button disabled={busy} onClick={() => void handleInstall()}>
-            {common.install}
-          </Button>
-          <Button
-            disabled={busy}
-            onClick={() => void handleImportCodex()}
-          >
-            {isChinese ? '导入 ~/.codex/pets' : 'Import ~/.codex/pets'}
-          </Button>
-        </div>
-
-        <div className="manager-actions">
-          <Button onClick={() => void reload()}>
-            {common.refresh}
-          </Button>
-          {props.variant !== 'inline' ? (
-            <Button onClick={props.onClose}>
-              {common.close}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ flex: 1 }}>
+              <input
+                value={installPath}
+                onChange={(e) => setInstallPath(e.target.value)}
+                placeholder={isChinese ? '本地目录路径...' : 'Local directory path...'}
+                style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+              />
+            </div>
+            <Button
+              disabled={busy || !installPath.trim()}
+              onClick={() => void handleInstall()}
+            >
+              {isChinese ? '安装' : 'Install'}
             </Button>
-          ) : null}
+          </div>
         </div>
       </div>
     </div>

@@ -10,7 +10,8 @@
   padding: 0 12px;
   gap: 8px;
   border-bottom: 1px solid transparent;
-  background: var(--canvas);
+  /* Transparent so the workspace Daybreak glow flows behind the band. */
+  background: transparent;
   flex-shrink: 0;
 }
 

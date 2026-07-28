@@ -21,6 +21,7 @@ export * from './usage.js';
 export * from './session-ops.js';
 export * from './notes.js';
 export * from './flashcards.js';
+export * from './doc-rag.js';
 export * from './subagent.js';
 export * from './compaction-fileops.js';
 export * from './pty.js';

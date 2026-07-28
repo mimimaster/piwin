@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
+import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ThinkingEffortControl } from './ThinkingEffortControl.js';
 
 declare global {
@@ -36,7 +37,7 @@ function createBaseProps(overrides: Partial<ControlProps> = {}): ControlProps {
 
 function render(props: ControlProps, root: Root): void {
   const tree: ReactElement = (
-    <PiwinUiProvider>
+    <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
       <ThinkingEffortControl {...props} />
     </PiwinUiProvider>
   );

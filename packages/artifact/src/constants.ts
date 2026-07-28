@@ -41,7 +41,7 @@ export const ARTIFACT_BRIDGE_ACTION_TYPE = 'piwin-artifact:action' as const;
  * Allowed artifact action names. Extend deliberately — every entry is a
  * capability the sandboxed (untrusted) HTML can invoke on the product.
  */
-export const ARTIFACT_ACTION_NAMES = ['flashcard/rate'] as const;
+export const ARTIFACT_ACTION_NAMES = ['flashcard/rate', 'flashcard/open-source'] as const;
 
 /** YouTube / Maps embeds allowed under default allowlist mode. */
 export const DEFAULT_ARTIFACT_IFRAME_ALLOWED_URL_PREFIXES = [

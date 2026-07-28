@@ -100,6 +100,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+.status-bar-chip img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 .status-bar-chip:hover {
   color: var(--text);
   background: var(--surface-hover);

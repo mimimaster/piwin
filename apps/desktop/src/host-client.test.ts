@@ -71,8 +71,8 @@ describe('HostClient', () => {
     const client = new HostClient({ transport: 'live' });
     await Promise.all([client.connect(), client.connect()]);
 
-    // One connection installs exactly host-message + host-log listeners.
-    expect(listenMock).toHaveBeenCalledTimes(2);
+    // One connection installs host-message + host-log + host-status listeners.
+    expect(listenMock).toHaveBeenCalledTimes(3);
     expect(invokeMock).toHaveBeenCalledTimes(2);
   });
 });

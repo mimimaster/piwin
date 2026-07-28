@@ -5,6 +5,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type {
   ExtensionUiKind,
   HostPush,
+  HostResponse,
   HostServerMessage,
   HostStatusData,
   PiwinConfig,
@@ -20,9 +21,8 @@ import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { PtyOutputLine } from '../terminal-dock';
 import {
   PIWIN_APPEARANCE_DARK,
-  resolveBuiltinAppearance,
+  resolveDesktopAppearance,
 } from '../appearance-tokens';
-import { applyThemeToDocument } from '../ThemePanel';
 import { createStreamEventBuffer } from '../stream-event-buffer';
 
 export type ExtensionUiRequestState = {
@@ -44,6 +44,8 @@ export type UseHostBootstrapArgs = {
   setPtyOutput: Dispatch<SetStateAction<PtyOutputLine[]>>;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
   setSelectedModelKey: Dispatch<SetStateAction<string>>;
+  /** Root theme owner callback; this hook never applies document theme state itself. */
+  onThemeResolved: (theme: ThemeManifest) => void;
 };
 
 type PermissionRequestPush = Extract<HostPush, { type: 'permission/request' }>;
@@ -60,12 +62,28 @@ export function toPermissionPromptUi(message: PermissionRequestPush): Permission
   };
 }
 
+/**
+ * Normalize a `theme/get-active` response into the manifest the root theme
+ * owner should apply. Built-in piwin ids resolve to the desktop-owned
+ * manifest (a stale host copy must not override desktop tokens); failures
+ * fall back to built-in dark. Pure so the bootstrap theme path is testable
+ * without a HostClient stream.
+ */
+export function resolveThemeBootstrapResponse(response: HostResponse): ThemeManifest {
+  if (!response.success) {
+    return PIWIN_APPEARANCE_DARK;
+  }
+  const themeData = response.data as { theme?: ThemeManifest } | undefined;
+  if (themeData?.theme === undefined) {
+    return PIWIN_APPEARANCE_DARK;
+  }
+  return resolveDesktopAppearance(themeData.theme);
+}
+
 export function useHostBootstrap(args: UseHostBootstrapArgs) {
   const [hostStatus, setHostStatus] = useState<HostStatusData | null>(null);
   const [config, setConfig] = useState<PiwinConfig | null>(null);
-  const [activeTheme, setActiveTheme] = useState<ThemeManifest | null>(null);
   const [activePet, setActivePet] = useState<PetRuntimeSnapshot | null>(null);
-  const [artifactThemeKey, setArtifactThemeKey] = useState(0);
   const [sessionPlan, setSessionPlan] = useState<SessionPlan | null>(null);
   const [extensionUiRequest, setExtensionUiRequest] = useState<ExtensionUiRequestState | null>(
     null,
@@ -208,33 +226,8 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         }
       }
       const themeResponse = await hostClient.request({ type: 'theme/get-active' });
-      if (themeResponse.success) {
-        const themeData = themeResponse.data as { theme: ThemeManifest };
-        const resolved = resolveBuiltinAppearance(themeData.theme.id);
-        // Built-in piwin themes: desktop copper tokens win over stale host manifests.
-        const isBuiltin =
-          themeData.theme.id === 'piwin-dark' || themeData.theme.id === 'piwin-light';
-        const next: ThemeManifest = isBuiltin
-          ? {
-              ...themeData.theme,
-              ...resolved,
-              tokens: { ...themeData.theme.tokens, ...resolved.tokens },
-              artifact: { ...themeData.theme.artifact, ...resolved.artifact },
-              mode: resolved.mode,
-            }
-          : {
-              ...resolved,
-              ...themeData.theme,
-              tokens: { ...resolved.tokens, ...themeData.theme.tokens },
-              artifact: { ...resolved.artifact, ...themeData.theme.artifact },
-              mode: themeData.theme.mode ?? resolved.mode,
-            };
-        setActiveTheme(next);
-        applyThemeToDocument(next);
-      } else {
-        setActiveTheme(PIWIN_APPEARANCE_DARK);
-        applyThemeToDocument(PIWIN_APPEARANCE_DARK);
-      }
+      // DesktopThemeRoot applies document tokens; this hook only reports.
+      args.onThemeResolved(resolveThemeBootstrapResponse(themeResponse));
       const petResponse = await hostClient.request({ type: 'pet/get-active' });
       if (petResponse.success) {
         const petData = petResponse.data as { pet: PetRuntimeSnapshot };
@@ -259,12 +252,8 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     setHostStatus,
     config,
     setConfig,
-    activeTheme,
-    setActiveTheme,
     activePet,
     setActivePet,
-    artifactThemeKey,
-    setArtifactThemeKey,
     sessionPlan,
     setSessionPlan,
     extensionUiRequest,

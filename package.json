@@ -17,7 +17,7 @@
     "dev:cli": "pnpm --filter @piwin/cli dev",
     "dev:desktop": "pnpm --dir apps/desktop dev",
     "check": "pnpm typecheck && pnpm test",
-    "dev:tauri": "pnpm --dir apps/desktop dev:tauri",
+    "dev:tauri": "pnpm ensure:packaging-placeholders && pnpm --dir apps/desktop dev:tauri",
     "bundle:host": "node scripts/bundle-host.mjs",
     "fetch:node-runtime": "node scripts/fetch-node-runtime.mjs",
     "ensure:packaging-placeholders": "node scripts/ensure-packaging-placeholders.mjs",

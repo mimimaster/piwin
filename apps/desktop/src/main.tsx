@@ -1,13 +1,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
-import { AppErrorBoundary } from './AppErrorBoundary';
+import { DesktopThemeRoot } from './desktop-theme-root';
 import { applyAppearanceToDocument, PIWIN_APPEARANCE_DARK } from './appearance-tokens';
-import { PiwinUiProvider } from '@piwin/ui-kit';
 import 'katex/dist/katex.min.css';
 import './styles.css';
 
-// Paint shell tokens before first paint to avoid unthemed flash.
+// Pre-paint fallback only: paint shell tokens before React mounts to avoid an
+// unthemed first frame. Once mounted, DesktopThemeRoot is authoritative.
 applyAppearanceToDocument(PIWIN_APPEARANCE_DARK);
 
 const rootElement = document.getElementById('root');
@@ -17,10 +16,6 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-      <AppErrorBoundary>
-        <App />
-      </AppErrorBoundary>
-    </PiwinUiProvider>
+    <DesktopThemeRoot />
   </StrictMode>,
 );

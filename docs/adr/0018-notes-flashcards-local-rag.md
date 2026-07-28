@@ -158,3 +158,73 @@ pasting it into a ```html fence — models never hand-write the action wiring.
   notes/flashcards as the memory system's user-visible surface.
 - CLI parity is mandatory (`piwin notes …`, `piwin cards …`), consistent
   with repo rules on host/CLI consistency.
+
+## Appendix: Doc Cards (folder RAG → flashcard generation)
+
+**Status**: Accepted (v3, 2026-07-28). Extends this ADR without superseding it.
+See `docs/specs/doc-flashcards.md` for the full functional spec.
+
+### What changed
+
+A new `@piwin/doc-rag` package adds folder-scoped document indexing and RAG
+retrieval, powering a "Doc Cards" generation flow: the user points at a
+folder, the host indexes it (FTS5 + optional vector), retrieves passages
+by topic, and the agent generates flashcards via `flashcard_batch_create`
+with source attribution (`sourceFolder`, `sourceFile`, `sourceLine`,
+`sourceExcerpt`).
+
+### Architecture decisions
+
+1. **New package `@piwin/doc-rag`** — mirrors `@piwin/notes`' RAG
+   infrastructure (chunker, FTS5+vector index, RRF fusion) but is
+   folder-scoped rather than notes-scoped. Reuses `@piwin/notes`'
+   `tokenizeForIndex`, `buildMatchExpression`, `cosineSimilarity`, and
+   `createEmbeddingProvider` (shared embedding config). The sqlite index
+   lives under `~/.piwin/doc-rag/<folder-key>/doc-index.sqlite3` — a
+   rebuildable cache, not user data.
+
+2. **File types are dynamic** — the chunker's `supportedExtensions` is
+   queried at runtime; no hardcoded file-type list in apps or contracts.
+   This is the same invariant as notes (P5): the chunker owns the list.
+
+3. **`node:sqlite` containment is preserved** — `doc-index.ts` is the only
+   module in `@piwin/doc-rag` that imports `node:sqlite`, mirroring the
+   per-package rule established in §3 of this ADR.
+
+4. **Tool profiles by ExecutionMode** (spec §10.2):
+   - `chat` (knowledge profile): flashcards + read-only notes + optional web.
+     This replaces the prior "chat → no host tools" behavior.
+   - `agent` (coding profile): web/mcp/plan/process/memory/notes CRUD, no
+     flashcards (unless `config.flashcards.agentModeTools` escape hatch).
+   - `agent-debug` (debug profile): coding ∪ flashcards.
+
+5. **`flashcard_batch_create`** — a new host tool for batch generation.
+   Returns `{ created, skipped, artifactHtml }` where `artifactHtml` is a
+   multi-card stack. Duplicates are skipped (partial success), not fatal.
+
+6. **Source attribution on cards** — `FlashcardRecord` gained
+   `sourceFolder`, `sourceFile`, `sourceLine` fields. The artifact template
+   shows a subtle indicator on sourced cards; clicking it reveals a
+   popover with the excerpt and path. An "Open file" button posts
+   `flashcard/open-source` → `doccards/open-source` IPC, which validates
+   confinement and resolves the absolute path.
+
+7. **`generate-flashcards` bundled skill** — installed once via
+   `ensureBundledSkillsInstalled` (same mechanism as other bundled skills).
+   The skill body documents the folder/notes/open flows and is
+   snapshot-tested against `FLASHCARD_QUALITY_RULES` to stay in sync.
+
+8. **CLI parity** — `piwin doccards scan|index|retrieve|list|generate|rebind|forget`
+   mirrors the desktop Doc Cards panel. `generate` prints the prompt for
+   the user to paste into a chat session (CLI has no agent loop).
+
+### Consequences (additive)
+
+- The Knowledge Center gains a fourth tab ("Doc Cards" / "文档卡片").
+- `config.flashcards.agentModeTools` is a one-release escape hatch for
+  existing agent-mode flashcard users; it will be removed in a later
+  release (spec §10.3).
+- `config.flashcards.maxBatchSize` (default 40) bounds batch generation.
+- Desktop opens source files via `@tauri-apps/plugin-shell` `open()`.
+- The product identity widens further: "agent shell with a personal
+  knowledge layer" now includes arbitrary document folders, not just notes.

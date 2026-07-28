@@ -45,6 +45,7 @@ export type {
   ArtifactActionName,
   ArtifactActionMessage,
   FlashcardRateActionPayload,
+  FlashcardOpenSourceActionPayload,
   ArtifactPreviewDecision,
 } from './types.js';
 

@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
+  FlashcardBatchCreateInput,
+  FlashcardBatchSkip,
   FlashcardCreateInput,
   FlashcardRecord,
   ReviewRating,
@@ -32,9 +34,12 @@ export class DuplicateCardError extends Error {
 
 export type CardStore = {
   create: (input: FlashcardCreateInput) => Promise<FlashcardRecord>;
-  list: (filter?: { deck?: string; sourceNoteId?: string }) => Promise<FlashcardRecord[]>;
+  batchCreate: (input: FlashcardBatchCreateInput, maxBatchSize?: number) => Promise<{ created: FlashcardRecord[]; skipped: FlashcardBatchSkip[] }>;
+  list: (filter?: { deck?: string; sourceNoteId?: string; sourceFolder?: string }) => Promise<FlashcardRecord[]>;
   read: (cardId: string) => Promise<FlashcardRecord>;
   delete: (cardId: string) => Promise<{ deleted: true; id: string }>;
+  deleteBySourceFolder: (folderPath: string) => Promise<{ deleted: number }>;
+  rebindSourceFolder: (oldPath: string, newPath: string) => Promise<{ updated: number }>;
   listDecks: () => Promise<string[]>;
   /** Review-state access (user data as JSON files, never sqlite-only). */
   getReviewState: (cardId: string) => Promise<ReviewState>;
@@ -157,11 +162,42 @@ export function createCardStore(options: CardStoreOptions): CardStore {
       };
       if (input.sourceNoteId) card.sourceNoteId = input.sourceNoteId;
       if (input.sourceExcerpt) card.sourceExcerpt = input.sourceExcerpt;
+      if (input.sourceFolder) card.sourceFolder = input.sourceFolder;
+      if (input.sourceFile) card.sourceFile = input.sourceFile;
+      if (typeof input.sourceLine === 'number') card.sourceLine = input.sourceLine;
       if (input.tags && input.tags.length > 0) card.tags = input.tags;
 
       await writeFile(cardPath(id), encodeCardMarkdown(card), 'utf8');
       await writeReviewState(createInitialReviewState(id));
       return card;
+    },
+
+    async batchCreate(input, maxBatchSize = 40) {
+      if (input.cards.length === 0) {
+        throw new Error('batchCreate: cards array must be non-empty');
+      }
+      if (input.cards.length > maxBatchSize) {
+        throw new Error(`batchCreate: cards.length ${input.cards.length} exceeds maxBatchSize ${maxBatchSize}`);
+      }
+      const created: FlashcardRecord[] = [];
+      const skipped: FlashcardBatchSkip[] = [];
+      for (const cardInput of input.cards) {
+        try {
+          const card = await this.create(cardInput);
+          created.push(card);
+        } catch (error) {
+          if (error instanceof DuplicateCardError) {
+            skipped.push({ front: cardInput.front, reason: 'duplicate' });
+          } else {
+            skipped.push({
+              front: cardInput.front,
+              reason: 'validation',
+              detail: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+      }
+      return { created, skipped };
     },
 
     async list(filter) {
@@ -170,6 +206,7 @@ export function createCardStore(options: CardStoreOptions): CardStore {
         .filter((card) => {
           if (filter?.deck && card.deck !== filter.deck) return false;
           if (filter?.sourceNoteId && card.sourceNoteId !== filter.sourceNoteId) return false;
+          if (filter?.sourceFolder && card.sourceFolder !== filter.sourceFolder) return false;
           return true;
         })
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
@@ -189,6 +226,26 @@ export function createCardStore(options: CardStoreOptions): CardStore {
       await rm(cardPath(cardId));
       await rm(reviewPath(cardId), { force: true });
       return { deleted: true, id: cardId };
+    },
+
+    async deleteBySourceFolder(folderPath) {
+      const cards = await scanCards();
+      const matching = cards.filter((card) => card.sourceFolder === folderPath);
+      for (const card of matching) {
+        await rm(cardPath(card.id));
+        await rm(reviewPath(card.id), { force: true });
+      }
+      return { deleted: matching.length };
+    },
+
+    async rebindSourceFolder(oldPath, newPath) {
+      const cards = await scanCards();
+      const matching = cards.filter((card) => card.sourceFolder === oldPath);
+      for (const card of matching) {
+        const updated: FlashcardRecord = { ...card, sourceFolder: newPath };
+        await writeFile(cardPath(card.id), encodeCardMarkdown(updated), 'utf8');
+      }
+      return { updated: matching.length };
     },
 
     async listDecks() {

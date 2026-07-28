@@ -91,7 +91,7 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
   if (typeof channelId !== 'string' || channelId.length === 0 || channelId.length > 200) {
     return null;
   }
-  if (data['action'] !== 'flashcard/rate') {
+  if (data['action'] !== 'flashcard/rate' && data['action'] !== 'flashcard/open-source') {
     return null;
   }
   const payload = data['payload'];
@@ -99,17 +99,49 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
     return null;
   }
   const cardId = payload['cardId'];
-  const rating = payload['rating'];
   if (typeof cardId !== 'string' || !CARD_ID_PATTERN.test(cardId)) {
     return null;
   }
-  if (typeof rating !== 'string' || !VALID_RATINGS.has(rating)) {
+  if (data['action'] === 'flashcard/rate') {
+    const rating = payload['rating'];
+    if (typeof rating !== 'string' || !VALID_RATINGS.has(rating)) {
+      return null;
+    }
+    return {
+      type: ARTIFACT_BRIDGE_ACTION_TYPE,
+      channelId,
+      action: 'flashcard/rate',
+      payload: { cardId, rating: rating as 'again' | 'hard' | 'good' | 'easy' },
+    };
+  }
+  // flashcard/open-source
+  const openFile = payload['openFile'];
+  if (openFile !== undefined && typeof openFile !== 'boolean') {
+    return null;
+  }
+  const sourceFile = payload['sourceFile'];
+  if (sourceFile !== undefined) {
+    if (typeof sourceFile !== 'string' || sourceFile.length > 512) {
+      return null;
+    }
+    // UI hint only — reject absolute paths and traversal segments.
+    if (sourceFile.startsWith('/') || sourceFile.includes('..')) {
+      return null;
+    }
+  }
+  const sourceLine = payload['sourceLine'];
+  if (sourceLine !== undefined && (typeof sourceLine !== 'number' || !Number.isInteger(sourceLine) || sourceLine < 1)) {
     return null;
   }
   return {
     type: ARTIFACT_BRIDGE_ACTION_TYPE,
     channelId,
-    action: 'flashcard/rate',
-    payload: { cardId, rating: rating as ArtifactActionMessage['payload']['rating'] },
+    action: 'flashcard/open-source',
+    payload: {
+      cardId,
+      ...(openFile === undefined ? {} : { openFile }),
+      ...(sourceFile === undefined ? {} : { sourceFile }),
+      ...(sourceLine === undefined ? {} : { sourceLine }),
+    },
   };
 }

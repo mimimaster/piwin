@@ -9,8 +9,29 @@ import { expect, test, type Page } from '@playwright/test';
 async function waitForHostReady(page: Page): Promise<void> {
   await expect(page.getByTestId('app-shell')).toBeVisible();
   await expect(page.getByTestId('host-status-pill')).toContainText(/就绪|ready/i);
-  // Reduce animation/time noise for snapshots.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
+  // reducedMotion/colorScheme/DPR are fixed pre-navigation in playwright.config.ts.
+}
+
+/** E2E-only fixture route compiled in by VITE_PIWIN_E2E_FIXTURES (playwright.config.ts). */
+const PRIMITIVE_GALLERY_URL = '/#/e2e/primitives';
+
+async function openPrimitiveGallery(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 1280, height: 840 });
+  await page.goto(PRIMITIVE_GALLERY_URL);
+  await expect(page.getByTestId('primitive-gallery')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-dark');
+}
+
+async function applyGalleryLightTheme(page: Page): Promise<void> {
+  await page.getByTestId('gallery-theme-light').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme-mode', 'light');
+}
+
+function readBackgroundColor(page: Page, testId: string): Promise<string> {
+  return page
+    .getByTestId(testId)
+    .evaluate((node) => getComputedStyle(node).backgroundColor);
 }
 
 async function ensureSidebarOpen(page: Page): Promise<void> {
@@ -66,7 +87,7 @@ test.describe('visual regression baselines', () => {
     );
   });
 
-  test('streaming reply @1280', async ({ page }) => {
+  test('completed reply @1280', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 840 });
     await page.goto('/');
     await waitForHostReady(page);
@@ -76,7 +97,7 @@ test.describe('visual regression baselines', () => {
     await expect(
       page.locator('[data-testid="message-bubble"][data-role="assistant"]'),
     ).toBeVisible();
-    // Wait for run to settle so streaming pulse is gone.
+    // This case intentionally captures the settled (completed) reply, not streaming.
     await expect(page.getByTestId('send-btn')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByTestId('app-shell')).toHaveScreenshot(
       'chat-complete-1280.png',
@@ -179,6 +200,79 @@ test.describe('visual regression baselines', () => {
         ...snapshotOptions,
         mask: [page.getByTestId('host-status-pill'), page.getByTestId('transport-pill')],
       },
+    );
+  });
+
+  test('primitive gallery dark @1280', async ({ page }) => {
+    await openPrimitiveGallery(page);
+    await expect(page.getByTestId('gallery-focus-target')).toBeFocused();
+    await expect(page.getByTestId('primitive-gallery')).toHaveScreenshot(
+      'primitive-gallery-dark-1280.png',
+      snapshotOptions,
+    );
+  });
+
+  test('primitive gallery light @1280', async ({ page }) => {
+    await openPrimitiveGallery(page);
+    await applyGalleryLightTheme(page);
+    await expect(page.getByTestId('primitive-gallery')).toHaveScreenshot(
+      'primitive-gallery-light-1280.png',
+      snapshotOptions,
+    );
+  });
+
+  test('primitive portal light @1280', async ({ page }) => {
+    await openPrimitiveGallery(page);
+
+    // Dark reference values: document-CSS primitive + Mantine-backed primitive.
+    const darkSurfaceBackground = await readBackgroundColor(page, 'gallery-surface-base');
+    const darkPrimaryBackground = await readBackgroundColor(page, 'gallery-button-primary');
+    await page.getByTestId('gallery-portal-trigger').click();
+    await expect(page.getByTestId('gallery-portal')).toBeVisible();
+    const darkPortalBackground = await readBackgroundColor(page, 'gallery-portal');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('gallery-portal')).toHaveCount(0);
+
+    await applyGalleryLightTheme(page);
+
+    // Document CSS and Mantine must change together from the one root manifest.
+    const lightSurfaceBackground = await readBackgroundColor(page, 'gallery-surface-base');
+    const lightPrimaryBackground = await readBackgroundColor(page, 'gallery-button-primary');
+    expect(lightSurfaceBackground).not.toBe(darkSurfaceBackground);
+    expect(lightPrimaryBackground).not.toBe(darkPrimaryBackground);
+
+    await page.getByTestId('gallery-portal-trigger').click();
+    await expect(page.getByTestId('gallery-portal')).toBeVisible();
+    const lightPortalBackground = await readBackgroundColor(page, 'gallery-portal');
+    expect(lightPortalBackground).not.toBe(darkPortalBackground);
+
+    // Portal renders on document.body, so capture the viewport.
+    await expect(page).toHaveScreenshot('primitive-portal-light-1280.png', snapshotOptions);
+  });
+
+  test('settings appearance light @1280', async ({ page }) => {
+    // Real product wiring: the gallery must not be the only proof of the
+    // Settings -> Appearance -> DesktopThemeRoot path.
+    await page.setViewportSize({ width: 1280, height: 840 });
+    await page.goto('/');
+    await waitForHostReady(page);
+    await page.getByTestId('settings-open-btn').click();
+    await expect(page.getByTestId('settings-panel')).toBeVisible();
+    await page.getByTestId('settings-nav-appearance').click();
+
+    const applyLight = page.getByTestId('theme-apply-piwin-light');
+    await expect(applyLight).toBeEnabled();
+    await applyLight.click();
+
+    await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-light');
+    await expect(page.locator('html')).toHaveAttribute('data-theme-mode', 'light');
+    // Settle: panel confirms the active theme before capture.
+    await expect(page.getByTestId('settings-panel')).toContainText(/Piwin Light/);
+    await expect(page.getByTestId('theme-apply-piwin-light')).toBeDisabled();
+
+    await expect(page.getByTestId('settings-panel')).toHaveScreenshot(
+      'settings-appearance-light-1280.png',
+      snapshotOptions,
     );
   });
 });

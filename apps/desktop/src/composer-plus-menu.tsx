@@ -22,8 +22,9 @@ import {
 import {
   IconFolder,
   IconListTree,
-  IconPlug,
+  IconMcp,
   IconSearch,
+  IconSkill,
   IconSpark,
   IconUsers,
 } from './shell-icons';
@@ -115,7 +116,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
       >
         <DropdownMenuSubTrigger testId="plus-menu-skills">
           <span className="plus-menu-icon">
-            <IconSpark />
+            <IconSkill width={16} height={16} />
           </span>
           <span className="plus-menu-label">Skills</span>
           <span className="plus-menu-chevron">›</span>
@@ -146,7 +147,7 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
       >
         <DropdownMenuSubTrigger testId="plus-menu-mcp">
           <span className="plus-menu-icon">
-            <IconPlug />
+            <IconMcp width={16} height={16} />
           </span>
           <span className="plus-menu-label">MCP Servers</span>
           <span className="plus-menu-chevron">›</span>

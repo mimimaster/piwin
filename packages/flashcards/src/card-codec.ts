@@ -15,6 +15,9 @@ export function encodeCardMarkdown(card: FlashcardRecord): string {
   lines.push(`deck: ${JSON.stringify(card.deck)}`);
   if (card.sourceNoteId) lines.push(`sourceNoteId: ${JSON.stringify(card.sourceNoteId)}`);
   if (card.sourceHash) lines.push(`sourceHash: ${JSON.stringify(card.sourceHash)}`);
+  if (card.sourceFolder) lines.push(`sourceFolder: ${JSON.stringify(card.sourceFolder)}`);
+  if (card.sourceFile) lines.push(`sourceFile: ${JSON.stringify(card.sourceFile)}`);
+  if (typeof card.sourceLine === 'number') lines.push(`sourceLine: ${card.sourceLine}`);
   if (card.tags && card.tags.length > 0) lines.push(`tags: ${JSON.stringify(card.tags)}`);
   lines.push(`createdAt: ${JSON.stringify(card.createdAt)}`);
   lines.push('---');
@@ -57,6 +60,12 @@ export function decodeCardMarkdown(raw: string): FlashcardRecord | null {
   if (sourceNoteId) card.sourceNoteId = sourceNoteId;
   const sourceHash = asString(fields.sourceHash);
   if (sourceHash) card.sourceHash = sourceHash;
+  const sourceFolder = asString(fields.sourceFolder);
+  if (sourceFolder) card.sourceFolder = sourceFolder;
+  const sourceFile = asString(fields.sourceFile);
+  if (sourceFile) card.sourceFile = sourceFile;
+  const sourceLine = asNumber(fields.sourceLine);
+  if (sourceLine !== undefined) card.sourceLine = sourceLine;
   if (sections.source) card.sourceExcerpt = sections.source;
   const tags = asStringArray(fields.tags);
   if (tags) card.tags = tags;
@@ -121,6 +130,10 @@ function parseFrontmatter(text: string): Record<string, unknown> {
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function asNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function asStringArray(value: unknown): string[] | undefined {

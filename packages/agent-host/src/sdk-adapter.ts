@@ -448,8 +448,11 @@ async function createPiSdkSession(
   const memoryTools = buildMemoryTools(memoryToolOptions);
 
   // Notes library tools (ADR 0018). Default enabled; FTS-only until embedding configured.
-  const notesEnabled = config.notes?.enabled !== false && !chatMode;
+  // Knowledge profile (chat) gets read-only notes tools; coding profile (agent)
+  // gets full CRUD. See doc-flashcards §10.2.
+  const notesEnabled = config.notes?.enabled !== false;
   let notesTools: import('@piwin/tools-web').HostToolDefinition[] = [];
+  let notesSearchOnlyTools: import('@piwin/tools-web').HostToolDefinition[] = [];
   let notesIndexCleanup: (() => void) | null = null;
   if (notesEnabled) {
     const noteStore = createNoteStore({ piwinRoot: rootDir });
@@ -484,16 +487,25 @@ async function createPiSdkSession(
       notesToolOptions.requestPermission = requestPermission;
     }
     notesTools = buildNotesTools(notesToolOptions);
+    notesSearchOnlyTools = buildNotesTools({ ...notesToolOptions, readOnly: true });
   }
 
-  // Flashcard tools (ADR 0018 §7). Default enabled; generation is agent-driven.
-  const flashcardsEnabled = config.flashcards?.enabled !== false && !chatMode;
+  // Flashcard tools (ADR 0018 §7, doc-flashcards §10).
+  // Knowledge profile (chat): enabled. Coding profile (agent): disabled unless
+  // config.flashcards.agentModeTools is true. Debug profile: enabled.
+  const flashcardsEnabled = config.flashcards?.enabled !== false;
+  const flashcardsInCoding = config.flashcards?.agentModeTools === true;
+  const flashcardsInKnowledge = flashcardsEnabled;
+  const flashcardsInDebug = flashcardsEnabled;
   let flashcardTools: import('@piwin/tools-web').HostToolDefinition[] = [];
   if (flashcardsEnabled) {
     const cardStore = createCardStore({ piwinRoot: rootDir });
     const flashcardToolOptions: import('./flashcard-tools.js').BuildFlashcardToolsOptions = {
       store: cardStore,
       enabled: true,
+      ...(typeof config.flashcards?.maxBatchSize === 'number'
+        ? { maxBatchSize: config.flashcards.maxBatchSize }
+        : {}),
     };
     if (requestPermission) {
       flashcardToolOptions.requestPermission = requestPermission;
@@ -501,19 +513,30 @@ async function createPiSdkSession(
     flashcardTools = buildFlashcardTools(flashcardToolOptions);
   }
 
-  // CE-MODE light: chat strips host custom tools and gated bash.
-  // readonly: keep read-oriented host tools (web/memory/mcp/plan), drop process
-  const hostTools = chatMode
-    ? []
-    : [
-        ...webTools,
-        ...mcpBridge.tools,
-        planTool,
-        ...processTools,
-        ...memoryTools,
-        ...notesTools,
-        ...flashcardTools,
-      ];
+  // Tool profiles by ExecutionMode (doc-flashcards §10.2).
+  // - knowledge (chat): flashcards + read-only notes + optional web
+  // - coding (agent): web/mcp/plan/process/memory/notes CRUD, no flashcards (unless agentModeTools)
+  // - debug (agent-debug): coding ∪ flashcards
+  const knowledgeTools: import('@piwin/tools-web').HostToolDefinition[] = [
+    ...flashcardTools,
+    ...notesSearchOnlyTools,
+    ...(flashcardsInKnowledge ? webTools : []),
+  ];
+  const codingTools: import('@piwin/tools-web').HostToolDefinition[] = [
+    ...webTools,
+    ...mcpBridge.tools,
+    planTool,
+    ...processTools,
+    ...memoryTools,
+    ...notesTools,
+    ...(flashcardsInCoding ? flashcardTools : []),
+  ];
+  const hostTools =
+    executionMode === 'chat'
+      ? knowledgeTools
+      : executionMode === 'agent-debug'
+        ? [...codingTools, ...flashcardTools]
+        : codingTools;
   const customTools = toPiCustomTools(hostTools);
 
   // Replace built-in bash with permission-gated bash (hard-deny + ask UI).

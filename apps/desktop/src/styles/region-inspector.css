@@ -70,6 +70,12 @@
 
 .right-panel.is-resizing {
   border-left-color: var(--accent);
+  /* Drag is rAF-batched; no transition so width/transform follow the pointer
+     exactly without chasing it. */
+  transition: none;
+  will-change: width;
+  /* Prevent scrollbar appearance/disappearance from causing layout shifts. */
+  scrollbar-gutter: stable;
 }
 
 .right-panel-resize-handle {
@@ -1170,6 +1176,11 @@
   transition: width 0.3s ease;
 }
 
+/* Disable context segment transitions during panel resize to prevent jitter. */
+.right-panel.is-resizing .context-window-segment {
+  transition: none;
+}
+
 .context-window-segment.free {
   background: transparent;
   flex: 1;
@@ -1364,4 +1375,187 @@
 .host-log-message {
   word-break: break-word;
   white-space: pre-wrap;
+}
+
+/* ── Knowledge Center (right-panel sub-tabbed entry) ──────────────── */
+
+/* Stage overlay: Knowledge Center occupies the workspace stage when the
+   sidebar toggle is active. Sits over the chat-column as a sibling. */
+.knowledge-stage {
+  position: absolute;
+  inset: 0;
+  z-index: var(--layer-drawer, 30);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--canvas);
+  backdrop-filter: blur(2px);
+}
+
+.knowledge-stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+
+.knowledge-stage-kicker {
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.knowledge-stage-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Stage variant of the panel: drop the inner header (the stage header
+   already announces the surface) and let the sub-tabs own the top row. */
+.knowledge-stage-body .knowledge-center-panel {
+  height: 100%;
+}
+
+.knowledge-stage-body .knowledge-center-header {
+  display: none;
+}
+
+.knowledge-stage-body .knowledge-center-panel .ui-tabs {
+  padding: 0;
+}
+
+.knowledge-stage-body .knowledge-center-panel .ui-tabs-list {
+  padding: 8px 14px 6px;
+}
+
+.knowledge-stage-body .knowledge-center-panel .ui-tabs-content {
+  padding: 14px 14px 0;
+}
+
+.knowledge-stage-body .knowledge-center-panel .right-panel-section {
+  padding: 0 14px 24px;
+}
+
+/* Hide the chat column when the knowledge overlay is open so it doesn't
+   capture focus / scroll behind the overlay. */
+.app-shell.knowledge-open .chat-column {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.knowledge-center-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: 0;
+}
+
+.knowledge-center-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 14px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.knowledge-center-kicker {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.9;
+}
+
+.knowledge-center-subtitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* Sub-tabs strip — reuse ui-tabs styles with tighter spacing. */
+.knowledge-center-panel .ui-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.knowledge-center-panel .ui-tabs-list {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px 6px;
+  margin: 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: transparent;
+}
+
+.knowledge-center-panel .ui-tabs-trigger {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 570;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background var(--motion-fast) ease,
+    color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease;
+}
+
+.knowledge-center-panel .ui-tabs-trigger:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
+.knowledge-center-panel .ui-tabs-trigger[data-state='active'] {
+  border-color: color-mix(in srgb, var(--accent) 36%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+
+.knowledge-center-panel .ui-tabs-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 4px 0;
+}
+
+.knowledge-center-panel .right-panel-section {
+  border: 0;
+  padding: 0 12px 16px;
+}
+
+/* Knowledge Center discoverability hint under the section label. */
+.right-panel-section-hint,
+.right-panel-section-hint-en {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--faint);
+  margin-top: 1px;
+  line-height: 1.35;
+}
+
+.right-panel-section-hint-en {
+  display: inline-block;
+  margin-top: 0;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 11px;
 }

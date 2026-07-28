@@ -26,6 +26,7 @@ export type ProviderPreset = {
   /** Group for UI sections. */
   group: 'cloud' | 'gateway' | 'local' | 'custom';
   docsHint?: string;
+  icon?: string;
 };
 
 export const PROVIDER_PRESETS: readonly ProviderPreset[] = [

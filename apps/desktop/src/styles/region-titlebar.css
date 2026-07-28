@@ -61,9 +61,10 @@
   min-height: var(--titleband-height);
   height: var(--titleband-height);
   gap: 5px;
-  /* macOS traffic lights occupy the first ~54px; leave a clear gap after
-     the green button. */
-  padding: 0 44px 0 76px;
+  /* macOS traffic lights sit top-left; reserve their overlay area. The right
+     cluster (.titlebar-actions) flushes to the window edge minus breathing
+     room — there is no OS-drawn chrome on the right. */
+  padding: 0 12px 0 76px;
   border-bottom: 0;
   /* Unified field: titleband matches sidebar + stage (quiet workbench). */
   background: var(--canvas);

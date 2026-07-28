@@ -9,6 +9,7 @@ import type { SessionTimeGroup } from './session-groups';
 import { Button, IconButton, ListRow } from '@piwin/ui-kit';
 import { projectDisplayName } from './project-display-name';
 import {
+  IconBook,
   IconChat,
   IconFolder,
   IconFolderPlus,
@@ -45,6 +46,8 @@ export type ProjectSessionSidebarProps = {
   onResumeSession: (sessionId: string) => void;
   onOpenSessionMenu: (sessionId: string, x: number, y: number) => void;
   onOpenSettings: () => void;
+  knowledgeOpen?: boolean;
+  onToggleKnowledge?: () => void;
   isOverlayPresentation?: boolean;
   onCloseOverlay?: () => void;
   locale?: DesktopLocale;
@@ -52,14 +55,6 @@ export type ProjectSessionSidebarProps = {
 
 export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactElement {
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
-  const modeLabel = props.hostMock ? 'mock' : 'live';
-  const statusTitle = [
-    props.hostReady ? copy.ready : copy.offline,
-    `传输：${props.transportLabel}`,
-    `模式：${modeLabel}`,
-  ]
-    .filter(Boolean)
-    .join(' · ');
 
   return (
     <aside className="sidebar" aria-label={copy.workspace}>
@@ -287,46 +282,40 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       </details>
 
       <div className="sidebar-footer">
-        <div className="sidebar-footer-main">
-          <div
-            className="sidebar-connection"
-            aria-label="Host connection status"
-            title={statusTitle}
-          >
-            <span
-              className={props.hostReady ? 'sidebar-status-dot ok' : 'sidebar-status-dot'}
-              aria-hidden
-            />
-            <div className="sidebar-connection-copy">
-              <span className="sidebar-connection-title" data-testid="host-status-pill">
-                {props.hostReady ? copy.ready : copy.offline}
-              </span>
-              <span className="sidebar-connection-meta" data-testid="transport-pill">
-                {modeLabel}
-                <span className="sidebar-connection-sep" aria-hidden>
-                  ·
-                </span>
-                {props.transportLabel}
-              </span>
-            </div>
-          </div>
-          <button
-            type="button"
-            className={
-              props.settingsOpen ? 'sidebar-settings-button active' : 'sidebar-settings-button'
-            }
-            title={copy.settings}
-            aria-label={copy.settings}
-            aria-pressed={props.settingsOpen}
-            data-testid="settings-open-btn"
-            onClick={props.onOpenSettings}
-          >
-            <IconSettings />
-            <span className="sidebar-settings-label">{copy.settings}</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className={
+            props.knowledgeOpen
+              ? 'sidebar-footer-button sidebar-knowledge-button active'
+              : 'sidebar-footer-button sidebar-knowledge-button'
+          }
+          title={copy.knowledgeCenter}
+          aria-label={copy.knowledgeCenter}
+          aria-pressed={props.knowledgeOpen}
+          data-testid="sidebar-knowledge-btn"
+          onClick={props.onToggleKnowledge}
+        >
+          <IconBook />
+          <span className="sidebar-footer-label">{copy.knowledgeCenter}</span>
+        </button>
+        <button
+          type="button"
+          className={
+            props.settingsOpen
+              ? 'sidebar-footer-button sidebar-settings-button active'
+              : 'sidebar-footer-button sidebar-settings-button'
+          }
+          title={copy.settings}
+          aria-label={copy.settings}
+          aria-pressed={props.settingsOpen}
+          data-testid="settings-open-btn"
+          onClick={props.onOpenSettings}
+        >
+          <IconSettings />
+          <span className="sidebar-footer-label">{copy.settings}</span>
+        </button>
         <span className="sr-only" data-testid="agent-mode-pill">
-          {modeLabel}
+          {props.hostMock ? 'mock' : 'live'}
         </span>
       </div>
     </aside>

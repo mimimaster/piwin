@@ -5,68 +5,68 @@ import type { ThemeManifest } from '@piwin/contracts';
 const SHARED_FONT =
   '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", system-ui, sans-serif';
 
-/** Product dark — quiet workbench unified graphite field (prototype v2.3). */
+/** Product dark — Daybreak "dusk" field: warm ink canvas + sunrise coral accent. */
 export const PIWIN_APPEARANCE_DARK: ThemeManifest = {
   id: 'piwin-dark',
   name: 'Piwin Dark',
-  version: '4.0.0',
-  description: 'Quiet workbench unified graphite field for piwin shell + artifacts',
+  version: '5.0.0',
+  description: 'Daybreak warm ink field with sunrise coral accent for piwin shell + artifacts',
   mode: 'dark',
   tokens: {
-    bg: '#12141a',
-    panel: '#12141a',
-    panel2: '#181a21',
-    border: 'rgba(255, 255, 255, 0.04)',
-    text: '#dde0e5',
-    muted: '#8d94a0',
-    accent: '#5b9dff',
-    accent2: '#7eb0ff',
-    danger: '#e5665c',
-    ok: '#43c384',
-    radius: '8px',
+    bg: '#151318',
+    panel: '#1a181f',
+    panel2: '#211e26',
+    border: 'rgba(255, 238, 220, 0.07)',
+    text: '#f0eae3',
+    muted: '#a8a09f',
+    accent: '#ff8359',
+    accent2: '#ffb37e',
+    danger: '#f0685c',
+    ok: '#4fca92',
+    radius: '10px',
     font: SHARED_FONT,
   },
   artifact: {
     bg: 'transparent',
-    surface: 'rgba(24, 26, 33, 0.98)',
-    text: '#dde0e5',
-    muted: '#8d94a0',
-    accent: '#5b9dff',
-    border: 'rgba(255, 255, 255, 0.08)',
-    radius: '0.5rem',
+    surface: 'rgba(33, 30, 38, 0.98)',
+    text: '#f0eae3',
+    muted: '#a8a09f',
+    accent: '#ff8359',
+    border: 'rgba(255, 238, 220, 0.09)',
+    radius: '0.625rem',
     font: SHARED_FONT,
   },
 };
 
-/** Product light — quiet native canvas companion. */
+/** Product light — Daybreak "paper" field: warm morning paper + tangerine accent. */
 export const PIWIN_APPEARANCE_LIGHT: ThemeManifest = {
   id: 'piwin-light',
   name: 'Piwin Light',
-  version: '3.0.0',
-  description: 'Quiet workbench light companion for piwin shell + artifacts',
+  version: '5.0.0',
+  description: 'Daybreak warm paper field with tangerine accent for piwin shell + artifacts',
   mode: 'light',
   tokens: {
-    bg: '#f6f7f8',
-    panel: '#ffffff',
-    panel2: '#f7f7f8',
-    border: 'rgba(0, 0, 0, 0.12)',
-    text: '#1d1d1f',
-    muted: '#636366',
-    accent: '#007aff',
-    accent2: '#0a84ff',
-    danger: '#d70015',
-    ok: '#248a3d',
-    radius: '8px',
+    bg: '#f7f3ed',
+    panel: '#fffdfa',
+    panel2: '#f2ede5',
+    border: 'rgba(80, 60, 40, 0.10)',
+    text: '#2f2924',
+    muted: '#82776a',
+    accent: '#e85d1f',
+    accent2: '#f4955c',
+    danger: '#d64541',
+    ok: '#1f9d63',
+    radius: '10px',
     font: SHARED_FONT,
   },
   artifact: {
     bg: 'transparent',
-    surface: 'rgba(255, 255, 255, 0.98)',
-    text: '#1d1d1f',
-    muted: '#636366',
-    accent: '#007aff',
-    border: 'rgba(0, 0, 0, 0.12)',
-    radius: '0.5rem',
+    surface: 'rgba(255, 253, 250, 0.98)',
+    text: '#2f2924',
+    muted: '#82776a',
+    accent: '#e85d1f',
+    border: 'rgba(80, 60, 40, 0.12)',
+    radius: '0.625rem',
     font: SHARED_FONT,
   },
 };
@@ -130,24 +130,24 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.style.setProperty('--surface', tokens.panel2);
 
   /** Raised surface — menus, tooltips, dropdown overlays. */
-  root.style.setProperty('--surface-raised', isLight ? '#ffffff' : '#1e2128');
+  root.style.setProperty('--surface-raised', isLight ? '#ffffff' : '#26222b');
   /** Hover state fill for interactive row/item components. */
   root.style.setProperty(
     '--surface-hover',
-    isLight ? 'rgba(0, 0, 0, 0.045)' : 'rgba(255, 255, 255, 0.055)',
+    isLight ? 'rgba(60, 40, 20, 0.05)' : 'rgba(255, 240, 225, 0.055)',
   );
   /** Sidebar / rail share the unified field (quiet workbench: no hard panel boxes). */
   root.style.setProperty('--sidebar', tokens.bg);
   root.style.setProperty('--rail', tokens.bg);
-  root.style.setProperty('--wb-hover', isLight ? 'rgba(0, 0, 0, 0.045)' : 'rgba(255, 255, 255, 0.055)');
+  root.style.setProperty('--wb-hover', isLight ? 'rgba(60, 40, 20, 0.05)' : 'rgba(255, 240, 225, 0.055)');
   root.style.setProperty('--wb-line', tokens.border);
   root.style.setProperty(
     '--wb-accent-soft',
-    isLight ? 'rgba(10, 108, 255, 0.09)' : 'rgba(91, 157, 255, 0.14)',
+    `color-mix(in srgb, ${tokens.accent} ${isLight ? 10 : 13}%, transparent)`,
   );
-  root.style.setProperty('--wb-send-fg', isLight ? '#ffffff' : '#0b1320');
-  root.style.setProperty('--wb-term-bg', isLight ? '#f0f1f3' : '#0c0d10');
-  root.style.setProperty('--wb-dim', isLight ? '#8a919c' : '#5f6672');
+  root.style.setProperty('--wb-send-fg', isLight ? '#ffffff' : '#2b1508');
+  root.style.setProperty('--wb-term-bg', isLight ? '#efe9e0' : '#100e12');
+  root.style.setProperty('--wb-dim', isLight ? '#a89d8f' : '#736d76');
 
   /**
    * Derived control surface colors — used by ui-foundations.css for inputs,
@@ -155,22 +155,16 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
    */
   root.style.setProperty(
     '--surface-control',
-    isLight
-      ? 'color-mix(in srgb, #f7f7f8 92%, #f5f5f7)'
-      : 'color-mix(in srgb, #181a21 92%, #12141a)',
+    `color-mix(in srgb, ${tokens.panel2} 92%, ${tokens.bg})`,
   );
   root.style.setProperty(
     '--surface-control-hover',
-    isLight
-      ? 'color-mix(in srgb, #f7f7f8 80%, #1d1d1f)'
-      : 'color-mix(in srgb, #181a21 80%, #dde0e5)',
+    `color-mix(in srgb, ${tokens.panel2} 80%, ${tokens.text})`,
   );
   /** Selection highlight on rows and list items. */
   root.style.setProperty(
     '--surface-selected',
-    isLight
-      ? 'color-mix(in srgb, #0a6cff 16%, #ffffff)'
-      : 'rgba(91, 157, 255, 0.14)',
+    `color-mix(in srgb, ${tokens.accent} ${isLight ? 13 : 15}%, ${tokens.panel})`,
   );
 
   // Semantic surface aliases used by older CSS
@@ -194,13 +188,13 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Alias of --muted for semantic readers. */
   root.style.setProperty('--content-secondary', tokens.muted);
   /** Tertiary / placeholder text, icons in inactive states. */
-  root.style.setProperty('--faint', isLight ? '#8a919c' : '#5f6672');
+  root.style.setProperty('--faint', isLight ? '#a89d8f' : '#736d76');
   /** Alias of --faint for semantic readers. */
-  root.style.setProperty('--content-muted', isLight ? '#8a919c' : '#5f6672');
+  root.style.setProperty('--content-muted', isLight ? '#a89d8f' : '#736d76');
   /** Disabled control labels and icons. */
-  root.style.setProperty('--content-disabled', isLight ? '#aeaeb2' : '#5f6672');
-  /** Text on solid accent fills — dark on blue for product send (prototype). */
-  root.style.setProperty('--content-on-accent', isLight ? '#ffffff' : '#0b1320');
+  root.style.setProperty('--content-disabled', isLight ? '#b9b0a2' : '#5f5a64');
+  /** Text on solid accent fills — deep roast on bright coral, white on tangerine. */
+  root.style.setProperty('--content-on-accent', isLight ? '#ffffff' : '#2b1508');
 
   // Borders and strokes
 
@@ -213,24 +207,22 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Soft / de-emphasized divider line. */
   root.style.setProperty(
     '--line-soft',
-    isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.04)',
+    isLight ? 'rgba(80, 60, 40, 0.06)' : 'rgba(255, 238, 220, 0.045)',
   );
   /** Alias of --line-soft for semantic readers. */
   root.style.setProperty(
     '--border-subtle',
-    isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.04)',
+    isLight ? 'rgba(80, 60, 40, 0.06)' : 'rgba(255, 238, 220, 0.045)',
   );
   /** Stronger border for high-contrast separators or elevated containers. */
   root.style.setProperty(
     '--line-strong',
-    isLight ? 'rgba(0, 0, 0, 0.20)' : 'rgba(255, 255, 255, 0.20)',
+    isLight ? 'rgba(80, 60, 40, 0.22)' : 'rgba(255, 238, 220, 0.22)',
   );
   /** Interactive border that highlights when focused or active. */
   root.style.setProperty(
     '--border-interactive',
-    isLight
-      ? 'color-mix(in srgb, #0a6cff 60%, rgba(0,0,0,0.12))'
-      : 'color-mix(in srgb, #5b9dff 60%, rgba(255,255,255,0.08))',
+    `color-mix(in srgb, ${tokens.accent} 60%, ${tokens.border})`,
   );
   /** Border that tracks --accent; used for focused inputs and selected items. */
   root.style.setProperty('--border-emphasis', tokens.accent);
@@ -246,15 +238,15 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Low-opacity accent fill for badge backgrounds and hover overlays. */
   root.style.setProperty(
     '--accent-soft',
-    isLight ? 'rgba(10, 108, 255, 0.09)' : 'rgba(91, 157, 255, 0.14)',
+    `color-mix(in srgb, ${tokens.accent} ${isLight ? 10 : 14}%, transparent)`,
   );
 
   // Semantic colors — purple and teal tones for assistant / status chrome
 
   /** Purple / violet tone used for AI assistant identity elements. */
-  root.style.setProperty('--violet', isLight ? '#8944ab' : '#bf8cff');
+  root.style.setProperty('--violet', isLight ? '#8a5cf5' : '#cba6ff');
   /** Teal / sage tone used for secondary status indicators (waiting state). */
-  root.style.setProperty('--sage', isLight ? '#0071a8' : '#64d2ff');
+  root.style.setProperty('--sage', isLight ? '#0e7d99' : '#6fd3e8');
 
   // Status / state colors
 
@@ -263,37 +255,46 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Success / ok state indicator. */
   root.style.setProperty('--state-success', tokens.ok);
   /** Warning / caution state indicator. */
-  root.style.setProperty('--state-warning', isLight ? '#b25000' : '#ff9f0a');
+  root.style.setProperty('--state-warning', isLight ? '#b25000' : '#ffb020');
   /** Error / destructive state indicator. */
   root.style.setProperty('--state-danger', tokens.danger);
   /** Waiting / paused state indicator — matches --sage hue. */
-  root.style.setProperty('--state-waiting', isLight ? '#0071a8' : '#64d2ff');
+  root.style.setProperty('--state-waiting', isLight ? '#0e7d99' : '#6fd3e8');
   /** Alias of --state-danger; used by some older CSS. */
   root.style.setProperty('--danger', tokens.danger);
   /** Alias of --state-success; used by some older CSS. */
   root.style.setProperty('--ok', tokens.ok);
 
-  // Surface chrome
+  // Surface chrome — Daybreak uses soft warm shadows instead of a flat field.
 
   /** Box shadow for elevated surfaces (panels, modals). */
-  root.style.setProperty('--shadow', 'none');
+  root.style.setProperty(
+    '--shadow',
+    isLight ? '0 10px 28px rgba(90, 65, 40, 0.10)' : '0 10px 28px rgba(8, 5, 10, 0.42)',
+  );
   /** Shadow for overlay/popover surfaces. */
-  root.style.setProperty('--shadow-overlay', '0 18px 50px rgba(0, 0, 0, 0.28)');
+  root.style.setProperty(
+    '--shadow-overlay',
+    isLight ? '0 22px 60px rgba(90, 65, 40, 0.18)' : '0 22px 60px rgba(8, 5, 10, 0.55)',
+  );
   /** Backdrop for modals and drawers. */
-  root.style.setProperty('--overlay-backdrop', 'rgba(0, 0, 0, 0.42)');
+  root.style.setProperty(
+    '--overlay-backdrop',
+    isLight ? 'rgba(70, 50, 30, 0.28)' : 'rgba(14, 10, 14, 0.55)',
+  );
 
   // Radius
 
   /** Default corner radius for cards and panels (from manifest). */
   root.style.setProperty('--radius', tokens.radius);
   /** Compact radius for small controls (inputs, chips, buttons). */
-  root.style.setProperty('--radius-sm', '6px');
+  root.style.setProperty('--radius-sm', '7px');
   /** Alias of --radius-sm used in control-level CSS. */
-  root.style.setProperty('--radius-control', '6px');
-  /** Standard surface radius (same as --radius at 8px). */
-  root.style.setProperty('--radius-surface', '8px');
+  root.style.setProperty('--radius-control', '8px');
+  /** Standard surface radius (same as --radius at 10px). */
+  root.style.setProperty('--radius-surface', '10px');
   /** Larger radius for overlays, sheets, modals. */
-  root.style.setProperty('--radius-overlay', '12px');
+  root.style.setProperty('--radius-overlay', '14px');
 
   // Spacing scale — 4px base increment
 

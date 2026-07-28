@@ -1,8 +1,10 @@
 /** Inline outline icons for the desktop shell (no asset pipeline). */
 
-import type { ReactElement, SVGProps } from 'react';
+import type { ReactElement, SVGProps, ImgHTMLAttributes } from 'react';
 
 type IconProps = SVGProps<SVGSVGElement>;
+
+type ImageIconProps = ImgHTMLAttributes<HTMLImageElement>;
 
 function IconBase(props: IconProps): ReactElement {
   const { children, ...rest } = props;
@@ -75,6 +77,30 @@ export function IconExtension(props: IconProps): ReactElement {
       <path d="M8 4h3v3h2V4h3v5h-3v2h3v5h-3v3h-2v-3H8v-5h3V9H8V4Z" />
       <path d="M4 9h4v2H4V9Zm12 0h4v2h-4V9ZM4 14h4v2H4v-2Zm12 0h4v2h-4v-2Z" />
     </IconBase>
+  );
+}
+
+/** Raster product icons generated for the desktop shell. These are kept
+ * alongside the outline SVG set so existing call sites can swap cleanly. */
+export function IconSkill(props: ImageIconProps): ReactElement {
+  return (
+    <img
+      src="/ui/skill-icon.png"
+      alt=""
+      {...props}
+      style={{ display: 'block', ...props.style }}
+    />
+  );
+}
+
+export function IconMcp(props: ImageIconProps): ReactElement {
+  return (
+    <img
+      src="/ui/mcp-icon.png"
+      alt=""
+      {...props}
+      style={{ display: 'block', ...props.style }}
+    />
   );
 }
 
@@ -302,6 +328,17 @@ export function IconNote(props: IconProps): ReactElement {
     <IconBase {...props}>
       <path d="M7 3.5h7l4.5 4.5V19a1.5 1.5 0 0 1-1.5 1.5H7A1.5 1.5 0 0 1 5.5 19V5A1.5 1.5 0 0 1 7 3.5Z" />
       <path d="M14 3.5V8h4.5M9 12.5h6M9 16h4" />
+    </IconBase>
+  );
+}
+
+export function IconBook(props: IconProps): ReactElement {
+  // Open-book / knowledge center glyph: two facing pages with a center seam.
+  return (
+    <IconBase {...props}>
+      <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5v-13Z" />
+      <path d="M20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5A1.5 1.5 0 0 0 20 18.5v-13Z" />
+      <path d="M12 4v16" />
     </IconBase>
   );
 }
