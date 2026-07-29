@@ -113,6 +113,8 @@ export type { McpSessionBridge } from './mcp-session-bridge.js';
 
 export { buildGatedBashToolDefinition } from './gated-bash-tool.js';
 export type { BuildGatedBashToolOptions } from './gated-bash-tool.js';
+export { buildGatedFileToolsDefinition } from './gated-file-tools.js';
+export type { BuildGatedFileToolsOptions } from './gated-file-tools.js';
 
 export { createProductShellSession } from './product-shell-session.js';
 export type { CreateMockSessionOptions } from './mock-session.js';
