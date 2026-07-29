@@ -3,7 +3,12 @@ export type { CreateAgentHostOptions } from './create-host.js';
 export { PiSdkAdapter } from './sdk-adapter.js';
 export { PiRpcAdapter } from './rpc-adapter.js';
 export type { PiRpcAdapterOptions } from './rpc-adapter.js';
-export { mapPiSessionEvent, createEventEnvelopeGenerator, wrapEvent, wrapEvents } from './event-map.js';
+export {
+  mapPiSessionEvent,
+  createEventEnvelopeGenerator,
+  wrapEvent,
+  wrapEvents,
+} from './event-map.js';
 export type { WrappedAgentEvent } from './event-map.js';
 export {
   buildToolPresentation,
@@ -24,11 +29,22 @@ export type {
   NotesPermissionAction,
   ProcessPermissionAction,
 } from './permission-policy.js';
+export {
+  evaluateRules,
+  matchBashGlob,
+  matchPathGlob,
+  matchHostGlob,
+  matchSelectorGlob,
+} from './permission-rule-engine.js';
+export {
+  BUNDLED_DENY,
+  BUNDLED_ASK_BASH,
+  BUNDLED_ASK_FILE_WRITE,
+  BUNDLED_ALLOW,
+  createBundledRuleSet,
+} from './permission-defaults.js';
 export { buildProcessTools } from './process-tools.js';
-export type {
-  BuildProcessToolsOptions,
-  ProcessToolPermissionGate,
-} from './process-tools.js';
+export type { BuildProcessToolsOptions, ProcessToolPermissionGate } from './process-tools.js';
 export {
   createDefaultPiwinConfig,
   initPiwinConfig,
@@ -81,10 +97,7 @@ export { scanExtensions, collectExtensionEntryPaths } from './extension-scanner.
 export { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
 export { scanPrompts, collectPromptEntryPaths } from './prompt-scanner.js';
 export { ensureBundledPromptsInstalled } from './ensure-bundled-prompts.js';
-export {
-  createExtensionUiContext,
-  bindExtensionUiToPiSession,
-} from './extension-ui-bridge.js';
+export { createExtensionUiContext, bindExtensionUiToPiSession } from './extension-ui-bridge.js';
 export type {
   ExtensionUiBridge,
   ExtensionUiRequest,
@@ -115,7 +128,6 @@ export type { BuildNotesToolsOptions } from './notes-tools.js';
 export { resolveNotesEmbeddingApiKey } from './notes-embedding-secret.js';
 export { buildFlashcardTools } from './flashcard-tools.js';
 export type { BuildFlashcardToolsOptions } from './flashcard-tools.js';
-
 
 export { createDelayedSessionHandle } from './delayed-session-fixture.js';
 export type {
