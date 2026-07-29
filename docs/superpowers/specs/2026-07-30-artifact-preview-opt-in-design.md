@@ -10,6 +10,74 @@
 
 ---
 
+## 0. Context: original ask and design thinking
+
+This section records **why** the design exists, before the formal problem statement. It is a compact log of the product discussion that produced Approach 1.
+
+### 0.1 Original requirements (user)
+
+| # | Ask | Notes |
+|---|-----|--------|
+| R1 | Review whether project **Artifact 具现** is usable | Assessment: heavy stack (`@piwin/artifact` + Desktop `ArtifactFrame`) is solid and shippable as MVP, but always “armed” on HTML candidates; P1 gaps (side panel, export, config wiring) remain. |
+| R2 | Prefer **抽出按钮开启**；**正常就 markdownRender** | Default chat should feel like ordinary Markdown + code. Materializing HTML UI should be an explicit user action / capability, not ambient chrome. |
+| R3 | Confirm how today’s path works | Entry is Markdown **fence languages** (not a custom URL scheme). Runtime uses sandbox `srcdoc` + a **custom postMessage bridge** (`piwin-artifact:ready \| resize \| action`). |
+| R4 | Current system feels **relatively heavy**; may later want a **lightweight** render path similar to Cherry Studio (special Markdown / fence formats that render in-thread) | Do not force light formats through CSP/iframe/height-bridge. Reserve a separate light fence path for later. |
+| R5 | Choose among three extraction shapes for the “button” | User accepted the recommended **Approach 1** (see §0.3). |
+
+In one line: **Markdown is the default product surface; heavy HTML Artifact is opt-in; leave room for a future light renderer without rewriting security.**
+
+### 0.2 Rough design thinking (agent)
+
+**What the codebase already is**
+
+- `@piwin/artifact` is a correct **heavy** pipeline: parse → security → theme soft-repair → CSP srcdoc → parent height/action bridge. Flashcards already depend on it for interactive flip cards.
+- Desktop is already **source-first** after complete (Preview button before iframe). Streaming never mounts Artifact. Mermaid/KaTeX are separate **light** branches inside `MarkdownView`.
+- Pain is product policy and wiring, not a missing sandbox: capability is effectively always on; config `htmlUiModeDefault` / `maxBytes` are not driven from UI.
+
+**Two capabilities must not share one switch**
+
+| Path | Role | When |
+|------|------|------|
+| **Light** | In-document enhancements (mermaid, math; later svg / `html-preview`) | Everyday readability; soft-fail to source |
+| **Heavy** | Sandboxed interactive HTML deliverable + optional host actions | Explicit opt-in; flashcards; full UI artifacts |
+
+Cherry-style features belong on **Light**. Current openwebui_m port belongs on **Heavy**. The opt-in button in this design gates **Heavy only**.
+
+**How to “抽成按钮” — three options considered**
+
+| # | Shape | Off | On | Verdict |
+|---|--------|-----|-----|---------|
+| **1** | Global capability default **off** + per-fence Preview when on | HTML fences = ordinary code (Copy only) | Show **Preview artifact**; click mounts iframe | **Chosen** — matches R2, small scope, room for light path later |
+| **2** | Always detect HTML; never auto-mount iframe | N/A (no global off) | Always show Preview button | Rejected — still not “normal Markdown”; barely changes today |
+| **3** | Dual: global + per-fence + optional auto-preview | Same as 1 | Global on → Preview; plus auto-open mode | Deferred — auto-preview is a third mode (`explicit-artifact-review`); add later if needed |
+
+**Why Approach 1 (recommendation locked with user)**
+
+1. Delivers **正常 markdownRender** when off — no Artifact chrome, no evaluate-for-display.
+2. Keeps existing **per-fence Preview** when on — safer and cheaper than auto-mounting every HTML block.
+3. Cheaper than Approach 3; more honest than Approach 2.
+4. Does not block future light fences: mermaid/math stay ungated; new light languages get their own registry later.
+5. Heavy stack (CSP, bridge, init-queue) is **retained**, not deleted — only **offered** when the user opts in (plus a narrow flashcard exception so interactive cards stay one click away).
+
+**Out of scope for this redesign (called out early)**
+
+- Side panel / fullscreen Artifact workspace, export HTML to project, CLI preview.
+- Implementing Cherry-style light HTML/SVG (boundary only in §10).
+- Rewriting the postMessage protocol or security classifier.
+
+### 0.3 Decision snapshot
+
+```text
+User need:     default Markdown; Artifact by explicit enable
+Chosen shape:  Approach 1 — global "Artifact preview" OFF by default
+               + per-fence "Preview artifact" when ON
+Later:         light special Markdown formats ≠ this switch
+Ship bar:      preference + MarkdownView policy + maxBytes wiring
+               + flashcard one-shot preview when global is off
+```
+
+---
+
 ## 1. Problem
 
 Today Desktop already uses source-first Preview for HTML candidates, but:
@@ -21,6 +89,7 @@ Today Desktop already uses source-first Preview for HTML candidates, but:
 Goal: **normal transcript = Markdown render**; **heavy HTML materialization = explicit product opt-in**, without throwing away the security stack in `@piwin/artifact`.
 
 ---
+
 
 ## 2. Goals and non-goals
 
