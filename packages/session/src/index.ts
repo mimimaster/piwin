@@ -9,6 +9,7 @@ export {
   pinSessionRecord,
   unpinSessionRecord,
   renameSessionRecord,
+  setSessionAutoName,
   archiveSessionRecord,
   unarchiveSessionRecord,
   deleteSessionRecord,
@@ -17,6 +18,7 @@ export {
   sortSessionRecords,
 } from './session-index-store.js';
 export type { ListSessionsForProjectOptions } from './session-index-store.js';
+export { deriveDefaultNameFromMessage } from './derive-default-name.js';
 
 export {
   buildDuplicateSessionName,
@@ -57,10 +59,7 @@ export type {
 export { searchSessions } from './session-search.js';
 export type { SessionSearchOptions } from './session-search.js';
 
-export {
-  buildProductHistoryContext,
-  mergeProductHistoryIntoPrompt,
-} from './product-context.js';
+export { buildProductHistoryContext, mergeProductHistoryIntoPrompt } from './product-context.js';
 export type { ProductHistoryContextOptions } from './product-context.js';
 
 export { buildSessionOutline } from './session-outline.js';
