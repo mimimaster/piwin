@@ -63,24 +63,3 @@ describe('evaluateWebPermission', () => {
     );
   });
 });
-
-describe('evaluateMemoryPermission', () => {
-  it('allows list/search/read', async () => {
-    const { evaluateMemoryPermission } = await import('./permission-policy.js');
-    expect(evaluateMemoryPermission('memory_list', '').decision).toBe('allow');
-    expect(evaluateMemoryPermission('memory_search', 'hello').decision).toBe('allow');
-    expect(evaluateMemoryPermission('memory_read', 'id').decision).toBe('allow');
-  });
-
-  it('asks for mutating ops', async () => {
-    const { evaluateMemoryPermission } = await import('./permission-policy.js');
-    expect(evaluateMemoryPermission('memory_write', 'content').decision).toBe('ask');
-    expect(evaluateMemoryPermission('memory_delete', 'id').decision).toBe('ask');
-    expect(evaluateMemoryPermission('memory_accept', 'id').decision).toBe('ask');
-  });
-
-  it('denies empty mutate targets', async () => {
-    const { evaluateMemoryPermission } = await import('./permission-policy.js');
-    expect(evaluateMemoryPermission('memory_delete', '').decision).toBe('deny');
-  });
-});

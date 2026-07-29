@@ -4,7 +4,6 @@
  * - Repo Wiki  → NotesPanel (RAG over repo / project notes)
  * - 知识卡片   → FlashcardsPanel (spaced-repetition deck review)
  * - 文档卡片   → DocCardsPanel (folder RAG → flashcard generation)
- * - 记忆       → MemoryPanel    (long-term agent memory)
  *
  * Each sub-tab mounts the existing product panel so the per-tab capabilities
  * (search, host commands, settings integrations) stay identical to the
@@ -18,7 +17,6 @@ import { useDesktopLocale } from './desktop-locale-context';
 import { NotesPanel } from './NotesPanel';
 import { FlashcardsPanel } from './FlashcardsPanel';
 import { DocCardsPanel } from './DocCardsPanel';
-import { MemoryPanel } from './MemoryPanel';
 
 /**
  * Commands used across the three knowledge surfaces. Hand-rolled union so
@@ -45,14 +43,6 @@ type FlashcardsCommand = {
   cardId?: string;
   rating?: 0 | 1 | 2 | 3;
 };
-type MemoryCommand = {
-  type: 'memory/list' | 'memory/search' | 'memory/delete' | 'memory/accept' | 'memory/quota';
-  filter?: { scope?: 'global' | 'project'; projectKey?: string; limit?: number };
-  query?: { query: string; scope?: 'global' | 'project'; projectKey?: string; limit?: number };
-  memoryId?: string;
-  scope?: 'global' | 'project';
-  projectKey?: string;
-};
 type DocCardsCommand =
   | { type: 'doccards/scan-folder'; folderPath: string }
   | { type: 'doccards/index-folder'; folderPath: string; includeFiles?: string[] }
@@ -62,9 +52,9 @@ type DocCardsCommand =
   | { type: 'doccards/forget-folder'; folderPath: string }
   | { type: 'doccards/open-source'; cardId: string };
 type ConfigCommand = { type: 'config/get' | 'config/set'; config?: unknown };
-type KnowledgeCommand = NotesCommand | FlashcardsCommand | MemoryCommand | DocCardsCommand | ConfigCommand;
+type KnowledgeCommand = NotesCommand | FlashcardsCommand | DocCardsCommand | ConfigCommand;
 
-type KnowledgeSubTab = 'wiki' | 'cards' | 'doccards' | 'memory';const SUB_TABS = [
+type KnowledgeSubTab = 'wiki' | 'cards' | 'doccards';const SUB_TABS = [
   {
     id: 'wiki',
     labelEn: 'Repo Wiki',
@@ -89,14 +79,6 @@ type KnowledgeSubTab = 'wiki' | 'cards' | 'doccards' | 'memory';const SUB_TABS =
     descriptionEn: 'Generate flashcards from a document folder',
     descriptionZh: '从文档文件夹生成闪卡',
   },
-  {
-    id: 'memory',
-    labelEn: 'Memory',
-    labelZh: '记忆',
-    testid: 'knowledge-tab-memory',
-    descriptionEn: 'Long-term agent memory',
-    descriptionZh: 'Agent 长期记忆',
-  },
 ] as const satisfies ReadonlyArray<{
   id: KnowledgeSubTab;
   labelEn: string;
@@ -107,7 +89,7 @@ type KnowledgeSubTab = 'wiki' | 'cards' | 'doccards' | 'memory';const SUB_TABS =
 }>;
 
 export type KnowledgeCenterPanelProps = {
-  /** Currently trusted project, passed to NotesPanel and MemoryPanel. */
+  /** Currently trusted project, passed to knowledge panels. */
   projectPath: string | null;
   /** Single RPC bridge that routes knowledge-host commands. */
   request: (command: KnowledgeCommand) => Promise<HostResponse>;
@@ -144,10 +126,6 @@ export function KnowledgeCenterPanel(
     (command: DocCardsCommand) => props.request(command),
     [props.request],
   );
-  const memoryRequest = useCallback(
-    (command: MemoryCommand | ConfigCommand) => props.request(command),
-    [props.request],
-  );
 
   const current: (typeof SUB_TABS)[number] = SUB_TABS.find((t) => t.id === subTab) ?? SUB_TABS[0];
   const kicker = isZh ? '知识中心' : 'Knowledge Center';
@@ -166,7 +144,7 @@ export function KnowledgeCenterPanel(
       <Tabs
         value={subTab}
         onValueChange={(next) => {
-          if (next === 'wiki' || next === 'cards' || next === 'doccards' || next === 'memory') {
+          if (next === 'wiki' || next === 'cards' || next === 'doccards') {
             setSubTab(next);
           }
         }}
@@ -207,17 +185,6 @@ export function KnowledgeCenterPanel(
                 docCardsRequest as unknown as Parameters<typeof DocCardsPanel>[0]['request']
               }
               sendSessionPrompt={props.sendSessionPrompt}
-            />
-          </div>
-        </TabsContent>
-        <TabsContent value="memory" data-testid="knowledge-pane-memory">
-          <div className="right-panel-section">
-            <MemoryPanel
-              projectPath={props.projectPath}
-              request={
-                memoryRequest as unknown as Parameters<typeof MemoryPanel>[0]['request']
-              }
-              variant="inline"
             />
           </div>
         </TabsContent>

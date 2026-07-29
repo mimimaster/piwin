@@ -304,7 +304,6 @@ function createControlContext(
     needsProductHistoryInjection: (): boolean => false,
     ensureLiveSession: async () => session,
     resolveAutoCompaction: async () => ({ enabled: true, source: 'test', globalDefault: true }),
-    maybeInjectMemoryOverview: async (_sessionId, text) => text,
     handleMergeSubagent: async () => ({ type: 'response', command: 'test', success: true }),
     buildModelPromptInput: (input) => input,
     runWithContext: (_runId, operation): void => {

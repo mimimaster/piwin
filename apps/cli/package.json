@@ -21,7 +21,6 @@
     "@piwin/marketplace": "workspace:*",
     "@piwin/mcp": "workspace:*",
     "@piwin/media": "workspace:*",
-    "@piwin/memory": "workspace:*",
     "@piwin/notes": "workspace:*",
     "@piwin/pet": "workspace:*",
     "@piwin/skills": "workspace:*",

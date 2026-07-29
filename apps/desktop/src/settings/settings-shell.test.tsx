@@ -59,7 +59,6 @@ function createContextValue(
     requestPrompts: noopRequest,
     requestTheme: noopRequest,
     requestPet: noopRequest,
-    requestMemory: noopRequest,
     requestAutomation: noopRequest,
     requestSubAgent: undefined,
     onThemeApplied: vi.fn(),

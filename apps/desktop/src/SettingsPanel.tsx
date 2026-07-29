@@ -18,7 +18,6 @@ import type { ExtensionsPanelProps } from './ExtensionsPanel';
 import type { PromptsPanelProps } from './PromptsPanel';
 import type { ThemePanelProps } from './ThemePanel';
 import type { PetPanelProps } from './PetPanel';
-import type { MemoryPanelProps } from './MemoryPanel';
 import type { AutomationPanelProps } from './AutomationPanel';
 import { Notice } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -58,7 +57,6 @@ type SettingsPanelProps = {
   requestPrompts: PromptsPanelProps['request'];
   requestTheme: ThemePanelProps['request'];
   requestPet: PetPanelProps['request'];
-  requestMemory: MemoryPanelProps['request'];
   requestAutomation: AutomationPanelProps['request'];
   requestSubAgent?: import('./SubAgentPanel').SubAgentPanelProps['request'];
   activeSessionId?: string | null;
@@ -81,7 +79,6 @@ export function SettingsPanel({
   requestPrompts,
   requestTheme,
   requestPet,
-  requestMemory,
   requestAutomation,
   requestSubAgent,
   activeSessionId = null,
@@ -244,7 +241,6 @@ export function SettingsPanel({
     requestPrompts,
     requestTheme,
     requestPet,
-    requestMemory,
     requestAutomation,
     requestSubAgent,
     onThemeApplied,
@@ -273,7 +269,6 @@ export function SettingsPanel({
     requestPrompts,
     requestTheme,
     requestPet,
-    requestMemory,
     requestAutomation,
     requestSubAgent,
     onThemeApplied,

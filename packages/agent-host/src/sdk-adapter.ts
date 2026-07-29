@@ -39,8 +39,6 @@ import {
 import { createMcpSessionBridge } from './mcp-session-bridge.js';
 import { buildGatedBashToolDefinition } from './gated-bash-tool.js';
 import { buildProcessTools } from './process-tools.js';
-import { createMemoryStore, projectKeyFromPath } from '@piwin/memory';
-import { buildMemoryTools } from './memory-tools.js';
 import { createNoteStore, openNoteIndex, createEmbeddingProvider } from '@piwin/notes';
 import { buildNotesTools } from './notes-tools.js';
 import { resolveNotesEmbeddingApiKey } from './notes-embedding-secret.js';
@@ -430,23 +428,6 @@ async function createPiSdkSession(
   // readonly sub-agents: no process_start (long-running writers)
   const processTools = chatMode || readonlySubagent ? [] : buildProcessTools(processToolOptions);
 
-  const memoryEnabled = config.memory?.enabled === true;
-  const memoryStore = createMemoryStore({
-    piwinRoot: rootDir,
-    ...(typeof config.memory?.maxOverviewChars === 'number'
-      ? { maxOverviewChars: config.memory.maxOverviewChars }
-      : {}),
-  });
-  const memoryToolOptions: import('./memory-tools.js').BuildMemoryToolsOptions = {
-    store: memoryStore,
-    enabled: memoryEnabled && !chatMode,
-    defaultProjectKey: projectKeyFromPath(permissionProjectPath),
-  };
-  if (requestPermission) {
-    memoryToolOptions.requestPermission = requestPermission;
-  }
-  const memoryTools = buildMemoryTools(memoryToolOptions);
-
   // Notes library tools (ADR 0018). Default enabled; FTS-only until embedding configured.
   // Knowledge profile (chat) gets read-only notes tools; coding profile (agent)
   // gets full CRUD. See doc-flashcards §10.2.
@@ -515,7 +496,7 @@ async function createPiSdkSession(
 
   // Tool profiles by ExecutionMode (doc-flashcards §10.2).
   // - knowledge (chat): flashcards + read-only notes + optional web
-  // - coding (agent): web/mcp/plan/process/memory/notes CRUD, no flashcards (unless agentModeTools)
+  // - coding (agent): web/mcp/plan/process/notes CRUD, no flashcards (unless agentModeTools)
   // - debug (agent-debug): coding ∪ flashcards
   const knowledgeTools: import('@piwin/tools-web').HostToolDefinition[] = [
     ...flashcardTools,
@@ -527,7 +508,6 @@ async function createPiSdkSession(
     ...mcpBridge.tools,
     planTool,
     ...processTools,
-    ...memoryTools,
     ...notesTools,
     ...(flashcardsInCoding ? flashcardTools : []),
   ];
@@ -668,7 +648,7 @@ async function createPiSdkSession(
   }
 
   console.info(
-    `[piwin] session tools mode=${executionMode} custom=${customTools.length} (web=${webTools.length}, mcp=${mcpBridge.toolCount}, memory=${memoryTools.length}) skills=${skillPaths.length} extensions=${extensionPaths.length} prompts=${promptPaths.length}`,
+    `[piwin] session tools mode=${executionMode} custom=${customTools.length} (web=${webTools.length}, mcp=${mcpBridge.toolCount}) skills=${skillPaths.length} extensions=${extensionPaths.length} prompts=${promptPaths.length}`,
   );
 
   const handle = wrapPiSession(piSession, sessionId, modelRuntime);

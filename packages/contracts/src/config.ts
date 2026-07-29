@@ -4,7 +4,6 @@ import type { WebConfig } from './web.js';
 import type { SkillsConfig } from './skills.js';
 import type { ExtensionsConfig } from './extensions.js';
 import type { PromptsConfig } from './prompts.js';
-import type { MemoryConfig } from './memory.js';
 import type { ProcessConfig } from './process.js';
 import type { ExecutionConfig } from './session-ops.js';
 import type { NotesConfig } from './notes.js';
@@ -143,8 +142,6 @@ export type PiwinConfig = {
   extensions?: ExtensionsConfig;
   prompts?: PromptsConfig;
   compaction?: CompactionConfig;
-  /** Cross-session memory (CE-MEM). Absent / disabled until host wires `@piwin/memory`. */
-  memory?: MemoryConfig;
   /** Managed process registry (CE-PROC). */
   process?: ProcessConfig;
   /** Default execution mode for new sessions (CE-CHAT / CE-MODE). */

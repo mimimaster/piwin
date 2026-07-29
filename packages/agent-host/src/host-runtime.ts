@@ -36,13 +36,6 @@ import {
   type McpLifecycleManager,
 } from '@piwin/mcp';
 import { createProcessRegistry, type ProcessRegistry } from '@piwin/process';
-import { createMemoryStore, projectKeyFromPath } from '@piwin/memory';
-import type { MemoryStore } from '@piwin/memory';
-import {
-  buildMemoryOverviewInjection,
-  prependMemoryOverview,
-  shouldInjectMemoryOverview,
-} from './memory-inject.js';
 import { createGitService, createWorktree, removeWorktree, applyWorktreeToMain } from '@piwin/git';
 import {
   deleteCronJob,
@@ -236,7 +229,6 @@ export class HostRuntime {
   >();
   private mcpManager: McpLifecycleManager | null = null;
   private processRegistry: ProcessRegistry | null = null;
-  private memoryStore: MemoryStore | null = null;
   private cardStore: import('@piwin/flashcards').CardStore | null = null;
   private folderRag: import('@piwin/doc-rag').FolderRag | null = null;
   private notesServices: {
@@ -825,15 +817,6 @@ export class HostRuntime {
   }
 
 
-
-  private getMemoryStore(): MemoryStore {
-    if (!this.memoryStore) {
-      const rootDir = getPiwinRoot(this.options.piwinRoot);
-      this.memoryStore = createMemoryStore({ piwinRoot: rootDir });
-    }
-    return this.memoryStore;
-  }
-
   private async getNotesServices(): Promise<{
     store: import('@piwin/notes').NoteStore;
     index: import('@piwin/notes').NoteIndex;
@@ -910,58 +893,6 @@ export class HostRuntime {
     return this.folderRag;
   }
 
-  private async requireMemoryEnabled(): Promise<void> {
-    const rootDir = getPiwinRoot(this.options.piwinRoot);
-    const config = await loadPiwinConfig(rootDir);
-    if (config.memory?.enabled !== true) {
-      throw new Error(
-        'Memory is disabled. Enable with config.memory.enabled=true (Settings → Agent → Memory or config/set).',
-      );
-    }
-  }
-
-  private async maybeInjectMemoryOverview(
-    sessionId: string,
-    promptText: string,
-  ): Promise<string> {
-    const rootDir = getPiwinRoot(this.options.piwinRoot);
-    const config = await loadPiwinConfig(rootDir);
-    const projectPath = this.sessionProjects.get(sessionId);
-    let projectTrusted = false;
-    let projectKey: string | undefined;
-    if (projectPath) {
-      projectKey = projectKeyFromPath(projectPath);
-      try {
-        const projectsPath = getPiwinProjectsPath(rootDir);
-        const project = await openOrCreateProject(projectsPath, projectPath);
-        projectTrusted = project.trust === 'trusted';
-      } catch {
-        projectTrusted = false;
-      }
-    }
-    const injectGate: { projectTrusted: boolean; memoryConfig?: typeof config.memory } = {
-      projectTrusted,
-    };
-    if (config.memory) {
-      injectGate.memoryConfig = config.memory;
-    }
-    if (!shouldInjectMemoryOverview(injectGate)) {
-      return promptText;
-    }
-    const store = this.getMemoryStore();
-    const injectOptions: {
-      store: MemoryStore;
-      projectKey?: string;
-      maxChars?: number;
-      writeCache: boolean;
-    } = { store, writeCache: true };
-    if (projectKey) injectOptions.projectKey = projectKey;
-    if (typeof config.memory?.maxOverviewChars === 'number') {
-      injectOptions.maxChars = config.memory.maxOverviewChars;
-    }
-    const overview = await buildMemoryOverviewInjection(injectOptions);
-    return prependMemoryOverview(promptText, overview);
-  }
 
 
   private getPtyHost(): PtyHost {
@@ -1267,8 +1198,6 @@ export class HostRuntime {
         this.sessions.get(sessionId)?.needsProductHistoryInjection?.() === true,
       ensureLiveSession: (sessionId) => this.ensureLiveSession(sessionId),
       resolveAutoCompaction: (sessionId) => this.resolveAutoCompaction(sessionId),
-      maybeInjectMemoryOverview: (sessionId, text) =>
-        this.maybeInjectMemoryOverview(sessionId, text),
       handleMergeSubagent: (requestId, childSessionId, force) =>
         this.handleMergeSubagent(requestId, childSessionId, force),
       buildModelPromptInput: (input) => this.buildModelPromptInput(input),
@@ -1346,8 +1275,6 @@ export class HostRuntime {
       requireSession: (sessionId) => this.requireSession(sessionId),
       getMcpManager: () => this.getMcpManager(),
       getProcessRegistry: () => this.getProcessRegistry(),
-      getMemoryStore: () => this.getMemoryStore(),
-      requireMemoryEnabled: () => this.requireMemoryEnabled(),
       getPtyHost: () => this.getPtyHost(),
       todoStore: this.todoStore,
       runCronJob: (job) => this.runCronJob(job),
@@ -1393,7 +1320,6 @@ export class HostRuntime {
           ? { rpcSdkFallback: true }
           : {}),
         extensionUiBridge: true,
-        memory: true,
         sessionSearch: true,
         sessionPin: true,
         sessionLifecycle: true,

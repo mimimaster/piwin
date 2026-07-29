@@ -21,7 +21,6 @@ export type SettingsSectionId =
   | 'tools'
   | 'web'
   | 'session'
-  | 'memory'
   | 'automation'
   | 'pets';
 
@@ -54,7 +53,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'appearance', group: 'application', labelKey: 'appearance' },
   { id: 'models', group: 'agent', labelKey: 'models' },
   { id: 'session', group: 'agent', labelKey: 'sessions' },
-  { id: 'memory', group: 'agent', labelKey: 'memory', beta: true },
   { id: 'skills', group: 'integrations', labelKey: 'skills' },
   { id: 'web', group: 'integrations', labelKey: 'web' },
   { id: 'tools', group: 'integrations', labelKey: 'tools' },

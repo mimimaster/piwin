@@ -14,7 +14,6 @@ export {
 export {
   evaluateBashPermission,
   evaluateWebPermission,
-  evaluateMemoryPermission,
   evaluateNotesPermission,
   evaluateProcessPermission,
   resolveNonInteractiveDecision,
@@ -22,7 +21,6 @@ export {
 export type {
   PermissionEvaluation,
   WebPermissionAction,
-  MemoryPermissionAction,
   NotesPermissionAction,
   ProcessPermissionAction,
 } from './permission-policy.js';
@@ -42,7 +40,6 @@ export {
   getPiwinConfigPath,
   getPiwinMediaDir,
   getPiwinGeneralWorkspacePath,
-  getPiwinMemoryDir,
   getPiwinLogsDir,
   getPiwinProjectsPath,
   getPiwinSessionIndexPath,
@@ -113,17 +110,11 @@ export type { ProviderValidationIssue } from './provider-validation.js';
 export { createSecretResolver } from './secret-resolver.js';
 export type { SecretResolver, SecretResolveReport } from './secret-resolver.js';
 
-export { buildMemoryTools } from './memory-tools.js';
-export type { BuildMemoryToolsOptions } from './memory-tools.js';
 export { buildNotesTools } from './notes-tools.js';
 export type { BuildNotesToolsOptions } from './notes-tools.js';
 export { resolveNotesEmbeddingApiKey } from './notes-embedding-secret.js';
 export { buildFlashcardTools } from './flashcard-tools.js';
 export type { BuildFlashcardToolsOptions } from './flashcard-tools.js';
-export {
-  buildMemoryOverviewInjection,
-  shouldInjectMemoryOverview,
-} from './memory-inject.js';
 
 
 export { createDelayedSessionHandle } from './delayed-session-fixture.js';

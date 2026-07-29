@@ -45,8 +45,7 @@ describe('ipc types', () => {
     expect(command.type).toBe('media/save');
   });
 
-  it('accepts CE memory/process/session command shapes', () => {
-    const memoryList: HostCommand = { type: 'memory/list', filter: { scope: 'global' } };
+  it('accepts CE process/session command shapes', () => {
     const processStart: HostCommand = {
       type: 'process/start',
       input: {
@@ -69,7 +68,6 @@ describe('ipc types', () => {
       sessionId: 's1',
       messageId: 'm1',
     };
-    expect(memoryList.type).toBe('memory/list');
     expect(processStart.type).toBe('process/start');
     expect(sessionPin.type).toBe('session/pin');
     expect(sessionRename.type).toBe('session/rename');

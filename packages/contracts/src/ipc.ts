@@ -36,15 +36,6 @@ import type { PtyOpenInput } from './pty.js';
 import type { CronJob, HookDefinition, SessionTodoList } from './automation.js';
 import type { McpServerConfig } from './mcp.js';
 import type {
-  MemoryListFilter,
-  MemoryQuotaSummary,
-  MemoryRecord,
-  MemorySearchHit,
-  MemorySearchQuery,
-  MemoryUpdateInput,
-  MemoryWriteInput,
-} from './memory.js';
-import type {
   FlashcardBatchCreateInput,
   FlashcardCreateInput,
   ReviewRating,
@@ -294,20 +285,6 @@ export type HostCommand =
       /** When decision is allow, optionally remember for this project (network tools). */
       rememberScope?: PermissionRememberScope;
     }
-  /** CE-MEM: memory CRUD / search / quota (host wires later). */
-  | { id?: string; type: 'memory/list'; filter?: MemoryListFilter }
-  | { id?: string; type: 'memory/read'; memoryId: string }
-  | { id?: string; type: 'memory/search'; query: MemorySearchQuery }
-  | { id?: string; type: 'memory/write'; input: MemoryWriteInput }
-  | { id?: string; type: 'memory/update'; input: MemoryUpdateInput }
-  | { id?: string; type: 'memory/delete'; memoryId: string }
-  | { id?: string; type: 'memory/accept'; memoryId: string }
-  | {
-      id?: string;
-      type: 'memory/quota';
-      scope?: MemoryListFilter['scope'];
-      projectKey?: string;
-    }
   /** Notes library (ADR 0018): CRUD + hybrid search + recall eval. */
   | { id?: string; type: 'notes/list'; collection?: string; tags?: string[] }
   | { id?: string; type: 'notes/read'; noteId: string }
@@ -508,8 +485,6 @@ export type HostStatusData = {
     rpcSdkFallback?: boolean;
     /** Extension confirm/select/input routed to Desktop (D-EXT-04). */
     extensionUiBridge?: boolean;
-    /** CE-MEM: host memory tools / IPC available. Default false until wired. */
-    memory?: boolean;
     /** CE-PROC: managed process tools / IPC available. Default false until wired. */
     process?: boolean;
     /** CE-CHAT: product session FTS search available. */
@@ -697,41 +672,6 @@ export type ThemeInstallData = {
 export type SkillsInstallData = {
   skillId: string;
   targetPath: string;
-};
-
-/** CE-MEM command response payloads. */
-export type MemoryListData = {
-  records: MemoryRecord[];
-};
-
-export type MemoryReadData = {
-  record: MemoryRecord;
-};
-
-export type MemorySearchData = {
-  hits: MemorySearchHit[];
-  query: string;
-};
-
-export type MemoryWriteData = {
-  record: MemoryRecord;
-};
-
-export type MemoryUpdateData = {
-  record: MemoryRecord;
-};
-
-export type MemoryDeleteData = {
-  memoryId: string;
-  deleted: boolean;
-};
-
-export type MemoryAcceptData = {
-  record: MemoryRecord;
-};
-
-export type MemoryQuotaData = {
-  summary: MemoryQuotaSummary;
 };
 
 /** CE-PROC command response payloads. */

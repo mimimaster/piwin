@@ -17,7 +17,6 @@ export type ShellSettingsSection =
   | 'web'
   | 'models'
   | 'pets'
-  | 'memory'
   | 'automation'
   | 'session'
   // Legacy deep links preserved for backward compatibility; consumers should

@@ -25,10 +25,6 @@ export function getPiwinGeneralWorkspacePath(rootDir: string): string {
   return join(rootDir, 'workspace');
 }
 
-export function getPiwinMemoryDir(rootDir: string): string {
-  return join(rootDir, 'memory');
-}
-
 export function getPiwinLogsDir(rootDir: string): string {
   return join(rootDir, 'logs');
 }
