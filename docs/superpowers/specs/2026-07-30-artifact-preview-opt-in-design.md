@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft — pending user review |
+| Status | Reviewed — ready for implementation plan |
 | Date | 2026-07-30 |
 | Branch context | Desktop chat + `@piwin/artifact` |
 | Related | [ADR 0005](../../adr/0005-artifact-and-media.md), [artifact-research](../../artifact-research.md), PRD AR-01..AR-09 |
@@ -97,7 +97,7 @@ Goal: **normal transcript = Markdown render**; **heavy HTML materialization = ex
 
 | ID | Goal |
 |----|------|
-| G1 | Default assistant rendering is Markdown + ordinary code fences (Copy only). No Artifact frame, no Preview button, no iframe. |
+| G1 | Default assistant rendering is Markdown + ordinary code fences (Copy only). No Artifact frame, no Preview button, no iframe — **except the narrow flashcard exception in §6**. |
 | G2 | A single user-visible control enables the **heavy** Artifact capability for the Desktop shell. |
 | G3 | When capability is on, keep **source-first + per-fence Preview** (never auto-mount iframe on complete). Streaming remains source-only (ADR 0005). |
 | G4 | Wire `maxBytes` (and capability default) from real config/preferences into evaluate. |
@@ -186,33 +186,42 @@ export type DesktopPreferences = {
 - Persist via existing `loadDesktopPreferences` / `saveDesktopPreferences`
 - Presentation-only (localStorage), same class as tool density — **not** session product state under `~/.piwin` session files
 
-### 5.2 Host config (seed + security limits)
+### 5.2 Host config (security limits + reserved seed)
 
 Keep `PiwinConfig.artifact`:
 
 ```ts
 artifact: {
   maxBytes: number;              // security limit when evaluating
-  htmlUiModeDefault: boolean;    // seed / documentation; see migration
+  htmlUiModeDefault: boolean;    // reserved seed; see below
 };
 ```
 
 | Field | Role after this design |
 |-------|------------------------|
-| `maxBytes` | **Must** be passed into `evaluateCodeFence` when heavy path runs. |
-| `htmlUiModeDefault` | **Seed only**: if Desktop has never stored `artifactPreviewEnabled`, first load may initialize from host config. After user toggles once, local preference wins. Document that new installs default prefer Desktop default `false` unless operator sets config `htmlUiModeDefault: true` *and* no local key exists. |
+| `maxBytes` | **Must** be passed into `evaluateCodeFence` whenever the heavy path runs (capability on, or flashcard Preview card open). |
+| `htmlUiModeDefault` | **Reserved / backward-compat seed only.** Desktop v1 **does not read it** (R1, locked). The host default is changed to `false` in this same change so the field is consistent with the Markdown-first product intent and does not mislead future CLI/other clients that may choose to honor it. Operators who want a kiosk-like install with preview on can still set `htmlUiModeDefault: true` in config; non-Desktop clients are free to honor it later. |
 
-**Parser flag mapping when heavy path is active:**
+**Two distinct flags — do not conflate:**
 
-- `htmlUiModeEnabled` (parser: promote native `html`/`htm` when UI-like) = same as `artifactPreviewEnabled` for Desktop chat.
-- Explicit aliases (`artifact-html`, …) still parse as descriptors when evaluate runs; when capability is **off**, UI never calls evaluate for display (§7).
+| Flag | Layer | Meaning |
+|------|-------|---------|
+| `artifactPreviewEnabled` | Desktop preference (product capability) | Whether the heavy Artifact path may be *offered* in chat. Gates iframe mount + Preview button. |
+| `htmlUiModeEnabled` | `@piwin/artifact` parser option | Whether `evaluateCodeFence` promotes native `html`/`htm` fences to artifact descriptors. Pure parser concern. |
+
+**Mapping (locked):**
+
+- `capability === false` ⇒ `htmlUiModeEnabled = false` passed to `evaluateCodeFence`. Evaluate still runs (see §7) so language/source normalization is preserved, but native `html` fences fall through to the `code` decision and no iframe is mounted.
+- `capability === true` ⇒ `htmlUiModeEnabled = true`. Explicit aliases (`artifact-html`, …) parse as descriptors regardless; they only matter when evaluate runs (capability on, or flashcard Preview card open).
 
 ### 5.3 Per-fence UI state
 
 Keep local `useState` `artifactPreviewOpen` in `CodeFenceView` (or successor):
 
-- Initial: `false`, except `renderingPhase === 'explicit-artifact-review'` → `true` (unchanged escape hatch; only reachable if capability on — see §7).
+- Initial: `false`, except `renderingPhase === 'explicit-artifact-review'` → `true` (escape hatch; only honored when capability on — see §7).
 - Reset when fence identity changes (language/source/message) as today via remount keys.
+
+**Note on `explicit-artifact-review` today:** `resolveAssistantRenderingPhase` in `chat-thread.tsx` currently only ever returns `'streaming' | 'completed'` — the `explicit-artifact-review` phase is a future hook and is **not reachable** from any current code path (no model/tool can trigger it). The §7 rule "only honored when capability===true" is therefore defensive: it keeps the phase inert under capability=false if a future caller sets it. No change to `resolveAssistantRenderingPhase` is needed in v1.
 
 ### 5.4 Not session-scoped
 
@@ -245,11 +254,17 @@ function isFlashcardArtifactSource(source: string): boolean {
 
 Do not special-case by language alone (`html` vs `artifact-html`).
 
+**HTML comments:** the regex will also match `data-card-id` inside `<!-- … -->`. This is acceptable: a fake match only grants the *Preview card affordance* (a button), not any privilege. Action validation in `ArtifactFrame` still requires the `data-card-id="${cardId}"` substring to be present in the actual (non-commented) source and the action name to be whitelisted (§11). The unit test must固化 this behavior: a commented `data-card-id` yields `true` from the helper, but no interactive action can fire without a real matching id in source.
+
 ---
 
 ## 7. Rendering policy (normative)
 
 Let `capability = artifactPreviewEnabled` (Desktop preference).
+
+**Preprocessing (locked, addresses byte-stability):**
+
+`MarkdownView` always calls `normalizeStreamingArtifactFences(text, htmlUiModeEnabled, !streamMode)` before splitting blocks, where `htmlUiModeEnabled = capability` (true when on, false when off). This keeps fence structure stable across capability toggles — the same `artifact-html` fence produces the same block boundaries and source bytes in both modes; only the per-fence decision branch differs. Skipping this call when capability is off would risk divergent fence splitting and is explicitly rejected.
 
 For each code fence after stream policy:
 
@@ -257,20 +272,21 @@ For each code fence after stream policy:
 |-----------|----------|
 | `renderingPhase === 'streaming'` | Source-only code block. No Mermaid execute (existing). No Artifact. |
 | Mermaid / math languages | Unchanged light path. **Not** gated by `capability`. |
-| `capability === false` and not flashcard source | **Ordinary code fence only** (language, source, Copy). Do not call `evaluateCodeFence` for UI. |
-| `capability === false` and flashcard source | Ordinary source + **Preview card** (exception §6). On open → evaluate + `ArtifactFrame`. |
+| `capability === false` and not flashcard source | Call `evaluateCodeFence` with `htmlUiModeEnabled: false`, `maxBytes` from host config. Native `html`/`htm` fences fall through to `code` decision → **ordinary code fence** (language, source, Copy). No Preview button, no iframe. |
+| `capability === false` and flashcard source | Ordinary source + **Preview card** (exception §6). On open → re-evaluate with `htmlUiModeEnabled: true` + `ArtifactFrame`. |
 | `capability === true` and not streaming | Call `evaluateCodeFence` with `htmlUiModeEnabled: true`, `maxBytes` from host config, theme from map. |
-| decision `code` | Ordinary code fence. |
+| decision `code` | Ordinary code fence (uses `decision.language` / `decision.source` so normalization stays consistent). |
 | decision `blocked` | Source + muted “Artifact blocked: {reason}” (only when capability on or flashcard preview attempted). |
 | decision `render` \| `preparing` | Source + Preview toggle; iframe only if preview open. |
-| `explicit-artifact-review` | Only honored when `capability === true`; then initial `artifactPreviewOpen = true`. If capability false, ignore phase (treat as completed source-first without auto-open). |
+| `explicit-artifact-review` | Only honored when `capability === true`; then initial `artifactPreviewOpen = true`. If capability false, ignore phase (treat as completed source-first without auto-open). Phase is unreachable today (§5.3). |
 
 ### 7.1 What “ordinary code fence” means
 
-Same chrome as today’s non-artifact branch:
+Same chrome as today’s non-artifact `code` branch:
 
 - `md-code-block` / header language / `CopyCodeButton` / `<pre><code>`
 - No `artifact-with-source` wrapper, no blocked strip, no ArtifactFrame
+- Renders `decision.language` / `decision.source` (the evaluated+normalized values), **not** raw `props.language` / `props.source`, so language labels and source stay identical whether capability is on or off and the fence falls through to `code`.
 
 ### 7.2 Security invariants (unchanged)
 
@@ -335,11 +351,14 @@ Both bind to the same `artifactPreviewEnabled` preference.
 |------|--------|
 | `apps/desktop/src/ui-preferences.ts` | Add `artifactPreviewEnabled`; load/save; default `false`. |
 | `apps/desktop/src/ui-preferences.test.ts` | Round-trip + default false. |
-| `apps/desktop/src/settings/pages/appearance-page.tsx` | Switch + EN/ZH copy. |
-| `apps/desktop/src/App.tsx` (or bootstrap path) | Pass preference + `config.artifact.maxBytes` into chat thread. |
-| `apps/desktop/src/chat-thread.tsx` | Plumb `artifactPreviewEnabled`, `artifactMaxBytes` into `MarkdownView`. |
-| `apps/desktop/src/MarkdownView.tsx` | Implement §7 policy; flashcard exception; pass `maxBytes` into evaluate. |
-| `docs/adr/0005-artifact-and-media.md` | Short amendment: capability opt-in default off on Desktop. |
+| `apps/desktop/src/settings/pages/appearance-page.tsx` | Switch + EN/ZH copy; include in reset-to-defaults. |
+| `apps/desktop/src/App.tsx` | Pass `preferences.artifactPreviewEnabled` + `config?.artifact?.maxBytes` into `ChatThread`. `config` is already held in App state via `use-host-bootstrap`; no new IPC needed. |
+| `apps/desktop/src/chat-thread.tsx` | Add `artifactPreviewEnabled`, `artifactMaxBytes` props; plumb into `MarkdownView`. |
+| `apps/desktop/src/MarkdownView.tsx` | Implement §7 policy; flashcard exception; pass `maxBytes` + `htmlUiModeEnabled=capability` into evaluate; gate Preview/iframe on capability. |
+| `apps/desktop/src/host-client-mock.ts` | Change mock `artifact.htmlUiModeDefault` to `false` to match new host default. |
+| `apps/desktop/src/settings/settings-shell.test.tsx` | Already uses `false`; leave as-is (verify still green). |
+| `packages/agent-host/src/config-store.ts` | Change `defaults.artifact.htmlUiModeDefault` from `true` to `false` (consistency with R1 + Markdown-first product default). |
+| `docs/adr/0005-artifact-and-media.md` | Short amendment: capability opt-in default off on Desktop; host `htmlUiModeDefault` default lowered to `false`. |
 | `docs/todo-deferred.md` | Note light fence registry / AR-07/08 still deferred. |
 
 ### Add
@@ -359,19 +378,12 @@ Both bind to the same `artifactPreviewEnabled` preference.
 
 ```text
 prefs = loadDesktopPreferences()
-if localStorage key artifactPreviewEnabled is missing:
-  prefs.artifactPreviewEnabled = hostConfig?.artifact?.htmlUiModeDefault ?? false
-  // do not write until user toggles OR explicitly save on first settings open
-else:
-  use stored boolean
+// R1 (locked): Desktop v1 ignores host seed; always defaults false
+// until the user explicitly enables. localStorage missing key → false.
+prefs.artifactPreviewEnabled = readBool(ARTIFACT_PREVIEW_KEY) ?? false
 ```
 
-**Product default intent:** missing key → **false**, even if we document that operators can set `htmlUiModeDefault: true` for kiosk-like installs. Implementation choice (recommended):
-
-- **R1 (stricter Markdown-first):** ignore host seed; always default false until user enables. Simplest, matches “正常 markdownRender”.
-- **R2 (honor host seed):** missing key uses `htmlUiModeDefault`.
-
-**Lock R1** for this design unless product later needs managed defaults. Host field remains for future / docs; Desktop v1 always defaults false.
+**R1 (locked):** ignore host `htmlUiModeDefault` for Desktop default; always default `false` until user enables. Simplest, matches “正常 markdownRender”. Host field remains as backward-compat seed for non-Desktop clients (default now also `false`, §5.2).
 
 ---
 
@@ -415,7 +427,7 @@ Heavy remains for flashcards and full UI deliverables.
 |-------|-------|
 | `ui-preferences` | default false; save/load true/false |
 | `isFlashcardArtifactSource` | positive `data-card-id`, negative plain html |
-| `MarkdownView` | (1) capability off + `artifact-html` → no `artifact-preview-toggle`; (2) capability on + safe artifact → toggle present; (3) streaming → no ArtifactFrame; (4) flashcard source + off → preview affordance present; (5) mermaid still renders when capability off |
+| `MarkdownView` | (1) capability off + `artifact-html` → no `artifact-preview-toggle`; (2) capability on + safe artifact → toggle present; (3) streaming → no ArtifactFrame; (4) flashcard source + off → preview affordance present; (5) mermaid still renders when capability off; (6) **byte-stability**: `artifact-html` fence renders identical `decision.language` + `decision.source` bytes in both capability modes (only the action chrome differs); (7) capability off + plain `html` fence → ordinary code (no Preview), language label normalized via evaluate with `htmlUiModeEnabled=false` |
 | Package artifact | No change required; existing 59 tests stay green |
 | Manual smoke | Appearance toggle; Preview/Hide; flashcard rate with global off via Preview card; external script blocked |
 
@@ -476,7 +488,7 @@ Phase A alone already delivers “正常 markdownRender”; Phase B is required 
 | Users never find the switch; “preview broken” | Clear Appearance label; Phase B flashcard one-click; optional later toolbar toggle. |
 | Flashcards feel broken after default false | Phase B is part of the same feature ship bar, not a vague follow-up. |
 | Confusing with future light HTML | Naming “Artifact preview”; reserve other fence languages for light path. |
-| `htmlUiModeDefault` config dead field | Document as reserved/seed; R1 ignores for Desktop default; avoid silent dual sources of truth. |
+| `htmlUiModeDefault` config field | Now reserved/seed with host default lowered to `false`; Desktop v1 ignores it (R1). Documented in ADR 0005 amendment. No silent dual sources of truth. |
 
 ---
 
@@ -496,7 +508,9 @@ Phase A alone already delivers “正常 markdownRender”; Phase B is required 
 | Topic | Resolution |
 |-------|------------|
 | Approach 1 vs 2 vs 3 | **1** |
-| Host seed vs hard default false | **R1 hard default false** |
+| Host seed vs hard default false | **R1 hard default false** for Desktop; host `htmlUiModeDefault` default lowered to `false` for consistency; field kept as backward-compat seed for non-Desktop clients |
+| `htmlUiModeEnabled` vs `artifactPreviewEnabled` | **Distinct**: capability gates product path; parser flag = `capability` value passed to evaluate so native `html` falls through to `code` when off |
+| `normalizeStreamingArtifactFences` when off | **Still called** with `htmlUiModeEnabled=false` for byte-stable fence splitting |
 | Flashcards | **Per-fence Preview card without flipping global** |
 | Toolbar toggle | **Optional P2; Appearance is v1** |
-| Package changes | **Minimize; Desktop-first** |
+| Package changes | **Minimize; Desktop-first** + one-line host default change in `config-store.ts` |
