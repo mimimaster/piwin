@@ -3,7 +3,7 @@
  * CSS consumes the value via --right-panel-width on .app-shell.
  */
 
-export const RIGHT_PANEL_DEFAULT_WIDTH_PX = 320;
+export const RIGHT_PANEL_DEFAULT_WIDTH_PX = 280;
 export const RIGHT_PANEL_MIN_WIDTH_PX = 240;
 export const RIGHT_PANEL_MAX_WIDTH_PX = 640;
 

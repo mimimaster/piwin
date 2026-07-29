@@ -5,8 +5,8 @@
   --sidebar-width: 260px;
   --rail-width: 48px;
   --signal-rail-width: 48px;
-  --right-panel-width: 320px;
-  --chat-max: 760px;
+  --right-panel-width: 280px;
+  --chat-max: min(100%, 960px);
   --chat-font-size: 15px;
   --code-font-size: 13px;
   --code-wrap: unset;
@@ -47,14 +47,18 @@
 
   /* Base typography — font values are overwritten at runtime by appearance-tokens.ts
      but these fallbacks prevent a flash before the first applyAppearanceToDocument call. */
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
   font-size: 13px;
   line-height: 1.45;
   font-weight: 400;
   letter-spacing: -0.01em;
-  font-feature-settings: "kern" 1, "liga" 1;
+  font-feature-settings:
+    'kern' 1,
+    'liga' 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
