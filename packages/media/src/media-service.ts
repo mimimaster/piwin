@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, realpath, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { SaveMediaInput, SavedMediaAsset } from '@piwin/contracts';
 
@@ -40,9 +40,7 @@ export async function saveMediaAsset(
     throw new Error('empty media payload');
   }
   if (input.bytes.byteLength > options.maxPasteBytes) {
-    throw new Error(
-      `media too large: ${input.bytes.byteLength} > max ${options.maxPasteBytes}`,
-    );
+    throw new Error(`media too large: ${input.bytes.byteLength} > max ${options.maxPasteBytes}`);
   }
 
   const sessionId = sanitizeSegment(input.sessionId);
@@ -50,9 +48,14 @@ export async function saveMediaAsset(
   const extension = MIME_TO_EXT[mimeType] ?? safeExtFromName(mimeType);
   const directory = join(options.mediaRoot, sessionId);
   await mkdir(directory, { recursive: true });
+  // Validate the real session directory before writing — a symlinked
+  // session dir would pass the string prefix check but writeFile follows
+  // the symlink and writes outside the root.
+  await assertRealPathInsideMediaRoot(options.mediaRoot, directory);
   const absolutePath = resolve(directory, `${id}${extension}`);
   assertInsideMediaRoot(options.mediaRoot, absolutePath);
   await writeFile(absolutePath, input.bytes);
+  await assertRealPathInsideMediaRoot(options.mediaRoot, absolutePath);
 
   const asset: SavedMediaAsset = {
     id,
@@ -72,6 +75,25 @@ export function assertInsideMediaRoot(mediaRoot: string, absolutePath: string): 
     throw new Error(`path escapes media root: ${absolutePath}`);
   }
   return target;
+}
+
+/**
+ * Resolve symlinks then re-validate the real path stays under media root.
+ * `assertInsideMediaRoot` alone is insufficient because `path.resolve()`
+ * does not follow symlinks — a symlinked session dir pointing outside the
+ * root would pass the string prefix check but write outside the root.
+ */
+export async function assertRealPathInsideMediaRoot(
+  mediaRoot: string,
+  absolutePath: string,
+): Promise<string> {
+  const realPath = await realpath(absolutePath);
+  // Resolve the root via realpath too so the comparison is consistent —
+  // on macOS the OS temp dir (`/var/folders/...`) is a symlink to
+  // `/private/var/folders/...`, so comparing realpath(target) against
+  // resolve(root) would falsely reject legitimate writes.
+  const realRoot = await realpath(mediaRoot);
+  return assertInsideMediaRoot(realRoot, realPath);
 }
 
 function sanitizeSegment(value: string): string {
