@@ -9,7 +9,7 @@ import type {
   SkillStoreEntry,
 } from '@piwin/contracts';
 import { WELL_KNOWN_SKILL_PATH_PRESETS } from '@piwin/contracts';
-import { Button, EmptyState, Field, Notice, SegmentedControl, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger, TextInput } from '@piwin/ui-kit';
+import { Button, Collapse, Notice, SegmentedControl, Spinner, Switch, Tabs, TabsContent, TabsList, TabsTrigger, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
@@ -49,6 +49,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
   const [installGitSubdir, setInstallGitSubdir] = useState('');
   const [installName, setInstallName] = useState('');
   const [installing, setInstalling] = useState(false);
+  const [installOpen, setInstallOpen] = useState(false);
   const [mappedPaths, setMappedPaths] = useState<string[]>([]);
   const [mappingBusy, setMappingBusy] = useState(false);
   const [mainTab, setMainTab] = useState<'installed' | 'store'>('installed');
@@ -127,7 +128,7 @@ export function SkillsPanel(props: SkillsPanelProps) {
       return;
     }
     setInfo(isChinese ? `已${skill.enabled ? '关闭' : '开启'}技能：${skill.name}` : `${skill.enabled ? 'Disabled' : 'Enabled'} skill: ${skill.name}`);
-    void loadSkills();
+    setSkills((prev) => prev.map((s) => (s.id === skill.id ? { ...s, enabled: !s.enabled } : s)));
   }
 
   async function handleInstallLocal() {
@@ -262,51 +263,60 @@ export function SkillsPanel(props: SkillsPanelProps) {
 
           <TabsContent value="installed" className="mcp-tab-content">
             <div style={{ marginBottom: 24 }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: 20 }}>
-                <div style={{ flex: 1 }}>
-                  <Field label={isChinese ? '搜索技能' : 'Search skills'}>
-                    <TextInput
-                      value={filter}
-                      onChange={(event) => setFilter(event.currentTarget.value)}
-                      placeholder={isChinese ? '名称、ID 或描述…' : 'Search...'}
-                      data-testid="skills-filter"
-                    />
-                  </Field>
-                </div>
-                <Button size="compact" onClick={() => void loadSkills()}>{isChinese ? '刷新' : 'Refresh'}</Button>
+              <div className="settings-toolbar" style={{ marginBottom: 16 }}>
+                <TextInput
+                  toolbar
+                  value={filter}
+                  onChange={(event) => setFilter(event.currentTarget.value)}
+                  placeholder={isChinese ? '搜索技能…' : 'Search skills…'}
+                  data-testid="skills-filter"
+                  aria-label={isChinese ? '搜索技能' : 'Search skills'}
+                />
+                <Button size="compact" variant="ghost" onClick={() => void loadSkills()} data-testid="skills-refresh">
+                  {isChinese ? '刷新' : 'Refresh'}
+                </Button>
               </div>
 
-              {loading && <div style={{ padding: '20px 0', textAlign: 'center' }}><Spinner /></div>}
-              {error ? <Notice tone="error">{error}</Notice> : null}
-              {info ? <Notice tone="info">{info}</Notice> : null}
-
-              <ul className="ext-list">
-                {visible.length === 0 && !loading ? (
-                  <li className="muted" style={{ textAlign: 'center', padding: '40px' }}>
-                    <EmptyState title={isChinese ? '未找到技能' : 'No skills found'} description="" />
-                  </li>
-                ) : (
-                  visible.map((skill) => (
+              {loading ? (
+                <div style={{ padding: '32px 0', textAlign: 'center' }}><Spinner /></div>
+              ) : visible.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  <p className="muted" style={{ fontSize: '14px', margin: 0 }}>
+                    {filter ? (isChinese ? '没有匹配的技能' : 'No matching skills') : (isChinese ? '未安装任何技能' : 'No skills installed')}
+                  </p>
+                </div>
+              ) : (
+                <ul className="ext-list" data-testid="skills-list">
+                  {visible.map((skill) => (
                     <li key={skill.id} className="ext-list-item">
                       <div className="ext-list-main">
                         <div className="ext-list-title">
                           <strong>{skill.name}</strong>
-                          <span className="pill" style={{ opacity: 0.6 }}>{skill.source}</span>
+                          <span className="pill muted">{skill.source}</span>
+                          {skill.enabled ? <span className="pill ok">{isChinese ? '已启用' : 'on'}</span> : null}
                         </div>
                         <div className="muted ext-desc">{skill.description}</div>
                       </div>
                       <Switch
                         checked={skill.enabled}
-                        onChange={() => void handleToggle(skill)}
+                        onCheckedChange={() => void handleToggle(skill)}
                         aria-label={isChinese ? `启用 ${skill.name}` : `Enable ${skill.name}`}
+                        data-testid={`skill-toggle-${skill.id}`}
                       />
                     </li>
-                  ))
-                )}
-              </ul>
+                  ))}
+                </ul>
+              )}
+
+              {(error || info) ? (
+                <div className="ui-feedback-host" aria-live="polite" style={{ marginTop: 16 }}>
+                  {error ? <Notice tone="error">{error}</Notice> : null}
+                  {info ? <Notice tone="info">{info}</Notice> : null}
+                </div>
+              ) : null}
             </div>
 
-            <div className="settings-section">
+            <div className="settings-section" style={{ paddingTop: 24, borderTop: '1px solid var(--line-soft)' }}>
               <PageTitle
                 title={isChinese ? '映射外部路径' : 'Map External Paths'}
                 description={isChinese ? '从 Cursor 或 Claude 映射已有的技能根目录。' : 'Map skill roots from Cursor or Claude.'}
@@ -318,8 +328,10 @@ export function SkillsPanel(props: SkillsPanelProps) {
                     <Button
                       key={preset.id}
                       size="compact"
+                      variant={mapped ? 'ghost' : 'secondary'}
                       disabled={mappingBusy || mapped}
                       onClick={() => void handleMapPreset(preset.path)}
+                      data-testid={`skill-map-${preset.id}`}
                     >
                       {mapped ? `✓ ${preset.label}` : isChinese ? `映射 ${preset.label}` : `Map ${preset.label}`}
                     </Button>
@@ -328,13 +340,37 @@ export function SkillsPanel(props: SkillsPanelProps) {
               </div>
             </div>
 
-            <div className="settings-section">
-              <PageTitle
-                title={isChinese ? '手动安装' : 'Install Manually'}
-                description={isChinese ? '通过本地目录或 Git 仓库安装。' : 'Install via local directory or Git.'}
-              />
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-                <div style={{ flex: 0, minWidth: '140px' }}>
+            <div className="settings-section" style={{ paddingTop: 24, borderTop: '1px solid var(--line-soft)' }}>
+              <button
+                type="button"
+                className="settings-collapsible-trigger"
+                onClick={() => setInstallOpen((v) => !v)}
+                aria-expanded={installOpen}
+                data-testid="skills-install-toggle"
+              >
+                <div className="settings-card-heading" style={{ marginBottom: 0 }}>
+                  <div>
+                    <h4>{isChinese ? '手动安装' : 'Install Manually'}</h4>
+                    <p>{isChinese ? '通过本地目录或 Git 仓库安装。' : 'Install via local directory or Git.'}</p>
+                  </div>
+                </div>
+                <svg
+                  className={`settings-collapsible-chevron ${installOpen ? 'open' : ''}`}
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+
+              <Collapse expanded={installOpen} testId="skills-install-collapse">
+                <div className="settings-toolbar settings-toolbar--install" style={{ marginTop: 16 }}>
                   <SegmentedControl
                     value={installKind}
                     onChange={(value) => setInstallKind(value as 'local' | 'git')}
@@ -342,25 +378,41 @@ export function SkillsPanel(props: SkillsPanelProps) {
                       { value: 'local', label: isChinese ? '本地' : 'Local' },
                       { value: 'git', label: 'Git' },
                     ]}
-                    fullWidth
+                    className="settings-install-kind"
                   />
+                  <TextInput
+                    toolbar
+                    value={installKind === 'local' ? installPath : installGitUrl}
+                    onChange={(event) =>
+                      installKind === 'local'
+                        ? setInstallPath(event.currentTarget.value)
+                        : setInstallGitUrl(event.currentTarget.value)
+                    }
+                    placeholder={
+                      installKind === 'local'
+                        ? isChinese
+                          ? '本地路径…'
+                          : 'Local path…'
+                        : 'https://github.com/…'
+                    }
+                    aria-label={installKind === 'local' ? (isChinese ? '本地路径' : 'Local Path') : 'Git URL'}
+                    data-testid="skills-install-source"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        installKind === 'local' ? handleInstallLocal() : handleInstallGit();
+                      }
+                    }}
+                  />
+                  <Button
+                    disabled={installing || (installKind === 'local' ? !installPath : !installGitUrl)}
+                    onClick={() => (installKind === 'local' ? handleInstallLocal() : handleInstallGit())}
+                    data-testid="skills-install-submit"
+                  >
+                    {isChinese ? '安装' : 'Install'}
+                  </Button>
                 </div>
-                <div style={{ flex: 2 }}>
-                  <Field label={installKind === 'local' ? (isChinese ? '本地路径' : 'Local Path') : 'Git URL'}>
-                    <TextInput
-                      value={installKind === 'local' ? installPath : installGitUrl}
-                      onChange={(event) => installKind === 'local' ? setInstallPath(event.currentTarget.value) : setInstallGitUrl(event.currentTarget.value)}
-                      placeholder={installKind === 'local' ? (isChinese ? '路径...' : 'Path...') : 'https://github.com/...'}
-                    />
-                  </Field>
-                </div>
-                <Button
-                  disabled={installing || (installKind === 'local' ? !installPath : !installGitUrl)}
-                  onClick={() => installKind === 'local' ? handleInstallLocal() : handleInstallGit()}
-                >
-                  {isChinese ? '安装' : 'Install'}
-                </Button>
-              </div>
+              </Collapse>
             </div>
           </TabsContent>
 

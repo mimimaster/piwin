@@ -71,19 +71,35 @@
 
 .settings-search-input {
   width: 100%;
+  min-height: var(--control-height-default, 32px);
   padding: 7px 10px 7px 32px;
   border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  background: var(--surface-raised);
+  border-radius: var(--radius-control, 8px);
+  background: var(--surface-inset, var(--surface-control));
   color: var(--text);
   font-size: 12.5px;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color var(--motion-quick, 120ms) var(--motion-ease, ease),
+    box-shadow var(--motion-quick, 120ms) var(--motion-ease, ease),
+    background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
+}
+
+.settings-search-input:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line-soft));
 }
 
 .settings-search-input:focus {
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent);
+  border-color: var(--accent);
+  background: var(--surface-raised);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 1px 2px color-mix(in srgb, #000 8%, transparent);
+}
+
+.settings-search-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .settings-nav-list {
@@ -175,12 +191,22 @@
 /* ── Content page frame ───────────────────────────────────────────── */
 
 .settings-main {
+  position: relative;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   padding: 24px 32px 48px;
   background: var(--canvas);
+}
+
+/* Floating feedback: open/close must not reflow settings content. */
+.settings-feedback-host.ui-feedback-host {
+  top: 16px;
+  right: 24px;
+  left: auto;
+  bottom: auto;
+  width: min(360px, calc(100% - 48px));
 }
 
 .settings-main-header {

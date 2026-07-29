@@ -44,7 +44,8 @@ export function SessionPage(): ReactElement {
           >
             <Switch
               checked={config.compaction?.autoEnabledDefault !== false}
-              onChange={() => void handleToggleAutoCompact(config.compaction?.autoEnabledDefault === false)}
+              onCheckedChange={(checked) => void handleToggleAutoCompact(checked)}
+              aria-label={locale === 'zh-CN' ? '自动上下文压缩' : 'Auto-compaction'}
             />
           </FieldRow>
         ) : null}

@@ -127,6 +127,36 @@ export function buildMantineTheme(manifest: ThemeManifest): MantineThemeOverride
           centered: true,
         },
       },
+      TextInput: {
+        defaultProps: {
+          size: 'sm',
+          radius: 'md',
+        },
+      },
+      PasswordInput: {
+        defaultProps: {
+          size: 'sm',
+          radius: 'md',
+        },
+      },
+      NativeSelect: {
+        defaultProps: {
+          size: 'sm',
+          radius: 'md',
+        },
+      },
+      Switch: {
+        defaultProps: {
+          size: 'sm',
+          withThumbIndicator: false,
+        },
+      },
+      SegmentedControl: {
+        defaultProps: {
+          size: 'sm',
+          radius: 'md',
+        },
+      },
     },
   });
 }

@@ -141,12 +141,12 @@ html[data-theme-mode='light'] .sidebar-new-agent {
 
 .sidebar-new-agent:hover:not(:disabled) {
   filter: brightness(1.05);
-  transform: translateY(-0.5px);
+  /* No translateY — subpixel transform re-rasters label glyphs (font jitter). */
   box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 34%, transparent);
 }
 
 .sidebar-new-agent:active:not(:disabled) {
-  transform: scale(0.96);
+  filter: brightness(0.98);
 }
 
 .sidebar-new-agent:disabled {
@@ -371,7 +371,11 @@ html[data-theme-mode='light'] .sidebar-new-agent {
   background: var(--faint);
   flex-shrink: 0;
   opacity: 0.5;
-  transition: all 0.2s ease;
+  /* Never transition: all — it animates layout-affecting props if any change. */
+  transition:
+    background var(--motion-quick, 120ms) ease,
+    opacity var(--motion-quick, 120ms) ease,
+    box-shadow var(--motion-quick, 120ms) ease;
 }
 
 .session-status-dot.is-active {

@@ -34,6 +34,36 @@ export function IconChat(props: IconProps): ReactElement {
   );
 }
 
+export function IconSideChat(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="4" width="14" height="12" rx="1.5" />
+      <path d="M7 16v4l4-4h7a1.5 1.5 0 0 0 1.5-1.5V6.5A1.5 1.5 0 0 0 18 5H7a1.5 1.5 0 0 0-1.5 1.5v9c0 .8.7 1.5 1.5 1.5Z" />
+    </IconBase>
+  );
+}
+
+export function IconBrowser(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <ellipse cx="12" cy="12" rx="8.5" ry="3.2" />
+      <path d="M12 3.5v17" />
+    </IconBase>
+  );
+}
+
+export function IconCanvas(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <rect x="3.5" y="3.5" width="14" height="14" rx="2" />
+      <path d="M17.5 6.5l3-3" />
+      <path d="M16 8l1.5-1.5" />
+      <path d="M7 17l3-3 2.5 2.5" />
+    </IconBase>
+  );
+}
+
 export function IconFolder(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>

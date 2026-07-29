@@ -122,7 +122,10 @@ export function AutomationPanel(props: AutomationPanelProps) {
           >
             <Switch
               checked={enabled}
-              onChange={() => void saveAutomation({ ...config?.automation, enabled: !enabled } as any)}
+              onCheckedChange={(checked) =>
+                void saveAutomation({ ...config?.automation, enabled: checked } as any)
+              }
+              aria-label={isChinese ? '启用自动化' : 'Enable Automation'}
             />
           </FieldRow>
         </div>
@@ -187,8 +190,12 @@ export function AutomationPanel(props: AutomationPanelProps) {
         </Collapse>
 
         {loading && <div style={{ textAlign: 'center', padding: '20px' }}><Spinner /></div>}
-        {error ? <Notice tone="error">{error}</Notice> : null}
-        {info ? <Notice tone="info">{info}</Notice> : null}
+        {(error || info) ? (
+          <div className="ui-feedback-host" aria-live="polite">
+            {error ? <Notice tone="error">{error}</Notice> : null}
+            {info ? <Notice tone="info">{info}</Notice> : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

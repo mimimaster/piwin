@@ -22,20 +22,20 @@ import { SettingsPanel } from './SettingsPanel';
 import { NotificationRegion } from './NotificationRegion';
 import { ProjectSessionSidebar } from './project-session-sidebar';
 import { ChatThread } from './chat-thread';
-import { ComposerDock } from './composer-dock';
+import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import { FileTreePanel } from './file-tree-panel';
 import { ReviewPanel } from './review-panel';
 import { AppDialogs } from './app-dialogs';
 import { ChatEmptyState } from './chat-empty-state';
-import {
-  createEmptyNotificationState,
-  notificationReducer,
-} from './notification-queue';
+import { createEmptyNotificationState, notificationReducer } from './notification-queue';
 import { GitPanel } from './GitPanel';
 import type { HostLogEntry } from './HostLogPanel';
 import { NotesPanel } from './NotesPanel';
 import { FlashcardsPanel } from './FlashcardsPanel';
 import { KnowledgeCenterPanel } from './KnowledgeCenterPanel';
+import { BrowserPanel } from './browser-panel';
+import { CanvasPanel } from './canvas-panel';
+import { SideChatPanel } from './side-chat-panel';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
 import { collectSessionTools } from './tool-call-card';
 import { ChangesPanel } from './changes-panel';
@@ -59,7 +59,7 @@ import { useHostBootstrap } from './hooks/use-host-bootstrap';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { useSessionActions } from './hooks/use-session-actions';
 import { useManagedProcesses } from './hooks/use-managed-processes';
-import { Button, ConfirmDialog, IconButton, Notice } from '@piwin/ui-kit';
+import { Button, ConfirmDialog, Dialog, IconButton, Notice } from '@piwin/ui-kit';
 import { IconClose } from './shell-icons';
 import { useShellLayout, type ShellSettingsSection } from './hooks/use-shell-layout';
 import { CommandPalette } from './command-palette';
@@ -72,10 +72,10 @@ import { TranscriptViewport } from './transcript-viewport';
 import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
 import { StatusBar } from './status-bar';
-import { ContextWindowPanel } from './context-window-panel';
+
 import { useRightPanelResize } from './hooks/use-right-panel-resize';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
-import { adjustWindowOutwardForRightPanelWidth } from './window-outward-expand';
+
 type ModelOption = {
   providerId: string;
   protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
@@ -111,10 +111,7 @@ export type AppProps = {
 };
 
 export function App({ activeTheme, onThemeApplied }: AppProps) {
-  const hostClient = useMemo(
-    () => new HostClient({ transport: 'auto', hostMock: false }),
-    [],
-  );
+  const hostClient = useMemo(() => new HostClient({ transport: 'auto', hostMock: false }), []);
   const {
     requestConfig,
     requestSubAgent,
@@ -150,24 +147,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     layoutMode,
   } = shell;
   const isOverlayPresentation = layoutMode === 'compact';
-  const handleRightPanelWidthChange = useCallback(
-    (widthPx: number): void => {
-      if (rightPanelOpen && layoutMode === 'desktop') {
-        void adjustWindowOutwardForRightPanelWidth(widthPx);
-      }
-    },
-    [layoutMode, rightPanelOpen],
-  );
+  // Panel width only drives CSS --right-panel-width (in-flow stage reflow).
+  // No OS setSize — that path re-rasters the whole shell on every toggle.
   const rightPanelResizeOptions = useMemo(
     () => ({
       layoutMode,
       navDrawerOpen,
-      onLiveWidthCommit: handleRightPanelWidthChange,
     }),
-    [handleRightPanelWidthChange, layoutMode, navDrawerOpen],
+    [layoutMode, navDrawerOpen],
   );
   const rightPanelResize = useRightPanelResize(rightPanelResizeOptions);
-  const [hostLogEntries, setHostLogEntries] = useState<HostLogEntry[]>([]);
+  const [, setHostLogEntries] = useState<HostLogEntry[]>([]);
   const [ptyOutput, setPtyOutputBase] = useState<PtyOutputLine[]>([]);
   /** Quiet workbench: terminal produced output while directory home / panel collapsed. */
   const [terminalAttention, setTerminalAttention] = useState(false);
@@ -175,7 +165,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const watchingTerminalRef = useRef(false);
   watchingTerminalRef.current =
-    rightPanelOpen && rightPanelTab === 'activity' && rightPanelView === 'detail';
+    rightPanelOpen && rightPanelTab === 'terminal' && rightPanelView === 'detail';
   const [sessionSearch, setSessionSearch] = useState('');
   const [showArchivedSessions, setShowArchivedSessions] = useState(false);
   const [sessionMenu, setSessionMenu] = useState<{
@@ -197,6 +187,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const [executionMode, setExecutionMode] = useState<ExecutionMode>('agent');
   const [remoteSearchHits, setRemoteSearchHits] = useState<SessionSearchHit[] | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  // Pending edit-and-resend from a non-last user message. When set, the revert
+  // confirmation dialog is open; confirming executes the truncate + resend.
+  const [pendingRevertEdit, setPendingRevertEdit] = useState<{
+    messageId: string;
+    text: string;
+  } | null>(null);
   const [preferences, setPreferences] = useState<DesktopPreferences>(() =>
     loadDesktopPreferences(),
   );
@@ -223,25 +219,23 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     } as React.CSSProperties;
   }, [preferences]);
   const appShellStyle = useMemo(
-    () => ({
-      ...preferencesStyle,
-      '--right-panel-width': `${rightPanelResize.widthPx}px`,
-    }) as React.CSSProperties,
+    () =>
+      ({
+        ...preferencesStyle,
+        '--right-panel-width': `${rightPanelResize.widthPx}px`,
+      }) as React.CSSProperties,
     [preferencesStyle, rightPanelResize.widthPx],
   );
-  const [desktopLocale, setDesktopLocale] = useState<DesktopLocale>(() =>
-    loadDesktopLocale(),
-  );
+  const [desktopLocale, setDesktopLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [plusSubmenu, setPlusSubmenu] = useState<ComposerPlusSubmenu>('none');
   const [menuSkills, setMenuSkills] = useState<
     Array<{ id: string; name: string; enabled: boolean }>
   >([]);
-  const [menuMcp, setMenuMcp] = useState<
-    Array<{ id: string; name: string; running: boolean }>
-  >([]);
+  const [menuMcp, setMenuMcp] = useState<Array<{ id: string; name: string; running: boolean }>>([]);
   const [selectedModelKey, setSelectedModelKey] = useState('');
-  const [thinkingLevel, setThinkingLevel] = useState<import('@piwin/contracts').ThinkingLevel>('off');
+  const [thinkingLevel, setThinkingLevel] =
+    useState<import('@piwin/contracts').ThinkingLevel>('off');
   const [recentProjects, setRecentProjects] = useState<ProjectRecord[]>([]);
   const [runClock, setRunClock] = useState(() => Date.now());
   const hasHydratedInitialGeneralSessions = useRef(false);
@@ -277,7 +271,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     refreshManagedProcesses,
     appendProcessLog: appendProcessLogBase,
   } = useManagedProcesses(hostClient, {
-    refreshWhenVisible: rightPanelOpen && shell.inspectorTab === 'activity',
+    refreshWhenVisible: rightPanelOpen && shell.inspectorTab === 'terminal',
   });
 
   const markTerminalAttentionIfHidden = useCallback((): void => {
@@ -406,8 +400,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   // Knowledge Center forwards commands to the same host transport; the panel
   // accepts a union type internally.
   const requestKnowledgeCenter = useCallback(
-    (command: Parameters<import('./KnowledgeCenterPanel').KnowledgeCenterPanelProps['request']>[0]) =>
-      hostClient.request(command as unknown as Parameters<typeof hostClient.request>[0]),
+    (
+      command: Parameters<import('./KnowledgeCenterPanel').KnowledgeCenterPanelProps['request']>[0],
+    ) => hostClient.request(command as unknown as Parameters<typeof hostClient.request>[0]),
     [hostClient],
   );
   const {
@@ -515,7 +510,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       await hydrateSessions({ kind: 'general' }, { includeArchived: false });
       await handleResumeSession(lastSession.sessionId);
     })();
-  }, [config?.desktop?.lastSession, dispatch, handleOpenProject, handleResumeSession, hydrateSessions, state.hostReady]);
+  }, [
+    config?.desktop?.lastSession,
+    dispatch,
+    handleOpenProject,
+    handleResumeSession,
+    hydrateSessions,
+    state.hostReady,
+  ]);
 
   useEffect(() => {
     const composerProfile = config?.desktop?.composerProfile;
@@ -747,7 +749,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         shell.toggleInspector('files');
         break;
       case 'open-activity':
-        openRightTab('activity');
+        openRightTab('terminal');
         break;
       case 'open-settings':
         shell.openSettings('general');
@@ -834,15 +836,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     });
   }, [sessionSearch, state.sessions, remoteSearchHits]);
 
-  const sessionGroups = useMemo(
-    () => groupSessionsByRecency(filteredSessions),
-    [filteredSessions],
-  );
+  const sessionGroups = useMemo(() => groupSessionsByRecency(filteredSessions), [filteredSessions]);
 
-  const sessionTools = useMemo(
-    () => collectSessionTools(state.messages),
-    [state.messages],
-  );
+  const sessionTools = useMemo(() => collectSessionTools(state.messages), [state.messages]);
 
   const runStatus = useMemo(
     () =>
@@ -855,27 +851,25 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [state, sessionTools, sessionPlan, managedProcesses, runClock],
   );
 
-  const activitySignal = useMemo(
-    () => {
-      const latestMessage = state.messages[state.messages.length - 1];
-      const latestVisibleLength = latestMessage
-        ? latestMessage.text.length + latestMessage.thinking.length
-        : 0;
-      const toolStates = sessionTools
-        .map((tool) => `${tool.toolCallId}:${tool.status}:${tool.output.length}`)
-        .join(',');
-      return `${state.runPhase}:${state.messages.length}:${latestVisibleLength}:${toolStates}`;
-    },
-    [state.runPhase, state.messages, sessionTools],
-  );
+  const activitySignal = useMemo(() => {
+    const latestMessage = state.messages[state.messages.length - 1];
+    const latestVisibleLength = latestMessage
+      ? latestMessage.text.length + latestMessage.thinking.length
+      : 0;
+    const toolStates = sessionTools
+      .map((tool) => `${tool.toolCallId}:${tool.status}:${tool.output.length}`)
+      .join(',');
+    return `${state.runPhase}:${state.messages.length}:${latestVisibleLength}:${toolStates}`;
+  }, [state.runPhase, state.messages, sessionTools]);
 
   const selectedModelLabel = useMemo(() => {
     if (!selectedModelKey) {
       return 'Default model';
     }
-    return modelOptions.find(
-      (option) => `${option.providerId}::${option.modelId}` === selectedModelKey,
-    )?.label ?? 'Default model';
+    return (
+      modelOptions.find((option) => `${option.providerId}::${option.modelId}` === selectedModelKey)
+        ?.label ?? 'Default model'
+    );
   }, [modelOptions, selectedModelKey]);
 
   const selectedModelContextWindow = useMemo(() => {
@@ -909,6 +903,59 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     state.sessions.find((item) => item.id === state.activeSessionId)?.name ?? 'New chat';
   const desktopCopy = getDesktopCopy(desktopLocale);
 
+  // Shared composer card props for the bottom dock and in-place message editing.
+  // Local state fields (composer text, attachments, plus menu, etc.) are overridden
+  // by the bottom dock or the edit card; this bundle carries the global config.
+  const composerCard: ComposerDockProps = {
+    layoutMode: composerLayoutMode,
+    projectPath: state.projectPath,
+    projectTrusted: state.projectTrusted,
+    activeSessionId: state.activeSessionId,
+    streaming: state.streaming,
+    runPhase: state.runPhase,
+    compacting: state.compacting,
+    composer,
+    onComposerChange: setComposer,
+    agentMode,
+    onAgentModeChange: setAgentMode,
+    pendingAttachments,
+    onRemoveAttachment: revokePending,
+    dropActive,
+    onDropActiveChange: setDropActive,
+    plusMenuOpen,
+    onPlusMenuOpenChange: setPlusMenuOpen,
+    plusSubmenu,
+    onPlusSubmenuChange: setPlusSubmenu,
+    modelOptions,
+    selectedModelKey,
+    selectedModelLabel,
+    onSelectModel: handleSelectModel,
+    menuSkills,
+    menuMcp,
+    onRefreshComposerMenus: () => {
+      void refreshComposerMenus();
+    },
+    onOpenSkillsPanel: () => openSettingsSection('skills'),
+    onOpenMcpPanel: () => openSettingsSection('tools'),
+    onAttachImage: () => void handlePickImageFiles(),
+    onPaste: (event) => void handleComposerPaste(event),
+    onDrop: (event) => void handleComposerDrop(event),
+    onSend: () => void handleSend(),
+    onSteer: () => void handleSteer(),
+    onFollowUp: () => void handleFollowUp(),
+    thinkingLevel,
+    onThinkingLevelChange: handleThinkingLevelChange,
+    ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
+    onAbort: () => void handleAbort(),
+    onCompact: () => void handleCompact(),
+    compactionSupported: hostStatus?.capabilities?.compaction !== false,
+    contextUsage: state.contextUsage,
+    ...(typeof selectedModelContextWindow === 'number'
+      ? { modelContextWindow: selectedModelContextWindow }
+      : {}),
+    onOpenModelSettings: () => openSettingsSection('models'),
+  };
+
   const handleOpenSubagentSession = useCallback(
     (sessionId: string): void => {
       void handleResumeSession(sessionId);
@@ -920,10 +967,29 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, []);
   const handleEditAndResendMessage = useCallback(
     (messageId: string, text: string): void => {
-      void handleEditAndResend(messageId, text);
+      // Editing the last user message sends immediately — no history is lost.
+      // Editing an earlier message opens the revert confirmation dialog first,
+      // because truncate-from will discard everything after that message.
+      if (messageId === lastUserMessageId) {
+        void handleEditAndResend(messageId, text);
+        return;
+      }
+      setPendingRevertEdit({ messageId, text });
     },
-    [handleEditAndResend],
+    [handleEditAndResend, lastUserMessageId],
   );
+  // Revert = truncate session at the edited message and resend the new text.
+  const handleConfirmRevertEdit = useCallback((): void => {
+    if (!pendingRevertEdit) return;
+    const { messageId, text } = pendingRevertEdit;
+    setPendingRevertEdit(null);
+    void handleEditAndResend(messageId, text);
+  }, [handleEditAndResend, pendingRevertEdit]);
+  // Don't revert = exit edit mode without sending (no truncate, no resend).
+  const handleDeclineRevertEdit = useCallback((): void => {
+    setPendingRevertEdit(null);
+    setEditingMessageId(null);
+  }, []);
   const handleRetryMessage = useCallback(
     (messageId: string): void => {
       void handleRetryFromMessage(messageId);
@@ -944,22 +1010,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     document.documentElement.lang = desktopLocale;
   }, [desktopLocale]);
 
-  useEffect(() => {
-    if (rightPanelOpen && layoutMode === 'desktop') {
-      void adjustWindowOutwardForRightPanelWidth(rightPanelResize.widthPx);
-    }
-  }, [layoutMode, rightPanelOpen]);
-  // Drag updates flow through handleRightPanelWidthChange (onLiveWidthCommit);
-  // including widthPx here would re-fit the window every pointermove.
-
-  useEffect(() => {
-    // Resync on resize when the panel isn't actively being dragged — the hook
-    // clamps width on window resize already, this matches the OS window frame.
-    if (rightPanelOpen && layoutMode === 'desktop' && !rightPanelResize.isResizing) {
-      void adjustWindowOutwardForRightPanelWidth(rightPanelResize.widthPx);
-    }
-  }, [rightPanelResize.isResizing, rightPanelResize.widthPx, rightPanelOpen, layoutMode]);
-
   return (
     <DesktopLocaleProvider
       locale={desktopLocale}
@@ -969,537 +1019,523 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       }}
     >
       <div
-      className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}`}
-      style={appShellStyle}
-      data-testid="app-shell"
-      data-layout={layoutMode}
-      data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
-      data-settings-open={settingsOpen ? 'true' : 'false'}
-      data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
-    >
-      <NotificationRegion
-        items={notificationState.items}
-        onDismiss={(id) => dispatchNotification({ type: 'notify/dismiss', id })}
-      />
-
-      <WorkspaceTitlebar
-        executionMode={executionMode}
-        onExecutionModeChange={setExecutionMode}
-        appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
-        sessionsExpanded={navDrawerOpen}
-        onToggleSessions={() => {
-          shell.toggleSessions();
-        }}
-        canGoBack={shell.canGoBack}
-        canGoForward={shell.canGoForward}
-        onGoBack={() => {
-          shell.goBack();
-        }}
-        onGoForward={() => {
-          shell.goForward();
-        }}
-        onOpenSkills={() => openSettingsSection('skills')}
-        onOpenMcp={() => openSettingsSection('tools')}
-        onToggleAppearance={() => void handleToggleAppearance()}
-        onOpenSettings={() => openSettingsSection('general')}
-        workPanelOpen={rightPanelOpen}
-        onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
-        locale={desktopLocale}
-      />
-
-      <WorkspaceShell
-        sidebar={
-          <ProjectSessionSidebar
-            projectPath={state.projectPath}
-            projectTrusted={state.projectTrusted}
-            hostReady={state.hostReady}
-            hostMock={state.hostMock}
-            transportLabel={hostClient.getTransport()}
-            hostStatus={hostStatus}
-            recentProjects={recentProjects}
-            sessions={state.sessions}
-            filteredSessions={filteredSessions}
-            sessionGroups={sessionGroups}
-            activeSessionId={state.activeSessionId}
-            sessionSearch={sessionSearch}
-            onSessionSearchChange={setSessionSearch}
-            showArchivedSessions={showArchivedSessions}
-            onToggleShowArchived={() => {
-              const next = !showArchivedSessions;
-              setShowArchivedSessions(next);
-              if (state.projectPath) {
-                void hydrateSessions(state.projectPath, { includeArchived: next });
-              } else {
-                void hydrateSessions({ kind: 'general' }, { includeArchived: next });
-              }
-            }}
-            settingsOpen={settingsOpen}
-            onOpenWorkspace={() => void handleOpenWorkspaceClick()}
-            onOpenProject={(path) => void handleOpenProject(path)}
-            onNewSession={() => void handleNewSession()}
-            onResumeSession={(sessionId) => void handleResumeSession(sessionId)}
-            onOpenSessionMenu={(sessionId, x, y) => setSessionMenu({ sessionId, x, y })}
-            onOpenSettings={() => openSettingsSection('general')}
-            knowledgeOpen={knowledgeOpen}
-            onToggleKnowledge={() => setKnowledgeOpen((current) => !current)}
-            generalActive={state.activeScope.kind === 'general'}
-            onSelectGeneral={() => {
-              dispatch({ type: 'project/clear' });
-              void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
-            }}
-            isOverlayPresentation={isOverlayPresentation}
-            onCloseOverlay={() => shell.closeOverlay()}
-            locale={desktopLocale}
-          />
-        }
-        contextBar={
-          <ContextBar
-            session={{
-              title: activeSessionName,
-              scopeLabel:
-                state.activeScope.kind === 'general'
-                  ? desktopCopy.general
-                  : desktopLocale === 'zh-CN'
-                    ? '项目'
-                    : 'Project',
-            }}
-            runState={runStatus}
-            onStop={() => void handleAbort()}
-            onViewActivity={() => openRightTab('activity')}
-            onReviewPermission={() => {
-              // Focus the permission dialog when present; it is already open from state.
-              const dialog = document.querySelector<HTMLElement>(
-                '[data-testid="permission-dialog"], [role="dialog"][aria-label*="permission" i], .permission-dialog',
-              );
-              dialog?.focus?.();
-              dialog?.scrollIntoView?.({ block: 'nearest' });
-            }}
-            onViewPlan={() => openRightTab('activity')}
-            onCancelCompact={() => void handleCompactAbort()}
-            {...(lastUserMessageId
-              ? {
-                  onRetry: () => {
-                    void handleRetryFromMessage(lastUserMessageId);
-                  },
-                }
-              : {})}
-            locale={desktopLocale}
-          />
-        }
-        chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
-        knowledgePanel={
-          knowledgeOpen ? (
-            <section
-              className="knowledge-stage"
-              data-testid="knowledge-stage"
-              aria-label={desktopCopy.knowledgeCenter}
-            >
-              <header className="knowledge-stage-header">
-                <span className="knowledge-stage-kicker">
-                  {desktopCopy.knowledgeCenter}
-                </span>
-                <IconButton
-                  label={desktopLocale === 'zh-CN' ? '关闭知识中心' : 'Close Knowledge Center'}
-                  data-testid="knowledge-stage-close-btn"
-                  onClick={() => setKnowledgeOpen(false)}
-                >
-                  <IconClose />
-                </IconButton>
-              </header>
-              <div className="knowledge-stage-body">
-                <KnowledgeCenterPanel
-                  projectPath={state.projectPath}
-                  request={requestKnowledgeCenter}
-                  sendSessionPrompt={sendSessionPrompt}
-                />
-              </div>
-            </section>
-          ) : undefined
-        }
-        transcript={
-          <>
-          {state.projectPath && !state.projectTrusted ? (
-            <div className="chat-inline-notice">
-              <ProjectTrustNotice
-                projectPath={state.projectPath}
-                onTrust={() => void handleTrustProject(true)}
-              />
-            </div>
-          ) : null}
-          {state.activeSessionArchived ? (
-            <div className="chat-inline-notice">
-              <SessionArchivedBanner
-                sessionName={activeSessionName}
-                onRestore={() => {
-                  if (state.activeSessionId) {
-                    void handleSessionMenuAction(state.activeSessionId, 'unarchive');
-                  }
-                }}
-                onNewAgent={() => void handleNewSession()}
-              />
-            </div>
-          ) : null}
-          <TranscriptViewport
-            messageCount={state.messages.length}
-            activitySignal={activitySignal}
-            messages={state.messages}
-          >
-            {state.messages.length === 0 ? (
-              <ChatEmptyState
-                projectPath={state.projectPath}
-                projectTrusted={state.projectTrusted}
-                activeSessionId={state.activeSessionId}
-                onOpenWorkspace={() => void handleOpenWorkspaceClick()}
-                onCreateSession={() => void handleNewSession()}
-                onSuggest={(mode, text) => {
-                  void (async () => {
-                    if (!state.activeSessionId && state.projectTrusted) {
-                      await handleNewSession();
-                    }
-                    setAgentMode(mode);
-                    setComposer(text);
-                  })();
-                }}
-              />
-            ) : (
-              <ChatThread
-                messages={state.messages}
-                streaming={state.streaming}
-                editingMessageId={editingMessageId}
-                lastUserMessageId={lastUserMessageId}
-                activeTheme={activeTheme}
-                artifactThemeKey={artifactThemeKey}
-                runRecordsById={state.runRecordsById}
-                activeRunId={state.activeRunId}
-                permissionPrompt={state.permissionPrompt}
-                workDetailsExpanded={preferences.workDetailsExpanded}
-                toolDensity={preferences.toolDensity}
-                onOpenSubagentSession={handleOpenSubagentSession}
-                onEdit={setEditingMessageId}
-                onCancelEdit={handleCancelMessageEdit}
-                onEditResend={handleEditAndResendMessage}
-                onRetry={handleRetryMessage}
-                onFeedback={handleMessageFeedback}
-                onArtifactAction={handleArtifactAction}
-              />
-            )}
-          </TranscriptViewport>
-          {state.compacting ? (
-            <Notice
-              tone="info"
-              testId="compaction-progress-notice"
-              title="Compacting context…"
-              action={
-                <Button size="compact" onClick={() => void handleCompactAbort()}>
-                  Cancel
-                </Button>
-              }
-            />
-          ) : null}
-          {!state.compacting && state.lastCompactionMessage ? (
-            <Notice
-              tone="success"
-              testId="compaction-result-notice"
-              title={state.lastCompactionMessage}
-              action={
-                <Button size="compact" onClick={() => dispatch({ type: 'compaction/dismiss' })}>
-                  Dismiss
-                </Button>
-              }
-              details={
-                <>
-                  {typeof state.lastCompactionDurationMs === 'number' ? (
-                    <span className="muted">Duration {state.lastCompactionDurationMs}ms</span>
-                  ) : null}
-                  {typeof state.lastCompactionTokensBefore === 'number' ||
-                  typeof state.lastCompactionTokensAfter === 'number' ? (
-                    <div className="muted banner-meta">
-                      Tokens
-                      {typeof state.lastCompactionTokensBefore === 'number'
-                        ? ` before: ${state.lastCompactionTokensBefore}`
-                        : ''}
-                      {typeof state.lastCompactionTokensAfter === 'number'
-                        ? ` → after: ${state.lastCompactionTokensAfter}`
-                        : ''}
-                    </div>
-                  ) : null}
-                  {state.lastCompactionSummary ? (
-                    <details className="banner-details">
-                      <summary>Summary</summary>
-                      <pre className="banner-summary-pre">
-                        {state.lastCompactionSummary.slice(0, 500)}
-                      </pre>
-                    </details>
-                  ) : null}
-                </>
-              }
-            />
-          ) : null}
-          {state.error ? <Notice tone="error" testId="chat-error-notice">{state.error}</Notice> : null}
-          </>
-        }
-        composerDock={
-          <ComposerDock
-            layoutMode={composerLayoutMode}
-            projectPath={state.projectPath}
-            projectTrusted={state.projectTrusted}
-            activeSessionId={state.activeSessionId}
-            streaming={state.streaming}
-            runPhase={state.runPhase}
-            compacting={state.compacting}
-            composer={composer}
-            onComposerChange={setComposer}
-            agentMode={agentMode}
-            onAgentModeChange={setAgentMode}
-            pendingAttachments={pendingAttachments}
-            onRemoveAttachment={revokePending}
-            dropActive={dropActive}
-            onDropActiveChange={setDropActive}
-            plusMenuOpen={plusMenuOpen}
-            onPlusMenuOpenChange={setPlusMenuOpen}
-            plusSubmenu={plusSubmenu}
-            onPlusSubmenuChange={setPlusSubmenu}
-            modelOptions={modelOptions}
-            selectedModelKey={selectedModelKey}
-            selectedModelLabel={selectedModelLabel}
-            onSelectModel={handleSelectModel}
-            menuSkills={menuSkills}
-            menuMcp={menuMcp}
-            onRefreshComposerMenus={() => {
-              void refreshComposerMenus();
-            }}
-            onOpenSkillsPanel={() => openSettingsSection('skills')}
-            onOpenMcpPanel={() => openSettingsSection('tools')}
-            onAttachImage={() => void handlePickImageFiles()}
-            onPaste={(event) => void handleComposerPaste(event)}
-            onDrop={(event) => void handleComposerDrop(event)}
-            onSend={() => void handleSend()}
-            onSteer={() => void handleSteer()}
-            onFollowUp={() => void handleFollowUp()}
-            thinkingLevel={thinkingLevel}
-            onThinkingLevelChange={handleThinkingLevelChange}
-            ultraThinkingEnabled={config?.thinking?.ultraEnabled === true}
-            onAbort={() => void handleAbort()}
-            onCompact={() => void handleCompact()}
-            compactionSupported={hostStatus?.capabilities?.compaction !== false}
-            contextUsage={state.contextUsage}
-            {...(typeof selectedModelContextWindow === 'number'
-              ? { modelContextWindow: selectedModelContextWindow }
-              : {})}
-            onOpenModelSettings={() => shell.openSettings('models')}
-          />
-        }
-        statusBar={
-          <StatusBar
-            modelLabel={selectedModelLabel}
-            skillsCount={menuSkills.filter((s) => s.enabled).length}
-            mcpCount={menuMcp.filter((m) => m.running).length}
-            agentState={state.streaming ? 'running' : state.error ? 'error' : 'idle'}
-            terminalAttention={terminalAttention}
-            contextPercent={
-              typeof state.contextUsage?.contextRatio === 'number'
-                ? Math.round(state.contextUsage.contextRatio * 100)
-                : 0
-            }
-            onOpenSkills={() => openSettingsSection('skills')}
-            onOpenMcp={() => openSettingsSection('tools')}
-            locale={desktopLocale}
-          />
-        }
-        rightPanel={
-          <>
-          {showOverlayScrim ? (
-        <button
-          type="button"
-          className="shell-overlay-scrim"
-          data-testid="shell-overlay-scrim"
-          aria-label="Close panel"
-          onClick={() => shell.closeOverlay()}
+        className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}`}
+        style={appShellStyle}
+        data-testid="app-shell"
+        data-layout={layoutMode}
+        data-right={rightPanelOpen ? 'expanded' : 'collapsed'}
+        data-settings-open={settingsOpen ? 'true' : 'false'}
+        data-knowledge-open={knowledgeOpen ? 'true' : 'false'}
+      >
+        <NotificationRegion
+          items={notificationState.items}
+          onDismiss={(id) => dispatchNotification({ type: 'notify/dismiss', id })}
         />
-      ) : null}
 
-      <RightPanel
-        open={rightPanelOpen}
-        onOpen={() => shell.openInspector(rightPanelTab)}
-        onClose={() => shell.closeOverlay()}
-        activeTab={rightPanelTab}
-        onTabChange={(tab) => {
-          shell.setInspectorTab(tab);
-          if (!rightPanelOpen) {
-            shell.openInspector(tab);
-          }
-        }}
-        panelWidthPx={rightPanelResize.widthPx}
-        isResizing={rightPanelResize.isResizing}
-        onResizePointerDown={rightPanelResize.onResizePointerDown}
-        onResizeReset={() => rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX)}
-        isOverlayPresentation={isOverlayPresentation}
-        runningProcessCount={managedProcesses.length}
-        terminalAttention={terminalAttention}
-        onTerminalAttentionClear={() => setTerminalAttention(false)}
-        onViewChange={setRightPanelView}
-        locale={desktopLocale}
-        notesContent={<NotesPanel request={requestNotesPanel} />}
-        cardsContent={<FlashcardsPanel request={requestCardsPanel} />}
-        filesContent={
-          <FileTreePanel
-            projectPath={state.projectPath}
-            request={(command) => hostClient.request(command)}
-            onInsertPath={(absolutePath) => {
-              setComposer((current) =>
-                current.trim().length > 0
-                  ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
-                  : absolutePath,
-              );
-            }}
-          />
-        }
-        activityContent={
-          <>
-            <ContextWindowPanel
-              usage={state.contextUsage}
-              modelContextWindow={selectedModelContextWindow}
-              locale={desktopLocale}
-            />
-            <TerminalDock
-              entries={hostLogEntries}
-              onClearLogs={() => setHostLogEntries([])}
+        <WorkspaceTitlebar
+          executionMode={executionMode}
+          onExecutionModeChange={setExecutionMode}
+          appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
+          sessionsExpanded={navDrawerOpen}
+          onToggleSessions={() => {
+            shell.toggleSessions();
+          }}
+          canGoBack={shell.canGoBack}
+          canGoForward={shell.canGoForward}
+          onGoBack={() => {
+            shell.goBack();
+          }}
+          onGoForward={() => {
+            shell.goForward();
+          }}
+          onOpenSkills={() => openSettingsSection('skills')}
+          onOpenMcp={() => openSettingsSection('tools')}
+          onToggleAppearance={() => void handleToggleAppearance()}
+          onOpenSettings={() => openSettingsSection('general')}
+          workPanelOpen={rightPanelOpen}
+          onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
+          locale={desktopLocale}
+        />
+
+        <WorkspaceShell
+          sidebar={
+            <ProjectSessionSidebar
               projectPath={state.projectPath}
               projectTrusted={state.projectTrusted}
-              ptyOutput={ptyOutput}
-              onClearPtyOutput={() => setPtyOutput([])}
-              request={requestPty}
+              hostReady={state.hostReady}
+              hostMock={state.hostMock}
+              transportLabel={hostClient.getTransport()}
+              hostStatus={hostStatus}
+              recentProjects={recentProjects}
+              sessions={state.sessions}
+              filteredSessions={filteredSessions}
+              sessionGroups={sessionGroups}
+              activeSessionId={state.activeSessionId}
+              sessionSearch={sessionSearch}
+              onSessionSearchChange={setSessionSearch}
+              showArchivedSessions={showArchivedSessions}
+              onToggleShowArchived={() => {
+                const next = !showArchivedSessions;
+                setShowArchivedSessions(next);
+                if (state.projectPath) {
+                  void hydrateSessions(state.projectPath, { includeArchived: next });
+                } else {
+                  void hydrateSessions({ kind: 'general' }, { includeArchived: next });
+                }
+              }}
+              settingsOpen={settingsOpen}
+              onOpenWorkspace={() => void handleOpenWorkspaceClick()}
+              onOpenProject={(path) => void handleOpenProject(path)}
+              onNewSession={() => void handleNewSession()}
+              onResumeSession={(sessionId) => void handleResumeSession(sessionId)}
+              onOpenSessionMenu={(sessionId, x, y) => setSessionMenu({ sessionId, x, y })}
+              onOpenSettings={() => openSettingsSection('general')}
+              knowledgeOpen={knowledgeOpen}
+              onToggleKnowledge={() => setKnowledgeOpen((current) => !current)}
+              generalActive={state.activeScope.kind === 'general'}
+              onSelectGeneral={() => {
+                dispatch({ type: 'project/clear' });
+                void hydrateSessions(
+                  { kind: 'general' },
+                  { includeArchived: showArchivedSessions },
+                );
+              }}
+              isOverlayPresentation={isOverlayPresentation}
+              onCloseOverlay={() => shell.closeOverlay()}
+              locale={desktopLocale}
             />
-          </>
-        }
-        reviewContent={
-          <ReviewPanel
-            changesContent={
-              <ChangesPanel projectPath={state.projectPath} request={requestGit as never} />
-            }
-            gitContent={
-              <GitPanel
-                projectPath={state.projectPath}
-                request={requestGit as never}
-                variant="embedded"
+          }
+          contextBar={
+            <ContextBar
+              session={{
+                title: activeSessionName,
+                scopeLabel:
+                  state.activeScope.kind === 'general'
+                    ? desktopCopy.general
+                    : desktopLocale === 'zh-CN'
+                      ? '项目'
+                      : 'Project',
+              }}
+              runState={runStatus}
+              onStop={() => void handleAbort()}
+              onViewActivity={() => openRightTab('terminal')}
+              onReviewPermission={() => {
+                // Focus the permission dialog when present; it is already open from state.
+                const dialog = document.querySelector<HTMLElement>(
+                  '[data-testid="permission-dialog"], [role="dialog"][aria-label*="permission" i], .permission-dialog',
+                );
+                dialog?.focus?.();
+                dialog?.scrollIntoView?.({ block: 'nearest' });
+              }}
+              onViewPlan={() => openRightTab('terminal')}
+              onCancelCompact={() => void handleCompactAbort()}
+              {...(lastUserMessageId
+                ? {
+                    onRetry: () => {
+                      void handleRetryFromMessage(lastUserMessageId);
+                    },
+                  }
+                : {})}
+              locale={desktopLocale}
+            />
+          }
+          chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
+          knowledgePanel={
+            knowledgeOpen ? (
+              <section
+                className="knowledge-stage"
+                data-testid="knowledge-stage"
+                aria-label={desktopCopy.knowledgeCenter}
+              >
+                <header className="knowledge-stage-header">
+                  <span className="knowledge-stage-kicker">{desktopCopy.knowledgeCenter}</span>
+                  <IconButton
+                    label={desktopLocale === 'zh-CN' ? '关闭知识中心' : 'Close Knowledge Center'}
+                    data-testid="knowledge-stage-close-btn"
+                    onClick={() => setKnowledgeOpen(false)}
+                  >
+                    <IconClose />
+                  </IconButton>
+                </header>
+                <div className="knowledge-stage-body">
+                  <KnowledgeCenterPanel
+                    projectPath={state.projectPath}
+                    request={requestKnowledgeCenter}
+                    sendSessionPrompt={sendSessionPrompt}
+                  />
+                </div>
+              </section>
+            ) : undefined
+          }
+          transcript={
+            <>
+              {state.projectPath && !state.projectTrusted ? (
+                <div className="chat-inline-notice">
+                  <ProjectTrustNotice
+                    projectPath={state.projectPath}
+                    onTrust={() => void handleTrustProject(true)}
+                  />
+                </div>
+              ) : null}
+              {state.activeSessionArchived ? (
+                <div className="chat-inline-notice">
+                  <SessionArchivedBanner
+                    sessionName={activeSessionName}
+                    onRestore={() => {
+                      if (state.activeSessionId) {
+                        void handleSessionMenuAction(state.activeSessionId, 'unarchive');
+                      }
+                    }}
+                    onNewAgent={() => void handleNewSession()}
+                  />
+                </div>
+              ) : null}
+              <TranscriptViewport
+                messageCount={state.messages.length}
+                activitySignal={activitySignal}
+                messages={state.messages}
+              >
+                {state.messages.length === 0 ? (
+                  <ChatEmptyState
+                    projectPath={state.projectPath}
+                    projectTrusted={state.projectTrusted}
+                    activeSessionId={state.activeSessionId}
+                    onOpenWorkspace={() => void handleOpenWorkspaceClick()}
+                    onCreateSession={() => void handleNewSession()}
+                    onSuggest={(mode, text) => {
+                      void (async () => {
+                        if (!state.activeSessionId && state.projectTrusted) {
+                          await handleNewSession();
+                        }
+                        setAgentMode(mode);
+                        setComposer(text);
+                      })();
+                    }}
+                  />
+                ) : (
+                  <ChatThread
+                    messages={state.messages}
+                    streaming={state.streaming}
+                    editingMessageId={editingMessageId}
+                    lastUserMessageId={lastUserMessageId}
+                    activeTheme={activeTheme}
+                    artifactThemeKey={artifactThemeKey}
+                    runRecordsById={state.runRecordsById}
+                    activeRunId={state.activeRunId}
+                    permissionPrompt={state.permissionPrompt}
+                    workDetailsExpanded={preferences.workDetailsExpanded}
+                    toolDensity={preferences.toolDensity}
+                    locale={desktopLocale}
+                    onOpenSubagentSession={handleOpenSubagentSession}
+                    onEdit={setEditingMessageId}
+                    onCancelEdit={handleCancelMessageEdit}
+                    onEditResend={handleEditAndResendMessage}
+                    onRetry={handleRetryMessage}
+                    onFeedback={handleMessageFeedback}
+                    onArtifactAction={handleArtifactAction}
+                    composerCard={composerCard}
+                  />
+                )}
+              </TranscriptViewport>
+              {state.compacting ? (
+                <Notice
+                  tone="info"
+                  testId="compaction-progress-notice"
+                  title="Compacting context…"
+                  action={
+                    <Button size="compact" onClick={() => void handleCompactAbort()}>
+                      Cancel
+                    </Button>
+                  }
+                />
+              ) : null}
+              {!state.compacting && state.lastCompactionMessage ? (
+                <Notice
+                  tone="success"
+                  testId="compaction-result-notice"
+                  title={state.lastCompactionMessage}
+                  action={
+                    <Button size="compact" onClick={() => dispatch({ type: 'compaction/dismiss' })}>
+                      Dismiss
+                    </Button>
+                  }
+                  details={
+                    <>
+                      {typeof state.lastCompactionDurationMs === 'number' ? (
+                        <span className="muted">Duration {state.lastCompactionDurationMs}ms</span>
+                      ) : null}
+                      {typeof state.lastCompactionTokensBefore === 'number' ||
+                      typeof state.lastCompactionTokensAfter === 'number' ? (
+                        <div className="muted banner-meta">
+                          Tokens
+                          {typeof state.lastCompactionTokensBefore === 'number'
+                            ? ` before: ${state.lastCompactionTokensBefore}`
+                            : ''}
+                          {typeof state.lastCompactionTokensAfter === 'number'
+                            ? ` → after: ${state.lastCompactionTokensAfter}`
+                            : ''}
+                        </div>
+                      ) : null}
+                      {state.lastCompactionSummary ? (
+                        <details className="banner-details">
+                          <summary>Summary</summary>
+                          <pre className="banner-summary-pre">
+                            {state.lastCompactionSummary.slice(0, 500)}
+                          </pre>
+                        </details>
+                      ) : null}
+                    </>
+                  }
+                />
+              ) : null}
+              {state.error ? (
+                <Notice tone="error" testId="chat-error-notice">
+                  {state.error}
+                </Notice>
+              ) : null}
+            </>
+          }
+          composerDock={<ComposerDock {...composerCard} />}
+          statusBar={
+            <StatusBar
+              modelLabel={selectedModelLabel}
+              skillsCount={menuSkills.filter((s) => s.enabled).length}
+              mcpCount={menuMcp.filter((m) => m.running).length}
+              agentState={state.streaming ? 'running' : state.error ? 'error' : 'idle'}
+              terminalAttention={terminalAttention}
+              contextPercent={
+                typeof state.contextUsage?.contextRatio === 'number'
+                  ? Math.round(state.contextUsage.contextRatio * 100)
+                  : 0
+              }
+              onOpenSkills={() => openSettingsSection('skills')}
+              onOpenMcp={() => openSettingsSection('tools')}
+              locale={desktopLocale}
+            />
+          }
+          rightPanel={
+            <>
+              {showOverlayScrim ? (
+                <button
+                  type="button"
+                  className="shell-overlay-scrim"
+                  data-testid="shell-overlay-scrim"
+                  aria-label="Close panel"
+                  onClick={() => shell.closeOverlay()}
+                />
+              ) : null}
+
+              <RightPanel
+                open={rightPanelOpen}
+                onOpen={() => shell.openInspector(rightPanelTab)}
+                onClose={() => shell.closeOverlay()}
+                activeTab={rightPanelTab}
+                onTabChange={(tab) => {
+                  shell.setInspectorTab(tab);
+                  if (!rightPanelOpen) {
+                    shell.openInspector(tab);
+                  }
+                }}
+                panelWidthPx={rightPanelResize.widthPx}
+                isResizing={rightPanelResize.isResizing}
+                onResizePointerDown={rightPanelResize.onResizePointerDown}
+                onResizeReset={() => rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX)}
+                isOverlayPresentation={isOverlayPresentation}
+                runningProcessCount={managedProcesses.length}
+                terminalAttention={terminalAttention}
+                onTerminalAttentionClear={() => setTerminalAttention(false)}
+                onViewChange={setRightPanelView}
+                locale={desktopLocale}
+                notesContent={<NotesPanel request={requestNotesPanel} />}
+                cardsContent={<FlashcardsPanel request={requestCardsPanel} />}
+                filesContent={
+                  <FileTreePanel
+                    projectPath={state.projectPath}
+                    request={(command) => hostClient.request(command)}
+                    onInsertPath={(absolutePath) => {
+                      setComposer((current) =>
+                        current.trim().length > 0
+                          ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
+                          : absolutePath,
+                      );
+                    }}
+                  />
+                }
+                browserContent={<BrowserPanel />}
+                canvasContent={<CanvasPanel />}
+                sideChatContent={<SideChatPanel sessionId={state.activeSessionId} />}
+                terminalContent={
+                  <TerminalDock
+                    projectPath={state.projectPath}
+                    projectTrusted={state.projectTrusted}
+                    ptyOutput={ptyOutput}
+                    onClearPtyOutput={() => setPtyOutput([])}
+                    request={requestPty}
+                  />
+                }
+                reviewContent={
+                  <ReviewPanel
+                    changesContent={
+                      <ChangesPanel projectPath={state.projectPath} request={requestGit as never} />
+                    }
+                    gitContent={
+                      <GitPanel
+                        projectPath={state.projectPath}
+                        request={requestGit as never}
+                        variant="embedded"
+                      />
+                    }
+                  />
+                }
               />
-            }
-          />
-        }
-      />
-          </>
-        }
-      />
-
-      <AppDialogs
-        projectInput={projectInput}
-        onProjectInputChange={setProjectInput}
-        projectPickerOpen={projectPickerOpen}
-        onProjectPickerOpenChange={setProjectPickerOpen}
-        onOpenProject={(path) => void handleOpenProject(path)}
-        onBrowseProject={() => void handleBrowseProject()}
-        projectPath={state.projectPath}
-        trustDialogOpen={state.trustDialogOpen}
-        onTrustProject={(trust) => void handleTrustProject(trust)}
-        extensionUiRequest={extensionUiRequest}
-        extensionUiInput={extensionUiInput}
-        onExtensionUiInputChange={setExtensionUiInput}
-        onExtensionUiResolve={(payload) => void handleExtensionUiResolve(payload)}
-        sessionMenu={sessionMenu}
-        onCloseSessionMenu={() => setSessionMenu(null)}
-        sessions={state.sessions}
-        showArchivedSessions={showArchivedSessions}
-        onSessionMenuAction={(sessionId, action) => {
-          if (action === 'delete') {
-            const session = state.sessions.find((item) => item.id === sessionId);
-            setDeleteConfirm({
-              sessionId,
-              sessionName: session?.name ?? sessionId.slice(0, 8),
-            });
-            setSessionMenu(null);
-            return;
+            </>
           }
-          void handleSessionMenuAction(sessionId, action);
-        }}
-        renameDraft={renameDraft}
-        onRenameDraftChange={setRenameDraft}
-        onRenameSession={(sessionId, name) => {
-          void handleRenameSession(sessionId, name);
-        }}
-        permissionPrompt={state.permissionPrompt}
-        onPermission={(decision, scope) => {
-          void handlePermission(decision, scope);
-        }}
-      />
+        />
 
-      <CommandPalette
-        open={commandPaletteOpen}
-        onOpenChange={shell.setCommandPaletteOpen}
-        hasProject={Boolean(state.projectPath)}
-        projectTrusted={state.projectTrusted}
-        hasActiveSession={Boolean(state.activeSessionId)}
-        onRun={runDesktopCommand}
-      />
-
-      <ConfirmDialog
-        open={Boolean(deleteConfirm)}
-        onOpenChange={(open) => {
-          if (!open && !deleteBusy) {
-            setDeleteConfirm(null);
-          }
-        }}
-        title="Delete permanently?"
-        description="Transcript files will be removed. This cannot be undone."
-        {...(deleteConfirm?.sessionName
-          ? { affectedObject: deleteConfirm.sessionName }
-          : {})}
-        confirmLabel="Delete permanently"
-        tone="danger"
-        busy={deleteBusy}
-        testId="session-delete-confirm"
-        onConfirm={() => {
-          if (!deleteConfirm) return;
-          setDeleteBusy(true);
-          void confirmDeleteSession(deleteConfirm.sessionId).finally(() => {
-            setDeleteBusy(false);
-            setDeleteConfirm(null);
-          });
-        }}
-      />
-
-      {settingsOpen ? (
-        <SettingsPanel
-          hostStatus={hostStatus}
-          request={requestConfig}
-          preferences={preferences}
-          onPreferencesChange={(next) => {
-            setPreferences(next);
-            saveDesktopPreferences(next);
-          }}
-          initialSection={settingsSection}
+        <AppDialogs
+          projectInput={projectInput}
+          onProjectInputChange={setProjectInput}
+          projectPickerOpen={projectPickerOpen}
+          onProjectPickerOpenChange={setProjectPickerOpen}
+          onOpenProject={(path) => void handleOpenProject(path)}
+          onBrowseProject={() => void handleBrowseProject()}
           projectPath={state.projectPath}
-          requestSkills={requestSkills}
-          requestMcp={requestMcp}
-          requestExtensions={requestExtensions}
-          requestPrompts={requestPrompts}
-          requestTheme={requestTheme}
-          requestPet={requestPet}
-          requestAutomation={requestAutomation}
-          requestSubAgent={requestSubAgent as never}
-          activeSessionId={state.activeSessionId}
-          onOpenSubagentSession={(sessionId) => {
-            void handleResumeSession(sessionId);
-          }}
-          onThemeApplied={onThemeApplied}
-          onPetActiveChanged={setActivePet}
-          onSaved={(next) => {
-            setConfig(next);
-            if (next.defaultProviderId && next.defaultModelId) {
-              setSelectedModelKey(`${next.defaultProviderId}::${next.defaultModelId}`);
+          trustDialogOpen={state.trustDialogOpen}
+          onTrustProject={(trust) => void handleTrustProject(trust)}
+          extensionUiRequest={extensionUiRequest}
+          extensionUiInput={extensionUiInput}
+          onExtensionUiInputChange={setExtensionUiInput}
+          onExtensionUiResolve={(payload) => void handleExtensionUiResolve(payload)}
+          sessionMenu={sessionMenu}
+          onCloseSessionMenu={() => setSessionMenu(null)}
+          sessions={state.sessions}
+          showArchivedSessions={showArchivedSessions}
+          onSessionMenuAction={(sessionId, action) => {
+            if (action === 'delete') {
+              const session = state.sessions.find((item) => item.id === sessionId);
+              setDeleteConfirm({
+                sessionId,
+                sessionName: session?.name ?? sessionId.slice(0, 8),
+              });
+              setSessionMenu(null);
+              return;
             }
+            void handleSessionMenuAction(sessionId, action);
+          }}
+          renameDraft={renameDraft}
+          onRenameDraftChange={setRenameDraft}
+          onRenameSession={(sessionId, name) => {
+            void handleRenameSession(sessionId, name);
+          }}
+          permissionPrompt={state.permissionPrompt}
+          onPermission={(decision, scope) => {
+            void handlePermission(decision, scope);
           }}
         />
-      ) : null}
+
+        <CommandPalette
+          open={commandPaletteOpen}
+          onOpenChange={shell.setCommandPaletteOpen}
+          hasProject={Boolean(state.projectPath)}
+          projectTrusted={state.projectTrusted}
+          hasActiveSession={Boolean(state.activeSessionId)}
+          onRun={runDesktopCommand}
+        />
+
+        <ConfirmDialog
+          open={Boolean(deleteConfirm)}
+          onOpenChange={(open) => {
+            if (!open && !deleteBusy) {
+              setDeleteConfirm(null);
+            }
+          }}
+          title="Delete permanently?"
+          description="Transcript files will be removed. This cannot be undone."
+          {...(deleteConfirm?.sessionName ? { affectedObject: deleteConfirm.sessionName } : {})}
+          confirmLabel="Delete permanently"
+          tone="danger"
+          busy={deleteBusy}
+          testId="session-delete-confirm"
+          onConfirm={() => {
+            if (!deleteConfirm) return;
+            setDeleteBusy(true);
+            void confirmDeleteSession(deleteConfirm.sessionId).finally(() => {
+              setDeleteBusy(false);
+              setDeleteConfirm(null);
+            });
+          }}
+        />
+
+        {/* Revert confirmation when editing/resending a non-last user message.
+            Three actions: Cancel (stay in edit), Don't revert (exit edit, no
+            resend), Revert (truncate session at the message and resend). */}
+        <Dialog
+          label="Submit from a previous message?"
+          open={Boolean(pendingRevertEdit)}
+          onOpenChange={(open) => {
+            if (!open) {
+              // Esc / backdrop: just close the dialog, keep edit mode intact
+              // so the user can reconsider without losing their draft.
+              setPendingRevertEdit(null);
+            }
+          }}
+          testId="revert-edit-confirm"
+        >
+          <h3>Submit from a previous message?</h3>
+          <div className="ui-confirm-description muted">
+            Submitting from a previous message will revert file changes to before this message and
+            clear the messages after this one.
+          </div>
+          <div className="modal-actions">
+            <Button data-testid="revert-edit-cancel" onClick={() => setPendingRevertEdit(null)}>
+              Cancel
+            </Button>
+            <Button data-testid="revert-edit-decline" onClick={handleDeclineRevertEdit}>
+              Don&apos;t revert
+            </Button>
+            <Button
+              variant="danger"
+              data-testid="revert-edit-confirm"
+              onClick={handleConfirmRevertEdit}
+            >
+              Revert
+            </Button>
+          </div>
+        </Dialog>
+
+        {settingsOpen ? (
+          <SettingsPanel
+            hostStatus={hostStatus}
+            request={requestConfig}
+            preferences={preferences}
+            onPreferencesChange={(next) => {
+              setPreferences(next);
+              saveDesktopPreferences(next);
+            }}
+            initialSection={settingsSection}
+            projectPath={state.projectPath}
+            requestSkills={requestSkills}
+            requestMcp={requestMcp}
+            requestExtensions={requestExtensions}
+            requestPrompts={requestPrompts}
+            requestTheme={requestTheme}
+            requestPet={requestPet}
+            requestAutomation={requestAutomation}
+            requestSubAgent={requestSubAgent as never}
+            activeSessionId={state.activeSessionId}
+            onOpenSubagentSession={(sessionId) => {
+              void handleResumeSession(sessionId);
+            }}
+            onThemeApplied={onThemeApplied}
+            onPetActiveChanged={setActivePet}
+            onSaved={(next) => {
+              setConfig(next);
+              if (next.defaultProviderId && next.defaultModelId) {
+                setSelectedModelKey(`${next.defaultProviderId}::${next.defaultModelId}`);
+              }
+            }}
+          />
+        ) : null}
       </div>
     </DesktopLocaleProvider>
   );

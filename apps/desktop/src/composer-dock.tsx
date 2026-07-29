@@ -21,21 +21,12 @@ import {
   type ComposerPlusSubmenu,
   type ComposerSkillOption,
 } from './composer-plus-menu';
-import {
-  getAgentMode,
-  type AgentModeId,
-} from './agent-mode';
+import { getAgentMode, type AgentModeId } from './agent-mode';
 import { MediaPreview } from './MediaPreview';
 import type { PendingComposerAttachment } from './media-utils';
 import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
-import {
-  IconClose,
-  IconCompress,
-  IconPlus,
-  IconSend,
-  IconStop,
-} from './shell-icons';
+import { IconClose, IconCompress, IconPlus, IconSend, IconStop } from './shell-icons';
 import {
   buildSlashCatalog,
   detectActiveSlashToken,
@@ -101,7 +92,7 @@ export type ComposerDockProps = {
   onFollowUp?: () => void;
 };
 
-export function ComposerDock(props: ComposerDockProps): ReactElement {
+export function ComposerCard(props: ComposerDockProps): ReactElement {
   const agentModeDefinition = getAgentMode(props.agentMode);
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
@@ -110,10 +101,8 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
   const canComposeText = true;
   const canInteract = canComposeText && !isStreamingRun;
   const canSend =
-    canInteract &&
-    (props.composer.trim().length > 0 || props.pendingAttachments.length > 0);
-  const canIntervene =
-    canComposeText && isStreamingRun && props.composer.trim().length > 0;
+    canInteract && (props.composer.trim().length > 0 || props.pendingAttachments.length > 0);
+  const canIntervene = canComposeText && isStreamingRun && props.composer.trim().length > 0;
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
@@ -219,9 +208,7 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
       return;
     }
     const insert =
-      item.kind === 'command' && !item.acceptsArgs
-        ? `/${item.name}`
-        : `/${item.name} `;
+      item.kind === 'command' && !item.acceptsArgs ? `/${item.name}` : `/${item.name} `;
     const next = replaceActiveSlashToken(props.composer, activeSlashToken, insert);
     props.onComposerChange(next);
     focusCaret(activeSlashToken.startIndex + insert.length);
@@ -240,9 +227,7 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
       if (event.key === 'ArrowUp') {
         event.preventDefault();
         setSlashSelectedIndex((current) =>
-          slashItems.length === 0
-            ? 0
-            : (current - 1 + slashItems.length) % slashItems.length,
+          slashItems.length === 0 ? 0 : (current - 1 + slashItems.length) % slashItems.length,
         );
         return;
       }
@@ -281,11 +266,7 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
       }
     }
 
-    if (
-      event.key === 'Enter' &&
-      !event.shiftKey &&
-      !event.nativeEvent.isComposing
-    ) {
+    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       if (isStreamingRun) {
         props.onSteer?.();
@@ -304,219 +285,221 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
   }
 
   return (
+    <div
+      className={`composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}`}
+      data-testid="composer-card"
+    >
+      {/* Attachments row */}
+      {props.pendingAttachments.length > 0 ? (
+        <div className="composer-v2-attachments">
+          {props.pendingAttachments.map((item) => (
+            <div key={item.localId} className="composer-v2-attachment-chip">
+              <MediaPreview attachment={item.attachment} previewUrl={item.previewUrl} compact />
+              <button
+                type="button"
+                className="composer-v2-chip-remove"
+                onClick={() => props.onRemoveAttachment(item.localId)}
+                aria-label="Remove attachment"
+              >
+                <IconClose width={12} height={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Textarea area */}
+      <div className="composer-v2-input-area">
+        <SlashMenu
+          open={slashMenuOpen}
+          items={slashItems}
+          selectedIndex={slashSelectedIndex}
+          onSelectIndex={setSlashSelectedIndex}
+          onApply={applySlashItem}
+          onClose={() => setSlashMenuForcedClosed(true)}
+        />
+        <textarea
+          ref={textareaRef}
+          className="composer-v2-textarea"
+          data-testid="composer-input"
+          value={props.composer}
+          onChange={(event) => {
+            props.onComposerChange(event.target.value);
+            setCaretIndex(event.target.selectionStart ?? event.target.value.length);
+            setSlashMenuForcedClosed(false);
+            autoResize();
+          }}
+          onSelect={syncCaretFromTextarea}
+          onClick={syncCaretFromTextarea}
+          onKeyUp={syncCaretFromTextarea}
+          onPaste={(event) => props.onPaste(event)}
+          onDragOver={(event) => {
+            event.preventDefault();
+            props.onDropActiveChange(true);
+          }}
+          onDragLeave={() => props.onDropActiveChange(false)}
+          onDrop={(event) => props.onDrop(event)}
+          onKeyDown={handleComposerKeyDown}
+          placeholder={agentModeDefinition.placeholder}
+          rows={1}
+        />
+      </div>
+
+      {/* Bottom toolbar — Codex/Claude Code style */}
+      <div className="composer-v2-toolbar">
+        <div className="composer-v2-toolbar-left">
+          {/* Plus / attach button — the real Radix menu trigger */}
+          <div className="plus-anchor">
+            <ComposerPlusMenu
+              trigger={
+                <IconButton
+                  className={`composer-v2-icon-btn${props.plusMenuOpen ? ' active' : ''}`}
+                  data-testid="composer-plus-btn"
+                  title="Attach files, add context"
+                  label="Attach files, add context"
+                >
+                  <IconPlus />
+                </IconButton>
+              }
+              open={props.plusMenuOpen}
+              onOpenChange={(open) => {
+                props.onPlusMenuOpenChange(open);
+                props.onPlusSubmenuChange('none');
+                if (open) {
+                  props.onRefreshComposerMenus();
+                }
+              }}
+              agentMode={props.agentMode}
+              onSelectMode={props.onAgentModeChange}
+              submenu={props.plusSubmenu}
+              onSubmenu={props.onPlusSubmenuChange}
+              skills={props.menuSkills}
+              onOpenSkillsPanel={props.onOpenSkillsPanel}
+              mcpServers={props.menuMcp}
+              onOpenMcpPanel={props.onOpenMcpPanel}
+              onAttachImage={props.onAttachImage}
+            />
+          </div>
+
+          {/* Agent mode chip (non-default only) */}
+          {props.agentMode !== 'agent' ? (
+            <span
+              className={`composer-v2-mode-chip mode-${props.agentMode}`}
+              data-testid="agent-mode-chip"
+              title={agentModeDefinition.description}
+            >
+              {agentModeDefinition.label}
+              <button
+                type="button"
+                className="composer-v2-mode-dismiss"
+                data-testid="agent-mode-dismiss"
+                disabled={isStreamingRun}
+                aria-label={`Exit ${agentModeDefinition.label} mode`}
+                onClick={() => props.onAgentModeChange('agent')}
+              >
+                <IconClose width={12} height={12} />
+              </button>
+            </span>
+          ) : null}
+        </div>
+
+        <div className="composer-v2-toolbar-right">
+          {/* Thinking effort — compact level chip */}
+          <ThinkingEffortControl
+            disabled={isStreamingRun || !props.onThinkingLevelChange}
+            modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? 'Model'}
+            protocol={selectedModel?.protocol ?? null}
+            ultraEnabled={props.ultraThinkingEnabled ?? false}
+            value={props.thinkingLevel ?? 'medium'}
+            onChange={(level) => props.onThinkingLevelChange?.(level)}
+            models={thinkingModels}
+            selectedModelKey={props.selectedModelKey}
+            onSelectModel={props.onSelectModel}
+          />
+
+          {/* Context usage ring — subtle */}
+          <ContextUsageRing
+            usage={props.contextUsage}
+            {...(typeof props.modelContextWindow === 'number'
+              ? { modelContextWindow: props.modelContextWindow }
+              : {})}
+            {...(props.onOpenModelSettings
+              ? { onOpenModelSettings: props.onOpenModelSettings }
+              : {})}
+          />
+
+          {/* Compact context button */}
+          <IconButton
+            className="composer-v2-icon-btn"
+            disabled={
+              !props.activeSessionId || props.streaming || props.compacting || !props.projectTrusted
+            }
+            onClick={props.onCompact}
+            title={props.compacting ? 'Compacting…' : 'Compact context'}
+            label="Compact context"
+          >
+            <IconCompress />
+          </IconButton>
+
+          {/* Send / Stop / Steer — both slots stay mounted so Playwright
+                and pointer targets do not detach during stream phase flips. */}
+          <div
+            className="composer-v2-streaming-actions"
+            hidden={!isStreamingRun}
+            aria-hidden={!isStreamingRun}
+          >
+            <button
+              type="button"
+              className="composer-v2-text-btn"
+              data-testid="steer-btn"
+              disabled={!canIntervene || !props.onSteer}
+              onClick={props.onSteer}
+              title="Steer the current run"
+              tabIndex={isStreamingRun ? 0 : -1}
+            >
+              Steer
+            </button>
+            <button
+              type="button"
+              className="composer-v2-stop-btn"
+              data-testid="stop-btn"
+              disabled={!props.activeSessionId || props.runPhase === 'aborting'}
+              onClick={props.onAbort}
+              title={props.runPhase === 'aborting' ? 'Stopping…' : 'Stop'}
+              aria-label={props.runPhase === 'aborting' ? 'Stopping' : 'Stop'}
+              tabIndex={isStreamingRun ? 0 : -1}
+            >
+              <IconStop />
+            </button>
+          </div>
+          <button
+            type="button"
+            className="composer-v2-send-btn"
+            data-testid="send-btn"
+            disabled={!canSend || isStreamingRun}
+            onClick={props.onSend}
+            aria-label="Send"
+            title="Send (Enter)"
+            hidden={isStreamingRun}
+            aria-hidden={isStreamingRun}
+            tabIndex={isStreamingRun ? -1 : 0}
+          >
+            <IconSend />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ComposerDock(props: ComposerDockProps): ReactElement {
+  return (
     <footer
       className={`composer-dock layout-${props.layoutMode}`}
       data-testid="composer-dock"
       data-layout={props.layoutMode}
     >
-      <div className={`composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}`}>
-        {/* Attachments row */}
-        {props.pendingAttachments.length > 0 ? (
-          <div className="composer-v2-attachments">
-            {props.pendingAttachments.map((item) => (
-              <div key={item.localId} className="composer-v2-attachment-chip">
-                <MediaPreview
-                  attachment={item.attachment}
-                  previewUrl={item.previewUrl}
-                  compact
-                />
-                <button
-                  type="button"
-                  className="composer-v2-chip-remove"
-                  onClick={() => props.onRemoveAttachment(item.localId)}
-                  aria-label="Remove attachment"
-                >
-                  <IconClose width={12} height={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Textarea area */}
-        <div className="composer-v2-input-area">
-          <SlashMenu
-            open={slashMenuOpen}
-            items={slashItems}
-            selectedIndex={slashSelectedIndex}
-            onSelectIndex={setSlashSelectedIndex}
-            onApply={applySlashItem}
-            onClose={() => setSlashMenuForcedClosed(true)}
-          />
-          <textarea
-            ref={textareaRef}
-            className="composer-v2-textarea"
-            data-testid="composer-input"
-            value={props.composer}
-            onChange={(event) => {
-              props.onComposerChange(event.target.value);
-              setCaretIndex(event.target.selectionStart ?? event.target.value.length);
-              setSlashMenuForcedClosed(false);
-              autoResize();
-            }}
-            onSelect={syncCaretFromTextarea}
-            onClick={syncCaretFromTextarea}
-            onKeyUp={syncCaretFromTextarea}
-            onPaste={(event) => props.onPaste(event)}
-            onDragOver={(event) => {
-              event.preventDefault();
-              props.onDropActiveChange(true);
-            }}
-            onDragLeave={() => props.onDropActiveChange(false)}
-            onDrop={(event) => props.onDrop(event)}
-            onKeyDown={handleComposerKeyDown}
-            placeholder={agentModeDefinition.placeholder}
-            rows={1}
-          />
-        </div>
-
-        {/* Bottom toolbar — Codex/Claude Code style */}
-        <div className="composer-v2-toolbar">
-          <div className="composer-v2-toolbar-left">
-            {/* Plus / attach button — the real Radix menu trigger */}
-            <div className="plus-anchor">
-              <ComposerPlusMenu
-                trigger={
-                  <IconButton
-                    className={`composer-v2-icon-btn${props.plusMenuOpen ? ' active' : ''}`}
-                    data-testid="composer-plus-btn"
-                    title="Attach files, add context"
-                    label="Attach files, add context"
-                  >
-                    <IconPlus />
-                  </IconButton>
-                }
-                open={props.plusMenuOpen}
-                onOpenChange={(open) => {
-                  props.onPlusMenuOpenChange(open);
-                  props.onPlusSubmenuChange('none');
-                  if (open) {
-                    props.onRefreshComposerMenus();
-                  }
-                }}
-                agentMode={props.agentMode}
-                onSelectMode={props.onAgentModeChange}
-                submenu={props.plusSubmenu}
-                onSubmenu={props.onPlusSubmenuChange}
-                skills={props.menuSkills}
-                onOpenSkillsPanel={props.onOpenSkillsPanel}
-                mcpServers={props.menuMcp}
-                onOpenMcpPanel={props.onOpenMcpPanel}
-                onAttachImage={props.onAttachImage}
-              />
-            </div>
-
-            {/* Agent mode chip (non-default only) */}
-            {props.agentMode !== 'agent' ? (
-              <span
-                className={`composer-v2-mode-chip mode-${props.agentMode}`}
-                data-testid="agent-mode-chip"
-                title={agentModeDefinition.description}
-              >
-                {agentModeDefinition.label}
-                <button
-                  type="button"
-                  className="composer-v2-mode-dismiss"
-                  data-testid="agent-mode-dismiss"
-                  disabled={isStreamingRun}
-                  aria-label={`Exit ${agentModeDefinition.label} mode`}
-                  onClick={() => props.onAgentModeChange('agent')}
-                >
-                  <IconClose width={12} height={12} />
-                </button>
-              </span>
-            ) : null}
-          </div>
-
-          <div className="composer-v2-toolbar-right">
-            {/* Thinking effort — compact level chip */}
-            <ThinkingEffortControl
-              disabled={isStreamingRun || !props.onThinkingLevelChange}
-              modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? 'Model'}
-              protocol={selectedModel?.protocol ?? null}
-              ultraEnabled={props.ultraThinkingEnabled ?? false}
-              value={props.thinkingLevel ?? 'medium'}
-              onChange={(level) => props.onThinkingLevelChange?.(level)}
-              models={thinkingModels}
-              selectedModelKey={props.selectedModelKey}
-              onSelectModel={props.onSelectModel}
-            />
-
-            {/* Context usage ring — subtle */}
-            <ContextUsageRing
-              usage={props.contextUsage}
-              {...(typeof props.modelContextWindow === 'number'
-                ? { modelContextWindow: props.modelContextWindow }
-                : {})}
-              {...(props.onOpenModelSettings
-                ? { onOpenModelSettings: props.onOpenModelSettings }
-                : {})}
-            />
-
-            {/* Compact context button */}
-            <IconButton
-              className="composer-v2-icon-btn"
-              disabled={
-                !props.activeSessionId ||
-                props.streaming ||
-                props.compacting ||
-                !props.projectTrusted
-              }
-              onClick={props.onCompact}
-              title={props.compacting ? 'Compacting…' : 'Compact context'}
-              label="Compact context"
-            >
-              <IconCompress />
-            </IconButton>
-
-            {/* Send / Stop / Steer — both slots stay mounted so Playwright
-                and pointer targets do not detach during stream phase flips. */}
-            <div
-              className="composer-v2-streaming-actions"
-              hidden={!isStreamingRun}
-              aria-hidden={!isStreamingRun}
-            >
-              <button
-                type="button"
-                className="composer-v2-text-btn"
-                data-testid="steer-btn"
-                disabled={!canIntervene || !props.onSteer}
-                onClick={props.onSteer}
-                title="Steer the current run"
-                tabIndex={isStreamingRun ? 0 : -1}
-              >
-                Steer
-              </button>
-              <button
-                type="button"
-                className="composer-v2-stop-btn"
-                data-testid="stop-btn"
-                disabled={!props.activeSessionId || props.runPhase === 'aborting'}
-                onClick={props.onAbort}
-                title={props.runPhase === 'aborting' ? 'Stopping…' : 'Stop'}
-                aria-label={props.runPhase === 'aborting' ? 'Stopping' : 'Stop'}
-                tabIndex={isStreamingRun ? 0 : -1}
-              >
-                <IconStop />
-              </button>
-            </div>
-            <button
-              type="button"
-              className="composer-v2-send-btn"
-              data-testid="send-btn"
-              disabled={!canSend || isStreamingRun}
-              onClick={props.onSend}
-              aria-label="Send"
-              title="Send (Enter)"
-              hidden={isStreamingRun}
-              aria-hidden={isStreamingRun}
-              tabIndex={isStreamingRun ? -1 : 0}
-            >
-              <IconSend />
-            </button>
-          </div>
-        </div>
-      </div>
+      <ComposerCard {...props} />
     </footer>
   );
 }

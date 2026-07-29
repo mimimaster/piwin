@@ -75,4 +75,28 @@ describe('deriveRunStatus', () => {
     expect(status.canStop).toBe(true);
     expect(status.elapsedMs).toBeGreaterThanOrEqual(2_000);
   });
+
+  it('includes planStep when planning', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      runPhase: 'streaming' as const,
+      streaming: true,
+    };
+    const plan = {
+      id: 'p1',
+      sessionId: 's1',
+      projectPath: '/tmp',
+      status: 'executing' as const,
+      source: 'assistant' as const,
+      title: 'Implement auth',
+      goal: 'Add auth',
+      steps: [{ id: 's1', title: 'Add login', status: 'active' as const }],
+      revision: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan, processes: [] });
+    expect(status.kind).toBe('planning');
+    expect(status.planStep).toBe('Add login');
+  });
 });
