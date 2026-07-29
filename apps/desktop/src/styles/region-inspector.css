@@ -113,11 +113,11 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  min-height: 36px;
-  padding: 4px 6px 0 8px;
+  min-height: 0;
+  padding: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
   flex-shrink: 0;
-  background: color-mix(in srgb, var(--surface-inset, var(--panel)) 55%, transparent);
+  background: transparent;
 }
 
 .right-panel-tabs {
@@ -501,6 +501,12 @@
   min-height: 0;
   height: 100%;
   padding: 12px;
+}
+
+/* Remove padding inside the actual right panel so content hugs the edges. */
+.right-panel .right-panel-section,
+.right-panel .right-panel-section.right-panel-terminal {
+  padding: 0;
 }
 
 .right-panel-section-meta {
@@ -1046,8 +1052,13 @@
 }
 
 @keyframes piwin-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 /* ── Changes panel ────────────────────────────────────────────────── */
@@ -1175,11 +1186,19 @@
   color: var(--muted);
 }
 
-.changes-code.status-modified { color: var(--accent); }
+.changes-code.status-modified {
+  color: var(--accent);
+}
 .changes-code.status-added,
-.changes-code.status-untracked { color: var(--ok); }
-.changes-code.status-deleted { color: var(--danger); }
-.changes-code.status-conflicted { color: var(--danger); }
+.changes-code.status-untracked {
+  color: var(--ok);
+}
+.changes-code.status-deleted {
+  color: var(--danger);
+}
+.changes-code.status-conflicted {
+  color: var(--danger);
+}
 
 .changes-path {
   min-width: 0;
@@ -1197,8 +1216,12 @@
   font-size: 10px;
 }
 
-.changes-stats .add { color: var(--ok); }
-.changes-stats .del { color: var(--danger); }
+.changes-stats .add {
+  color: var(--ok);
+}
+.changes-stats .del {
+  color: var(--danger);
+}
 
 .changes-chip {
   font-size: 9px;
@@ -1282,8 +1305,14 @@
 }
 
 @keyframes diff-in {
-  from { opacity: 0; transform: translateY(6px) scale(0.99); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1485,9 +1514,15 @@
   font-variant-numeric: tabular-nums;
 }
 
-.context-window-percent.tone-ok { color: var(--ok); }
-.context-window-percent.tone-warn { color: var(--accent); }
-.context-window-percent.tone-critical { color: var(--danger); }
+.context-window-percent.tone-ok {
+  color: var(--ok);
+}
+.context-window-percent.tone-warn {
+  color: var(--accent);
+}
+.context-window-percent.tone-critical {
+  color: var(--danger);
+}
 
 .context-window-bar {
   display: flex;
