@@ -24,6 +24,7 @@ import type {
   HostMode,
   HostServerMessage,
   HostStatusData,
+  PermissionMode,
 } from '@piwin/contracts';
 import { formatCapabilityMatrixLines } from '@piwin/contracts';
 import { formatTextModelImageInjection } from '@piwin/contracts';
@@ -34,6 +35,7 @@ import { createMediaService } from '@piwin/media';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createJsonlWriter } from './host-serve-jsonl-writer.js';
 import { createHostServeStreamBatcher } from './host-serve-stream-batcher.js';
+import { parsePermissionModeOverride } from './permission-mode-override.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -49,8 +51,8 @@ Usage:
   piwin session search <query> [--project <path>] [--mock]
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin status [--project <path>] [--mock]
-  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>]
-  piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>]
+  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass]
+  piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass]
   piwin skill list [--project <path>]
   piwin skill install --local <dir> | --git <url> [--name <id>]
   piwin skill ensure-bundled
@@ -138,6 +140,21 @@ function parseProject(argv: string[]): string {
 
 function parseMock(argv: string[]): boolean {
   return hasFlag(argv, '--mock') || process.env.PIWIN_MOCK === '1';
+}
+
+/**
+ * Parse the session-level permission mode override (ADR 0019 §3) and emit the
+ * stderr warning when the dangerous alias is used. Returns `undefined` when
+ * neither flag is present so the configured `config.permissions.mode` applies.
+ */
+function resolvePermissionModeOverride(argv: string[]): PermissionMode | undefined {
+  const result = parsePermissionModeOverride(argv);
+  if (result.fromDangerousAlias) {
+    console.error(
+      '[piwin] --dangerously-bypass-permissions: bypassing all permission prompts for this session.',
+    );
+  }
+  return result.mode;
 }
 
 function parseHostServeTestFixture(argv: string[]): HostRuntimeTestFixture | undefined {
@@ -562,7 +579,12 @@ async function commandChat(argv: string[]): Promise<void> {
   for (let index = 0; index < args.length; index += 1) {
     const token = args[index];
     if (!token) continue;
-    if (token === '--project' || token === '--mode' || token === '--image') {
+    if (
+      token === '--project' ||
+      token === '--mode' ||
+      token === '--image' ||
+      token === '--permission-mode'
+    ) {
       index += 1;
       continue;
     }
@@ -575,7 +597,7 @@ async function commandChat(argv: string[]): Promise<void> {
   const imagePath = readOption(argv, '--image');
   if (!message && !imagePath) {
     console.error(
-      'Usage: piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>]',
+      'Usage: piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass]',
     );
     process.exitCode = 1;
     return;
@@ -608,6 +630,7 @@ async function commandChat(argv: string[]): Promise<void> {
   const projectPath = parseOptionalProject(argv);
   const mock = parseMock(argv);
   const mode = parseMode(argv);
+  const permissionModeOverride = resolvePermissionModeOverride(argv);
   if (mode === 'rpc' && !mock) {
     console.error(
       'piwin chat --mode rpc: stock Pi RPC does not support piwin custom tools ' +
@@ -617,7 +640,11 @@ async function commandChat(argv: string[]): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const host = createAgentHost({ mode, mock });
+  const host = createAgentHost({
+    mode,
+    mock,
+    ...(permissionModeOverride !== undefined ? { permissionModeOverride } : {}),
+  });
   const session = await host.createSession(
     projectPath
       ? { scope: { kind: 'project', projectPath }, projectPath }
@@ -1694,6 +1721,7 @@ async function commandHostServe(argv: string[]): Promise<void> {
   const mode = parseMode(argv);
   const mock = parseMock(argv);
   const testFixture = parseHostServeTestFixture(argv);
+  const permissionModeOverride = resolvePermissionModeOverride(argv);
   const writer = createJsonlWriter(process.stdout);
   const streamBatcher = createHostServeStreamBatcher({
     write: (message) => writer.write(message),
@@ -1707,6 +1735,9 @@ async function commandHostServe(argv: string[]): Promise<void> {
   };
   if (testFixture !== undefined) {
     runtimeOptions.testFixture = testFixture;
+  }
+  if (permissionModeOverride !== undefined) {
+    runtimeOptions.permissionModeOverride = permissionModeOverride;
   }
   const runtime = new HostRuntime(runtimeOptions);
 
