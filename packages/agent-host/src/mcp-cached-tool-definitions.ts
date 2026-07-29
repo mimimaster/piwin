@@ -1,4 +1,4 @@
-import type { McpToolMetadata } from '@piwin/contracts';
+import type { McpToolMetadata, PermissionRuleSet } from '@piwin/contracts';
 import { createDefaultMcpExposurePolicy } from '@piwin/contracts';
 import {
   formatMcpExposedName,
@@ -16,6 +16,7 @@ export type BuildCachedMcpToolsOptions = {
   piwinRoot: string;
   lifecycleManager: McpLifecycleManager;
   metadataCatalog?: McpMetadataCatalog;
+  rules?: PermissionRuleSet;
   requestPermission?: ToolPermissionGate;
 };
 
@@ -23,16 +24,13 @@ export type BuildCachedMcpToolsOptions = {
  * Build direct MCP host tools from **cached metadata only**.
  * Never performs MCP transport I/O.
  */
-export async function buildCachedMcpToolDefinitions(
-  options: BuildCachedMcpToolsOptions,
-): Promise<{
+export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpToolsOptions): Promise<{
   tools: HostToolDefinition[];
   directCount: number;
   cachedToolCount: number;
   warnings: string[];
 }> {
-  const catalog =
-    options.metadataCatalog ?? options.lifecycleManager.getMetadataCatalog();
+  const catalog = options.metadataCatalog ?? options.lifecycleManager.getMetadataCatalog();
   const document = await loadMcpConfig(options.piwinRoot);
   const enabled = listEnabledServers(document);
   const warnings: string[] = [];
@@ -50,14 +48,9 @@ export async function buildCachedMcpToolDefinitions(
     validTools.push(...tools);
   }
 
-  const { direct } = selectDirectMcpTools(
-    validTools,
-    createDefaultMcpExposurePolicy(),
-  );
+  const { direct } = selectDirectMcpTools(validTools, createDefaultMcpExposurePolicy());
 
-  const hostTools = direct.map((metadata) =>
-    buildDirectHostTool(metadata, options),
-  );
+  const hostTools = direct.map((metadata) => buildDirectHostTool(metadata, options));
 
   return {
     tools: hostTools,
@@ -82,12 +75,11 @@ function buildDirectHostTool(
       await assertMcpToolCallAllowed({
         serverId: metadata.serverId,
         toolName: metadata.toolName,
-          arguments: args,
-          ...(options.requestPermission
-            ? { requestPermission: options.requestPermission }
-            : {}),
-          ...(signal ? { signal } : {}),
-        });
+        arguments: args,
+        ...(options.rules ? { rules: options.rules } : {}),
+        ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
+        ...(signal ? { signal } : {}),
+      });
       if (signal?.aborted) {
         throw new Error(`MCP tool aborted: ${exposedName}`);
       }

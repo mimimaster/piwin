@@ -55,7 +55,7 @@ describe('createMcpSessionBridge (cached + gateway)', () => {
     }
   });
 
-  it('exposes direct tools from cache and lazy-connects only on execute', async () => {
+  it('exposes direct tools from cache and lazy-connects only on execute (no prompt by default)', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-mcp-bridge-cache-'));
     await writeFixtureConfig(rootDir);
     const manager = createMcpLifecycleManager(rootDir);
@@ -81,13 +81,90 @@ describe('createMcpSessionBridge (cached + gateway)', () => {
       expect(direct).toBeTruthy();
       expect(bridge.tools.some((tool) => tool.name === 'mcp_gateway')).toBe(true);
 
+      // ADR 0019 §5: enabled server = trusted, no per-call prompt without rules.
       const result = await direct?.execute({}, undefined);
       expect(String(result)).toContain('pong');
-      expect(permissionActions).toEqual(['mcp:tool-call']);
+      expect(permissionActions).toEqual([]);
       expect(manager.getClient('fixture')).toBeTruthy();
 
       await bridge.close();
       expect(manager.getClient('fixture')).toBeTruthy();
+    } finally {
+      await manager.dispose();
+    }
+  });
+
+  it('prompts on direct tool execute when an explicit ask rule matches', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-mcp-bridge-ask-'));
+    await writeFixtureConfig(rootDir);
+    const manager = createMcpLifecycleManager(rootDir);
+    try {
+      await manager.discoverTools('fixture');
+      await manager.stop('fixture');
+
+      const permissionActions: string[] = [];
+      const bridge = await createMcpSessionBridge({
+        piwinRoot: rootDir,
+        sessionId: 's2-ask',
+        lifecycleManager: manager,
+        rules: {
+          deny: [],
+          ask: [
+            {
+              target: { kind: 'mcp', selectorGlob: 'fixture.*' },
+              decision: 'ask',
+              reason: 'fixture-review',
+            },
+          ],
+          allow: [],
+        },
+        requestPermission: async (request) => {
+          permissionActions.push(request.action);
+          return 'allow';
+        },
+      });
+
+      const direct = bridge.tools.find((tool) => tool.name.startsWith('mcp__fixture__'));
+      expect(direct).toBeTruthy();
+      const result = await direct?.execute({}, undefined);
+      expect(String(result)).toContain('pong');
+      expect(permissionActions).toEqual(['mcp:tool-call']);
+      await bridge.close();
+    } finally {
+      await manager.dispose();
+    }
+  });
+
+  it('blocks direct tool execute when an explicit deny rule matches', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-mcp-bridge-deny-'));
+    await writeFixtureConfig(rootDir);
+    const manager = createMcpLifecycleManager(rootDir);
+    try {
+      await manager.discoverTools('fixture');
+      await manager.stop('fixture');
+
+      const bridge = await createMcpSessionBridge({
+        piwinRoot: rootDir,
+        sessionId: 's2-deny',
+        lifecycleManager: manager,
+        rules: {
+          deny: [
+            {
+              target: { kind: 'mcp', selectorGlob: 'fixture.*' },
+              decision: 'deny',
+              reason: 'fixture-blocked',
+            },
+          ],
+          ask: [],
+          allow: [],
+        },
+        requestPermission: async () => 'allow',
+      });
+
+      const direct = bridge.tools.find((tool) => tool.name.startsWith('mcp__fixture__'));
+      expect(direct).toBeTruthy();
+      await expect(direct?.execute({}, undefined)).rejects.toThrow(/Permission deny/);
+      await bridge.close();
     } finally {
       await manager.dispose();
     }

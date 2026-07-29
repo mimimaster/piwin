@@ -3,6 +3,7 @@ import type {
   AgentHostFactoryOptions,
   CreateSessionInput,
   PermissionDecision,
+  PermissionRuleSet,
   SessionHandle,
   SessionScope,
   SessionSummary,
@@ -32,10 +33,7 @@ import { createPlanStepTool } from './plan-step-tool.js';
 import { buildSessionTools } from './session-tools.js';
 import { toPiCustomTools } from './pi-tool-adapter.js';
 import { createPiResourceLoader } from './pi-resource-loader.js';
-import {
-  bindExtensionUiToPiSession,
-  createExtensionUiContext,
-} from './extension-ui-bridge.js';
+import { bindExtensionUiToPiSession, createExtensionUiContext } from './extension-ui-bridge.js';
 import { createMcpSessionBridge } from './mcp-session-bridge.js';
 import { buildGatedBashToolDefinition } from './gated-bash-tool.js';
 import { buildGatedFileToolsDefinition } from './gated-file-tools.js';
@@ -53,6 +51,7 @@ import {
 } from './pi-model-runtime.js';
 import { listProjects } from '@piwin/project';
 import { loadMergedPermissionRules } from './permission-rule-loader.js';
+import { createBundledRuleSet } from './permission-defaults.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { extractFileOpsFromUnknown } from './compaction-file-ops.js';
@@ -103,9 +102,7 @@ export type PiSdkAdapterOptions = {
   piwinRoot?: string;
   /** Force mock sessions (no Pi dependency). */
   mock?: boolean;
-  onPermissionRequest?: (
-    request: PiSdkPermissionRequest,
-  ) => Promise<PermissionDecision>;
+  onPermissionRequest?: (request: PiSdkPermissionRequest) => Promise<PermissionDecision>;
   /**
    * Shared MCP process owner. When omitted, adapter creates one for this host.
    */
@@ -116,10 +113,7 @@ export type PiSdkAdapterOptions = {
   onExtensionUiRequest?: (
     request: import('./extension-ui-bridge.js').ExtensionUiRequest & { sessionId: string },
   ) => Promise<import('./extension-ui-bridge.js').ExtensionUiResponse>;
-  onExtensionNotify?: (
-    message: string,
-    level: 'info' | 'warning' | 'error',
-  ) => void;
+  onExtensionNotify?: (message: string, level: 'info' | 'warning' | 'error') => void;
   /** Shared CE-PROC registry from HostRuntime; adapter owns one if omitted. */
   processRegistry?: ProcessRegistry;
 };
@@ -154,7 +148,12 @@ export class PiSdkAdapter implements AgentHost {
     if (useMock) {
       const session = createMockSessionHandle(resolvedInput);
       this.sessions.set(session.id, session);
-      await this.persistSessionMeta(session.id, location.scope, location.workingDirectory, input.sessionName);
+      await this.persistSessionMeta(
+        session.id,
+        location.scope,
+        location.workingDirectory,
+        input.sessionName,
+      );
       return session;
     }
 
@@ -166,7 +165,12 @@ export class PiSdkAdapter implements AgentHost {
       if (cleanup) {
         this.sessionCleanups.set(session.id, cleanup);
       }
-      await this.persistSessionMeta(session.id, location.scope, location.workingDirectory, input.sessionName);
+      await this.persistSessionMeta(
+        session.id,
+        location.scope,
+        location.workingDirectory,
+        input.sessionName,
+      );
       return session;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -195,7 +199,10 @@ export class PiSdkAdapter implements AgentHost {
     const seedMessages = await listTranscriptMessages(transcriptPath);
     const useMock = await this.shouldUseMock();
     const scope = scopeFromIndexRecord(record);
-    const location = await resolveSessionLocation({ scope, projectPath: record.projectPath }, this.options.piwinRoot);
+    const location = await resolveSessionLocation(
+      { scope, projectPath: record.projectPath },
+      this.options.piwinRoot,
+    );
 
     if (useMock) {
       const mockOptions: Parameters<typeof createMockSessionHandle>[0] = {
@@ -253,8 +260,7 @@ export class PiSdkAdapter implements AgentHost {
       typeof scopeOrProjectPath === 'string'
         ? { kind: 'project', projectPath: scopeOrProjectPath }
         : scopeOrProjectPath;
-    const fallbackProjectPath =
-      fallbackScope.kind === 'project' ? fallbackScope.projectPath : '';
+    const fallbackProjectPath = fallbackScope.kind === 'project' ? fallbackScope.projectPath : '';
     const fallbackWorkingDirectory =
       fallbackScope.kind === 'project' ? fallbackScope.projectPath : rootDir;
     return [...this.sessions.entries()].map(([id]) => ({
@@ -320,9 +326,7 @@ export class PiSdkAdapter implements AgentHost {
       return this.options.lifecycleManager;
     }
     if (!this.ownedLifecycleManager) {
-      this.ownedLifecycleManager = createMcpLifecycleManager(
-        getPiwinRoot(this.options.piwinRoot),
-      );
+      this.ownedLifecycleManager = createMcpLifecycleManager(getPiwinRoot(this.options.piwinRoot));
     }
     return this.ownedLifecycleManager;
   }
@@ -379,10 +383,10 @@ async function createPiSdkSession(
   const permissionHandler = adapterOptions.onPermissionRequest;
   const requestPermission = permissionHandler
     ? async (gateInput: {
-      action: string;
-      detail: string;
-      defaultDecision: PermissionDecision;
-      signal?: AbortSignal;
+        action: string;
+        detail: string;
+        defaultDecision: PermissionDecision;
+        signal?: AbortSignal;
       }) =>
         permissionHandler({
           sessionId,
@@ -407,6 +411,32 @@ async function createPiSdkSession(
   }
   const { tools: webTools } = buildSessionTools(toolBuildOptions);
 
+  // Load merged permission rules once (shared by MCP bridge + gated file tools).
+  // Trust lookup runs here so untrusted repos cannot grant themselves allow rules.
+  const projectsFilePath = getPiwinProjectsPath(rootDir);
+  let projectTrusted = false;
+  if (permissionProjectPath) {
+    try {
+      const projects = await listProjects(projectsFilePath);
+      projectTrusted = projects.find((p) => p.path === permissionProjectPath)?.trust === 'trusted';
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[piwin] project trust lookup failed: ${message}`);
+      projectTrusted = false;
+    }
+  }
+  let mergedRules: PermissionRuleSet | undefined;
+  try {
+    mergedRules = await loadMergedPermissionRules({
+      piwinRoot: rootDir,
+      ...(permissionProjectPath ? { projectPath: permissionProjectPath } : {}),
+      projectTrusted,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[piwin] permission rules unavailable: ${message}`);
+  }
+
   // MCP session bridge (best-effort; failures become warnings)
   const mcpBridge = await createMcpSessionBridge({
     piwinRoot: rootDir,
@@ -414,6 +444,7 @@ async function createPiSdkSession(
     ...(adapterOptions.lifecycleManager
       ? { lifecycleManager: adapterOptions.lifecycleManager }
       : {}),
+    ...(mergedRules ? { rules: mergedRules } : {}),
     ...(requestPermission ? { requestPermission } : {}),
   });
   for (const warning of mcpBridge.warnings) {
@@ -576,29 +607,11 @@ async function createPiSdkSession(
     // Replace built-in write/edit with permission-gated versions (ADR 0019 §4).
     // Closes the largest blind spot: Pi's native file tools are otherwise ungated.
     try {
-      const projectsFilePath = getPiwinProjectsPath(rootDir);
-      // Determine project trust so untrusted repos cannot grant themselves allow rules.
-      let projectTrusted = false;
-      if (permissionProjectPath) {
-        try {
-          const projects = await listProjects(projectsFilePath);
-          projectTrusted =
-            projects.find((p) => p.path === permissionProjectPath)?.trust === 'trusted';
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          console.warn(`[piwin] project trust lookup failed: ${message}`);
-          projectTrusted = false;
-        }
-      }
-      const mergedRules = await loadMergedPermissionRules({
-        piwinRoot: rootDir,
-        ...(permissionProjectPath ? { projectPath: permissionProjectPath } : {}),
-        projectTrusted,
-      });
+      // mergedRules + projectTrusted were loaded above (shared with MCP bridge).
       const gatedFileOptions: {
         cwd: string;
         mode: 'auto' | 'ask-all' | 'bypass';
-        rules: typeof mergedRules;
+        rules: PermissionRuleSet;
         projectRoot: string;
         projectsFilePath: string;
         requestPermission?: (request: {
@@ -610,7 +623,7 @@ async function createPiSdkSession(
       } = {
         cwd: agentCwd,
         mode: config.permissions?.mode ?? 'auto',
-        rules: mergedRules,
+        rules: mergedRules ?? createBundledRuleSet(),
         projectRoot: permissionProjectPath,
         projectsFilePath,
       };
@@ -643,9 +656,7 @@ async function createPiSdkSession(
     piwinRoot: rootDir,
     scope: location.scope,
     // General: never walk project-local skill/extension/prompt trees.
-    ...(location.scope.kind === 'project'
-      ? { projectPath: location.scope.projectPath }
-      : {}),
+    ...(location.scope.kind === 'project' ? { projectPath: location.scope.projectPath } : {}),
     ...(extraSkillPaths.length > 0 ? { extraSkillPaths } : {}),
     ...(disabledSkillIds.length > 0 ? { disabledSkillIds } : {}),
     ...(extraExtensionPaths.length > 0 ? { extraExtensionPaths } : {}),
@@ -663,22 +674,18 @@ async function createPiSdkSession(
   };
 
   const modelRuntime = await createPiModelRuntime(piModule, config, agentDir);
-  const requestedModel = input.model ?? (
-    config.defaultProviderId && config.defaultModelId
+  const requestedModel =
+    input.model ??
+    (config.defaultProviderId && config.defaultModelId
       ? {
-          protocol: config.providers.find(
-            (provider) => provider.id === config.defaultProviderId,
-          )?.protocol,
+          protocol: config.providers.find((provider) => provider.id === config.defaultProviderId)
+            ?.protocol,
           providerId: config.defaultProviderId,
           modelId: config.defaultModelId,
         }
-      : undefined
-  );
+      : undefined);
   if (requestedModel?.protocol) {
-    const selectedModel = modelRuntime.getModel(
-      requestedModel.providerId,
-      requestedModel.modelId,
-    );
+    const selectedModel = modelRuntime.getModel(requestedModel.providerId, requestedModel.modelId);
     if (!selectedModel) {
       throw new Error(
         `Configured model is unavailable: ${requestedModel.providerId}/${requestedModel.modelId}`,
@@ -707,9 +714,7 @@ async function createPiSdkSession(
             ...request,
             sessionId,
           }),
-        ...(adapterOptions.onExtensionNotify
-          ? { notify: adapterOptions.onExtensionNotify }
-          : {}),
+        ...(adapterOptions.onExtensionNotify ? { notify: adapterOptions.onExtensionNotify } : {}),
       },
       () => cryptoRandomId(),
     );
@@ -748,10 +753,7 @@ async function createPiModelRuntime(
 ): Promise<PiModelRuntime> {
   const runtimeConstructor = piModule.ModelRuntime as
     | {
-        create: (options: {
-          authPath: string;
-          modelsPath: string;
-        }) => Promise<PiModelRuntime>;
+        create: (options: { authPath: string; modelsPath: string }) => Promise<PiModelRuntime>;
       }
     | undefined;
   if (!runtimeConstructor?.create) {
@@ -775,10 +777,7 @@ async function createPiModelRuntime(
       // Keep the provider registered so Pi can report a precise unavailable
       // model error instead of silently dropping it from the model catalog.
     }
-    modelRuntime.registerProvider(
-      provider.id,
-      buildPiProviderRegistration(provider, apiKey),
-    );
+    modelRuntime.registerProvider(provider.id, buildPiProviderRegistration(provider, apiKey));
   }
   await modelRuntime.refresh({ allowNetwork: false });
   return modelRuntime;
@@ -872,9 +871,7 @@ function wrapPiSession(
           await piSession.setModel(model);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
-          throw new Error(
-            `model-unavailable: cannot switch model for this turn (${message})`,
-          );
+          throw new Error(`model-unavailable: cannot switch model for this turn (${message})`);
         }
       } else if (promptInput.model && !piSession.setModel) {
         // Product history is re-injected by session-live-commands; continue without silent drop.
@@ -943,7 +940,6 @@ function wrapPiSession(
     },
   };
 }
-
 
 function mapPiCompactResult(
   result: unknown,

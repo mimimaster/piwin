@@ -7,6 +7,7 @@ import {
   type McpMetadataCatalog,
 } from '@piwin/mcp';
 import type { HostToolDefinition } from '@piwin/tools-web';
+import type { PermissionRuleSet } from '@piwin/contracts';
 import { assertMcpToolCallAllowed } from './mcp-call-permission.js';
 import type { ToolPermissionGate } from './session-tools.js';
 
@@ -14,6 +15,7 @@ export type BuildMcpGatewayToolOptions = {
   piwinRoot: string;
   lifecycleManager: McpLifecycleManager;
   metadataCatalog?: McpMetadataCatalog;
+  rules?: PermissionRuleSet;
   requestPermission?: ToolPermissionGate;
 };
 
@@ -24,8 +26,7 @@ export type BuildMcpGatewayToolOptions = {
 export function buildMcpGatewayToolDefinition(
   options: BuildMcpGatewayToolOptions,
 ): HostToolDefinition {
-  const catalog =
-    options.metadataCatalog ?? options.lifecycleManager.getMetadataCatalog();
+  const catalog = options.metadataCatalog ?? options.lifecycleManager.getMetadataCatalog();
 
   return {
     name: 'mcp_gateway',
@@ -55,8 +56,7 @@ export function buildMcpGatewayToolDefinition(
       const action = String(args.action ?? '').trim();
       if (action === 'search') {
         const query = String(args.query ?? '');
-        const serverId =
-          typeof args.serverId === 'string' ? args.serverId : undefined;
+        const serverId = typeof args.serverId === 'string' ? args.serverId : undefined;
         const limit =
           typeof args.limit === 'number' && Number.isFinite(args.limit)
             ? Math.max(1, Math.floor(args.limit))
@@ -67,9 +67,7 @@ export function buildMcpGatewayToolDefinition(
           (
             await Promise.all(
               enabledServers.map(async ({ id: serverId, config: serverConfig }) =>
-                (await catalog.isServerCacheValid(serverId, serverConfig))
-                  ? serverId
-                  : null,
+                (await catalog.isServerCacheValid(serverId, serverConfig)) ? serverId : null,
               ),
             )
           ).filter((serverId): serverId is string => serverId !== null),
@@ -128,9 +126,7 @@ export function buildMcpGatewayToolDefinition(
           serverConfig !== undefined &&
           serverConfig.disabled !== true &&
           (await catalog.isServerCacheValid(parsed.serverId, serverConfig));
-        const cached = hasValidCache
-          ? await catalog.describeCached(selector)
-          : null;
+        const cached = hasValidCache ? await catalog.describeCached(selector) : null;
         if (cached) {
           return JSON.stringify(
             {
@@ -143,10 +139,7 @@ export function buildMcpGatewayToolDefinition(
             2,
           );
         }
-        const discovered = await options.lifecycleManager.discoverTools(
-          parsed.serverId,
-          signal,
-        );
+        const discovered = await options.lifecycleManager.discoverTools(parsed.serverId, signal);
         const match = discovered.find((tool) => tool.name === parsed.toolName);
         if (!match) {
           throw new Error(`Unknown MCP tool: ${selector}`);
@@ -165,11 +158,8 @@ export function buildMcpGatewayToolDefinition(
 
       if (action === 'status') {
         const health = await options.lifecycleManager.listHealth();
-        const serverId =
-          typeof args.serverId === 'string' ? args.serverId : undefined;
-        const rows = serverId
-          ? health.filter((item) => item.serverId === serverId)
-          : health;
+        const serverId = typeof args.serverId === 'string' ? args.serverId : undefined;
+        const rows = serverId ? health.filter((item) => item.serverId === serverId) : health;
         return JSON.stringify({ servers: rows }, null, 2);
       }
 
@@ -191,9 +181,8 @@ export function buildMcpGatewayToolDefinition(
           serverId: parsed.serverId,
           toolName: parsed.toolName,
           arguments: toolArguments,
-          ...(options.requestPermission
-            ? { requestPermission: options.requestPermission }
-            : {}),
+          ...(options.rules ? { rules: options.rules } : {}),
+          ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
           ...(signal ? { signal } : {}),
         });
 
