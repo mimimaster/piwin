@@ -9,6 +9,7 @@ import {
   listRememberedPermissions,
   loadProjectStore,
   openOrCreateProject,
+  resolveInsideRoot,
   revokeRememberedPermission,
   setProjectTrust,
 } from '@piwin/project';
@@ -91,7 +92,12 @@ export async function handleProjectCommand(
       return listProjectDirectory(command.projectPath, command.relativePath, requestId);
     }
     case 'project/read-file': {
-      return readProjectFile(command.projectPath, command.relativePath, command.maxBytes, requestId);
+      return readProjectFile(
+        command.projectPath,
+        command.relativePath,
+        command.maxBytes,
+        requestId,
+      );
     }
     default:
       return null;
@@ -121,16 +127,11 @@ async function listProjectDirectory(
     .replace(/\\/g, '/')
     .replace(/^\/+/, '')
     .replace(/\/+$/, '');
-  if (relativeNormalized.includes('..')) {
-    return fail(requestId, 'project/list-dir', 'relativePath must not contain ..');
+  const resolved = resolveInsideRoot(rootAbsolute, relativePath ?? '');
+  if (!resolved.ok) {
+    return fail(requestId, 'project/list-dir', resolved.reason);
   }
-  const targetAbsolute = relativeNormalized
-    ? path.resolve(rootAbsolute, relativeNormalized)
-    : rootAbsolute;
-  const relativeToRoot = path.relative(rootAbsolute, targetAbsolute);
-  if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
-    return fail(requestId, 'project/list-dir', 'path escapes project root');
-  }
+  const targetAbsolute = resolved.absolute;
 
   let directoryEntries;
   try {
@@ -151,9 +152,7 @@ async function listProjectDirectory(
     if (dirent.isDirectory() && IGNORED_DIR_NAMES.has(dirent.name)) {
       continue;
     }
-    const entryRelative = relativeNormalized
-      ? `${relativeNormalized}/${dirent.name}`
-      : dirent.name;
+    const entryRelative = relativeNormalized ? `${relativeNormalized}/${dirent.name}` : dirent.name;
     const kind = dirent.isDirectory() ? ('directory' as const) : ('file' as const);
     const entry: {
       name: string;
@@ -211,14 +210,11 @@ async function readProjectFile(
   if (!relativeNormalized) {
     return fail(requestId, 'project/read-file', 'relativePath is required');
   }
-  if (relativeNormalized.includes('..')) {
-    return fail(requestId, 'project/read-file', 'relativePath must not contain ..');
+  const resolved = resolveInsideRoot(rootAbsolute, relativePath);
+  if (!resolved.ok) {
+    return fail(requestId, 'project/read-file', resolved.reason);
   }
-  const targetAbsolute = path.resolve(rootAbsolute, relativeNormalized);
-  const relativeToRoot = path.relative(rootAbsolute, targetAbsolute);
-  if (relativeToRoot.startsWith('..') || path.isAbsolute(relativeToRoot)) {
-    return fail(requestId, 'project/read-file', 'path escapes project root');
-  }
+  const targetAbsolute = resolved.absolute;
 
   const maxBytes = Math.min(
     HARD_MAX_READ_BYTES,
@@ -305,14 +301,9 @@ async function authorizeTerminalCwd(
   const rootWithSep = canonicalProject.endsWith(path.sep)
     ? canonicalProject
     : `${canonicalProject}${path.sep}`;
-  const inside =
-    canonicalCwd === canonicalProject || canonicalCwd.startsWith(rootWithSep);
+  const inside = canonicalCwd === canonicalProject || canonicalCwd.startsWith(rootWithSep);
   if (!inside) {
-    return fail(
-      requestId,
-      'project/authorize-terminal',
-      'cwd is outside the trusted project root',
-    );
+    return fail(requestId, 'project/authorize-terminal', 'cwd is outside the trusted project root');
   }
   try {
     const info = await stat(canonicalCwd);
