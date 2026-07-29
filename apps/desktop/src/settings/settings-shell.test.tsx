@@ -46,6 +46,7 @@ function createContextValue(
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
+      artifactPreviewEnabled: false,
     },
     onPreferencesChange: vi.fn(),
     projectPath: null,
@@ -70,7 +71,11 @@ function createContextValue(
   };
 }
 
-function ShellHarness({ initialSection = 'general' }: { initialSection?: SettingsSectionId }): ReactElement {
+function ShellHarness({
+  initialSection = 'general',
+}: {
+  initialSection?: SettingsSectionId;
+}): ReactElement {
   const [section, setSection] = useState<SettingsSectionId>(initialSection);
   return (
     <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -114,9 +119,7 @@ describe('SettingsShell', () => {
         `nav item for ${section.id}`,
       ).not.toBeNull();
     }
-    expect(container.querySelectorAll('.settings-nav-item')).toHaveLength(
-      SETTINGS_SECTIONS.length,
-    );
+    expect(container.querySelectorAll('.settings-nav-item')).toHaveLength(SETTINGS_SECTIONS.length);
   });
 
   it('switches content when a nav item is clicked', () => {
@@ -148,9 +151,7 @@ describe('SettingsShell', () => {
     });
     expect(container.querySelector('[data-testid="settings-models-loading"]')).toBeNull();
     expect(
-      container
-        .querySelector('[data-testid="settings-nav-session"]')
-        ?.classList.contains('active'),
+      container.querySelector('[data-testid="settings-nav-session"]')?.classList.contains('active'),
     ).toBe(true);
   });
 
