@@ -34,17 +34,30 @@ export function AppearancePage(): ReactElement {
       <div className="settings-section">
         <PageTitle
           title={locale === 'zh-CN' ? '排印与密度' : 'Typography & density'}
-          description={locale === 'zh-CN' ? '调整助手文本、代码块和工具调用的字体大小与布局。' : 'Adjust font sizes and layout for assistant text, code, and tool calls.'}
+          description={
+            locale === 'zh-CN'
+              ? '调整助手文本、代码块和工具调用的字体大小与布局。'
+              : 'Adjust font sizes and layout for assistant text, code, and tool calls.'
+          }
         />
 
         {/* Assistant text size */}
         <FieldRow
           label={locale === 'zh-CN' ? '助手文本大小' : 'Assistant text size'}
-          description={locale === 'zh-CN' ? '助手回答的字体大小。' : 'Font size for assistant responses.'}
+          description={
+            locale === 'zh-CN' ? '助手回答的字体大小。' : 'Font size for assistant responses.'
+          }
         >
           <SegmentedControl
             value={preferences.assistantTextSize}
-            onChange={(value) => updatePreference(preferences, 'assistantTextSize', value as typeof preferences.assistantTextSize, onPreferencesChange)}
+            onChange={(value) =>
+              updatePreference(
+                preferences,
+                'assistantTextSize',
+                value as typeof preferences.assistantTextSize,
+                onPreferencesChange,
+              )
+            }
             data={[
               { value: 'small', label: isChinese ? '小' : 'Small' },
               { value: 'default', label: isChinese ? '默认' : 'Default' },
@@ -56,11 +69,22 @@ export function AppearancePage(): ReactElement {
         {/* Code text size */}
         <FieldRow
           label={locale === 'zh-CN' ? '代码块大小' : 'Code block size'}
-          description={locale === 'zh-CN' ? '代码和工具输出中的等宽字体大小。' : 'Monospace font size for code and tool output.'}
+          description={
+            locale === 'zh-CN'
+              ? '代码和工具输出中的等宽字体大小。'
+              : 'Monospace font size for code and tool output.'
+          }
         >
           <SegmentedControl
             value={preferences.codeTextSize}
-            onChange={(value) => updatePreference(preferences, 'codeTextSize', value as typeof preferences.codeTextSize, onPreferencesChange)}
+            onChange={(value) =>
+              updatePreference(
+                preferences,
+                'codeTextSize',
+                value as typeof preferences.codeTextSize,
+                onPreferencesChange,
+              )
+            }
             data={[
               { value: 'small', label: isChinese ? '小' : 'Small' },
               { value: 'default', label: isChinese ? '默认' : 'Default' },
@@ -72,7 +96,11 @@ export function AppearancePage(): ReactElement {
         {/* Code wrap toggle */}
         <FieldRow
           label={locale === 'zh-CN' ? '代码自动换行' : 'Code wrap'}
-          description={locale === 'zh-CN' ? '开启后代码块将自动换行而非水平滚动。' : 'When enabled, code blocks wrap instead of scrolling horizontally.'}
+          description={
+            locale === 'zh-CN'
+              ? '开启后代码块将自动换行而非水平滚动。'
+              : 'When enabled, code blocks wrap instead of scrolling horizontally.'
+          }
         >
           <Switch
             checked={preferences.codeWrap}
@@ -86,11 +114,22 @@ export function AppearancePage(): ReactElement {
         {/* Work details default */}
         <FieldRow
           label={locale === 'zh-CN' ? '工作详情默认展开' : 'Work details default'}
-          description={locale === 'zh-CN' ? '控制助手消息中工作详情的默认展开行为。' : 'Controls the default expansion of work details in assistant messages.'}
+          description={
+            locale === 'zh-CN'
+              ? '控制助手消息中工作详情的默认展开行为。'
+              : 'Controls the default expansion of work details in assistant messages.'
+          }
         >
           <SegmentedControl
             value={preferences.workDetailsExpanded}
-            onChange={(value) => updatePreference(preferences, 'workDetailsExpanded', value as typeof preferences.workDetailsExpanded, onPreferencesChange)}
+            onChange={(value) =>
+              updatePreference(
+                preferences,
+                'workDetailsExpanded',
+                value as typeof preferences.workDetailsExpanded,
+                onPreferencesChange,
+              )
+            }
             data={[
               { value: 'auto', label: isChinese ? '自动' : 'Auto' },
               { value: 'always', label: isChinese ? '始终展开' : 'Always' },
@@ -102,11 +141,22 @@ export function AppearancePage(): ReactElement {
         {/* Tool call density (existing, now wired through preferences) */}
         <FieldRow
           label={locale === 'zh-CN' ? '工具调用密度' : 'Tool call density'}
-          description={locale === 'zh-CN' ? '调整工具调用显示的详细程度。' : 'Adjust how much detail is shown for tool calls.'}
+          description={
+            locale === 'zh-CN'
+              ? '调整工具调用显示的详细程度。'
+              : 'Adjust how much detail is shown for tool calls.'
+          }
         >
           <SegmentedControl
             value={preferences.toolDensity}
-            onChange={(value) => updatePreference(preferences, 'toolDensity', value as ToolCallDensity, onPreferencesChange)}
+            onChange={(value) =>
+              updatePreference(
+                preferences,
+                'toolDensity',
+                value as ToolCallDensity,
+                onPreferencesChange,
+              )
+            }
             data={[
               { value: 'compact', label: isChinese ? '紧凑' : 'Compact' },
               { value: 'comfortable', label: isChinese ? '适中' : 'Comfortable' },
@@ -115,7 +165,7 @@ export function AppearancePage(): ReactElement {
             testId="tool-density-segmented"
           />
         </FieldRow>
-        
+
         <div style={{ marginTop: 16 }}>
           <Button
             size="compact"
@@ -128,6 +178,7 @@ export function AppearancePage(): ReactElement {
                 codeWrap: false,
                 toolDensity: 'comfortable',
                 workDetailsExpanded: 'auto',
+                artifactPreviewEnabled: false,
               };
               saveDesktopPreferences(defaults);
               onPreferencesChange(defaults);
@@ -141,7 +192,11 @@ export function AppearancePage(): ReactElement {
       <div className="settings-section">
         <PageTitle
           title={locale === 'zh-CN' ? '主题' : 'Themes'}
-          description={locale === 'zh-CN' ? '选择、应用或安装界面主题。' : 'Select, apply, or install UI themes.'}
+          description={
+            locale === 'zh-CN'
+              ? '选择、应用或安装界面主题。'
+              : 'Select, apply, or install UI themes.'
+          }
         />
         <ThemePanel request={requestTheme} onApplied={onThemeApplied} variant="inline" />
       </div>
