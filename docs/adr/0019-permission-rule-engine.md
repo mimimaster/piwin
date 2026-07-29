@@ -2,7 +2,67 @@
 
 ## Status
 
-Proposed (2026-07-29) · Revised after design review (2026-07-29)
+Accepted (2026-07-29) · Implemented (Tasks 1–10 of the execution plan)
+
+### Implementation notes
+
+**Built (Tasks 1–10):**
+
+- **Rule engine** (`packages/agent-host/src/permission-rule-engine.ts`) — pure
+  `evaluateRules` with deny→ask→allow, first-match-wins. Matchers: `matchBashGlob`
+  (glob with `*`, plus `re:` regex prefix for bundled precision),
+  `matchPathGlob` (`*` within a segment, `**` across segments),
+  `matchHostGlob`, `matchMcpSelectorGlob`. Contracts in
+  `packages/contracts/src/permission.ts` (`PermissionRuleTarget` vs
+  `PermissionSubject` kept distinct; `PermissionRulesFile` `version: 1`;
+  `PermissionConfig { mode }`; `mergeRuleSets`).
+- **Bundled defaults** (`permission-defaults.ts`) — non-regression baseline:
+  every prior `DENY_PATTERNS` → bundled deny, every prior `ASK_PATTERNS` →
+  bundled ask, plus safe-prefix allowlist. File-write deny for secret paths,
+  `~/.config/**` ask. `~` expanded to `homedir()` in `createBundledRuleSet`.
+- **Trust-aware loader** (`permission-rule-loader.ts`) — loads user global +
+  project shared/local, validates `version: 1`, drops malformed rules with a
+  warning, strips project-layer `allow` when untrusted.
+- **File-write gate** (`gated-file-tools.ts`) — wraps Pi `write`/`edit` via
+  injected local operations; realpath-resolves, checks remembered allowlist,
+  evaluates rules, prompts on ask. Both `writeFile` and `mkdir` gated.
+- **Bash gate** (`gated-bash-tool.ts`) — delegates to `evaluateBashPermission`
+  which runs the rule engine then applies the mode-aware unmatched default.
+- **MCP server-level trust** (`mcp-call-permission.ts`) — enabled server =
+  trusted; `assertMcpToolCallAllowed` consults the rule engine for explicit
+  deny/ask only; risk classification kept for display.
+- **Permission modes + bypass guard** — `resolveBypassGuard` in `sdk-adapter.ts`
+  refuses `bypass` for untrusted projects (downgrades to `auto` + `host/log`).
+  Non-interactive `ask` → `deny` via `resolveNonInteractiveDecision`.
+- **Remember scope extended** — `ProjectRecord.bashAllowlist` (exact match) and
+  `fileWriteAllowlist` (path-safe prefix) in `packages/project`; revoke +
+  `listRememberedPermissions` extended.
+- **CLI flags** (`apps/cli/src/permission-mode-override.ts`) —
+  `--permission-mode <auto|ask-all|bypass>` and
+  `--dangerously-bypass-permissions` alias (emits a stderr warning). Invalid
+  `--permission-mode` throws a usage error.
+- **Desktop UI** — Settings → Permissions mode switcher with trust-aware
+  notices; context-bar mode badge (`bypass` warning tone); "Allow for project"
+  button in the permission dialog for bash/file-write subjects.
+- **Dual host** — RPC adapter uses SDK fallback (ADR 0011), so both gates run
+  on both host modes.
+
+**Deferred (per §8, unchanged):**
+
+- `git` / `process` / `notes-mutate` as dedicated rule-engine kinds. Force-push
+  stays a **bash ask** rule (`git push --force` / `--force-with-lease`); process
+  start/stop and notes mutating ops keep their existing `ask` evaluators. The
+  target/subject kinds are reserved in contracts for incremental migration
+  without another ADR.
+- Full replacement of hardcoded web policy by bundled rule lists (domain
+  defaults stay in `evaluateWebPermission`; rules override when configured).
+- OS-level sandbox (Seatbelt/Landlock) and LLM classifier approval — explicitly
+  out of scope (future ADRs).
+
+**Deviations from the original ADR text:** none of architectural significance.
+The `re:` regex prefix for bash patterns is a pragmatic implementation detail
+(not a separate kind) to preserve non-regression while keeping the public API
+glob-based; it is documented in `matchBashGlob` and the architecture doc.
 
 ## Context
 
