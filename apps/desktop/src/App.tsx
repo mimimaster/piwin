@@ -1224,6 +1224,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     permissionPrompt={state.permissionPrompt}
                     workDetailsExpanded={preferences.workDetailsExpanded}
                     toolDensity={preferences.toolDensity}
+                    artifactPreviewEnabled={preferences.artifactPreviewEnabled}
+                    {...(config?.artifact?.maxBytes !== undefined
+                      ? { artifactMaxBytes: config.artifact.maxBytes }
+                      : {})}
                     locale={desktopLocale}
                     onOpenSubagentSession={handleOpenSubagentSession}
                     onEdit={setEditingMessageId}

@@ -182,6 +182,10 @@ export type ChatThreadProps = {
   onOpenSubagentSession: ((sessionId: string) => void) | undefined;
   /** Whitelisted artifact actions, e.g. flashcard rating (ADR 0018 S5c). */
   onArtifactAction?: (action: ArtifactActionMessage) => void;
+  /** When false (default), MarkdownView hides the heavy Artifact path. */
+  artifactPreviewEnabled?: boolean;
+  /** Security byte cap forwarded to evaluateCodeFence. */
+  artifactMaxBytes?: number;
   /** Global composer configuration so the in-place edit card matches the bottom dock. */
   composerCard: ComposerDockProps;
   /** Locale used by all run activity components. */
@@ -239,6 +243,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           onOpenSubagentSession={props.onOpenSubagentSession}
           composerCard={props.composerCard}
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+          {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+          {...(props.artifactMaxBytes !== undefined
+            ? { artifactMaxBytes: props.artifactMaxBytes }
+            : {})}
           {...(props.locale ? { locale: props.locale } : {})}
         />
       ))}
@@ -268,6 +276,10 @@ type ChatMessageRowProps = {
   onFeedback?: ((message: string, level: 'success' | 'error') => void) | undefined;
   onOpenSubagentSession: ((sessionId: string) => void) | undefined;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
+  /** When false (default), MarkdownView hides the heavy Artifact path. */
+  artifactPreviewEnabled?: boolean;
+  /** Security byte cap forwarded to evaluateCodeFence. */
+  artifactMaxBytes?: number;
   /** Locale used by all run activity components. */
   locale?: 'zh-CN' | 'en';
   /** Global composer card props so the edit mode matches the bottom composer. */
@@ -357,6 +369,10 @@ const ChatMessageRow = memo(
             artifactTheme={mapThemeToArtifactVariables(props.activeTheme)}
             initPriorityBase={props.messageIndex * 10}
             artifactThemeKey={`${props.activeTheme?.id ?? 'none'}:${props.artifactThemeKey}`}
+            {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+            {...(props.artifactMaxBytes !== undefined
+              ? { artifactMaxBytes: props.artifactMaxBytes }
+              : {})}
             {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
           />
         ) : isEditingThis ? (
