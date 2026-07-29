@@ -1,6 +1,8 @@
-import type { PermissionDecision } from '@piwin/contracts';
+import type { PermissionDecision, PermissionMode, PermissionRuleSet } from '@piwin/contracts';
+import { escapesRoot } from '@piwin/project';
 import { isPrivateOrLocalHostname } from '@piwin/tools-web';
-
+import { findMatchingRule } from './permission-rule-engine.js';
+import { createBundledRuleSet } from './permission-defaults.js';
 
 export type PermissionEvaluation = {
   decision: PermissionDecision;
@@ -9,62 +11,123 @@ export type PermissionEvaluation = {
 
 export type WebPermissionAction = 'web_search' | 'web_fetch';
 
-const DENY_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
-  { name: 'pipe-to-shell', pattern: /curl\s+[^\n|]*\|\s*(?:ba)?sh/i },
-  { name: 'wget-pipe-shell', pattern: /wget\s+[^\n|]*\|\s*(?:ba)?sh/i },
-  { name: 'mkfs', pattern: /\bmkfs\b/i },
-  { name: 'disk-destroy', pattern: /dd\s+if=.+\s+of=\/dev\//i },
-  { name: 'rm-root', pattern: /\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-rf|-fr)\s+(\/\s*$|\/\*\s*$|\/~\s*$|~\s*$)/i },
-  { name: 'fork-bomb', pattern: /:\(\)\s*\{\s*:\|:\s*&\s*\}\s*;\s*:/ },
-  { name: 'shutdown', pattern: /\b(shutdown|reboot|halt|poweroff)\b/i },
-  { name: 'curl-eval', pattern: /curl\s+[^\n;|&]*\|\s*(?:python|perl|ruby|node)\b/i },
-];
-
-const ASK_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
-  { name: 'rm-recursive-force', pattern: /\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|-rf|-fr)\b/i },
-  { name: 'sudo', pattern: /\bsudo\b/i },
-  { name: 'force-push', pattern: /\bgit\s+push\b[^\n]*\s--force\b/i },
-  { name: 'force-with-lease', pattern: /\bgit\s+push\b[^\n]*\s--force-with-lease\b/i },
-  { name: 'write-env', pattern: /(?:^|[;&|])\s*(?:tee|cp|mv|echo|cat)\b[^\n]*\.env\b/i },
-  { name: 'chmod-777', pattern: /\bchmod\s+(-R\s+)?777\b/i },
-];
-
 /**
- * Classify a bash command for host permission gating.
+ * Classify a bash command for host permission gating (ADR 0019 §1, §3.1).
+ *
+ * Delegates to the rule engine: deny → ask → allow, first match wins. When no
+ * `rules` are supplied the bundled defaults are used, preserving the legacy
+ * hardcoded decisions (pipe-to-shell deny, rm-recursive-force ask, etc.) with
+ * stable reason strings. On `'no-match'`: `allow` for `auto`/`bypass`, `ask`
+ * for `ask-all`.
+ *
  * Pure function — no IO.
  */
-export function evaluateBashPermission(command: string): PermissionEvaluation {
+export function evaluateBashPermission(
+  command: string,
+  mode: PermissionMode = 'auto',
+  rules?: PermissionRuleSet,
+): PermissionEvaluation {
   const normalized = command.trim();
   if (!normalized) {
     return { decision: 'deny', reason: 'empty command' };
   }
 
-  for (const rule of DENY_PATTERNS) {
-    if (rule.pattern.test(normalized)) {
-      return { decision: 'deny', reason: rule.name };
-    }
+  const ruleSet = rules ?? createBundledRuleSet();
+  const matched = findMatchingRule({ kind: 'bash', command: normalized }, ruleSet);
+  if (matched) {
+    return { decision: matched.decision, reason: matched.reason };
   }
 
-  for (const rule of ASK_PATTERNS) {
-    if (rule.pattern.test(normalized)) {
-      return { decision: 'ask', reason: rule.name };
-    }
+  // No rule matched: ask-all escalates everything to ask; auto/bypass allow.
+  if (mode === 'ask-all') {
+    return { decision: 'ask', reason: 'ask-all-no-match' };
   }
-
   return { decision: 'allow', reason: 'default-allow' };
 }
 
 /**
- * Classify network tools before they reach the wire.
- * Hard-denies local/file targets; default asks for public network use.
+ * Classify a file-write operation (ADR 0019 §1, §4).
+ *
+ * 1. `evaluateRules` for `{ kind: 'file-write', path: absPath }`.
+ * 2. On match → that decision + reason.
+ * 3. On `'no-match'`:
+ *    - `bypass` → allow (deny already handled above).
+ *    - `escapesRoot(projectRoot, absPath)` → ask (`auto` / `ask-all`).
+ *    - else in-project → allow in `auto`/`bypass`, ask in `ask-all`.
+ *
+ * Pure — no FS. The caller is expected to realpath-resolve `absPath` when
+ * possible so symlink-aware checks happen before this function.
+ */
+export function evaluateFileWritePermission(input: {
+  absPath: string;
+  projectRoot: string;
+  mode: PermissionMode;
+  rules?: PermissionRuleSet;
+}): PermissionEvaluation {
+  const { absPath, projectRoot, mode, rules } = input;
+  const normalizedPath = absPath.trim();
+  if (!normalizedPath) {
+    return { decision: 'deny', reason: 'empty-path' };
+  }
+
+  const ruleSet = rules ?? createBundledRuleSet();
+  const matched = findMatchingRule({ kind: 'file-write', path: normalizedPath }, ruleSet);
+  if (matched) {
+    return { decision: matched.decision, reason: matched.reason };
+  }
+
+  if (mode === 'bypass') {
+    return { decision: 'allow', reason: 'bypass-no-match' };
+  }
+
+  if (escapesRoot(projectRoot, normalizedPath)) {
+    return { decision: 'ask', reason: 'path-escapes-project-root' };
+  }
+
+  if (mode === 'ask-all') {
+    return { decision: 'ask', reason: 'ask-all-in-project' };
+  }
+  return { decision: 'allow', reason: 'in-project-allow' };
+}
+
+/**
+ * Classify network tools before they reach the wire (ADR 0019 §1).
+ *
+ * Hard-denies local/file targets; default asks for public network use. When
+ * `rules` are supplied, the rule engine is consulted first for `web-fetch`/
+ * `web-search` subjects; on `'no-match'` the domain defaults below apply. The
+ * default behavior is unchanged when `rules` is omitted.
  */
 export function evaluateWebPermission(
   action: WebPermissionAction,
   target: string,
+  rules?: PermissionRuleSet,
 ): PermissionEvaluation {
   const normalized = target.trim();
   if (!normalized) {
     return { decision: 'deny', reason: 'empty-target' };
+  }
+
+  if (rules) {
+    if (action === 'web_fetch') {
+      let host: string | undefined;
+      try {
+        host = new URL(normalized).hostname.toLowerCase();
+      } catch {
+        host = undefined;
+      }
+      if (host) {
+        const matched = findMatchingRule({ kind: 'web-fetch', host }, rules);
+        if (matched) {
+          return { decision: matched.decision, reason: matched.reason };
+        }
+      }
+    } else {
+      const matched = findMatchingRule({ kind: 'web-search' }, rules);
+      if (matched) {
+        return { decision: matched.decision, reason: matched.reason };
+      }
+    }
   }
 
   if (action === 'web_fetch') {
@@ -97,14 +160,8 @@ export function evaluateWebPermission(
   };
 }
 
-
 export type NotesPermissionAction =
-  | 'note_list'
-  | 'note_search'
-  | 'note_read'
-  | 'note_write'
-  | 'note_update'
-  | 'note_delete';
+  'note_list' | 'note_search' | 'note_read' | 'note_write' | 'note_update' | 'note_delete';
 
 /**
  * Notes tools: read/list/search allow by default; mutating ops ask
@@ -136,9 +193,7 @@ export type ProcessPermissionAction = 'process:start' | 'process:stop';
  * Managed process tools: start/stop always ask (Desktop) or deny non-interactive.
  * list/logs are read-only and are not gated here.
  */
-export function evaluateProcessPermission(
-  action: ProcessPermissionAction,
-): PermissionEvaluation {
+export function evaluateProcessPermission(action: ProcessPermissionAction): PermissionEvaluation {
   if (action === 'process:start') {
     return { decision: 'ask', reason: 'process-start' };
   }
@@ -159,13 +214,7 @@ export function resolveNonInteractiveDecision(
 }
 
 export type McpToolRisk =
-  | 'read'
-  | 'network'
-  | 'external-write'
-  | 'local-write'
-  | 'process'
-  | 'credential'
-  | 'unknown';
+  'read' | 'network' | 'external-write' | 'local-write' | 'process' | 'credential' | 'unknown';
 
 const READ_TOOL_NAME_HINTS = /^(get_|list_|search_|find_|read_|fetch_|query_|describe_|lookup_)/i;
 const WRITE_TOOL_NAME_HINTS =
@@ -178,8 +227,12 @@ const SECRET_ARG_KEYS =
   /^(password|passwd|secret|token|api[_-]?key|access[_-]?key|authorization|auth|cookie|private[_-]?key)$/i;
 
 /**
- * Classify an MCP tool call for host permission gating.
- * Pure function — server descriptions are untrusted hints only.
+ * Classify an MCP tool call's risk for permission UI display.
+ *
+ * Pure function — server descriptions are untrusted hints only. The returned
+ * `decision`/`reason` are used for surfacing risk to the user; the actual
+ * call/allow decision for MCP tools is driven by the rule engine in a later
+ * task (ADR 0019 §1, Task 7). Until then this classification is display-only.
  */
 export function evaluateMcpToolCallRisk(input: {
   serverId: string;
@@ -217,10 +270,7 @@ export function evaluateMcpToolCallRisk(input: {
 }
 
 /** Redact secret-like keys and bound summary length for permission UI/logs. */
-export function redactMcpArgumentsSummary(
-  args: Record<string, unknown>,
-  maxLength = 280,
-): string {
+export function redactMcpArgumentsSummary(args: Record<string, unknown>, maxLength = 280): string {
   const redacted: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(args)) {
     if (SECRET_ARG_KEYS.test(key)) {

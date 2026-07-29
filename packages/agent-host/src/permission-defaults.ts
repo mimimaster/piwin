@@ -62,6 +62,58 @@ export const BUNDLED_DENY: PermissionRule[] = [
     decision: 'deny',
     reason: 'curl-eval',
   },
+  // File-write deny rules for secret paths (ADR 0019 §3.1).
+  // The `~` in pathGlobs is expanded by createBundledRuleSet() before matching.
+  {
+    target: { kind: 'file-write', pathGlob: '~/.piwin/**' },
+    decision: 'deny',
+    reason: 'piwin-config',
+  },
+  {
+    target: { kind: 'file-write', pathGlob: '~/.ssh/**' },
+    decision: 'deny',
+    reason: 'secret-ssh',
+  },
+  {
+    target: { kind: 'file-write', pathGlob: '**/.env' },
+    decision: 'deny',
+    reason: 'secret-env',
+  },
+  {
+    target: { kind: 'file-write', pathGlob: '**/.env.*' },
+    decision: 'deny',
+    reason: 'secret-env',
+  },
+  {
+    target: { kind: 'file-write', pathGlob: '**/*.pem' },
+    decision: 'deny',
+    reason: 'secret-key',
+  },
+  {
+    target: { kind: 'file-write', pathGlob: '**/*.key' },
+    decision: 'deny',
+    reason: 'secret-key',
+  },
+  {
+    target: { kind: 'file-write', pathGlob: '**/id_rsa' },
+    decision: 'deny',
+    reason: 'secret-ssh',
+  },
+  {
+    target: { kind: 'file-write', pathGlob: '**/id_ed25519' },
+    decision: 'deny',
+    reason: 'secret-ssh',
+  },
+  {
+    target: { kind: 'file-write', pathGlob: '**/credentials.json' },
+    decision: 'deny',
+    reason: 'secret-credentials',
+  },
+  {
+    target: { kind: 'file-write', pathGlob: '**/secrets.*' },
+    decision: 'deny',
+    reason: 'secret-file',
+  },
 ];
 
 /**
@@ -213,10 +265,25 @@ function expandHomeDir(pattern: string): string {
  */
 export function createBundledRuleSet(): PermissionRuleSet {
   const rules = createEmptyRuleSet();
-  rules.deny.push(...BUNDLED_DENY);
+
+  // Expand ~ in file-write pathGlob patterns for deny rules, then add them.
+  const expandedDenyRules: PermissionRule[] = BUNDLED_DENY.map((rule) => {
+    if (rule.target.kind !== 'file-write') {
+      return rule;
+    }
+    return {
+      ...rule,
+      target: {
+        kind: 'file-write',
+        pathGlob: expandHomeDir(rule.target.pathGlob),
+      },
+    };
+  });
+  rules.deny.push(...expandedDenyRules);
+
   rules.ask.push(...BUNDLED_ASK_BASH);
 
-  // Expand ~ in file-write pathGlob patterns
+  // Expand ~ in file-write pathGlob patterns for ask rules.
   const expandedFileWriteRules: PermissionRule[] = BUNDLED_ASK_FILE_WRITE.map((rule) => {
     if (rule.target.kind !== 'file-write') {
       return rule;

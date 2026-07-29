@@ -276,6 +276,68 @@ export function matchSelectorGlob(pattern: string, selector: string): boolean {
 }
 
 /**
+ * Test whether a single rule's target matches a subject.
+ *
+ * Rules whose target kind differs from the subject kind never match. For kinds
+ * without a pattern field (`web-search`, `git`, `process`, `notes-mutate`), any
+ * rule of the same kind matches.
+ */
+function ruleMatchesSubject(rule: PermissionRule, subject: PermissionSubject): boolean {
+  if (rule.target.kind !== subject.kind) {
+    return false;
+  }
+
+  switch (rule.target.kind) {
+    case 'bash':
+      return subject.kind === 'bash' && matchBashGlob(rule.target.pattern, subject.command);
+    case 'file-write':
+      return subject.kind === 'file-write' && matchPathGlob(rule.target.pathGlob, subject.path);
+    case 'web-fetch':
+      return subject.kind === 'web-fetch' && matchHostGlob(rule.target.hostGlob, subject.host);
+    case 'mcp':
+      return (
+        subject.kind === 'mcp' && matchSelectorGlob(rule.target.selectorGlob, subject.selector)
+      );
+    case 'web-search':
+    case 'git':
+    case 'process':
+    case 'notes-mutate':
+      // For these kinds, any rule of the same kind matches
+      // (they don't have pattern fields)
+      return true;
+  }
+}
+
+/**
+ * Find the first rule that matches the subject, scanning tiers in deny → ask →
+ * allow order. Returns `undefined` when no rule matches.
+ *
+ * Exposed so callers (e.g. `permission-policy.ts`) can surface the matching
+ * rule's `reason` alongside its decision.
+ */
+export function findMatchingRule(
+  subject: PermissionSubject,
+  rules: PermissionRuleSet,
+): PermissionRule | undefined {
+  for (const rule of rules.deny) {
+    if (ruleMatchesSubject(rule, subject)) {
+      return rule;
+    }
+  }
+  for (const rule of rules.ask) {
+    if (ruleMatchesSubject(rule, subject)) {
+      return rule;
+    }
+  }
+  for (const rule of rules.allow) {
+    if (ruleMatchesSubject(rule, subject)) {
+      return rule;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Evaluate a subject against a rule set.
  *
  * Evaluation order: deny → ask → allow. First match wins within a tier.
@@ -290,55 +352,9 @@ export function evaluateRules(input: {
   rules: PermissionRuleSet;
 }): 'allow' | 'ask' | 'deny' | 'no-match' {
   const { subject, rules } = input;
-
-  // Helper to check if a rule matches the subject
-  const ruleMatches = (rule: PermissionRule): boolean => {
-    if (rule.target.kind !== subject.kind) {
-      return false;
-    }
-
-    switch (rule.target.kind) {
-      case 'bash':
-        return subject.kind === 'bash' && matchBashGlob(rule.target.pattern, subject.command);
-      case 'file-write':
-        return subject.kind === 'file-write' && matchPathGlob(rule.target.pathGlob, subject.path);
-      case 'web-fetch':
-        return subject.kind === 'web-fetch' && matchHostGlob(rule.target.hostGlob, subject.host);
-      case 'mcp':
-        return (
-          subject.kind === 'mcp' && matchSelectorGlob(rule.target.selectorGlob, subject.selector)
-        );
-      case 'web-search':
-      case 'git':
-      case 'process':
-      case 'notes-mutate':
-        // For these kinds, any rule of the same kind matches
-        // (they don't have pattern fields)
-        return true;
-    }
-  };
-
-  // Evaluate deny rules first
-  for (const rule of rules.deny) {
-    if (ruleMatches(rule)) {
-      return 'deny';
-    }
+  const matched = findMatchingRule(subject, rules);
+  if (!matched) {
+    return 'no-match';
   }
-
-  // Then ask rules
-  for (const rule of rules.ask) {
-    if (ruleMatches(rule)) {
-      return 'ask';
-    }
-  }
-
-  // Then allow rules
-  for (const rule of rules.allow) {
-    if (ruleMatches(rule)) {
-      return 'allow';
-    }
-  }
-
-  // No match
-  return 'no-match';
+  return matched.decision;
 }
