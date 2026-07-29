@@ -13,11 +13,12 @@ import type {
   HostStatusData,
   MediaAttachmentRef,
   MediaSaveData,
+  ModelRef,
   PermissionDecision,
   PromptInput,
   SessionHandle,
   AgentEventEnvelope,
-  } from '@piwin/contracts';
+} from '@piwin/contracts';
 import { formatTextModelImageInjection } from '@piwin/contracts';
 import { assertInsideMediaRoot, createMediaService } from '@piwin/media';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
@@ -49,12 +50,13 @@ import {
   setHooks,
   upsertCronJob,
 } from '@piwin/automation';
-import { listMcpRegistryCards, listSkillStoreEntries, draftToServerConfig } from '@piwin/marketplace';
-import { PtyHost } from './pty-host.js';
 import {
-  extractFileOpsFromUnknown,
-  formatFilesTouchedBlock,
-} from './compaction-file-ops.js';
+  listMcpRegistryCards,
+  listSkillStoreEntries,
+  draftToServerConfig,
+} from '@piwin/marketplace';
+import { PtyHost } from './pty-host.js';
+import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from './compaction-file-ops.js';
 import {
   getActiveTheme,
   installThemeFromLocalPath,
@@ -119,6 +121,8 @@ import { createProductShellSession } from './product-shell-session.js';
 import { formatPlanForModelContext } from './format-plan-context.js';
 import { createAgentHost } from './create-host.js';
 import { loadPiwinConfig, savePiwinConfig } from './config-store.js';
+import { maybeAutoNameSession } from './session-naming-service.js';
+import { createSecretResolver } from './secret-resolver.js';
 import {
   getPiwinMediaDir,
   getPiwinProjectsPath,
@@ -154,9 +158,7 @@ export type HostRuntimeOptions = {
 };
 
 export type HostRuntimeTestFixture =
-  | 'hang-until-abort'
-  | 'slow-first-token'
-  | 'high-rate-tool-output';
+  'hang-until-abort' | 'slow-first-token' | 'high-rate-tool-output';
 
 type SessionLineage = {
   parentSessionId?: string;
@@ -183,6 +185,8 @@ export class HostRuntime {
   private readonly sessionUsage = new Map<string, ContextUsageSnapshot>();
   /** Last user prompt text for host-estimate usage (mock path). */
   private readonly sessionLastPromptText = new Map<string, string>();
+  /** CE-NAME: ModelRef used for the most recent prompt, for auto-naming. */
+  private readonly sessionModels = new Map<string, ModelRef>();
   /** Runtime-only session override for auto-compaction (not persisted). */
   private readonly sessionAutoCompactionOverrides = new Map<string, boolean>();
   /** Serialize merge-subagent per parent session. */
@@ -378,10 +382,6 @@ export class HostRuntime {
         case 'host/status':
           return ok(requestId, 'host/status', this.getStatus());
 
-
-
-
-
         case 'notes/list': {
           const { store } = await this.getNotesServices();
           const filter: { collection?: string; tags?: string[] } = {};
@@ -433,8 +433,7 @@ export class HostRuntime {
             );
           }
           const k = command.k && command.k > 0 ? Math.floor(command.k) : 5;
-          const modes: Array<'fts' | 'vector' | 'hybrid'> = services.searchOptions
-            .embeddingProvider
+          const modes: Array<'fts' | 'vector' | 'hybrid'> = services.searchOptions.embeddingProvider
             ? ['fts', 'vector', 'hybrid']
             : ['fts'];
           const reports = [];
@@ -555,7 +554,9 @@ export class HostRuntime {
           const chunks = await rag.retrieve(command.folderPath, command.query, {
             ...(command.limit !== undefined ? { limit: command.limit } : {}),
             ...(command.fileAllowlist ? { fileAllowlist: command.fileAllowlist } : {}),
-            ...(command.maxTotalChars !== undefined ? { maxTotalChars: command.maxTotalChars } : {}),
+            ...(command.maxTotalChars !== undefined
+              ? { maxTotalChars: command.maxTotalChars }
+              : {}),
           });
           return ok(requestId, 'doccards/retrieve', {
             chunks,
@@ -816,7 +817,6 @@ export class HostRuntime {
     };
   }
 
-
   private async getNotesServices(): Promise<{
     store: import('@piwin/notes').NoteStore;
     index: import('@piwin/notes').NoteIndex;
@@ -828,9 +828,8 @@ export class HostRuntime {
       if (config.notes?.enabled === false) {
         throw new Error('Notes are disabled (config.notes.enabled=false).');
       }
-      const { createNoteStore, openNoteIndex, createEmbeddingProvider } = await import(
-        '@piwin/notes'
-      );
+      const { createNoteStore, openNoteIndex, createEmbeddingProvider } =
+        await import('@piwin/notes');
       const { resolveNotesEmbeddingApiKey } = await import('./notes-embedding-secret.js');
       const store = createNoteStore({ piwinRoot: rootDir });
       const index = await openNoteIndex(store);
@@ -893,18 +892,13 @@ export class HostRuntime {
     return this.folderRag;
   }
 
-
-
   private getPtyHost(): PtyHost {
     if (!this.ptyHost) {
       this.ptyHost = new PtyHost({
         isProjectTrusted: async (projectPath) => {
           try {
             const rootDir = getPiwinRoot(this.options.piwinRoot);
-            const project = await openOrCreateProject(
-              getPiwinProjectsPath(rootDir),
-              projectPath,
-            );
+            const project = await openOrCreateProject(getPiwinProjectsPath(rootDir), projectPath);
             return project.trust === 'trusted';
           } catch {
             return false;
@@ -937,10 +931,7 @@ export class HostRuntime {
    * Maps normalized AgentEvent → CE-HOOK events and runs matching hooks.
    * Failures are logged only; they never fail the original agent turn.
    */
-  private async dispatchHooksForAgentEvent(
-    sessionId: string,
-    event: AgentEvent,
-  ): Promise<void> {
+  private async dispatchHooksForAgentEvent(sessionId: string, event: AgentEvent): Promise<void> {
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const config = await loadPiwinConfig(rootDir);
     if (config.automation?.enabled !== true || config.automation?.hooksEnabled !== true) {
@@ -1155,7 +1146,6 @@ export class HostRuntime {
     return this.mcpManager;
   }
 
-
   private isRpcSdkFallback(): boolean {
     if (this.options.mock === true || process.env.PIWIN_MOCK === '1') {
       return false;
@@ -1171,8 +1161,6 @@ export class HostRuntime {
     return process.env.PIWIN_RPC_STOCK !== '1';
   }
 
-
-
   private buildSessionLiveContext(): SessionLiveContext {
     return {
       ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
@@ -1182,6 +1170,7 @@ export class HostRuntime {
       sessionExecutionModes: this.sessionExecutionModes,
       sessionFilesTouched: this.sessionFilesTouched,
       sessionLastPromptText: this.sessionLastPromptText,
+      sessionModels: this.sessionModels,
       sessionAutoCompactionOverrides: this.sessionAutoCompactionOverrides,
       unsubscribers: this.unsubscribers,
       transcriptRecorders: this.transcriptRecorders,
@@ -1209,10 +1198,8 @@ export class HostRuntime {
       // The registry rejects overlapping registration, so there is no separate
       // host-side replacement transition to mark here.
       registerActiveRun: (sessionId) => this.activeRuns.register(sessionId),
-      requestCancelActiveRun: (sessionId, runId) =>
-        this.activeRuns.requestCancel(sessionId, runId),
-      markActiveRunTerminal: (sessionId, runId) =>
-        this.activeRuns.markTerminal(sessionId, runId),
+      requestCancelActiveRun: (sessionId, runId) => this.activeRuns.requestCancel(sessionId, runId),
+      markActiveRunTerminal: (sessionId, runId) => this.activeRuns.markTerminal(sessionId, runId),
       clearActiveRun: (sessionId, runId) => this.activeRuns.clear(sessionId, runId),
       emitRunPhase: (sessionId, runId, phase, detail) => {
         this.push({
@@ -1235,15 +1222,16 @@ export class HostRuntime {
         this.push({
           type: 'event',
           sessionId,
-          event: buildRunTerminalEvent(
-            sessionId,
-            runId,
-            outcome,
-            code,
-            message,
-          ),
+          event: buildRunTerminalEvent(sessionId, runId, outcome, code, message),
         });
         this.activeRuns.clear(sessionId, runId);
+        // CE-NAME: auto-name after first completed exchange (fire-and-forget).
+        if (outcome === 'completed') {
+          void this.maybeTriggerAutoName(sessionId).catch((error: unknown) => {
+            const detail = error instanceof Error ? error.message : String(error);
+            this.push({ type: 'host/log', level: 'warn', message: `auto-name failed: ${detail}` });
+          });
+        }
         const recorder = this.transcriptRecorders.get(sessionId);
         if (recorder) {
           void recorder.flush().catch((error: unknown) => {
@@ -1311,14 +1299,11 @@ export class HostRuntime {
         productTranscript: true,
         // Compaction requires a live handle with compact(); SDK/mock support it.
         compaction:
-          this.host.mode === 'sdk' ||
-          this.options.mock === true ||
-          this.isRpcSdkFallback(),
-        extensions: this.host.mode === 'sdk' || this.isRpcSdkFallback() || this.options.mock === true,
+          this.host.mode === 'sdk' || this.options.mock === true || this.isRpcSdkFallback(),
+        extensions:
+          this.host.mode === 'sdk' || this.isRpcSdkFallback() || this.options.mock === true,
         prompts: this.host.mode === 'sdk' || this.isRpcSdkFallback() || this.options.mock === true,
-        ...(this.host.mode === 'rpc' && this.isRpcSdkFallback()
-          ? { rpcSdkFallback: true }
-          : {}),
+        ...(this.host.mode === 'rpc' && this.isRpcSdkFallback() ? { rpcSdkFallback: true } : {}),
         extensionUiBridge: true,
         sessionSearch: true,
         sessionPin: true,
@@ -1567,7 +1552,11 @@ export class HostRuntime {
     const parentSessionId = child.parentSessionId;
     const parent = await getSessionRecord(indexPath, parentSessionId);
     if (!parent) {
-      return fail(requestId, 'session/merge-subagent', `Unknown parent session: ${parentSessionId}`);
+      return fail(
+        requestId,
+        'session/merge-subagent',
+        `Unknown parent session: ${parentSessionId}`,
+      );
     }
 
     const prior = this.mergeLocks.get(parentSessionId) ?? Promise.resolve();
@@ -1575,7 +1564,10 @@ export class HostRuntime {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    this.mergeLocks.set(parentSessionId, prior.then(() => gate));
+    this.mergeLocks.set(
+      parentSessionId,
+      prior.then(() => gate),
+    );
     await prior;
 
     try {
@@ -1642,10 +1634,7 @@ export class HostRuntime {
       latestChild.mergeMessageId = messageId;
       latestChild.summaryPreview = summary.preview;
       latestChild.updatedAt = now;
-      if (
-        !latestChild.subagentStatus ||
-        latestChild.subagentStatus === 'running'
-      ) {
+      if (!latestChild.subagentStatus || latestChild.subagentStatus === 'running') {
         latestChild.subagentStatus = 'done';
       }
       await upsertSessionRecord(indexPath, latestChild);
@@ -1704,9 +1693,7 @@ export class HostRuntime {
     }
   }
 
-  private async loadTranscriptMessages(
-    sessionId: string,
-  ): Promise<SessionTranscriptMessage[]> {
+  private async loadTranscriptMessages(sessionId: string): Promise<SessionTranscriptMessage[]> {
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const transcriptPath = getPiwinSessionTranscriptPath(rootDir, sessionId);
     return listTranscriptMessages(transcriptPath);
@@ -1732,6 +1719,43 @@ export class HostRuntime {
     record.messageCount = 1;
     record.lastPreview = preview.slice(0, 160);
     await upsertSessionRecord(indexPath, record);
+  }
+
+  /** CE-NAME: auto-name after first completed exchange (fire-and-forget). */
+  private async maybeTriggerAutoName(sessionId: string): Promise<void> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const record = await getSessionRecord(indexPath, sessionId);
+    if (!record) {
+      return;
+    }
+    // Only auto-name after the first exchange (user + assistant = messageCount >= 2).
+    if (record.messageCount < 2) {
+      return;
+    }
+    // Never overwrite a user-set name.
+    if (record.nameSource === 'user') {
+      return;
+    }
+    // Only trigger once: if we already have an auto name, do not re-run.
+    if (record.nameSource === 'auto' && record.name) {
+      return;
+    }
+    const firstMessage = this.sessionLastPromptText.get(sessionId) ?? '';
+    if (!firstMessage) {
+      return;
+    }
+    const config = await loadPiwinConfig(rootDir);
+    const modelRef = this.sessionModels.get(sessionId);
+    await maybeAutoNameSession({
+      piwinRoot: this.options.piwinRoot ?? rootDir,
+      sessionId,
+      firstMessage,
+      ...(modelRef ? { modelRef } : {}),
+      providers: config.providers ?? [],
+      secretResolver: createSecretResolver(),
+      push: (message) => this.push(message),
+    });
   }
 
   private async ensureLiveSession(sessionId: string): Promise<SessionHandle> {
@@ -1769,10 +1793,7 @@ export class HostRuntime {
     }
   }
 
-  private async maybeEmitUsageOnMessageEnd(
-    sessionId: string,
-    messageId: string,
-  ): Promise<void> {
+  private async maybeEmitUsageOnMessageEnd(sessionId: string, messageId: string): Promise<void> {
     const existing = this.sessionUsage.get(sessionId);
     if (existing && existing.updatedAt) {
       const ageMs = Date.now() - Date.parse(existing.updatedAt);
@@ -1798,7 +1819,6 @@ export class HostRuntime {
       // best-effort
     }
   }
-
 
   private async abortLiveSession(sessionId: string): Promise<void> {
     const live = this.sessions.get(sessionId);
@@ -1836,6 +1856,7 @@ export class HostRuntime {
     }
     this.sessionProjects.delete(sessionId);
     this.sessionExecutionModes.delete(sessionId);
+    this.sessionModels.delete(sessionId);
     const recorder = this.transcriptRecorders.get(sessionId);
     if (recorder) {
       try {
@@ -1885,8 +1906,8 @@ export class HostRuntime {
 
   private push(message: HostPush): void {
     if (message.type === 'event') {
-      const generator = this.eventEnvelopeGenerators.get(message.sessionId) ??
-        createEventEnvelopeGenerator();
+      const generator =
+        this.eventEnvelopeGenerators.get(message.sessionId) ?? createEventEnvelopeGenerator();
       this.eventEnvelopeGenerators.set(message.sessionId, generator);
       const envelope: AgentEventEnvelope = generator.next(readEventRunId(message.event));
       this.options.onPush?.({ ...message, envelope });
@@ -1939,8 +1960,6 @@ function validateMediaAttachment(
   }
   return safeAttachment;
 }
-
-
 
 function applySubagentLineage(
   record: import('@piwin/contracts').SessionIndexRecord,
