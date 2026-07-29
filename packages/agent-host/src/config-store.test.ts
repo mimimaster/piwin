@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -99,5 +99,28 @@ describe('config-store', () => {
     expect(loaded.execution).toEqual(config.execution);
     expect(loaded.automation).toEqual(config.automation);
     expect(loaded.marketplace).toEqual(config.marketplace);
+  });
+
+  it('normalizes permissions.mode (default auto, unknown falls back)', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-perm-config-'));
+    const config = createDefaultPiwinConfig();
+    config.permissions = { mode: 'bypass' };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.permissions).toEqual({ mode: 'bypass' });
+  });
+
+  it('falls back to auto when permissions.mode is missing or invalid', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-perm-config-invalid-'));
+    const config = createDefaultPiwinConfig();
+    config.permissions = { mode: 'bypass' };
+    await savePiwinConfig(config, rootDir);
+    // Corrupt the mode to confirm normalizeConfig rejects unknown values.
+    const raw = await readFile(join(rootDir, 'config.json'), 'utf8');
+    const corrupted = JSON.parse(raw);
+    corrupted.permissions = { mode: 'yolo' };
+    await writeFile(join(rootDir, 'config.json'), JSON.stringify(corrupted), 'utf8');
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.permissions).toEqual({ mode: 'auto' });
   });
 });

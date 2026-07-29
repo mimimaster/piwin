@@ -7,6 +7,8 @@ import type {
   ExecutionConfig,
   ExtensionsConfig,
   MarketplaceConfig,
+  PermissionConfig,
+  PermissionMode,
   PiwinConfig,
   ProcessConfig,
   PromptsConfig,
@@ -21,6 +23,7 @@ import {
   createDefaultExecutionConfig,
   createDefaultExtensionsConfig,
   createDefaultMarketplaceConfig,
+  createDefaultPermissionConfig,
   createDefaultProcessConfig,
   createDefaultPromptsConfig,
   createDefaultSkillsConfig,
@@ -196,7 +199,25 @@ function normalizeConfig(value: unknown): PiwinConfig {
   if (flashcards) {
     normalized.flashcards = flashcards;
   }
+  normalized.permissions = normalizePermissionConfig(record.permissions);
   return normalized;
+}
+
+/**
+ * Normalize the `permissions` block (ADR 0019 §3). Unknown / missing values
+ * fall back to the default `'auto'` mode so a malformed config never silently
+ * enables `bypass`.
+ */
+function normalizePermissionConfig(value: unknown): PermissionConfig {
+  const record = asRecord(value);
+  if (!record) {
+    return createDefaultPermissionConfig();
+  }
+  const mode = record.mode;
+  if (mode === 'auto' || mode === 'ask-all' || mode === 'bypass') {
+    return { mode: mode as PermissionMode };
+  }
+  return createDefaultPermissionConfig();
 }
 
 function normalizeNotesConfig(value: unknown): PiwinConfig['notes'] {

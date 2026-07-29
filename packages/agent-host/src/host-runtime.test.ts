@@ -6,6 +6,8 @@ import type { MediaSaveData } from '@piwin/contracts';
 import {
   allowNetworkFetchHost,
   allowNetworkWebSearch,
+  getBashAllowlist,
+  getFileWriteAllowlist,
 } from '@piwin/project';
 import { HostRuntime } from './host-runtime.js';
 import {
@@ -71,8 +73,9 @@ describe('HostRuntime', () => {
     const loaded = await runtime.handleCommand({ type: 'mcp/get' });
     expect(loaded.success).toBe(true);
     if (!loaded.success) throw new Error(loaded.error);
-    expect((loaded.data as { document: { mcpServers: Record<string, unknown> } }).document.mcpServers)
-      .toHaveProperty('memory');
+    expect(
+      (loaded.data as { document: { mcpServers: Record<string, unknown> } }).document.mcpServers,
+    ).toHaveProperty('memory');
 
     await runtime.dispose();
   });
@@ -145,10 +148,7 @@ describe('HostRuntime', () => {
     // ADR 0015: prompt returns on accept; wait for background stream to finish.
     for (let attempt = 0; attempt < 150; attempt += 1) {
       const joinedSoFar = textDeltas.join('');
-      if (
-        joinedSoFar.includes('[attached image]') &&
-        joinedSoFar.includes(asset.absolutePath)
-      ) {
+      if (joinedSoFar.includes('[attached image]') && joinedSoFar.includes(asset.absolutePath)) {
         break;
       }
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -440,9 +440,7 @@ describe('HostRuntime', () => {
     expect(data.sessionId).toBe(sessionId);
     expect(data.live).toBe(true);
     expect(data.messages.some((message) => message.role === 'user')).toBe(true);
-    expect(data.messages.some((message) => message.text.includes('hello after create'))).toBe(
-      true,
-    );
+    expect(data.messages.some((message) => message.text.includes('hello after create'))).toBe(true);
 
     const listed = await runtimeB.handleCommand({
       id: 'msgs',
@@ -869,7 +867,7 @@ describe('HostRuntime', () => {
     });
     expect(activeList.success).toBe(true);
     expect(
-      ((activeList as { data: { sessions: { id: string; name?: string }[] } }).data.sessions).map(
+      (activeList as { data: { sessions: { id: string; name?: string }[] } }).data.sessions.map(
         (item) => item.name,
       ),
     ).toContain('Renamed Agent');
@@ -888,7 +886,9 @@ describe('HostRuntime', () => {
       projectPath: '/tmp/lifecycle-project',
     });
     expect(
-      ((afterArchive as { data: { sessions: { id: string }[] } }).data.sessions).map((item) => item.id),
+      (afterArchive as { data: { sessions: { id: string }[] } }).data.sessions.map(
+        (item) => item.id,
+      ),
     ).not.toContain(sessionId);
 
     const withArchived = await runtime.handleCommand({
@@ -897,9 +897,9 @@ describe('HostRuntime', () => {
       includeArchived: true,
     });
     expect(
-      ((withArchived as { data: { sessions: { id: string; isArchived?: boolean }[] } }).data.sessions).some(
-        (item) => item.id === sessionId && item.isArchived === true,
-      ),
+      (
+        withArchived as { data: { sessions: { id: string; isArchived?: boolean }[] } }
+      ).data.sessions.some((item) => item.id === sessionId && item.isArchived === true),
     ).toBe(true);
 
     const deleted = await runtime.handleCommand({ type: 'session/delete', sessionId });
@@ -911,12 +911,11 @@ describe('HostRuntime', () => {
       includeArchived: true,
     });
     expect(
-      ((finalList as { data: { sessions: { id: string }[] } }).data.sessions).map((item) => item.id),
+      (finalList as { data: { sessions: { id: string }[] } }).data.sessions.map((item) => item.id),
     ).not.toContain(sessionId);
 
     await runtime.dispose();
   });
-
 
   it('session/duplicate copies product transcript into a new session', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-dup-'));
@@ -976,13 +975,10 @@ describe('HostRuntime', () => {
     expect(listed.success).toBe(true);
     if (!listed.success) throw new Error(listed.error);
     const sessions = (listed.data as { sessions: Array<{ id: string }> }).sessions;
-    expect(sessions.map((item) => item.id).sort()).toEqual(
-      [sourceId, data.sessionId].sort(),
-    );
+    expect(sessions.map((item) => item.id).sort()).toEqual([sourceId, data.sessionId].sort());
 
     await runtime.dispose();
   });
-
 
   it('lists and revokes project remembered permissions', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-perms-'));
@@ -1004,10 +1000,7 @@ describe('HostRuntime', () => {
     const keys = (listed.data as { permissions: Array<{ key: string }> }).permissions.map(
       (item) => item.key,
     );
-    expect(keys.sort()).toEqual([
-      'network:fetch:example.com',
-      'network:web_search',
-    ]);
+    expect(keys.sort()).toEqual(['network:fetch:example.com', 'network:web_search']);
 
     const revoked = await runtime.handleCommand({
       type: 'project/permissions-revoke',
@@ -1021,6 +1014,112 @@ describe('HostRuntime', () => {
     );
     expect(afterKeys).not.toContain('network:web_search');
 
+    await runtime.dispose();
+  });
+
+  it('remembers bash allow rules with exact command match on project-scoped allow', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-bash-remember-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'permission/request') {
+          void runtime.handleCommand({
+            id: 'resolve',
+            type: 'permission/resolve',
+            requestId: message.requestId,
+            decision: 'allow',
+            rememberScope: 'project',
+          });
+        }
+      },
+    });
+    const projectPath = join(rootDir, 'bash-project');
+    await runtime.handleCommand({ type: 'project/open', path: projectPath });
+
+    // Detail format from gated-bash-tool is `<reason>: <command>`. The command
+    // after `: ` is what gets remembered, verbatim.
+    const decision = await runtime.requestPermission({
+      sessionId: 'sess-bash',
+      projectPath,
+      action: 'bash',
+      detail: 'rm-recursive: rm -rf /tmp/foo',
+      defaultDecision: 'ask',
+    });
+    expect(decision).toBe('allow');
+
+    const projectsPath = getPiwinProjectsPath(rootDir);
+    const allowlist = await getBashAllowlist(projectsPath, projectPath);
+    expect(allowlist).toContain('rm -rf /tmp/foo');
+    // Exact match only: a prefix-ish command must not be present.
+    expect(allowlist).not.toContain('rm -rf /tmp/foo /etc');
+    await runtime.dispose();
+  });
+
+  it('remembers file-write allow rules with the resolved absolute path', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-file-remember-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'permission/request') {
+          void runtime.handleCommand({
+            id: 'resolve',
+            type: 'permission/resolve',
+            requestId: message.requestId,
+            decision: 'allow',
+            rememberScope: 'project',
+          });
+        }
+      },
+    });
+    const projectPath = join(rootDir, 'file-project');
+    await runtime.handleCommand({ type: 'project/open', path: projectPath });
+
+    const absPath = join(rootDir, 'outside.txt');
+    const decision = await runtime.requestPermission({
+      sessionId: 'sess-file',
+      projectPath,
+      action: 'file-write',
+      detail: absPath,
+      defaultDecision: 'ask',
+    });
+    expect(decision).toBe('allow');
+
+    const projectsPath = getPiwinProjectsPath(rootDir);
+    const allowlist = await getFileWriteAllowlist(projectsPath, projectPath);
+    expect(allowlist).toContain(absPath);
+    await runtime.dispose();
+  });
+
+  it('does not remember bash allow rules when no project path is present', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-bash-noproject-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'permission/request') {
+          void runtime.handleCommand({
+            id: 'resolve',
+            type: 'permission/resolve',
+            requestId: message.requestId,
+            decision: 'allow',
+            rememberScope: 'project',
+          });
+        }
+      },
+    });
+    // No projectPath supplied → general scope, nothing to remember.
+    const decision = await runtime.requestPermission({
+      sessionId: 'sess-general',
+      action: 'bash',
+      detail: 'rm-recursive: rm -rf /tmp/foo',
+      defaultDecision: 'ask',
+    });
+    expect(decision).toBe('allow');
     await runtime.dispose();
   });
 
@@ -1090,5 +1189,4 @@ describe('HostRuntime', () => {
 
     await runtime.dispose();
   });
-
 });

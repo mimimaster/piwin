@@ -3,6 +3,7 @@ import type {
   AgentHostFactoryOptions,
   CreateSessionInput,
   PermissionDecision,
+  PermissionMode,
   PermissionRuleSet,
   SessionHandle,
   SessionScope,
@@ -116,6 +117,12 @@ export type PiSdkAdapterOptions = {
   onExtensionNotify?: (message: string, level: 'info' | 'warning' | 'error') => void;
   /** Shared CE-PROC registry from HostRuntime; adapter owns one if omitted. */
   processRegistry?: ProcessRegistry;
+  /**
+   * Host-level log sink (ADR 0019 §3). Used to surface permission policy
+   * downgrades (e.g. `bypass` refused for an untrusted project) as `host/log`
+   * warnings so the user is informed that the effective mode changed.
+   */
+  onLog?: (message: string, level: 'info' | 'warn' | 'error') => void;
 };
 
 /**
@@ -437,6 +444,23 @@ async function createPiSdkSession(
     console.warn(`[piwin] permission rules unavailable: ${message}`);
   }
 
+  // Bypass guard (ADR 0019 §3): `bypass` mode is refused for untrusted
+  // projects so a freshly-cloned repo cannot disable prompts by editing its
+  // own permissions.json. General scope (no project) keeps bypass — the user
+  // is the trust authority there. The downgrade only narrows the effective
+  // mode; rules + allowlists still apply.
+  const configuredMode = config.permissions?.mode ?? 'auto';
+  const isProjectScope = location.scope.kind === 'project';
+  const guard = resolveBypassGuard(configuredMode, isProjectScope, projectTrusted);
+  if (guard.downgraded) {
+    const warnMessage =
+      `[piwin] bypass permission mode refused for untrusted project ` +
+      `${permissionProjectPath}; downgrading to 'auto'. Trust the project to enable bypass.`;
+    console.warn(warnMessage);
+    adapterOptions.onLog?.(warnMessage, 'warn');
+  }
+  const effectivePermissionMode: PermissionMode = guard.effectiveMode;
+
   // MCP session bridge (best-effort; failures become warnings)
   const mcpBridge = await createMcpSessionBridge({
     piwinRoot: rootDir,
@@ -583,13 +607,19 @@ async function createPiSdkSession(
     try {
       const gatedBashOptions: {
         cwd: string;
+        projectsFilePath: string;
+        projectPath: string;
         requestPermission?: (request: {
           action: string;
           detail: string;
           defaultDecision: PermissionDecision;
           signal?: AbortSignal;
         }) => Promise<PermissionDecision>;
-      } = { cwd: agentCwd };
+      } = {
+        cwd: agentCwd,
+        projectsFilePath,
+        projectPath: permissionProjectPath,
+      };
       if (permissionHandler) {
         gatedBashOptions.requestPermission = wrapPermissionHandler(
           permissionHandler,
@@ -622,7 +652,7 @@ async function createPiSdkSession(
         }) => Promise<PermissionDecision>;
       } = {
         cwd: agentCwd,
-        mode: config.permissions?.mode ?? 'auto',
+        mode: effectivePermissionMode,
         rules: mergedRules ?? createBundledRuleSet(),
         projectRoot: permissionProjectPath,
         projectsFilePath,
@@ -986,6 +1016,24 @@ function mapPiCompactResult(
 
 function cryptoRandomId(): string {
   return `sdk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Pure decision for the bypass guard (ADR 0019 §3). `bypass` is refused for
+ * untrusted projects so a freshly-cloned repo cannot disable prompts by
+ * editing its own permissions.json. General scope (no project) keeps bypass
+ * — the user is the trust authority there. Non-bypass modes pass through
+ * unchanged.
+ */
+export function resolveBypassGuard(
+  configuredMode: PermissionMode,
+  isProjectScope: boolean,
+  projectTrusted: boolean,
+): { effectiveMode: PermissionMode; downgraded: boolean } {
+  if (configuredMode === 'bypass' && isProjectScope && !projectTrusted) {
+    return { effectiveMode: 'auto', downgraded: true };
+  }
+  return { effectiveMode: configuredMode, downgraded: false };
 }
 
 export function createSdkAdapterFromHostOptions(
