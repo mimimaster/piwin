@@ -121,6 +121,16 @@ export type DesktopRestoreConfig = {
   };
 };
 
+/** Product session behavior config under `PiwinConfig.session`. */
+export type SessionConfig = {
+  /** When true (default), host auto-names sessions after first exchange. */
+  autoName?: boolean;
+};
+
+export function createDefaultSessionConfig(): SessionConfig {
+  return { autoName: true };
+}
+
 export type PiwinConfig = {
   hostMode: 'sdk' | 'rpc';
   agentMock?: boolean;
@@ -146,6 +156,8 @@ export type PiwinConfig = {
   process?: ProcessConfig;
   /** Default execution mode for new sessions (CE-CHAT / CE-MODE). */
   execution?: ExecutionConfig;
+  /** Product session behavior. */
+  session?: SessionConfig;
   /** Notes library + local-first RAG (ADR 0018). */
   notes?: NotesConfig;
   /** Flashcards + FSRS review (ADR 0018). */

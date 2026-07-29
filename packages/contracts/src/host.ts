@@ -156,6 +156,8 @@ export type SessionSummary = {
    */
   projectPath: string;
   name?: string;
+  /** @see SessionIndexRecord.nameSource */
+  nameSource?: 'default' | 'auto' | 'user';
   updatedAt: string;
   messageCount: number;
   /** Short last user/assistant preview for session list UI. */

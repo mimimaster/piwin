@@ -14,12 +14,14 @@ import type {
 import {
   archiveSessionRecord,
   deleteSessionRecord,
+  deriveDefaultNameFromMessage,
   duplicateProductSession,
   getSessionRecord,
   listSessionsForProject,
   pinSessionRecord,
   renameSessionRecord,
   searchSessions,
+  setSessionAutoName,
   unarchiveSessionRecord,
   unpinSessionRecord,
   upsertSessionRecord,
@@ -59,6 +61,7 @@ const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
   'session/pin',
   'session/unpin',
   'session/rename',
+  'session/auto-name',
   'session/archive',
   'session/unarchive',
   'session/delete',
@@ -129,6 +132,27 @@ export async function handleSessionProductCommand(
       return ok(requestId, 'session/rename', {
         sessionId: record.id,
         name: record.name,
+        session: indexRecordToSummary(record),
+      });
+    }
+    case 'session/auto-name': {
+      const existing = await getSessionRecord(indexPath, command.sessionId);
+      if (!existing) {
+        return fail(requestId, 'session/auto-name', `Unknown session: ${command.sessionId}`);
+      }
+      // Manual re-trigger of auto-naming (text fallback only; LLM path is host-driven).
+      const fallbackName = deriveDefaultNameFromMessage(command.firstMessage);
+      if (!fallbackName) {
+        return fail(requestId, 'session/auto-name', 'No derivable name from first message');
+      }
+      const record = await setSessionAutoName(indexPath, command.sessionId, fallbackName);
+      if (!record) {
+        return fail(requestId, 'session/auto-name', 'Session name is user-set or empty');
+      }
+      return ok(requestId, 'session/auto-name', {
+        sessionId: record.id,
+        name: record.name,
+        nameSource: record.nameSource,
         session: indexRecordToSummary(record),
       });
     }

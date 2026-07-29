@@ -332,6 +332,15 @@ export type HostCommand =
   | { id?: string; type: 'session/unpin'; sessionId: string }
   /** PD-SESS: rename / archive-first lifecycle / permanent delete. */
   | { id?: string; type: 'session/rename'; sessionId: string; name: string }
+  | {
+      id?: string;
+      type: 'session/auto-name';
+      sessionId: string;
+      /** First user message text for title generation. */
+      firstMessage: string;
+      /** Optional assistant reply text for richer context. */
+      assistantReply?: string;
+    }
   | { id?: string; type: 'session/archive'; sessionId: string }
   | { id?: string; type: 'session/unarchive'; sessionId: string }
   | {
@@ -412,6 +421,12 @@ export type HostResponse =
 
 export type HostPush =
   | { type: 'event'; sessionId: string; event: AgentEvent; envelope?: AgentEventEnvelope }
+  | {
+      type: 'session/name-updated';
+      sessionId: string;
+      name: string;
+      nameSource: 'auto' | 'user';
+    }
   | { type: 'plan/updated'; sessionId: string; plan: SessionPlan | null }
   | {
       type: 'subagent/updated';
