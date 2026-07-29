@@ -9,7 +9,6 @@ import type {
 } from '@piwin/contracts';
 import { createEmptyNetworkPolicy } from '@piwin/contracts';
 
-
 function nowIso(): string {
   return new Date().toISOString();
 }
@@ -121,12 +120,11 @@ export async function listProjects(filePath: string): Promise<ProjectRecord[]> {
 function isNotFound(error: unknown): boolean {
   return Boolean(
     error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error as { code?: string }).code === 'ENOENT',
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: string }).code === 'ENOENT',
   );
 }
-
 
 export async function getProjectNetworkPolicy(
   filePath: string,
@@ -199,9 +197,98 @@ export async function allowNetworkWebSearch(
 }
 
 const NETWORK_WEB_SEARCH_KEY = 'network:web_search';
+const BASH_KEY_PREFIX = 'bash:';
+const FILE_WRITE_KEY_PREFIX = 'file-write:';
 
 function networkFetchKey(hostname: string): string {
   return `network:fetch:${hostname}`;
+}
+
+function bashAllowKey(command: string): string {
+  return `${BASH_KEY_PREFIX}${command}`;
+}
+
+function fileWriteAllowKey(absPath: string): string {
+  return `${FILE_WRITE_KEY_PREFIX}${absPath}`;
+}
+
+/**
+ * Remember an exact bash command for a project (ADR 0019 §6). Pushes the
+ * trimmed command if not already present. Returns the updated allowlist.
+ */
+export async function addBashAllowRule(
+  filePath: string,
+  projectPath: string,
+  command: string,
+): Promise<string[]> {
+  const normalizedCommand = command.trim();
+  if (!normalizedCommand) {
+    return getBashAllowlist(filePath, projectPath);
+  }
+  const absolutePath = resolve(projectPath);
+  await openOrCreateProject(filePath, absolutePath);
+  const document = await loadProjectStore(filePath);
+  const existing = document.projects.find((item) => item.path === absolutePath);
+  if (!existing) {
+    return [];
+  }
+  const allowlist = existing.bashAllowlist ? [...existing.bashAllowlist] : [];
+  if (!allowlist.includes(normalizedCommand)) {
+    allowlist.push(normalizedCommand);
+  }
+  existing.bashAllowlist = allowlist;
+  existing.lastOpenedAt = nowIso();
+  await saveProjectStore(filePath, document);
+  return allowlist;
+}
+
+/**
+ * Remember an absolute file-write path for a project (ADR 0019 §6). Pushes the
+ * normalized absolute path if not already present. Returns the updated allowlist.
+ */
+export async function addFileWriteAllowRule(
+  filePath: string,
+  projectPath: string,
+  absPath: string,
+): Promise<string[]> {
+  const normalizedPath = resolve(absPath.trim());
+  if (!normalizedPath) {
+    return getFileWriteAllowlist(filePath, projectPath);
+  }
+  const absolutePath = resolve(projectPath);
+  await openOrCreateProject(filePath, absolutePath);
+  const document = await loadProjectStore(filePath);
+  const existing = document.projects.find((item) => item.path === absolutePath);
+  if (!existing) {
+    return [];
+  }
+  const allowlist = existing.fileWriteAllowlist ? [...existing.fileWriteAllowlist] : [];
+  if (!allowlist.includes(normalizedPath)) {
+    allowlist.push(normalizedPath);
+  }
+  existing.fileWriteAllowlist = allowlist;
+  existing.lastOpenedAt = nowIso();
+  await saveProjectStore(filePath, document);
+  return allowlist;
+}
+
+/** Read a project's remembered bash allowlist (defensive copy). */
+export async function getBashAllowlist(filePath: string, projectPath: string): Promise<string[]> {
+  const absolutePath = resolve(projectPath);
+  const document = await loadProjectStore(filePath);
+  const existing = document.projects.find((item) => item.path === absolutePath);
+  return existing?.bashAllowlist ? [...existing.bashAllowlist] : [];
+}
+
+/** Read a project's remembered file-write allowlist (defensive copy). */
+export async function getFileWriteAllowlist(
+  filePath: string,
+  projectPath: string,
+): Promise<string[]> {
+  const absolutePath = resolve(projectPath);
+  const document = await loadProjectStore(filePath);
+  const existing = document.projects.find((item) => item.path === absolutePath);
+  return existing?.fileWriteAllowlist ? [...existing.fileWriteAllowlist] : [];
 }
 
 /** Flatten network remembered allowlists into a Settings-friendly list. */
@@ -229,6 +316,20 @@ export async function listRememberedPermissions(
       key: networkFetchKey(hostname),
       action: 'network:web_fetch',
       detail: `Fetch host allowed: ${hostname}`,
+    });
+  }
+  for (const command of existing.bashAllowlist ?? []) {
+    permissions.push({
+      key: bashAllowKey(command),
+      action: 'bash',
+      detail: `Bash command allowed: ${command}`,
+    });
+  }
+  for (const absPath of existing.fileWriteAllowlist ?? []) {
+    permissions.push({
+      key: fileWriteAllowKey(absPath),
+      action: 'file-write',
+      detail: `File write allowed: ${absPath}`,
     });
   }
   permissions.sort((left, right) => left.key.localeCompare(right.key));
@@ -271,6 +372,18 @@ export async function revokeRememberedPermission(
         ),
         allowWebSearch: existing.networkPolicy.allowWebSearch,
       };
+    }
+  } else if (normalizedKey.startsWith(BASH_KEY_PREFIX)) {
+    const command = normalizedKey.slice(BASH_KEY_PREFIX.length);
+    if (existing.bashAllowlist) {
+      existing.bashAllowlist = existing.bashAllowlist.filter((entry) => entry !== command);
+    }
+  } else if (normalizedKey.startsWith(FILE_WRITE_KEY_PREFIX)) {
+    const absPath = normalizedKey.slice(FILE_WRITE_KEY_PREFIX.length);
+    if (existing.fileWriteAllowlist) {
+      existing.fileWriteAllowlist = existing.fileWriteAllowlist.filter(
+        (entry) => entry !== absPath,
+      );
     }
   }
 
