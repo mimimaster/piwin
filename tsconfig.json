@@ -2,6 +2,10 @@
   "files": [],
   "references": [
     { "path": "packages/contracts" },
+    { "path": "packages/notes" },
+    { "path": "packages/doc-rag" },
+    { "path": "packages/flashcards" },
+    { "path": "packages/automation" },
     { "path": "packages/agent-host" },
     { "path": "packages/session" },
     { "path": "packages/project" },
