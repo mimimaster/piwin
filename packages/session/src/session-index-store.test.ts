@@ -12,6 +12,7 @@ import {
   pinSessionRecord,
   renameSessionRecord,
   saveSessionIndex,
+  setSessionAutoName,
   unarchiveSessionRecord,
   unpinSessionRecord,
   upsertSessionRecord,
@@ -223,7 +224,9 @@ describe('session-index-store', () => {
 
       const project = loaded.sessions.find((item) => item.id === 'proj-1');
       expect(project?.scope?.kind).toBe('project');
-      expect(project?.scope?.kind === 'project' && project.scope.projectPath).toBe('/tmp/my-project');
+      expect(project?.scope?.kind === 'project' && project.scope.projectPath).toBe(
+        '/tmp/my-project',
+      );
       expect(project?.workingDirectory).toBe('/tmp/my-project');
     });
 
@@ -369,6 +372,102 @@ describe('session-index-store', () => {
       const project = await listAllSessionRecords(filePath, '/tmp/proj');
       expect(project).toHaveLength(1);
       expect(project[0]?.id).toBe('p1');
+    });
+  });
+
+  describe('setSessionAutoName', () => {
+    it('writes name + nameSource=auto when nameSource is default', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-'));
+      const indexPath = join(dir, 'index.json');
+      await saveSessionIndex(indexPath, {
+        version: 2,
+        sessions: [
+          {
+            id: 's1',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            messageCount: 0,
+          },
+        ],
+      });
+      const updated = await setSessionAutoName(indexPath, 's1', 'Fix login bug');
+      expect(updated?.name).toBe('Fix login bug');
+      expect(updated?.nameSource).toBe('auto');
+    });
+
+    it('overwrites an existing auto name', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-overwrite-'));
+      const indexPath = join(dir, 'index.json');
+      await saveSessionIndex(indexPath, {
+        version: 2,
+        sessions: [
+          {
+            id: 's1',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            messageCount: 2,
+            name: 'old auto name',
+            nameSource: 'auto',
+          },
+        ],
+      });
+      const updated = await setSessionAutoName(indexPath, 's1', 'New auto name');
+      expect(updated?.name).toBe('New auto name');
+      expect(updated?.nameSource).toBe('auto');
+    });
+
+    it('does NOT overwrite a user-set name', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-user-'));
+      const indexPath = join(dir, 'index.json');
+      await saveSessionIndex(indexPath, {
+        version: 2,
+        sessions: [
+          {
+            id: 's1',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            messageCount: 2,
+            name: 'my custom name',
+            nameSource: 'user',
+          },
+        ],
+      });
+      const updated = await setSessionAutoName(indexPath, 's1', 'auto attempt');
+      expect(updated).toBeUndefined();
+      const doc = await loadSessionIndex(indexPath);
+      expect(doc.sessions[0]?.name).toBe('my custom name');
+      expect(doc.sessions[0]?.nameSource).toBe('user');
+    });
+  });
+
+  describe('renameSessionRecord nameSource', () => {
+    it('sets nameSource=user on manual rename', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-rename-usersource-'));
+      const indexPath = join(dir, 'index.json');
+      await saveSessionIndex(indexPath, {
+        version: 2,
+        sessions: [
+          {
+            id: 's1',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            messageCount: 0,
+            name: 'auto name',
+            nameSource: 'auto',
+          },
+        ],
+      });
+      const updated = await renameSessionRecord(indexPath, 's1', 'my manual name');
+      expect(updated?.name).toBe('my manual name');
+      expect(updated?.nameSource).toBe('user');
     });
   });
 });
