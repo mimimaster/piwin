@@ -418,7 +418,9 @@ async function createPiSdkSession(
           return projects
             .filter((project) => project.trust === 'trusted')
             .map((project) => project.path);
-        } catch {
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          console.warn(`[piwin] trusted project roots read failed: ${detail}`);
           return [];
         }
       },

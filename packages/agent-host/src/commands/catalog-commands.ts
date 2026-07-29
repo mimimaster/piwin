@@ -323,7 +323,12 @@ export async function handleCatalogCommand(
                   if (provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()) {
                     return await secretResolver.resolveProviderSecret(provider);
                   }
-                } catch {
+                } catch (error) {
+                  // Surface the real cause (env unset, keychain locked) so the
+                  // downstream "no auth" error is diagnosable. Soft-resolve
+                  // still returns null to not block local no-auth endpoints.
+                  const detail = error instanceof Error ? error.message : String(error);
+                  console.warn(`[piwin] models/discover secret resolve failed: ${detail}`);
                   return null;
                 }
                 return null;
@@ -348,7 +353,9 @@ export async function handleCatalogCommand(
                   if (provider.apiKeyRef?.trim() || provider.apiKeyEnv?.trim()) {
                     return await secretResolver.resolveProviderSecret(provider);
                   }
-                } catch {
+                } catch (error) {
+                  const detail = error instanceof Error ? error.message : String(error);
+                  console.warn(`[piwin] models/test secret resolve failed: ${detail}`);
                   return null;
                 }
                 return null;
