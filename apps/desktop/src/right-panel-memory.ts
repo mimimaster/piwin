@@ -1,37 +1,107 @@
 /**
- * Quiet workbench: remember last right-panel inner view across collapses.
- * sessionStorage so reopen restores home vs detail without host/reducer changes.
+ * Persist right-panel multi-tab state across collapses (sessionStorage).
  */
 
-export type StoredRightPanelView = 'home' | 'detail';
+export type RightPanelTabKind =
+  | 'files'
+  | 'terminal'
+  | 'review'
+  | 'notes'
+  | 'cards'
+  | 'browser'
+  | 'canvas'
+  | 'sideChat';
 
+export type StoredRightPanelState = {
+  openTabs: RightPanelTabKind[];
+  activeTab: RightPanelTabKind | null;
+};
+
+export const RIGHT_PANEL_STATE_STORAGE_KEY = 'piwin.desktop.rightPanelTabs.v1';
+
+/** @deprecated legacy key — read once for migration */
 export const RIGHT_PANEL_VIEW_STORAGE_KEY = 'piwin.desktop.rightPanelView';
 
-export function readStoredRightPanelView(
-  storage: Pick<Storage, 'getItem'> | null | undefined = defaultStorage(),
-): StoredRightPanelView {
-  if (!storage) {
-    return 'home';
-  }
-  try {
-    const raw = storage.getItem(RIGHT_PANEL_VIEW_STORAGE_KEY);
-    return raw === 'detail' ? 'detail' : 'home';
-  } catch {
-    return 'home';
-  }
+const ALL_KINDS: RightPanelTabKind[] = [
+  'files',
+  'terminal',
+  'review',
+  'notes',
+  'cards',
+  'browser',
+  'canvas',
+  'sideChat',
+];
+
+function isTabKind(value: unknown): value is RightPanelTabKind {
+  return typeof value === 'string' && (ALL_KINDS as string[]).includes(value);
 }
 
-export function writeStoredRightPanelView(
-  view: StoredRightPanelView,
+export function readStoredRightPanelState(
+  storage: Pick<Storage, 'getItem'> | null | undefined = defaultStorage(),
+): StoredRightPanelState {
+  if (!storage) {
+    return { openTabs: [], activeTab: null };
+  }
+  try {
+    const raw = storage.getItem(RIGHT_PANEL_STATE_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as { openTabs?: unknown; activeTab?: unknown };
+      const openTabs = Array.isArray(parsed.openTabs)
+        ? parsed.openTabs.filter(isTabKind)
+        : [];
+      const activeTab =
+        isTabKind(parsed.activeTab) && openTabs.includes(parsed.activeTab)
+          ? parsed.activeTab
+          : (openTabs[0] ?? null);
+      return { openTabs, activeTab };
+    }
+    // Migrate legacy home/detail: detail → empty open (user picks); home → empty.
+    const legacy = storage.getItem(RIGHT_PANEL_VIEW_STORAGE_KEY);
+    if (legacy === 'detail') {
+      return { openTabs: ['terminal'], activeTab: 'terminal' };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { openTabs: [], activeTab: null };
+}
+
+export function writeStoredRightPanelState(
+  state: StoredRightPanelState,
   storage: Pick<Storage, 'setItem'> | null | undefined = defaultStorage(),
 ): void {
   if (!storage) {
     return;
   }
   try {
-    storage.setItem(RIGHT_PANEL_VIEW_STORAGE_KEY, view);
+    storage.setItem(RIGHT_PANEL_STATE_STORAGE_KEY, JSON.stringify(state));
   } catch {
-    // Private mode / quota — ignore; in-memory state still works for the session.
+    /* ignore */
+  }
+}
+
+/** Legacy API kept for older tests — maps to multi-tab empty vs has tabs. */
+export type StoredRightPanelView = 'home' | 'detail';
+
+export function readStoredRightPanelView(
+  storage: Pick<Storage, 'getItem'> | null | undefined = defaultStorage(),
+): StoredRightPanelView {
+  const state = readStoredRightPanelState(storage);
+  return state.openTabs.length > 0 ? 'detail' : 'home';
+}
+
+export function writeStoredRightPanelView(
+  view: StoredRightPanelView,
+  storage: Pick<Storage, 'setItem' | 'getItem'> | null | undefined = defaultStorage(),
+): void {
+  if (view === 'home') {
+    writeStoredRightPanelState({ openTabs: [], activeTab: null }, storage);
+    return;
+  }
+  const current = readStoredRightPanelState(storage);
+  if (current.openTabs.length === 0) {
+    writeStoredRightPanelState({ openTabs: ['terminal'], activeTab: 'terminal' }, storage);
   }
 }
 

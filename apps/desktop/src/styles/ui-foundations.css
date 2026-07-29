@@ -129,6 +129,40 @@ textarea {
   padding: 8px;
 }
 
+/* ── Floating feedback host ───────────────────────────────────────── */
+/* Use for transient Notice after toggles/saves. Absolutely positioned so
+   mount/unmount never shifts siblings (systemic "page jitter" root cause). */
+
+.ui-feedback-host {
+  position: absolute;
+  z-index: 30;
+  top: 12px;
+  right: 12px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  pointer-events: none;
+}
+
+.ui-feedback-host > * {
+  pointer-events: auto;
+  margin: 0;
+  box-shadow: var(--shadow-overlay, 0 8px 28px color-mix(in srgb, #000 22%, transparent));
+}
+
+.ui-feedback-host:empty {
+  display: none;
+}
+
+/* Panels that host floating feedback need a positioning context. */
+.settings-inline-content,
+.settings-inline-manager,
+.modal.settings-modal {
+  position: relative;
+}
+
 /* ── ui-kit: Notice ───────────────────────────────────────────────── */
 
 .ui-notice {
@@ -201,9 +235,10 @@ textarea {
 .ui-field-label { display: block; margin-bottom: 4px; font-size: 12px; }
 .ui-field-error { color: var(--danger); font-size: 12px; margin: 4px 0 0; }
 
-.ui-field-control input,
-.ui-field-control select,
-.ui-field-control textarea {
+/* Bare native controls only — ui-kit TextInput/Select own their chrome. */
+.ui-field-control > input:not([class*='piwin-']),
+.ui-field-control > select:not([class*='piwin-']),
+.ui-field-control > textarea:not([class*='piwin-']) {
   width: 100%;
   border: 1px solid var(--border);
   background: var(--surface-inset);
@@ -211,6 +246,12 @@ textarea {
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font: inherit;
+}
+
+.ui-field-control .piwin-text-input,
+.ui-field-control .piwin-password-input,
+.ui-field-control .piwin-select {
+  width: 100%;
 }
 
 .ui-field-description {

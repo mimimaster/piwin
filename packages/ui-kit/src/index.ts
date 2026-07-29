@@ -92,6 +92,9 @@ export type { ModalProps } from './modal.js';
 export { TextInput, PasswordInput } from './text-input.js';
 export type { TextInputProps, PasswordInputProps } from './text-input.js';
 
+export { Select } from './select.js';
+export type { SelectProps } from './select.js';
+
 export { SegmentedControl } from './segmented-control.js';
 export type { SegmentedControlProps } from './segmented-control.js';
 

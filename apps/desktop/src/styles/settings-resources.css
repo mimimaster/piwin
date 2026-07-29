@@ -40,6 +40,42 @@
   max-width: 640px;
 }
 
+/* Collapsible section trigger */
+.settings-collapsible-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  margin: 0 0 0 0;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.settings-collapsible-trigger .settings-card-heading {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.settings-collapsible-trigger:hover .settings-card-heading h4 {
+  color: var(--accent);
+}
+
+.settings-collapsible-chevron {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--faint);
+  transition: transform var(--motion-quick) ease;
+}
+
+.settings-collapsible-chevron.open {
+  transform: rotate(180deg);
+}
+
 /* Row-based Field Layout */
 .ui-field-row {
   display: flex;
@@ -81,7 +117,7 @@
 }
 
 /* Control Overrides */
-.ui-field-row-control select {
+.ui-field-row-control select:not([class*='piwin-']) {
   min-width: 120px;
   padding: 6px 10px;
   border-radius: 8px;
@@ -89,6 +125,17 @@
   background: var(--surface-raised);
   color: var(--text);
   font-size: 13px;
+}
+
+.ui-field-row-control .piwin-text-input,
+.ui-field-row-control .piwin-password-input,
+.ui-field-row-control .piwin-select {
+  min-width: 140px;
+  width: auto;
+}
+
+.ui-field-row-control .piwin-switch {
+  margin-top: 2px;
 }
 
 /* ── MCP server list ─────────────────────────────────────────── */
@@ -157,6 +204,15 @@
 .mcp-disabled-label {
   font-size: 11px;
   color: var(--faint);
+  /* Fixed footprint so enable/disable never reflows the title row. */
+  min-width: 3.25em;
+  opacity: 1;
+  transition: opacity var(--motion-quick, 120ms) ease;
+}
+
+.mcp-disabled-label--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .mcp-server-card-meta {
@@ -322,14 +378,81 @@
 }
 
 .mcp-tab-content {
+  position: relative;
   padding-top: 4px;
+}
+
+/* Single-line toolbars: search / filter / install (no stacked Field label). */
+.settings-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 0;
+}
+
+.settings-toolbar > .piwin-text-input,
+.settings-toolbar > .piwin-select {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.settings-toolbar .piwin-button {
+  flex-shrink: 0;
+}
+
+.settings-toolbar--install .settings-install-kind {
+  flex: 0 0 auto;
+  min-width: 132px;
+}
+
+.settings-segmented-wrap {
+  display: flex;
+  align-items: center;
+}
+
+/* Reserve checkmark column so selection doesn't shift list text. */
+.ext-list-check {
+  flex-shrink: 0;
+  width: 1.1em;
+  text-align: center;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.ext-list-check--empty {
+  visibility: hidden;
+}
+
+/* Conditionally relevant fields stay mounted; toggle visibility only. */
+.web-tools-conditional {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    grid-template-rows var(--motion-standard, 200ms) var(--motion-ease, ease),
+    opacity var(--motion-quick, 120ms) ease;
+}
+
+.web-tools-conditional > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.web-tools-conditional.is-visible {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .web-tools-conditional {
+    transition: none;
+  }
 }
 
 /* MCP marketplace search + loading states */
 .mcp-marketplace-search {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
   margin-bottom: 20px;
 }
 
@@ -516,4 +639,35 @@
 .ext-desc {
   font-size: 12.5px;
   color: var(--muted);
+}
+
+/* Theme panel */
+.theme-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.theme-panel-header h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.015em;
+}
+
+.theme-panel-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 560px;
+}
+
+.theme-install-inline {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
 }

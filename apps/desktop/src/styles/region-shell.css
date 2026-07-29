@@ -13,8 +13,9 @@
   --workspace-control-height: 30px;
   height: 100%;
   display: grid;
-  /* Desktop: left navigator + stage. Right panel becomes a real third column
-     after outward window expansion. */
+  /* Desktop: navigator + stage. Opening the right panel adds a third track
+     in-flow — stage (1fr) narrows and the chat column reflows. Window size
+     is fixed (no OS setSize); that was the "visual refresh" jitter. */
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas:
@@ -24,10 +25,11 @@
   /* Prevent sparse auto tracks from stealing layout height. */
   grid-auto-rows: minmax(0, auto);
   background: var(--canvas);
+  /* Never animate track sizes — intermediate frames look like a refresh. */
+  transition: none;
 }
 
-/* Outward expand: window is grown by --right-panel-width before this class
-   applies, so the stage keeps the same pixel width. */
+/* In-flow panel: stage 1fr gives up space to --right-panel-width. */
 .app-shell.has-right-panel {
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
   grid-template-areas:
@@ -159,6 +161,8 @@ html[data-theme-mode='light'] .workspace {
   overflow: hidden;
   /* Transparent so the workspace Daybreak glow shows through the stage. */
   background: transparent;
+  /* Panel open/close changes stage width; avoid width transitions on chrome. */
+  transition: none;
 }
 
 /* Empty stage packs from the top; hero + composer own the vertical rhythm

@@ -22,10 +22,7 @@ import {
   type ChatUiState,
   type ChatMessageUi,
 } from './chat-reducer';
-import {
-  createStreamEventBuffer,
-  type StreamEventBuffer,
-} from './stream-event-buffer';
+import { createStreamEventBuffer, type StreamEventBuffer } from './stream-event-buffer';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -135,9 +132,7 @@ type ChatThreadRenderHarnessProps = {
  * The local probes receive the precise message objects passed to ChatThread;
  * their memo boundaries therefore expose whether historical identities change.
  */
-function ChatThreadRenderHarness(
-  props: ChatThreadRenderHarnessProps,
-): ReactElement {
+function ChatThreadRenderHarness(props: ChatThreadRenderHarnessProps): ReactElement {
   const [chatState, dispatch] = useReducer(chatUiReducer, props.initialState);
   const streamEventBufferReference = useRef<StreamEventBuffer | null>(null);
 
@@ -179,6 +174,44 @@ function ChatThreadRenderHarness(
         onEditResend={noop}
         onRetry={noop}
         onOpenSubagentSession={undefined}
+        composerCard={{
+          layoutMode: 'docked',
+          projectPath: null,
+          projectTrusted: true,
+          activeSessionId: null,
+          streaming: false,
+          runPhase: 'idle',
+          compacting: false,
+          composer: '',
+          onComposerChange: noop,
+          agentMode: 'agent',
+          onAgentModeChange: noop,
+          pendingAttachments: [],
+          onRemoveAttachment: noop,
+          dropActive: false,
+          onDropActiveChange: noop,
+          plusMenuOpen: false,
+          onPlusMenuOpenChange: noop,
+          plusSubmenu: 'none',
+          onPlusSubmenuChange: noop,
+          modelOptions: [],
+          selectedModelKey: '',
+          onSelectModel: noop,
+          menuSkills: [],
+          menuMcp: [],
+          onRefreshComposerMenus: noop,
+          onOpenSkillsPanel: noop,
+          onOpenMcpPanel: noop,
+          onAttachImage: noop,
+          onPaste: noop,
+          onDrop: noop,
+          onSend: noop,
+          onAbort: noop,
+          onCompact: noop,
+          contextUsage: null,
+          onSteer: noop,
+          onFollowUp: noop,
+        }}
       />
       {props.historicalMessageIndexes.map((messageIndex, probeIndex) => {
         const historicalMessage = chatState.messages[messageIndex];
@@ -192,21 +225,12 @@ function ChatThreadRenderHarness(
             id={`historical-row-${historicalMessage.id}`}
             onRender={createProfilerCallback(historicalRenderProbe)}
           >
-            <MessageRenderProbe
-              message={historicalMessage}
-              renderProbe={historicalRenderProbe}
-            />
+            <MessageRenderProbe message={historicalMessage} renderProbe={historicalRenderProbe} />
           </Profiler>
         );
       })}
-      <Profiler
-        id="streaming-row"
-        onRender={createProfilerCallback(props.streamingRenderProbe)}
-      >
-        <MessageRenderProbe
-          message={streamingMessage}
-          renderProbe={props.streamingRenderProbe}
-        />
+      <Profiler id="streaming-row" onRender={createProfilerCallback(props.streamingRenderProbe)}>
+        <MessageRenderProbe message={streamingMessage} renderProbe={props.streamingRenderProbe} />
       </Profiler>
       <RightPanel
         open={false}
@@ -219,7 +243,7 @@ function ChatThreadRenderHarness(
         onResizePointerDown={noop}
         onResizeReset={noop}
         filesContent={null}
-        activityContent={null}
+        terminalContent={null}
         reviewContent={null}
       />
     </>
@@ -264,17 +288,12 @@ describe('ChatThread render isolation (E1)', () => {
   it('isolates historical rows and closed panel from streaming commits', () => {
     const historicalMessages = createHistoricalMessages(HISTORICAL_COUNT);
     const streamingInitialText = 'Initial streaming';
-    const streamingMessage = createStreamingMessage(
-      'streaming-e1',
-      streamingInitialText,
-    );
+    const streamingMessage = createStreamingMessage('streaming-e1', streamingInitialText);
     const allMessages = [...historicalMessages, streamingMessage];
 
     const scheduledFrames: Array<() => void> = [];
     const historicalMessageIndexes = [0, 249, HISTORICAL_COUNT - 1];
-    const historicalRenderProbes = historicalMessageIndexes.map(() =>
-      createRenderProbe(),
-    );
+    const historicalRenderProbes = historicalMessageIndexes.map(() => createRenderProbe());
     const streamingRenderProbe = createRenderProbe();
     let streamEventBuffer: StreamEventBuffer | null = null;
     const initialState: ChatUiState = {
@@ -305,17 +324,13 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     const readyStreamEventBuffer = requireStreamEventBuffer(streamEventBuffer);
-    expect(historicalRenderProbes.map((probe) => probe.renderCount)).toEqual([
-      1,
-      1,
-      1,
-    ]);
+    expect(historicalRenderProbes.map((probe) => probe.renderCount)).toEqual([1, 1, 1]);
     expect(streamingRenderProbe.renderCount).toBe(1);
     // Closed panel stay keep-mounted (collapsed) so streaming commits must not
     // rely on unmounting the inspector subtree.
-    expect(
-      container.querySelector('[data-testid="right-panel"]')?.getAttribute('data-open'),
-    ).toBe('false');
+    expect(container.querySelector('[data-testid="right-panel"]')?.getAttribute('data-open')).toBe(
+      'false',
+    );
 
     // Three deltas within one frame reach the real reducer dispatch path.
     readyStreamEventBuffer.push('s1', createDeltaEvent('streaming-e1', ' plus'));
@@ -333,35 +348,25 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     const updatedBubbles = Array.from(
-      container.querySelectorAll<HTMLElement>(
-        '[data-testid="message-bubble"]',
-      ),
+      container.querySelectorAll<HTMLElement>('[data-testid="message-bubble"]'),
     );
     const lastBubble = updatedBubbles[updatedBubbles.length - 1];
-    expect(lastBubble?.textContent).toContain(
-      'Initial streaming plus three deltas',
-    );
+    expect(lastBubble?.textContent).toContain('Initial streaming plus three deltas');
 
     // Profiler confirms that React committed the frame-dispatched update. Its
     // scopes commit with the parent harness, while the memo probes below prove
     // which representative rows actually rendered during that commit.
-    expect(
-      historicalRenderProbes.map((probe) => probe.profilerRecords.length),
-    ).toEqual([2, 2, 2]);
+    expect(historicalRenderProbes.map((probe) => probe.profilerRecords.length)).toEqual([2, 2, 2]);
     expect(streamingRenderProbe.profilerRecords).toHaveLength(2);
 
     // The test-local memo probes use the exact row inputs passed to ChatThread.
     // Historical message identities are preserved by the reducer, while the
     // changed streaming message produces exactly one observed row update.
-    expect(historicalRenderProbes.map((probe) => probe.renderCount)).toEqual([
-      1,
-      1,
-      1,
-    ]);
+    expect(historicalRenderProbes.map((probe) => probe.renderCount)).toEqual([1, 1, 1]);
     expect(streamingRenderProbe.renderCount).toBe(2);
-    expect(
-      container.querySelector('[data-testid="right-panel"]')?.getAttribute('data-open'),
-    ).toBe('false');
+    expect(container.querySelector('[data-testid="right-panel"]')?.getAttribute('data-open')).toBe(
+      'false',
+    );
   });
 
   // ————————————————————————————————————————————————————————————————
@@ -433,8 +438,7 @@ describe('ChatThread render isolation (E1)', () => {
     expect(scheduledFrames.length).toBe(1);
 
     // C. The streaming message text reflects the flushed delta
-    const lastMessage =
-      appState.messages[appState.messages.length - 1];
+    const lastMessage = appState.messages[appState.messages.length - 1];
     expect(lastMessage?.text).toBe('Partial delta-data');
   });
 });

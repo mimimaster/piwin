@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { HostResponse, PromptTemplateSummary, PromptsListData } from '@piwin/contracts';
-import { Button, Field, Notice, Spinner, Switch, TextInput } from '@piwin/ui-kit';
+import { Button, Notice, Spinner, Switch, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
@@ -66,7 +66,7 @@ export function PromptsPanel(props: PromptsPanelProps) {
       setError(response.error);
       return;
     }
-    await loadPrompts();
+    setPrompts((prev) => prev.map((p) => (p.id === prompt.id ? { ...p, enabled: !p.enabled } : p)));
   }
 
   return (
@@ -79,21 +79,23 @@ export function PromptsPanel(props: PromptsPanelProps) {
             : 'Markdown snippets under ~/.piwin/prompts. Expand via /name in interactive mode.'}
         />
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: 20 }}>
-          <div style={{ flex: 1 }}>
-            <Field label={isChinese ? '搜索模板' : 'Search templates'}>
-              <TextInput
-                value={filter}
-                onChange={(event) => setFilter(event.currentTarget.value)}
-                placeholder={isChinese ? '名称、ID 或描述…' : 'Search...'}
-              />
-            </Field>
-          </div>
+        <div className="settings-toolbar" style={{ marginBottom: 20 }}>
+          <TextInput
+            toolbar
+            value={filter}
+            onChange={(event) => setFilter(event.currentTarget.value)}
+            placeholder={isChinese ? '搜索模板：名称、ID 或描述…' : 'Search templates by name, id, or description…'}
+            aria-label={isChinese ? '搜索模板' : 'Search templates'}
+          />
           <Button size="compact" onClick={() => void loadPrompts()}>{isChinese ? '刷新' : 'Refresh'}</Button>
         </div>
 
         {loading && <div style={{ padding: '20px', textAlign: 'center' }}><Spinner /></div>}
-        {error ? <Notice tone="error">{error}</Notice> : null}
+        {error ? (
+          <div className="ui-feedback-host" aria-live="polite">
+            <Notice tone="error">{error}</Notice>
+          </div>
+        ) : null}
 
         <ul className="ext-list">
           {visible.length === 0 && !loading ? (
@@ -110,7 +112,7 @@ export function PromptsPanel(props: PromptsPanelProps) {
                 </div>
                 <Switch
                   checked={prompt.enabled}
-                  onChange={() => void handleToggle(prompt)}
+                  onCheckedChange={() => void handleToggle(prompt)}
                   aria-label={isChinese ? `启用 ${prompt.name}` : `Enable ${prompt.name}`}
                 />
               </li>

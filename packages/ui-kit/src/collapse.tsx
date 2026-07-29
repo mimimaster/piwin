@@ -8,10 +8,15 @@ export type CollapseProps = MantineCollapseProps & {
 };
 
 /** Animated collapse/expand wrapper. Keeps children in the DOM while collapsed
- * so state and layout do not jump. */
+ * so form state is preserved; `display-none` mode avoids React Activity
+ * layout thrash that can jitter sibling rows on toggle. */
 export function Collapse({
   className,
   testId,
+  keepMounted = true,
+  keepMountedMode = 'display-none',
+  animateOpacity = true,
+  transitionDuration = 200,
   ...props
 }: CollapseProps): ReactElement {
   const rootClass = className ? `piwin-collapse ${className}` : 'piwin-collapse';
@@ -20,9 +25,10 @@ export function Collapse({
     <MantineCollapse
       {...props}
       className={rootClass}
-      keepMounted
-      animateOpacity
-      transitionDuration={200}
+      keepMounted={keepMounted}
+      keepMountedMode={keepMountedMode}
+      animateOpacity={animateOpacity}
+      transitionDuration={transitionDuration}
       data-testid={testId}
     />
   );

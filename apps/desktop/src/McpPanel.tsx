@@ -6,7 +6,6 @@ import {
   DropdownMenu,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  Field,
   Notice,
   Spinner,
   Switch,
@@ -299,8 +298,16 @@ export function McpPanel(props: McpPanelProps) {
             </TabsList>
 
             <TabsContent value="configured" className="mcp-tab-content">
-              {error ? <Notice tone="error" title={isChinese ? 'MCP 操作失败' : 'MCP action failed'}>{error}</Notice> : null}
-              {info ? <Notice tone="info">{info}</Notice> : null}
+              {(error || info) ? (
+                <div className="ui-feedback-host" aria-live="polite">
+                  {error ? (
+                    <Notice tone="error" title={isChinese ? 'MCP 操作失败' : 'MCP action failed'}>
+                      {error}
+                    </Notice>
+                  ) : null}
+                  {info ? <Notice tone="info">{info}</Notice> : null}
+                </div>
+              ) : null}
 
               <PageTitle
                 title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
@@ -333,7 +340,17 @@ export function McpPanel(props: McpPanelProps) {
                           <div className="mcp-server-card-title">
                             <span className={`mcp-status-dot-inline ${runtimeStatus}`} />
                             <strong>{serverId}</strong>
-                            {!isEnabled && <span className="mcp-disabled-label">{isChinese ? '已禁用' : 'disabled'}</span>}
+                            {/* Always-mounted status chip (visibility only) so toggle never shifts layout. */}
+                            <span
+                              className={
+                                isEnabled
+                                  ? 'mcp-disabled-label mcp-disabled-label--hidden'
+                                  : 'mcp-disabled-label'
+                              }
+                              aria-hidden={isEnabled}
+                            >
+                              {isChinese ? '已禁用' : 'disabled'}
+                            </span>
                           </div>
                           <div className="mcp-server-card-meta">
                             <code>{server?.command ?? ''}</code>
@@ -343,10 +360,10 @@ export function McpPanel(props: McpPanelProps) {
                         <div className="mcp-server-card-actions">
                           <Switch
                             checked={isEnabled}
-                            onChange={(event) => {
-                              event.stopPropagation();
-                              void handleToggleServer(serverId, !isEnabled);
+                            onCheckedChange={(checked) => {
+                              void handleToggleServer(serverId, checked);
                             }}
+                            onClick={(event) => event.stopPropagation()}
                             aria-label={
                               isChinese
                                 ? `切换 ${serverId}`
@@ -399,15 +416,15 @@ export function McpPanel(props: McpPanelProps) {
                 title={isChinese ? 'MCP 市场' : 'MCP Marketplace'}
                 description={isChinese ? '从开放市场浏览并安装 MCP 服务器' : 'Browse and install MCP servers from the community.'}
               />
-              <div className="mcp-marketplace-search">
-                <Field label={isChinese ? '筛选' : 'Filter'}>
-                  <TextInput
-                    data-testid="mcp-registry-search"
-                    value={registryQuery}
-                    onChange={(event) => setRegistryQuery(event.currentTarget.value)}
-                    placeholder={isChinese ? '标题、ID 或描述…' : 'Search...'}
-                  />
-                </Field>
+              <div className="settings-toolbar mcp-marketplace-search">
+                <TextInput
+                  toolbar
+                  data-testid="mcp-registry-search"
+                  value={registryQuery}
+                  onChange={(event) => setRegistryQuery(event.currentTarget.value)}
+                  placeholder={isChinese ? '筛选标题、ID 或描述…' : 'Filter by title, id, or description…'}
+                  aria-label={isChinese ? '筛选' : 'Filter'}
+                />
                 <Button
                   size="compact"
                   data-testid="mcp-registry-refresh"
