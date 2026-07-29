@@ -103,16 +103,128 @@ Host normalizes Pi SDK events and RPC events into one `AgentEvent` union:
 
 Presentation only consumes `AgentEvent`.
 
-### 3.4 Permission policy
+### 3.4 Permission system
 
-Host-owned (not UI):
+Host-owned (not UI). Implemented per [ADR 0019](./adr/0019-permission-rule-engine.md)
+as a layered rule engine + permission modes + file-write gate + MCP server-level
+trust. **This is an approval-layer guard, not an OS sandbox** — it prompts and
+blocks, it does not isolate the process (see ADR 0014's "MCP is not a sandbox"
+wording for the same honesty applied to MCP).
 
-- bash danger patterns
-- writes to secrets (`.env`, keys)
-- network tools (search/fetch/mcp)
-- destructive git
+#### Rule engine (deny → ask → allow)
 
-Modes: `allow` | `ask` | `deny`, with project-scoped remember.
+A single pure function (`permission-rule-engine.ts`) evaluates a
+`PermissionSubject` (concrete command / path / host / selector) against a merged
+`PermissionRuleSet`. Evaluation order is **deny → ask → allow**, first match
+wins within a tier (Claude Code semantics). Specificity does **not** change
+order: a broader bundled `ask` beats a more specific user `allow` because tiers
+are ordered, not specificity-ranked. No match → the domain default applies (§3.1
+of the ADR). The subject (runtime value) and target (pattern) are distinct
+types in `@piwin/contracts` so a glob field is never overloaded with a concrete
+path/command.
+
+Rule kinds: `bash` (glob, or `re:`-prefixed regex for bundled precision),
+`file-write` (`pathGlob` with `~` expansion to `homedir()` at load time),
+`web-fetch` (`hostGlob`), `web-search`, `mcp` (`selectorGlob` of the form
+`serverId.toolName`), and reserved kinds `git` / `process` / `notes-mutate`
+(not yet migrated to the engine — see ADR 0019 §8).
+
+#### Layered rule sources (merge, not override)
+
+Rules merge across layers; **deny at any layer beats allow at any layer** by
+tier order:
+
+1. **Bundled defaults** (`permission-defaults.ts`) — safety baseline shipped
+   with the product. `deny` and `ask` cannot be allowed away by lower layers.
+2. **User global** — `~/.piwin/permissions.json` (full deny/ask/allow).
+3. **Project shared** — `<project>/.piwin/permissions.json` (checked in).
+4. **Project local** — `<project>/.piwin/permissions.local.json` (gitignored).
+
+Rule files use `version: 1`. Project shared/local **`allow` arrays are dropped
+at load time when the project is untrusted** (a repo can only make the agent
+*more* cautious, not less); project `deny`/`ask` always apply. User-global
+allow always applies (the user's machine, their choice). The merged rule set is
+an in-memory construct loaded at **session create**; mid-session edits take
+effect on the next session (no hot-reload).
+
+#### Permission modes
+
+`config.permissions.mode` in `~/.piwin/config.json` (`PermissionMode =
+'auto' | 'ask-all' | 'bypass'`):
+
+| Mode | bash unmatched | file-write in-project | file-write out-of-project | public network | MCP | deny rules |
+|------|----------------|----------------------|--------------------------|----------------|-----|------------|
+| `ask-all` | ask | ask | ask | ask | server-gated (§MCP) | always enforced |
+| `auto` (default) | allow¹ | allow | ask | ask | server-gated | always enforced |
+| `bypass` | allow | allow | allow | allow | server-gated | **still enforced** |
+
+¹ `auto` bash unmatched → allow **only after** bundled deny **and** bundled ask
+tiers. A built-in safe-prefix allowlist (`ls *`, `git status`, `pnpm test`, …)
+is bundled as `allow` rules so they are visible/editable (useful mainly under
+`ask-all`).
+
+**Bypass guard:** `bypass` is refused for **untrusted** projects (downgraded to
+`auto` + `host/log` warning) so a freshly-cloned repo cannot disable prompts by
+editing its own `permissions.json`. **General scope** (no project) may use
+bypass — the user is the trust authority there. Deny rules are the only guard in
+bypass (matches Claude Code's `bypassPermissions` semantics). Non-interactive
+CLI: `ask` resolves to `deny` (`resolveNonInteractiveDecision`).
+
+#### File-write gate
+
+`gated-file-tools.ts` wraps Pi's `write`/`edit` tools (same shape as
+`gated-bash-tool.ts`): resolves the path (`realpath` when the file exists,
+pre-realpath absolute path for new files), checks the project remembered
+allowlist, evaluates `evaluateFileWritePermission` against the merged rules,
+then prompts on `ask` via the interactive gate. Both `writeFile` and `mkdir`
+are gated (recursive mkdir can create trees outside the project before a
+write). Bundled deny covers secret paths (`~/.ssh/**`, `~/.piwin/**`,
+`**/.env`, `**/*.pem`, `**/id_rsa`, …); `~/.config/**` is bundled **ask**
+(sensitive but sometimes legitimate). The legacy `path-guard` Pi extension
+remains as a defense-in-depth second layer; the primary gate is the host rule
+engine so it is configurable, testable, and rememberable.
+
+#### MCP: server-level trust (supersedes ADR 0014 §5)
+
+**Once an MCP server is enabled in config, its tools run without per-call
+permission prompts.** Server enablement is the deliberate trust boundary (the
+moment of trust is adding the server in `~/.piwin/mcp.json` / Settings, not each
+tool call). `assertMcpToolCallAllowed` consults the rule engine for explicit
+`deny`/`ask` MCP rules; on `allow` or `no-match` it allows. Risk classification
+(`evaluateMcpToolCallRisk`) and argument redaction still run for UI display but
+no longer drive an `ask` decision. Users who want per-tool gating add
+`deny`/`ask` MCP rules in `permissions.json`.
+
+#### Project remember (scope extended)
+
+`permission/resolve` with `rememberScope: 'project'` persists for:
+
+- **bash** — `ProjectRecord.bashAllowlist`: the **full command string**, matched
+  by **exact match only** (after trim). Naive prefix is forbidden (approving
+  `rm -rf /tmp/foo` must not auto-allow `rm -rf /tmp/foo /etc`).
+- **file-write** — `ProjectRecord.fileWriteAllowlist`: resolved absolute path,
+  matched by **path-safe prefix** (`path === stored || path.startsWith(stored + sep)`).
+- **network** — unchanged (`allowedFetchHosts`, `allowWebSearch` — exact host).
+
+MCP needs no remember (server-gated). Revocation (`project/permissions-revoke`)
+extends to the new keys; `listRememberedPermissions` surfaces them in Settings.
+
+#### Dual host modes
+
+File-write gate, bash gate, rule loading, and the bypass guard apply on every
+path that registers gated tools. The RPC adapter uses SDK fallback (ADR 0011),
+so the same SDK session-create wiring — and therefore the same gates — run on
+both host modes. Apps never import Pi; only `@piwin/agent-host` wires tools.
+
+#### Desktop UI (first-tier)
+
+Settings → Permissions page: mode switcher bound to
+`config.permissions?.mode ?? 'auto'` with trust-aware notices. Context bar
+shows a **mode badge** (click → open Permissions; `bypass` rendered with a
+warning tone). Permission prompt dialog offers **"Allow for project"** for
+bash/file-write subjects (persisted via the remember keys above). A full visual
+rule editor is a follow-up (ADR 0019 open questions); until then users edit
+`permissions.json` by hand.
 
 ## 4. Package map
 

@@ -130,7 +130,7 @@ packages/<name>/
 - Treat model output and artifact HTML as **untrusted**.
 - Artifact: sandbox iframe + CSP; default block external resources (see artifact research).
 - Secrets: never log API keys; prefer env/keychain refs in config.
-- Permission policy for destructive bash, secret file writes, network tools, force-push.
+- Permission policy for destructive bash, secret file writes, network tools, force-push — implemented as a layered rule engine with `auto`/`ask-all`/`bypass` modes, a file-write gate, and MCP server-level trust (ADR 0019; see [Permissions guide](./docs/guides/permissions.md)). Not an OS sandbox.
 - Media paths must stay under `~/.piwin/media/` (no path traversal).
 
 ### 3.7 Testing requirements
