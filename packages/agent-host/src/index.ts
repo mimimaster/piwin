@@ -18,6 +18,7 @@ export {
 } from './tool-presentation.js';
 export {
   evaluateBashPermission,
+  evaluateFileWritePermission,
   evaluateWebPermission,
   evaluateNotesPermission,
   evaluateProcessPermission,
@@ -31,6 +32,7 @@ export type {
 } from './permission-policy.js';
 export {
   evaluateRules,
+  findMatchingRule,
   matchBashGlob,
   matchPathGlob,
   matchHostGlob,
