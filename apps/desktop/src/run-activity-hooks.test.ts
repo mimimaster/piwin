@@ -1,0 +1,95 @@
+// @vitest-environment happy-dom
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { createElement, type ReactElement } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { act } from 'react';
+const reducedMotion = vi.hoisted(() => ({ current: false }));
+
+vi.mock('framer-motion', () => ({
+  useReducedMotion: () => reducedMotion.current,
+}));
+
+import { useRunActivityPhrases } from './run-activity-hooks.js';
+import type { RunActivityInput } from './run-activity-types.js';
+
+declare global {
+  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+function TestHarness(props: { input: RunActivityInput }): ReactElement {
+  const result = useRunActivityPhrases(props.input);
+  return createElement('span', { 'data-testid': 'current' }, result.currentPhrase);
+}
+
+describe('useRunActivityPhrases', () => {
+  let container: HTMLElement;
+  let root: Root;
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    reducedMotion.current = false;
+    vi.useFakeTimers();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    vi.useRealTimers();
+    container.parentNode?.removeChild(container);
+  });
+
+  it('returns the first base phrase initially', () => {
+    const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en' };
+    act(() => root.render(createElement(TestHarness, { input })));
+    expect(container.textContent).toBe('Planning next moves');
+  });
+
+  it('advances to the next phrase after 1.8s', () => {
+    const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en' };
+    act(() => root.render(createElement(TestHarness, { input })));
+    act(() => vi.advanceTimersByTime(1800));
+    expect(container.textContent).toBe('Reading your request');
+  });
+
+  it('does not rotate phrases when reduced motion is enabled', () => {
+    reducedMotion.current = true;
+    const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en' };
+    act(() => root.render(createElement(TestHarness, { input })));
+    act(() => vi.advanceTimersByTime(3600));
+    expect(container.textContent).toBe('Planning next moves');
+  });
+
+  it('switches to taking-too-long after 15s elapsed', () => {
+    const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en', elapsedMs: 0 };
+    act(() => root.render(createElement(TestHarness, { input })));
+    act(() => vi.advanceTimersByTime(15000));
+    expect(container.textContent).toBe('Taking longer than expected…');
+  });
+
+  it('immediately shows taking-too-long at 15s elapsed', () => {
+    const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en', elapsedMs: 15000 };
+    act(() => root.render(createElement(TestHarness, { input })));
+    expect(container.textContent).toBe('Taking longer than expected…');
+  });
+
+  it('resets taking-too-long when the next run starts', () => {
+    act(() =>
+      root.render(
+        createElement(TestHarness, {
+          input: { kind: 'waiting-first-token', locale: 'en', elapsedMs: 20000 },
+        }),
+      ),
+    );
+    expect(container.textContent).toBe('Taking longer than expected…');
+    act(() =>
+      root.render(
+        createElement(TestHarness, {
+          input: { kind: 'waiting-first-token', locale: 'en', elapsedMs: 0 },
+        }),
+      ),
+    );
+    expect(container.textContent).toBe('Planning next moves');
+  });
+});
