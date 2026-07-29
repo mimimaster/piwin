@@ -6,6 +6,7 @@
  * rules cannot be allowed away by lower layers (tier order).
  */
 
+import { homedir } from 'node:os';
 import type { PermissionRule, PermissionRuleSet } from '@piwin/contracts';
 import { createEmptyRuleSet } from '@piwin/contracts';
 
@@ -38,7 +39,11 @@ export const BUNDLED_DENY: PermissionRule[] = [
     reason: 'disk-destroy',
   },
   {
-    target: { kind: 'bash', pattern: 're:\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-rf|-fr)\\s+(\\/\\s*$|\\/\\*\\s*$|\\/~\\s*$|~\\s*$)' },
+    target: {
+      kind: 'bash',
+      pattern:
+        're:\\brm\\s+(-[a-zA-Z]*r[a-zA-Z]*f|-rf|-fr)\\s+(\\/\\s*$|\\/\\*\\s*$|\\/~\\s*$|~\\s*$)',
+    },
     decision: 'deny',
     reason: 'rm-root',
   },
@@ -88,7 +93,10 @@ export const BUNDLED_ASK_BASH: PermissionRule[] = [
     reason: 'force-with-lease',
   },
   {
-    target: { kind: 'bash', pattern: 're:(?:^|[;&|])\\s*(?:tee|cp|mv|echo|cat)\\b[^\\n]*\\.env\\b' },
+    target: {
+      kind: 'bash',
+      pattern: 're:(?:^|[;&|])\\s*(?:tee|cp|mv|echo|cat)\\b[^\\n]*\\.env\\b',
+    },
     decision: 'ask',
     reason: 'write-env',
   },
@@ -103,7 +111,7 @@ export const BUNDLED_ASK_BASH: PermissionRule[] = [
  * Bundled ask rules for file-write operations.
  *
  * Includes the ~/.config/** pattern to protect sensitive config directories.
- * The pattern uses ~ which is expanded by the loader before matching.
+ * The pattern uses ~ which is expanded by createBundledRuleSet() before matching.
  */
 export const BUNDLED_ASK_FILE_WRITE: PermissionRule[] = [
   {
@@ -183,16 +191,46 @@ export const BUNDLED_ALLOW: PermissionRule[] = [
 ];
 
 /**
+ * Expand ~ to the home directory in a pathGlob pattern.
+ *
+ * @param pattern - Pattern possibly starting with ~
+ * @returns Pattern with ~ expanded to home directory
+ */
+function expandHomeDir(pattern: string): string {
+  if (pattern.startsWith('~/')) {
+    return homedir() + pattern.slice(1);
+  }
+  return pattern;
+}
+
+/**
  * Create the complete bundled rule set.
  *
  * Combines all bundled deny, ask, and allow rules into a single PermissionRuleSet.
+ * Expands ~ to the home directory in pathGlob patterns before returning.
  *
- * @returns The bundled rule set
+ * @returns The bundled rule set with ~ expanded
  */
 export function createBundledRuleSet(): PermissionRuleSet {
   const rules = createEmptyRuleSet();
   rules.deny.push(...BUNDLED_DENY);
-  rules.ask.push(...BUNDLED_ASK_BASH, ...BUNDLED_ASK_FILE_WRITE);
+  rules.ask.push(...BUNDLED_ASK_BASH);
+
+  // Expand ~ in file-write pathGlob patterns
+  const expandedFileWriteRules: PermissionRule[] = BUNDLED_ASK_FILE_WRITE.map((rule) => {
+    if (rule.target.kind !== 'file-write') {
+      return rule;
+    }
+    return {
+      ...rule,
+      target: {
+        kind: 'file-write',
+        pathGlob: expandHomeDir(rule.target.pathGlob),
+      },
+    };
+  });
+  rules.ask.push(...expandedFileWriteRules);
+
   rules.allow.push(...BUNDLED_ALLOW);
   return rules;
 }
