@@ -11,6 +11,7 @@ import { MessageActions } from './message-actions';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { SubagentActivityCard } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
+import { RunActivitySlot } from './RunActivitySlot.js';
 import { IconAgent } from './shell-icons';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
@@ -184,6 +185,8 @@ export type ChatThreadProps = {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   /** Global composer configuration so the in-place edit card matches the bottom dock. */
   composerCard: ComposerDockProps;
+  /** Locale used by all run activity components. */
+  locale?: 'zh-CN' | 'en';
 };
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
@@ -237,8 +240,19 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           onOpenSubagentSession={props.onOpenSubagentSession}
           composerCard={props.composerCard}
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+          {...(props.locale ? { locale: props.locale } : {})}
         />
       ))}
+      {props.streaming &&
+      !props.permissionPrompt &&
+      (props.messages.length === 0 ||
+        props.messages[props.messages.length - 1]?.role === 'user') ? (
+        <RunActivitySlot
+          activeRunId={props.activeRunId ?? null}
+          runRecordsById={props.runRecordsById ?? {}}
+          {...(props.locale ? { locale: props.locale } : {})}
+        />
+      ) : null}
     </div>
   );
 }
@@ -265,6 +279,8 @@ type ChatMessageRowProps = {
   onFeedback?: ((message: string, level: 'success' | 'error') => void) | undefined;
   onOpenSubagentSession: ((sessionId: string) => void) | undefined;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
+  /** Locale used by all run activity components. */
+  locale?: 'zh-CN' | 'en';
   /** Global composer card props so the edit mode matches the bottom composer. */
   composerCard: ComposerDockProps;
 };
@@ -331,6 +347,7 @@ const ChatMessageRow = memo(
             permissionPrompt={props.permissionPrompt}
             workDetailsExpanded={props.workDetailsExpanded}
             toolDensity={props.toolDensity}
+            {...(props.locale ? { locale: props.locale } : {})}
           />
         ) : null}
         {message.attachments.length > 0 ? (
@@ -406,6 +423,7 @@ const ChatMessageRow = memo(
       previous.permissionPrompt === next.permissionPrompt &&
       previous.workDetailsExpanded === next.workDetailsExpanded &&
       previous.toolDensity === next.toolDensity &&
+      previous.locale === next.locale &&
       previous.onArtifactAction === next.onArtifactAction &&
       callbackPropsAreStable
     );
