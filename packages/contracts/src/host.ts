@@ -28,9 +28,7 @@ export type PermissionRememberScope = 'once' | 'project';
  * Every session has one explicit scope. General sessions do not require a
  * project; project sessions require an opened and trusted project root.
  */
-export type SessionScope =
-  | { kind: 'general' }
-  | { kind: 'project'; projectPath: string };
+export type SessionScope = { kind: 'general' } | { kind: 'project'; projectPath: string };
 
 /** Host-only resolved location for a session. Apps send scope intent, never a raw path. */
 export type ResolvedSessionLocation = {
@@ -38,13 +36,7 @@ export type ResolvedSessionLocation = {
   workingDirectory: string;
 };
 
-export type PermissionRiskKind =
-  | 'command'
-  | 'file-write'
-  | 'git'
-  | 'network'
-  | 'mcp'
-  | 'unknown';
+export type PermissionRiskKind = 'command' | 'file-write' | 'git' | 'network' | 'mcp' | 'unknown';
 
 /** Normalized risk facts for permission UI (adapters fill; UI never parses Pi-native shapes). */
 export type PermissionRequestContext = {
@@ -65,13 +57,7 @@ export type PermissionRequestContext = {
 };
 
 export type McpToolRisk =
-  | 'read'
-  | 'network'
-  | 'external-write'
-  | 'local-write'
-  | 'process'
-  | 'credential'
-  | 'unknown';
+  'read' | 'network' | 'external-write' | 'local-write' | 'process' | 'credential' | 'unknown';
 
 /** Host-built MCP call facts for permission UI and policy. */
 export type McpToolCallTarget = {
@@ -82,8 +68,6 @@ export type McpToolCallTarget = {
   /** Redacted + length-bounded argument summary. */
   argumentsSummary: string;
 };
-
-
 
 export type MediaAttachmentRef = {
   id: string;
@@ -247,14 +231,7 @@ export type AgentEventEnvelope = {
 };
 
 /** Host-normalized tool presentation for UI cards (Desktop must not re-infer semantics). */
-export type ToolKind =
-  | 'filesystem'
-  | 'shell'
-  | 'git'
-  | 'web'
-  | 'mcp'
-  | 'process'
-  | 'other';
+export type ToolKind = 'filesystem' | 'shell' | 'git' | 'web' | 'mcp' | 'process' | 'other';
 
 export type ToolOutputView = {
   text: string;

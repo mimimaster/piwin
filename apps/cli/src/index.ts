@@ -18,16 +18,17 @@ import {
   createSecretResolver,
   getPiwinSessionIndexPath,
 } from '@piwin/agent-host';
-import type { AgentEvent, HostCommand, HostMode, HostServerMessage, HostStatusData } from '@piwin/contracts';
+import type {
+  AgentEvent,
+  HostCommand,
+  HostMode,
+  HostServerMessage,
+  HostStatusData,
+} from '@piwin/contracts';
 import { formatCapabilityMatrixLines } from '@piwin/contracts';
 import { formatTextModelImageInjection } from '@piwin/contracts';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
-import {
-  loadMcpConfig,
-  saveMcpConfig,
-  tryValidateMcpConfig,
-  listEnabledServers,
-} from '@piwin/mcp';
+import { loadMcpConfig, saveMcpConfig, tryValidateMcpConfig, listEnabledServers } from '@piwin/mcp';
 import { installSkill, installExtension, RECOMMENDED_SKILLS } from '@piwin/marketplace';
 import { createMediaService } from '@piwin/media';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
@@ -202,9 +203,7 @@ async function commandDoctor(): Promise<void> {
   console.log(`- hostMode(config): ${config.hostMode}`);
   console.log(`- agentMock(config): ${config.agentMock === true ? 'on' : 'off'}`);
   console.log('- host adapters: sdk + rpc');
-  console.log(
-    '- rpc.customTools: false (stock pi RPC; use sdk mode for web/MCP/bash tools)',
-  );
+  console.log('- rpc.customTools: false (stock pi RPC; use sdk mode for web/MCP/bash tools)');
   console.log(`- providers configured: ${config.providers.length}`);
   for (const provider of config.providers) {
     const report = await resolver.reportProviderSecret(provider);
@@ -220,7 +219,9 @@ async function commandDoctor(): Promise<void> {
       piwinRoot: root,
       ...(config.skills ? { skillsConfig: config.skills } : {}),
     });
-    console.log(`- skills: ${skills.length} (extraPaths=${(config.skills?.extraPaths ?? []).length})`);
+    console.log(
+      `- skills: ${skills.length} (extraPaths=${(config.skills?.extraPaths ?? []).length})`,
+    );
   } catch (error) {
     console.log(
       `- skills: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
@@ -295,7 +296,9 @@ async function commandDoctor(): Promise<void> {
     const themes = await listThemes(root);
     console.log(`- themes: ${themes.themes.length} (active=${themes.activeThemeId})`);
   } catch (error) {
-    console.log(`- themes: (unavailable: ${error instanceof Error ? error.message : String(error)})`);
+    console.log(
+      `- themes: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
+    );
   }
   try {
     const { listPets } = await import('@piwin/pet');
@@ -370,19 +373,19 @@ async function commandSession(argv: string[]): Promise<void> {
         return;
       }
       const sessions =
-        (response.data as { sessions?: Array<{
-          id: string;
-          updatedAt: string;
-          name?: string;
-          isPinned?: boolean;
-          lastPreview?: string;
-        }> })?.sessions ?? [];
+        (
+          response.data as {
+            sessions?: Array<{
+              id: string;
+              updatedAt: string;
+              name?: string;
+              isPinned?: boolean;
+              lastPreview?: string;
+            }>;
+          }
+        )?.sessions ?? [];
       if (sessions.length === 0) {
-        console.log(
-          projectPath
-            ? `(no sessions for ${projectPath})`
-            : '(no general sessions)',
-        );
+        console.log(projectPath ? `(no sessions for ${projectPath})` : '(no general sessions)');
         return;
       }
       for (const session of sessions) {
@@ -444,12 +447,16 @@ async function commandSession(argv: string[]): Promise<void> {
         return;
       }
       const hits =
-        (response.data as { hits?: Array<{
-          sessionId: string;
-          name?: string;
-          snippet?: string;
-          isPinned?: boolean;
-        }> })?.hits ?? [];
+        (
+          response.data as {
+            hits?: Array<{
+              sessionId: string;
+              name?: string;
+              snippet?: string;
+              isPinned?: boolean;
+            }>;
+          }
+        )?.hits ?? [];
       if (hits.length === 0) {
         console.log('(no hits)');
         return;
@@ -713,7 +720,9 @@ async function commandSkill(argv: string[]): Promise<void> {
     }
     console.log('Recommended git skills:');
     for (const item of RECOMMENDED_SKILLS) {
-      console.log(`- ${item.id}: ${item.source.url}${item.source.subdir ? ` (${item.source.subdir})` : ''}`);
+      console.log(
+        `- ${item.id}: ${item.source.url}${item.source.subdir ? ` (${item.source.subdir})` : ''}`,
+      );
     }
     console.error('Usage: piwin skill install --local <dir> | --git <url> [--name <id>]');
     process.exitCode = 1;
@@ -819,9 +828,7 @@ async function commandPrompt(argv: string[]): Promise<void> {
     }
     for (const prompt of prompts) {
       const flag = prompt.enabled ? 'on ' : 'off';
-      console.log(
-        `${flag}\t${prompt.id}\t${prompt.source}\t${prompt.name}\t${prompt.path}`,
-      );
+      console.log(`${flag}\t${prompt.id}\t${prompt.source}\t${prompt.name}\t${prompt.path}`);
     }
     return;
   }
@@ -894,7 +901,10 @@ async function commandMcp(argv: string[]): Promise<void> {
     } = { command };
     const argsRaw = readOption(argv, '--args');
     if (argsRaw) {
-      serverConfig.args = argsRaw.split(',').map((item) => item.trim()).filter(Boolean);
+      serverConfig.args = argsRaw
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
     }
     const envRaw = readOption(argv, '--env');
     if (envRaw) {
@@ -930,10 +940,13 @@ async function commandProcess(argv: string[]): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      const processes = (response.data as { processes: Array<Record<string, unknown>> }).processes ?? [];
+      const processes =
+        (response.data as { processes: Array<Record<string, unknown>> }).processes ?? [];
       if (processes.length === 0) {
         console.log('(no managed processes in this host process)');
-        console.log('Note: processes live in the host that started them (Desktop host serve or chat session).');
+        console.log(
+          'Note: processes live in the host that started them (Desktop host serve or chat session).',
+        );
         return;
       }
       for (const item of processes) {
@@ -964,7 +977,9 @@ async function commandProcess(argv: string[]): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      const chunks = (response.data as { chunks: Array<{ stream: string; text: string; at: string }> }).chunks ?? [];
+      const chunks =
+        (response.data as { chunks: Array<{ stream: string; text: string; at: string }> }).chunks ??
+        [];
       for (const chunk of chunks) {
         process.stdout.write(`[${chunk.stream}] ${chunk.text}`);
         if (!chunk.text.endsWith('\n')) process.stdout.write('\n');
@@ -1001,7 +1016,6 @@ async function commandProcess(argv: string[]): Promise<void> {
   }
 }
 
-
 async function commandNotes(argv: string[]): Promise<void> {
   const sub = argv[1] ?? 'list';
   const root = getPiwinRoot();
@@ -1012,9 +1026,8 @@ async function commandNotes(argv: string[]): Promise<void> {
     return;
   }
 
-  const { createNoteStore, openNoteIndex, searchNotes, createEmbeddingProvider } = await import(
-    '@piwin/notes'
-  );
+  const { createNoteStore, openNoteIndex, searchNotes, createEmbeddingProvider } =
+    await import('@piwin/notes');
   const store = createNoteStore({ piwinRoot: root });
 
   if (sub === 'add') {
@@ -1036,7 +1049,11 @@ async function commandNotes(argv: string[]): Promise<void> {
     const collection = readOption(argv, '--collection');
     if (collection) input.collection = collection;
     const tags = readOption(argv, '--tags');
-    if (tags) input.tags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+    if (tags)
+      input.tags = tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean);
     const record = await store.write(input);
     console.log(`wrote ${record.id} (${record.relativePath})`);
     return;
@@ -1087,11 +1104,7 @@ async function commandNotes(argv: string[]): Promise<void> {
         console.log('index rebuilt');
         return;
       }
-      const query = collectPositionals(argv.slice(2), [
-        '--collection',
-        '--limit',
-        '--search-mode',
-      ])
+      const query = collectPositionals(argv.slice(2), ['--collection', '--limit', '--search-mode'])
         .join(' ')
         .trim();
       if (!query) {
@@ -1166,8 +1179,12 @@ async function commandNotes(argv: string[]): Promise<void> {
   }
 
   if (sub === 'eval') {
-    const { openNoteIndex: openIndex, searchNotes: runSearch, loadGoldenSet, runRecallEval } =
-      await import('@piwin/notes');
+    const {
+      openNoteIndex: openIndex,
+      searchNotes: runSearch,
+      loadGoldenSet,
+      runRecallEval,
+    } = await import('@piwin/notes');
     const index = await openIndex(store);
     try {
       if (argv[2] === 'history') {
@@ -1189,9 +1206,7 @@ async function commandNotes(argv: string[]): Promise<void> {
         console.error(`[golden] ${warning}`);
       }
       if (cases.length === 0) {
-        console.error(
-          'Golden set empty. Add cases with: piwin notes pin <query> <noteId...>',
-        );
+        console.error('Golden set empty. Add cases with: piwin notes pin <query> <noteId...>');
         process.exitCode = 1;
         return;
       }
@@ -1262,9 +1277,7 @@ async function commandCards(argv: string[]): Promise<void> {
     return;
   }
 
-  const { createCardStore, buildReviewQueue, exportCardsToTsv } = await import(
-    '@piwin/flashcards'
-  );
+  const { createCardStore, buildReviewQueue, exportCardsToTsv } = await import('@piwin/flashcards');
   const store = createCardStore({ piwinRoot: root });
   const deck = readOption(argv, '--deck');
 
@@ -1286,7 +1299,11 @@ async function commandCards(argv: string[]): Promise<void> {
     } = { front, back };
     if (deck) input.deck = deck;
     const tags = readOption(argv, '--tags');
-    if (tags) input.tags = tags.split(',').map((tag) => tag.trim()).filter(Boolean);
+    if (tags)
+      input.tags = tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean);
     const card = await store.create(input);
     console.log(`created ${card.id} [${card.deck}]`);
     return;
@@ -1358,7 +1375,7 @@ async function commandCards(argv: string[]): Promise<void> {
 
     // Interactive review loop.
     if (queue.length === 0) {
-      console.log('No cards due. 🎉' .replace(' 🎉', ''));
+      console.log('No cards due. 🎉'.replace(' 🎉', ''));
       return;
     }
     const readline = createInterface({ input: process.stdin, output: process.stdout });
@@ -1368,7 +1385,9 @@ async function commandCards(argv: string[]): Promise<void> {
       let position = 0;
       for (const item of queue) {
         position += 1;
-        console.log(`\n[${position}/${queue.length}] ${item.isNew ? '(new) ' : ''}${item.card.front}`);
+        console.log(
+          `\n[${position}/${queue.length}] ${item.isNew ? '(new) ' : ''}${item.card.front}`,
+        );
         await ask('  press Enter to reveal…');
         console.log(`  → ${item.card.back}`);
         // Only 1-4 commit a rating; anything else re-prompts (a typo must
@@ -1382,9 +1401,7 @@ async function commandCards(argv: string[]): Promise<void> {
         let rating: 'again' | 'hard' | 'good' | 'easy' | undefined;
         let quit = false;
         while (!rating && !quit) {
-          const answer = (
-            await ask('  rate: 1=again 2=hard 3=good 4=easy (q=quit): ')
-          ).trim();
+          const answer = (await ask('  rate: 1=again 2=hard 3=good 4=easy (q=quit): ')).trim();
           if (answer === 'q') {
             quit = true;
           } else {
@@ -1431,9 +1448,12 @@ async function commandDocCards(argv: string[]): Promise<void> {
     return;
   }
 
-  const { createFolderRag, buildFlashcardGenerationPrompt, FLASHCARD_QUALITY_RULES, canonicalizeFolderPath } = await import(
-    '@piwin/doc-rag'
-  );
+  const {
+    createFolderRag,
+    buildFlashcardGenerationPrompt,
+    FLASHCARD_QUALITY_RULES,
+    canonicalizeFolderPath,
+  } = await import('@piwin/doc-rag');
   const { createEmbeddingProvider } = await import('@piwin/notes');
   const { createCardStore } = await import('@piwin/flashcards');
   const { resolveNotesEmbeddingApiKey } = await import('@piwin/agent-host');
@@ -1447,7 +1467,10 @@ async function commandDocCards(argv: string[]): Promise<void> {
     });
     if (provider) embeddingProvider = provider;
   }
-  const rag = createFolderRag({ piwinRoot: root, ...(embeddingProvider ? { embeddingProvider } : {}) });
+  const rag = createFolderRag({
+    piwinRoot: root,
+    ...(embeddingProvider ? { embeddingProvider } : {}),
+  });
   const store = createCardStore({ piwinRoot: root });
   let host: import('@piwin/contracts').AgentHost | undefined;
 
@@ -1460,7 +1483,9 @@ async function commandDocCards(argv: string[]): Promise<void> {
         return;
       }
       const result = await rag.scanFolder(folderPath);
-      console.log(`${result.files.length} supported file(s), ${result.supportedExtensions.length} extension(s):`);
+      console.log(
+        `${result.files.length} supported file(s), ${result.supportedExtensions.length} extension(s):`,
+      );
       for (const file of result.files.slice(0, 50)) {
         console.log(`  ${file.relativePath}\t${file.sizeBytes}B\t${file.language}`);
       }
@@ -1475,9 +1500,17 @@ async function commandDocCards(argv: string[]): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      const includeFiles = readOption(argv, '--files')?.split(',').map((s) => s.trim()).filter(Boolean);
-      const result = await rag.indexFolder(folderPath, includeFiles?.length ? { includeFiles } : undefined);
-      console.log(`indexed ${result.indexed} file(s), ${result.chunks} chunk(s)${result.degraded ? ' (FTS-only)' : ''}, skipped ${result.skipped}`);
+      const includeFiles = readOption(argv, '--files')
+        ?.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const result = await rag.indexFolder(
+        folderPath,
+        includeFiles?.length ? { includeFiles } : undefined,
+      );
+      console.log(
+        `indexed ${result.indexed} file(s), ${result.chunks} chunk(s)${result.degraded ? ' (FTS-only)' : ''}, skipped ${result.skipped}`,
+      );
       for (const warning of result.warnings) console.log(`  ! ${warning}`);
       return;
     }
@@ -1491,15 +1524,19 @@ async function commandDocCards(argv: string[]): Promise<void> {
         return;
       }
       const limit = readOption(argv, '--limit') ? Number(readOption(argv, '--limit')) : undefined;
-      const fileAllowlist = readOption(argv, '--files')?.split(',').map((s) => s.trim()).filter(Boolean);
-      const chunks = await rag.retrieve(
-        folderPath,
-        query,
-        { ...(limit ? { limit } : {}), ...(fileAllowlist?.length ? { fileAllowlist } : {}) },
-      );
+      const fileAllowlist = readOption(argv, '--files')
+        ?.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const chunks = await rag.retrieve(folderPath, query, {
+        ...(limit ? { limit } : {}),
+        ...(fileAllowlist?.length ? { fileAllowlist } : {}),
+      });
       console.log(`${chunks.length} passage(s):`);
       for (const chunk of chunks) {
-        console.log(`\n--- ${chunk.filePath}:${chunk.startLine}-${chunk.endLine} (score ${chunk.score.toFixed(3)}) ---`);
+        console.log(
+          `\n--- ${chunk.filePath}:${chunk.startLine}-${chunk.endLine} (score ${chunk.score.toFixed(3)}) ---`,
+        );
         console.log(chunk.content);
       }
       return;
@@ -1513,10 +1550,14 @@ async function commandDocCards(argv: string[]): Promise<void> {
         return;
       }
       const canonical = await canonicalizeFolderPath(folderPath);
-      const cards = await store.list(canonical ? { sourceFolder: canonical } : { sourceFolder: folderPath });
+      const cards = await store.list(
+        canonical ? { sourceFolder: canonical } : { sourceFolder: folderPath },
+      );
       console.log(`${cards.length} card(s) from ${canonical ?? folderPath}:`);
       for (const card of cards) {
-        const source = card.sourceFile ? ` [${card.sourceFile}${typeof card.sourceLine === 'number' ? `:${card.sourceLine}` : ''}]` : '';
+        const source = card.sourceFile
+          ? ` [${card.sourceFile}${typeof card.sourceLine === 'number' ? `:${card.sourceLine}` : ''}]`
+          : '';
         console.log(`  ${card.id}\t${card.front.slice(0, 70)}${source}`);
       }
       return;
@@ -1525,20 +1566,27 @@ async function commandDocCards(argv: string[]): Promise<void> {
     if (sub === 'generate') {
       const folderPath = argv[2];
       if (!folderPath) {
-        console.error('Usage: piwin doccards generate <folder> [--topic t] [--limit n] [--files a,b] [--difficulty easy|medium|hard] [--count fewer|standard|more]');
+        console.error(
+          'Usage: piwin doccards generate <folder> [--topic t] [--limit n] [--files a,b] [--difficulty easy|medium|hard] [--count fewer|standard|more]',
+        );
         process.exitCode = 1;
         return;
       }
       const mode = parseMode(argv);
       const mock = parseMock(argv);
       if (mode === 'rpc' && !mock) {
-        console.error('piwin doccards generate --mode rpc: use --mock for an offline smoke, or omit --mode to use sdk.');
+        console.error(
+          'piwin doccards generate --mode rpc: use --mock for an offline smoke, or omit --mode to use sdk.',
+        );
         process.exitCode = 1;
         return;
       }
       const topic = readOption(argv, '--topic') ?? '';
       const limit = readOption(argv, '--limit') ? Number(readOption(argv, '--limit')) : 10;
-      const fileAllowlist = readOption(argv, '--files')?.split(',').map((s) => s.trim()).filter(Boolean);
+      const fileAllowlist = readOption(argv, '--files')
+        ?.split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
       const difficulty = readOption(argv, '--difficulty') as 'easy' | 'medium' | 'hard' | undefined;
       const count = readOption(argv, '--count') as 'fewer' | 'standard' | 'more' | undefined;
       const canonical = await canonicalizeFolderPath(folderPath);
@@ -1606,7 +1654,10 @@ async function commandDocCards(argv: string[]): Promise<void> {
       }
       const oldCanonical = await canonicalizeFolderPath(oldPath);
       const newCanonical = await canonicalizeFolderPath(newPath);
-      const result = await store.rebindSourceFolder(oldCanonical ?? oldPath, newCanonical ?? newPath);
+      const result = await store.rebindSourceFolder(
+        oldCanonical ?? oldPath,
+        newCanonical ?? newPath,
+      );
       console.log(`rebound ${result.updated} card(s)`);
       return;
     }
@@ -1735,9 +1786,6 @@ function redirectHostLogsToStandardError(): void {
   console.warn = writeDiagnostic;
 }
 
-
-
-
 async function commandCron(argv: string[]): Promise<void> {
   const sub = argv[1] ?? 'list';
   if (sub !== 'list') {
@@ -1765,7 +1813,9 @@ async function commandCron(argv: string[]): Promise<void> {
     for (const job of jobs) {
       const last = job.lastStatus ? ` last=${job.lastStatus}` : '';
       const when = job.lastRunAt ? ` at=${job.lastRunAt}` : '';
-      console.log(`${job.id}\t${job.enabled ? 'on' : 'off'}\t${job.schedule}\t${job.name}${last}${when}`);
+      console.log(
+        `${job.id}\t${job.enabled ? 'on' : 'off'}\t${job.schedule}\t${job.name}${last}${when}`,
+      );
     }
   } finally {
     await runtime.dispose();
