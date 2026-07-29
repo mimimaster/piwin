@@ -38,6 +38,7 @@ import {
 } from './extension-ui-bridge.js';
 import { createMcpSessionBridge } from './mcp-session-bridge.js';
 import { buildGatedBashToolDefinition } from './gated-bash-tool.js';
+import { buildGatedFileToolsDefinition } from './gated-file-tools.js';
 import { buildProcessTools } from './process-tools.js';
 import { createNoteStore, openNoteIndex, createEmbeddingProvider } from '@piwin/notes';
 import { buildNotesTools } from './notes-tools.js';
@@ -51,6 +52,7 @@ import {
   type PiModelRegistration,
 } from './pi-model-runtime.js';
 import { listProjects } from '@piwin/project';
+import { loadMergedPermissionRules } from './permission-rule-loader.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { extractFileOpsFromUnknown } from './compaction-file-ops.js';
@@ -70,6 +72,32 @@ export type PiSdkPermissionRequest = {
   defaultDecision: PermissionDecision;
   signal?: AbortSignal;
 };
+
+/**
+ * Adapt the host permission handler into the gate-input shape used by the
+ * gated bash / file tools. Both gates accept the same `{action, detail,
+ * defaultDecision, signal}` input; this wrapper reuses one closure for both.
+ */
+function wrapPermissionHandler(
+  permissionHandler: (request: PiSdkPermissionRequest) => Promise<PermissionDecision>,
+  sessionId: string,
+  permissionProjectPath: string,
+): (request: {
+  action: string;
+  detail: string;
+  defaultDecision: PermissionDecision;
+  signal?: AbortSignal;
+}) => Promise<PermissionDecision> {
+  return async (gateInput) =>
+    permissionHandler({
+      sessionId,
+      projectPath: permissionProjectPath,
+      action: gateInput.action,
+      detail: gateInput.detail,
+      defaultDecision: gateInput.defaultDecision,
+      ...(gateInput.signal ? { signal: gateInput.signal } : {}),
+    });
+}
 
 export type PiSdkAdapterOptions = {
   piwinRoot?: string;
@@ -532,15 +560,11 @@ async function createPiSdkSession(
         }) => Promise<PermissionDecision>;
       } = { cwd: agentCwd };
       if (permissionHandler) {
-        gatedBashOptions.requestPermission = async (gateInput) =>
-          permissionHandler({
-            sessionId,
-            projectPath: permissionProjectPath,
-            action: gateInput.action,
-            detail: gateInput.detail,
-            defaultDecision: gateInput.defaultDecision,
-            ...(gateInput.signal ? { signal: gateInput.signal } : {}),
-          });
+        gatedBashOptions.requestPermission = wrapPermissionHandler(
+          permissionHandler,
+          sessionId,
+          permissionProjectPath,
+        );
       }
       const gatedBash = await buildGatedBashToolDefinition(gatedBashOptions);
       customTools.push(gatedBash as (typeof customTools)[number]);
@@ -548,8 +572,64 @@ async function createPiSdkSession(
       const message = error instanceof Error ? error.message : String(error);
       console.warn(`[piwin] gated bash unavailable: ${message}`);
     }
-  }
 
+    // Replace built-in write/edit with permission-gated versions (ADR 0019 §4).
+    // Closes the largest blind spot: Pi's native file tools are otherwise ungated.
+    try {
+      const projectsFilePath = getPiwinProjectsPath(rootDir);
+      // Determine project trust so untrusted repos cannot grant themselves allow rules.
+      let projectTrusted = false;
+      if (permissionProjectPath) {
+        try {
+          const projects = await listProjects(projectsFilePath);
+          projectTrusted =
+            projects.find((p) => p.path === permissionProjectPath)?.trust === 'trusted';
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          console.warn(`[piwin] project trust lookup failed: ${message}`);
+          projectTrusted = false;
+        }
+      }
+      const mergedRules = await loadMergedPermissionRules({
+        piwinRoot: rootDir,
+        ...(permissionProjectPath ? { projectPath: permissionProjectPath } : {}),
+        projectTrusted,
+      });
+      const gatedFileOptions: {
+        cwd: string;
+        mode: 'auto' | 'ask-all' | 'bypass';
+        rules: typeof mergedRules;
+        projectRoot: string;
+        projectsFilePath: string;
+        requestPermission?: (request: {
+          action: string;
+          detail: string;
+          defaultDecision: PermissionDecision;
+          signal?: AbortSignal;
+        }) => Promise<PermissionDecision>;
+      } = {
+        cwd: agentCwd,
+        mode: config.permissions?.mode ?? 'auto',
+        rules: mergedRules,
+        projectRoot: permissionProjectPath,
+        projectsFilePath,
+      };
+      if (permissionHandler) {
+        gatedFileOptions.requestPermission = wrapPermissionHandler(
+          permissionHandler,
+          sessionId,
+          permissionProjectPath,
+        );
+      }
+      const gatedFileTools = await buildGatedFileToolsDefinition(gatedFileOptions);
+      for (const tool of gatedFileTools) {
+        customTools.push(tool as (typeof customTools)[number]);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[piwin] gated file tools unavailable: ${message}`);
+    }
+  }
 
   const extraSkillPaths = config.skills?.extraPaths ?? [];
   const disabledSkillIds = config.skills?.disabledIds ?? [];
