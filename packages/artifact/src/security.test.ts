@@ -85,3 +85,54 @@ describe('classifyArtifactSecurity', () => {
     expect(result.canRender).toBe(true);
   });
 });
+
+describe('classifyArtifactSecurity — inline XSS vectors (sandbox-mitigated)', () => {
+  // These inputs contain inline XSS vectors but NO external resources.
+  // The classifier allows them (canRender=true) because the sandbox iframe
+  // (no allow-same-origin) + CSP (connect-src 'none') is the mitigation.
+  // These golden cases document that contract so a future classifier
+  // change or sandbox weakening is caught.
+
+  it('allows inline onerror handler (sandbox-mitigated)', () => {
+    const result = classifyArtifactSecurity(
+      '<img src="x" onerror="alert(1)">',
+    );
+    expect(result.canRender).toBe(true);
+    expect(result.blockReason).toBe(null);
+    expect(result.externalResources).toEqual([]);
+  });
+
+  it('allows svg onload handler (sandbox-mitigated)', () => {
+    const result = classifyArtifactSecurity(
+      '<svg onload="alert(1)"><circle r="10"/></svg>',
+    );
+    expect(result.canRender).toBe(true);
+    expect(result.blockReason).toBe(null);
+  });
+
+  it('allows javascript: URL in href (sandbox-mitigated)', () => {
+    const result = classifyArtifactSecurity(
+      '<a href="javascript:alert(1)">click</a>',
+    );
+    expect(result.canRender).toBe(true);
+    expect(result.blockReason).toBe(null);
+  });
+
+  it('allows nested iframe srcdoc (sandbox-mitigated, no external src)', () => {
+    const result = classifyArtifactSecurity(
+      '<iframe srcdoc="<script>alert(1)</script>"></iframe>',
+    );
+    expect(result.canRender).toBe(true);
+    expect(result.blockReason).toBe(null);
+  });
+
+  it('allows javascript: URL in img src (not detected as external, sandbox-mitigated)', () => {
+    // javascript: is not https?:// so not detected as external resource,
+    // but this documents that the classifier does NOT catch it — sandbox does.
+    const result = classifyArtifactSecurity(
+      '<img src="javascript:alert(1)">',
+    );
+    expect(result.canRender).toBe(true);
+    expect(result.blockReason).toBe(null);
+  });
+});

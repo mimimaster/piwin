@@ -321,7 +321,14 @@ export class PiSdkAdapter implements AgentHost {
       workingDirectory,
       name: sessionName ?? `session-${sessionId.slice(0, 8)}`,
     });
-    await upsertSessionRecord(indexPath, record);
+    // best-effort index write — surface failure so users see why a
+    // session may be missing from the list (corrupt index, permissions).
+    try {
+      await upsertSessionRecord(indexPath, record);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.warn(`[piwin] session index write failed: ${detail}`);
+    }
   }
 }
 
@@ -411,7 +418,9 @@ async function createPiSdkSession(
           return projects
             .filter((project) => project.trust === 'trusted')
             .map((project) => project.path);
-        } catch {
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          console.warn(`[piwin] trusted project roots read failed: ${detail}`);
           return [];
         }
       },
