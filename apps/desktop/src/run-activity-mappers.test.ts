@@ -33,7 +33,6 @@ describe('runStatusToActivityInput', () => {
       activeToolName: 'bash',
       completedToolCount: 1,
       runningProcessCount: 0,
-      primaryAction: 'view-activity',
       canStop: true,
       elapsedMs: 3000,
       planStep: 'Auth',
