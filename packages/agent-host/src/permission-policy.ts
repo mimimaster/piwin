@@ -231,8 +231,8 @@ const SECRET_ARG_KEYS =
  *
  * Pure function — server descriptions are untrusted hints only. The returned
  * `decision`/`reason` are used for surfacing risk to the user; the actual
- * call/allow decision for MCP tools is driven by the rule engine in a later
- * task (ADR 0019 §1, Task 7). Until then this classification is display-only.
+ * call/allow decision for MCP tools is driven by the rule engine in
+ * `assertMcpToolCallAllowed` (ADR 0019 §5). This classification is display-only.
  */
 export function evaluateMcpToolCallRisk(input: {
   serverId: string;
