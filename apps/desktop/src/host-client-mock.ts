@@ -49,10 +49,7 @@ export class MockHostBackend {
     string,
     Array<{ key: string; action: string; detail: string }>
   >();
-  private mockProjects = new Map<
-    string,
-    import('@piwin/contracts').ProjectRecord
-  >();
+  private mockProjects = new Map<string, import('@piwin/contracts').ProjectRecord>();
   private mockCronJobs: import('@piwin/contracts').CronJob[] = [];
   private mockHooks: import('@piwin/contracts').HookDefinition[] = [];
   private mockMcpDocument: import('@piwin/contracts').McpConfigDocument = { mcpServers: {} };
@@ -69,9 +66,8 @@ export class MockHostBackend {
       maxPasteBytes: 10 * 1024 * 1024,
       allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
     },
-    artifact: { maxBytes: 100 * 1024, htmlUiModeDefault: true },
+    artifact: { maxBytes: 100 * 1024, htmlUiModeDefault: false },
   };
-
 
   constructor(emitPush: MockEmit, getMode: () => HostMode) {
     this.emitPush = emitPush;
@@ -148,8 +144,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         ? ({ kind: 'project', projectPath: session.projectPath } as const)
         : ({ kind: 'general' } as const));
     const workingDirectory =
-      session.workingDirectory ??
-      (scope.kind === 'project' ? scope.projectPath : 'general');
+      session.workingDirectory ?? (scope.kind === 'project' ? scope.projectPath : 'general');
     const summary: SessionSummary = {
       id: sessionId,
       scope,
@@ -165,7 +160,6 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
     if (session.archivedAt) summary.archivedAt = session.archivedAt;
     return summary;
   }
-
 
   async handle(command: HostCommand, id: string): Promise<HostResponse> {
     switch (command.type) {
@@ -293,9 +287,19 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         const entries =
           relativePath === ''
             ? [
-                { name: 'README.md', relativePath: 'README.md', kind: 'file' as const, sizeBytes: 1200 },
+                {
+                  name: 'README.md',
+                  relativePath: 'README.md',
+                  kind: 'file' as const,
+                  sizeBytes: 1200,
+                },
                 { name: 'src', relativePath: 'src', kind: 'directory' as const },
-                { name: 'package.json', relativePath: 'package.json', kind: 'file' as const, sizeBytes: 800 },
+                {
+                  name: 'package.json',
+                  relativePath: 'package.json',
+                  kind: 'file' as const,
+                  sizeBytes: 800,
+                },
               ]
             : relativePath === 'src'
               ? [
@@ -359,8 +363,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
                 ? ({ kind: 'project', projectPath: value.projectPath } as const)
                 : ({ kind: 'general' } as const));
             const workingDirectory =
-              value.workingDirectory ??
-              (scope.kind === 'project' ? scope.projectPath : 'general');
+              value.workingDirectory ?? (scope.kind === 'project' ? scope.projectPath : 'general');
             const summary: SessionSummary = {
               id: sessionId,
               scope,
@@ -699,7 +702,6 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           data: { enabled: command.enabled },
         };
 
-      
       case 'session/spawn': {
         const parent = this.sessions.get(command.parentSessionId);
         if (!parent) {
@@ -714,7 +716,8 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         const childId = crypto.randomUUID();
         this.sessions.set(childId, {
           projectPath: parent.projectPath,
-          scope: parent.scope ??
+          scope:
+            parent.scope ??
             (parent.projectPath
               ? { kind: 'project', projectPath: parent.projectPath }
               : { kind: 'general' }),
@@ -724,10 +727,11 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         });
         const childMeta = {
           id: childId,
-          scope: parent.scope ??
+          scope:
+            parent.scope ??
             (parent.projectPath
-              ? ({ kind: 'project' as const, projectPath: parent.projectPath })
-              : ({ kind: 'general' as const })),
+              ? { kind: 'project' as const, projectPath: parent.projectPath }
+              : { kind: 'general' as const }),
           workingDirectory: parent.workingDirectory ?? parent.projectPath ?? 'general',
           projectPath: parent.projectPath,
           name: `subagent-${command.task.slice(0, 24)}`,
@@ -811,8 +815,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
                 ? {
                     ...item,
                     subagentStatus: (command.status === 'failed' ? 'failed' : 'done') as
-                      | 'done'
-                      | 'failed',
+                      'done' | 'failed',
                   }
                 : item,
             );
@@ -980,7 +983,13 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           type: 'response',
           command: command.type,
           success: true,
-          data: { result: { kind: command.type.replace('git/', ''), ok: true, message: `mock ${command.type}` } },
+          data: {
+            result: {
+              kind: command.type.replace('git/', ''),
+              ok: true,
+              message: `mock ${command.type}`,
+            },
+          },
         };
       case 'theme/list': {
         const activeThemeId = this.mockActiveThemeId;
@@ -1244,7 +1253,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           },
         };
       }
-      case 'git/log-graph' :
+      case 'git/log-graph':
         return {
           id,
           type: 'response',
@@ -1606,7 +1615,9 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         };
       }
       case 'mcp/save': {
-        const document = (command.document ?? { mcpServers: {} }) as import('@piwin/contracts').McpConfigDocument;
+        const document = (command.document ?? {
+          mcpServers: {},
+        }) as import('@piwin/contracts').McpConfigDocument;
         if (!document.mcpServers || typeof document.mcpServers !== 'object') {
           return {
             id,
@@ -1765,7 +1776,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         };
       }
       case 'secrets/set': {
-        const store = (this as { _mockSecrets?: Map<string, string> });
+        const store = this as { _mockSecrets?: Map<string, string> };
         if (!store._mockSecrets) store._mockSecrets = new Map();
         store._mockSecrets.set(command.providerId, command.secret);
         return {
@@ -1780,7 +1791,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         };
       }
       case 'secrets/get': {
-        const store = (this as { _mockSecrets?: Map<string, string> });
+        const store = this as { _mockSecrets?: Map<string, string> };
         const secret = store._mockSecrets?.get(command.providerId) ?? '';
         const keys = secret
           .split(/\r?\n/)
@@ -1845,7 +1856,13 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       case 'session/pin': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {
-          return { id, type: 'response', command: 'session/pin', success: false, error: 'unknown session' };
+          return {
+            id,
+            type: 'response',
+            command: 'session/pin',
+            success: false,
+            error: 'unknown session',
+          };
         }
         session.isPinned = true;
         session.pinnedAt = new Date().toISOString();
@@ -1865,7 +1882,13 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       case 'session/unpin': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {
-          return { id, type: 'response', command: 'session/unpin', success: false, error: 'unknown session' };
+          return {
+            id,
+            type: 'response',
+            command: 'session/unpin',
+            success: false,
+            error: 'unknown session',
+          };
         }
         session.isPinned = false;
         delete session.pinnedAt;
@@ -1884,7 +1907,13 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       case 'session/rename': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {
-          return { id, type: 'response', command: 'session/rename', success: false, error: 'unknown session' };
+          return {
+            id,
+            type: 'response',
+            command: 'session/rename',
+            success: false,
+            error: 'unknown session',
+          };
         }
         const name = command.name.trim().replace(/\s+/g, ' ');
         if (!name) {
@@ -2061,7 +2090,10 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             }
             if (!query) return true;
             const hay = `${sessionId} ${value.projectPath}`.toLowerCase();
-            return hay.includes(query) || value.transcript.some((m) => m.text.toLowerCase().includes(query));
+            return (
+              hay.includes(query) ||
+              value.transcript.some((m) => m.text.toLowerCase().includes(query))
+            );
           })
           .map(([sessionId, value]) => ({
             sessionId,
@@ -2162,7 +2194,13 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             });
           }
         });
-        return { id, type: 'response', command: 'pty/write', success: true, data: { ptyId: command.ptyId } };
+        return {
+          id,
+          type: 'response',
+          command: 'pty/write',
+          success: true,
+          data: { ptyId: command.ptyId },
+        };
       }
       case 'pty/resize':
         return {
@@ -2177,7 +2215,13 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         queueMicrotask(() => {
           this.emitPush({ type: 'pty/exit', ptyId: command.ptyId, exitCode: 0 });
         });
-        return { id, type: 'response', command: 'pty/close', success: true, data: { ptyId: command.ptyId } };
+        return {
+          id,
+          type: 'response',
+          command: 'pty/close',
+          success: true,
+          data: { ptyId: command.ptyId },
+        };
       }
       case 'pty/list': {
         const sessions = [...this.mockPtys.entries()].map(([ptyId, value]) => ({
@@ -2258,7 +2302,13 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       }
       case 'cron/delete': {
         this.mockCronJobs = this.mockCronJobs.filter((item) => item.id !== command.jobId);
-        return { id, type: 'response', command: 'cron/delete', success: true, data: { deleted: true } };
+        return {
+          id,
+          type: 'response',
+          command: 'cron/delete',
+          success: true,
+          data: { deleted: true },
+        };
       }
       case 'cron/run': {
         const job = this.mockCronJobs.find((item) => item.id === command.jobId);
@@ -2301,7 +2351,12 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         }
         job.lastRunAt = new Date().toISOString();
         job.lastStatus = 'ok';
-        this.emitPush({ type: 'automation/cron_finished', jobId: job.id, ok: true, message: 'mock run' });
+        this.emitPush({
+          type: 'automation/cron_finished',
+          jobId: job.id,
+          ok: true,
+          message: 'mock run',
+        });
         return {
           id,
           type: 'response',
@@ -2402,8 +2457,18 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       phase: 'waiting-first-token',
       at: new Date().toISOString(),
     });
-    this.pushEvent(sessionId, { type: 'message/start', messageId: assistantId, role: 'assistant', runId });
-    this.pushEvent(sessionId, { type: 'tool/start', toolCallId: toolId, toolName: 'mock_echo', runId });
+    this.pushEvent(sessionId, {
+      type: 'message/start',
+      messageId: assistantId,
+      role: 'assistant',
+      runId,
+    });
+    this.pushEvent(sessionId, {
+      type: 'tool/start',
+      toolCallId: toolId,
+      toolName: 'mock_echo',
+      runId,
+    });
     this.pushEvent(sessionId, { type: 'tool/end', toolCallId: toolId, isError: false, runId });
     this.pushEvent(sessionId, {
       type: 'run/phase',
@@ -2519,16 +2584,14 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
     }
     this.emitPush({ type: 'event', sessionId, event });
   }
-
-
 }
 
 function chunkText(text: string, size: number): string[] {
-    const chunks: string[] = [];
-    for (let index = 0; index < text.length; index += size) {
-      chunks.push(text.slice(index, index + size));
-    }
-    return chunks.length > 0 ? chunks : [''];
+  const chunks: string[] = [];
+  for (let index = 0; index < text.length; index += size) {
+    chunks.push(text.slice(index, index + size));
+  }
+  return chunks.length > 0 ? chunks : [''];
 }
 
 function delay(ms: number): Promise<void> {

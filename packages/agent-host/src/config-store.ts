@@ -27,10 +27,7 @@ import {
   createDefaultWebConfig,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from './paths.js';
-import {
-  sanitizeProvidersForSave,
-  validatePiwinConfig,
-} from './provider-validation.js';
+import { sanitizeProvidersForSave, validatePiwinConfig } from './provider-validation.js';
 
 export function createDefaultPiwinConfig(): PiwinConfig {
   return {
@@ -43,7 +40,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     },
     artifact: {
       maxBytes: 100 * 1024,
-      htmlUiModeDefault: true,
+      htmlUiModeDefault: false,
     },
     web: createDefaultWebConfig(),
     skills: createDefaultSkillsConfig(),
@@ -72,10 +69,7 @@ export async function loadPiwinConfig(piwinRoot?: string): Promise<PiwinConfig> 
   }
 }
 
-export async function savePiwinConfig(
-  config: PiwinConfig,
-  piwinRoot?: string,
-): Promise<string> {
+export async function savePiwinConfig(config: PiwinConfig, piwinRoot?: string): Promise<string> {
   const issues = validatePiwinConfig(config);
   if (issues.length > 0) {
     throw new Error(
@@ -140,8 +134,7 @@ function normalizeConfig(value: unknown): PiwinConfig {
         asStringArray(asRecord(record.media)?.allowedMimeTypes) ?? defaults.media.allowedMimeTypes,
     },
     artifact: {
-      maxBytes:
-        asPositiveNumber(asRecord(record.artifact)?.maxBytes) ?? defaults.artifact.maxBytes,
+      maxBytes: asPositiveNumber(asRecord(record.artifact)?.maxBytes) ?? defaults.artifact.maxBytes,
       htmlUiModeDefault:
         typeof asRecord(record.artifact)?.htmlUiModeDefault === 'boolean'
           ? Boolean(asRecord(record.artifact)?.htmlUiModeDefault)
@@ -367,8 +360,12 @@ function normalizeDesktopComposerProfile(
   return normalized.model || normalized.thinkingLevel ? normalized : undefined;
 }
 
-function isModelProtocol(value: unknown): value is 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' {
-  return value === 'openai-compatible' || value === 'anthropic-compatible' || value === 'google-gemini';
+function isModelProtocol(
+  value: unknown,
+): value is 'openai-compatible' | 'anthropic-compatible' | 'google-gemini' {
+  return (
+    value === 'openai-compatible' || value === 'anthropic-compatible' || value === 'google-gemini'
+  );
 }
 
 function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
@@ -397,8 +394,7 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
       typeof record.searchApiKeyEnv === 'string' && record.searchApiKeyEnv.length > 0
         ? record.searchApiKeyEnv
         : defaults.searchApiKeyEnv,
-    searchMaxResults:
-      asPositiveNumber(record.searchMaxResults) ?? defaults.searchMaxResults,
+    searchMaxResults: asPositiveNumber(record.searchMaxResults) ?? defaults.searchMaxResults,
     fetchProvider,
     fetchApiKeyEnv:
       typeof record.fetchApiKeyEnv === 'string' && record.fetchApiKeyEnv.length > 0
@@ -422,10 +418,7 @@ function normalizeSkillsConfig(value: unknown, defaults: SkillsConfig): SkillsCo
   };
 }
 
-function normalizeExtensionsConfig(
-  value: unknown,
-  defaults: ExtensionsConfig,
-): ExtensionsConfig {
+function normalizeExtensionsConfig(value: unknown, defaults: ExtensionsConfig): ExtensionsConfig {
   const record = asRecord(value);
   if (!record) {
     return defaults;
@@ -436,11 +429,7 @@ function normalizeExtensionsConfig(
   };
 }
 
-
-function normalizePromptsConfig(
-  value: unknown,
-  defaults: PromptsConfig,
-): PromptsConfig {
+function normalizePromptsConfig(value: unknown, defaults: PromptsConfig): PromptsConfig {
   const record = asRecord(value);
   if (!record) {
     return defaults;
@@ -451,10 +440,7 @@ function normalizePromptsConfig(
   };
 }
 
-function normalizeCompactionConfig(
-  value: unknown,
-  defaults: CompactionConfig,
-): CompactionConfig {
+function normalizeCompactionConfig(value: unknown, defaults: CompactionConfig): CompactionConfig {
   const record = asRecord(value);
   if (!record) {
     return defaults;
@@ -479,16 +465,16 @@ function normalizeProcessConfig(value: unknown, defaults: ProcessConfig): Proces
     return defaults;
   }
   const normalized: ProcessConfig = {
-    enabled: typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled ?? true,
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : (defaults.enabled ?? true),
     maxProcesses: asPositiveInteger(record.maxProcesses) ?? defaults.maxProcesses ?? 8,
     killOnSessionEnd:
       typeof record.killOnSessionEnd === 'boolean'
         ? record.killOnSessionEnd
-        : defaults.killOnSessionEnd ?? false,
+        : (defaults.killOnSessionEnd ?? false),
     killOnHostDispose:
       typeof record.killOnHostDispose === 'boolean'
         ? record.killOnHostDispose
-        : defaults.killOnHostDispose ?? true,
+        : (defaults.killOnHostDispose ?? true),
   };
   return normalized;
 }
@@ -503,7 +489,7 @@ function normalizeExecutionConfig(value: unknown, defaults: ExecutionConfig): Ex
     defaultMode:
       defaultMode === 'chat' || defaultMode === 'agent' || defaultMode === 'agent-debug'
         ? defaultMode
-        : defaults.defaultMode ?? 'agent',
+        : (defaults.defaultMode ?? 'agent'),
   };
 }
 
@@ -513,15 +499,15 @@ function normalizeAutomationConfig(value: unknown, defaults: AutomationConfig): 
     return defaults;
   }
   return {
-    enabled: typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled ?? false,
+    enabled: typeof record.enabled === 'boolean' ? record.enabled : (defaults.enabled ?? false),
     cronEnabled:
       typeof record.cronEnabled === 'boolean'
         ? record.cronEnabled
-        : defaults.cronEnabled ?? false,
+        : (defaults.cronEnabled ?? false),
     hooksEnabled:
       typeof record.hooksEnabled === 'boolean'
         ? record.hooksEnabled
-        : defaults.hooksEnabled ?? false,
+        : (defaults.hooksEnabled ?? false),
   };
 }
 
@@ -535,10 +521,8 @@ function normalizeMarketplaceConfig(
   }
   return {
     skillSources: normalizeSkillSources(record.skillSources) ?? defaults.skillSources ?? ['static'],
-    mcpRegistrySources:
-      normalizeRegistrySources(record.mcpRegistrySources) ??
-      defaults.mcpRegistrySources ??
-      ['static'],
+    mcpRegistrySources: normalizeRegistrySources(record.mcpRegistrySources) ??
+      defaults.mcpRegistrySources ?? ['static'],
   };
 }
 
@@ -583,18 +567,15 @@ function normalizeRegistrySources(
   }
   return value.filter(
     (source): source is 'official' | 'smithery' | 'glama' | 'static' =>
-      source === 'official' ||
-      source === 'smithery' ||
-      source === 'glama' ||
-      source === 'static',
+      source === 'official' || source === 'smithery' || source === 'glama' || source === 'static',
   );
 }
 
 function isNotFound(error: unknown): boolean {
   return Boolean(
     error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error as { code?: string }).code === 'ENOENT',
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: string }).code === 'ENOENT',
   );
 }
