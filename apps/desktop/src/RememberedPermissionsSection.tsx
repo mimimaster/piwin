@@ -115,7 +115,11 @@ export function RememberedPermissionsSection(
         {!props.projectPath ? (
           <EmptyState
             title={isChinese ? '未打开工作区' : 'No workspace open'}
-            description={isChinese ? '打开并信任项目后，可管理已记住的工具权限。' : 'Open and trust a project to manage remembered tool permissions.'}
+            description={
+              isChinese
+                ? '打开并信任项目后，可管理已记住的工具权限。'
+                : 'Open and trust a project to manage remembered tool permissions.'
+            }
             testId="remembered-permissions-no-project"
           />
         ) : loading ? (
@@ -126,7 +130,11 @@ export function RememberedPermissionsSection(
         ) : permissions.length === 0 ? (
           <EmptyState
             title={isChinese ? '暂无已记住权限' : 'No remembered permissions'}
-            description={isChinese ? '在权限对话框中选择「对本项目允许」后，会出现在这里。' : 'Choose “Allow for this project” in a permission dialog to see it here.'}
+            description={
+              isChinese
+                ? '在权限对话框中选择「对本项目允许」后，会出现在这里。'
+                : 'Choose “Allow for this project” in a permission dialog to see it here.'
+            }
             testId="remembered-permissions-empty"
           />
         ) : (

@@ -131,78 +131,88 @@ export function SettingsPanel({
     };
   }, [info]);
 
-  const saveConfig = useCallback(async (next: PiwinConfig): Promise<boolean> => {
-    setSaving(true);
-    setError(null);
-    setInfo(null);
-    const response = await request({ type: 'config/set', config: next });
-    setSaving(false);
-    if (!response.success) {
-      setError(response.error);
-      return false;
-    }
-    setConfig(next);
-    onSaved?.(next);
-    return true;
-  }, [request, onSaved]);
+  const saveConfig = useCallback(
+    async (next: PiwinConfig): Promise<boolean> => {
+      setSaving(true);
+      setError(null);
+      setInfo(null);
+      const response = await request({ type: 'config/set', config: next });
+      setSaving(false);
+      if (!response.success) {
+        setError(response.error);
+        return false;
+      }
+      setConfig(next);
+      onSaved?.(next);
+      return true;
+    },
+    [request, onSaved],
+  );
 
-  const discoverProviderModels = useCallback(async (
-    provider: ModelProviderConfig,
-    options?: { apiKey?: string },
-  ): Promise<ModelDiscoveryResult> => {
-    const response = await request({
-      type: 'models/discover',
-      provider,
-      ...(options?.apiKey ? { apiKey: options.apiKey } : {}),
-    });
-    if (!response.success) {
-      throw new Error(response.error);
-    }
-    return response.data as ModelDiscoveryResult;
-  }, [request]);
+  const discoverProviderModels = useCallback(
+    async (
+      provider: ModelProviderConfig,
+      options?: { apiKey?: string },
+    ): Promise<ModelDiscoveryResult> => {
+      const response = await request({
+        type: 'models/discover',
+        provider,
+        ...(options?.apiKey ? { apiKey: options.apiKey } : {}),
+      });
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      return response.data as ModelDiscoveryResult;
+    },
+    [request],
+  );
 
-  const testProviderModel = useCallback(async (
-    provider: ModelProviderConfig,
-    modelId: string,
-    options?: { apiKey?: string },
-  ): Promise<{ durationMs: number }> => {
-    const response = await request({
-      type: 'models/test',
-      provider,
-      modelId,
-      ...(options?.apiKey ? { apiKey: options.apiKey } : {}),
-    });
-    if (!response.success) {
-      throw new Error(response.error);
-    }
-    return response.data as { durationMs: number };
-  }, [request]);
+  const testProviderModel = useCallback(
+    async (
+      provider: ModelProviderConfig,
+      modelId: string,
+      options?: { apiKey?: string },
+    ): Promise<{ durationMs: number }> => {
+      const response = await request({
+        type: 'models/test',
+        provider,
+        modelId,
+        ...(options?.apiKey ? { apiKey: options.apiKey } : {}),
+      });
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      return response.data as { durationMs: number };
+    },
+    [request],
+  );
 
-  const storeProviderSecret = useCallback(async (
-    providerId: string,
-    secret: string,
-  ): Promise<string> => {
-    const response = await request({ type: 'secrets/set', providerId, secret });
-    if (!response.success) {
-      throw new Error(response.error);
-    }
-    const data = response.data as { apiKeyRef?: string };
-    if (!data.apiKeyRef?.trim()) {
-      throw new Error(locale === 'zh-CN' ? '保存密钥失败。' : 'Failed to store secret.');
-    }
-    return data.apiKeyRef;
-  }, [request, locale]);
+  const storeProviderSecret = useCallback(
+    async (providerId: string, secret: string): Promise<string> => {
+      const response = await request({ type: 'secrets/set', providerId, secret });
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      const data = response.data as { apiKeyRef?: string };
+      if (!data.apiKeyRef?.trim()) {
+        throw new Error(locale === 'zh-CN' ? '保存密钥失败。' : 'Failed to store secret.');
+      }
+      return data.apiKeyRef;
+    },
+    [request, locale],
+  );
 
-  const loadProviderSecret = useCallback(async (
-    providerId: string,
-  ): Promise<string | null> => {
-    const response = await request({ type: 'secrets/get', providerId });
-    if (!response.success) {
-      throw new Error(response.error);
-    }
-    const data = response.data as { secret?: string };
-    return data.secret?.trim() ? data.secret : null;
-  }, [request]);
+  const loadProviderSecret = useCallback(
+    async (providerId: string): Promise<string | null> => {
+      const response = await request({ type: 'secrets/get', providerId });
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      const data = response.data as { secret?: string };
+      return data.secret?.trim() ? data.secret : null;
+    },
+    [request],
+  );
 
   const saveWeb = useCallback(async (): Promise<void> => {
     if (!config) return;
@@ -211,73 +221,78 @@ export function SettingsPanel({
       web: draftToWeb(webDraft),
     };
     if (await saveConfig(next)) {
-      setInfo(locale === 'zh-CN'
-        ? '已保存 Web 工具设置；新会话将使用新的提供商密钥。'
-        : 'Web tool settings saved. New sessions will use the updated provider keys.');
+      setInfo(
+        locale === 'zh-CN'
+          ? '已保存 Web 工具设置；新会话将使用新的提供商密钥。'
+          : 'Web tool settings saved. New sessions will use the updated provider keys.',
+      );
     }
   }, [config, webDraft, saveConfig, locale]);
 
-  const contextValue = useMemo<SettingsContextValue>(() => ({
-    request,
-    config,
-    root,
-    saving,
-    setError,
-    setInfo,
-    saveConfig,
-    webDraft,
-    setWebDraft,
-    saveWeb,
-    preferences,
-    onPreferencesChange,
-    projectPath,
-    hostStatus,
-    activeSessionId,
-    onOpenSubagentSession,
-    selectSection: setSettingsNav,
-    requestSkills,
-    requestMcp,
-    requestExtensions,
-    requestPrompts,
-    requestTheme,
-    requestPet,
-    requestAutomation,
-    requestSubAgent,
-    onThemeApplied,
-    onPetActiveChanged,
-    discoverProviderModels,
-    testProviderModel,
-    storeProviderSecret,
-    loadProviderSecret,
-  }), [
-    request,
-    config,
-    root,
-    saving,
-    saveConfig,
-    webDraft,
-    saveWeb,
-    preferences,
-    onPreferencesChange,
-    projectPath,
-    hostStatus,
-    activeSessionId,
-    onOpenSubagentSession,
-    requestSkills,
-    requestMcp,
-    requestExtensions,
-    requestPrompts,
-    requestTheme,
-    requestPet,
-    requestAutomation,
-    requestSubAgent,
-    onThemeApplied,
-    onPetActiveChanged,
-    discoverProviderModels,
-    testProviderModel,
-    storeProviderSecret,
-    loadProviderSecret,
-  ]);
+  const contextValue = useMemo<SettingsContextValue>(
+    () => ({
+      request,
+      config,
+      root,
+      saving,
+      setError,
+      setInfo,
+      saveConfig,
+      webDraft,
+      setWebDraft,
+      saveWeb,
+      preferences,
+      onPreferencesChange,
+      projectPath,
+      hostStatus,
+      activeSessionId,
+      onOpenSubagentSession,
+      selectSection: setSettingsNav,
+      requestSkills,
+      requestMcp,
+      requestExtensions,
+      requestPrompts,
+      requestTheme,
+      requestPet,
+      requestAutomation,
+      requestSubAgent,
+      onThemeApplied,
+      onPetActiveChanged,
+      discoverProviderModels,
+      testProviderModel,
+      storeProviderSecret,
+      loadProviderSecret,
+    }),
+    [
+      request,
+      config,
+      root,
+      saving,
+      saveConfig,
+      webDraft,
+      saveWeb,
+      preferences,
+      onPreferencesChange,
+      projectPath,
+      hostStatus,
+      activeSessionId,
+      onOpenSubagentSession,
+      requestSkills,
+      requestMcp,
+      requestExtensions,
+      requestPrompts,
+      requestTheme,
+      requestPet,
+      requestAutomation,
+      requestSubAgent,
+      onThemeApplied,
+      onPetActiveChanged,
+      discoverProviderModels,
+      testProviderModel,
+      storeProviderSecret,
+      loadProviderSecret,
+    ],
+  );
 
   return (
     <SettingsShell
@@ -286,7 +301,11 @@ export function SettingsPanel({
       contextValue={contextValue}
       banners={
         <>
-          {error ? <Notice tone="error" title={locale === 'zh-CN' ? '设置错误' : 'Settings error'}>{error}</Notice> : null}
+          {error ? (
+            <Notice tone="error" title={locale === 'zh-CN' ? '设置错误' : 'Settings error'}>
+              {error}
+            </Notice>
+          ) : null}
           {info ? <Notice tone="info">{info}</Notice> : null}
         </>
       }
