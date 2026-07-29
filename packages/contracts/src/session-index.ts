@@ -17,6 +17,14 @@ export type SessionIndexRecord = {
   /** Resolved working directory at session creation time. */
   workingDirectory?: string;
   name?: string;
+  /**
+   * Origin of the session name. Controls auto-naming overwrite policy:
+   * - `default`: placeholder `session-<id>`; eligible for auto-naming.
+   * - `auto`: host-derived (text fallback or LLM); eligible for re-naming.
+   * - `user`: set via manual rename; never overwritten by auto-naming.
+   * Defaults to `default` when absent (legacy records).
+   */
+  nameSource?: 'default' | 'auto' | 'user';
   createdAt: string;
   updatedAt: string;
   messageCount: number;
