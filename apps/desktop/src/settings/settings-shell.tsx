@@ -158,7 +158,14 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
             {activeMeta ? translator.settings.nav[activeMeta.labelKey] : copy.settings}
           </h2>
         </header>
-        {props.banners ?? null}
+        {/* Overlay host: must NOT sit in normal flow. In-flow Notice on
+            switch/save was pushing the whole page (and every label) down,
+            then jumping back when the 3.5s info TTL cleared. */}
+        {props.banners ? (
+          <div className="ui-feedback-host settings-feedback-host" aria-live="polite">
+            {props.banners}
+          </div>
+        ) : null}
         <div
           className={`settings-main-content${
             activeSection === 'models'

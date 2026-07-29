@@ -52,8 +52,9 @@ export const DESKTOP_COMMANDS: DesktopCommand[] = [
   },
   {
     id: 'open-activity',
-    title: 'Open Activity',
-    keywords: ['terminal', 'shell', 'activity', 'logs'],
+    title: 'Open Terminal',
+    // Keep "activity" keyword so existing command palette queries still hit this id.
+    keywords: ['terminal', 'shell', 'pty', 'console', 'activity'],
     shortcut: '⌘J',
   },
   {

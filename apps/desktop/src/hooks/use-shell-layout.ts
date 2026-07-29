@@ -2,13 +2,12 @@
  * Shell presentation state: overlays, inspector tab, settings, command palette.
  * Owns no host business state. Layout mode is the single authority for compact vs desktop.
  * Titleband back/forward uses the pure shell navigation stack (not browser history).
+ *
+ * Desktop right panel: synchronous overlay flag only. Layout is pure CSS grid
+ * (stage 1fr + panel track) — chat width adjusts in-flow; no OS setSize.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RightPanelTab } from '../right-panel';
-import {
-  expandWindowOutwardForRightPanel,
-  shrinkWindowInwardAfterRightPanel,
-} from '../window-outward-expand';
 import {
   COMPACT_SHELL_MAX_WIDTH,
   deriveShellLayoutState,
@@ -37,7 +36,7 @@ export type { ShellLayoutMode, ShellOverlay, SettingsSectionId, ShellSettingsSec
 
 export function useShellLayout() {
   const [overlay, setOverlay] = useState<ShellOverlay>('none');
-  const [inspectorTab, setInspectorTab] = useState<RightPanelTab>('files');
+  const [inspectorTab, setInspectorTab] = useState<RightPanelTab>('terminal');
   const [layoutMode, setLayoutMode] = useState<ShellLayoutMode>(() =>
     typeof window !== 'undefined' ? resolveLayoutMode(window.innerWidth) : 'desktop',
   );
@@ -96,25 +95,17 @@ export function useShellLayout() {
   }, [rememberTrigger]);
 
   const openInspector = useCallback(
-    (tab: RightPanelTab = 'files') => {
+    (tab: RightPanelTab = 'terminal') => {
       rememberTrigger();
       setInspectorTab(tab);
-      void (async () => {
-        // Grow OS window first so the third column does not steal stage pixels.
-        await expandWindowOutwardForRightPanel();
-        setOverlay('inspector');
-      })();
+      // In-flow: stage 1fr shrinks as the panel track appears (one paint).
+      setOverlay('inspector');
     },
     [rememberTrigger],
   );
 
   const closeOverlay = useCallback(() => {
-    setOverlay((current) => {
-      if (current === 'inspector') {
-        void shrinkWindowInwardAfterRightPanel();
-      }
-      return 'none';
-    });
+    setOverlay('none');
     restoreFocus();
   }, [restoreFocus]);
 
@@ -134,20 +125,15 @@ export function useShellLayout() {
   }, [layoutMode, rememberTrigger, restoreFocus]);
 
   const toggleInspector = useCallback(
-    (tab: RightPanelTab = 'files') => {
-      // Read via functional update for close; open always goes through expand.
+    (tab: RightPanelTab = 'terminal') => {
       setOverlay((current) => {
         if (current === 'inspector') {
-          void shrinkWindowInwardAfterRightPanel();
           restoreFocus();
           return 'none';
         }
         rememberTrigger();
         setInspectorTab(tab);
-        void expandWindowOutwardForRightPanel().then(() => {
-          setOverlay('inspector');
-        });
-        return current;
+        return 'inspector';
       });
     },
     [rememberTrigger, restoreFocus],

@@ -357,23 +357,32 @@ Settings gear (底部)
 
 **目标**：右侧面板已经基本对齐，做细节打磨。
 
-### 7.1 Tab 导航改为顶部水平
+### 7.1 Tab 导航与加号菜单
 
-当前：垂直 section list（Cursor 风格）
-可选改为：顶部水平 tab bar（更紧凑）
+- Tab strip 顶部水平展示当前打开的面板。
+- “+”按钮改为浮层命令菜单（DropdownMenu/Portal），列出可打开的 side tool：File、Terminal、Browser、Canvas、Side Chat、Changes、Notes、Cards。
+- 已打开的项显示 hint；点击已打开项会切换到对应 tab。
+- Browser：iframe URL 预览，支持 localhost/端口补全，持久化 URL。
+- Canvas：HTML5 手绘白板，调色板/笔触/清屏/保存 PNG。
+- Side Chat：本地 scratchpad，按 session 持久化消息；如需接入 AI 需另外设计 session/contract。
 
 ### 7.2 文件树增加图标
 
 - 文件夹: 📁 (SVG)
 - 文件类型图标: .ts / .tsx / .css / .json 等
 
-### 7.3 Terminal 增加 resize handle
+### 7.3 Terminal 稳定性修复 + 多 session
 
-- 底部拖拽条，可调整 terminal 高度
+- `XtermSurface` 改为等容器出现有效尺寸（>=40x40）后再 `open` xterm，避免右侧面板折叠/隐藏时 fit 出 0 列，导致 prompt 折行、乱码、重复。
+- 尺寸变化加入 120ms 防抖，避免快速拖拽时连续 resize PTY。
+- 切换 Files / Terminal tab 时 PTY 保持运行，切回时只重新 fit + resize。
+- `TerminalDock` 支持多 session：横向 tab 条，每个 session 独立 PTY；`+` 新建 session，`×` 关闭；project/trust 切换时关闭并重建默认 session。
 
 ### 7.4 验收标准
 
-- [ ] Tab 导航清晰
+- [x] Tab 导航清晰、加号菜单为浮层
+- [x] 新增 Browser / Canvas / Side Chat 功能面板
+- [x] Terminal 在面板折叠/隐藏/切换时不因 0 尺寸 fit 而出现重影/重复 prompt
 - [ ] 文件树有类型图标
 - [ ] Terminal 可拖拽调整高度
 

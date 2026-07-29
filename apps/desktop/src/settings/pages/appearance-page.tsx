@@ -76,9 +76,10 @@ export function AppearancePage(): ReactElement {
         >
           <Switch
             checked={preferences.codeWrap}
-            onChange={() => {
-              updatePreference(preferences, 'codeWrap', !preferences.codeWrap, onPreferencesChange);
+            onCheckedChange={(checked) => {
+              updatePreference(preferences, 'codeWrap', checked, onPreferencesChange);
             }}
+            aria-label={locale === 'zh-CN' ? '代码自动换行' : 'Code wrap'}
           />
         </FieldRow>
 

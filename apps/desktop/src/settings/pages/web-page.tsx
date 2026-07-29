@@ -4,7 +4,7 @@
  * settings context so it survives nav switches; tab state is page-local.
  */
 import { useState, type ReactElement } from 'react';
-import { Button } from '@piwin/ui-kit';
+import { Button, SegmentedControl, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { useSettings } from '../settings-context';
@@ -25,23 +25,16 @@ export function WebPage(): ReactElement {
             : 'Configure web_search and web_fetch plugins to access the internet.'}
         />
 
-        <div className="segmented-control" style={{ marginBottom: 24 }}>
-          <button
-            type="button"
-            className="segmented-control-item"
-            data-state={webToolsTab === 'search' ? 'active' : 'inactive'}
-            onClick={() => setWebToolsTab('search')}
-          >
-            {locale === 'zh-CN' ? '搜索' : 'Search'}
-          </button>
-          <button
-            type="button"
-            className="segmented-control-item"
-            data-state={webToolsTab === 'fetch' ? 'active' : 'inactive'}
-            onClick={() => setWebToolsTab('fetch')}
-          >
-            Fetch
-          </button>
+        <div className="settings-segmented-wrap" style={{ marginBottom: 24 }}>
+          <SegmentedControl
+            value={webToolsTab}
+            onChange={(value) => setWebToolsTab(value as 'search' | 'fetch')}
+            data={[
+              { value: 'search', label: locale === 'zh-CN' ? '搜索' : 'Search' },
+              { value: 'fetch', label: 'Fetch' },
+            ]}
+            testId="web-tools-tab"
+          />
         </div>
 
         {webToolsTab === 'search' ? (
@@ -94,36 +87,49 @@ export function WebPage(): ReactElement {
                     </div>
                     <div className="muted ext-desc">{option.description}</div>
                   </div>
-                  {webDraft.searchProvider === option.id && <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>✓</span>}
+                  {webDraft.searchProvider === option.id ? (
+                    <span className="ext-list-check" aria-hidden>✓</span>
+                  ) : (
+                    <span className="ext-list-check ext-list-check--empty" aria-hidden />
+                  )}
                 </div>
               ))}
             </div>
 
-            {webDraft.searchProvider === 'brave' || webDraft.searchProvider === 'tavily' ? (
+            {/* Always-mounted env field: hide via CSS when unused so toggle doesn't reflow. */}
+            <div
+              className={
+                webDraft.searchProvider === 'brave' || webDraft.searchProvider === 'tavily'
+                  ? 'web-tools-conditional is-visible'
+                  : 'web-tools-conditional'
+              }
+            >
               <FieldRow
                 label={locale === 'zh-CN' ? 'API Key 环境变量' : 'API Key Env Var'}
                 description={locale === 'zh-CN' ? '仅环境变量名；密钥不写进配置。' : 'Env var name only; key not written to config.'}
               >
-                <input
+                <TextInput
                   value={webDraft.searchApiKeyEnv}
                   onChange={(event) =>
-                    setWebDraft({ ...webDraft, searchApiKeyEnv: event.target.value })
+                    setWebDraft({ ...webDraft, searchApiKeyEnv: event.currentTarget.value })
                   }
                   placeholder={
                     webDraft.searchProvider === 'tavily' ? 'TAVILY_API_KEY' : 'BRAVE_API_KEY'
                   }
-                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                  spellCheck={false}
+                  style={{ minWidth: 180 }}
                 />
               </FieldRow>
-            ) : null}
+            </div>
 
             <FieldRow label={locale === 'zh-CN' ? '搜索结果上限' : 'Maximum results'}>
-              <input
+              <TextInput
                 value={webDraft.searchMaxResults}
                 onChange={(event) =>
-                  setWebDraft({ ...webDraft, searchMaxResults: event.target.value })
+                  setWebDraft({ ...webDraft, searchMaxResults: event.currentTarget.value })
                 }
-                style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)', width: '80px' }}
+                inputMode="numeric"
+                style={{ width: 88 }}
               />
             </FieldRow>
           </div>
@@ -172,28 +178,39 @@ export function WebPage(): ReactElement {
                     </div>
                     <div className="muted ext-desc">{option.description}</div>
                   </div>
-                  {webDraft.fetchProvider === option.id && <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>✓</span>}
+                  {webDraft.fetchProvider === option.id ? (
+                    <span className="ext-list-check" aria-hidden>✓</span>
+                  ) : (
+                    <span className="ext-list-check ext-list-check--empty" aria-hidden />
+                  )}
                 </div>
               ))}
             </div>
 
-            {webDraft.fetchProvider === 'firecrawl' || webDraft.fetchProvider === 'jina' ? (
+            <div
+              className={
+                webDraft.fetchProvider === 'firecrawl' || webDraft.fetchProvider === 'jina'
+                  ? 'web-tools-conditional is-visible'
+                  : 'web-tools-conditional'
+              }
+            >
               <FieldRow
                 label={locale === 'zh-CN' ? 'API Key 环境变量' : 'API Key Env Var'}
                 description={locale === 'zh-CN' ? '仅环境变量名；密钥不写进配置。' : 'Env var name only; key not written to config.'}
               >
-                <input
+                <TextInput
                   value={webDraft.fetchApiKeyEnv}
                   onChange={(event) =>
-                    setWebDraft({ ...webDraft, fetchApiKeyEnv: event.target.value })
+                    setWebDraft({ ...webDraft, fetchApiKeyEnv: event.currentTarget.value })
                   }
                   placeholder={
                     webDraft.fetchProvider === 'firecrawl' ? 'FIRECRAWL_API_KEY' : 'JINA_API_KEY'
                   }
-                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                  spellCheck={false}
+                  style={{ minWidth: 180 }}
                 />
               </FieldRow>
-            ) : null}
+            </div>
           </div>
         )}
 

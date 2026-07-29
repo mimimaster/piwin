@@ -4,10 +4,11 @@
  * remembered-permissions list. Reads state via useSettings().
  */
 import type { ReactElement } from 'react';
+import { useState } from 'react';
 import { buildCapabilityMatrix } from '@piwin/contracts';
 import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { Switch } from '@piwin/ui-kit';
+import { Collapse, Select, Switch } from '@piwin/ui-kit';
 import { RememberedPermissionsSection } from '../../RememberedPermissionsSection';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
@@ -81,6 +82,8 @@ export function GeneralPage(): ReactElement {
     request,
     saveConfig,
   } = useSettings();
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
 
   async function handleToggleMock(agentMock: boolean): Promise<void> {
     if (!config) return;
@@ -95,15 +98,17 @@ export function GeneralPage(): ReactElement {
           description={copy.languageDescription}
         />
         <FieldRow label={copy.language}>
-          <select
+          <Select
             value={locale}
-            data-testid="settings-language-select"
+            testId="settings-language-select"
             aria-label={copy.language}
-            onChange={(event) => setLocale(event.target.value as DesktopLocale)}
-          >
-            <option value="zh-CN">{copy.chinese}</option>
-            <option value="en">{copy.english}</option>
-          </select>
+            data={[
+              { value: 'zh-CN', label: copy.chinese },
+              { value: 'en', label: copy.english },
+            ]}
+            onChange={(event) => setLocale(event.currentTarget.value as DesktopLocale)}
+            style={{ minWidth: 140 }}
+          />
         </FieldRow>
       </div>
 
@@ -119,7 +124,8 @@ export function GeneralPage(): ReactElement {
           >
             <Switch
               checked={config.agentMock !== true}
-              onChange={() => void handleToggleMock(config.agentMock !== true)}
+              onCheckedChange={(online) => void handleToggleMock(!online)}
+              aria-label={locale === 'zh-CN' ? '在线模式' : 'Online mode'}
             />
           </FieldRow>
         ) : null}
@@ -127,6 +133,8 @@ export function GeneralPage(): ReactElement {
 
       <RememberedPermissionsSection
         projectPath={projectPath}
+        expanded={permissionsOpen}
+        onToggle={() => setPermissionsOpen((v) => !v)}
         request={async (command) =>
           request({
             type: command.type,
@@ -138,42 +146,66 @@ export function GeneralPage(): ReactElement {
 
       {hostStatus ? (
         <div className="settings-section" data-testid="capability-matrix">
-          <PageTitle
-            title={locale === 'zh-CN' ? 'Host 能力 (高级)' : 'Host capabilities (Advanced)'}
-            description={
-              <>
-                {locale === 'zh-CN' ? '当前模式' : 'Current mode'}{' '}
-                <code>{hostStatus.mode}</code>
-                {hostStatus.mock ? ' · mock' : ''}
-              </>
-            }
-          />
-          <ul className="capability-matrix-list">
-            {buildCapabilityMatrix(hostStatus.capabilities, {
-              mode: hostStatus.mode,
-              mock: hostStatus.mock,
-            }).map((row) => (
-              <li
-                key={row.id}
-                className={
-                  row.available
-                    ? 'capability-row available'
-                    : 'capability-row unavailable'
-                }
-                data-testid={`capability-row-${row.id}`}
-              >
-                <span className="capability-mark" aria-hidden>
-                  {row.available ? '●' : '○'}
-                </span>
-                <span className="capability-body">
-                  <strong>{getCapabilityLabel(row.id, row.label, locale)}</strong>
-                  {localizeCapabilityNote(row.note, locale) ? (
-                    <span className="muted"> — {localizeCapabilityNote(row.note, locale)}</span>
-                  ) : null}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <button
+            type="button"
+            className="settings-collapsible-trigger"
+            onClick={() => setCapabilitiesOpen((v) => !v)}
+            aria-expanded={capabilitiesOpen}
+            data-testid="capability-matrix-toggle"
+          >
+            <PageTitle
+              title={locale === 'zh-CN' ? 'Host 能力 (高级)' : 'Host capabilities (Advanced)'}
+              description={
+                <>
+                  {locale === 'zh-CN' ? '当前模式' : 'Current mode'}{' '}
+                  <code>{hostStatus.mode}</code>
+                  {hostStatus.mock ? ' · mock' : ''}
+                </>
+              }
+            />
+            <svg
+              className={`settings-collapsible-chevron ${capabilitiesOpen ? 'open' : ''}`}
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+
+          <Collapse expanded={capabilitiesOpen} testId="capability-matrix-collapse">
+            <ul className="capability-matrix-list">
+              {buildCapabilityMatrix(hostStatus.capabilities, {
+                mode: hostStatus.mode,
+                mock: hostStatus.mock,
+              }).map((row) => (
+                <li
+                  key={row.id}
+                  className={
+                    row.available
+                      ? 'capability-row available'
+                      : 'capability-row unavailable'
+                  }
+                  data-testid={`capability-row-${row.id}`}
+                >
+                  <span className="capability-mark" aria-hidden>
+                    {row.available ? '●' : '○'}
+                  </span>
+                  <span className="capability-body">
+                    <strong>{getCapabilityLabel(row.id, row.label, locale)}</strong>
+                    {localizeCapabilityNote(row.note, locale) ? (
+                      <span className="muted"> — {localizeCapabilityNote(row.note, locale)}</span>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </Collapse>
         </div>
       ) : null}
     </div>

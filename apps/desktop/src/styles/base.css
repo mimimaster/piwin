@@ -18,6 +18,12 @@ html, body, #root {
   color: var(--text);
 }
 
+/* Reserve classic scrollbar track so overflow appearing/disappearing does
+   not shift the entire shell by ~15px (reads as "everything jittered"). */
+html {
+  scrollbar-gutter: stable;
+}
+
 button, input, textarea, select { font: inherit; color: inherit; }
 
 /* Native check controls track the Daybreak accent instead of UA blue. */
