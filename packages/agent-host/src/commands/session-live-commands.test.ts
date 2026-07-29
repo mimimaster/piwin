@@ -153,12 +153,11 @@ describe('session live control commands', () => {
     expect(context.getActiveRun(session.id)).toBeTruthy();
     expect(
       events
-        .filter((message): message is Extract<HostPush, { type: 'event' }> => message.type === 'event')
+        .filter(
+          (message): message is Extract<HostPush, { type: 'event' }> => message.type === 'event',
+        )
         .map((message) => message.event.type),
-    ).toEqual([
-      'run/phase',
-      'run/phase',
-    ]);
+    ).toEqual(['run/phase', 'run/phase']);
 
     releasePreparation?.();
     await session.promptSettled;
@@ -286,6 +285,7 @@ function createControlContext(
     sessionExecutionModes: new Map(),
     sessionFilesTouched: new Map(),
     sessionLastPromptText: new Map(),
+    sessionModels: new Map(),
     sessionAutoCompactionOverrides: new Map(),
     unsubscribers: new Map(),
     transcriptRecorders: new Map(),
