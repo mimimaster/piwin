@@ -43,6 +43,8 @@ export {
   BUNDLED_ALLOW,
   createBundledRuleSet,
 } from './permission-defaults.js';
+export { loadMergedPermissionRules } from './permission-rule-loader.js';
+export type { LoadMergedPermissionRulesInput } from './permission-rule-loader.js';
 export { buildProcessTools } from './process-tools.js';
 export type { BuildProcessToolsOptions, ProcessToolPermissionGate } from './process-tools.js';
 export {
