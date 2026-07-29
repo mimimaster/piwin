@@ -14,6 +14,7 @@ import type {
   MediaAttachmentRef,
   MediaSaveData,
   PermissionDecision,
+  PermissionMode,
   PromptInput,
   SessionHandle,
   AgentEventEnvelope,
@@ -154,6 +155,11 @@ export type HostRuntimeOptions = {
    * callers omit it and always create sessions through the Pi adapter.
    */
   testFixture?: HostRuntimeTestFixture;
+  /**
+   * Session-level permission mode override (ADR 0019 §3). Takes precedence
+   * over `config.permissions.mode` without persisting to disk.
+   */
+  permissionModeOverride?: PermissionMode;
 };
 
 export type HostRuntimeTestFixture =
@@ -283,6 +289,9 @@ export class HostRuntime {
     }
     if (typeof options.rpcCommand === 'string') {
       createOptions.rpcCommand = options.rpcCommand;
+    }
+    if (options.permissionModeOverride) {
+      createOptions.permissionModeOverride = options.permissionModeOverride;
     }
     this.host = createAgentHost(createOptions);
   }

@@ -123,6 +123,12 @@ export type PiSdkAdapterOptions = {
    * warnings so the user is informed that the effective mode changed.
    */
   onLog?: (message: string, level: 'info' | 'warn' | 'error') => void;
+  /**
+   * Session-level permission mode override (ADR 0019 §3). Takes precedence
+   * over `config.permissions.mode` without persisting to disk. The bypass
+   * guard still narrows `bypass` to `auto` for untrusted projects.
+   */
+  permissionModeOverride?: PermissionMode;
 };
 
 /**
@@ -449,7 +455,8 @@ async function createPiSdkSession(
   // own permissions.json. General scope (no project) keeps bypass — the user
   // is the trust authority there. The downgrade only narrows the effective
   // mode; rules + allowlists still apply.
-  const configuredMode = config.permissions?.mode ?? 'auto';
+  const configuredMode =
+    adapterOptions.permissionModeOverride ?? config.permissions?.mode ?? 'auto';
   const isProjectScope = location.scope.kind === 'project';
   const guard = resolveBypassGuard(configuredMode, isProjectScope, projectTrusted);
   if (guard.downgraded) {

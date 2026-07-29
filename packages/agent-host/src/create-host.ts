@@ -1,4 +1,9 @@
-import type { AgentHost, AgentHostFactoryOptions, PermissionDecision } from '@piwin/contracts';
+import type {
+  AgentHost,
+  AgentHostFactoryOptions,
+  PermissionDecision,
+  PermissionMode,
+} from '@piwin/contracts';
 import type { McpLifecycleManager } from '@piwin/mcp';
 import type { ProcessRegistry } from '@piwin/process';
 import { PiRpcAdapter } from './rpc-adapter.js';
@@ -27,6 +32,8 @@ export type CreateAgentHostOptions = AgentHostFactoryOptions & {
   processRegistry?: ProcessRegistry;
   /** Host-level log sink for permission policy downgrades (ADR 0019 §3). */
   onLog?: PiSdkAdapterOptions['onLog'];
+  /** Session-level permission mode override (ADR 0019 §3). */
+  permissionModeOverride?: PermissionMode;
 };
 
 export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
@@ -60,6 +67,9 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
     if (options.processRegistry) {
       rpcOptions.processRegistry = options.processRegistry;
     }
+    if (options.permissionModeOverride) {
+      rpcOptions.permissionModeOverride = options.permissionModeOverride;
+    }
     return new PiRpcAdapter(rpcOptions);
   }
 
@@ -84,6 +94,9 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
   }
   if (options.processRegistry) {
     sdkOptions.processRegistry = options.processRegistry;
+  }
+  if (options.permissionModeOverride) {
+    sdkOptions.permissionModeOverride = options.permissionModeOverride;
   }
   return new PiSdkAdapter(sdkOptions);
 }
