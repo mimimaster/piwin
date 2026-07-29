@@ -252,7 +252,16 @@ export class HostRuntime {
           return projects
             .filter((project) => project.trust === 'trusted')
             .map((project) => project.path);
-        } catch {
+        } catch (error) {
+          // Trust DB read failure must not crash the host, but silently
+          // returning [] would make all process spawns look "untrusted"
+          // with no explanation. Warn so the user can diagnose.
+          const detail = error instanceof Error ? error.message : String(error);
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `trusted project roots read failed: ${detail}`,
+          });
           return [];
         }
       },
@@ -906,7 +915,13 @@ export class HostRuntime {
               projectPath,
             );
             return project.trust === 'trusted';
-          } catch {
+          } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `pty trust check failed for ${projectPath}: ${detail}`,
+            });
             return false;
           }
         },
@@ -1417,8 +1432,15 @@ export class HostRuntime {
           copySubagentLineage(recordInput, lineage);
           await upsertSessionRecord(indexPath, createSessionRecord(recordInput));
         }
-      } catch {
-        // best-effort index write
+      } catch (error) {
+        // best-effort index write — surface failure so users see why a
+        // session may be missing from the list (corrupt index, permissions).
+        const detail = error instanceof Error ? error.message : String(error);
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `session index write failed: ${detail}`,
+        });
       }
     }
 
