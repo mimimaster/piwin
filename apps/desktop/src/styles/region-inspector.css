@@ -250,6 +250,32 @@
   display: none;
 }
 
+/* ── Right panel scrollbars ───────────────────────────────────────── */
+/* Thin, transparent-track scrollbars so content can sit flush with the
+   right edge instead of leaving a long visible strip. */
+.right-panel-body,
+.right-panel-body * {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent;
+}
+
+.right-panel-body::-webkit-scrollbar,
+.right-panel-body *::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.right-panel-body::-webkit-scrollbar-track,
+.right-panel-body *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.right-panel-body::-webkit-scrollbar-thumb,
+.right-panel-body *::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 3px;
+}
+
 /* ── Plus menu (floating side-tool picker) ────────────────────────── */
 
 .right-panel-plus-menu {
@@ -821,7 +847,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 8px 12px;
+  padding: 8px 0 8px 12px;
   font-family: var(--mono);
   font-size: 11.5px;
   line-height: 1.45;
@@ -873,7 +899,7 @@
 .pty-stream {
   flex: 1;
   overflow: auto;
-  padding: 8px 10px;
+  padding: 8px 0 8px 10px;
   font-family: var(--mono);
   font-size: 12px;
   line-height: 1.45;
@@ -928,7 +954,7 @@
 .xterm-surface {
   flex: 1;
   min-height: 140px;
-  padding: 4px 6px;
+  padding: 4px 0 4px 6px;
   background: rgb(15, 17, 21); /* xterm canvas — deliberate literal */
   border-radius: 6px;
   overflow: hidden;
