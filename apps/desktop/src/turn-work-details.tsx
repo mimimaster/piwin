@@ -12,6 +12,8 @@ import {
 import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
 import { TurnToolGroup } from './turn-tool-group';
 import { IconChevronDown } from './shell-icons';
+import { RunActivitySplash } from './RunActivitySplash.js';
+import { turnPresentationToActivityInput } from './run-activity-mappers.js';
 
 export type TurnWorkDetailsProps = {
   message: ChatMessageUi;
@@ -33,10 +35,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     locale,
   });
 
-  const defaultOpen = resolveWorkDetailsDefaultOpen(
-    presentation,
-    props.workDetailsExpanded,
-  );
+  const defaultOpen = resolveWorkDetailsDefaultOpen(presentation, props.workDetailsExpanded);
   const [open, setOpen] = useState(defaultOpen);
 
   useEffect(() => {
@@ -105,10 +104,10 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
 
       <div className="turn-work-details-body" hidden={!open}>
         {presentation.isWaitingForModel ? (
-          <div className="turn-waiting-line" data-testid="turn-waiting-line" role="status">
-            <span className="turn-shimmer-text">
-              {locale === 'zh-CN' ? '正在连接模型…' : 'Connecting to model…'}
-            </span>
+          <div className="turn-waiting-line" data-testid="turn-waiting-line">
+            <RunActivitySplash
+              input={turnPresentationToActivityInput(presentation, props.message, locale)}
+            />
           </div>
         ) : null}
 
@@ -127,9 +126,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
           <div className="turn-permission-wait" data-testid="turn-permission-wait" role="status">
             <strong>{locale === 'zh-CN' ? '等待权限' : 'Waiting for permission'}</strong>
             <div>{permissionItem.action}</div>
-            {permissionItem.detail ? (
-              <div className="muted">{permissionItem.detail}</div>
-            ) : null}
+            {permissionItem.detail ? <div className="muted">{permissionItem.detail}</div> : null}
           </div>
         ) : null}
 

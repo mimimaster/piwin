@@ -13,6 +13,7 @@
 import type { ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
 import type { RunStatusView } from './run-status.js';
+import { RunActivityInline } from './RunActivityInline.js';
 
 export type ContextBarSession = {
   title: string;
@@ -65,8 +66,7 @@ function phaseDotClass(kind: RunStatusView['kind']): string {
 
 export function ContextBar(props: ContextBarProps): ReactElement {
   const { session, runState } = props;
-  const elapsedText =
-    runState.elapsedMs !== undefined ? formatElapsed(runState.elapsedMs) : null;
+  const elapsedText = runState.elapsedMs !== undefined ? formatElapsed(runState.elapsedMs) : null;
 
   return (
     <div className="context-bar" data-testid="workspace-context-header" data-kind={runState.kind}>
@@ -90,7 +90,10 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       >
         <i className={phaseDotClass(runState.kind)} aria-hidden />
         {runState.kind !== 'idle' ? (
-          <span className="context-bar-status-label">{runState.label}</span>
+          <RunActivityInline
+            runState={runState}
+            {...(props.locale ? { locale: props.locale } : {})}
+          />
         ) : null}
         {elapsedText !== null ? (
           <span className="context-bar-elapsed muted" aria-hidden>
@@ -135,7 +138,6 @@ export function ContextBar(props: ContextBarProps): ReactElement {
           </Button>
         ) : null}
       </div>
-
     </div>
   );
 }

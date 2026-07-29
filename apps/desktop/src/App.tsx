@@ -1225,6 +1225,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     permissionPrompt={state.permissionPrompt}
                     workDetailsExpanded={preferences.workDetailsExpanded}
                     toolDensity={preferences.toolDensity}
+                    locale={desktopLocale}
                     onOpenSubagentSession={handleOpenSubagentSession}
                     onEdit={setEditingMessageId}
                     onCancelEdit={handleCancelMessageEdit}

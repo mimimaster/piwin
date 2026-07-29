@@ -1,0 +1,124 @@
+/* Run activity animation component styles.
+   Used by RunActivitySplash, RunActivityInline, and RunActivitySlot. */
+
+.run-activity-splash {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.run-activity-splash-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.run-activity-splash-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.run-activity-splash-icon-wrap[data-kind="connecting-model"] .run-activity-splash-icon,
+.run-activity-splash-icon-wrap[data-kind="waiting-first-token"] .run-activity-splash-icon,
+.run-activity-splash-icon-wrap[data-kind="preparing"] .run-activity-splash-icon {
+  animation: run-activity-breathe 1.6s ease-in-out infinite;
+}
+
+.run-activity-splash-icon-wrap[data-kind="working"] .run-activity-splash-icon {
+  animation: run-activity-spin 2s linear infinite;
+}
+
+.run-activity-splash-icon-wrap[data-kind="failed"] .run-activity-splash-icon {
+  color: var(--danger);
+}
+
+.run-activity-splash-icon-wrap[data-kind="complete"] .run-activity-splash-icon {
+  color: var(--ok);
+}
+
+.run-activity-splash-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.run-activity-splash-label {
+  position: relative;
+  height: 1.4em;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.run-activity-splash-phrase {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.run-activity-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--content-secondary);
+}
+
+.run-activity-inline-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.run-activity-inline-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.run-activity-inline-icon-wrap[data-kind="working"] .run-activity-inline-icon {
+  animation: run-activity-spin 2s linear infinite;
+}
+
+.run-activity-inline-icon-wrap[data-kind="connecting-model"] .run-activity-inline-icon,
+.run-activity-inline-icon-wrap[data-kind="waiting-first-token"] .run-activity-inline-icon,
+.run-activity-inline-icon-wrap[data-kind="preparing"] .run-activity-inline-icon {
+  animation: run-activity-breathe 1.6s ease-in-out infinite;
+}
+
+.run-activity-inline-label {
+  position: relative;
+  height: 1.3em;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.run-activity-inline-phrase {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+@keyframes run-activity-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.12); opacity: 0.8; }
+}
+
+@keyframes run-activity-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-activity-splash-icon,
+  .run-activity-inline-icon {
+    animation: none;
+  }
+}

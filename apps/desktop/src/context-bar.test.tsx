@@ -147,15 +147,12 @@ describe('ContextBar', () => {
 
   it('shows stop when primary run can be stopped', () => {
     const onStop = vi.fn();
-    renderContextBar(
-      createBaseProps({ runState: createWorkingRunStatus(), onStop }),
-      root,
-    );
+    renderContextBar(createBaseProps({ runState: createWorkingRunStatus(), onStop }), root);
 
     const statusRegions = container.querySelectorAll('[data-testid="run-status-strip"]');
     expect(statusRegions).toHaveLength(1);
     expect(statusRegions[0]?.getAttribute('data-kind')).toBe('working');
-    expect(container.textContent).toContain('Working');
+    expect(container.textContent).toContain('Running read_file');
     expect(container.textContent).toContain('12s');
 
     const stopButton = container.querySelector<HTMLButtonElement>(
@@ -172,10 +169,7 @@ describe('ContextBar', () => {
 
   it('shows retry when failed and onRetry is provided', () => {
     const onRetry = vi.fn();
-    renderContextBar(
-      createBaseProps({ runState: createFailedRunStatus(), onRetry }),
-      root,
-    );
+    renderContextBar(createBaseProps({ runState: createFailedRunStatus(), onRetry }), root);
 
     expect(container.querySelectorAll('[data-testid="run-status-strip"]')).toHaveLength(1);
     expect(
