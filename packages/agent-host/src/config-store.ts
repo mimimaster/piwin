@@ -42,7 +42,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     },
     artifact: {
       maxBytes: 100 * 1024,
-      htmlUiModeDefault: true,
+      htmlUiModeDefault: false,
     },
     web: createDefaultWebConfig(),
     skills: createDefaultSkillsConfig(),
