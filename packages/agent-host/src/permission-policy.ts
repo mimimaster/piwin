@@ -26,6 +26,11 @@ const ASK_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
   { name: 'force-push', pattern: /\bgit\s+push\b[^\n]*\s--force\b/i },
   { name: 'force-with-lease', pattern: /\bgit\s+push\b[^\n]*\s--force-with-lease\b/i },
   { name: 'write-env', pattern: /(?:^|[;&|])\s*(?:tee|cp|mv|echo|cat)\b[^\n]*\.env\b/i },
+  {
+    name: 'write-secret-file',
+    pattern:
+      /(?:^|[;&|])\s*(?:tee|cp|mv|echo|cat)\b[^\n]*~\/.(?:ssh\/(?:authorized_keys|id_rsa|id_ed25519|id_ecdsa)|aws\/credentials|aws\/config|piwin\/config\.json|gitconfig|npmrc|pypirc|netrc)\b/i,
+  },
   { name: 'chmod-777', pattern: /\bchmod\s+(-R\s+)?777\b/i },
 ];
 
