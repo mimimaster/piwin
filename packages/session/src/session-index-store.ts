@@ -177,11 +177,12 @@ export function createSessionRecord(input: {
   worktreeBranch?: string;
 }): SessionIndexRecord {
   const timestamp = nowIso();
-  const resolvedScope: SessionScope =
-    input.scope ?? { kind: 'project', projectPath: input.projectPath };
+  const resolvedScope: SessionScope = input.scope ?? {
+    kind: 'project',
+    projectPath: input.projectPath,
+  };
   const resolvedWorkingDirectory =
-    input.workingDirectory ??
-    (resolvedScope.kind === 'project' ? resolvedScope.projectPath : '');
+    input.workingDirectory ?? (resolvedScope.kind === 'project' ? resolvedScope.projectPath : '');
   const record: SessionIndexRecord = {
     id: input.id,
     projectPath: input.projectPath,
@@ -304,7 +305,38 @@ export async function renameSessionRecord(
     return undefined;
   }
   record.name = normalized;
+  record.nameSource = 'user';
   // Rename is metadata-only; do not bump updatedAt so sort order stays stable.
+  await saveSessionIndex(filePath, document);
+  return record;
+}
+
+/**
+ * Write an auto-derived name to a session record, but ONLY when the current
+ * `nameSource` is not `'user'`. A user-manual rename is permanent and must
+ * never be overwritten by auto-naming. Returns the updated record, or
+ * `undefined` when the session is missing or the name was user-set.
+ */
+export async function setSessionAutoName(
+  filePath: string,
+  sessionId: string,
+  name: string,
+): Promise<SessionIndexRecord | undefined> {
+  const normalized = normalizeSessionName(name);
+  if (normalized.length === 0) {
+    return undefined;
+  }
+  const document = await loadSessionIndex(filePath);
+  const record = document.sessions.find((item) => item.id === sessionId);
+  if (!record) {
+    return undefined;
+  }
+  if (record.nameSource === 'user') {
+    return undefined;
+  }
+  record.name = normalized;
+  record.nameSource = 'auto';
+  // Auto-name is metadata-only; do not bump updatedAt so sort order stays stable.
   await saveSessionIndex(filePath, document);
   return record;
 }
@@ -380,9 +412,7 @@ export async function listAllSessionRecords(
  * Build a predicate that matches a session record against a string project path
  * or a SessionScope discriminated union.
  */
-function buildScopeFilter(
-  filter: string | SessionScope,
-): (record: SessionIndexRecord) => boolean {
+function buildScopeFilter(filter: string | SessionScope): (record: SessionIndexRecord) => boolean {
   if (typeof filter === 'string') {
     return (record) => record.projectPath === filter;
   }
@@ -396,8 +426,8 @@ function buildScopeFilter(
 function isNotFound(error: unknown): boolean {
   return Boolean(
     error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error as { code?: string }).code === 'ENOENT',
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: string }).code === 'ENOENT',
   );
 }
