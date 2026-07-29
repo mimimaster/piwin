@@ -18,11 +18,7 @@ export type RunStatusKind =
   | 'failed'
   | 'complete';
 
-export type RunStatusPrimaryAction =
-  | 'view-activity'
-  | 'review-permission'
-  | 'view-plan'
-  | 'retry';
+export type RunStatusPrimaryAction = 'view-activity' | 'review-permission' | 'view-plan' | 'retry';
 
 export type RunStatusView = {
   kind: RunStatusKind;
@@ -34,6 +30,7 @@ export type RunStatusView = {
   primaryAction?: RunStatusPrimaryAction;
   canStop: boolean;
   elapsedMs?: number;
+  planStep?: string;
 };
 
 export type DeriveRunStatusInput = {
@@ -62,11 +59,22 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
     activePhase === 'connecting-model' ||
     activePhase === 'waiting-first-token'
   ) {
-    const labels: Record<typeof activePhase, { label: string; summary: string; kind: RunStatusKind }> = {
+    const labels: Record<
+      typeof activePhase,
+      { label: string; summary: string; kind: RunStatusKind }
+    > = {
       accepted: { kind: 'preparing', label: 'Accepted', summary: 'Preparing the agent run…' },
       preparing: { kind: 'preparing', label: 'Preparing', summary: 'Preparing the agent run…' },
-      'connecting-model': { kind: 'connecting-model', label: 'Connecting', summary: 'Connecting to the model…' },
-      'waiting-first-token': { kind: 'waiting-first-token', label: 'Waiting', summary: 'Waiting for the first model token…' },
+      'connecting-model': {
+        kind: 'connecting-model',
+        label: 'Connecting',
+        summary: 'Connecting to the model…',
+      },
+      'waiting-first-token': {
+        kind: 'waiting-first-token',
+        label: 'Waiting',
+        summary: 'Waiting for the first model token…',
+      },
     };
     const status = labels[activePhase];
     return {
@@ -132,6 +140,10 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
         ...baseCounts,
         primaryAction: 'view-plan',
         canStop: true,
+        ...(step?.title !== undefined ? { planStep: step.title } : {}),
+        ...(input.chat.activeRunStartedAt !== null
+          ? { elapsedMs: Math.max(0, Date.now() - input.chat.activeRunStartedAt) }
+          : {}),
       };
     }
     return {
@@ -166,7 +178,8 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
     return {
       kind: 'failed',
       label: 'Run failed',
-      summary: terminal.kind === 'failed' ? terminal.message : (input.chat.error ?? 'Unknown error'),
+      summary:
+        terminal.kind === 'failed' ? terminal.message : (input.chat.error ?? 'Unknown error'),
       ...baseCounts,
       primaryAction: 'retry',
       canStop: false,
