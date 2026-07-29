@@ -30,7 +30,7 @@
   min-height: 0;
   height: 100%;
   overflow: hidden auto;
-  padding: 28px 16px 20px;
+  padding: 28px 12px 20px;
   /* Transparent so the workspace Daybreak ambient glow shows through. */
   background: transparent;
   /* Quiet workbench: thin low-contrast native scrollbar (no edge mini-nav). */
@@ -350,7 +350,7 @@
 }
 
 .role-assistant .markdown {
-  max-width: 760px;
+  max-width: var(--chat-max, 760px);
   margin: 0 auto;
   color: var(--text);
   font-size: var(--chat-font-size, 15px);
@@ -359,7 +359,7 @@
 
 .role-assistant .bubble-header,
 .role-assistant .turn-work-details {
-  max-width: 760px;
+  max-width: var(--chat-max, 760px);
   margin-left: auto;
   margin-right: auto;
 }
@@ -377,7 +377,7 @@
 }
 
 .role-assistant .message-attachments {
-  max-width: 760px;
+  max-width: var(--chat-max, 760px);
   margin-right: auto;
   margin-left: auto;
 }
@@ -714,7 +714,7 @@
 /* ─── Turn work details (quiet workbench process → chip) ───────────── */
 
 .turn-work-details {
-  max-width: 760px;
+  max-width: var(--chat-max, 760px);
   margin: 4px auto 10px;
   padding: 0;
   border: none;
