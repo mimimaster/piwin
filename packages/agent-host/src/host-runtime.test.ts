@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -1089,6 +1089,40 @@ describe('HostRuntime', () => {
     expect(fromStore.map((item) => item.id)).toContain(sessionId);
 
     await runtime.dispose();
+  });
+
+  it('warns when session index write fails', async () => {
+    // Create a piwinRoot where sessions-index is a FILE, not a directory,
+    // so upsertSessionRecord fails with ENOTDIR.
+    const badRoot = await mkdtemp(join(tmpdir(), 'piwin-bad-root-'));
+    await writeFile(join(badRoot, 'sessions-index'), 'blocker');
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (message: string) => warnings.push(message);
+    try {
+      const runtime = new HostRuntime({
+        mode: 'sdk',
+        mock: true,
+        piwinRoot: badRoot,
+      });
+      // session/create → PiSdkAdapter.createSession → persistSessionMeta →
+      // upsertSessionRecord. With sessions-index as a file, the write fails
+      // and should warn via console.warn instead of crashing.
+      const result = await runtime.handleCommand({
+        type: 'session/create',
+        input: {
+          projectPath: '/tmp/piwin-test-project',
+          executionMode: 'agent',
+        },
+      });
+      // The session creation should succeed (index write is best-effort).
+      expect(result.success).toBe(true);
+      const indexWarn = warnings.find((message) => message.includes('session index'));
+      expect(indexWarn).toBeDefined();
+      await runtime.dispose();
+    } finally {
+      console.warn = originalWarn;
+    }
   });
 
 });
