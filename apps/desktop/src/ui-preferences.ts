@@ -15,6 +15,11 @@ export type DesktopPreferences = {
   codeWrap: boolean;
   toolDensity: ToolCallDensity;
   workDetailsExpanded: WorkDetailsExpanded;
+  /**
+   * When false (default), chat never offers the heavy Artifact iframe path
+   * except the flashcard exception (design §6). Markdown + ordinary code only.
+   */
+  artifactPreviewEnabled: boolean;
 };
 
 const TOOL_DENSITY_KEY = 'piwin.desktop.toolCallDensity';
@@ -22,6 +27,7 @@ const ASSISTANT_TEXT_SIZE_KEY = 'piwin.desktop.assistantTextSize';
 const CODE_TEXT_SIZE_KEY = 'piwin.desktop.codeTextSize';
 const CODE_WRAP_KEY = 'piwin.desktop.codeWrap';
 const WORK_DETAILS_EXPANDED_KEY = 'piwin.desktop.workDetailsExpanded';
+const ARTIFACT_PREVIEW_KEY = 'piwin.desktop.artifactPreviewEnabled';
 
 function readString(key: string): string | null {
   try {
@@ -39,7 +45,10 @@ function writeString(key: string, value: string): void {
   }
 }
 
-function parseSizeOption(raw: string | null, fallback: 'small' | 'default' | 'large'): 'small' | 'default' | 'large' {
+function parseSizeOption(
+  raw: string | null,
+  fallback: 'small' | 'default' | 'large',
+): 'small' | 'default' | 'large' {
   if (raw === 'small' || raw === 'default' || raw === 'large') {
     return raw;
   }
@@ -60,6 +69,12 @@ function parseToolCallDensity(raw: string | null): ToolCallDensity {
   return 'comfortable';
 }
 
+function parseBoolean(raw: string | null, fallback: boolean): boolean {
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  return fallback;
+}
+
 export function loadDesktopPreferences(): DesktopPreferences {
   return {
     assistantTextSize: parseSizeOption(readString(ASSISTANT_TEXT_SIZE_KEY), 'default'),
@@ -67,6 +82,7 @@ export function loadDesktopPreferences(): DesktopPreferences {
     codeWrap: readString(CODE_WRAP_KEY) === 'true',
     toolDensity: parseToolCallDensity(readString(TOOL_DENSITY_KEY)),
     workDetailsExpanded: parseWorkDetails(readString(WORK_DETAILS_EXPANDED_KEY)),
+    artifactPreviewEnabled: parseBoolean(readString(ARTIFACT_PREVIEW_KEY), false),
   };
 }
 
@@ -76,6 +92,7 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   writeString(CODE_TEXT_SIZE_KEY, prefs.codeTextSize);
   writeString(CODE_WRAP_KEY, String(prefs.codeWrap));
   writeString(WORK_DETAILS_EXPANDED_KEY, prefs.workDetailsExpanded);
+  writeString(ARTIFACT_PREVIEW_KEY, String(prefs.artifactPreviewEnabled));
 }
 
 // ---- Backward-compat helpers (used by existing callers and the old tests) ----
@@ -87,4 +104,3 @@ export function loadToolCallDensity(): ToolCallDensity {
 export function saveToolCallDensity(density: ToolCallDensity): void {
   writeString(TOOL_DENSITY_KEY, density);
 }
-

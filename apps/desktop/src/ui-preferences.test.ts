@@ -14,9 +14,18 @@ function createMockStorage(): Record<string, string> {
   return new Proxy(store, {
     get(target, prop) {
       if (prop === 'getItem') return (key: string) => target[key] ?? null;
-      if (prop === 'setItem') return (key: string, value: string) => { target[key] = value; };
-      if (prop === 'removeItem') return (key: string) => { delete target[key]; };
-      if (prop === 'clear') return () => { for (const k of Object.keys(target)) delete target[k]; };
+      if (prop === 'setItem')
+        return (key: string, value: string) => {
+          target[key] = value;
+        };
+      if (prop === 'removeItem')
+        return (key: string) => {
+          delete target[key];
+        };
+      if (prop === 'clear')
+        return () => {
+          for (const k of Object.keys(target)) delete target[k];
+        };
       if (prop === 'length') return Object.keys(target).length;
       if (prop === 'key') return (index: number) => Object.keys(target)[index] ?? null;
       return Reflect.get(target, prop);
@@ -57,6 +66,7 @@ describe('DesktopPreferences loading', () => {
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
+      artifactPreviewEnabled: false,
     });
   });
 
@@ -66,6 +76,7 @@ describe('DesktopPreferences loading', () => {
     setLocalStorage('codeWrap', 'true');
     setLocalStorage('toolCallDensity', 'compact');
     setLocalStorage('workDetailsExpanded', 'always');
+    setLocalStorage('artifactPreviewEnabled', 'true');
 
     const prefs = loadDesktopPreferences();
     expect(prefs).toEqual<DesktopPreferences>({
@@ -74,12 +85,13 @@ describe('DesktopPreferences loading', () => {
       codeWrap: true,
       toolDensity: 'compact',
       workDetailsExpanded: 'always',
+      artifactPreviewEnabled: true,
     });
   });
 
   it('handles missing keys gracefully (partial localStorage)', () => {
     setLocalStorage('assistantTextSize', 'small');
-    // codeTextSize, codeWrap, toolCallDensity, workDetailsExpanded missing
+    // codeTextSize, codeWrap, toolCallDensity, workDetailsExpanded, artifactPreviewEnabled missing
 
     const prefs = loadDesktopPreferences();
     expect(prefs.assistantTextSize).toBe('small');
@@ -87,6 +99,7 @@ describe('DesktopPreferences loading', () => {
     expect(prefs.codeWrap).toBe(false);
     expect(prefs.toolDensity).toBe('comfortable');
     expect(prefs.workDetailsExpanded).toBe('auto');
+    expect(prefs.artifactPreviewEnabled).toBe(false);
   });
 
   it('backward compat: reads old toolCallDensity key', () => {
@@ -112,6 +125,7 @@ describe('DesktopPreferences loading', () => {
     setLocalStorage('codeWrap', 'maybe');
     setLocalStorage('toolCallDensity', 'super-detailed');
     setLocalStorage('workDetailsExpanded', 'never');
+    setLocalStorage('artifactPreviewEnabled', 'maybe');
 
     const prefs = loadDesktopPreferences();
     expect(prefs.assistantTextSize).toBe('default');
@@ -119,6 +133,7 @@ describe('DesktopPreferences loading', () => {
     expect(prefs.codeWrap).toBe(false);
     expect(prefs.toolDensity).toBe('comfortable');
     expect(prefs.workDetailsExpanded).toBe('auto');
+    expect(prefs.artifactPreviewEnabled).toBe(false);
   });
 
   it('codeWrap only parses true as true', () => {
@@ -145,6 +160,7 @@ describe('DesktopPreferences saving and roundtrip', () => {
       codeWrap: true,
       toolDensity: 'compact',
       workDetailsExpanded: 'collapsed',
+      artifactPreviewEnabled: true,
     };
     saveDesktopPreferences(input);
 
@@ -159,10 +175,48 @@ describe('DesktopPreferences saving and roundtrip', () => {
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
+      artifactPreviewEnabled: false,
     };
     saveDesktopPreferences(defaults);
 
     const output = loadDesktopPreferences();
     expect(output).toEqual(defaults);
+  });
+});
+
+describe('artifactPreviewEnabled', () => {
+  beforeEach(() => {
+    clearLocalStorage();
+  });
+
+  it('defaults to false when key missing', () => {
+    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(false);
+  });
+
+  it('reads true from localStorage', () => {
+    setLocalStorage('artifactPreviewEnabled', 'true');
+    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(true);
+  });
+
+  it('reads false from localStorage', () => {
+    setLocalStorage('artifactPreviewEnabled', 'false');
+    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(false);
+  });
+
+  it('falls back to false on invalid value', () => {
+    setLocalStorage('artifactPreviewEnabled', 'maybe');
+    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(false);
+  });
+
+  it('roundtrips true through save/load', () => {
+    saveDesktopPreferences({
+      assistantTextSize: 'default',
+      codeTextSize: 'default',
+      codeWrap: false,
+      toolDensity: 'comfortable',
+      workDetailsExpanded: 'auto',
+      artifactPreviewEnabled: true,
+    });
+    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(true);
   });
 });
