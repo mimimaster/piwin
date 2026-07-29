@@ -89,6 +89,10 @@
 | D-ART-06 | ~~Expand height >900 with toggle~~ | **Done 2026-07-20** — `MAX_ARTIFACT_EXPANDED_HEIGHT=2200` + Expand/Collapse | done |
 | D-ART-07 | Runtime external-embed reporter script inside iframe | pre-render security enough for v1 | later |
 | D-ART-08 | Hard theme-incompatible block mode | soft repair preferred | later |
+| D-ART-09 | Side panel / fullscreen Artifact workspace (PRD AR-07) | opt-in preview shipped 2026-07-30; workspace is separate UX | later |
+| D-ART-10 | Export single artifact HTML to project file (PRD AR-08) | needs project FS contract + permission policy | later |
+| D-ART-11 | CLI HTML preview | CLI has no iframe host; NG6 in opt-in design | later |
+| D-ART-12 | Light fence registry (svg / html-preview / Cherry-style) | boundary reserved in opt-in design §10; not gated by `artifactPreviewEnabled` | later |
 
 ### 2.4 Git
 

@@ -25,3 +25,29 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
 - Must invest in tests for security classifier
 - Vision multipart is optional later, not default
 - Ordinary coding turns stay legible and cheap to stream; Artifacts remain deliberate interactive deliverables
+
+## Amendment (2026-07-30): Artifact preview opt-in on Desktop
+
+- Desktop chat now defaults to **Markdown + ordinary code fences**. The heavy
+  HTML Artifact path (sandbox iframe + bridge) is **opt-in** via a single
+  Appearance preference `artifactPreviewEnabled` (default `false`,
+  localStorage `piwin.desktop.artifactPreviewEnabled`).
+- When the preference is off, `evaluateCodeFence` still runs with
+  `htmlUiModeEnabled: false` so language/source normalization stays
+  byte-stable; native `html`/`htm` fences fall through to `code`. No Preview
+  button, no iframe.
+- When the preference is on, the existing source-first + per-fence
+  `Preview artifact` behavior is preserved. Streaming remains source-only.
+- **Flashcard exception:** a fence whose source contains `data-card-id="..."`
+  gets a one-click **Preview card** even when the global preference is off,
+  so interactive rating stays usable without hunting settings. This does
+  not flip the global preference.
+- Host config `artifact.htmlUiModeDefault` default lowered from `true` to
+  `false` for consistency. Desktop v1 ignores it (R1); the field remains as
+  a backward-compat seed for non-Desktop clients.
+- `artifact.maxBytes` is now wired from `PiwinConfig.artifact` into
+  `evaluateCodeFence` on Desktop.
+- Future Cherry-style **light** fence renderers (svg, html-preview, …) are
+  reserved for a separate fence registry and are NOT gated by this switch.
+- See `docs/superpowers/specs/2026-07-30-artifact-preview-opt-in-design.md`
+  for the full design.
