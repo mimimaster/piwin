@@ -14,7 +14,7 @@
   gap: 12px;
   min-height: var(--topbar-height);
   height: var(--topbar-height);
-  padding: 0 14px 0 12px;
+  padding: 0 0 0 12px;
   border-bottom: 1px solid transparent;
   background: var(--canvas);
   box-shadow: none;
@@ -64,7 +64,7 @@
   /* macOS traffic lights sit top-left; reserve their overlay area. The right
      cluster (.titlebar-actions) flushes to the window edge minus breathing
      room — there is no OS-drawn chrome on the right. */
-  padding: 0 12px 0 76px;
+  padding: 0 0 0 76px;
   border-bottom: 0;
   /* Unified field: titleband matches sidebar + stage (quiet workbench). */
   background: var(--canvas);
@@ -80,7 +80,7 @@
 .app-shell[data-layout='compact'] > .workbench-topbar {
   min-height: var(--topbar-height);
   height: var(--topbar-height);
-  padding: 0 12px 0 10px;
+  padding: 0 0 0 10px;
   border-bottom: 1px solid var(--line-soft);
   background: var(--sidebar);
 }
@@ -152,7 +152,9 @@
 }
 
 .workbench-topbar .titlebar-history-btn:hover,
-.app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button.titlebar-history-btn:hover {
+.app-shell[data-layout='desktop']
+  > .workbench-topbar
+  .piwin-icon-button.titlebar-history-btn:hover {
   color: var(--text);
 }
 
@@ -160,8 +162,12 @@
 .workbench-topbar .titlebar-history-btn[aria-disabled='true'],
 .workbench-topbar .titlebar-history-btn:disabled:hover,
 .workbench-topbar .titlebar-history-btn[aria-disabled='true']:hover,
-.app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button.titlebar-history-btn:disabled,
-.app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button.titlebar-history-btn[aria-disabled='true'] {
+.app-shell[data-layout='desktop']
+  > .workbench-topbar
+  .piwin-icon-button.titlebar-history-btn:disabled,
+.app-shell[data-layout='desktop']
+  > .workbench-topbar
+  .piwin-icon-button.titlebar-history-btn[aria-disabled='true'] {
   color: color-mix(in srgb, var(--faint) 72%, transparent);
   background: transparent;
   opacity: 0.42;
