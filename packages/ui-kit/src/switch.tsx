@@ -10,12 +10,15 @@ export type SwitchProps = MantineSwitchProps & {
 };
 
 /** Piwin-branded switch. Use inside `FieldRow` for labelled toggles or with
- * `aria-label` for standalone list-row controls. */
+ * `aria-label` for standalone list-row controls. Fixed track size — do not
+ * put conditional text next to it without reserved width (causes row jitter). */
 export function Switch({
   className,
   testId,
   onChange,
   onCheckedChange,
+  size = 'sm',
+  withThumbIndicator = false,
   ...props
 }: SwitchProps): ReactElement {
   const rootClass = className ? `piwin-switch ${className}` : 'piwin-switch';
@@ -28,8 +31,11 @@ export function Switch({
   return (
     <MantineSwitch
       {...props}
+      size={size}
+      withThumbIndicator={withThumbIndicator}
       className={rootClass}
       classNames={{
+        root: 'piwin-switch-root',
         input: 'piwin-switch-input',
         track: 'piwin-switch-track',
         thumb: 'piwin-switch-thumb',

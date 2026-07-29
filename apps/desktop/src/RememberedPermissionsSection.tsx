@@ -3,11 +3,13 @@
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { HostResponse, RememberedPermission } from '@piwin/contracts';
-import { Button, Notice, EmptyState, Spinner } from '@piwin/ui-kit';
+import { Button, Collapse, Notice, EmptyState, Spinner } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 
 export type RememberedPermissionsSectionProps = {
   projectPath: string | null;
+  expanded?: boolean;
+  onToggle?: () => void;
   request: (command: {
     type: 'project/permissions-list' | 'project/permissions-revoke';
     path: string;
@@ -77,62 +79,86 @@ export function RememberedPermissionsSection(
 
   return (
     <div className="settings-section" data-testid="remembered-permissions">
-      <div className="settings-card-heading">
-        <div>
-          <h4>{isChinese ? '已记住的工具权限' : 'Remembered tool permissions'}</h4>
-          <p>
-            {isChinese
-              ? '项目范围的允许决策（Web 搜索/抓取主机）。撤销后下次使用会再次询问。'
-              : 'Project-scoped allow decisions (web search/fetch hosts). Revoking asks again on the next use.'}
-          </p>
+      <button
+        type="button"
+        className="settings-collapsible-trigger"
+        onClick={() => props.onToggle?.()}
+        aria-expanded={props.expanded !== false}
+        data-testid="remembered-permissions-toggle"
+      >
+        <div className="settings-card-heading" style={{ marginBottom: 0 }}>
+          <div>
+            <h4>{isChinese ? '已记住的工具权限' : 'Remembered tool permissions'}</h4>
+            <p>
+              {isChinese
+                ? '项目范围的允许决策（Web 搜索/抓取主机）。撤销后下次使用会再次询问。'
+                : 'Project-scoped allow decisions (web search/fetch hosts). Revoking asks again on the next use.'}
+            </p>
+          </div>
         </div>
-      </div>
-      {!props.projectPath ? (
-        <EmptyState
-          title={isChinese ? '未打开工作区' : 'No workspace open'}
-          description={isChinese ? '打开并信任项目后，可管理已记住的工具权限。' : 'Open and trust a project to manage remembered tool permissions.'}
-          testId="remembered-permissions-no-project"
-        />
-      ) : loading ? (
-        <div className="panel-loading" data-testid="remembered-permissions-loading">
-          <Spinner label={isChinese ? '正在加载已记住权限' : 'Loading remembered permissions'} />
-          <span className="muted">{common.loading}</span>
-        </div>
-      ) : permissions.length === 0 ? (
-        <EmptyState
-          title={isChinese ? '暂无已记住权限' : 'No remembered permissions'}
-          description={isChinese ? '在权限对话框中选择「对本项目允许」后，会出现在这里。' : 'Choose “Allow for this project” in a permission dialog to see it here.'}
-          testId="remembered-permissions-empty"
-        />
-      ) : (
-        <ul className="ext-list" data-testid="remembered-permissions-list">
-          {permissions.map((permission) => (
-            <li
-              key={permission.key}
-              className="ext-list-item"
-              data-testid="remembered-permission-row"
-              data-permission-key={permission.key}
-            >
-              <div className="ext-list-main">
-                <div className="ext-list-title">
-                  <strong>{permission.action}</strong>
-                  <span className="pill muted">{permission.key}</span>
-                </div>
-                <div className="muted ext-desc">{permission.detail}</div>
-              </div>
-              <Button
-                data-testid="remembered-permission-revoke"
-                disabled={busyKey === permission.key}
-                onClick={() => void handleRevoke(permission.key)}
+        <svg
+          className={`settings-collapsible-chevron ${props.expanded !== false ? 'open' : ''}`}
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      <Collapse expanded={props.expanded !== false} testId="remembered-permissions-collapse">
+        {!props.projectPath ? (
+          <EmptyState
+            title={isChinese ? '未打开工作区' : 'No workspace open'}
+            description={isChinese ? '打开并信任项目后，可管理已记住的工具权限。' : 'Open and trust a project to manage remembered tool permissions.'}
+            testId="remembered-permissions-no-project"
+          />
+        ) : loading ? (
+          <div className="panel-loading" data-testid="remembered-permissions-loading">
+            <Spinner label={isChinese ? '正在加载已记住权限' : 'Loading remembered permissions'} />
+            <span className="muted">{common.loading}</span>
+          </div>
+        ) : permissions.length === 0 ? (
+          <EmptyState
+            title={isChinese ? '暂无已记住权限' : 'No remembered permissions'}
+            description={isChinese ? '在权限对话框中选择「对本项目允许」后，会出现在这里。' : 'Choose “Allow for this project” in a permission dialog to see it here.'}
+            testId="remembered-permissions-empty"
+          />
+        ) : (
+          <ul className="ext-list" data-testid="remembered-permissions-list">
+            {permissions.map((permission) => (
+              <li
+                key={permission.key}
+                className="ext-list-item"
+                data-testid="remembered-permission-row"
+                data-permission-key={permission.key}
               >
-                {isChinese ? '撤销' : 'Revoke'}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
-      {error ? <Notice tone="error">{error}</Notice> : null}
-      {info ? <Notice tone="info">{info}</Notice> : null}
+                <div className="ext-list-main">
+                  <div className="ext-list-title">
+                    <strong>{permission.action}</strong>
+                    <span className="pill muted">{permission.key}</span>
+                  </div>
+                  <div className="muted ext-desc">{permission.detail}</div>
+                </div>
+                <Button
+                  data-testid="remembered-permission-revoke"
+                  disabled={busyKey === permission.key}
+                  onClick={() => void handleRevoke(permission.key)}
+                >
+                  {isChinese ? '撤销' : 'Revoke'}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {error ? <Notice tone="error">{error}</Notice> : null}
+        {info ? <Notice tone="info">{info}</Notice> : null}
+      </Collapse>
     </div>
   );
 }

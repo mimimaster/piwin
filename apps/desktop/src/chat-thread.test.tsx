@@ -7,7 +7,7 @@
 // - The frame scheduler injection matches the exact seam used by
 //   StreamEventBuffer in production (frameScheduler / frameCanceller options).
 
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { memo, Profiler, act, useEffect, useReducer, useRef, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { AgentEvent } from '@piwin/contracts';
@@ -21,14 +21,76 @@ import {
   type ChatUiAction,
   type ChatUiState,
   type ChatMessageUi,
+  type PermissionPromptUi,
 } from './chat-reducer';
-import {
-  createStreamEventBuffer,
-  type StreamEventBuffer,
-} from './stream-event-buffer';
+import type { ComposerDockProps } from './composer-dock.js';
+import { createStreamEventBuffer, type StreamEventBuffer } from './stream-event-buffer';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+const composerCard: ComposerDockProps = {
+  layoutMode: 'docked',
+  projectPath: null,
+  projectTrusted: true,
+  activeSessionId: null,
+  streaming: false,
+  runPhase: 'idle',
+  compacting: false,
+  composer: '',
+  onComposerChange: noop,
+  agentMode: 'agent',
+  onAgentModeChange: noop,
+  pendingAttachments: [],
+  onRemoveAttachment: noop,
+  dropActive: false,
+  onDropActiveChange: noop,
+  plusMenuOpen: false,
+  onPlusMenuOpenChange: noop,
+  plusSubmenu: 'none',
+  onPlusSubmenuChange: noop,
+  modelOptions: [],
+  selectedModelKey: '',
+  onSelectModel: noop,
+  menuSkills: [],
+  menuMcp: [],
+  onRefreshComposerMenus: noop,
+  onOpenSkillsPanel: noop,
+  onOpenMcpPanel: noop,
+  onAttachImage: noop,
+  onPaste: noop,
+  onDrop: noop,
+  onSend: noop,
+  onAbort: noop,
+  onCompact: noop,
+  contextUsage: null,
+  onSteer: noop,
+  onFollowUp: noop,
+};
+
+function createUserMessage(id: string, text: string): ChatMessageUi {
+  return {
+    id,
+    role: 'user',
+    text,
+    thinking: '',
+    tools: [],
+    attachments: [],
+    status: 'done',
+  };
+}
+
+function createStreamingAssistant(id: string): ChatMessageUi {
+  return {
+    id,
+    role: 'assistant',
+    text: '',
+    thinking: '',
+    tools: [],
+    attachments: [],
+    status: 'streaming',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -135,9 +197,7 @@ type ChatThreadRenderHarnessProps = {
  * The local probes receive the precise message objects passed to ChatThread;
  * their memo boundaries therefore expose whether historical identities change.
  */
-function ChatThreadRenderHarness(
-  props: ChatThreadRenderHarnessProps,
-): ReactElement {
+function ChatThreadRenderHarness(props: ChatThreadRenderHarnessProps): ReactElement {
   const [chatState, dispatch] = useReducer(chatUiReducer, props.initialState);
   const streamEventBufferReference = useRef<StreamEventBuffer | null>(null);
 
@@ -179,6 +239,44 @@ function ChatThreadRenderHarness(
         onEditResend={noop}
         onRetry={noop}
         onOpenSubagentSession={undefined}
+        composerCard={{
+          layoutMode: 'docked',
+          projectPath: null,
+          projectTrusted: true,
+          activeSessionId: null,
+          streaming: false,
+          runPhase: 'idle',
+          compacting: false,
+          composer: '',
+          onComposerChange: noop,
+          agentMode: 'agent',
+          onAgentModeChange: noop,
+          pendingAttachments: [],
+          onRemoveAttachment: noop,
+          dropActive: false,
+          onDropActiveChange: noop,
+          plusMenuOpen: false,
+          onPlusMenuOpenChange: noop,
+          plusSubmenu: 'none',
+          onPlusSubmenuChange: noop,
+          modelOptions: [],
+          selectedModelKey: '',
+          onSelectModel: noop,
+          menuSkills: [],
+          menuMcp: [],
+          onRefreshComposerMenus: noop,
+          onOpenSkillsPanel: noop,
+          onOpenMcpPanel: noop,
+          onAttachImage: noop,
+          onPaste: noop,
+          onDrop: noop,
+          onSend: noop,
+          onAbort: noop,
+          onCompact: noop,
+          contextUsage: null,
+          onSteer: noop,
+          onFollowUp: noop,
+        }}
       />
       {props.historicalMessageIndexes.map((messageIndex, probeIndex) => {
         const historicalMessage = chatState.messages[messageIndex];
@@ -192,21 +290,12 @@ function ChatThreadRenderHarness(
             id={`historical-row-${historicalMessage.id}`}
             onRender={createProfilerCallback(historicalRenderProbe)}
           >
-            <MessageRenderProbe
-              message={historicalMessage}
-              renderProbe={historicalRenderProbe}
-            />
+            <MessageRenderProbe message={historicalMessage} renderProbe={historicalRenderProbe} />
           </Profiler>
         );
       })}
-      <Profiler
-        id="streaming-row"
-        onRender={createProfilerCallback(props.streamingRenderProbe)}
-      >
-        <MessageRenderProbe
-          message={streamingMessage}
-          renderProbe={props.streamingRenderProbe}
-        />
+      <Profiler id="streaming-row" onRender={createProfilerCallback(props.streamingRenderProbe)}>
+        <MessageRenderProbe message={streamingMessage} renderProbe={props.streamingRenderProbe} />
       </Profiler>
       <RightPanel
         open={false}
@@ -219,7 +308,7 @@ function ChatThreadRenderHarness(
         onResizePointerDown={noop}
         onResizeReset={noop}
         filesContent={null}
-        activityContent={null}
+        terminalContent={null}
         reviewContent={null}
       />
     </>
@@ -236,10 +325,22 @@ describe('ChatThread render isolation (E1)', () => {
   let container: HTMLElement;
   let root: Root;
   let previousActEnvironment: boolean | undefined;
+  let previousMatchMedia: typeof window.matchMedia;
 
   beforeEach(() => {
     previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    previousMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn().mockImplementation((_query: string) => ({
+      matches: false,
+      media: _query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      onchange: null,
+    })) as unknown as typeof window.matchMedia;
     container = document.createElement('div');
     container.id = 'e1-test-container';
     document.body.appendChild(container);
@@ -253,6 +354,9 @@ describe('ChatThread render isolation (E1)', () => {
     if (container.parentNode) {
       container.parentNode.removeChild(container);
     }
+    if (previousMatchMedia) {
+      window.matchMedia = previousMatchMedia;
+    }
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -264,17 +368,12 @@ describe('ChatThread render isolation (E1)', () => {
   it('isolates historical rows and closed panel from streaming commits', () => {
     const historicalMessages = createHistoricalMessages(HISTORICAL_COUNT);
     const streamingInitialText = 'Initial streaming';
-    const streamingMessage = createStreamingMessage(
-      'streaming-e1',
-      streamingInitialText,
-    );
+    const streamingMessage = createStreamingMessage('streaming-e1', streamingInitialText);
     const allMessages = [...historicalMessages, streamingMessage];
 
     const scheduledFrames: Array<() => void> = [];
     const historicalMessageIndexes = [0, 249, HISTORICAL_COUNT - 1];
-    const historicalRenderProbes = historicalMessageIndexes.map(() =>
-      createRenderProbe(),
-    );
+    const historicalRenderProbes = historicalMessageIndexes.map(() => createRenderProbe());
     const streamingRenderProbe = createRenderProbe();
     let streamEventBuffer: StreamEventBuffer | null = null;
     const initialState: ChatUiState = {
@@ -305,17 +404,13 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     const readyStreamEventBuffer = requireStreamEventBuffer(streamEventBuffer);
-    expect(historicalRenderProbes.map((probe) => probe.renderCount)).toEqual([
-      1,
-      1,
-      1,
-    ]);
+    expect(historicalRenderProbes.map((probe) => probe.renderCount)).toEqual([1, 1, 1]);
     expect(streamingRenderProbe.renderCount).toBe(1);
     // Closed panel stay keep-mounted (collapsed) so streaming commits must not
     // rely on unmounting the inspector subtree.
-    expect(
-      container.querySelector('[data-testid="right-panel"]')?.getAttribute('data-open'),
-    ).toBe('false');
+    expect(container.querySelector('[data-testid="right-panel"]')?.getAttribute('data-open')).toBe(
+      'false',
+    );
 
     // Three deltas within one frame reach the real reducer dispatch path.
     readyStreamEventBuffer.push('s1', createDeltaEvent('streaming-e1', ' plus'));
@@ -333,35 +428,25 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     const updatedBubbles = Array.from(
-      container.querySelectorAll<HTMLElement>(
-        '[data-testid="message-bubble"]',
-      ),
+      container.querySelectorAll<HTMLElement>('[data-testid="message-bubble"]'),
     );
     const lastBubble = updatedBubbles[updatedBubbles.length - 1];
-    expect(lastBubble?.textContent).toContain(
-      'Initial streaming plus three deltas',
-    );
+    expect(lastBubble?.textContent).toContain('Initial streaming plus three deltas');
 
     // Profiler confirms that React committed the frame-dispatched update. Its
     // scopes commit with the parent harness, while the memo probes below prove
     // which representative rows actually rendered during that commit.
-    expect(
-      historicalRenderProbes.map((probe) => probe.profilerRecords.length),
-    ).toEqual([2, 2, 2]);
+    expect(historicalRenderProbes.map((probe) => probe.profilerRecords.length)).toEqual([2, 2, 2]);
     expect(streamingRenderProbe.profilerRecords).toHaveLength(2);
 
     // The test-local memo probes use the exact row inputs passed to ChatThread.
     // Historical message identities are preserved by the reducer, while the
     // changed streaming message produces exactly one observed row update.
-    expect(historicalRenderProbes.map((probe) => probe.renderCount)).toEqual([
-      1,
-      1,
-      1,
-    ]);
+    expect(historicalRenderProbes.map((probe) => probe.renderCount)).toEqual([1, 1, 1]);
     expect(streamingRenderProbe.renderCount).toBe(2);
-    expect(
-      container.querySelector('[data-testid="right-panel"]')?.getAttribute('data-open'),
-    ).toBe('false');
+    expect(container.querySelector('[data-testid="right-panel"]')?.getAttribute('data-open')).toBe(
+      'false',
+    );
   });
 
   // ————————————————————————————————————————————————————————————————
@@ -433,9 +518,207 @@ describe('ChatThread render isolation (E1)', () => {
     expect(scheduledFrames.length).toBe(1);
 
     // C. The streaming message text reflects the flushed delta
-    const lastMessage =
-      appState.messages[appState.messages.length - 1];
+    const lastMessage = appState.messages[appState.messages.length - 1];
     expect(lastMessage?.text).toBe('Partial delta-data');
+  });
+
+  // ————————————————————————————————————————————————————————————————
+  // Run activity wiring
+  // ————————————————————————————————————————————————————————————————
+  it('renders run-activity slot when streaming and the last message is from the user', () => {
+    const userMessage = createUserMessage('u1', 'Hello');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const slot = container.querySelector('[data-testid="run-activity-slot"]');
+    expect(slot).not.toBeNull();
+    expect(slot?.textContent).toContain('Connecting to model…');
+  });
+
+  it('removes run-activity slot when a streaming assistant message arrives', () => {
+    const userMessage = createUserMessage('u2', 'Hello');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+
+    const assistantMessage = createStreamingAssistant('a1');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage, assistantMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+  });
+
+  it('removes run-activity slot when permissionPrompt is present or streaming is false', () => {
+    const userMessage = createUserMessage('u3', 'Hello');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            permissionPrompt={null}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+
+    const permissionPrompt: PermissionPromptUi = {
+      requestId: 'p1',
+      sessionId: 's1',
+      action: 'bash',
+      detail: 'ls -la',
+      defaultDecision: 'allow',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            permissionPrompt={permissionPrompt}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            permissionPrompt={null}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+  });
+
+  it('passes locale through ChatThread → ChatMessageRow → TurnWorkDetails', () => {
+    const assistantMessage = createStreamingAssistant('a2');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[assistantMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={null}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const waitingLine = container.querySelector('[data-testid="turn-waiting-line"]');
+    expect(waitingLine).not.toBeNull();
+    expect(waitingLine?.textContent).toContain('Connecting to model…');
   });
 });
 

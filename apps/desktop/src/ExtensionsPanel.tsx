@@ -6,7 +6,7 @@ import type {
   HostResponse,
   InstallSource,
 } from '@piwin/contracts';
-import { Button, Field, Notice, SegmentedControl, Spinner, Switch, TextInput } from '@piwin/ui-kit';
+import { Button, Collapse, Notice, SegmentedControl, Spinner, Switch, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
@@ -41,6 +41,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
   const [installGitUrl, setInstallGitUrl] = useState('');
   const [installName, setInstallName] = useState('');
   const [installing, setInstalling] = useState(false);
+  const [installOpen, setInstallOpen] = useState(false);
 
   const loadExtensions = useCallback(async () => {
     setLoading(true);
@@ -91,7 +92,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       return;
     }
     setInfo(isChinese ? `已${extension.enabled ? '关闭' : '开启'}扩展：${extension.name}` : `${extension.enabled ? 'Disabled' : 'Enabled'} extension: ${extension.name}`);
-    void loadExtensions();
+    setExtensions((prev) => prev.map((e) => (e.id === extension.id ? { ...e, enabled: !e.enabled } : e)));
   }
 
   async function handleInstallLocal() {
@@ -144,56 +145,96 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
         <PageTitle
           title={isChinese ? 'Pi 扩展' : 'Pi Extensions'}
           description={isChinese ? '扩展 Agent 的核心能力，支持本地模块加载。' : 'Extend core agent capabilities with local module loading.'}
+          trailing={
+            <span className="muted" style={{ fontSize: '12.5px' }}>
+              {visible.length}/{extensions.length} {isChinese ? '已安装' : 'installed'}
+            </span>
+          }
         />
 
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: 20 }}>
-          <div style={{ flex: 1 }}>
-            <Field label={isChinese ? '搜索扩展' : 'Search extensions'}>
-              <TextInput
-                value={filter}
-                onChange={(event) => setFilter(event.currentTarget.value)}
-                placeholder={isChinese ? '名称、ID 或描述…' : 'Search...'}
-                data-testid="extensions-filter"
-              />
-            </Field>
-          </div>
-          <Button size="compact" onClick={() => void loadExtensions()}>{isChinese ? '刷新' : 'Refresh'}</Button>
+        <div className="settings-toolbar" style={{ marginBottom: 16 }}>
+          <TextInput
+            toolbar
+            value={filter}
+            onChange={(event) => setFilter(event.currentTarget.value)}
+            placeholder={isChinese ? '搜索扩展…' : 'Search extensions…'}
+            data-testid="extensions-filter"
+            aria-label={isChinese ? '搜索扩展' : 'Search extensions'}
+          />
+          <Button size="compact" variant="ghost" onClick={() => void loadExtensions()} data-testid="extensions-refresh">
+            {isChinese ? '刷新' : 'Refresh'}
+          </Button>
         </div>
 
-        {loading && <div style={{ padding: '20px', textAlign: 'center' }}><Spinner /></div>}
-        {error ? <Notice tone="error">{error}</Notice> : null}
-        {info ? <Notice tone="info">{info}</Notice> : null}
+        {(error || info) ? (
+          <div className="ui-feedback-host" aria-live="polite" style={{ marginBottom: 16 }}>
+            {error ? <Notice tone="error">{error}</Notice> : null}
+            {info ? <Notice tone="info">{info}</Notice> : null}
+          </div>
+        ) : null}
 
-        <ul className="ext-list">
-          {visible.length === 0 && !loading ? (
-            <li className="muted" style={{ textAlign: 'center', padding: '40px' }}>{isChinese ? '未安装任何扩展' : 'No extensions installed'}</li>
-          ) : (
-            visible.map((extension) => (
+        {loading ? (
+          <div style={{ padding: '32px', textAlign: 'center' }}><Spinner /></div>
+        ) : visible.length === 0 ? (
+          <div className="ext-empty-state" style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <p className="muted" style={{ fontSize: '14px', margin: 0 }}>
+              {filter ? (isChinese ? '没有匹配的扩展' : 'No matching extensions') : (isChinese ? '未安装任何扩展' : 'No extensions installed')}
+            </p>
+          </div>
+        ) : (
+          <ul className="ext-list" data-testid="extensions-list">
+            {visible.map((extension) => (
               <li key={extension.id} className="ext-list-item">
                 <div className="ext-list-main">
                   <div className="ext-list-title">
                     <strong>{extension.name}</strong>
-                    <span className="pill" style={{ opacity: 0.6 }}>{extension.source}</span>
+                    <span className="pill muted">{extension.source}</span>
+                    {extension.enabled ? <span className="pill ok">{isChinese ? '已启用' : 'on'}</span> : null}
                   </div>
                   <div className="muted ext-desc">{extension.description}</div>
                 </div>
                 <Switch
                   checked={extension.enabled}
-                  onChange={() => void handleToggle(extension)}
+                  onCheckedChange={() => void handleToggle(extension)}
                   aria-label={isChinese ? `启用 ${extension.name}` : `Enable ${extension.name}`}
+                  data-testid={`extension-toggle-${extension.id}`}
                 />
               </li>
-            ))
-          )}
-        </ul>
+            ))}
+          </ul>
+        )}
 
-        <div className="settings-section">
-          <PageTitle
-            title={isChinese ? '手动安装' : 'Install Manually'}
-            description={isChinese ? '从本地路径或 Git 仓库安装新的 Pi 扩展。' : 'Install a new Pi extension from a local path or Git repository.'}
-          />
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
-            <div style={{ flex: 0, minWidth: '140px' }}>
+        <div className="settings-section" style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--line-soft)' }}>
+          <button
+            type="button"
+            className="settings-collapsible-trigger"
+            onClick={() => setInstallOpen((v) => !v)}
+            aria-expanded={installOpen}
+            data-testid="extensions-install-toggle"
+          >
+            <div className="settings-card-heading" style={{ marginBottom: 0 }}>
+              <div>
+                <h4>{isChinese ? '手动安装' : 'Install Manually'}</h4>
+                <p>{isChinese ? '从本地路径或 Git 仓库安装新的 Pi 扩展。' : 'Install a new Pi extension from a local path or Git repository.'}</p>
+              </div>
+            </div>
+            <svg
+              className={`settings-collapsible-chevron ${installOpen ? 'open' : ''}`}
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+
+          <Collapse expanded={installOpen} testId="extensions-install-collapse">
+            <div className="settings-toolbar settings-toolbar--install" style={{ marginTop: 16 }}>
               <SegmentedControl
                 value={installKind}
                 onChange={(value) => setInstallKind(value as 'local' | 'git')}
@@ -201,25 +242,41 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                   { value: 'local', label: isChinese ? '本地' : 'Local' },
                   { value: 'git', label: 'Git' },
                 ]}
-                fullWidth
+                className="settings-install-kind"
               />
+              <TextInput
+                toolbar
+                value={installKind === 'local' ? installPath : installGitUrl}
+                onChange={(event) =>
+                  installKind === 'local'
+                    ? setInstallPath(event.currentTarget.value)
+                    : setInstallGitUrl(event.currentTarget.value)
+                }
+                placeholder={
+                  installKind === 'local'
+                    ? isChinese
+                      ? '本地路径…'
+                      : 'Local path…'
+                    : 'https://github.com/…'
+                }
+                aria-label={installKind === 'local' ? (isChinese ? '本地路径' : 'Local Path') : 'Git URL'}
+                data-testid="extensions-install-source"
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    installKind === 'local' ? handleInstallLocal() : handleInstallGit();
+                  }
+                }}
+              />
+              <Button
+                disabled={installing || (installKind === 'local' ? !installPath : !installGitUrl)}
+                onClick={() => (installKind === 'local' ? handleInstallLocal() : handleInstallGit())}
+                data-testid="extensions-install-submit"
+              >
+                {isChinese ? '安装' : 'Install'}
+              </Button>
             </div>
-            <div style={{ flex: 2 }}>
-              <Field label={installKind === 'local' ? (isChinese ? '本地路径' : 'Local Path') : 'Git URL'}>
-                <TextInput
-                  value={installKind === 'local' ? installPath : installGitUrl}
-                  onChange={(event) => installKind === 'local' ? setInstallPath(event.currentTarget.value) : setInstallGitUrl(event.currentTarget.value)}
-                  placeholder={installKind === 'local' ? (isChinese ? '路径...' : 'Path...') : 'https://github.com/...'}
-                />
-              </Field>
-            </div>
-            <Button
-              disabled={installing || (installKind === 'local' ? !installPath : !installGitUrl)}
-              onClick={() => installKind === 'local' ? handleInstallLocal() : handleInstallGit()}
-            >
-              {isChinese ? '安装' : 'Install'}
-            </Button>
-          </div>
+          </Collapse>
         </div>
       </div>
     </div>

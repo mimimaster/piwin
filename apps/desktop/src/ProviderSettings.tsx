@@ -184,6 +184,19 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const autoSaveInFlightRef = useRef(false);
   const lastSelectedIdRef = useRef<string | null>(null);
   const lastAddedHeaderIdRef = useRef<string | null>(null);
+  const headerNameInputRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
+
+  // Focus the newly-added header input without scrolling the viewport,
+  // preventing the "jump" when clicking "+ Add header".
+  useEffect(() => {
+    const newId = lastAddedHeaderIdRef.current;
+    if (!newId) return;
+    const input = headerNameInputRefs.current.get(newId);
+    if (input) {
+      input.focus({ preventScroll: true });
+    }
+    lastAddedHeaderIdRef.current = null;
+  }, [draft?.headerRows]);
 
   const selectedProvider = useMemo(
     () => config.providers.find((p) => p.id === selectedId) ?? null,
@@ -607,7 +620,9 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                           placeholder={copy.headerName}
                           spellCheck={false}
                           data-testid="provider-header-name"
-                          autoFocus={row.id === lastAddedHeaderIdRef.current}
+                          ref={(el: HTMLInputElement | null) => {
+                            headerNameInputRefs.current.set(row.id, el);
+                          }}
                           style={{ flex: 1 }}
                         />
                         <TextInput

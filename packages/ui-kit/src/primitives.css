@@ -62,9 +62,10 @@
 .ui-field-label { display: block; margin-bottom: 4px; font-size: 12px; }
 .ui-field-error { color: var(--danger); font-size: 12px; margin: 4px 0 0; }
 
-.ui-field-control input,
-.ui-field-control select,
-.ui-field-control textarea {
+/* Bare native controls only — TextInput/Select bring their own chrome. */
+.ui-field-control > input:not([class*='piwin-']),
+.ui-field-control > select:not([class*='piwin-']),
+.ui-field-control > textarea:not([class*='piwin-']) {
   width: 100%;
   border: 1px solid var(--border);
   background: var(--surface-inset);
@@ -72,6 +73,12 @@
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font: inherit;
+}
+
+.ui-field-control .piwin-text-input,
+.ui-field-control .piwin-password-input,
+.ui-field-control .piwin-select {
+  width: 100%;
 }
 
 .ui-field-description {
@@ -357,15 +364,30 @@
 }
 
 /* ── Switch ─────────────────────────────────────────────────────── */
+/* Fixed geometry so thumb/track never reflow parent rows on toggle. */
 
 .piwin-switch {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
+  /* Reserve track box even while Mantine measures — prevents row jitter. */
+  min-width: 34px;
+  min-height: 20px;
 }
 
 .piwin-switch-input + .piwin-switch-track.piwin-switch-track {
+  --switch-width: 34px;
+  --switch-height: 20px;
+  --switch-thumb-size: 14px;
+  width: var(--switch-width);
+  min-width: var(--switch-width);
+  height: var(--switch-height);
+  min-height: var(--switch-height);
   background-color: var(--faint);
   border: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
 }
 
 .piwin-switch-input:checked + .piwin-switch-track.piwin-switch-track {
@@ -373,8 +395,31 @@
 }
 
 .piwin-switch-track .piwin-switch-thumb.piwin-switch-thumb {
+  width: var(--switch-thumb-size, 14px);
+  height: var(--switch-thumb-size, 14px);
   background-color: var(--surface-raised);
   border: none;
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 22%, transparent);
+  transition:
+    transform var(--motion-quick, 120ms) var(--motion-ease, ease),
+    background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
+}
+
+.piwin-switch-input:focus-visible + .piwin-switch-track.piwin-switch-track {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.piwin-switch-input:disabled + .piwin-switch-track.piwin-switch-track {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piwin-switch-input + .piwin-switch-track.piwin-switch-track,
+  .piwin-switch-track .piwin-switch-thumb.piwin-switch-thumb {
+    transition: none;
+  }
 }
 
 /* ── Collapse ────────────────────────────────────────────────────── */
@@ -407,15 +452,72 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
-/* ── TextInput / PasswordInput ──────────────────────────────────── */
+/* ── TextInput / PasswordInput / Select ─────────────────────────── */
+/* Daybreak-aligned control chrome: inset fill, soft border, accent focus. */
+
+.piwin-text-input,
+.piwin-password-input,
+.piwin-select {
+  width: 100%;
+}
 
 .piwin-text-input-field,
-.piwin-password-input-field {
-  --input-bg: var(--surface-raised);
+.piwin-password-input-field,
+.piwin-select-field {
+  --input-height-sm: var(--control-height-default, 32px);
+  --input-height-md: var(--control-height-large, 36px);
+  --input-height-xs: var(--control-height-compact, 28px);
+  --input-bg: var(--surface-inset, var(--surface-control));
   --input-bd: var(--line-soft);
   --input-color: var(--text);
   --input-placeholder-color: var(--muted);
   --input-bd-focus: var(--accent);
+  --input-radius: var(--radius-control, 8px);
+  --input-padding-x: 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  transition:
+    border-color var(--motion-quick, 120ms) var(--motion-ease, ease),
+    box-shadow var(--motion-quick, 120ms) var(--motion-ease, ease),
+    background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
+}
+
+.piwin-text-input-field:hover:not(:disabled):not(:focus),
+.piwin-password-input-field:hover:not(:disabled):not(:focus),
+.piwin-select-field:hover:not(:disabled):not(:focus) {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line-soft));
+  background: color-mix(in srgb, var(--surface-raised) 70%, var(--surface-inset));
+}
+
+.piwin-text-input-field:focus,
+.piwin-password-input-field:focus,
+.piwin-select-field:focus {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 1px 2px color-mix(in srgb, #000 8%, transparent);
+  background: var(--surface-raised);
+}
+
+.piwin-text-input-field:disabled,
+.piwin-password-input-field:disabled,
+.piwin-select-field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Search / toolbar variant — slightly denser, full-width friendly */
+.piwin-text-input--toolbar .piwin-text-input-field {
+  --input-height-sm: var(--control-height-default, 32px);
+  min-height: var(--control-height-default, 32px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piwin-text-input-field,
+  .piwin-password-input-field,
+  .piwin-select-field {
+    transition: none;
+  }
 }
 
 /* ── SegmentedControl ───────────────────────────────────────────── */
@@ -423,10 +525,19 @@
 [data-mantine-color-scheme] .piwin-segmented-control.piwin-segmented-control {
   background-color: var(--surface-inset);
   --sc-color: var(--accent);
+  border-radius: var(--radius-control, 8px);
+  min-height: var(--control-height-default, 32px);
 }
 
 .piwin-segmented-control-indicator {
   box-shadow: none;
+  border-radius: calc(var(--radius-control, 8px) - 2px);
+}
+
+.piwin-segmented-control .mantine-SegmentedControl-label {
+  font-size: 12.5px;
+  font-weight: 550;
+  padding-inline: 10px;
 }
 
 /* ── Card ────────────────────────────────────────────────────────── */

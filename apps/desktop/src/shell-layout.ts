@@ -4,7 +4,8 @@
  *
  * Right workspace chrome:
  * - Closed by default (no permanent signal rail).
- * - Opens as an outward overlay from the right edge when overlay === 'inspector'.
+ * - Desktop open: in-flow third grid column; stage (chat) narrows — no OS resize.
+ * - Compact open: fixed drawer overlay (unchanged).
  */
 
 export type ShellLayoutMode = 'desktop' | 'compact';

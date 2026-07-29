@@ -30,7 +30,7 @@
   min-height: 0;
   height: 100%;
   overflow: hidden auto;
-  padding: 28px clamp(24px, 6vw, 88px) 20px;
+  padding: 28px 16px 20px;
   /* Transparent so the workspace Daybreak ambient glow shows through. */
   background: transparent;
   /* Quiet workbench: thin low-contrast native scrollbar (no edge mini-nav). */
@@ -52,7 +52,7 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  width: min(100%, var(--chat-max));
+  width: 100%;
   margin: 0 auto;
   gap: 28px;
   padding-bottom: 24px;
@@ -98,24 +98,18 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 16px 28px 8px;
-}
-
-@media (max-width: 1050px) {
-  .chat-stream {
-    padding-inline: 24px;
-  }
+  padding: 16px 16px 8px;
 }
 
 @media (max-width: 820px) {
   .chat-stream {
-    padding: 20px 14px 14px;
+    padding: 20px 12px 14px;
   }
 
   .chat-column-empty .transcript-viewport,
   .chat-column-empty .chat-stream {
     justify-content: flex-start;
-    padding: 12px 14px 4px;
+    padding: 12px 12px 4px;
   }
 }
 
@@ -259,8 +253,14 @@
 }
 
 @keyframes msg-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .bubble-header {
@@ -303,29 +303,39 @@
 }
 
 @keyframes stream-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
-  70% { box-shadow: 0 0 0 8px transparent; }
-  100% { box-shadow: 0 0 0 0 transparent; }
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
 
-/* User turns: plain full-width text with a "You" label, no bubble chrome. */
+/* User turns: full chat-column width card (matches composer / edit card). */
 .role-user {
   width: 100%;
   max-width: 100%;
   margin-left: 0;
-  padding: 0;
-  border: none;
-  border-radius: 0;
-  background: transparent;
+  margin-right: 0;
 }
 
-.role-user::before {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--muted);
-  content: 'You';
-  font-size: 11px;
-  font-weight: 650;
+/* In-place edit reuses the bottom ComposerCard. The wrapper just holds it
+   inside the user bubble, so it should have no extra padding, margin, or
+   visual frame of its own — only the composer card's own border shows. */
+.message-edit-card-v2 {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.message-edit-card-v2 .composer-card-v2 {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
 }
 
 .role-assistant {
@@ -341,21 +351,35 @@
 
 .role-assistant .markdown {
   max-width: 760px;
+  margin: 0 auto;
   color: var(--text);
   font-size: var(--chat-font-size, 15px);
   line-height: 1.65;
+}
+
+.role-assistant .bubble-header,
+.role-assistant .turn-work-details {
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .role-assistant .markdown .md-p {
   margin-bottom: 0.8em;
 }
 
-/* Attachments preview inside a user message */
+/* Attachments preview inside a message */
 .message-attachments {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 8px;
+}
+
+.role-assistant .message-attachments {
+  max-width: 760px;
+  margin-right: auto;
+  margin-left: auto;
 }
 
 /* ─── Message hover actions + inline edit ───────────────────────────── */
@@ -396,30 +420,6 @@
   cursor: not-allowed;
 }
 
-.message-edit-box {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.message-edit-input {
-  width: 100%;
-  min-height: 72px;
-  resize: vertical;
-  border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
-  background: color-mix(in srgb, var(--bg) 80%, var(--panel));
-  color: var(--text);
-  padding: 8px 10px;
-  font: inherit;
-}
-
-.message-edit-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
 /* ─── Tool call cards — flat inline lines (quiet interface) ─────────── */
 
 .tool-call-card {
@@ -432,18 +432,40 @@
   animation: tool-line-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.tool-call-card:nth-child(1) { animation-delay: 0ms; }
-.tool-call-card:nth-child(2) { animation-delay: 40ms; }
-.tool-call-card:nth-child(3) { animation-delay: 80ms; }
-.tool-call-card:nth-child(4) { animation-delay: 120ms; }
-.tool-call-card:nth-child(5) { animation-delay: 160ms; }
-.tool-call-card:nth-child(6) { animation-delay: 200ms; }
-.tool-call-card:nth-child(7) { animation-delay: 240ms; }
-.tool-call-card:nth-child(8) { animation-delay: 280ms; }
+.tool-call-card:nth-child(1) {
+  animation-delay: 0ms;
+}
+.tool-call-card:nth-child(2) {
+  animation-delay: 40ms;
+}
+.tool-call-card:nth-child(3) {
+  animation-delay: 80ms;
+}
+.tool-call-card:nth-child(4) {
+  animation-delay: 120ms;
+}
+.tool-call-card:nth-child(5) {
+  animation-delay: 160ms;
+}
+.tool-call-card:nth-child(6) {
+  animation-delay: 200ms;
+}
+.tool-call-card:nth-child(7) {
+  animation-delay: 240ms;
+}
+.tool-call-card:nth-child(8) {
+  animation-delay: 280ms;
+}
 
 @keyframes tool-line-in {
-  from { opacity: 0; transform: translateX(-4px); }
-  to   { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .tool-call-summary {
@@ -519,8 +541,13 @@
 }
 
 @keyframes duration-pulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.8; }
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
 }
 
 .tool-status-dot {
@@ -546,8 +573,15 @@
 }
 
 @keyframes dot-breathe {
-  0%, 100% { opacity: 0.5; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.3); }
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
 }
 
 .tool-call-card.status-done .tool-status-dot {
@@ -555,15 +589,23 @@
 }
 
 @keyframes dot-complete {
-  0% { transform: scale(1.6); opacity: 1; }
-  100% { transform: scale(1); opacity: 0.7; }
+  0% {
+    transform: scale(1.6);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
 }
 
 .tool-call-chevron {
   width: 12px;
   height: 12px;
   opacity: 0;
-  transition: opacity 0.12s ease, transform 0.15s ease;
+  transition:
+    opacity 0.12s ease,
+    transform 0.15s ease;
   flex-shrink: 0;
   color: var(--faint);
 }
@@ -586,8 +628,14 @@
 }
 
 @keyframes tool-body-in {
-  from { opacity: 0; transform: translateY(-3px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .tool-call-empty {
@@ -667,7 +715,7 @@
 
 .turn-work-details {
   max-width: 760px;
-  margin: 4px 0 10px;
+  margin: 4px auto 10px;
   padding: 0;
   border: none;
   background: transparent;
@@ -721,7 +769,8 @@
   overflow: hidden;
   margin-top: 8px;
   transition:
-    max-height var(--motion-think-collapse, 350ms) var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    max-height var(--motion-think-collapse, 350ms)
+      var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1)),
     opacity var(--motion-standard, 200ms) ease,
     margin var(--motion-think-collapse, 350ms) var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1));
 }
@@ -830,21 +879,50 @@
   color: var(--wb-dim, var(--faint));
 }
 
-/* User soft bubble (prototype .mk-user) — override plain "You" chrome. */
+/*
+ * User message display — same width language as the docked composer and the
+ * inline edit card (full chat-thread width, soft card chrome). Short text
+ * still spans the column so edit → view doesn’t jump from wide to tiny.
+ */
 .bubble.role-user {
-  width: auto;
-  max-width: 70%;
-  margin-left: auto;
-  padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
-  border-radius: 14px 14px 4px 14px;
-  /* Warm sunrise-tinted fill that stays crisp on the Daybreak canvas. */
-  background: color-mix(in srgb, var(--accent) 20%, var(--panel));
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  padding: 14px 16px 12px;
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel) 94%, var(--canvas));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--text) 2%, transparent),
+    0 8px 24px color-mix(in srgb, var(--accent) 5%, rgba(0, 0, 0, 0.16));
 }
 
 .bubble.role-user::before {
   content: none;
   display: none;
+}
+
+.bubble.role-user .message-text {
+  font-size: 14.5px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* Editing a user message replaces its bubble body with ComposerCard. Strip
+   the outer bubble chrome so only the ComposerCard border is visible. */
+.bubble.is-editing {
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bubble.role-user .message-actions {
+  margin-top: 8px;
 }
 
 /* Entrance only for newly arrived messages (not history hydrate). */
@@ -1225,23 +1303,14 @@
   margin: 6px 0 0;
 }
 
-
-/* Quiet workbench: assistant as document flow; user keeps soft bubble. */
+/* Quiet workbench: assistant as document flow; user uses full-width card above. */
 .bubble.role-assistant {
   border: none;
   background: transparent;
   box-shadow: none;
-  max-width: 88%;
+  max-width: 100%;
   padding-left: 0;
   padding-right: 0;
-}
-
-.bubble.role-user {
-  align-self: flex-end;
-  max-width: 70%;
-  background: var(--wb-accent-soft, var(--accent-soft));
-  border: none;
-  border-radius: 12px 12px 3px 12px;
 }
 
 .bubble-header {

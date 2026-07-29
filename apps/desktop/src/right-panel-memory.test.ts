@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  readStoredRightPanelState,
+  writeStoredRightPanelState,
   readStoredRightPanelView,
   writeStoredRightPanelView,
+  RIGHT_PANEL_STATE_STORAGE_KEY,
   RIGHT_PANEL_VIEW_STORAGE_KEY,
 } from './right-panel-memory';
 
@@ -29,21 +32,43 @@ function memoryStorage(initial: Record<string, string> = {}): Storage {
   };
 }
 
-describe('right-panel-memory', () => {
-  it('defaults to home when empty or invalid', () => {
-    expect(readStoredRightPanelView(memoryStorage())).toBe('home');
-    expect(
-      readStoredRightPanelView(
-        memoryStorage({ [RIGHT_PANEL_VIEW_STORAGE_KEY]: 'nope' }),
-      ),
-    ).toBe('home');
-    expect(readStoredRightPanelView(null)).toBe('home');
+describe('right-panel-memory multi-tab', () => {
+  it('defaults to empty open tabs', () => {
+    expect(readStoredRightPanelState(memoryStorage())).toEqual({
+      openTabs: [],
+      activeTab: null,
+    });
+    expect(readStoredRightPanelState(null)).toEqual({ openTabs: [], activeTab: null });
   });
 
-  it('round-trips detail view', () => {
+  it('round-trips open tabs', () => {
+    const storage = memoryStorage();
+    writeStoredRightPanelState(
+      { openTabs: ['terminal', 'files'], activeTab: 'files' },
+      storage,
+    );
+    expect(JSON.parse(storage.getItem(RIGHT_PANEL_STATE_STORAGE_KEY) ?? '{}')).toEqual({
+      openTabs: ['terminal', 'files'],
+      activeTab: 'files',
+    });
+    expect(readStoredRightPanelState(storage)).toEqual({
+      openTabs: ['terminal', 'files'],
+      activeTab: 'files',
+    });
+  });
+
+  it('migrates legacy detail view to terminal tab', () => {
+    const storage = memoryStorage({ [RIGHT_PANEL_VIEW_STORAGE_KEY]: 'detail' });
+    expect(readStoredRightPanelState(storage)).toEqual({
+      openTabs: ['terminal'],
+      activeTab: 'terminal',
+    });
+  });
+
+  it('legacy view helpers map empty/open', () => {
+    expect(readStoredRightPanelView(memoryStorage())).toBe('home');
     const storage = memoryStorage();
     writeStoredRightPanelView('detail', storage);
-    expect(storage.getItem(RIGHT_PANEL_VIEW_STORAGE_KEY)).toBe('detail');
     expect(readStoredRightPanelView(storage)).toBe('detail');
     writeStoredRightPanelView('home', storage);
     expect(readStoredRightPanelView(storage)).toBe('home');

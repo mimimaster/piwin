@@ -11,6 +11,8 @@ export type SegmentedControlProps = MantineSegmentedControlProps & {
 export function SegmentedControl({
   className,
   testId,
+  size = 'sm',
+  radius = 'md',
   ...props
 }: SegmentedControlProps): ReactElement {
   const rootClass = className ? `piwin-segmented-control ${className}` : 'piwin-segmented-control';
@@ -18,8 +20,14 @@ export function SegmentedControl({
   return (
     <MantineSegmentedControl
       {...props}
+      size={size}
+      radius={radius}
       className={rootClass}
-      classNames={{ indicator: 'piwin-segmented-control-indicator' }}
+      classNames={{
+        root: 'piwin-segmented-control',
+        indicator: 'piwin-segmented-control-indicator',
+        label: 'piwin-segmented-control-label',
+      }}
       data-testid={testId}
     />
   );

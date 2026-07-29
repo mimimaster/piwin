@@ -1,36 +1,24 @@
 /**
- * Right workspace panel — closed by default.
+ * Right workspace panel — multi-tab like Cursor's side window.
  *
- * Quiet workbench IA (prototype v2.3):
- * - Outer: whole rail expands/collapses from the titleband panel toggle.
- * - Inner: directory home first; drill into a section; back returns to home.
- * - Terminal shows process count + chevron only when processes are live.
- * - Last inner view is restored from sessionStorage on reopen.
- * - Terminal new output while on directory: row breath pulse only (never auto-open).
- *
- * Outward expand (desktop / Tauri) is unchanged: window grows, stage width holds.
+ * - Tab strip: open Files / Terminal / Changes / Notes / Cards / Browser / Canvas / Side Chat as tabs
+ * - + opens a section picker popover
+ * - Drag left edge to resize; double-click resets width
+ * - Keep-mounted open tab bodies so PTY survives tab switches
  */
 
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import {
-  IconCards,
-  IconChevronLeft,
-  IconChevronRight,
-  IconClose,
-  IconFolder,
-  IconGit,
-  IconNote,
-  IconTerminal,
-} from './shell-icons';
+import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { IconClose } from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
-import { IconButton, ListRow } from '@piwin/ui-kit';
+import { IconButton } from '@piwin/ui-kit';
 import {
-  readStoredRightPanelView,
-  writeStoredRightPanelView,
+  readStoredRightPanelState,
+  writeStoredRightPanelState,
 } from './right-panel-memory';
+import { sectionLabel, sectionIcon, type RightPanelTab } from './right-panel-sections';
+import { RightPanelPlusMenu } from './right-panel-plus-menu';
 
-export type RightPanelTab = 'files' | 'activity' | 'review' | 'notes' | 'cards';
-
+/** @deprecated use presence of open tabs; kept for App attention gating. */
 export type RightPanelView = 'home' | 'detail';
 
 export type RightPanelProps = {
@@ -45,49 +33,47 @@ export type RightPanelProps = {
   onResizeReset: () => void;
   isOverlayPresentation?: boolean;
   filesContent: ReactNode;
-  activityContent: ReactNode;
+  /** Terminal panel body (no context-window chrome). */
+  terminalContent: ReactNode;
   reviewContent: ReactNode;
-  /** Notes library panel (ADR 0018 S6). */
   notesContent?: ReactNode;
-  /** Flashcards review panel (ADR 0018 S7). */
   cardsContent?: ReactNode;
+  /** Stubs for side-tool expansion (Browser / Canvas / Side Chat). */
+  browserContent?: ReactNode;
+  canvasContent?: ReactNode;
+  sideChatContent?: ReactNode;
   changesCount?: number;
-  /** Live terminal / managed process count — drives Terminal row affordances. */
   runningProcessCount?: number;
-  /** Optional due flashcard count for Cards row. */
   cardsDueCount?: number;
-  /**
-   * Quiet workbench: new terminal output while directory is visible (or panel
-   * was collapsed). Shows a row-end breath pulse; never auto-expands.
-   */
   terminalAttention?: boolean;
-  /** Fired when the user opens the Terminal detail (clears attention upstream). */
   onTerminalAttentionClear?: () => void;
-  /** Notifies shell of inner view for attention gating (home vs detail). */
   onViewChange?: (view: RightPanelView) => void;
   locale?: DesktopLocale;
 };
 
-const DIRECTORY_ITEMS: Array<{
-  id: RightPanelTab;
-  icon: ReactElement;
-  labelEn: string;
-  labelZh: string;
-  hint?: string;
-}> = [
-  { id: 'review', icon: <IconGit />, labelEn: 'Changes', labelZh: 'Changes' },
-  { id: 'activity', icon: <IconTerminal />, labelEn: 'Terminal', labelZh: '终端' },
-  { id: 'files', icon: <IconFolder />, labelEn: 'Files', labelZh: 'Files' },
-  { id: 'notes', icon: <IconNote />, labelEn: 'Notes', labelZh: 'Notes' },
-  { id: 'cards', icon: <IconCards />, labelEn: 'Cards', labelZh: 'Cards' },
-];
+export type { RightPanelTab } from './right-panel-sections';
 
-function getSectionLabel(tab: RightPanelTab, locale: DesktopLocale): string {
-  const item = DIRECTORY_ITEMS.find((entry) => entry.id === tab);
-  if (!item) {
-    return tab;
+function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode | undefined {
+  switch (tab) {
+    case 'files':
+      return props.filesContent;
+    case 'terminal':
+      return props.terminalContent;
+    case 'review':
+      return props.reviewContent;
+    case 'notes':
+      return props.notesContent;
+    case 'cards':
+      return props.cardsContent;
+    case 'browser':
+      return props.browserContent;
+    case 'canvas':
+      return props.canvasContent;
+    case 'sideChat':
+      return props.sideChatContent;
+    default:
+      return undefined;
   }
-  return locale === 'zh-CN' ? item.labelZh : item.labelEn;
 }
 
 export function RightPanel(props: RightPanelProps): ReactElement {
@@ -96,68 +82,106 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const runningProcessCount = props.runningProcessCount ?? 0;
   const cardsDueCount = props.cardsDueCount;
   const terminalAttention = props.terminalAttention === true;
-  const listTitle = locale === 'zh-CN' ? '工作区' : 'Workspace';
 
-  // Remember last inner view across collapses (sessionStorage survives unmount).
-  const [view, setView] = useState<RightPanelView>(() => readStoredRightPanelView());
+  const initial = useMemo(() => readStoredRightPanelState(), []);
+  const [openTabs, setOpenTabs] = useState<RightPanelTab[]>(() => initial.openTabs);
+  const [pickerOpen, setPickerOpen] = useState(() => initial.openTabs.length === 0);
   const previousActiveTabRef = useRef(props.activeTab);
   const previousOpenRef = useRef(props.open);
 
+  // Sync stored multi-tab state.
   useEffect(() => {
-    writeStoredRightPanelView(view);
-    props.onViewChange?.(view);
-  }, [view, props.onViewChange]);
+    writeStoredRightPanelState({
+      openTabs,
+      activeTab: openTabs.includes(props.activeTab) ? props.activeTab : (openTabs[0] ?? null),
+    });
+    props.onViewChange?.(openTabs.length > 0 ? 'detail' : 'home');
+  }, [openTabs, props.activeTab, props.onViewChange]);
 
+  // Panel just opened: restore storage, or open the shell-requested tab once.
   useEffect(() => {
     const wasOpen = previousOpenRef.current;
     previousOpenRef.current = props.open;
-    // Re-hydrate from storage when the panel reopens after unmount.
-    if (props.open && !wasOpen) {
-      setView(readStoredRightPanelView());
+    if (!props.open || wasOpen) {
+      return;
     }
-  }, [props.open]);
+    const stored = readStoredRightPanelState();
+    if (stored.openTabs.length > 0) {
+      setOpenTabs(stored.openTabs);
+      setPickerOpen(false);
+      if (stored.activeTab) {
+        props.onTabChange(stored.activeTab);
+      }
+      return;
+    }
+    // First open this session: land on the requested tab (default Terminal).
+    setOpenTabs([props.activeTab]);
+    setPickerOpen(false);
+  }, [props.open, props.activeTab, props.onTabChange]);
 
+  // External tab navigation while open (commands / status) adds a tab.
   useEffect(() => {
-    const previousTab = previousActiveTabRef.current;
-    previousActiveTabRef.current = props.activeTab;
-    // External tab navigation (run status → Activity, commands) drills into detail.
-    if (props.open && previousTab !== props.activeTab) {
-      setView('detail');
+    if (!props.open) {
+      previousActiveTabRef.current = props.activeTab;
+      return;
     }
+    const previous = previousActiveTabRef.current;
+    previousActiveTabRef.current = props.activeTab;
+    if (previous === props.activeTab) {
+      return;
+    }
+    setOpenTabs((current) =>
+      current.includes(props.activeTab) ? current : [...current, props.activeTab],
+    );
+    setPickerOpen(false);
   }, [props.activeTab, props.open]);
 
   useEffect(() => {
-    // Viewing live terminal clears the directory-row attention pulse.
     if (
       props.open &&
-      view === 'detail' &&
-      props.activeTab === 'activity' &&
+      openTabs.includes('terminal') &&
+      props.activeTab === 'terminal' &&
       terminalAttention
     ) {
       props.onTerminalAttentionClear?.();
     }
   }, [
     props.open,
-    view,
+    openTabs,
     props.activeTab,
     terminalAttention,
     props.onTerminalAttentionClear,
   ]);
 
-  const drillInto = (tab: RightPanelTab): void => {
+  function openTab(tab: RightPanelTab): void {
+    setOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
     props.onTabChange(tab);
-    setView('detail');
-    if (tab === 'activity') {
+    setPickerOpen(false);
+    if (tab === 'terminal') {
       props.onTerminalAttentionClear?.();
     }
-  };
+  }
 
-  const returnHome = (): void => {
-    setView('home');
-  };
+  function closeTab(tab: RightPanelTab): void {
+    setOpenTabs((current) => {
+      const next = current.filter((item) => item !== tab);
+      if (props.activeTab === tab) {
+        const fallback = next[next.length - 1] ?? null;
+        if (fallback) {
+          props.onTabChange(fallback);
+        }
+      }
+      if (next.length === 0) {
+        setPickerOpen(true);
+      }
+      return next;
+    });
+  }
 
-  const inDetail = view === 'detail';
-  // Keep-mount when collapsed so PTY / terminal state survives reopen (quiet workbench §3.8.1).
+  const active = openTabs.includes(props.activeTab)
+    ? props.activeTab
+    : (openTabs[0] ?? null);
+
   const panelClass = [
     'right-panel',
     'outward-column',
@@ -173,9 +197,9 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       data-testid="right-panel"
       data-content-expanded={props.open ? 'true' : 'false'}
       data-open={props.open ? 'true' : 'false'}
-      data-view={view}
+      data-view={openTabs.length > 0 ? 'detail' : 'home'}
       data-terminal-attention={terminalAttention ? 'true' : 'false'}
-      aria-label="Workspace panel"
+      aria-label={locale === 'zh-CN' ? '工作区面板' : 'Workspace panel'}
       aria-hidden={props.open ? undefined : true}
       {...(!props.open ? ({ inert: true } as Record<string, boolean>) : {})}
     >
@@ -183,157 +207,125 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         className="right-panel-resize-handle"
         data-testid="right-panel-resize-handle"
         role="separator"
-        aria-label="Resize workspace panel"
+        aria-label={locale === 'zh-CN' ? '调整工作区面板宽度' : 'Resize workspace panel'}
         aria-orientation="vertical"
         aria-valuemin={240}
         aria-valuemax={640}
         aria-valuenow={props.panelWidthPx}
-        title="Drag to resize workspace panel. Double-click to reset."
+        title={
+          locale === 'zh-CN'
+            ? '拖动调整宽度，双击恢复默认'
+            : 'Drag to resize. Double-click to reset.'
+        }
         onPointerDown={props.onResizePointerDown}
         onDoubleClick={props.onResizeReset}
       />
 
-      <header className="right-panel-header">
-        {inDetail ? (
-          <>
-            <IconButton
-              label={locale === 'zh-CN' ? '返回目录' : 'Back to directory'}
-              data-testid="right-panel-back-btn"
-              onClick={returnHome}
-            >
-              <IconChevronLeft />
-            </IconButton>
-            <div className="right-panel-header-copy">
-              <h2>{getSectionLabel(props.activeTab, locale)}</h2>
-            </div>
-          </>
-        ) : (
-          <div className="right-panel-header-copy">
-            <span className="right-panel-kicker">{listTitle}</span>
-          </div>
-        )}
+      {/* Cursor-style tab strip */}
+      <div className="right-panel-tabstrip" data-testid="right-panel-tabstrip" role="tablist">
+        <div className="right-panel-tabs">
+          {openTabs.map((tab) => {
+            const isActive = tab === active;
+            const label = sectionLabel(tab, locale);
+            return (
+              <div
+                key={tab}
+                className={isActive ? 'right-panel-tab active' : 'right-panel-tab'}
+                role="tab"
+                aria-selected={isActive}
+                data-testid={`right-panel-open-tab-${tab}`}
+              >
+                <button
+                  type="button"
+                  className="right-panel-tab-main"
+                  onClick={() => {
+                    props.onTabChange(tab);
+                    setPickerOpen(false);
+                    if (tab === 'terminal') props.onTerminalAttentionClear?.();
+                  }}
+                >
+                  <span className="right-panel-tab-icon" aria-hidden>
+                    {sectionIcon(tab)}
+                  </span>
+                  <span className="right-panel-tab-label">{label}</span>
+                  {tab === 'terminal' && runningProcessCount > 0 ? (
+                    <span className="right-panel-tab-badge">{runningProcessCount}</span>
+                  ) : null}
+                  {tab === 'terminal' && terminalAttention ? (
+                    <span className="right-panel-tab-attention" aria-hidden />
+                  ) : null}
+                  {tab === 'review' && changesCount > 0 ? (
+                    <span className="right-panel-tab-badge">{changesCount}</span>
+                  ) : null}
+                  {tab === 'cards' && cardsDueCount !== undefined && cardsDueCount > 0 ? (
+                    <span className="right-panel-tab-badge">{cardsDueCount}</span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  className="right-panel-tab-close"
+                  aria-label={locale === 'zh-CN' ? `关闭 ${label}` : `Close ${label}`}
+                  data-testid={`right-panel-close-tab-${tab}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    closeTab(tab);
+                  }}
+                >
+                  <IconClose width={12} height={12} />
+                </button>
+              </div>
+            );
+          })}
+
+          <RightPanelPlusMenu
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            locale={locale}
+            openTabs={openTabs}
+            onSelect={openTab}
+            active={pickerOpen}
+          />
+        </div>
         {props.isOverlayPresentation ? (
           <IconButton
             label={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
             data-testid="right-panel-close-btn"
             onClick={props.onClose}
           >
-            <IconClose />
+            <IconClose width={16} height={16} />
           </IconButton>
         ) : null}
-      </header>
+      </div>
 
-      {!inDetail ? (
-        <nav
-          className="right-panel-section-list"
-          aria-label="Workspace sections"
-          data-testid="right-panel-directory"
-        >
-          <div className="right-panel-group-label" aria-hidden>
-            piwin
-          </div>
-          {DIRECTORY_ITEMS.map((tab) => {
-            const label = locale === 'zh-CN' ? tab.labelZh : tab.labelEn;
-            const isTerminal = tab.id === 'activity';
-            const hasProcess = isTerminal && runningProcessCount > 0;
-            const showAttention = isTerminal && terminalAttention;
-            const rowClass = [
-              'right-panel-section-row',
-              hasProcess ? 'has-proc' : '',
-              showAttention ? 'has-attention' : '',
-            ]
-              .filter(Boolean)
-              .join(' ');
-            return (
-              <ListRow
-                key={tab.id}
-                className={rowClass}
-                selected={false}
-                role="button"
-                id={`inspector-tab-${tab.id}`}
-                onClick={() => drillInto(tab.id)}
-                data-testid={
-                  tab.id === 'files'
-                    ? 'right-panel-files-btn'
-                    : `right-panel-tab-${tab.id}`
-                }
-              >
-                <span className="right-panel-section-icon" aria-hidden>
-                  {tab.icon}
-                </span>
-                {hasProcess ? (
-                  <span className="right-panel-section-count is-process">
-                    {runningProcessCount}
-                  </span>
-                ) : null}
-                <span className="right-panel-section-label">
-                  {label}
-                  {tab.hint && locale === 'zh-CN' ? (
-                    <span className="right-panel-section-hint">{tab.hint}</span>
-                  ) : null}
-                </span>
-                {tab.hint && locale !== 'zh-CN' ? (
-                  <span className="right-panel-section-hint-en">{tab.hint}</span>
-                ) : null}
-                {tab.id === 'review' && changesCount > 0 ? (
-                  <span className="right-panel-section-count is-changes">
-                    {changesCount}
-                  </span>
-                ) : null}
-                {tab.id === 'cards' &&
-                cardsDueCount !== undefined &&
-                cardsDueCount > 0 ? (
-                  <span className="right-panel-section-count is-due">
-                    {cardsDueCount} due
-                  </span>
-                ) : null}
-                {showAttention ? (
-                  <span
-                    className="right-panel-section-attention"
-                    data-testid="right-panel-terminal-attention"
-                    aria-label={
-                      locale === 'zh-CN' ? '终端有新输出' : 'New terminal output'
-                    }
-                  />
-                ) : null}
-                {hasProcess ? (
-                  <span className="right-panel-section-chevron" aria-hidden>
-                    <IconChevronRight />
-                  </span>
-                ) : null}
-              </ListRow>
-            );
-          })}
-        </nav>
-      ) : (
-        <div
-          className="right-panel-body"
-          role="region"
-          id={`inspector-panel-${props.activeTab}`}
-          aria-labelledby={`inspector-tab-${props.activeTab}`}
-        >
-          {props.activeTab === 'files' ? (
-            <div className="right-panel-section">{props.filesContent}</div>
-          ) : null}
-          {props.activeTab === 'activity' ? (
+      {/* Keep all open tab bodies mounted (PTY survives switch). */}
+      <div className="right-panel-bodies">
+        {openTabs.map((tab) => {
+          const content = sectionContent(props, tab);
+          const label = sectionLabel(tab, locale);
+          return (
             <div
-              className="right-panel-section right-panel-activity"
-              data-testid="activity-panel"
+              key={tab}
+              className="right-panel-body"
+              role="tabpanel"
+              hidden={tab !== active}
+              id={`inspector-panel-${tab}`}
+              data-testid={tab === 'terminal' ? 'terminal-panel' : undefined}
             >
-              {props.activityContent}
+              {content === undefined ? (
+                <div className="right-panel-section">
+                  <div className="right-panel-empty muted">
+                    {locale === 'zh-CN' ? `${label} 面板尚未实现` : `${label} panel is not yet available.`}
+                  </div>
+                </div>
+              ) : tab === 'terminal' ? (
+                <div className="right-panel-section right-panel-terminal">{content}</div>
+              ) : (
+                <div className="right-panel-section">{content}</div>
+              )}
             </div>
-          ) : null}
-          {props.activeTab === 'review' ? (
-            <div className="right-panel-section">{props.reviewContent}</div>
-          ) : null}
-          {props.activeTab === 'notes' ? (
-            <div className="right-panel-section">{props.notesContent}</div>
-          ) : null}
-          {props.activeTab === 'cards' ? (
-            <div className="right-panel-section">{props.cardsContent}</div>
-          ) : null}
-        </div>
-      )}
+          );
+        })}
+      </div>
     </aside>
   );
 }
