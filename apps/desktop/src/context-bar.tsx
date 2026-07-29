@@ -12,6 +12,7 @@
  */
 import type { ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
+import type { PermissionMode } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
 
 export type ContextBarSession = {
@@ -27,8 +28,22 @@ export type ContextBarProps = {
   onViewPlan: () => void;
   onCancelCompact: () => void;
   onRetry?: (() => void) | undefined;
+  /** ADR 0019 §3 — permission mode badge; click opens Settings → Permissions. */
+  permissionMode?: PermissionMode | null;
+  onOpenPermissions?: (() => void) | undefined;
   locale?: 'zh-CN' | 'en';
 };
+
+function modeBadgeLabel(mode: PermissionMode): string {
+  switch (mode) {
+    case 'auto':
+      return 'Auto';
+    case 'ask-all':
+      return 'Ask all';
+    case 'bypass':
+      return 'Bypass';
+  }
+}
 
 function formatElapsed(elapsedMs: number): string {
   const elapsedSeconds = Math.floor(elapsedMs / 1000);
@@ -65,6 +80,8 @@ function phaseDotClass(kind: RunStatusView['kind']): string {
 export function ContextBar(props: ContextBarProps): ReactElement {
   const { session, runState } = props;
   const elapsedText = runState.elapsedMs !== undefined ? formatElapsed(runState.elapsedMs) : null;
+  const isChinese = props.locale === 'zh-CN';
+  const mode = props.permissionMode ?? null;
 
   return (
     <div className="context-bar" data-testid="workspace-context-header" data-kind={runState.kind}>
@@ -74,6 +91,24 @@ export function ContextBar(props: ContextBarProps): ReactElement {
           {session.title}
         </span>
         <span className="context-bar-scope-pill">{session.scopeLabel}</span>
+        {mode ? (
+          <button
+            type="button"
+            className={
+              mode === 'bypass' ? 'context-bar-mode-badge is-warning' : 'context-bar-mode-badge'
+            }
+            data-testid="context-bar-mode-badge"
+            data-mode={mode}
+            title={
+              isChinese
+                ? '权限模式 — 点击打开权限设置'
+                : 'Permission mode — click to open Permissions settings'
+            }
+            onClick={props.onOpenPermissions}
+          >
+            {modeBadgeLabel(mode)}
+          </button>
+        ) : null}
       </div>
 
       {/* Run status cluster */}

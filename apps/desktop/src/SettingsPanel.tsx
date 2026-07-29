@@ -51,6 +51,8 @@ type SettingsPanelProps = {
   preferences: DesktopPreferences;
   onPreferencesChange: (prefs: DesktopPreferences) => void;
   projectPath: string | null;
+  /** Whether the open project is trusted (ADR 0019 §2 — gates project allow rules + bypass). */
+  projectTrusted: boolean;
   requestSkills: SkillsPanelProps['request'];
   requestMcp: McpPanelProps['request'];
   requestExtensions: ExtensionsPanelProps['request'];
@@ -73,6 +75,7 @@ export function SettingsPanel({
   preferences,
   onPreferencesChange,
   projectPath,
+  projectTrusted,
   requestSkills,
   requestMcp,
   requestExtensions,
@@ -244,6 +247,7 @@ export function SettingsPanel({
       preferences,
       onPreferencesChange,
       projectPath,
+      projectTrusted,
       hostStatus,
       activeSessionId,
       onOpenSubagentSession,
@@ -274,6 +278,7 @@ export function SettingsPanel({
       preferences,
       onPreferencesChange,
       projectPath,
+      projectTrusted,
       hostStatus,
       activeSessionId,
       onOpenSubagentSession,

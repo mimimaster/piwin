@@ -214,4 +214,51 @@ describe('ContextBar', () => {
     expect(container.querySelector('[data-testid="right-panel-open-btn"]')).toBeNull();
     expect(container.querySelector('.context-bar-inspector-btn')).toBeNull();
   });
+
+  it('renders a permission mode badge when permissionMode is provided', () => {
+    const onOpenPermissions = vi.fn();
+    renderContextBar(
+      createBaseProps({
+        runState: createIdleRunStatus(),
+        permissionMode: 'auto',
+        onOpenPermissions,
+      }),
+      root,
+    );
+
+    const badge = container.querySelector<HTMLButtonElement>(
+      '[data-testid="context-bar-mode-badge"]',
+    );
+    expect(badge).not.toBeNull();
+    expect(badge?.getAttribute('data-mode')).toBe('auto');
+    expect(badge?.classList.contains('is-warning')).toBe(false);
+
+    act(() => {
+      badge?.click();
+    });
+    expect(onOpenPermissions).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies the warning tone to the bypass mode badge', () => {
+    renderContextBar(
+      createBaseProps({ runState: createIdleRunStatus(), permissionMode: 'bypass' }),
+      root,
+    );
+
+    const badge = container.querySelector<HTMLButtonElement>(
+      '[data-testid="context-bar-mode-badge"]',
+    );
+    expect(badge).not.toBeNull();
+    expect(badge?.getAttribute('data-mode')).toBe('bypass');
+    expect(badge?.classList.contains('is-warning')).toBe(true);
+  });
+
+  it('omits the permission mode badge when permissionMode is null', () => {
+    renderContextBar(
+      createBaseProps({ runState: createIdleRunStatus(), permissionMode: null }),
+      root,
+    );
+
+    expect(container.querySelector('[data-testid="context-bar-mode-badge"]')).toBeNull();
+  });
 });

@@ -5,7 +5,6 @@ import type { ManagedProcessLogChunk, ManagedProcessRecord } from './process.js'
 import type { ExecutionMode } from './session-ops.js';
 import type { SubagentSpawnOptions } from './subagent.js';
 import type { CompactionFileOps } from './compaction-fileops.js';
-import type { PermissionMode } from './permission.js';
 
 export type HostMode = 'sdk' | 'rpc';
 

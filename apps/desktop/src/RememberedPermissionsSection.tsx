@@ -91,8 +91,8 @@ export function RememberedPermissionsSection(
             <h4>{isChinese ? '已记住的工具权限' : 'Remembered tool permissions'}</h4>
             <p>
               {isChinese
-                ? '项目范围的允许决策（Web 搜索/抓取主机）。撤销后下次使用会再次询问。'
-                : 'Project-scoped allow decisions (web search/fetch hosts). Revoking asks again on the next use.'}
+                ? '项目范围的允许决策（Web 主机、bash 命令、文件写入路径）。撤销后下次使用会再次询问。'
+                : 'Project-scoped allow decisions (web hosts, bash commands, file-write paths). Revoking asks again on the next use.'}
             </p>
           </div>
         </div>
