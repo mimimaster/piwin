@@ -3,10 +3,8 @@
  * Deny hard-patterns immediately; ask UI for destructive patterns.
  */
 import type { PermissionDecision } from '@piwin/contracts';
-import {
-  evaluateBashPermission,
-  resolveNonInteractiveDecision,
-} from './permission-policy.js';
+import { commandInBashAllowlist, getBashAllowlist } from '@piwin/project';
+import { evaluateBashPermission, resolveNonInteractiveDecision } from './permission-policy.js';
 
 export type GatedBashPermissionRequest = {
   action: string;
@@ -17,9 +15,11 @@ export type GatedBashPermissionRequest = {
 
 export type BuildGatedBashToolOptions = {
   cwd: string;
-  requestPermission?: (
-    request: GatedBashPermissionRequest,
-  ) => Promise<PermissionDecision>;
+  /** Path to `~/.piwin/projects.json`; read once for the remembered allowlist. */
+  projectsFilePath?: string;
+  /** Project path key for the project-store lookup (defaults to `cwd`). */
+  projectPath?: string;
+  requestPermission?: (request: GatedBashPermissionRequest) => Promise<PermissionDecision>;
 };
 
 /**
@@ -75,12 +75,34 @@ export async function buildGatedBashToolDefinition(
     throw new Error('createLocalBashOperations missing from pi-coding-agent');
   }
 
+  // Load the remembered bash allowlist once per session. Entries are exact
+  // command strings approved by the user (Settings → remembered permissions);
+  // an exact match auto-allows without prompting (ADR 0019 §6).
+  let allowlist: string[] = [];
+  if (options.projectsFilePath) {
+    try {
+      allowlist = await getBashAllowlist(
+        options.projectsFilePath,
+        options.projectPath ?? options.cwd,
+      );
+    } catch (error) {
+      // Best-effort: a missing/unreadable store simply means no remembered allows.
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`[piwin] bash allowlist unavailable: ${message}`);
+    }
+  }
+
   const localOps = createLocalBashOperations();
   const requestPermission = options.requestPermission;
 
   return createBashToolDefinition(options.cwd, {
     operations: {
       exec: async (command, cwd, execOptions) => {
+        // Remembered approvals short-circuit before the evaluator / prompt.
+        if (allowlist.length > 0 && commandInBashAllowlist(command, allowlist)) {
+          return localOps.exec(command, cwd, execOptions);
+        }
+
         const evaluation = evaluateBashPermission(command);
         let decision: PermissionDecision = evaluation.decision;
 
@@ -98,8 +120,7 @@ export async function buildGatedBashToolDefinition(
         }
 
         if (decision !== 'allow') {
-          const message =
-            `piwin blocked bash (${evaluation.reason}): ${command}` + '\n';
+          const message = `piwin blocked bash (${evaluation.reason}): ${command}` + '\n';
           execOptions.onData(Buffer.from(message, 'utf8'));
           return { exitCode: 1 };
         }

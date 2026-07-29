@@ -22,6 +22,7 @@ export type PiRpcAdapterOptions = {
   onPermissionRequest?: PiSdkAdapterOptions['onPermissionRequest'];
   onExtensionUiRequest?: PiSdkAdapterOptions['onExtensionUiRequest'];
   onExtensionNotify?: PiSdkAdapterOptions['onExtensionNotify'];
+  onLog?: PiSdkAdapterOptions['onLog'];
   processRegistry?: ProcessRegistry;
   /**
    * When true (default), real sessions use PiSdkAdapter so extensions/tools load.
@@ -162,6 +163,9 @@ export class PiRpcAdapter implements AgentHost {
       }
       if (this.options.onExtensionNotify) {
         sdkOptions.onExtensionNotify = this.options.onExtensionNotify;
+      }
+      if (this.options.onLog) {
+        sdkOptions.onLog = this.options.onLog;
       }
       if (this.options.processRegistry) {
         sdkOptions.processRegistry = this.options.processRegistry;
