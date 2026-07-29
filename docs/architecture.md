@@ -57,7 +57,7 @@ Violations are architecture bugs.
 | **SDK** (`PiSdkAdapter`) | Default Desktop main / Node CLI | Low latency, full events | Shares process with host |
 | **RPC** (`PiRpcAdapter`) | Isolation, external IDE clients, crash boundary | Process isolation | JSONL overhead |
 
-v1: **both adapters exist** behind `AgentHost` / `SessionHandle`. Default runtime = SDK. RPC used by `piwin rpc` and optional "isolated session" setting.
+v1: **both adapters exist** behind `AgentHost` / `SessionHandle`. Default runtime = SDK. RPC mode (`PiRpcAdapter`) defaults to **SDK session fallback** because stock `pi --mode rpc` cannot register piwin custom tools (web/MCP/bash gate) or extensions/prompts (ADR 0008 / D-EXT-07). True RPC process isolation is residual (D-HOST-01b, ADR 0012); the product path uses SDK fallback under `hostMode=rpc` (ADR 0011). Set `PIWIN_RPC_STOCK=1` to attempt the stock binary path (will fail the product tool path with an actionable error).
 
 ### 3.2 Core contracts (packages/contracts)
 
