@@ -46,6 +46,36 @@
   flex-shrink: 0;
 }
 
+/* ADR 0019 §3 — permission mode badge (click opens Settings → Permissions). */
+.context-bar-mode-badge {
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: var(--surface-hover);
+  color: var(--content-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.context-bar-mode-badge:hover {
+  background: var(--surface-active);
+  color: var(--content-primary);
+}
+
+.context-bar-mode-badge.is-warning {
+  background: var(--state-warning-soft, rgba(204, 153, 0, 0.16));
+  color: var(--state-warning);
+  border-color: var(--state-warning);
+}
+
+.context-bar-mode-badge.is-warning:hover {
+  background: var(--state-warning);
+  color: var(--content-on-accent, #fff);
+}
+
 /* Run status cluster */
 .context-bar-status {
   display: flex;
@@ -83,8 +113,13 @@
 }
 
 @keyframes context-bar-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.45; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

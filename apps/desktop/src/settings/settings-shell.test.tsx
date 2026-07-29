@@ -50,6 +50,7 @@ function createContextValue(
     },
     onPreferencesChange: vi.fn(),
     projectPath: null,
+    projectTrusted: false,
     hostStatus: null,
     activeSessionId: null,
     onOpenSubagentSession: undefined,

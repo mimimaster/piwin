@@ -64,6 +64,7 @@ export type DesktopTranslator = {
     nav: {
       general: string;
       appearance: string;
+      permissions: string;
       models: string;
       sessions: string;
       rules: string;
@@ -245,6 +246,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       nav: {
         general: isChinese ? '通用' : 'General',
         appearance: isChinese ? '外观' : 'Appearance',
+        permissions: isChinese ? '权限' : 'Permissions',
         models: isChinese ? '模型' : 'Models',
         sessions: isChinese ? '会话' : 'Sessions',
         rules: isChinese ? '规则' : 'Rules',

@@ -1135,6 +1135,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     },
                   }
                 : {})}
+              permissionMode={config?.permissions?.mode ?? null}
+              onOpenPermissions={() => openSettingsSection('permissions')}
               locale={desktopLocale}
             />
           }
@@ -1517,6 +1519,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             }}
             initialSection={settingsSection}
             projectPath={state.projectPath}
+            projectTrusted={state.projectTrusted}
             requestSkills={requestSkills}
             requestMcp={requestMcp}
             requestExtensions={requestExtensions}
