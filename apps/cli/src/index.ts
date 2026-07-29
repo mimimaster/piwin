@@ -60,7 +60,6 @@ Usage:
   piwin mcp list
   piwin mcp validate [path]
   piwin mcp add <id> --command <cmd> [--args a,b] [--env KEY=VAL]
-  piwin memory list|search|write|delete|quota|enable|disable [--project <path>]
   piwin notes add <content> --title <t> [--collection c] [--tags a,b]
   piwin notes list [--collection c]
   piwin notes search <query> [--collection c] [--limit n] [--search-mode auto|fts|vector|hybrid]
@@ -1003,155 +1002,6 @@ async function commandProcess(argv: string[]): Promise<void> {
 }
 
 
-async function commandMemory(argv: string[]): Promise<void> {
-  const sub = argv[1] ?? 'list';
-  const root = getPiwinRoot();
-  const config = await loadPiwinConfig(root);
-  if (config.memory?.enabled !== true && sub !== 'enable' && sub !== 'disable') {
-    console.error(
-      'Memory disabled. Enable with: piwin memory enable  (or config.memory.enabled=true)',
-    );
-    process.exitCode = 1;
-    return;
-  }
-
-  const runtime = new HostRuntime({
-    mode: parseMode(argv),
-    mock: true,
-    piwinRoot: root,
-  });
-  try {
-    if (sub === 'enable' || sub === 'disable') {
-      const next = {
-        ...config,
-        memory: {
-          ...(config.memory ?? { injectOverview: true, autoExtract: false }),
-          enabled: sub === 'enable',
-        },
-      };
-      if (hasFlag(argv, '--no-inject')) {
-        next.memory.injectOverview = false;
-      }
-      if (hasFlag(argv, '--inject')) {
-        next.memory.injectOverview = true;
-      }
-      await savePiwinConfig(next, root);
-      console.log(
-        `memory.enabled=${next.memory.enabled} injectOverview=${next.memory.injectOverview !== false}`,
-      );
-      return;
-    }
-
-    if (sub === 'list') {
-      const response = await runtime.handleCommand({ type: 'memory/list', filter: { limit: 100 } });
-      if (!response.success) {
-        console.error(response.error);
-        process.exitCode = 1;
-        return;
-      }
-      const data = response.data as { records: Array<Record<string, unknown>> };
-      for (const record of data.records ?? []) {
-        console.log(
-          `${record.id}\t${record.scope}/${record.type}\t${record.confidence}\t${record.title ?? ''}\t${String(record.content ?? '').slice(0, 80)}`,
-        );
-      }
-      return;
-    }
-
-    if (sub === 'search') {
-      const query = argv.slice(2).filter((token) => !token.startsWith('--')).join(' ').trim();
-      if (!query) {
-        console.error('Usage: piwin memory search <query>');
-        process.exitCode = 1;
-        return;
-      }
-      const response = await runtime.handleCommand({
-        type: 'memory/search',
-        query: { query, limit: 20 },
-      });
-      if (!response.success) {
-        console.error(response.error);
-        process.exitCode = 1;
-        return;
-      }
-      const data = response.data as {
-        hits: Array<{ record: Record<string, unknown>; snippet?: string }>;
-      };
-      for (const hit of data.hits ?? []) {
-        console.log(
-          `${hit.record.id}\t${hit.snippet ?? String(hit.record.content ?? '').slice(0, 100)}`,
-        );
-      }
-      return;
-    }
-
-    if (sub === 'write') {
-      const content = argv.slice(2).filter((token) => !token.startsWith('--')).join(' ').trim();
-      const title = readOption(argv, '--title');
-      const scope = readOption(argv, '--scope') === 'project' ? 'project' : 'global';
-      if (!content) {
-        console.error('Usage: piwin memory write <content> [--title t] [--scope global|project]');
-        process.exitCode = 1;
-        return;
-      }
-      const input: {
-        scope: 'global' | 'project';
-        type: 'user';
-        content: string;
-        title?: string;
-        projectKey?: string;
-      } = { scope, type: 'user', content };
-      if (title) input.title = title;
-      if (scope === 'project') {
-        const { projectKeyFromPath } = await import('@piwin/memory');
-        input.projectKey = projectKeyFromPath(parseProject(argv));
-      }
-      const response = await runtime.handleCommand({ type: 'memory/write', input });
-      if (!response.success) {
-        console.error(response.error);
-        process.exitCode = 1;
-        return;
-      }
-      const data = response.data as { record: { id: string } };
-      console.log(`wrote ${data.record.id}`);
-      return;
-    }
-
-    if (sub === 'delete') {
-      const memoryId = argv[2];
-      if (!memoryId) {
-        console.error('Usage: piwin memory delete <id>');
-        process.exitCode = 1;
-        return;
-      }
-      const response = await runtime.handleCommand({ type: 'memory/delete', memoryId });
-      if (!response.success) {
-        console.error(response.error);
-        process.exitCode = 1;
-        return;
-      }
-      console.log(`deleted ${memoryId}`);
-      return;
-    }
-
-    if (sub === 'quota') {
-      const response = await runtime.handleCommand({ type: 'memory/quota' });
-      if (!response.success) {
-        console.error(response.error);
-        process.exitCode = 1;
-        return;
-      }
-      console.log(JSON.stringify(response.data, null, 2));
-      return;
-    }
-
-    console.error('Usage: piwin memory list|search|write|delete|quota|enable|disable');
-    process.exitCode = 1;
-  } finally {
-    await runtime.dispose();
-  }
-}
-
 async function commandNotes(argv: string[]): Promise<void> {
   const sub = argv[1] ?? 'list';
   const root = getPiwinRoot();
@@ -1975,10 +1825,6 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'cron') {
     await commandCron(argv);
-    return;
-  }
-  if (command === 'memory') {
-    await commandMemory(argv);
     return;
   }
   if (command === 'notes') {

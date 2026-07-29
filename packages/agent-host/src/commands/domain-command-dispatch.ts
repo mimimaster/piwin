@@ -8,7 +8,6 @@ import { handleMcpCommand } from './mcp-commands.js';
 import { handleGitCommand } from './git-commands.js';
 import { handlePlanCommand } from './plan-commands.js';
 import { handleProcessCommand } from './process-commands.js';
-import { handleMemoryCommand } from './memory-commands.js';
 import { handlePtyCommand } from './pty-commands.js';
 import { handleAutomationCommand } from './automation-commands.js';
 import { handleResolveCommand } from './resolve-commands.js';
@@ -37,7 +36,6 @@ export async function dispatchDomainCommands(
     handleGitCommand,
     handlePlanCommand,
     handleProcessCommand,
-    handleMemoryCommand,
     handlePtyCommand,
     handleAutomationCommand,
     handleResolveCommand,

@@ -125,7 +125,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     requestGit,
     requestTheme,
     requestPet,
-    requestMemory,
     requestPty,
     requestAutomation,
   } = useHostRequestAdapters(hostClient);
@@ -1485,7 +1484,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           requestPrompts={requestPrompts}
           requestTheme={requestTheme}
           requestPet={requestPet}
-          requestMemory={requestMemory}
           requestAutomation={requestAutomation}
           requestSubAgent={requestSubAgent as never}
           activeSessionId={state.activeSessionId}

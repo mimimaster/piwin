@@ -7,7 +7,6 @@ import type {
   ExecutionConfig,
   ExtensionsConfig,
   MarketplaceConfig,
-  MemoryConfig,
   PiwinConfig,
   ProcessConfig,
   PromptsConfig,
@@ -22,7 +21,6 @@ import {
   createDefaultExecutionConfig,
   createDefaultExtensionsConfig,
   createDefaultMarketplaceConfig,
-  createDefaultMemoryConfig,
   createDefaultProcessConfig,
   createDefaultPromptsConfig,
   createDefaultSkillsConfig,
@@ -52,7 +50,6 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     extensions: createDefaultExtensionsConfig(),
     prompts: createDefaultPromptsConfig(),
     compaction: createDefaultCompactionConfig(),
-    memory: createDefaultMemoryConfig(),
     process: createDefaultProcessConfig(),
     execution: createDefaultExecutionConfig(),
     automation: createDefaultAutomationConfig(),
@@ -181,10 +178,6 @@ function normalizeConfig(value: unknown): PiwinConfig {
   normalized.compaction = normalizeCompactionConfig(
     record.compaction,
     defaults.compaction ?? createDefaultCompactionConfig(),
-  );
-  normalized.memory = normalizeMemoryConfig(
-    record.memory,
-    defaults.memory ?? createDefaultMemoryConfig(),
   );
   normalized.process = normalizeProcessConfig(
     record.process,
@@ -476,31 +469,6 @@ function normalizeCompactionConfig(
     normalized.writeTranscriptNote = record.writeTranscriptNote;
   } else if (typeof defaults.writeTranscriptNote === 'boolean') {
     normalized.writeTranscriptNote = defaults.writeTranscriptNote;
-  }
-  return normalized;
-}
-
-function normalizeMemoryConfig(value: unknown, defaults: MemoryConfig): MemoryConfig {
-  const record = asRecord(value);
-  if (!record) {
-    return defaults;
-  }
-  const normalized: MemoryConfig = {
-    enabled:
-      typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled === true,
-    injectOverview:
-      typeof record.injectOverview === 'boolean'
-        ? record.injectOverview
-        : defaults.injectOverview !== false,
-    autoExtract:
-      typeof record.autoExtract === 'boolean'
-        ? record.autoExtract
-        : defaults.autoExtract === true,
-  };
-  if (typeof record.maxOverviewChars === 'number' && record.maxOverviewChars > 0) {
-    normalized.maxOverviewChars = Math.floor(record.maxOverviewChars);
-  } else if (typeof defaults.maxOverviewChars === 'number') {
-    normalized.maxOverviewChars = defaults.maxOverviewChars;
   }
   return normalized;
 }

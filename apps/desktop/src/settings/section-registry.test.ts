@@ -20,7 +20,6 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'tools',
   'web',
   'session',
-  'memory',
   'automation',
   'pets',
 ];

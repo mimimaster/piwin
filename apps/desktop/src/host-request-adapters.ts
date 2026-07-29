@@ -93,22 +93,6 @@ export type HostRequestAdapters = {
     petId?: string;
     sourcePath?: string;
   }) => Promise<HostResponse>;
-  requestMemory: (command: {
-    type:
-      | 'memory/list'
-      | 'memory/search'
-      | 'memory/delete'
-      | 'memory/accept'
-      | 'memory/quota'
-      | 'config/get'
-      | 'config/set';
-    filter?: { scope?: 'global' | 'project'; projectKey?: string; limit?: number };
-    query?: { query: string; scope?: 'global' | 'project'; projectKey?: string; limit?: number };
-    memoryId?: string;
-    scope?: 'global' | 'project';
-    projectKey?: string;
-    config?: PiwinConfig;
-  }) => Promise<HostResponse>;
   requestPty: (command: {
     type: 'pty/open' | 'pty/write' | 'pty/resize' | 'pty/close' | 'pty/list';
     input?: { projectPath: string; cwd?: string; cols?: number; rows?: number };
@@ -347,35 +331,6 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         type: 'pet/install-local',
         sourcePath: command.sourcePath ?? '',
       });
-    },
-    requestMemory: async (command) => {
-      if (command.type === 'config/get') return hostClient.request({ type: 'config/get' });
-      if (command.type === 'config/set') {
-        return hostClient.request({ type: 'config/set', config: command.config! });
-      }
-      if (command.type === 'memory/list') {
-        return hostClient.request({
-          type: 'memory/list',
-          ...(command.filter ? { filter: command.filter } : {}),
-        } as never);
-      }
-      if (command.type === 'memory/search') {
-        return hostClient.request({
-          type: 'memory/search',
-          query: command.query!,
-        } as never);
-      }
-      if (command.type === 'memory/delete') {
-        return hostClient.request({ type: 'memory/delete', memoryId: command.memoryId! } as never);
-      }
-      if (command.type === 'memory/accept') {
-        return hostClient.request({ type: 'memory/accept', memoryId: command.memoryId! } as never);
-      }
-      return hostClient.request({
-        type: 'memory/quota',
-        ...(command.scope ? { scope: command.scope } : {}),
-        ...(command.projectKey ? { projectKey: command.projectKey } : {}),
-      } as never);
     },
     requestPty: async (command) => {
       if (command.type === 'pty/open') {

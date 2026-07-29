@@ -66,7 +66,6 @@ export type DesktopTranslator = {
       appearance: string;
       models: string;
       sessions: string;
-      memory: string;
       rules: string;
       skills: string;
       tools: string;
@@ -248,8 +247,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         appearance: isChinese ? '外观' : 'Appearance',
         models: isChinese ? '模型' : 'Models',
         sessions: isChinese ? '会话' : 'Sessions',
-        memory: isChinese ? '记忆' : 'Memory',
-        rules: isChinese ? '规则' : 'Rules',
+          rules: isChinese ? '规则' : 'Rules',
         skills: 'Skills',
         tools: 'MCP',
         web: isChinese ? 'Web 工具' : 'Web tools',

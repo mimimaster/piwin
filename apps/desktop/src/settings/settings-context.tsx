@@ -17,7 +17,6 @@ import type { ExtensionsPanelProps } from '../ExtensionsPanel';
 import type { PromptsPanelProps } from '../PromptsPanel';
 import type { ThemePanelProps } from '../ThemePanel';
 import type { PetPanelProps } from '../PetPanel';
-import type { MemoryPanelProps } from '../MemoryPanel';
 import type { AutomationPanelProps } from '../AutomationPanel';
 import type { SubAgentPanelProps } from '../SubAgentPanel';
 import type { DesktopPreferences } from '../ui-preferences';
@@ -72,7 +71,6 @@ export type SettingsContextValue = {
   requestPrompts: PromptsPanelProps['request'];
   requestTheme: ThemePanelProps['request'];
   requestPet: PetPanelProps['request'];
-  requestMemory: MemoryPanelProps['request'];
   requestAutomation: AutomationPanelProps['request'];
   requestSubAgent: SubAgentPanelProps['request'] | undefined;
   onThemeApplied: ThemePanelProps['onApplied'];

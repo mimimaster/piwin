@@ -110,7 +110,6 @@ export type SessionLiveContext = {
   resolveAutoCompaction: (
     sessionId: string,
   ) => Promise<{ enabled: boolean; source: string; globalDefault: boolean }>;
-  maybeInjectMemoryOverview: (sessionId: string, text: string) => Promise<string>;
   handleMergeSubagent: (
     requestId: string | undefined,
     childSessionId: string,
@@ -246,19 +245,6 @@ async function preparePromptInput(
     promptInput.text = `${formatPlanForModelContext(activePlan)}\n\n${promptInput.text}`;
   }
 
-  try {
-    promptInput.text = await context.maybeInjectMemoryOverview(
-      command.sessionId,
-      promptInput.text,
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    context.push({
-      type: 'host/log',
-      level: 'warn',
-      message: `memory overview inject failed: ${message}`,
-    });
-  }
   throwIfPromptPreparationAborted(run);
 
   const filesTouched = context.sessionFilesTouched.get(command.sessionId);

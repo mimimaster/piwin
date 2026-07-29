@@ -15,7 +15,6 @@ export * from './theme.js';
 export * from './pet.js';
 export * from './session-transcript.js';
 export * from './plan.js';
-export * from './memory.js';
 export * from './process.js';
 export * from './usage.js';
 export * from './session-ops.js';

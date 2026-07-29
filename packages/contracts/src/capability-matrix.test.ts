@@ -15,7 +15,6 @@ const baseCaps: HostStatusData['capabilities'] = {
   pty: false,
   shellPreview: true,
   automation: true,
-  memory: true,
   process: true,
   rpcSdkFallback: true,
 };

@@ -70,7 +70,6 @@ export function buildCapabilityMatrix(
       capabilities.sessionLifecycle === true || capabilities.sessionPin === true,
     ),
     row('sessionSearch', 'Session search', capabilities.sessionSearch === true),
-    row('memory', 'Memory tools', capabilities.memory === true),
     row('process', 'Managed processes', capabilities.process === true),
     row('pty', 'Interactive terminal (PTY)', capabilities.pty === true, ptyNote),
     row(

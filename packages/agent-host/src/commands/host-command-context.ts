@@ -10,7 +10,6 @@ import type {
 } from '@piwin/contracts';
 import type { McpLifecycleManager } from '@piwin/mcp';
 import type { ProcessRegistry } from '@piwin/process';
-import type { MemoryStore } from '@piwin/memory';
 import type { SessionTodoStore } from '@piwin/automation';
 import type { PtyHost } from '../pty-host.js';
 import type { ExtensionUiKind, ExtensionUiResponse } from '../extension-ui-bridge.js';
@@ -21,8 +20,6 @@ export type HostCommandContext = {
   requireSession: (sessionId: string) => SessionHandle;
   getMcpManager: () => McpLifecycleManager;
   getProcessRegistry: () => ProcessRegistry;
-  getMemoryStore: () => MemoryStore;
-  requireMemoryEnabled: () => Promise<void>;
   getPtyHost: () => PtyHost;
   todoStore: SessionTodoStore;
   runCronJob: (job: import('@piwin/contracts').CronJob) => Promise<{ ok: boolean; message?: string }>;

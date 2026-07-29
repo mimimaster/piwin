@@ -9,15 +9,6 @@ export type PermissionEvaluation = {
 
 export type WebPermissionAction = 'web_search' | 'web_fetch';
 
-export type MemoryPermissionAction =
-  | 'memory_list'
-  | 'memory_search'
-  | 'memory_read'
-  | 'memory_write'
-  | 'memory_update'
-  | 'memory_delete'
-  | 'memory_accept';
-
 const DENY_PATTERNS: Array<{ name: string; pattern: RegExp }> = [
   { name: 'pipe-to-shell', pattern: /curl\s+[^\n|]*\|\s*(?:ba)?sh/i },
   { name: 'wget-pipe-shell', pattern: /wget\s+[^\n|]*\|\s*(?:ba)?sh/i },
@@ -106,43 +97,6 @@ export function evaluateWebPermission(
   };
 }
 
-
-
-/**
- * Memory tools: read/list/search allow by default; mutating ops ask (Desktop) / deny (CLI).
- */
-export function evaluateMemoryPermission(
-  action: MemoryPermissionAction,
-  detail: string,
-): PermissionEvaluation {
-  const normalized = detail.trim();
-  if (
-    action === 'memory_write' ||
-    action === 'memory_update' ||
-    action === 'memory_delete' ||
-    action === 'memory_accept'
-  ) {
-    if (action === 'memory_write' && normalized.length === 0) {
-      return { decision: 'deny', reason: 'empty-content' };
-    }
-    if (
-      (action === 'memory_update' ||
-        action === 'memory_delete' ||
-        action === 'memory_accept') &&
-      normalized.length === 0
-    ) {
-      return { decision: 'deny', reason: 'empty-memory-id' };
-    }
-    return {
-      decision: 'ask',
-      reason: `memory-mutate:${action}`,
-    };
-  }
-  if (action === 'memory_search' && normalized.length > 500) {
-    return { decision: 'deny', reason: 'query-too-long' };
-  }
-  return { decision: 'allow', reason: 'memory-read' };
-}
 
 export type NotesPermissionAction =
   | 'note_list'
