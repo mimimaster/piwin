@@ -5,7 +5,6 @@
  * using deny→ask→allow order, first-match-wins within a tier.
  */
 
-import os from 'node:os';
 import type { PermissionRule, PermissionRuleSet, PermissionSubject } from '@piwin/contracts';
 
 /**
@@ -30,16 +29,13 @@ export function matchBashGlob(pattern: string, command: string): boolean {
     return false;
   }
 
-  // Check for regex prefix (bundled rules)
+  // Check for regex prefix (bundled rules).
+  // Invalid regex is a developer bug in bundled/user rules and must surface
+  // loudly rather than silently degrading to a literal match (AGENTS.md §3.3).
   if (pattern.startsWith('re:')) {
     const regexPattern = pattern.slice(3);
-    try {
-      const regex = new RegExp(regexPattern, 'i');
-      return regex.test(normalizedCommand);
-    } catch {
-      // If regex is invalid, treat as literal match
-      return normalizedCommand.toLowerCase() === regexPattern.toLowerCase();
-    }
+    const regex = new RegExp(regexPattern, 'i');
+    return regex.test(normalizedCommand);
   }
 
   // Simple glob matching with * wildcard
@@ -111,26 +107,20 @@ export function matchBashGlob(pattern: string, command: string): boolean {
  *
  * Supports `*` (matches within a single path segment) and `**` (matches any
  * number of path segments). Patterns are expected to be absolute paths with
- * `~` already expanded to the home directory by the loader, but the matcher
- * also handles `~` as a literal segment for testing.
+ * `~` already expanded to the home directory by the loader. A literal `~` in
+ * the pattern is treated as a literal character and will not match real
+ * (expanded) paths, which surfaces loader bugs rather than masking them.
  *
  * @param pattern - Glob pattern with `*` and `**` support
  * @param absPath - Absolute path to match
  * @returns true if the pattern matches the path
  */
 export function matchPathGlob(pattern: string, absPath: string): boolean {
-  let normalizedPattern = pattern.trim();
+  const normalizedPattern = pattern.trim();
   const normalizedPath = absPath.trim();
 
   if (!normalizedPattern || !normalizedPath) {
     return false;
-  }
-
-  // Expand ~ at the beginning of the pattern to the home directory
-  // This is a fallback for testing; the loader should normally do this
-  if (normalizedPattern.startsWith('~/')) {
-    const homeDir = os.homedir();
-    normalizedPattern = homeDir + normalizedPattern.slice(1);
   }
 
   // Exact match
