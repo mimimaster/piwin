@@ -14,6 +14,7 @@ import type { ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
 import type { PermissionMode } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
+import { RunActivityInline } from './RunActivityInline.js';
 
 export type ContextBarSession = {
   title: string;
@@ -24,6 +25,7 @@ export type ContextBarProps = {
   session: ContextBarSession;
   runState: RunStatusView;
   onStop: () => void;
+  onViewActivity: () => void;
   onReviewPermission: () => void;
   onViewPlan: () => void;
   onCancelCompact: () => void;
@@ -122,6 +124,12 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         aria-label={runState.kind !== 'idle' ? runState.label : undefined}
       >
         <i className={phaseDotClass(runState.kind)} aria-hidden />
+        {runState.kind !== 'idle' ? (
+          <RunActivityInline
+            runState={runState}
+            {...(props.locale ? { locale: props.locale } : {})}
+          />
+        ) : null}
         {elapsedText !== null ? (
           <span className="context-bar-elapsed muted" aria-hidden>
             {elapsedText}
@@ -129,6 +137,11 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         ) : null}
 
         {/* Contextual action buttons */}
+        {runState.primaryAction === 'view-activity' ? (
+          <Button size="compact" onClick={props.onViewActivity}>
+            Activity
+          </Button>
+        ) : null}
         {runState.primaryAction === 'review-permission' ? (
           <Button size="compact" variant="primary" onClick={props.onReviewPermission}>
             Review request

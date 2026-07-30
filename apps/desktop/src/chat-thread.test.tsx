@@ -21,11 +21,76 @@ import {
   type ChatUiAction,
   type ChatUiState,
   type ChatMessageUi,
+  type PermissionPromptUi,
 } from './chat-reducer';
+import type { ComposerDockProps } from './composer-dock.js';
 import { createStreamEventBuffer, type StreamEventBuffer } from './stream-event-buffer';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+}
+
+const composerCard: ComposerDockProps = {
+  layoutMode: 'docked',
+  projectPath: null,
+  projectTrusted: true,
+  activeSessionId: null,
+  streaming: false,
+  runPhase: 'idle',
+  compacting: false,
+  composer: '',
+  onComposerChange: noop,
+  agentMode: 'agent',
+  onAgentModeChange: noop,
+  pendingAttachments: [],
+  onRemoveAttachment: noop,
+  dropActive: false,
+  onDropActiveChange: noop,
+  plusMenuOpen: false,
+  onPlusMenuOpenChange: noop,
+  plusSubmenu: 'none',
+  onPlusSubmenuChange: noop,
+  modelOptions: [],
+  selectedModelKey: '',
+  onSelectModel: noop,
+  menuSkills: [],
+  menuMcp: [],
+  onRefreshComposerMenus: noop,
+  onOpenSkillsPanel: noop,
+  onOpenMcpPanel: noop,
+  onAttachImage: noop,
+  onPaste: noop,
+  onDrop: noop,
+  onSend: noop,
+  onAbort: noop,
+  onCompact: noop,
+  contextUsage: null,
+  onSteer: noop,
+  onFollowUp: noop,
+};
+
+function createUserMessage(id: string, text: string): ChatMessageUi {
+  return {
+    id,
+    role: 'user',
+    text,
+    thinking: '',
+    tools: [],
+    attachments: [],
+    status: 'done',
+  };
+}
+
+function createStreamingAssistant(id: string): ChatMessageUi {
+  return {
+    id,
+    role: 'assistant',
+    text: '',
+    thinking: '',
+    tools: [],
+    attachments: [],
+    status: 'streaming',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -455,6 +520,205 @@ describe('ChatThread render isolation (E1)', () => {
     // C. The streaming message text reflects the flushed delta
     const lastMessage = appState.messages[appState.messages.length - 1];
     expect(lastMessage?.text).toBe('Partial delta-data');
+  });
+
+  // ————————————————————————————————————————————————————————————————
+  // Run activity wiring
+  // ————————————————————————————————————————————————————————————————
+  it('renders run-activity slot when streaming and the last message is from the user', () => {
+    const userMessage = createUserMessage('u1', 'Hello');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const slot = container.querySelector('[data-testid="run-activity-slot"]');
+    expect(slot).not.toBeNull();
+    expect(slot?.textContent).toContain('Connecting to model…');
+  });
+
+  it('removes run-activity slot when a streaming assistant message arrives', () => {
+    const userMessage = createUserMessage('u2', 'Hello');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+
+    const assistantMessage = createStreamingAssistant('a1');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage, assistantMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+  });
+
+  it('removes run-activity slot when permissionPrompt is present or streaming is false', () => {
+    const userMessage = createUserMessage('u3', 'Hello');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            permissionPrompt={null}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).not.toBeNull();
+
+    const permissionPrompt: PermissionPromptUi = {
+      requestId: 'p1',
+      sessionId: 's1',
+      action: 'bash',
+      detail: 'ls -la',
+      defaultDecision: 'allow',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            permissionPrompt={permissionPrompt}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            permissionPrompt={null}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+  });
+
+  it('passes locale through ChatThread → ChatMessageRow → TurnWorkDetails', () => {
+    const assistantMessage = createStreamingAssistant('a2');
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[assistantMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={null}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const waitingLine = container.querySelector('[data-testid="turn-waiting-line"]');
+    expect(waitingLine).not.toBeNull();
+    expect(waitingLine?.textContent).toContain('Connecting to model…');
   });
 });
 

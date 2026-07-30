@@ -11,6 +11,7 @@ import { MessageActions } from './message-actions';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { SubagentActivityCard } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
+import { RunActivitySlot } from './RunActivitySlot.js';
 import { IconAgent } from './shell-icons';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
@@ -250,6 +251,16 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.locale ? { locale: props.locale } : {})}
         />
       ))}
+      {props.streaming &&
+      !props.permissionPrompt &&
+      (props.messages.length === 0 ||
+        props.messages[props.messages.length - 1]?.role === 'user') ? (
+        <RunActivitySlot
+          activeRunId={props.activeRunId ?? null}
+          runRecordsById={props.runRecordsById ?? {}}
+          {...(props.locale ? { locale: props.locale } : {})}
+        />
+      ) : null}
     </div>
   );
 }

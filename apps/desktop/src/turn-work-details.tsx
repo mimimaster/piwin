@@ -12,6 +12,8 @@ import {
 import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
 import { TurnToolGroup } from './turn-tool-group';
 import { IconChevronDown } from './shell-icons';
+import { RunActivitySplash } from './RunActivitySplash.js';
+import { turnPresentationToActivityInput } from './run-activity-mappers.js';
 
 export type TurnWorkDetailsProps = {
   message: ChatMessageUi;
@@ -101,6 +103,14 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       </button>
 
       <div className="turn-work-details-body" hidden={!open}>
+        {presentation.isWaitingForModel ? (
+          <div className="turn-waiting-line" data-testid="turn-waiting-line">
+            <RunActivitySplash
+              input={turnPresentationToActivityInput(presentation, props.message, locale)}
+            />
+          </div>
+        ) : null}
+
         {thinkingItem && thinkingItem.kind === 'thinking' ? (
           <div
             className={`turn-thinking${thinkingIsStreaming ? ' is-streaming' : ''}`}

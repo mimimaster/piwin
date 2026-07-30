@@ -34,6 +34,7 @@ function createWorkingRunStatus(): RunStatusView {
     activeToolName: 'read_file',
     completedToolCount: 1,
     runningProcessCount: 0,
+    primaryAction: 'view-activity',
     canStop: true,
     elapsedMs: 12_500,
   };
@@ -72,6 +73,7 @@ function createBaseProps(
       scopeLabel: 'Project',
     },
     onStop: vi.fn(),
+    onViewActivity: vi.fn(),
     onReviewPermission: vi.fn(),
     onViewPlan: vi.fn(),
     onCancelCompact: vi.fn(),
@@ -150,6 +152,7 @@ describe('ContextBar', () => {
     const statusRegions = container.querySelectorAll('[data-testid="run-status-strip"]');
     expect(statusRegions).toHaveLength(1);
     expect(statusRegions[0]?.getAttribute('data-kind')).toBe('working');
+    expect(container.textContent).toContain('Running read_file');
     expect(container.textContent).toContain('12s');
 
     const stopButton = container.querySelector<HTMLButtonElement>(

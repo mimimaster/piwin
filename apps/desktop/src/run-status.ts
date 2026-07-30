@@ -18,7 +18,7 @@ export type RunStatusKind =
   | 'failed'
   | 'complete';
 
-export type RunStatusPrimaryAction = 'review-permission' | 'view-plan' | 'retry';
+export type RunStatusPrimaryAction = 'view-activity' | 'review-permission' | 'view-plan' | 'retry';
 
 export type RunStatusView = {
   kind: RunStatusKind;
@@ -155,6 +155,7 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
           ? `${runningProcessCount} process${runningProcessCount === 1 ? '' : 'es'} active`
           : 'Agent is responding…',
       ...baseCounts,
+      primaryAction: 'view-activity',
       canStop: true,
       ...(runningTool ? { activeToolName: runningTool.toolName } : {}),
       ...(input.chat.activeRunStartedAt !== null
@@ -196,6 +197,7 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
           ? `${completedToolCount} tool${completedToolCount === 1 ? '' : 's'} complete`
           : 'Run finished',
       ...baseCounts,
+      primaryAction: 'view-activity',
       canStop: false,
     };
   }
