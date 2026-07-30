@@ -60,6 +60,8 @@ export type SettingsContextValue = {
   preferences: DesktopPreferences;
   onPreferencesChange: (prefs: DesktopPreferences) => void;
   projectPath: string | null;
+  /** Whether the open project is trusted (ADR 0019 §2 — gates project allow rules + bypass). */
+  projectTrusted: boolean;
   hostStatus: HostStatusData | null;
   activeSessionId: string | null;
   onOpenSubagentSession: ((sessionId: string) => void) | undefined;
@@ -95,9 +97,7 @@ export type SettingsProviderProps = PropsWithChildren<{
 }>;
 
 export function SettingsProvider(props: SettingsProviderProps): ReactElement {
-  return (
-    <SettingsContext.Provider value={props.value}>{props.children}</SettingsContext.Provider>
-  );
+  return <SettingsContext.Provider value={props.value}>{props.children}</SettingsContext.Provider>;
 }
 
 export function useSettings(): SettingsContextValue {

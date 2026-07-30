@@ -10,6 +10,7 @@ import type { NotesConfig } from './notes.js';
 import type { FlashcardsConfig } from './flashcards.js';
 import type { AutomationConfig } from './automation.js';
 import type { MarketplaceConfig } from './marketplace-registry.js';
+import type { PermissionConfig } from './permission.js';
 import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 
 /** Per-model identity and optional runtime limits. */
@@ -69,9 +70,7 @@ export type GoogleGeminiProviderConfig = {
 };
 
 export type ModelProviderConfig =
-  | OpenAiCompatibleProviderConfig
-  | AnthropicCompatibleProviderConfig
-  | GoogleGeminiProviderConfig;
+  OpenAiCompatibleProviderConfig | AnthropicCompatibleProviderConfig | GoogleGeminiProviderConfig;
 
 /** Normalized model identity returned from a provider's discovery endpoint. */
 export type DiscoveredModel = {
@@ -166,6 +165,8 @@ export type PiwinConfig = {
   automation?: AutomationConfig;
   /** CE-HUB registry source toggles. */
   marketplace?: MarketplaceConfig;
+  /** Permission policy mode and rule sets (ADR 0019). */
+  permissions?: PermissionConfig;
 };
 
 export function createDefaultCompactionConfig(): CompactionConfig {

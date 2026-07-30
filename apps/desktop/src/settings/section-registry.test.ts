@@ -13,6 +13,7 @@ import {
 const ALL_SECTION_IDS: SettingsSectionId[] = [
   'general',
   'appearance',
+  'permissions',
   'models',
   'skills',
   'extensions',

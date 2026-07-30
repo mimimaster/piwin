@@ -21,4 +21,17 @@ describe('buildPermissionRequestContext', () => {
     );
     expect(buildPermissionRequestContext('mcp:connect', 'server=docs').kind).toBe('mcp');
   });
+
+  it('classifies explicit bash: action kind as command', () => {
+    const context = buildPermissionRequestContext('bash:exec', 'rm -rf /tmp/demo');
+    expect(context.kind).toBe('command');
+    expect(context.command).toContain('rm -rf');
+    expect(context.destructive).toBe(true);
+  });
+
+  it('classifies explicit file-write: action kind as file-write', () => {
+    const context = buildPermissionRequestContext('file-write:edit', 'write /repo/.env');
+    expect(context.kind).toBe('file-write');
+    expect(context.secretRelated).toBe(true);
+  });
 });

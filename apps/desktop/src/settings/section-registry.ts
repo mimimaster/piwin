@@ -14,6 +14,7 @@ import type { DesktopTranslator } from '../desktop-locale';
 export type SettingsSectionId =
   | 'general'
   | 'appearance'
+  | 'permissions'
   | 'models'
   | 'skills'
   | 'extensions'
@@ -33,11 +34,7 @@ export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionI
 export type LegacySettingsSectionId = keyof typeof LEGACY_SETTINGS_REDIRECTS;
 
 export type SettingsGroupId =
-  | 'application'
-  | 'agent'
-  | 'integrations'
-  | 'system'
-  | 'personalization';
+  'application' | 'agent' | 'integrations' | 'system' | 'personalization';
 
 export type SettingsSectionMeta = {
   id: SettingsSectionId;
@@ -50,6 +47,7 @@ export type SettingsSectionMeta = {
 /** Nav order within each group follows array order. */
 export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'general', group: 'application', labelKey: 'general' },
+  { id: 'permissions', group: 'application', labelKey: 'permissions' },
   { id: 'appearance', group: 'application', labelKey: 'appearance' },
   { id: 'models', group: 'agent', labelKey: 'models' },
   { id: 'session', group: 'agent', labelKey: 'sessions' },
@@ -116,8 +114,6 @@ export function registerSettingsSection(
   sectionComponents.set(id, component);
 }
 
-export function getSettingsSection(
-  id: SettingsSectionId,
-): SettingsSectionComponent | undefined {
+export function getSettingsSection(id: SettingsSectionId): SettingsSectionComponent | undefined {
   return sectionComponents.get(id);
 }

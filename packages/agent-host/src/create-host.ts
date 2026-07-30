@@ -1,8 +1,17 @@
-import type { AgentHost, AgentHostFactoryOptions, PermissionDecision } from '@piwin/contracts';
+import type {
+  AgentHost,
+  AgentHostFactoryOptions,
+  PermissionDecision,
+  PermissionMode,
+} from '@piwin/contracts';
 import type { McpLifecycleManager } from '@piwin/mcp';
 import type { ProcessRegistry } from '@piwin/process';
 import { PiRpcAdapter } from './rpc-adapter.js';
-import { PiSdkAdapter, type PiSdkAdapterOptions, type PiSdkPermissionRequest } from './sdk-adapter.js';
+import {
+  PiSdkAdapter,
+  type PiSdkAdapterOptions,
+  type PiSdkPermissionRequest,
+} from './sdk-adapter.js';
 
 export type CreateAgentHostOptions = AgentHostFactoryOptions & {
   mock?: boolean;
@@ -10,9 +19,7 @@ export type CreateAgentHostOptions = AgentHostFactoryOptions & {
    * Interactive permission path (Desktop HostRuntime).
    * When omitted, web tools that evaluate to "ask" are denied.
    */
-  onPermissionRequest?: (
-    request: PiSdkPermissionRequest,
-  ) => Promise<PermissionDecision>;
+  onPermissionRequest?: (request: PiSdkPermissionRequest) => Promise<PermissionDecision>;
   /**
    * HostRuntime-owned MCP process manager. When omitted (CLI bare host),
    * PiSdkAdapter creates and owns a short-lived manager for the host instance
@@ -23,6 +30,10 @@ export type CreateAgentHostOptions = AgentHostFactoryOptions & {
   onExtensionNotify?: PiSdkAdapterOptions['onExtensionNotify'];
   /** Shared managed process registry (CE-PROC). */
   processRegistry?: ProcessRegistry;
+  /** Host-level log sink for permission policy downgrades (ADR 0019 §3). */
+  onLog?: PiSdkAdapterOptions['onLog'];
+  /** Session-level permission mode override (ADR 0019 §3). */
+  permissionModeOverride?: PermissionMode;
 };
 
 export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
@@ -50,8 +61,14 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
     if (options.onExtensionNotify) {
       rpcOptions.onExtensionNotify = options.onExtensionNotify;
     }
+    if (options.onLog) {
+      rpcOptions.onLog = options.onLog;
+    }
     if (options.processRegistry) {
       rpcOptions.processRegistry = options.processRegistry;
+    }
+    if (options.permissionModeOverride) {
+      rpcOptions.permissionModeOverride = options.permissionModeOverride;
     }
     return new PiRpcAdapter(rpcOptions);
   }
@@ -72,8 +89,14 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
   if (options.onExtensionNotify) {
     sdkOptions.onExtensionNotify = options.onExtensionNotify;
   }
+  if (options.onLog) {
+    sdkOptions.onLog = options.onLog;
+  }
   if (options.processRegistry) {
     sdkOptions.processRegistry = options.processRegistry;
+  }
+  if (options.permissionModeOverride) {
+    sdkOptions.permissionModeOverride = options.permissionModeOverride;
   }
   return new PiSdkAdapter(sdkOptions);
 }

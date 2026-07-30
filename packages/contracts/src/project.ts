@@ -17,6 +17,10 @@ export type ProjectRecord = {
   lastOpenedAt: string;
   createdAt: string;
   networkPolicy?: ProjectNetworkPolicy;
+  /** Project-scoped bash command patterns allowed without prompting (ADR 0019). */
+  bashAllowlist?: string[];
+  /** Project-scoped file write paths allowed without prompting (ADR 0019). */
+  fileWriteAllowlist?: string[];
 };
 
 export type ProjectStoreDocument = {

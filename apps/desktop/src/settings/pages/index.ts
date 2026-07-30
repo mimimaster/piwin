@@ -5,6 +5,7 @@
 import { registerSettingsSection } from '../section-registry';
 import { GeneralPage } from './general-page';
 import { AppearancePage } from './appearance-page';
+import { PermissionsPage } from './permissions-page';
 import { SessionPage } from './session-page';
 import { WebPage } from './web-page';
 import { ModelsPage } from './models-page';
@@ -17,6 +18,7 @@ import { PetsPage } from './pets-page';
 
 registerSettingsSection('general', GeneralPage);
 registerSettingsSection('appearance', AppearancePage);
+registerSettingsSection('permissions', PermissionsPage);
 registerSettingsSection('session', SessionPage);
 registerSettingsSection('web', WebPage);
 registerSettingsSection('models', ModelsPage);
