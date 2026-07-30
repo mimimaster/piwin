@@ -9,10 +9,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { RightPanel, type RightPanelTab } from './right-panel';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
-import {
-  RIGHT_PANEL_STATE_STORAGE_KEY,
-  writeStoredRightPanelState,
-} from './right-panel-memory';
+import { RIGHT_PANEL_STATE_STORAGE_KEY, writeStoredRightPanelState } from './right-panel-memory';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -84,9 +81,43 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="right-panel-tab-add"]')).not.toBeNull();
   });
 
-  it('opens the shell-requested tab when the panel first expands', () => {
+  it('shows the home launcher when the panel first expands without a requested tab', () => {
     // Mount closed so open-transition runs.
-    const rendered = renderPanel({ open: false, activeTab: 'terminal' });
+    const rendered = renderPanel({ open: false, activeTab: null });
+    root = rendered.root;
+    container = rendered.container;
+
+    act(() => {
+      root?.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <RightPanel
+            open
+            onOpen={() => {}}
+            onClose={() => {}}
+            activeTab={null}
+            onTabChange={() => {}}
+            panelWidthPx={320}
+            isResizing={false}
+            onResizePointerDown={() => {}}
+            onResizeReset={() => {}}
+            filesContent={<div data-testid="files-body">files</div>}
+            terminalContent={<div data-testid="terminal-body">terminal</div>}
+            reviewContent={<div data-testid="review-body">review</div>}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const panel = container.querySelector('[data-testid="right-panel"]');
+    expect(panel?.getAttribute('data-view')).toBe('home');
+    expect(container.querySelector('[data-testid="right-panel-home"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="right-panel-home-terminal"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="terminal-body"]')).toBeNull();
+  });
+
+  it('opens the shell-requested tab when the active tab changes as the panel expands', () => {
+    // Mount closed with no active tab, then expand with an explicit tab request.
+    const rendered = renderPanel({ open: false, activeTab: null });
     root = rendered.root;
     container = rendered.container;
 
@@ -119,7 +150,7 @@ describe('RightPanel multi-tab', () => {
 
   it('adds another tab from the + picker without dropping the first', () => {
     writeStoredRightPanelState({ openTabs: ['terminal'], activeTab: 'terminal' });
-    let activeTab: RightPanelTab = 'terminal';
+    let activeTab: RightPanelTab | null = 'terminal';
     const rendered = renderPanel({
       activeTab: 'terminal',
       onTabChange: (tab) => {
@@ -132,8 +163,12 @@ describe('RightPanel multi-tab', () => {
     const addBtn = container.querySelector<HTMLElement>('[data-testid="right-panel-tab-add"]');
     act(() => {
       // Radix DropdownMenu.Trigger opens on pointerdown, not a bare click.
-      addBtn?.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-      addBtn?.dispatchEvent(new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+      addBtn?.dispatchEvent(
+        new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }),
+      );
+      addBtn?.dispatchEvent(
+        new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }),
+      );
       addBtn?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
     });
     expect(document.querySelector('[data-testid="right-panel-plus-menu"]')).not.toBeNull();

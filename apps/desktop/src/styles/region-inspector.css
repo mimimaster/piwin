@@ -327,6 +327,76 @@
   white-space: nowrap;
 }
 
+/* ── Home launcher (empty state) ──────────────────────────────────── */
+
+.right-panel-home {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  overflow: auto;
+}
+
+.right-panel-home-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  width: min(100%, 240px);
+}
+
+.right-panel-home-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  aspect-ratio: 1;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 40%, transparent);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 550;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+
+.right-panel-home-tile:hover {
+  background: var(--wb-hover, var(--surface-hover));
+  border-color: color-mix(in srgb, var(--text) 16%, transparent);
+}
+
+.right-panel-home-tile:active {
+  transform: scale(0.98);
+}
+
+.right-panel-home-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--muted);
+}
+
+.right-panel-home-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.right-panel-home-tile:hover .right-panel-home-icon {
+  color: var(--text);
+}
+
+.right-panel-home-label {
+  text-align: center;
+  white-space: nowrap;
+}
+
 .right-panel-terminal {
   height: 100%;
   min-height: 0;
