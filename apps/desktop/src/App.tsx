@@ -1230,6 +1230,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     workDetailsExpanded={preferences.workDetailsExpanded}
                     toolDensity={preferences.toolDensity}
                     artifactPreviewEnabled={preferences.artifactPreviewEnabled}
+                    plan={sessionPlan}
                     {...(config?.artifact?.maxBytes !== undefined
                       ? { artifactMaxBytes: config.artifact.maxBytes }
                       : {})}

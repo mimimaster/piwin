@@ -2,7 +2,7 @@
  * Scrollable assistant/user message list with edit/retry actions.
  */
 import { memo, useEffect, useRef, useState, type ReactElement } from 'react';
-import type { ThemeManifest } from '@piwin/contracts';
+import type { SessionPlan, ThemeManifest } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
 import { MarkdownView } from './MarkdownView';
@@ -13,6 +13,7 @@ import { SubagentActivityCard } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { IconAgent } from './shell-icons';
+import { PlanCard } from './plan-card';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
@@ -170,6 +171,8 @@ export type ChatThreadProps = {
   lastUserMessageId: string | null;
   activeTheme: ThemeManifest | null;
   artifactThemeKey: number;
+  /** Session-level plan rendered once at the top of the thread (not per-message). */
+  plan?: SessionPlan | null;
   runRecordsById?: Record<string, RunRecordUi>;
   activeRunId?: string | null;
   permissionPrompt?: PermissionPromptUi | null;
@@ -220,6 +223,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
 
   return (
     <div className="chat-thread">
+      {props.plan ? <PlanCard plan={props.plan} /> : null}
       {props.messages.map((message, messageIndex) => (
         <ChatMessageRow
           key={message.id}
