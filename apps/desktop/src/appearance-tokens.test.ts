@@ -59,6 +59,7 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--motion-standard',
   '--muted',
   '--ok',
+  '--ok-fg',
   '--overlay-backdrop',
   '--panel',
   '--radius',
