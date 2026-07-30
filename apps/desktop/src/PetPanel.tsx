@@ -1,14 +1,29 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { HostResponse, PetRuntimeSnapshot, PetSummary } from '@piwin/contracts';
+import type {
+  HostResponse,
+  PetRuntimeSnapshot,
+  PetStoreQueryResult,
+  PetSummary,
+} from '@piwin/contracts';
 import { Button, Notice } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
 
 export type PetPanelProps = {
   request: (command: {
-    type: 'pet/list' | 'pet/get-active' | 'pet/set-active' | 'pet/install-local';
+    type:
+      | 'pet/list'
+      | 'pet/get-active'
+      | 'pet/set-active'
+      | 'pet/install-local'
+      | 'pet/store-query'
+      | 'pet/install-registry';
     petId?: string;
     sourcePath?: string;
+    /** PetStoreQuery payload for pet/store-query. */
+    query?: { query: string; source?: 'bundled' | 'local' | 'codex-live' | 'registry' };
+    /** JSON-encoded registry entry (or bare URL) for pet/install-registry. */
+    url?: string;
   }) => Promise<HostResponse>;
   onActiveChanged: (pet: PetRuntimeSnapshot) => void;
   onClose?: () => void;
@@ -80,6 +95,54 @@ export function PetPanel(props: PetPanelProps) {
     setInfo(isChinese ? `已安装 ${data.petId}` : `Installed ${data.petId}`);
     setInstallPath('');
     await reload();
+  }
+
+  const [registryResults, setRegistryResults] = useState<PetStoreQueryResult[]>([]);
+  const [registryQuery, setRegistryQuery] = useState('');
+  const [registryBusy, setRegistryBusy] = useState(false);
+
+  async function handleQueryRegistry(): Promise<void> {
+    setRegistryBusy(true);
+    setError(null);
+    const response = await props.request({
+      type: 'pet/store-query',
+      query: { query: registryQuery, source: 'registry' },
+    });
+    setRegistryBusy(false);
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    const data = response.data as { results: PetStoreQueryResult[] };
+    setRegistryResults(data.results);
+  }
+
+  async function handleInstallRegistry(result: PetStoreQueryResult): Promise<void> {
+    setRegistryBusy(true);
+    setError(null);
+    setInfo(null);
+    // The registry provider accepts a JSON-encoded catalog entry (carrying
+    // sha256/size for verification) or a bare URL. We send the full entry so
+    // the download step can verify checksum + size without re-querying.
+    const entry = JSON.stringify({
+      id: result.petId,
+      displayName: result.displayName,
+      ...(result.description ? { description: result.description } : {}),
+      ...(result.version ? { version: result.version } : {}),
+      url: result.location,
+      sha256: result.sha256 ?? '',
+      sizeBytes: result.sizeBytes ?? 0,
+    });
+    const response = await props.request({ type: 'pet/install-registry', url: entry });
+    setRegistryBusy(false);
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    const data = response.data as { petId: string; path: string };
+    setInfo(isChinese ? `已安装 ${data.petId}` : `Installed ${data.petId}`);
+    await reload();
+    await handleQueryRegistry();
   }
 
   return (
@@ -174,6 +237,83 @@ export function PetPanel(props: PetPanelProps) {
               {isChinese ? '安装' : 'Install'}
             </Button>
           </div>
+        </div>
+
+        <div className="settings-section">
+          <PageTitle
+            title={isChinese ? '远程仓库' : 'Registry'}
+            description={
+              isChinese
+                ? '从 CodexPetHub 浏览并安装伙伴。'
+                : 'Browse and install companions from CodexPetHub.'
+            }
+          />
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ flex: 1 }}>
+              <input
+                value={registryQuery}
+                onChange={(e) => setRegistryQuery(e.target.value)}
+                placeholder={isChinese ? '搜索...' : 'Search...'}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--line-soft)',
+                  background: 'var(--surface-raised)',
+                  color: 'var(--text)',
+                }}
+              />
+            </div>
+            <Button disabled={registryBusy} onClick={() => void handleQueryRegistry()}>
+              {isChinese ? '搜索' : 'Search'}
+            </Button>
+          </div>
+          <ul className="ext-list" style={{ marginTop: '12px' }}>
+            {registryResults.map((result) => (
+              <li key={result.petId} className="ext-list-item">
+                <div
+                  className="ext-list-main"
+                  style={{ display: 'flex', alignItems: 'center', gap: '16px' }}
+                >
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: 'var(--surface-inset)',
+                      border: '1px solid var(--line-soft)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      fontSize: '20px',
+                    }}
+                  >
+                    🐾
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <strong>{result.displayName}</strong>
+                    <div className="muted ext-desc" style={{ fontSize: '12px' }}>
+                      {result.petId}
+                      {result.sizeBytes ? ` · ${Math.round(result.sizeBytes / 1024)} KB` : ''}
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  variant={result.installed ? 'ghost' : 'primary'}
+                  size="compact"
+                  disabled={registryBusy || result.installed}
+                  onClick={() => void handleInstallRegistry(result)}
+                >
+                  {result.installed
+                    ? isChinese
+                      ? '已安装'
+                      : 'Installed'
+                    : isChinese
+                      ? '安装'
+                      : 'Install'}
+                </Button>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
     </div>

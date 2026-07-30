@@ -89,9 +89,17 @@ export type HostRequestAdapters = {
     sourcePath?: string;
   }) => Promise<HostResponse>;
   requestPet: (command: {
-    type: 'pet/list' | 'pet/get-active' | 'pet/set-active' | 'pet/install-local';
+    type:
+      | 'pet/list'
+      | 'pet/get-active'
+      | 'pet/set-active'
+      | 'pet/install-local'
+      | 'pet/store-query'
+      | 'pet/install-registry';
     petId?: string;
     sourcePath?: string;
+    query?: { query: string; source?: 'bundled' | 'local' | 'codex-live' | 'registry' };
+    url?: string;
   }) => Promise<HostResponse>;
   requestPty: (command: {
     type: 'pty/open' | 'pty/write' | 'pty/resize' | 'pty/close' | 'pty/list';
@@ -323,6 +331,15 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       }
       if (command.type === 'pet/set-active') {
         return hostClient.request({ type: 'pet/set-active', petId: command.petId ?? '' });
+      }
+      if (command.type === 'pet/store-query') {
+        return hostClient.request({
+          type: 'pet/store-query',
+          query: command.query ?? { query: '' },
+        });
+      }
+      if (command.type === 'pet/install-registry') {
+        return hostClient.request({ type: 'pet/install-registry', url: command.url ?? '' });
       }
       return hostClient.request({
         type: 'pet/install-local',
