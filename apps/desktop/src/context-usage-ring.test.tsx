@@ -10,6 +10,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import {
+  CACHE_EXPIRY_ESTIMATE_MS,
   ContextUsageRing,
   type ContextUsageRingProps,
 } from './context-usage-ring.js';
@@ -214,5 +215,11 @@ describe('ContextUsageRing', () => {
       });
     });
     expect(document.activeElement).toBe(queryTrigger());
+  });
+});
+
+describe('CACHE_EXPIRY_ESTIMATE_MS', () => {
+  it('is a 5-minute window', () => {
+    expect(CACHE_EXPIRY_ESTIMATE_MS).toBe(5 * 60 * 1000);
   });
 });

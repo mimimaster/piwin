@@ -8,6 +8,42 @@ import type { ContextUsageSnapshot } from '@piwin/contracts';
 import { DEFAULT_MODEL_CONTEXT_WINDOW } from '@piwin/contracts';
 import { IconClose } from './shell-icons';
 
+/**
+ * Product-defined window used to *estimate* when the host's cached context
+ * snapshot expires. Pi SDK/RPC does not expose a real cache TTL, so this is a
+ * client-side assumption — never present it to the user as a provider guarantee.
+ */
+export const CACHE_EXPIRY_ESTIMATE_MS = 5 * 60 * 1000;
+
+/**
+ * Whole seconds remaining in the cache estimate window, or `undefined` when
+ * `updatedAt` is missing, unparseable, or already past the window. Future /
+ * clock-skewed timestamps are clamped to the full window so the UI never shows
+ * more than `5:00`.
+ */
+function getCacheExpiryEstimateSeconds(
+  updatedAt: string | undefined,
+  now: number,
+): number | undefined {
+  if (!updatedAt) return undefined;
+  const updatedMs = Date.parse(updatedAt);
+  if (Number.isNaN(updatedMs)) return undefined;
+  const remainingMs = updatedMs + CACHE_EXPIRY_ESTIMATE_MS - now;
+  if (remainingMs <= 0) return undefined;
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
+  const maxSeconds = CACHE_EXPIRY_ESTIMATE_MS / 1000;
+  return Math.min(remainingSeconds, maxSeconds);
+}
+
+/**
+ * Formats a positive whole-second count as `M:SS` (zero-padded seconds).
+ */
+function formatCountdown(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
 export type ContextUsageRingProps = {
   usage: ContextUsageSnapshot | null;
   /** Fallback limit from selected model config when host omits tokensLimit. */
