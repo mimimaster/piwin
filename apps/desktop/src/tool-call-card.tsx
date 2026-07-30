@@ -1,15 +1,25 @@
 /**
- * Collapsible tool-call card — Cursor Agent style density + status row.
+ * Collapsible tool-call card — Paper/Noir theme (proto-shell.css .tool block).
+ * Write/edit tools with non-empty `changedPaths` render a DiffCard per path;
+ * the original raw output is folded into a <details> below.
  */
-
 import { useEffect, useState, type ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
 import { CitationCards } from './CitationCards';
 import { parseToolCitations } from './tool-citations';
+import { DiffCard, type DiffCardRequest } from './diff-card';
 import {
   IconChevronDown,
+  IconFile,
+  IconTerminal,
+  IconGit,
+  IconSearch,
+  IconPlug,
+  IconActivity,
+  IconBook,
 } from './shell-icons';
+import type { ToolKind } from '@piwin/contracts';
 
 export type ToolCallCardProps = {
   tool: ToolCardUi;
@@ -18,6 +28,10 @@ export type ToolCallCardProps = {
   /** @deprecated prefer density */
   compact?: boolean;
   density?: ToolCallDensity;
+  /** Project root for DiffCard git/diff-file requests. */
+  projectPath?: string | null;
+  /** Host request adapter for DiffCard (same signature as ChangesPanel). */
+  request?: DiffCardRequest;
 };
 
 function summarizeToolOutput(toolName: string, output: string, maxLength: number): string {
@@ -39,9 +53,49 @@ function formatDuration(ms: number): string {
   return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
 }
 
-export function ToolStatusDot(props: {
-  status: ToolCardUi['status'];
-}): ReactElement {
+/** Map a ToolKind to a lucide-style outline icon (13px, --accent in CSS). */
+function kindIcon(kind: ToolKind | 'unknown'): ReactElement {
+  switch (kind) {
+    case 'filesystem':
+      return <IconFile className="tool-call-kind-icon" />;
+    case 'shell':
+    case 'process':
+      return <IconTerminal className="tool-call-kind-icon" />;
+    case 'git':
+      return <IconGit className="tool-call-kind-icon" />;
+    case 'web':
+      return <IconSearch className="tool-call-kind-icon" />;
+    case 'mcp':
+      return <IconPlug className="tool-call-kind-icon" />;
+    case 'other':
+      return <IconActivity className="tool-call-kind-icon" />;
+    default:
+      return <IconBook className="tool-call-kind-icon" />;
+  }
+}
+
+/** Short verb label for the head row (read / write / bash / web …). */
+function kindVerb(kind: ToolKind | 'unknown', fallback: string): string {
+  switch (kind) {
+    case 'filesystem':
+      return fallback.toLowerCase().includes('write') || fallback.toLowerCase().includes('edit')
+        ? 'write'
+        : 'read';
+    case 'shell':
+    case 'process':
+      return 'bash';
+    case 'git':
+      return 'git';
+    case 'web':
+      return 'web';
+    case 'mcp':
+      return 'mcp';
+    default:
+      return fallback;
+  }
+}
+
+export function ToolStatusDot(props: { status: ToolCardUi['status'] }): ReactElement {
   return (
     <span
       className={`tool-status-dot status-${props.status}`}
@@ -87,6 +141,10 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const citations = parseToolCitations(tool.toolName, displayOutput);
   const previewMax = density === 'compact' ? 48 : density === 'detailed' ? 160 : 96;
   const displayName = tool.presentation?.title ?? tool.toolName;
+  const kind = tool.presentation?.kind ?? 'unknown';
+  const changedPaths = tool.presentation?.changedPaths ?? [];
+  const hasChangedPaths = changedPaths.length > 0;
+  const canRenderDiffCard = hasChangedPaths && Boolean(props.projectPath) && Boolean(props.request);
   const summary =
     tool.presentation?.summary ??
     tool.presentation?.command ??
@@ -98,7 +156,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     citations.kind !== 'none' ||
     Boolean(tool.presentation?.command) ||
     Boolean(tool.presentation?.targetPaths?.length) ||
-    Boolean(tool.presentation?.changedPaths?.length) ||
+    hasChangedPaths ||
     Boolean(tool.presentation?.error);
 
   return (
@@ -108,7 +166,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       }`}
       data-testid="tool-call-card"
       data-tool-name={tool.toolName}
-      data-tool-kind={tool.presentation?.kind ?? 'unknown'}
+      data-tool-kind={kind}
       data-tool-status={tool.status}
       data-density={density}
     >
@@ -119,8 +177,9 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         aria-expanded={expanded}
         aria-label={`${displayName} ${tool.status}`}
       >
-        <span className="tool-call-name">{displayName}</span>
-        <span className="tool-call-preview muted">
+        {kindIcon(kind)}
+        <span className="tool-call-name">{kindVerb(kind, displayName)}</span>
+        <span className="tool-call-preview">
           {summary === displayName || !summary ? '' : summary}
         </span>
         {typeof tool.presentation?.durationMs === 'number' ? (
@@ -131,13 +190,9 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
           <span className="tool-call-duration tool-call-duration-live">…</span>
         ) : null}
         {tool.status === 'done' ? (
-          <span className="tool-call-ok" aria-label="done" data-testid="tool-call-ok">
-            ✓
-          </span>
+          <span className="tool-call-ok" aria-label="done" data-testid="tool-call-ok" />
         ) : tool.status === 'error' ? (
-          <span className="tool-call-err" aria-label="error" data-testid="tool-call-err">
-            !
-          </span>
+          <span className="tool-call-err" aria-label="error" data-testid="tool-call-err" />
         ) : (
           <ToolStatusDot status={tool.status} />
         )}
@@ -145,22 +200,32 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       </button>
       {expanded && hasBody ? (
         <div className="tool-call-body">
+          {canRenderDiffCard
+            ? changedPaths.map((path) => (
+                <DiffCard
+                  key={path}
+                  projectPath={props.projectPath as string}
+                  path={path}
+                  request={props.request as DiffCardRequest}
+                />
+              ))
+            : null}
           {tool.presentation?.command ? (
             <div className="tool-call-command" data-testid="tool-call-command">
               <code>{tool.presentation.command}</code>
               {typeof tool.presentation.exitCode === 'number' ? (
-                <span className="muted"> exit {tool.presentation.exitCode}</span>
+                <span className="dim"> exit {tool.presentation.exitCode}</span>
               ) : null}
             </div>
           ) : null}
           {tool.presentation?.targetPaths && tool.presentation.targetPaths.length > 0 ? (
-            <div className="tool-call-paths muted" data-testid="tool-call-paths">
+            <div className="tool-call-paths" data-testid="tool-call-paths">
               {tool.presentation.targetPaths.join(' · ')}
             </div>
           ) : null}
-          {tool.presentation?.changedPaths && tool.presentation.changedPaths.length > 0 ? (
-            <div className="tool-call-paths muted" data-testid="tool-call-changed-paths">
-              changed: {tool.presentation.changedPaths.join(' · ')}
+          {!canRenderDiffCard && hasChangedPaths ? (
+            <div className="tool-call-paths" data-testid="tool-call-changed-paths">
+              changed: {changedPaths.join(' · ')}
             </div>
           ) : null}
           {tool.presentation?.error ? (
@@ -170,21 +235,30 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
           ) : null}
           <CitationCards parsed={citations} />
           {displayOutput && citations.kind === 'none' ? (
-            <pre className="tool-call-output">
-              {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
-            </pre>
+            canRenderDiffCard ? (
+              <details className="tool-call-raw-fold">
+                <summary>raw output</summary>
+                <pre className="tool-call-output">
+                  {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
+                </pre>
+              </details>
+            ) : (
+              <pre className="tool-call-output">
+                {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
+              </pre>
+            )
           ) : null}
           {displayOutput && citations.kind !== 'none' ? (
-            <details open={density === 'detailed'}>
-              <summary className="muted">raw tool output</summary>
+            <details open={density === 'detailed'} className="tool-call-raw-fold">
+              <summary className="dim">raw tool output</summary>
               <pre className="tool-call-output">{displayOutput.slice(0, 4000)}</pre>
             </details>
           ) : null}
         </div>
       ) : null}
       {expanded && !hasBody ? (
-        <div className="tool-call-body muted tool-call-empty">
-          {tool.status === 'running' ? 'Running…' : 'No output'}
+        <div className="tool-call-body tool-call-empty">
+          <span className="dim">{tool.status === 'running' ? 'Running…' : 'No output'}</span>
         </div>
       ) : null}
     </div>

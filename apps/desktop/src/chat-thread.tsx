@@ -18,6 +18,7 @@ import { PlanCard } from './plan-card';
 import { GateCard } from './gate-card';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
+import type { DiffCardRequest } from './diff-card';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import type { PendingComposerAttachment } from './media-utils';
 
@@ -180,6 +181,8 @@ export type ChatThreadProps = {
   permissionPrompt?: PermissionPromptUi | null;
   /** Project path used to gate "always allow" (project remember) availability. */
   projectPath?: string | null;
+  /** Host git request adapter forwarded to tool cards → DiffCard. */
+  toolDiffRequest?: DiffCardRequest;
   /** Existing permission respond handler (allow / deny / ask). */
   onPermission?: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
   workDetailsExpanded?: WorkDetailsExpanded;
@@ -246,6 +249,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           permissionPrompt={props.permissionPrompt ?? null}
           workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
           toolDensity={props.toolDensity ?? 'comfortable'}
+          {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+          {...(props.toolDiffRequest !== undefined
+            ? { toolDiffRequest: props.toolDiffRequest }
+            : {})}
           onEdit={props.onEdit}
           onCancelEdit={props.onCancelEdit}
           onEditResend={props.onEditResend}
@@ -297,6 +304,10 @@ type ChatMessageRowProps = {
   permissionPrompt: PermissionPromptUi | null;
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity: ToolCallDensity;
+  /** Project root forwarded to tool cards → DiffCard. */
+  projectPath?: string | null;
+  /** Host git request adapter forwarded to tool cards → DiffCard. */
+  toolDiffRequest?: DiffCardRequest;
   onEdit: (messageId: string) => void;
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
@@ -376,6 +387,8 @@ const ChatMessageRow = memo(
             permissionPrompt={props.permissionPrompt}
             workDetailsExpanded={props.workDetailsExpanded}
             toolDensity={props.toolDensity}
+            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+            {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
             {...(props.locale ? { locale: props.locale } : {})}
           />
         ) : null}

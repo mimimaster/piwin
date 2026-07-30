@@ -1226,6 +1226,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     activeRunId={state.activeRunId}
                     permissionPrompt={state.permissionPrompt}
                     projectPath={state.projectPath}
+                    toolDiffRequest={requestGit as never}
                     onPermission={(decision, scope) => {
                       void handlePermission(decision, scope);
                     }}
