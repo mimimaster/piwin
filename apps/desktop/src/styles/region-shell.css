@@ -18,8 +18,7 @@
      is fixed (no OS setSize); that was the "visual refresh" jitter. */
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
-  grid-template-areas:
-    "nav stage";
+  grid-template-areas: 'nav stage';
   min-width: 0;
   overflow: hidden;
   /* Prevent sparse auto tracks from stealing layout height. */
@@ -32,37 +31,36 @@
 /* In-flow panel: stage 1fr gives up space to --right-panel-width. */
 .app-shell.has-right-panel {
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
-  grid-template-areas:
-    "nav stage signal";
+  grid-template-areas: 'nav stage signal';
 }
 
 /* Desktop keeps a compact titleband beneath the macOS traffic lights. */
 .app-shell[data-layout='desktop'] {
   grid-template-rows: var(--titleband-height) minmax(0, 1fr);
   grid-template-areas:
-    "topbar topbar"
-    "nav stage";
+    'topbar topbar'
+    'nav stage';
 }
 
 .app-shell[data-layout='desktop'].has-right-panel {
   grid-template-areas:
-    "topbar topbar topbar"
-    "nav stage signal";
+    'topbar topbar topbar'
+    'nav stage signal';
 }
 
 /* Desktop: the titlebar toggle can collapse the navigator entirely. */
 .app-shell[data-layout='desktop']:not(.nav-open) {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
-    "topbar"
-    "stage";
+    'topbar'
+    'stage';
 }
 
 .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
   grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 320px);
   grid-template-areas:
-    "topbar topbar"
-    "stage signal";
+    'topbar topbar'
+    'stage signal';
 }
 
 /* Compact: navigator and inspector are fixed drawers; stage is full-width. */
@@ -71,8 +69,8 @@
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: var(--topbar-height) minmax(0, 1fr);
   grid-template-areas:
-    "topbar"
-    "stage";
+    'topbar'
+    'stage';
 }
 
 /* Narrow desktop windows: let the navigator shrink before layout flips
@@ -81,28 +79,31 @@
   .app-shell[data-layout='desktop'] {
     grid-template-columns: minmax(220px, var(--sidebar-width)) minmax(0, 1fr);
     grid-template-areas:
-      "topbar topbar"
-      "nav stage";
+      'topbar topbar'
+      'nav stage';
   }
   .app-shell[data-layout='desktop'].has-right-panel {
-    grid-template-columns: minmax(220px, var(--sidebar-width)) minmax(0, 1fr) var(--right-panel-width, 320px);
+    grid-template-columns: minmax(220px, var(--sidebar-width)) minmax(0, 1fr) var(
+        --right-panel-width,
+        320px
+      );
     grid-template-areas:
-      "topbar topbar topbar"
-      "nav stage signal";
+      'topbar topbar topbar'
+      'nav stage signal';
   }
   /* The responsive rule above must not recreate a blank navigator track
      after the titlebar collapses it. */
   .app-shell[data-layout='desktop']:not(.nav-open) {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      "topbar"
-      "stage";
+      'topbar'
+      'stage';
   }
   .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
     grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 320px);
     grid-template-areas:
-      "topbar topbar"
-      "stage signal";
+      'topbar topbar'
+      'stage signal';
   }
 }
 
@@ -140,15 +141,31 @@
   /* Daybreak ambient: a faint sunrise glow spills from the top of the stage.
      Pure background layer — no stacking / pointer-events side effects. */
   background:
-    radial-gradient(960px 380px at 50% -120px, color-mix(in srgb, var(--accent) 13%, transparent), transparent 74%),
-    radial-gradient(640px 280px at 84% -100px, color-mix(in srgb, var(--accent-2, var(--accent)) 8%, transparent), transparent 72%),
+    radial-gradient(
+      960px 380px at 50% -120px,
+      color-mix(in srgb, var(--accent) 13%, transparent),
+      transparent 74%
+    ),
+    radial-gradient(
+      640px 280px at 84% -100px,
+      color-mix(in srgb, var(--accent-2, var(--accent)) 8%, transparent),
+      transparent 72%
+    ),
     var(--canvas);
 }
 
 html[data-theme-mode='light'] .workspace {
   background:
-    radial-gradient(960px 380px at 50% -120px, color-mix(in srgb, var(--accent) 9%, transparent), transparent 74%),
-    radial-gradient(640px 280px at 84% -100px, color-mix(in srgb, var(--accent-2, var(--accent)) 6%, transparent), transparent 72%),
+    radial-gradient(
+      960px 380px at 50% -120px,
+      color-mix(in srgb, var(--accent) 9%, transparent),
+      transparent 74%
+    ),
+    radial-gradient(
+      640px 280px at 84% -100px,
+      color-mix(in srgb, var(--accent-2, var(--accent)) 6%, transparent),
+      transparent 72%
+    ),
     var(--canvas);
 }
 
@@ -202,7 +219,7 @@ html[data-theme-mode='light'] .workspace {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text) 12%, transparent);
+  background: var(--line-strong);
   border-radius: 3px;
   transition: background 0.3s ease;
 }
@@ -212,7 +229,7 @@ html[data-theme-mode='light'] .workspace {
 }
 
 ::selection {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: var(--accent-ring);
   color: var(--text);
 }
 
