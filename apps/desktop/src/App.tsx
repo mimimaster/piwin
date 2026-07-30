@@ -1547,7 +1547,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         ) : null}
 
         {activePet ? (
-          <PetSprite pet={activePet} onOpenSettings={() => shell.openSettings('general')} />
+          <PetSprite pet={activePet} onOpenSettings={() => openSettingsSection('general')} />
         ) : null}
       </div>
     </DesktopLocaleProvider>
