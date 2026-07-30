@@ -30,7 +30,7 @@
   min-height: 0;
   height: 100%;
   overflow: hidden auto;
-  padding: 28px 12px 20px;
+  padding: 24px 20px 12px;
   /* Transparent so the workspace Daybreak ambient glow shows through. */
   background: transparent;
   /* Quiet workbench: thin low-contrast native scrollbar (no edge mini-nav). */
@@ -54,7 +54,7 @@
   flex-direction: column;
   width: 100%;
   margin: 0 auto;
-  gap: 28px;
+  gap: 20px;
   padding-bottom: 24px;
 }
 
@@ -265,9 +265,9 @@
 
 .bubble-header {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 6px;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 5px;
 }
 
 .bubble-header::before {
@@ -286,7 +286,7 @@
 }
 
 .bubble-role {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--faint);
   letter-spacing: 0.03em;
@@ -314,12 +314,36 @@
   }
 }
 
-/* User turns: full chat-column width card (matches composer / edit card). */
+/* User turns: right-aligned Paper bubble (proto .msg-user). */
 .role-user {
-  width: 100%;
-  max-width: 100%;
+  align-self: flex-end;
+  max-width: 72%;
   margin-left: 0;
   margin-right: 0;
+}
+
+/* Paper user bubble: soft fill + hairline border, asymmetric radius with the
+   sharp corner on the tail side (bottom-right). Maps proto .msg-user .bubble
+   onto the existing .bubble.role-user article element. */
+.bubble.role-user {
+  background: var(--user-bubble);
+  border: 1px solid var(--line);
+  border-radius: 12px 12px 4px 12px;
+  padding: 9px 14px;
+  font-size: var(--chat-font-size, 13.5px);
+  line-height: 1.6;
+}
+
+/* In-place edit reuses the bottom ComposerCard. Reset the bubble frame so the
+   composer card's own border is the only visual edge, and stretch back to full
+   width so the editor matches the bottom dock. */
+.role-user.is-editing {
+  align-self: stretch;
+  max-width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
 /* In-place edit reuses the bottom ComposerCard. The wrapper just holds it
@@ -340,21 +364,24 @@
 
 .role-assistant {
   width: 100%;
+  max-width: 100%;
+  font-size: var(--chat-font-size, 13.5px);
+  line-height: 1.7;
 }
 
 .message-text {
   white-space: pre-wrap;
   color: var(--text);
-  font-size: var(--chat-font-size, 15px);
-  line-height: 1.65;
+  font-size: var(--chat-font-size, 13.5px);
+  line-height: 1.6;
 }
 
 .role-assistant .markdown {
   max-width: var(--chat-max, 760px);
   margin: 0 auto;
   color: var(--text);
-  font-size: var(--chat-font-size, 15px);
-  line-height: 1.65;
+  font-size: var(--chat-font-size, 13.5px);
+  line-height: 1.7;
 }
 
 .role-assistant .bubble-header,
@@ -974,9 +1001,10 @@
 .md-inline-code {
   font-family: var(--mono);
   background: var(--accent-soft);
+  color: var(--accent-text, var(--text));
   border-radius: 4px;
-  padding: 0 4px;
-  font-size: 0.92em;
+  padding: 1px 5px;
+  font-size: var(--code-font-size, 12px);
 }
 
 .md-code-block {
