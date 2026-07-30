@@ -10,6 +10,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import {
+  CACHE_EXPIRY_ESTIMATE_MS,
   ContextUsageRing,
   type ContextUsageRingProps,
 } from './context-usage-ring.js';
@@ -89,9 +90,15 @@ describe('ContextUsageRing', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    // Fake only the interval/clock the countdown ticker uses. setTimeout is
+    // left real so the Escape test's `setTimeout(resolve, 0)` macrotask fires;
+    // setInterval is faked so `advanceTimersByTime` drives the 1s ticker.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+    vi.setSystemTime(new Date('2026-07-26T00:00:00.000Z'));
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     act(() => {
       root.unmount();
     });
@@ -214,5 +221,90 @@ describe('ContextUsageRing', () => {
       });
     });
     expect(document.activeElement).toBe(queryTrigger());
+  });
+
+  it('shows a 5:00 cache estimate when updatedAt is now and popover opens', () => {
+    render(createBaseProps(), root);
+    activateTrigger();
+
+    const popover = queryPopover();
+    expect(popover?.textContent).toContain('Cache estimate · expires in 5:00');
+  });
+
+  it('decrements the estimate each second while the popover is open', () => {
+    render(createBaseProps(), root);
+    activateTrigger();
+
+    act(() => {
+      vi.advanceTimersByTime(61_000);
+    });
+
+    const popover = queryPopover();
+    // 61s elapsed → 300 - 61 = 239s → 3:59 (ceil keeps it at 3:59 once past 3:59.0)
+    expect(popover?.textContent).toContain('Cache estimate · expires in 3:59');
+  });
+
+  it('hides the estimate when updatedAt is older than 5 minutes', () => {
+    vi.setSystemTime(new Date('2026-07-26T00:06:00.000Z'));
+    render(createBaseProps(), root);
+    activateTrigger();
+
+    const popover = queryPopover();
+    expect(popover?.textContent).not.toContain('Cache estimate');
+  });
+
+  it('hides the estimate when updatedAt is unparseable', () => {
+    render(
+      createBaseProps({
+        usage: {
+          sessionId: 'session-test',
+          tokensUsed: 40_000,
+          tokensLimit: 200_000,
+          updatedAt: 'not-a-date',
+        },
+      }),
+      root,
+    );
+    activateTrigger();
+
+    const popover = queryPopover();
+    expect(popover?.textContent).not.toContain('Cache estimate');
+  });
+
+  it('hides the estimate when usage is null', () => {
+    render(createBaseProps({ usage: null }), root);
+    activateTrigger();
+
+    const popover = queryPopover();
+    expect(popover?.textContent).not.toContain('Cache estimate');
+  });
+
+  it('clamps a future updatedAt to 5:00', () => {
+    vi.setSystemTime(new Date('2026-07-25T23:59:00.000Z'));
+    render(createBaseProps(), root);
+    activateTrigger();
+
+    const popover = queryPopover();
+    expect(popover?.textContent).toContain('Cache estimate · expires in 5:00');
+  });
+
+  it('does not run the ticker while the popover is closed', () => {
+    render(createBaseProps(), root);
+    // Popover never opened; advance well past the window.
+    act(() => {
+      vi.advanceTimersByTime(10 * 60_000);
+    });
+    activateTrigger();
+
+    // Even though 10 minutes passed, the closed popover never ticked, so the
+    // first render after open recomputes from Date.now() and shows expired/none.
+    const popover = queryPopover();
+    expect(popover?.textContent).not.toContain('Cache estimate');
+  });
+});
+
+describe('CACHE_EXPIRY_ESTIMATE_MS', () => {
+  it('is a 5-minute window', () => {
+    expect(CACHE_EXPIRY_ESTIMATE_MS).toBe(5 * 60 * 1000);
   });
 });

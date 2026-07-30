@@ -2,11 +2,47 @@
  * Context window usage ring for the composer footer.
  * Click opens a breakdown popover (Codex / Cursor style).
  */
-import { useState, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { IconButton, Popover } from '@piwin/ui-kit';
 import type { ContextUsageSnapshot } from '@piwin/contracts';
 import { DEFAULT_MODEL_CONTEXT_WINDOW } from '@piwin/contracts';
 import { IconClose } from './shell-icons';
+
+/**
+ * Product-defined window used to *estimate* when the host's cached context
+ * snapshot expires. Pi SDK/RPC does not expose a real cache TTL, so this is a
+ * client-side assumption — never present it to the user as a provider guarantee.
+ */
+export const CACHE_EXPIRY_ESTIMATE_MS = 5 * 60 * 1000;
+
+/**
+ * Whole seconds remaining in the cache estimate window, or `undefined` when
+ * `updatedAt` is missing, unparseable, or already past the window. Future /
+ * clock-skewed timestamps are clamped to the full window so the UI never shows
+ * more than `5:00`.
+ */
+function getCacheExpiryEstimateSeconds(
+  updatedAt: string | undefined,
+  now: number,
+): number | undefined {
+  if (!updatedAt) return undefined;
+  const updatedMs = Date.parse(updatedAt);
+  if (Number.isNaN(updatedMs)) return undefined;
+  const remainingMs = updatedMs + CACHE_EXPIRY_ESTIMATE_MS - now;
+  if (remainingMs <= 0) return undefined;
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
+  const maxSeconds = CACHE_EXPIRY_ESTIMATE_MS / 1000;
+  return Math.min(remainingSeconds, maxSeconds);
+}
+
+/**
+ * Formats a positive whole-second count as `M:SS` (zero-padded seconds).
+ */
+function formatCountdown(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
 
 export type ContextUsageRingProps = {
   usage: ContextUsageSnapshot | null;
@@ -61,6 +97,17 @@ function formatTokens(value: number): string {
 
 export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
   const [open, setOpen] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+
+  // Recompute the countdown only while the popover is open; close → no ticks.
+  // Also reseed `now` whenever a fresh usage snapshot arrives so the user sees
+  // an up-to-date estimate without waiting for the next 1s tick.
+  useEffect(() => {
+    if (!open) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [open, props.usage?.updatedAt]);
   const limit = resolveLimit(props.usage, props.modelContextWindow);
   const used = resolveUsed(props.usage);
   const ratio =
@@ -76,6 +123,10 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
     percent >= 90 ? 'critical' : percent >= 70 ? 'warn' : 'ok';
 
   const breakdown = props.breakdown ?? props.usage?.breakdown;
+  const cacheExpirySeconds = getCacheExpiryEstimateSeconds(
+    props.usage?.updatedAt,
+    now,
+  );
   const rows: Array<{ label: string; tokens: number | undefined; color: string }> = [
     {
       label: 'System prompt',
@@ -178,6 +229,11 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
             {formatTokens(limit)} Tokens
           </span>
         </div>
+        {cacheExpirySeconds !== undefined ? (
+          <p className="context-usage-cache-estimate muted">
+            Cache estimate · expires in {formatCountdown(cacheExpirySeconds)}
+          </p>
+        ) : null}
         <div className="context-usage-bar" aria-hidden>
           <i style={{ width: `${percent}%` }} />
         </div>
