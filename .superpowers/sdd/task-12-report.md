@@ -57,3 +57,9 @@ Removed the entire `{props.permissionPrompt ? (<Dialog testId="permission-dialog
 
 - `AppDialogsProps` still carries `permissionPrompt` and `onPermission` props that are now unused inside `AppDialogs` (they're consumed by `ChatThread` instead). I left them to keep the prop-type diff minimal and avoid touching the `App.tsx` → `AppDialogs` call site beyond what was required. A future cleanup could drop them from `AppDialogsProps` and the `App.tsx` call site.
 - The `onReviewPermission` handler in `App.tsx` (line 1124) still queries for `[data-testid="permission-dialog"]` to focus the prompt. That selector no longer matches anything (the gate uses `data-testid="permission-gate"`). The handler degrades gracefully (no-op when not found) but won't scroll the inline gate into view. A small follow-up could update the selector to `[data-testid="permission-gate"]` and call `scrollIntoView`. Not blocking — the gate renders inline in the stream so it's already visible when a prompt is active.
+
+## Follow-up fix — retarget `onReviewPermission` selector to inline gate
+
+- `apps/desktop/src/App.tsx:1124-1131` — changed the `onReviewPermission` handler to query `[data-testid="permission-gate"]` instead of the removed modal selectors (`[data-testid="permission-dialog"], [role="dialog"][aria-label*="permission" i], .permission-dialog`). Now calls `.focus()` on the gate (it has an aria-label for accessibility) and `scrollIntoView({ behavior: 'smooth', block: 'nearest' })` since the gate is inline in the stream.
+- `pnpm typecheck` — **green** (all packages incl. `@piwin/desktop`)
+- `pnpm --filter @piwin/desktop test` — **312 passed (59 files)**
