@@ -1227,6 +1227,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     runRecordsById={state.runRecordsById}
                     activeRunId={state.activeRunId}
                     permissionPrompt={state.permissionPrompt}
+                    projectPath={state.projectPath}
+                    onPermission={(decision, scope) => {
+                      void handlePermission(decision, scope);
+                    }}
                     workDetailsExpanded={preferences.workDetailsExpanded}
                     toolDensity={preferences.toolDensity}
                     artifactPreviewEnabled={preferences.artifactPreviewEnabled}

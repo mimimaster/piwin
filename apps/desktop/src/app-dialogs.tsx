@@ -1,5 +1,7 @@
 /**
- * Modal stack for workspace trust, extension UI, rename, permission, session menu.
+ * Modal stack for workspace trust, extension UI, rename, session menu.
+ * Permission prompts are now rendered inline by GateCard in the chat thread
+ * (Task 12); the modal branch has been removed.
  */
 import type { ReactElement } from 'react';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
@@ -8,10 +10,6 @@ import { Field } from '@piwin/ui-kit';
 import type { ChatUiState } from './chat-reducer';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import { SessionRowMenu, type SessionRowMenuAction } from './session-row-menu';
-import {
-  PermissionRequestCard,
-  canRememberPermissionForProject,
-} from './permission-request-card';
 
 export type AppDialogsProps = {
   projectInput: string;
@@ -58,7 +56,11 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
           Browser preview cannot open the system folder picker. Enter an absolute path, or run the
           desktop app for the native chooser.
         </p>
-        <Field label="Workspace path" required description="Absolute path to a local repository or folder">
+        <Field
+          label="Workspace path"
+          required
+          description="Absolute path to a local repository or folder"
+        >
           <input
             className="project-path-input"
             data-testid="project-path-input"
@@ -214,8 +216,8 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
               true
             }
             isArchived={
-              props.sessions.find((item) => item.id === props.sessionMenu?.sessionId)?.isArchived ===
-                true || props.showArchivedSessions
+              props.sessions.find((item) => item.id === props.sessionMenu?.sessionId)
+                ?.isArchived === true || props.showArchivedSessions
             }
             position={{ x: props.sessionMenu.x, y: props.sessionMenu.y }}
             onClose={props.onCloseSessionMenu}
@@ -283,45 +285,6 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
                 Save
               </Button>
             </div>
-          </div>
-        </Dialog>
-      ) : null}
-
-      {props.permissionPrompt ? (
-        <Dialog
-          label="Permission required"
-          open
-          testId="permission-dialog"
-          onOpenChange={() => undefined}
-        >
-          <PermissionRequestCard
-            action={props.permissionPrompt.action}
-            detail={props.permissionPrompt.detail}
-            defaultDecision={props.permissionPrompt.defaultDecision}
-            {...(props.permissionPrompt.context
-              ? { context: props.permissionPrompt.context }
-              : {})}
-            headingId="permission-dialog-heading"
-          />
-          <div className="modal-actions">
-            <Button onClick={() => props.onPermission('deny')}>Deny</Button>
-            <Button onClick={() => props.onPermission('allow', 'once')}>Allow once</Button>
-            {canRememberPermissionForProject(
-              props.permissionPrompt.context,
-              props.permissionPrompt.action,
-            ) && props.projectPath ? (
-              <Button
-                variant="primary"
-                onClick={() => props.onPermission('allow', 'project')}
-                title="Remember this allow for the current project"
-              >
-                Allow for project
-              </Button>
-            ) : (
-              <Button variant="primary" onClick={() => props.onPermission('allow', 'once')}>
-                Allow
-              </Button>
-            )}
           </div>
         </Dialog>
       ) : null}

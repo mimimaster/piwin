@@ -114,23 +114,13 @@ export function IconExtension(props: IconProps): ReactElement {
  * alongside the outline SVG set so existing call sites can swap cleanly. */
 export function IconSkill(props: ImageIconProps): ReactElement {
   return (
-    <img
-      src="/ui/skill-icon.png"
-      alt=""
-      {...props}
-      style={{ display: 'block', ...props.style }}
-    />
+    <img src="/ui/skill-icon.png" alt="" {...props} style={{ display: 'block', ...props.style }} />
   );
 }
 
 export function IconMcp(props: ImageIconProps): ReactElement {
   return (
-    <img
-      src="/ui/mcp-icon.png"
-      alt=""
-      {...props}
-      style={{ display: 'block', ...props.style }}
-    />
+    <img src="/ui/mcp-icon.png" alt="" {...props} style={{ display: 'block', ...props.style }} />
   );
 }
 
@@ -352,7 +342,6 @@ export function IconChevronRight(props: IconProps): ReactElement {
   );
 }
 
-
 export function IconNote(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
@@ -422,6 +411,17 @@ export function IconStar(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
       <path d="m12 4.5 1.9 3.9 4.3.6-3.1 3 0.7 4.3L12 14.5l-3.8 2 0.7-4.3-3.1-3 4.3-.6z" />
+    </IconBase>
+  );
+}
+
+/** Warning triangle (permission gate / destructive prompts). */
+export function IconWarn(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+      <path d="M10.3 3.8 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z" />
     </IconBase>
   );
 }
