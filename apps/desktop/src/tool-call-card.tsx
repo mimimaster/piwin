@@ -182,13 +182,6 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         <span className="tool-call-preview">
           {summary === displayName || !summary ? '' : summary}
         </span>
-        {typeof tool.presentation?.durationMs === 'number' ? (
-          <span className="tool-call-duration" data-testid="tool-call-duration">
-            {formatDuration(tool.presentation.durationMs)}
-          </span>
-        ) : tool.status === 'running' ? (
-          <span className="tool-call-duration tool-call-duration-live">…</span>
-        ) : null}
         {tool.status === 'done' ? (
           <span className="tool-call-ok" aria-label="done" data-testid="tool-call-ok" />
         ) : tool.status === 'error' ? (
@@ -196,6 +189,13 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         ) : (
           <ToolStatusDot status={tool.status} />
         )}
+        {typeof tool.presentation?.durationMs === 'number' ? (
+          <span className="tool-call-duration" data-testid="tool-call-duration">
+            {formatDuration(tool.presentation.durationMs)}
+          </span>
+        ) : tool.status === 'running' ? (
+          <span className="tool-call-duration tool-call-duration-live">…</span>
+        ) : null}
         <IconChevronDown className={expanded ? 'tool-call-chevron open' : 'tool-call-chevron'} />
       </button>
       {expanded && hasBody ? (
