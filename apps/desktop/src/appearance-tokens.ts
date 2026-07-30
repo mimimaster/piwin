@@ -5,76 +5,73 @@ import type { ThemeManifest } from '@piwin/contracts';
 const SHARED_FONT =
   '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", system-ui, sans-serif';
 
-/** Product dark — Daybreak "dusk" field: warm ink canvas + sunrise coral accent. */
+/** Product dark — Noir pure monochrome field with inverted white accent. */
 export const PIWIN_APPEARANCE_DARK: ThemeManifest = {
   id: 'piwin-dark',
-  name: 'Piwin Dark',
-  version: '5.0.0',
-  description: 'Daybreak warm ink field with sunrise coral accent for piwin shell + artifacts',
+  name: 'Noir',
+  version: '6.0.0',
+  description: 'Noir pure monochrome field with inverted white accent for piwin shell + artifacts',
   mode: 'dark',
   tokens: {
-    bg: '#151318',
-    panel: '#1a181f',
-    panel2: '#211e26',
-    border: 'rgba(255, 238, 220, 0.07)',
-    text: '#f0eae3',
-    muted: '#a8a09f',
-    accent: '#ff8359',
-    accent2: '#ffb37e',
-    danger: '#f0685c',
-    ok: '#4fca92',
+    bg: '#000000',
+    panel: '#0f0f0f',
+    panel2: '#171717',
+    border: 'rgba(255, 255, 255, 0.08)',
+    text: '#f5f5f5',
+    muted: '#a3a3a3',
+    accent: '#f5f5f5',
+    accent2: '#ffffff',
+    danger: '#eb3946',
+    ok: '#3ecf8e',
     radius: '10px',
     font: SHARED_FONT,
   },
   artifact: {
     bg: 'transparent',
-    surface: 'rgba(33, 30, 38, 0.98)',
-    text: '#f0eae3',
-    muted: '#a8a09f',
-    accent: '#ff8359',
-    border: 'rgba(255, 238, 220, 0.09)',
+    surface: 'rgba(15, 15, 15, 0.98)',
+    text: '#f5f5f5',
+    muted: '#a3a3a3',
+    accent: '#f5f5f5',
+    border: 'rgba(255, 255, 255, 0.10)',
     radius: '0.625rem',
     font: SHARED_FONT,
   },
 };
 
-/** Product light — Daybreak "paper" field: warm morning paper + tangerine accent. */
+/** Product light — Paper cool white field with restrained blue accent. */
 export const PIWIN_APPEARANCE_LIGHT: ThemeManifest = {
   id: 'piwin-light',
-  name: 'Piwin Light',
-  version: '5.0.0',
-  description: 'Daybreak warm paper field with tangerine accent for piwin shell + artifacts',
+  name: 'Paper',
+  version: '6.0.0',
+  description: 'Paper cool white field with restrained blue accent for piwin shell + artifacts',
   mode: 'light',
   tokens: {
-    bg: '#f7f3ed',
-    panel: '#fffdfa',
-    panel2: '#f2ede5',
-    border: 'rgba(80, 60, 40, 0.10)',
-    text: '#2f2924',
-    muted: '#82776a',
-    accent: '#e85d1f',
-    accent2: '#f4955c',
+    bg: '#f7f7f8',
+    panel: '#ffffff',
+    panel2: '#f0f0f2',
+    border: 'rgba(0, 0, 0, 0.08)',
+    text: '#1a1a1e',
+    muted: '#5c5c66',
+    accent: '#2f6bed',
+    accent2: '#5b86f0',
     danger: '#d64541',
-    ok: '#1f9d63',
+    ok: '#179b62',
     radius: '10px',
     font: SHARED_FONT,
   },
   artifact: {
     bg: 'transparent',
-    surface: 'rgba(255, 253, 250, 0.98)',
-    text: '#2f2924',
-    muted: '#82776a',
-    accent: '#e85d1f',
-    border: 'rgba(80, 60, 40, 0.12)',
+    surface: 'rgba(255, 255, 255, 0.98)',
+    text: '#1a1a1e',
+    muted: '#5c5c66',
+    accent: '#2f6bed',
+    border: 'rgba(0, 0, 0, 0.10)',
     radius: '0.625rem',
     font: SHARED_FONT,
   },
 };
 
-export const BUILTIN_APPEARANCES: ThemeManifest[] = [
-  PIWIN_APPEARANCE_DARK,
-  PIWIN_APPEARANCE_LIGHT,
-];
+export const BUILTIN_APPEARANCES: ThemeManifest[] = [PIWIN_APPEARANCE_DARK, PIWIN_APPEARANCE_LIGHT];
 
 export function resolveBuiltinAppearance(themeId: string | undefined): ThemeManifest {
   if (themeId === 'piwin-light') {
@@ -136,18 +133,17 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
     '--surface-hover',
     isLight ? 'rgba(60, 40, 20, 0.05)' : 'rgba(255, 240, 225, 0.055)',
   );
-  /** Sidebar / rail share the unified field (quiet workbench: no hard panel boxes). */
-  root.style.setProperty('--sidebar', tokens.bg);
+  /** Rail shares the unified field (quiet workbench: no hard panel boxes). */
   root.style.setProperty('--rail', tokens.bg);
-  root.style.setProperty('--wb-hover', isLight ? 'rgba(60, 40, 20, 0.05)' : 'rgba(255, 240, 225, 0.055)');
+  root.style.setProperty(
+    '--wb-hover',
+    isLight ? 'rgba(60, 40, 20, 0.05)' : 'rgba(255, 240, 225, 0.055)',
+  );
   root.style.setProperty('--wb-line', tokens.border);
   root.style.setProperty(
     '--wb-accent-soft',
     `color-mix(in srgb, ${tokens.accent} ${isLight ? 10 : 13}%, transparent)`,
   );
-  root.style.setProperty('--wb-send-fg', isLight ? '#ffffff' : '#2b1508');
-  root.style.setProperty('--wb-term-bg', isLight ? '#efe9e0' : '#100e12');
-  root.style.setProperty('--wb-dim', isLight ? '#a89d8f' : '#736d76');
 
   /**
    * Derived control surface colors — used by ui-foundations.css for inputs,
@@ -187,8 +183,6 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.style.setProperty('--muted', tokens.muted);
   /** Alias of --muted for semantic readers. */
   root.style.setProperty('--content-secondary', tokens.muted);
-  /** Tertiary / placeholder text, icons in inactive states. */
-  root.style.setProperty('--faint', isLight ? '#a89d8f' : '#736d76');
   /** Alias of --faint for semantic readers. */
   root.style.setProperty('--content-muted', isLight ? '#a89d8f' : '#736d76');
   /** Disabled control labels and icons. */
@@ -214,11 +208,6 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
     '--border-subtle',
     isLight ? 'rgba(80, 60, 40, 0.06)' : 'rgba(255, 238, 220, 0.045)',
   );
-  /** Stronger border for high-contrast separators or elevated containers. */
-  root.style.setProperty(
-    '--line-strong',
-    isLight ? 'rgba(80, 60, 40, 0.22)' : 'rgba(255, 238, 220, 0.22)',
-  );
   /** Interactive border that highlights when focused or active. */
   root.style.setProperty(
     '--border-interactive',
@@ -235,11 +224,6 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.style.setProperty('--accent', tokens.accent);
   /** Secondary / lighter accent for gradients and decorative use. */
   root.style.setProperty('--accent-2', tokens.accent2);
-  /** Low-opacity accent fill for badge backgrounds and hover overlays. */
-  root.style.setProperty(
-    '--accent-soft',
-    `color-mix(in srgb, ${tokens.accent} ${isLight ? 10 : 14}%, transparent)`,
-  );
 
   // Semantic colors — purple and teal tones for assistant / status chrome
 
@@ -366,4 +350,46 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   ]) {
     root.style.removeProperty(layoutToken);
   }
+
+  // ── Paper/Noir derived ramp (§1.2 of docs/plans/2026-07-30-paper-noir-theme-implementation.md)
+  root.style.setProperty('--card', isLight ? '#ffffff' : '#0f0f0f');
+  root.style.setProperty('--control', isLight ? '#ececee' : '#171717');
+  root.style.setProperty('--sunken', isLight ? '#f0f0f2' : '#050505');
+  root.style.setProperty('--sidebar', isLight ? '#f2f2f4' : tokens.bg);
+  root.style.setProperty('--user-bubble', isLight ? '#ececee' : '#171717');
+  root.style.setProperty('--term-bg', isLight ? '#16181d' : '#050505');
+  root.style.setProperty('--term-text', isLight ? '#b0b6c0' : '#b3b3b3');
+  root.style.setProperty('--hover', isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)');
+  root.style.setProperty(
+    '--selected',
+    isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.10)',
+  );
+  root.style.setProperty('--faint', isLight ? '#a0a0a8' : '#595959');
+  root.style.setProperty(
+    '--line-strong',
+    isLight ? 'rgba(0, 0, 0, 0.14)' : 'rgba(255, 255, 255, 0.15)',
+  );
+  root.style.setProperty('--accent-fg', isLight ? '#ffffff' : '#000000');
+  root.style.setProperty('--accent-soft', `color-mix(in srgb, ${tokens.accent} 10%, transparent)`);
+  root.style.setProperty('--accent-ring', `color-mix(in srgb, ${tokens.accent} 18%, transparent)`);
+  root.style.setProperty('--warn', isLight ? '#b25000' : '#f5b83d');
+  root.style.setProperty('--warn-fg', isLight ? '#ffffff' : '#1d1300');
+  root.style.setProperty(
+    '--warn-line',
+    isLight ? 'rgba(178, 80, 0, 0.3)' : 'rgba(245, 184, 61, 0.3)',
+  );
+  root.style.setProperty(
+    '--add-bg',
+    isLight ? 'rgba(23, 155, 98, 0.10)' : 'rgba(62, 207, 142, 0.12)',
+  );
+  root.style.setProperty('--add-text', isLight ? '#0e7a4c' : '#6fdcab');
+  root.style.setProperty(
+    '--del-bg',
+    isLight ? 'rgba(214, 69, 65, 0.08)' : 'rgba(235, 57, 70, 0.12)',
+  );
+  root.style.setProperty('--del-text', isLight ? '#c13a36' : '#f08a92');
+  // legacy --wb-* aliases repointed at the new ramp (existing CSS still reads them)
+  root.style.setProperty('--wb-term-bg', isLight ? '#16181d' : '#050505');
+  root.style.setProperty('--wb-dim', isLight ? '#a0a0a8' : '#595959');
+  root.style.setProperty('--wb-send-fg', isLight ? '#ffffff' : '#000000');
 }
