@@ -10,7 +10,7 @@ use host_bridge::{
     host_is_running, host_request, host_request_blocking, host_start, host_stop,
     observe_host_process_blocking, HostBridgeState, HostObservability,
 };
-use pet_overlay::{pet_overlay_hide, pet_overlay_show, pet_overlay_toggle};
+use pet_overlay::{ensure_pet_overlay_window, pet_overlay_hide, pet_overlay_show, pet_overlay_toggle};
 use pty_host::{
     pty_close, pty_close_all, pty_open, pty_resize, pty_write, snapshot_pty_sessions_blocking,
     PtyHostState, PtyShutdownSnapshot,
@@ -173,6 +173,10 @@ pub fn run() {
             if let Some(main_window) = application.get_webview_window("main") {
                 main_window.set_title("\u{200B}")?;
             }
+            // Open the system-level pet overlay on startup so the pet floats on
+            // the desktop (always-on-top, draggable across all apps/workspaces).
+            // Errors are non-fatal: the overlay is cosmetic, not load-bearing.
+            let _ = ensure_pet_overlay_window(application.handle());
             Ok(())
         })
         .on_window_event(|window, event| {

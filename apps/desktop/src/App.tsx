@@ -72,7 +72,6 @@ import { TranscriptViewport } from './transcript-viewport';
 import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
 import { StatusBar } from './status-bar';
-import { PetSprite } from './components/PetSprite';
 
 import { useRightPanelResize } from './hooks/use-right-panel-resize';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
@@ -310,7 +309,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     hostStatus,
     config,
     setConfig,
-    activePet,
     setActivePet,
     sessionPlan,
     extensionUiRequest,
@@ -1545,21 +1543,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               setConfig(next);
               if (next.defaultProviderId && next.defaultModelId) {
                 setSelectedModelKey(`${next.defaultProviderId}::${next.defaultModelId}`);
-              }
-            }}
-          />
-        ) : null}
-
-        {activePet ? (
-          <PetSprite
-            pet={activePet}
-            onOpenSettings={() => openSettingsSection('general')}
-            onToggleOverlay={async () => {
-              try {
-                const { invoke } = await import('@tauri-apps/api/core');
-                await invoke('pet_overlay_toggle');
-              } catch {
-                // not in Tauri — ignore
               }
             }}
           />

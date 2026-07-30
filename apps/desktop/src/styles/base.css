@@ -11,11 +11,21 @@ select:focus:not(:focus-visible) {
   outline: none;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   margin: 0;
   height: 100%;
   background: var(--canvas);
   color: var(--text);
+}
+
+/* Pet overlay window: fully transparent so the OS-level transparent window
+   shows only the sprite. Must override the canvas background above. */
+html.pet-overlay-window,
+html.pet-overlay-window body,
+html.pet-overlay-window #root {
+  background: transparent !important;
 }
 
 /* Reserve classic scrollbar track so overflow appearing/disappearing does
@@ -24,7 +34,13 @@ html {
   scrollbar-gutter: stable;
 }
 
-button, input, textarea, select { font: inherit; color: inherit; }
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
 
 /* Native check controls track the Daybreak accent instead of UA blue. */
 input[type='checkbox'],
@@ -90,11 +106,20 @@ progress {
 }
 
 @keyframes wb-shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
 }
 
 @keyframes wb-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.35; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }

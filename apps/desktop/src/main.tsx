@@ -31,6 +31,10 @@ async function isPetOverlayWindow(): Promise<boolean> {
 }
 
 isPetOverlayWindow().then((isOverlay) => {
+  if (isOverlay) {
+    // Overlay window: transparent background, no shell theme tokens.
+    document.documentElement.classList.add('pet-overlay-window');
+  }
   createRoot(rootElement).render(
     <StrictMode>{isOverlay ? <PetOverlayApp /> : <DesktopThemeRoot />}</StrictMode>,
   );
