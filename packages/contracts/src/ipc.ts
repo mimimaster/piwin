@@ -42,12 +42,7 @@ import type {
 } from './flashcards.js';
 import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
 import type { NoteSearchQuery, NoteUpdateInput, NoteWriteInput } from './notes.js';
-import type {
-  PetInstallResult,
-  PetRuntimeSnapshot,
-  PetStoreQuery,
-  PetStoreQueryResult,
-} from './pet.js';
+import type { PetRuntimeSnapshot, PetStoreQuery } from './pet.js';
 import type {
   ManagedProcessLogChunk,
   ManagedProcessLogsQuery,
