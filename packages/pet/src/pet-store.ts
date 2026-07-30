@@ -1,19 +1,31 @@
 /**
- * List / install / activate pets under ~/.piwin/pets.
- * Optional import from ~/.codex/pets (copy, not symlink).
+ * Pet store facade: preference persistence + provider registry.
+ * All enumeration/resolution/install is delegated to PetSourceRegistry.
  */
-import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import type {
   PetAnimationState,
   PetManifest,
   PetPreference,
   PetRuntimeSnapshot,
+  PetStoreQueryResult,
   PetSummary,
 } from '@piwin/contracts';
-import { resolvePetLayout, validatePetManifest } from './validate-manifest.js';
-import { resolveBundledAssetsRoot } from './bundled-assets-root.js';
+import { resolvePetLayout } from './validate-manifest.js';
+import {
+  createPetSourceRegistry,
+  discoverAllPets,
+  installPet,
+  queryPetStore,
+  resolvePet,
+  type PetSourceRegistry,
+} from './pet-source-registry.js';
+import { bundledProvider } from './sources/bundled-provider.js';
+import { localProvider } from './sources/local-provider.js';
+import { codexProvider } from './sources/codex-provider.js';
+import { registryProvider } from './sources/registry-provider.js';
 
 export function getPetsDir(piwinRoot: string): string {
   return join(piwinRoot, 'pets');
@@ -25,6 +37,28 @@ export function getPetPreferencePath(piwinRoot: string): string {
 
 export function getDefaultCodexPetsDir(): string {
   return join(homedir(), '.codex', 'pets');
+}
+
+let registrySingleton: PetSourceRegistry | null = null;
+
+function getRegistry(): PetSourceRegistry {
+  if (!registrySingleton) {
+    registrySingleton = createPetSourceRegistry([
+      bundledProvider,
+      localProvider,
+      codexProvider,
+      registryProvider,
+    ]);
+  }
+  return registrySingleton;
+}
+
+function buildContext(piwinRoot: string) {
+  return {
+    piwinRoot,
+    petsDir: getPetsDir(piwinRoot),
+    codexPetsDir: getDefaultCodexPetsDir(),
+  };
 }
 
 export async function loadPetPreference(piwinRoot: string): Promise<PetPreference> {
@@ -49,125 +83,27 @@ export async function savePetPreference(
   await writeFile(path, `${JSON.stringify(preference, null, 2)}\n`, 'utf8');
 }
 
-export async function ensureBundledPetsInstalled(
-  piwinRoot: string,
-  bundledRoot?: string,
-): Promise<string[]> {
-  const sourceRoot =
-    bundledRoot ??
-    resolveBundledAssetsRoot({
-      layoutPath: 'pet/bundled',
-      moduleUrl: import.meta.url,
-      relativeFallback: '../bundled',
-    });
-  const targetRoot = getPetsDir(piwinRoot);
-  await mkdir(targetRoot, { recursive: true });
-  let entries: string[] = [];
-  try {
-    entries = await readdir(sourceRoot);
-  } catch {
-    return [];
-  }
-  const installed: string[] = [];
-  for (const entry of entries) {
-    const from = join(sourceRoot, entry);
-    const to = join(targetRoot, entry);
-    try {
-      if (!(await stat(from)).isDirectory()) continue;
-      try {
-        await stat(join(to, 'pet.json'));
-        continue;
-      } catch {
-        // install
-      }
-      await cp(from, to, { recursive: true });
-      installed.push(entry);
-    } catch {
-      // ignore single pet failures
-    }
-  }
-  return installed;
-}
-
-async function loadPackageAt(
-  petPath: string,
-  source: PetSummary['source'],
-  activePetId: string,
-): Promise<PetSummary | null> {
-  const manifestPath = join(petPath, 'pet.json');
-  try {
-    if (!(await stat(petPath)).isDirectory()) return null;
-    const raw = await readFile(manifestPath, 'utf8');
-    const validated = validatePetManifest(JSON.parse(raw));
-    if (!validated.ok) {
-      return {
-        id: basename(petPath),
-        displayName: basename(petPath),
-        path: petPath,
-        spritesheetAbsolutePath: '',
-        source,
-        active: false,
-        valid: false,
-        issues: validated.issues.map((issue) => `${issue.path}: ${issue.message}`),
-      };
-    }
-    const sheetPath = join(petPath, validated.manifest.spritesheetPath);
-    const issues: string[] = [];
-    try {
-      await stat(sheetPath);
-    } catch {
-      issues.push(`missing spritesheet: ${validated.manifest.spritesheetPath}`);
-    }
-    const summary: PetSummary = {
-      id: validated.manifest.id,
-      displayName: validated.manifest.displayName,
-      path: petPath,
-      spritesheetAbsolutePath: sheetPath,
-      source,
-      active: validated.manifest.id === activePetId,
-      valid: issues.length === 0,
-      issues,
-    };
-    if (validated.manifest.description) {
-      summary.description = validated.manifest.description;
-    }
-    return summary;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return {
-      id: basename(petPath),
-      displayName: basename(petPath),
-      path: petPath,
-      spritesheetAbsolutePath: '',
-      source,
-      active: false,
-      valid: false,
-      issues: [message],
-    };
-  }
-}
-
 export async function listPets(piwinRoot: string): Promise<{
   pets: PetSummary[];
   activePetId: string;
 }> {
-  await ensureBundledPetsInstalled(piwinRoot);
   const preference = await loadPetPreference(piwinRoot);
-  const petsDir = getPetsDir(piwinRoot);
-  let entries: string[] = [];
-  try {
-    entries = await readdir(petsDir);
-  } catch {
-    entries = [];
-  }
-  const pets: PetSummary[] = [];
-  for (const entry of entries) {
-    const petPath = join(petsDir, entry);
-    const source: PetSummary['source'] =
-      entry === 'piwin-default' ? 'bundled' : entry.startsWith('codex-') ? 'codex-import' : 'user';
-    const summary = await loadPackageAt(petPath, source, preference.activePetId);
-    if (summary) pets.push(summary);
-  }
+  const ctx = buildContext(piwinRoot);
+  const entries = await discoverAllPets(getRegistry(), ctx);
+  const pets: PetSummary[] = entries.map((entry) => {
+    const summary: PetSummary = {
+      id: entry.petId,
+      displayName: entry.displayName,
+      path: entry.location,
+      spritesheetAbsolutePath: entry.location, // resolved lazily via loadPetManifest
+      source: entry.source,
+      active: entry.petId === preference.activePetId,
+      valid: entry.issues.length === 0,
+      issues: entry.issues,
+    };
+    if (entry.description) summary.description = entry.description;
+    return summary;
+  });
   pets.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return { pets, activePetId: preference.activePetId };
 }
@@ -176,35 +112,13 @@ export async function loadPetManifest(
   piwinRoot: string,
   petId: string,
 ): Promise<{ manifest: PetManifest; packagePath: string; spritesheetAbsolutePath: string }> {
-  await ensureBundledPetsInstalled(piwinRoot);
-  const petsDir = getPetsDir(piwinRoot);
-  // Prefer directory named by id, else scan
-  const candidates = [join(petsDir, petId)];
-  try {
-    for (const entry of await readdir(petsDir)) {
-      candidates.push(join(petsDir, entry));
-    }
-  } catch {
-    // empty
-  }
-  for (const petPath of candidates) {
-    try {
-      const raw = await readFile(join(petPath, 'pet.json'), 'utf8');
-      const validated = validatePetManifest(JSON.parse(raw));
-      if (!validated.ok) continue;
-      if (validated.manifest.id !== petId) continue;
-      const spritesheetAbsolutePath = join(petPath, validated.manifest.spritesheetPath);
-      await stat(spritesheetAbsolutePath);
-      return {
-        manifest: validated.manifest,
-        packagePath: petPath,
-        spritesheetAbsolutePath,
-      };
-    } catch {
-      // try next
-    }
-  }
-  throw new Error(`pet not found or invalid: ${petId}`);
+  const ctx = buildContext(piwinRoot);
+  const resolved = await resolvePet(getRegistry(), ctx, petId);
+  return {
+    manifest: resolved.manifest,
+    packagePath: resolved.packagePath,
+    spritesheetAbsolutePath: resolved.spritesheetAbsolutePath,
+  };
 }
 
 export async function getActivePet(
@@ -242,10 +156,7 @@ async function buildRuntimeSnapshot(
   };
 }
 
-export async function setActivePet(
-  piwinRoot: string,
-  petId: string,
-): Promise<PetRuntimeSnapshot> {
+export async function setActivePet(piwinRoot: string, petId: string): Promise<PetRuntimeSnapshot> {
   await loadPetManifest(piwinRoot, petId);
   await savePetPreference(piwinRoot, { activePetId: petId });
   return getActivePet(piwinRoot, 'idle');
@@ -255,68 +166,26 @@ export async function installPetFromLocalPath(
   piwinRoot: string,
   sourcePath: string,
 ): Promise<{ petId: string; path: string }> {
-  const absolute = sourcePath.trim();
-  if (!absolute) throw new Error('sourcePath required');
-  const manifestPath = join(absolute, 'pet.json');
-  const raw = await readFile(manifestPath, 'utf8');
-  const validated = validatePetManifest(JSON.parse(raw));
-  if (!validated.ok) {
-    throw new Error(validated.issues.map((i) => `${i.path}: ${i.message}`).join('; '));
-  }
-  const sheet = join(absolute, validated.manifest.spritesheetPath);
-  await stat(sheet);
-  const target = join(getPetsDir(piwinRoot), validated.manifest.id);
-  await mkdir(getPetsDir(piwinRoot), { recursive: true });
-  await cp(absolute, target, { recursive: true });
-  return { petId: validated.manifest.id, path: target };
+  const ctx = buildContext(piwinRoot);
+  const result = await installPet(getRegistry(), ctx, 'local', sourcePath);
+  return { petId: result.petId, path: result.path };
 }
 
-/**
- * Copy packages from ~/.codex/pets into ~/.piwin/pets with codex- prefix if needed.
- */
-export async function importPetsFromCodex(
+export async function installPetFromRegistry(
   piwinRoot: string,
-  codexPetsDir?: string,
-): Promise<{ imported: string[]; skipped: string[]; errors: string[] }> {
-  const sourceRoot = codexPetsDir ?? getDefaultCodexPetsDir();
-  const imported: string[] = [];
-  const skipped: string[] = [];
-  const errors: string[] = [];
-  let entries: string[] = [];
-  try {
-    entries = await readdir(sourceRoot);
-  } catch {
-    return { imported, skipped, errors: [`codex pets dir missing: ${sourceRoot}`] };
-  }
-  await mkdir(getPetsDir(piwinRoot), { recursive: true });
-  for (const entry of entries) {
-    const from = join(sourceRoot, entry);
-    try {
-      if (!(await stat(from)).isDirectory()) {
-        skipped.push(entry);
-        continue;
-      }
-      const raw = await readFile(join(from, 'pet.json'), 'utf8');
-      const validated = validatePetManifest(JSON.parse(raw));
-      if (!validated.ok) {
-        errors.push(`${entry}: ${validated.issues.map((i) => i.message).join(', ')}`);
-        continue;
-      }
-      const targetName = validated.manifest.id;
-      const to = join(getPetsDir(piwinRoot), targetName);
-      try {
-        await stat(join(to, 'pet.json'));
-        skipped.push(targetName);
-        continue;
-      } catch {
-        // copy
-      }
-      await cp(from, to, { recursive: true });
-      imported.push(targetName);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`${entry}: ${message}`);
-    }
-  }
-  return { imported, skipped, errors };
+  entryJson: string,
+  signal?: AbortSignal,
+): Promise<{ petId: string; path: string }> {
+  const ctx = buildContext(piwinRoot);
+  const result = await installPet(getRegistry(), ctx, 'registry', entryJson, signal);
+  return { petId: result.petId, path: result.path };
+}
+
+export async function queryRemotePetStore(
+  piwinRoot: string,
+  query: string,
+  signal?: AbortSignal,
+): Promise<PetStoreQueryResult[]> {
+  const ctx = buildContext(piwinRoot);
+  return queryPetStore(getRegistry(), ctx, query, signal);
 }

@@ -171,6 +171,10 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         setSessionPlan(message.plan);
         return;
       }
+      if (message.type === 'pet/state') {
+        setActivePet(message.pet);
+        return;
+      }
       if (message.type === 'host/log') {
         args.setHostLogEntries((current) =>
           appendHostLogEntry(current, {

@@ -1164,13 +1164,43 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           success: true,
           data: { petId: 'installed-pet', path: command.sourcePath },
         };
-      case 'pet/import-codex':
+      case 'pet/store-query':
         return {
           id,
           type: 'response',
-          command: 'pet/import-codex',
+          command: 'pet/store-query',
           success: true,
-          data: { imported: [], skipped: [], errors: [] },
+          data: {
+            results: [
+              {
+                petId: 'mock-registry-pet',
+                displayName: 'Mock Registry Pet',
+                description: 'A mock pet from the registry.',
+                version: '1.0.0',
+                source: 'registry' as const,
+                location: 'https://example.com/pets/mock-registry-pet.zip',
+                installed: false,
+                sha256: '0000000000000000000000000000000000000000000000000000000000000000',
+                sizeBytes: 1024,
+              },
+            ],
+          },
+        };
+      case 'pet/install-registry':
+        return {
+          id,
+          type: 'response',
+          command: 'pet/install-registry',
+          success: true,
+          data: { petId: 'mock-registry-pet', source: 'registry', path: '/mock/pets/mock-registry-pet' },
+        };
+      case 'pet/cancel':
+        return {
+          id,
+          type: 'response',
+          command: 'pet/cancel',
+          success: true,
+          data: { cancelled: true },
         };
       case 'git/status':
         return {

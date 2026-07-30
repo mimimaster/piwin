@@ -66,11 +66,14 @@ import {
 } from '@piwin/theme';
 import {
   getActivePet,
-  importPetsFromCodex,
   installPetFromLocalPath,
+  installPetFromRegistry,
   listPets,
+  queryRemotePetStore,
   setActivePet,
 } from '@piwin/pet';
+import { createPetStateStore, type PetStateStore } from './pet-state-store.js';
+import type { PetRuntimeSnapshot } from '@piwin/contracts';
 import {
   addBashAllowRule,
   addFileWriteAllowRule,
@@ -210,6 +213,9 @@ export class HostRuntime {
   private readonly runEventCorrelator = new RunEventCorrelator();
   /** Host-side guard for context-owned events after terminal cleanup. */
   private readonly terminalRunIdsBySession = new Map<string, Set<string>>();
+  private petStateStore: PetStateStore | null = null;
+  /** Guards first init of `petStateStore` so concurrent callers share one promise. */
+  private petStateStoreInit: Promise<PetStateStore> | null = null;
   /** C1: one ordered envelope stream per runtime session. */
   private readonly eventEnvelopeGenerators = new Map<
     string,
@@ -387,7 +393,8 @@ export class HostRuntime {
   async handleCommand(command: HostCommand): Promise<HostResponse> {
     const requestId = typeof command.id === 'string' ? command.id : undefined;
     try {
-      const domain = await dispatchDomainCommands(command, requestId, this.buildDomainContext());
+      const ctx = await this.buildDomainContext();
+      const domain = await dispatchDomainCommands(command, requestId, ctx);
       if (domain) {
         return domain;
       }
@@ -1305,7 +1312,31 @@ export class HostRuntime {
     };
   }
 
-  private buildDomainContext(): import('./commands/domain-command-dispatch.js').DomainDispatchContext {
+  private ensurePetStateStore(): Promise<PetStateStore> {
+    if (this.petStateStoreInit) return this.petStateStoreInit;
+    this.petStateStoreInit = (async () => {
+      const root = this.options.piwinRoot;
+      let base: PetRuntimeSnapshot;
+      if (root) {
+        try {
+          base = await getActivePet(root, 'idle');
+        } catch {
+          base = fallbackPetSnapshot();
+        }
+      } else {
+        base = fallbackPetSnapshot();
+      }
+      const store = createPetStateStore({ basePet: base });
+      store.subscribe((snapshot) => {
+        this.push({ type: 'pet/state', pet: snapshot.pet });
+      });
+      this.petStateStore = store;
+      return store;
+    })();
+    return this.petStateStoreInit;
+  }
+
+  private async buildDomainContext(): Promise<import('./commands/domain-command-dispatch.js').DomainDispatchContext> {
     const hostContext: HostCommandContext = {
       ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
       push: (message) => this.push(message),
@@ -1314,6 +1345,7 @@ export class HostRuntime {
       getProcessRegistry: () => this.getProcessRegistry(),
       getPtyHost: () => this.getPtyHost(),
       todoStore: this.todoStore,
+      petStateStore: await this.ensurePetStateStore(),
       runCronJob: (job) => this.runCronJob(job),
       pendingPermissions: this.pendingPermissions,
       pendingExtensionUi: this.pendingExtensionUi,
@@ -1503,6 +1535,7 @@ export class HostRuntime {
         return;
       }
       this.push({ type: 'event', sessionId: session.id, event: correlatedEvent });
+      void this.ensurePetStateStore().then((store) => store.reduce(correlatedEvent));
       const nextPhase = this.activeRuns.noteAgentEvent(session.id, correlatedEvent);
       if (nextPhase !== null) {
         const active = this.activeRuns.get(session.id);
@@ -2081,4 +2114,27 @@ function createCancelledExtensionUiResponse(
     return { kind, confirmed: false };
   }
   return { kind, cancelled: true };
+}
+
+function fallbackPetSnapshot(): PetRuntimeSnapshot {
+  return {
+    petId: 'piwin-default',
+    displayName: 'Piwin Default',
+    spritesheetAbsolutePath: '',
+    state: 'idle',
+    fps: 6,
+    cellWidth: 48,
+    cellHeight: 52,
+    cols: 8,
+    rows: 9,
+    stateRows: {
+      idle: 0,
+      running: 1,
+      waiting: 2,
+      failed: 3,
+      waving: 4,
+      jumping: 5,
+      review: 6,
+    },
+  };
 }

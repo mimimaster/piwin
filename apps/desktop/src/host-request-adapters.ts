@@ -26,10 +26,10 @@ export type HostRequestAdapters = {
       | 'project/permissions-revoke';
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
-      apiKey?: string;
-      modelId?: string;
-      providerId?: string;
-      secret?: string;
+    apiKey?: string;
+    modelId?: string;
+    providerId?: string;
+    secret?: string;
     path?: string;
     key?: string;
   }) => Promise<HostResponse>;
@@ -89,9 +89,24 @@ export type HostRequestAdapters = {
     sourcePath?: string;
   }) => Promise<HostResponse>;
   requestPet: (command: {
-    type: 'pet/list' | 'pet/get-active' | 'pet/set-active' | 'pet/install-local' | 'pet/import-codex';
+    type:
+      | 'pet/list'
+      | 'pet/get-active'
+      | 'pet/set-active'
+      | 'pet/install-local'
+      | 'pet/store-query'
+      | 'pet/install-registry'
+      | 'pet/cancel';
     petId?: string;
     sourcePath?: string;
+    /** PetStoreQuery payload for pet/store-query. */
+    query?: { query: string; source?: 'bundled' | 'local' | 'codex-live' | 'registry' };
+    /** JSON-encoded registry entry (or bare URL) for pet/install-registry. */
+    url?: string;
+    /** Request id to cancel for pet/cancel. */
+    requestId?: string;
+    /** Pre-generated request id for install-registry so it can be cancelled. */
+    id?: string;
   }) => Promise<HostResponse>;
   requestPty: (command: {
     type: 'pty/open' | 'pty/write' | 'pty/resize' | 'pty/close' | 'pty/list';
@@ -324,8 +339,26 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       if (command.type === 'pet/set-active') {
         return hostClient.request({ type: 'pet/set-active', petId: command.petId ?? '' });
       }
-      if (command.type === 'pet/import-codex') {
-        return hostClient.request({ type: 'pet/import-codex' });
+      if (command.type === 'pet/store-query') {
+        return hostClient.request({
+          type: 'pet/store-query',
+          query: command.query ?? { query: '' },
+        });
+      }
+      if (command.type === 'pet/install-registry') {
+        const payload: {
+          type: 'pet/install-registry';
+          url: string;
+          id?: string;
+        } = { type: 'pet/install-registry', url: command.url ?? '' };
+        if (command.id) payload.id = command.id;
+        return hostClient.request(payload);
+      }
+      if (command.type === 'pet/cancel') {
+        return hostClient.request({
+          type: 'pet/cancel',
+          requestId: command.requestId ?? '',
+        });
       }
       return hostClient.request({
         type: 'pet/install-local',

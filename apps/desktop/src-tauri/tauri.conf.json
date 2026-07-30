@@ -40,15 +40,8 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": [
-            "$HOME/.piwin/media/**",
-            "$HOME/.piwin/pets/**"
-          ],
-          "deny": [
-            "$HOME/.piwin/credentials/**",
-            "$HOME/.ssh/**",
-            "$HOME/.aws/**"
-          ]
+          "allow": ["$HOME/.piwin/media/**", "$HOME/.piwin/pets/**", "$HOME/.codex/pets/**"],
+          "deny": ["$HOME/.piwin/credentials/**", "$HOME/.ssh/**", "$HOME/.aws/**"]
         }
       }
     }
@@ -64,9 +57,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/piwin-host"
-    ],
+    "externalBin": ["binaries/piwin-host"],
     "resources": {
       "../../../dist-host/host-serve.mjs": "host/host-serve.mjs",
       "../../../dist-host/node_modules": "host/node_modules",

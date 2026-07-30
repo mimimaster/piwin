@@ -72,6 +72,7 @@ import { TranscriptViewport } from './transcript-viewport';
 import { ProjectTrustNotice } from './project-trust-notice';
 import { SessionArchivedBanner } from './session-archived-banner';
 import { StatusBar } from './status-bar';
+import { PetSprite } from './components/PetSprite';
 
 import { useRightPanelResize } from './hooks/use-right-panel-resize';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
@@ -309,6 +310,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     hostStatus,
     config,
     setConfig,
+    activePet,
     setActivePet,
     sessionPlan,
     extensionUiRequest,
@@ -1542,6 +1544,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               }
             }}
           />
+        ) : null}
+
+        {activePet ? (
+          <PetSprite pet={activePet} onOpenSettings={() => openSettingsSection('general')} />
         ) : null}
       </div>
     </DesktopLocaleProvider>

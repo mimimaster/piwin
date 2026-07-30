@@ -40,11 +40,9 @@ import type {
   FlashcardCreateInput,
   ReviewRating,
 } from './flashcards.js';
-import type {
-  IndexFolderOptions,
-  RetrieveOptions,
-} from './doc-rag.js';
+import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
 import type { NoteSearchQuery, NoteUpdateInput, NoteWriteInput } from './notes.js';
+import type { PetRuntimeSnapshot, PetStoreQuery } from './pet.js';
 import type {
   ManagedProcessLogChunk,
   ManagedProcessLogsQuery,
@@ -155,7 +153,7 @@ export type HostCommand =
     }
   | { id?: string; type: 'session/resume'; sessionId: string }
   | { id?: string; type: 'session/messages'; sessionId: string }
- | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
+  | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
   | { id?: string; type: 'session/abort'; sessionId: string; runId?: string }
   | { id?: string; type: 'session/steer'; sessionId: string; message: string; runId?: string }
   | { id?: string; type: 'session/follow_up'; sessionId: string; message: string; runId?: string }
@@ -235,7 +233,9 @@ export type HostCommand =
   | { id?: string; type: 'pet/get-active' }
   | { id?: string; type: 'pet/set-active'; petId: string }
   | { id?: string; type: 'pet/install-local'; sourcePath: string }
-  | { id?: string; type: 'pet/import-codex' }
+  | { id?: string; type: 'pet/store-query'; query: PetStoreQuery }
+  | { id?: string; type: 'pet/install-registry'; url: string; sha256?: string }
+  | { id?: string; type: 'pet/cancel'; requestId: string }
   | { id?: string; type: 'plan/get'; sessionId: string }
   | { id?: string; type: 'plan/set'; sessionId: string; plan: SessionPlan }
   | { id?: string; type: 'plan/clear'; sessionId: string }
@@ -297,7 +297,13 @@ export type HostCommand =
   | { id?: string; type: 'notes/eval-history' }
   /** Flashcards (ADR 0018): CRUD + FSRS review, incl. artifact rate actions. */
   | { id?: string; type: 'flashcards/create'; input: FlashcardCreateInput }
-  | { id?: string; type: 'flashcards/list'; deck?: string; sourceNoteId?: string; sourceFolder?: string }
+  | {
+      id?: string;
+      type: 'flashcards/list';
+      deck?: string;
+      sourceNoteId?: string;
+      sourceFolder?: string;
+    }
   | { id?: string; type: 'flashcards/delete'; cardId: string }
   | { id?: string; type: 'flashcards/decks' }
   | { id?: string; type: 'flashcards/queue'; deck?: string }
@@ -306,17 +312,17 @@ export type HostCommand =
   | { id?: string; type: 'flashcards/batch-create'; input: FlashcardBatchCreateInput }
   /** Doc Cards (folder-sourced flashcards): scan / index / retrieve / bind. See docs/specs/doc-flashcards.md. */
   | { id?: string; type: 'doccards/scan-folder'; folderPath: string }
-  | {
+  | ({
       id?: string;
       type: 'doccards/index-folder';
       folderPath: string;
-    } & Omit<IndexFolderOptions, 'signal'>
-  | {
+    } & Omit<IndexFolderOptions, 'signal'>)
+  | ({
       id?: string;
       type: 'doccards/retrieve';
       folderPath: string;
       query: string;
-    } & Omit<RetrieveOptions, 'signal' | 'embeddingProvider'>
+    } & Omit<RetrieveOptions, 'signal' | 'embeddingProvider'>)
   | { id?: string; type: 'doccards/list-by-folder'; folderPath: string }
   | { id?: string; type: 'doccards/rebind-folder'; oldPath: string; newPath: string }
   | { id?: string; type: 'doccards/forget-folder'; folderPath: string }
@@ -464,7 +470,8 @@ export type HostPush =
       message?: string;
       options?: string[];
       placeholder?: string;
-    };
+    }
+  | { type: 'pet/state'; pet: PetRuntimeSnapshot };
 
 /** Pi ExtensionUIContext dialog kinds bridged to Desktop. */
 export type ExtensionUiKind = 'confirm' | 'select' | 'input';
