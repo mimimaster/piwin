@@ -1315,15 +1315,11 @@ export class HostRuntime {
   private ensurePetStateStore(): Promise<PetStateStore> {
     if (this.petStateStoreInit) return this.petStateStoreInit;
     this.petStateStoreInit = (async () => {
-      const root = this.options.piwinRoot;
+      const root = getPiwinRoot(this.options.piwinRoot);
       let base: PetRuntimeSnapshot;
-      if (root) {
-        try {
-          base = await getActivePet(root, 'idle');
-        } catch {
-          base = fallbackPetSnapshot();
-        }
-      } else {
+      try {
+        base = await getActivePet(root, 'idle');
+      } catch {
         base = fallbackPetSnapshot();
       }
       const store = createPetStateStore({ basePet: base });
