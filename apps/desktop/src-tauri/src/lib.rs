@@ -1,4 +1,5 @@
 mod host_bridge;
+mod pet_overlay;
 mod pty_host;
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -9,6 +10,7 @@ use host_bridge::{
     host_is_running, host_request, host_request_blocking, host_start, host_stop,
     observe_host_process_blocking, HostBridgeState, HostObservability,
 };
+use pet_overlay::{pet_overlay_hide, pet_overlay_show, pet_overlay_toggle};
 use pty_host::{
     pty_close, pty_close_all, pty_open, pty_resize, pty_write, snapshot_pty_sessions_blocking,
     PtyHostState, PtyShutdownSnapshot,
@@ -160,7 +162,10 @@ pub fn run() {
             pty_write,
             pty_resize,
             pty_close,
-            pty_close_all
+            pty_close_all,
+            pet_overlay_show,
+            pet_overlay_hide,
+            pet_overlay_toggle
         ])
         .setup(|application| {
             // macOS may fall back to productName for an empty config title.

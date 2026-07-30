@@ -1547,7 +1547,18 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         ) : null}
 
         {activePet ? (
-          <PetSprite pet={activePet} onOpenSettings={() => openSettingsSection('general')} />
+          <PetSprite
+            pet={activePet}
+            onOpenSettings={() => openSettingsSection('general')}
+            onToggleOverlay={async () => {
+              try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                await invoke('pet_overlay_toggle');
+              } catch {
+                // not in Tauri — ignore
+              }
+            }}
+          />
         ) : null}
       </div>
     </DesktopLocaleProvider>

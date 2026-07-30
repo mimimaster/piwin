@@ -19,10 +19,7 @@ import type { NotificationAction } from '../notification-queue';
 import { pushError } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { PtyOutputLine } from '../terminal-dock';
-import {
-  PIWIN_APPEARANCE_DARK,
-  resolveDesktopAppearance,
-} from '../appearance-tokens';
+import { PIWIN_APPEARANCE_DARK, resolveDesktopAppearance } from '../appearance-tokens';
 import { createStreamEventBuffer } from '../stream-event-buffer';
 
 export type ExtensionUiRequestState = {
@@ -173,6 +170,16 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       }
       if (message.type === 'pet/state') {
         setActivePet(message.pet);
+        // Forward to the pet overlay window so it can update its sprite
+        // without its own host connection.
+        void (async () => {
+          try {
+            const { emit } = await import('@tauri-apps/api/event');
+            await emit('pet-state-push', { pet: message.pet });
+          } catch {
+            // overlay window not open or not in Tauri — ignore
+          }
+        })();
         return;
       }
       if (message.type === 'host/log') {
