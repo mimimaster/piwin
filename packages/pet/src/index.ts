@@ -13,13 +13,35 @@ export {
   getDefaultCodexPetsDir,
   loadPetPreference,
   savePetPreference,
-  ensureBundledPetsInstalled,
   listPets,
   loadPetManifest,
   getActivePet,
   setActivePet,
   installPetFromLocalPath,
+  installPetFromRegistry,
+  queryRemotePetStore,
 } from './pet-store.js';
+export {
+  createPetSourceRegistry,
+  discoverAllPets,
+  resolvePet,
+  installPet,
+  queryPetStore,
+  type PetSourceRegistry,
+} from './pet-source-registry.js';
+export {
+  PET_SOURCE_PRIORITY,
+  type PetSourceProvider,
+  type PetSourceProviderContext,
+} from './sources/pet-source-provider.js';
+export { bundledProvider } from './sources/bundled-provider.js';
+export { localProvider } from './sources/local-provider.js';
+export { codexProvider } from './sources/codex-provider.js';
+export { registryProvider } from './sources/registry-provider.js';
+export {
+  downloadAndVerifyPackage,
+  PET_MAX_DOWNLOAD_BYTES,
+} from './sources/registry-download.js';
 
 export {
   createInitialPetAgentContext,
