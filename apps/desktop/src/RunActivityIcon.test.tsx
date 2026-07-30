@@ -29,32 +29,17 @@ describe('RunActivityIcon', () => {
     container.parentNode?.removeChild(container);
   });
 
-  it('renders an img when imgSrc is provided', () => {
-    const source: ActivityIconSource = { kind: 'waiting-first-token', lucideName: 'Sparkles', imgSrc: '/ui/test.png' };
-    act(() => root.render(<TestHarness source={source} />));
-    const img = container.querySelector('img');
-    expect(img).not.toBeNull();
-    expect(img?.getAttribute('src')).toBe('/ui/test.png');
-  });
-
-  it('renders an svg when no imgSrc', () => {
+  it('renders a Lucide svg', () => {
     const source: ActivityIconSource = { kind: 'working', lucideName: 'Code' };
     act(() => root.render(<TestHarness source={source} />));
     expect(container.querySelector('svg')).not.toBeNull();
   });
 
-  it('falls back to an svg when the generated image fails to load', () => {
-    const source: ActivityIconSource = {
-      kind: 'waiting-first-token',
-      lucideName: 'Sparkles',
-      imgSrc: '/ui/missing.png',
-    };
+  it('uses Loader2 for an unknown Lucide name', () => {
+    const source: ActivityIconSource = { kind: 'waiting-first-token', lucideName: 'Unknown' };
     act(() => root.render(<TestHarness source={source} />));
-    const img = container.querySelector<HTMLImageElement>('img');
-    if (!img) {
-      throw new Error('Expected generated icon image');
-    }
-    act(() => img.dispatchEvent(new Event('error')));
-    expect(container.querySelector('svg')).not.toBeNull();
+    const icon = container.querySelector('svg');
+    expect(icon).not.toBeNull();
+    expect(icon?.getAttribute('data-testid')).toBe('icon');
   });
 });

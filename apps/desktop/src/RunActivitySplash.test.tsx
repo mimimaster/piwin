@@ -34,10 +34,12 @@ describe('RunActivitySplash', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
     act(() => root.unmount());
+    vi.useRealTimers();
     container.parentNode?.removeChild(container);
     window.matchMedia = previousMatchMedia;
   });
@@ -52,14 +54,18 @@ describe('RunActivitySplash', () => {
 
   it('mentions the tool when working', () => {
     act(() =>
-      root.render(<TestHarness input={{ kind: 'working', activeToolName: 'bash', locale: 'en' }} />),
+      root.render(
+        <TestHarness input={{ kind: 'working', activeToolName: 'bash', locale: 'en' }} />,
+      ),
     );
     expect(container.textContent).toContain('bash');
   });
 
   it('shows taking-too-long when elapsed > 15s', () => {
     act(() =>
-      root.render(<TestHarness input={{ kind: 'waiting-first-token', locale: 'en', elapsedMs: 20000 }} />),
+      root.render(
+        <TestHarness input={{ kind: 'waiting-first-token', locale: 'en', elapsedMs: 20000 }} />,
+      ),
     );
     expect(container.textContent).toContain('Taking longer than expected…');
   });
