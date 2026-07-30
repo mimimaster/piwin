@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 22px;
+  height: 24px;
   flex-shrink: 0;
   padding: 0 12px;
   border-top: 1px solid color-mix(in srgb, var(--text) 3%, transparent);
@@ -80,9 +80,15 @@
   font-variant-numeric: tabular-nums;
 }
 
-.status-bar-context.tone-ok { color: var(--ok); }
-.status-bar-context.tone-warn { color: var(--accent); }
-.status-bar-context.tone-critical { color: var(--danger); }
+.status-bar-context.tone-ok {
+  color: var(--ok);
+}
+.status-bar-context.tone-warn {
+  color: var(--accent);
+}
+.status-bar-context.tone-critical {
+  color: var(--danger);
+}
 
 .status-bar-chip {
   display: inline-flex;
@@ -96,7 +102,9 @@
   color: var(--muted);
   font-size: 11px;
   cursor: pointer;
-  transition: color var(--duration-fast) ease, background var(--duration-fast) ease;
+  transition:
+    color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
   font-variant-numeric: tabular-nums;
 }
 
@@ -124,13 +132,24 @@
 }
 
 @keyframes status-bar-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 @keyframes status-bar-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

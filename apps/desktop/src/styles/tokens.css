@@ -2,13 +2,13 @@
 
 :root {
   /* Shell geometry — single source of truth; never hardcode these in cascade files. */
-  --sidebar-width: 260px;
+  --sidebar-width: 240px;
   --rail-width: 48px;
   --signal-rail-width: 48px;
-  --right-panel-width: 280px;
-  --chat-max: min(100%, 960px);
-  --chat-font-size: 15px;
-  --code-font-size: 13px;
+  --right-panel-width: 300px;
+  --chat-max: min(100%, 780px);
+  --chat-font-size: 13.5px;
+  --code-font-size: 12px;
   --code-wrap: unset;
 
   /* Band heights */
