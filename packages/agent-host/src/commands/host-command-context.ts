@@ -22,6 +22,7 @@ export type HostCommandContext = {
   getProcessRegistry: () => ProcessRegistry;
   getPtyHost: () => PtyHost;
   todoStore: SessionTodoStore;
+  petStateStore: import('../pet-state-store.js').PetStateStore;
   runCronJob: (job: import('@piwin/contracts').CronJob) => Promise<{ ok: boolean; message?: string }>;
   pendingPermissions: Map<
     string,

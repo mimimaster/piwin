@@ -11,7 +11,13 @@ import {
   listThemes,
   setActiveTheme,
 } from '@piwin/theme';
-import { getActivePet, installPetFromLocalPath, listPets, setActivePet } from '@piwin/pet';
+import {
+  installPetFromLocalPath,
+  installPetFromRegistry,
+  listPets,
+  queryRemotePetStore,
+  setActivePet,
+} from '@piwin/pet';
 import { loadPiwinConfig, savePiwinConfig } from '../config-store.js';
 import { ensureBundledExtensionsInstalled } from '../ensure-bundled-extensions.js';
 import { scanExtensions } from '../extension-scanner.js';
@@ -45,6 +51,8 @@ const TYPES = new Set<HostCommand['type']>([
   'pet/get-active',
   'pet/set-active',
   'pet/install-local',
+  'pet/store-query',
+  'pet/install-registry',
   'config/get',
   'config/set',
   'models/discover',
@@ -269,19 +277,29 @@ export async function handleCatalogCommand(
       return ok(requestId, 'pet/list', data);
     }
     case 'pet/get-active': {
-      const rootDir = getPiwinRoot(context.piwinRoot);
-      const pet = await getActivePet(rootDir);
+      const pet = context.petStateStore.snapshot().pet;
       return ok(requestId, 'pet/get-active', { pet });
     }
     case 'pet/set-active': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const pet = await setActivePet(rootDir, command.petId);
+      context.petStateStore.setBase(pet);
       return ok(requestId, 'pet/set-active', { pet });
     }
     case 'pet/install-local': {
       const rootDir = getPiwinRoot(context.piwinRoot);
       const installed = await installPetFromLocalPath(rootDir, command.sourcePath);
       return ok(requestId, 'pet/install-local', installed);
+    }
+    case 'pet/store-query': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const results = await queryRemotePetStore(rootDir, command.query.query);
+      return ok(requestId, 'pet/store-query', { results });
+    }
+    case 'pet/install-registry': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const installed = await installPetFromRegistry(rootDir, command.url);
+      return ok(requestId, 'pet/install-registry', installed);
     }
 
     case 'config/get': {
