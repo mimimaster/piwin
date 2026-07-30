@@ -212,4 +212,62 @@ describe('SettingsShell', () => {
     expect(container.querySelector('[data-testid="settings-skills"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="legacy-skills"]')).toBeNull();
   });
+
+  it('renders the Artifact preview switch on the Appearance page and toggles it', () => {
+    const contextValue = createContextValue(vi.fn());
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SettingsShell
+            activeSection="appearance"
+            onSelectSection={vi.fn()}
+            contextValue={contextValue}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    // Mantine Switch puts data-testid on the <input> (role="switch") directly.
+    const input = container.querySelector<HTMLInputElement>(
+      '[data-testid="artifact-preview-switch"]',
+    );
+    expect(input).not.toBeNull();
+    // Starts unchecked (defaults to false).
+    expect(input?.checked).toBe(false);
+
+    // Toggle on — clicking the input triggers onChange.
+    act(() => {
+      input?.click();
+    });
+    expect(contextValue.onPreferencesChange).toHaveBeenCalledWith(
+      expect.objectContaining({ artifactPreviewEnabled: true }),
+    );
+
+    // Toggle off.
+    const mockFn = contextValue.onPreferencesChange as ReturnType<typeof vi.fn>;
+    mockFn.mockClear();
+    const contextValueOn = createContextValue(vi.fn());
+    contextValueOn.preferences.artifactPreviewEnabled = true;
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SettingsShell
+            activeSection="appearance"
+            onSelectSection={vi.fn()}
+            contextValue={contextValueOn}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const inputOn = container.querySelector<HTMLInputElement>(
+      '[data-testid="artifact-preview-switch"]',
+    );
+    expect(inputOn).not.toBeNull();
+    expect(inputOn?.checked).toBe(true);
+    act(() => {
+      inputOn?.click();
+    });
+    expect(contextValueOn.onPreferencesChange).toHaveBeenCalledWith(
+      expect.objectContaining({ artifactPreviewEnabled: false }),
+    );
+  });
 });

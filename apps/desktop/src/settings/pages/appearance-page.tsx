@@ -138,6 +138,25 @@ export function AppearancePage(): ReactElement {
           />
         </FieldRow>
 
+        {/* Artifact 具现 toggle */}
+        <FieldRow
+          label="artifact具现"
+          description={
+            locale === 'zh-CN'
+              ? '开启后代码块将提供「artifact具现」按钮以渲染 HTML/Web 内容。'
+              : 'When enabled, code blocks show a "artifact具现" button to render HTML/Web content.'
+          }
+        >
+          <Switch
+            checked={preferences.artifactPreviewEnabled}
+            onCheckedChange={(checked) => {
+              updatePreference(preferences, 'artifactPreviewEnabled', checked, onPreferencesChange);
+            }}
+            aria-label="artifact具现"
+            testId="artifact-preview-switch"
+          />
+        </FieldRow>
+
         {/* Tool call density (existing, now wired through preferences) */}
         <FieldRow
           label={locale === 'zh-CN' ? '工具调用密度' : 'Tool call density'}
