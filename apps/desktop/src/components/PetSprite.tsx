@@ -7,8 +7,12 @@ export type PetSpriteProps = {
   pet: PetRuntimeSnapshot;
   /** Called when the user clicks the pet (not drags). */
   onOpenSettings?: () => void;
+  /** Called when the user right-clicks the pet — used to toggle system overlay. */
+  onToggleOverlay?: () => void;
   /** Hide the sprite entirely. */
   hidden?: boolean;
+  /** Overlay mode: center in window instead of fixed bottom-right (system overlay). */
+  overlay?: boolean;
 };
 
 const IDLE_INTERVAL_MS = 4000;
@@ -161,10 +165,16 @@ export function PetSprite(props: PetSpriteProps) {
   function onMouseLeave(): void {
     hoverRef.current = false;
   }
+  function onContextMenu(e: React.MouseEvent): void {
+    e.preventDefault();
+    props.onToggleOverlay?.();
+  }
 
   const style: React.CSSProperties = pos
     ? { left: `${pos.x}px`, top: `${pos.y}px`, bottom: 'auto', right: 'auto' }
-    : {};
+    : props.overlay
+      ? { left: '0', top: '0', bottom: 'auto', right: 'auto' }
+      : {};
 
   return (
     <div
@@ -174,14 +184,11 @@ export function PetSprite(props: PetSpriteProps) {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <canvas
-        ref={canvasRef}
-        width={props.pet.cellWidth}
-        height={props.pet.cellHeight}
-      />
+      <canvas ref={canvasRef} width={props.pet.cellWidth} height={props.pet.cellHeight} />
     </div>
   );
 }
@@ -191,7 +198,9 @@ export function PetSprite(props: PetSpriteProps) {
  * In non-Tauri (mock) mode, fall back to a file:// URL.
  */
 function convertFileSrc(path: string): string {
-  const w = window as unknown as { __TAURI_INTERNALS__?: { convertFileSrc?: (p: string) => string } };
+  const w = window as unknown as {
+    __TAURI_INTERNALS__?: { convertFileSrc?: (p: string) => string };
+  };
   if (w.__TAURI_INTERNALS__?.convertFileSrc) {
     return w.__TAURI_INTERNALS__.convertFileSrc(path);
   }

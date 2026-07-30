@@ -24,7 +24,7 @@ import {
 } from './pet-source-registry.js';
 import { bundledProvider } from './sources/bundled-provider.js';
 import { localProvider } from './sources/local-provider.js';
-import { codexProvider } from './sources/codex-provider.js';
+import { codexProvider, getCodexSelectedPetId } from './sources/codex-provider.js';
 import { registryProvider } from './sources/registry-provider.js';
 
 export function getPetsDir(piwinRoot: string): string {
@@ -69,7 +69,18 @@ export async function loadPetPreference(piwinRoot: string): Promise<PetPreferenc
       return { activePetId: parsed.activePetId.trim() };
     }
   } catch {
-    // default
+    // no saved preference — fall through to codex detection
+  }
+  // No piwin preference saved; mirror the user's Codex avatar choice if set.
+  const codexPetId = await getCodexSelectedPetId();
+  if (codexPetId) {
+    // Verify the pet actually exists before adopting it as the default.
+    try {
+      await buildRuntimeSnapshot(piwinRoot, codexPetId, 'idle');
+      return { activePetId: codexPetId };
+    } catch {
+      // codex pet not installed in piwin — fall through to default
+    }
   }
   return { activePetId: 'piwin-default' };
 }

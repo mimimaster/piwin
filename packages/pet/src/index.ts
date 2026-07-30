@@ -36,12 +36,9 @@ export {
 } from './sources/pet-source-provider.js';
 export { bundledProvider } from './sources/bundled-provider.js';
 export { localProvider } from './sources/local-provider.js';
-export { codexProvider } from './sources/codex-provider.js';
+export { codexProvider, getCodexSelectedPetId } from './sources/codex-provider.js';
 export { registryProvider } from './sources/registry-provider.js';
-export {
-  downloadAndVerifyPackage,
-  PET_MAX_DOWNLOAD_BYTES,
-} from './sources/registry-download.js';
+export { downloadAndVerifyPackage, PET_MAX_DOWNLOAD_BYTES } from './sources/registry-download.js';
 
 export {
   createInitialPetAgentContext,
