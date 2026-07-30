@@ -1528,3 +1528,122 @@
 .diff-card.accepted .diff-body {
   opacity: 0.45;
 }
+
+/* ─── Inline plan card (plan-card.tsx) ─────────────────────────────── */
+/* Ported from docs/proto-shell.css plan-card block. Renders the session
+   plan inline at the top of the chat thread. The card is session-level
+   (not anchored to a message), so only one is mounted at a time. */
+
+.plan-card {
+  border-radius: 10px;
+  margin: 4px 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  transition: background 120ms;
+}
+
+.plan-head:hover {
+  background: var(--hover);
+}
+
+.plan-head .ic {
+  width: 13px;
+  height: 13px;
+  color: var(--accent);
+}
+
+.plan-card .chev {
+  margin-left: auto;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  color: var(--faint);
+  width: 13px;
+  height: 13px;
+}
+
+.plan-card.closed .chev {
+  transform: rotate(-90deg);
+}
+
+.plan-steps {
+  padding: 2px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.plan-card .step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.plan-card .step .box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line-strong);
+  color: transparent;
+  font-size: 9px;
+}
+
+.plan-card .step.done .box {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: var(--ok-fg);
+}
+
+.plan-card .step.done {
+  color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--line-strong);
+}
+
+.plan-card .step.run .box {
+  border-color: var(--accent);
+}
+
+.plan-card .step.run .box::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.plan-card .step.run {
+  color: var(--text);
+}
+
+/* Skipped: dashed box + faint strikethrough (no proto counterpart; the brief
+   calls for a补划线 + faint treatment distinct from done). */
+.plan-card .step.skipped .box {
+  border-style: dashed;
+  border-color: var(--faint);
+}
+
+.plan-card .step.skipped {
+  color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
+}
