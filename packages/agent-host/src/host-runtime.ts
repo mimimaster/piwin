@@ -214,6 +214,8 @@ export class HostRuntime {
   /** Host-side guard for context-owned events after terminal cleanup. */
   private readonly terminalRunIdsBySession = new Map<string, Set<string>>();
   private petStateStore: PetStateStore | null = null;
+  /** Guards first init of `petStateStore` so concurrent callers share one promise. */
+  private petStateStoreInit: Promise<PetStateStore> | null = null;
   /** C1: one ordered envelope stream per runtime session. */
   private readonly eventEnvelopeGenerators = new Map<
     string,
@@ -1310,25 +1312,28 @@ export class HostRuntime {
     };
   }
 
-  private async ensurePetStateStore(): Promise<PetStateStore> {
-    if (this.petStateStore) return this.petStateStore;
-    const root = this.options.piwinRoot;
-    let base: PetRuntimeSnapshot;
-    if (root) {
-      try {
-        base = await getActivePet(root, 'idle');
-      } catch {
+  private ensurePetStateStore(): Promise<PetStateStore> {
+    if (this.petStateStoreInit) return this.petStateStoreInit;
+    this.petStateStoreInit = (async () => {
+      const root = this.options.piwinRoot;
+      let base: PetRuntimeSnapshot;
+      if (root) {
+        try {
+          base = await getActivePet(root, 'idle');
+        } catch {
+          base = fallbackPetSnapshot();
+        }
+      } else {
         base = fallbackPetSnapshot();
       }
-    } else {
-      base = fallbackPetSnapshot();
-    }
-    const store = createPetStateStore({ basePet: base });
-    store.subscribe((snapshot) => {
-      this.push({ type: 'pet/state', pet: snapshot.pet });
-    });
-    this.petStateStore = store;
-    return store;
+      const store = createPetStateStore({ basePet: base });
+      store.subscribe((snapshot) => {
+        this.push({ type: 'pet/state', pet: snapshot.pet });
+      });
+      this.petStateStore = store;
+      return store;
+    })();
+    return this.petStateStoreInit;
   }
 
   private async buildDomainContext(): Promise<import('./commands/domain-command-dispatch.js').DomainDispatchContext> {
