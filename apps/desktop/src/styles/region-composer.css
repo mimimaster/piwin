@@ -870,6 +870,11 @@
   font-size: 12px;
 }
 
+.context-usage-cache-estimate {
+  margin: 0 0 8px;
+  font-size: 11px;
+}
+
 .context-usage-pill {
   display: inline-flex;
   align-items: center;
