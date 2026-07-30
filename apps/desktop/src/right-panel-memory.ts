@@ -3,14 +3,7 @@
  */
 
 export type RightPanelTabKind =
-  | 'files'
-  | 'terminal'
-  | 'review'
-  | 'notes'
-  | 'cards'
-  | 'browser'
-  | 'canvas'
-  | 'sideChat';
+  'files' | 'terminal' | 'review' | 'notes' | 'cards' | 'browser' | 'canvas' | 'sideChat';
 
 export type StoredRightPanelState = {
   openTabs: RightPanelTabKind[];
@@ -22,19 +15,11 @@ export const RIGHT_PANEL_STATE_STORAGE_KEY = 'piwin.desktop.rightPanelTabs.v1';
 /** @deprecated legacy key — read once for migration */
 export const RIGHT_PANEL_VIEW_STORAGE_KEY = 'piwin.desktop.rightPanelView';
 
-const ALL_KINDS: RightPanelTabKind[] = [
-  'files',
-  'terminal',
-  'review',
-  'notes',
-  'cards',
-  'browser',
-  'canvas',
-  'sideChat',
-];
+/** Tabs exposed in the home grid and + menu. */
+const ALLOWED_KINDS: RightPanelTabKind[] = ['files', 'terminal', 'browser', 'review'];
 
-function isTabKind(value: unknown): value is RightPanelTabKind {
-  return typeof value === 'string' && (ALL_KINDS as string[]).includes(value);
+function isAllowedKind(value: unknown): value is RightPanelTabKind {
+  return typeof value === 'string' && (ALLOWED_KINDS as string[]).includes(value);
 }
 
 export function readStoredRightPanelState(
@@ -47,20 +32,14 @@ export function readStoredRightPanelState(
     const raw = storage.getItem(RIGHT_PANEL_STATE_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as { openTabs?: unknown; activeTab?: unknown };
-      const openTabs = Array.isArray(parsed.openTabs)
-        ? parsed.openTabs.filter(isTabKind)
-        : [];
+      const openTabs = Array.isArray(parsed.openTabs) ? parsed.openTabs.filter(isAllowedKind) : [];
       const activeTab =
-        isTabKind(parsed.activeTab) && openTabs.includes(parsed.activeTab)
+        isAllowedKind(parsed.activeTab) && openTabs.includes(parsed.activeTab)
           ? parsed.activeTab
           : (openTabs[0] ?? null);
       return { openTabs, activeTab };
     }
-    // Migrate legacy home/detail: detail → empty open (user picks); home → empty.
-    const legacy = storage.getItem(RIGHT_PANEL_VIEW_STORAGE_KEY);
-    if (legacy === 'detail') {
-      return { openTabs: ['terminal'], activeTab: 'terminal' };
-    }
+    // Migrate legacy home/detail: both go to empty home (user picks a tile).
   } catch {
     /* ignore */
   }

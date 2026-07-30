@@ -1,8 +1,8 @@
 /**
  * Right workspace panel — multi-tab like Cursor's side window.
  *
- * - Tab strip: open Files / Terminal / Changes / Notes / Cards / Browser / Canvas / Side Chat as tabs
- * - + opens a section picker popover
+ * - 2x2 home grid: Files / Terminal / Browser / Changes
+ * - + opens a section picker popover limited to the same four tabs
  * - Drag left edge to resize; double-click resets width
  * - Keep-mounted open tab bodies so PTY survives tab switches
  */
@@ -11,12 +11,10 @@ import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode
 import { IconClose } from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
 import { IconButton } from '@piwin/ui-kit';
-import {
-  readStoredRightPanelState,
-  writeStoredRightPanelState,
-} from './right-panel-memory';
+import { readStoredRightPanelState, writeStoredRightPanelState } from './right-panel-memory';
 import { sectionLabel, sectionIcon, type RightPanelTab } from './right-panel-sections';
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
+import { RightPanelHome } from './right-panel-home';
 
 /** @deprecated use presence of open tabs; kept for App attention gating. */
 export type RightPanelView = 'home' | 'detail';
@@ -25,8 +23,8 @@ export type RightPanelProps = {
   open: boolean;
   onOpen: () => void;
   onClose: () => void;
-  activeTab: RightPanelTab;
-  onTabChange: (tab: RightPanelTab) => void;
+  activeTab: RightPanelTab | null;
+  onTabChange: (tab: RightPanelTab | null) => void;
   panelWidthPx: number;
   isResizing: boolean;
   onResizePointerDown: (event: React.PointerEvent<HTMLElement>) => void;
@@ -85,15 +83,17 @@ export function RightPanel(props: RightPanelProps): ReactElement {
 
   const initial = useMemo(() => readStoredRightPanelState(), []);
   const [openTabs, setOpenTabs] = useState<RightPanelTab[]>(() => initial.openTabs);
-  const [pickerOpen, setPickerOpen] = useState(() => initial.openTabs.length === 0);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const previousActiveTabRef = useRef(props.activeTab);
   const previousOpenRef = useRef(props.open);
 
   // Sync stored multi-tab state.
   useEffect(() => {
+    const requested = props.activeTab;
     writeStoredRightPanelState({
       openTabs,
-      activeTab: openTabs.includes(props.activeTab) ? props.activeTab : (openTabs[0] ?? null),
+      activeTab:
+        requested != null && openTabs.includes(requested) ? requested : (openTabs[0] ?? null),
     });
     props.onViewChange?.(openTabs.length > 0 ? 'detail' : 'home');
   }, [openTabs, props.activeTab, props.onViewChange]);
@@ -114,25 +114,27 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       }
       return;
     }
-    // First open this session: land on the requested tab (default Terminal).
-    setOpenTabs([props.activeTab]);
-    setPickerOpen(false);
+    // First open this session: only open a tab if the shell explicitly requests one.
+    const requested = props.activeTab;
+    if (requested != null) {
+      setOpenTabs([requested]);
+      setPickerOpen(false);
+    }
   }, [props.open, props.activeTab, props.onTabChange]);
 
   // External tab navigation while open (commands / status) adds a tab.
   useEffect(() => {
-    if (!props.open) {
-      previousActiveTabRef.current = props.activeTab;
+    const requested = props.activeTab;
+    if (!props.open || requested == null) {
+      previousActiveTabRef.current = requested;
       return;
     }
     const previous = previousActiveTabRef.current;
-    previousActiveTabRef.current = props.activeTab;
-    if (previous === props.activeTab) {
+    previousActiveTabRef.current = requested;
+    if (previous === requested) {
       return;
     }
-    setOpenTabs((current) =>
-      current.includes(props.activeTab) ? current : [...current, props.activeTab],
-    );
+    setOpenTabs((current) => (current.includes(requested) ? current : [...current, requested]));
     setPickerOpen(false);
   }, [props.activeTab, props.open]);
 
@@ -145,13 +147,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
     ) {
       props.onTerminalAttentionClear?.();
     }
-  }, [
-    props.open,
-    openTabs,
-    props.activeTab,
-    terminalAttention,
-    props.onTerminalAttentionClear,
-  ]);
+  }, [props.open, openTabs, props.activeTab, terminalAttention, props.onTerminalAttentionClear]);
 
   function openTab(tab: RightPanelTab): void {
     setOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
@@ -167,20 +163,18 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       const next = current.filter((item) => item !== tab);
       if (props.activeTab === tab) {
         const fallback = next[next.length - 1] ?? null;
-        if (fallback) {
-          props.onTabChange(fallback);
-        }
+        props.onTabChange(fallback);
       }
       if (next.length === 0) {
-        setPickerOpen(true);
+        setPickerOpen(false);
       }
       return next;
     });
   }
 
-  const active = openTabs.includes(props.activeTab)
-    ? props.activeTab
-    : (openTabs[0] ?? null);
+  const requested = props.activeTab;
+  const active =
+    requested != null && openTabs.includes(requested) ? requested : (openTabs[0] ?? null);
 
   const panelClass = [
     'right-panel',
@@ -297,35 +291,41 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         ) : null}
       </div>
 
-      {/* Keep all open tab bodies mounted (PTY survives switch). */}
-      <div className="right-panel-bodies">
-        {openTabs.map((tab) => {
-          const content = sectionContent(props, tab);
-          const label = sectionLabel(tab, locale);
-          return (
-            <div
-              key={tab}
-              className="right-panel-body"
-              role="tabpanel"
-              hidden={tab !== active}
-              id={`inspector-panel-${tab}`}
-              data-testid={tab === 'terminal' ? 'terminal-panel' : undefined}
-            >
-              {content === undefined ? (
-                <div className="right-panel-section">
-                  <div className="right-panel-empty muted">
-                    {locale === 'zh-CN' ? `${label} 面板尚未实现` : `${label} panel is not yet available.`}
+      {openTabs.length === 0 ? (
+        <RightPanelHome locale={locale} onSelect={openTab} />
+      ) : (
+        /* Keep all open tab bodies mounted (PTY survives switch). */
+        <div className="right-panel-bodies">
+          {openTabs.map((tab) => {
+            const content = sectionContent(props, tab);
+            const label = sectionLabel(tab, locale);
+            return (
+              <div
+                key={tab}
+                className="right-panel-body"
+                role="tabpanel"
+                hidden={tab !== active}
+                id={`inspector-panel-${tab}`}
+                data-testid={tab === 'terminal' ? 'terminal-panel' : undefined}
+              >
+                {content === undefined ? (
+                  <div className="right-panel-section">
+                    <div className="right-panel-empty muted">
+                      {locale === 'zh-CN'
+                        ? `${label} 面板尚未实现`
+                        : `${label} panel is not yet available.`}
+                    </div>
                   </div>
-                </div>
-              ) : tab === 'terminal' ? (
-                <div className="right-panel-section right-panel-terminal">{content}</div>
-              ) : (
-                <div className="right-panel-section">{content}</div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                ) : tab === 'terminal' ? (
+                  <div className="right-panel-section right-panel-terminal">{content}</div>
+                ) : (
+                  <div className="right-panel-section">{content}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </aside>
   );
 }

@@ -43,10 +43,7 @@ describe('right-panel-memory multi-tab', () => {
 
   it('round-trips open tabs', () => {
     const storage = memoryStorage();
-    writeStoredRightPanelState(
-      { openTabs: ['terminal', 'files'], activeTab: 'files' },
-      storage,
-    );
+    writeStoredRightPanelState({ openTabs: ['terminal', 'files'], activeTab: 'files' }, storage);
     expect(JSON.parse(storage.getItem(RIGHT_PANEL_STATE_STORAGE_KEY) ?? '{}')).toEqual({
       openTabs: ['terminal', 'files'],
       activeTab: 'files',
@@ -57,11 +54,11 @@ describe('right-panel-memory multi-tab', () => {
     });
   });
 
-  it('migrates legacy detail view to terminal tab', () => {
+  it('migrates legacy detail view to empty home', () => {
     const storage = memoryStorage({ [RIGHT_PANEL_VIEW_STORAGE_KEY]: 'detail' });
     expect(readStoredRightPanelState(storage)).toEqual({
-      openTabs: ['terminal'],
-      activeTab: 'terminal',
+      openTabs: [],
+      activeTab: null,
     });
   });
 

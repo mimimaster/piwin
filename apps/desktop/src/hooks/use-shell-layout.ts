@@ -27,16 +27,13 @@ import {
   type ShellNavigationState,
   type ShellSettingsSection,
 } from '../shell-navigation';
-import {
-  normalizeSettingsSection,
-  type SettingsSectionId,
-} from '../settings/section-registry';
+import { normalizeSettingsSection, type SettingsSectionId } from '../settings/section-registry';
 
 export type { ShellLayoutMode, ShellOverlay, SettingsSectionId, ShellSettingsSection };
 
 export function useShellLayout() {
   const [overlay, setOverlay] = useState<ShellOverlay>('none');
-  const [inspectorTab, setInspectorTab] = useState<RightPanelTab>('terminal');
+  const [inspectorTab, setInspectorTab] = useState<RightPanelTab | null>(null);
   const [layoutMode, setLayoutMode] = useState<ShellLayoutMode>(() =>
     typeof window !== 'undefined' ? resolveLayoutMode(window.innerWidth) : 'desktop',
   );
@@ -70,9 +67,7 @@ export function useShellLayout() {
   const activeRoute = currentShellRoute(navigation);
   const settingsOpen = activeRoute.kind === 'settings';
   const settingsSection: SettingsSectionId =
-    activeRoute.kind === 'settings'
-      ? normalizeSettingsSection(activeRoute.section)
-      : 'general';
+    activeRoute.kind === 'settings' ? normalizeSettingsSection(activeRoute.section) : 'general';
 
   const rememberTrigger = useCallback(() => {
     const active = document.activeElement;
@@ -95,7 +90,7 @@ export function useShellLayout() {
   }, [rememberTrigger]);
 
   const openInspector = useCallback(
-    (tab: RightPanelTab = 'terminal') => {
+    (tab: RightPanelTab | null = null) => {
       rememberTrigger();
       setInspectorTab(tab);
       // In-flow: stage 1fr shrinks as the panel track appears (one paint).
@@ -125,18 +120,18 @@ export function useShellLayout() {
   }, [layoutMode, rememberTrigger, restoreFocus]);
 
   const toggleInspector = useCallback(
-    (tab: RightPanelTab = 'terminal') => {
+    (tab: RightPanelTab | null = null) => {
       setOverlay((current) => {
         if (current === 'inspector') {
           restoreFocus();
           return 'none';
         }
         rememberTrigger();
-        setInspectorTab(tab);
+        setInspectorTab(tab ?? inspectorTab ?? null);
         return 'inspector';
       });
     },
-    [rememberTrigger, restoreFocus],
+    [rememberTrigger, restoreFocus, inspectorTab],
   );
 
   const openSettings = useCallback(
@@ -222,14 +217,7 @@ export function useShellLayout() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [
-    closeOverlay,
-    closeSettings,
-    commandPaletteOpen,
-    overlay,
-    restoreFocus,
-    settingsOpen,
-  ]);
+  }, [closeOverlay, closeSettings, commandPaletteOpen, overlay, restoreFocus, settingsOpen]);
 
   return {
     overlay,
