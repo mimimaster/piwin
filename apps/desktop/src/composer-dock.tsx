@@ -500,6 +500,7 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
       data-layout={props.layoutMode}
     >
       <ComposerCard {...props} />
+      <div className="composer-hint">⏎ 发送 · ⇧⏎ 换行 · ⌘K 命令 · Esc 中断</div>
     </footer>
   );
 }

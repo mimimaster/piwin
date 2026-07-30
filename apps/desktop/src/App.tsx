@@ -1122,12 +1122,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onStop={() => void handleAbort()}
               onViewActivity={() => openRightTab('terminal')}
               onReviewPermission={() => {
-                // Focus the permission dialog when present; it is already open from state.
-                const dialog = document.querySelector<HTMLElement>(
-                  '[data-testid="permission-dialog"], [role="dialog"][aria-label*="permission" i], .permission-dialog',
-                );
-                dialog?.focus?.();
-                dialog?.scrollIntoView?.({ block: 'nearest' });
+                // Focus the inline permission gate in the stream when present.
+                const gate = document.querySelector<HTMLElement>('[data-testid="permission-gate"]');
+                gate?.focus?.();
+                gate?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
               }}
               onViewPlan={() => openRightTab('terminal')}
               onCancelCompact={() => void handleCompactAbort()}
@@ -1227,9 +1225,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     runRecordsById={state.runRecordsById}
                     activeRunId={state.activeRunId}
                     permissionPrompt={state.permissionPrompt}
+                    projectPath={state.projectPath}
+                    toolDiffRequest={requestGit as never}
+                    onPermission={(decision, scope) => {
+                      void handlePermission(decision, scope);
+                    }}
                     workDetailsExpanded={preferences.workDetailsExpanded}
                     toolDensity={preferences.toolDensity}
                     artifactPreviewEnabled={preferences.artifactPreviewEnabled}
+                    plan={sessionPlan}
                     {...(config?.artifact?.maxBytes !== undefined
                       ? { artifactMaxBytes: config.artifact.maxBytes }
                       : {})}

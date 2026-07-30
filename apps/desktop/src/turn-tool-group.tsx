@@ -4,11 +4,16 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
 import { ToolCallCard } from './tool-call-card';
+import type { DiffCardRequest } from './diff-card';
 import type { ToolCallDensity } from './ui-preferences';
 
 export type TurnToolGroupProps = {
   tools: ToolCardUi[];
   density?: ToolCallDensity;
+  /** Project root forwarded to ToolCallCard → DiffCard. */
+  projectPath?: string | null;
+  /** Host request adapter forwarded to ToolCallCard → DiffCard. */
+  request?: DiffCardRequest;
 };
 
 export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
@@ -39,11 +44,17 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
     return null;
   }
 
+  const cardProps = {
+    density,
+    ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
+    ...(props.request !== undefined ? { request: props.request } : {}),
+  };
+
   if (!shouldCollapse) {
     return (
       <>
         {tools.map((tool) => (
-          <ToolCallCard key={tool.toolCallId} tool={tool} density={density} />
+          <ToolCallCard key={tool.toolCallId} tool={tool} {...cardProps} />
         ))}
       </>
     );
@@ -69,11 +80,9 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
         {summary}
       </button>
       {expanded
-        ? tools.map((tool) => (
-            <ToolCallCard key={tool.toolCallId} tool={tool} density={density} />
-          ))
+        ? tools.map((tool) => <ToolCallCard key={tool.toolCallId} tool={tool} {...cardProps} />)
         : runningOrFailed.map((tool) => (
-            <ToolCallCard key={tool.toolCallId} tool={tool} density={density} />
+            <ToolCallCard key={tool.toolCallId} tool={tool} {...cardProps} />
           ))}
     </div>
   );

@@ -30,7 +30,7 @@
   min-height: 0;
   height: 100%;
   overflow: hidden auto;
-  padding: 28px 12px 20px;
+  padding: 24px 20px 12px;
   /* Transparent so the workspace Daybreak ambient glow shows through. */
   background: transparent;
   /* Quiet workbench: thin low-contrast native scrollbar (no edge mini-nav). */
@@ -54,7 +54,7 @@
   flex-direction: column;
   width: 100%;
   margin: 0 auto;
-  gap: 28px;
+  gap: 20px;
   padding-bottom: 24px;
 }
 
@@ -265,9 +265,9 @@
 
 .bubble-header {
   display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 6px;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 5px;
 }
 
 .bubble-header::before {
@@ -286,40 +286,62 @@
 }
 
 .bubble-role {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--faint);
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
+/* Streaming caret: blinking accent bar (proto .stream-caret).
+   App keeps the .stream-dot class name; behavior matches the proto caret. */
 .stream-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  border-radius: 1px;
   background: var(--accent);
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
-  animation: stream-pulse 1.2s ease infinite;
+  animation: caret 1s steps(2, jump-none) infinite;
 }
 
-@keyframes stream-pulse {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
-  }
-  70% {
-    box-shadow: 0 0 0 8px transparent;
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
+@keyframes caret {
+  50% {
+    opacity: 0;
   }
 }
 
-/* User turns: full chat-column width card (matches composer / edit card). */
+/* User turns: right-aligned Paper bubble (proto .msg-user). */
 .role-user {
-  width: 100%;
-  max-width: 100%;
+  align-self: flex-end;
+  max-width: 72%;
   margin-left: 0;
   margin-right: 0;
+}
+
+/* Paper user bubble: soft fill + hairline border, asymmetric radius with the
+   sharp corner on the tail side (bottom-right). Maps proto .msg-user .bubble
+   onto the existing .bubble.role-user article element. */
+.bubble.role-user {
+  background: var(--user-bubble);
+  border: 1px solid var(--line);
+  border-radius: 12px 12px 4px 12px;
+  padding: 9px 14px;
+  font-size: var(--chat-font-size, 13.5px);
+  line-height: 1.6;
+}
+
+/* In-place edit reuses the bottom ComposerCard. Reset the bubble frame so the
+   composer card's own border is the only visual edge, and stretch back to full
+   width so the editor matches the bottom dock. */
+.role-user.is-editing {
+  align-self: stretch;
+  max-width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
 /* In-place edit reuses the bottom ComposerCard. The wrapper just holds it
@@ -340,21 +362,24 @@
 
 .role-assistant {
   width: 100%;
+  max-width: 100%;
+  font-size: var(--chat-font-size, 13.5px);
+  line-height: 1.7;
 }
 
 .message-text {
   white-space: pre-wrap;
   color: var(--text);
-  font-size: var(--chat-font-size, 15px);
-  line-height: 1.65;
+  font-size: var(--chat-font-size, 13.5px);
+  line-height: 1.6;
 }
 
 .role-assistant .markdown {
   max-width: var(--chat-max, 760px);
   margin: 0 auto;
   color: var(--text);
-  font-size: var(--chat-font-size, 15px);
-  line-height: 1.65;
+  font-size: var(--chat-font-size, 13.5px);
+  line-height: 1.7;
 }
 
 .role-assistant .bubble-header,
@@ -420,15 +445,14 @@
   cursor: not-allowed;
 }
 
-/* ─── Tool call cards — flat inline lines (quiet interface) ─────────── */
+/* ─── Tool call cards — Paper/Noir card (proto-shell.css .tool block) ── */
 
 .tool-call-card {
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-  margin: 6px 0 10px;
+  border-radius: 10px;
+  margin: 4px 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
   animation: tool-line-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -460,32 +484,34 @@
 @keyframes tool-line-in {
   from {
     opacity: 0;
-    transform: translateX(-4px);
+    transform: translateY(-2px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
+/* Head row — proto .tool-head */
 .tool-call-summary {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 3px 0;
+  padding: 9px 12px;
   border: none;
   background: transparent;
   cursor: pointer;
   text-align: left;
-  font-size: 13px;
+  font-size: 12.5px;
+  font-weight: 500;
   line-height: 1.5;
   color: var(--muted);
-  transition: color 0.12s ease;
+  transition: background 120ms;
 }
 
 .tool-call-summary:hover {
-  color: var(--text);
+  background: var(--hover);
 }
 
 .tool-call-summary:hover .tool-call-chevron {
@@ -493,47 +519,55 @@
 }
 
 .tool-call-card.density-compact .tool-call-summary {
-  padding: 5px 8px;
+  padding: 7px 12px;
 }
 
+/* Kind icon — proto .tool-head .ic (13px, accent) */
+.tool-call-kind-icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--accent);
+  stroke-width: 1.7;
+}
+
+/* Verb label (read / write / bash …) */
 .tool-call-name {
   font-weight: 500;
   color: var(--muted);
   font-size: 12.5px;
-  font-family: var(--mono);
   letter-spacing: -0.01em;
-}
-
-.tool-call-summary:hover .tool-call-name {
-  color: var(--text);
+  flex: none;
 }
 
 .tool-call-card.density-compact .tool-call-name {
-  font-size: 11px;
+  font-size: 12px;
 }
 
+/* Mono path — proto .tool-head .path */
 .tool-call-preview {
-  font-size: 12px;
-  color: var(--faint);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
   min-width: 0;
-  opacity: 0.7;
 }
 
 .tool-call-card.is-expanded .tool-call-preview {
   white-space: normal;
 }
 
+/* Elapsed — proto .tool-head .elapsed (margin-left auto, mono 10.5px, faint) */
 .tool-call-duration {
-  font-size: 11px;
+  margin-left: auto;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10.5px;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
-  opacity: 0.6;
   flex-shrink: 0;
-  font-family: var(--mono);
 }
 
 .tool-call-duration-live {
@@ -550,26 +584,36 @@
   }
 }
 
+/* OK dot — proto .tool-head .ok-dot (6px circle, --ok) */
+.tool-call-ok {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex-shrink: 0;
+}
+
+/* Error marker — danger-tinted dot */
+.tool-call-err {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+}
+
+/* Running status dot (kept for in-flight tools) */
 .tool-status-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--faint);
 }
 
-.tool-status-dot.status-done {
-  background: var(--sage);
-  opacity: 0.7;
-}
-
 .tool-status-dot.status-running {
   background: var(--accent);
   animation: dot-breathe 1.4s ease-in-out infinite;
-}
-
-.tool-status-dot.status-error {
-  background: var(--danger);
 }
 
 @keyframes dot-breathe {
@@ -584,42 +628,35 @@
   }
 }
 
-.tool-call-card.status-done .tool-status-dot {
-  animation: dot-complete 400ms ease-out both;
-}
-
-@keyframes dot-complete {
-  0% {
-    transform: scale(1.6);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0.7;
-  }
-}
-
+/* Chevron — proto .chev (13px, faint, rotate -90 when closed) */
 .tool-call-chevron {
-  width: 12px;
-  height: 12px;
-  opacity: 0;
+  width: 13px;
+  height: 13px;
+  opacity: 0.5;
   transition:
     opacity 0.12s ease,
-    transform 0.15s ease;
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
   flex-shrink: 0;
   color: var(--faint);
 }
 
 .tool-call-chevron.open {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
   opacity: 0.5;
 }
 
+.tool-call-card:not(.is-expanded) .tool-call-chevron {
+  transform: rotate(-90deg);
+}
+
+/* Body — proto .tool-body (border-top, --sunken, mono 11.5px, muted) */
 .tool-call-body {
-  padding: 4px 0 6px 13px;
-  border-left: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
-  margin-left: 2px;
-  font-size: 12px;
+  border-top: 1px solid var(--line);
+  padding: 10px 12px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--sunken);
   animation: tool-body-in 180ms ease-out both;
 }
 
@@ -640,14 +677,18 @@
 
 .tool-call-empty {
   font-size: 11px;
-  padding-bottom: 10px;
+}
+
+/* Dim helper — proto .tool-body .dim (faint) */
+.tool-call-body .dim {
+  color: var(--faint);
 }
 
 .tool-call-output {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: var(--mono);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--muted);
@@ -664,11 +705,11 @@
 
 .tool-call-command {
   margin-bottom: 6px;
-  font-size: var(--code-font-size, 13px);
+  font-size: 11.5px;
 }
 
 .tool-call-command code {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text);
   background: color-mix(in srgb, var(--text) 4%, transparent);
   padding: 1px 5px;
@@ -678,12 +719,29 @@
 .tool-call-paths {
   margin-bottom: 6px;
   font-size: 11.5px;
-  font-family: var(--mono);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  color: var(--faint);
 }
 
 .tool-call-error {
   color: var(--danger);
-  font-size: 12px;
+  font-size: 11.5px;
+}
+
+/* Raw output fold (below DiffCard for write/edit tools) */
+.tool-call-raw-fold {
+  margin-top: 8px;
+}
+
+.tool-call-raw-fold > summary {
+  cursor: pointer;
+  font-size: 10.5px;
+  color: var(--faint);
+  list-style: none;
+}
+
+.tool-call-raw-fold > summary::-webkit-details-marker {
+  display: none;
 }
 
 /* ─── Turn tool group ───────────────────────────────────────────────── */
@@ -722,19 +780,23 @@
   font-size: 12.5px;
 }
 
+/* Think row: collapsible reasoning indicator (proto .think).
+   App keeps the .turn-work-details-summary class name; geometry matches the proto. */
 .turn-work-details-summary {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 28px;
-  padding: 4px 11px;
+  height: 26px;
+  padding: 0 9px;
+  margin: 2px 0 6px;
   border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--muted);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--faint);
   font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
+  width: fit-content;
   font-family: inherit;
   transition:
     background var(--motion-quick, 120ms) var(--motion-ease, ease),
@@ -742,8 +804,38 @@
 }
 
 .turn-work-details-summary:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--hover);
   color: var(--text);
+}
+
+/* Think dots (proto .think .dotty i): staggered pulsing muted circles.
+   The summary does not currently render dots, but the rules are kept so the
+   indicator renders correctly if dots are added later. */
+.turn-work-details-summary .dotty {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.turn-work-details-summary .dotty i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: pulse 1.3s ease-in-out infinite;
+}
+
+.turn-work-details-summary .dotty i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.turn-work-details-summary .dotty i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.4;
+  }
 }
 
 .turn-work-details-label {
@@ -823,35 +915,6 @@
   border: none;
   border-radius: 8px;
   background: color-mix(in srgb, var(--state-warning) 10%, transparent);
-}
-
-.tool-call-card {
-  margin: 2px 0;
-  padding-left: 10px;
-  border-left: 1.5px solid rgba(255, 255, 255, 0.12);
-}
-
-.tool-call-name {
-  font-weight: 600;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-}
-
-.tool-call-ok {
-  margin-left: auto;
-  color: var(--ok);
-  font-size: 12px;
-  font-weight: 650;
-  flex-shrink: 0;
-}
-
-.tool-call-err {
-  margin-left: auto;
-  color: var(--danger);
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
 }
 
 .bubble-header::before {
@@ -974,9 +1037,10 @@
 .md-inline-code {
   font-family: var(--mono);
   background: var(--accent-soft);
+  color: var(--accent-text, var(--text));
   border-radius: 4px;
-  padding: 0 4px;
-  font-size: 0.92em;
+  padding: 1px 5px;
+  font-size: var(--code-font-size, 12px);
 }
 
 .md-code-block {
@@ -1184,6 +1248,86 @@
   font-weight: 600;
 }
 
+/* ─── Inline permission gate (gate-card.tsx, Task 12) ──────────────── */
+/* Non-modal card rendered at the end of the stream while a run waits for
+   a permission decision. Replaces the former modal permission dialog.
+   Ported from docs/proto-shell.css (.gate / .gate-head / .gate-cmd /
+   .gate-actions / .gate .hint). Uses runtime --warn-* tokens from
+   appearance-tokens.ts. */
+
+.gate {
+  border-radius: 10px;
+  margin: 4px 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--warn-line);
+  background: var(--card);
+}
+
+.gate-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--warn);
+}
+
+.gate-head-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.gate-cmd {
+  margin: 0 12px 9px;
+  padding: 8px 11px;
+  border-radius: 6px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+}
+
+/* Reused permission fact tables adapt to the sunken command block. */
+.gate-cmd .permission-facts {
+  font-size: 12px;
+}
+
+.gate-cmd .permission-detail {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 0 12px 10px;
+}
+
+/* Warn-solid primary action ("允许一次"). The ui-kit Button variant=primary
+   is recolored to the warn token so the affordance matches the proto. */
+.gate-btn-allow-once {
+  --button-bg: var(--warn);
+  --button-hover: color-mix(in srgb, var(--warn) 88%, var(--text));
+  color: var(--warn-fg);
+  border-color: transparent;
+  background: var(--warn);
+}
+
+.gate-btn-allow-once:hover {
+  background: color-mix(in srgb, var(--warn) 88%, var(--text));
+}
+
+.gate-hint {
+  margin-left: auto;
+  align-self: center;
+  font-size: 11px;
+  color: var(--faint);
+}
+
 /* ── Artifact frames (ArtifactFrame.tsx / MarkdownView.tsx) ─────────
    Rendered inline in transcript markdown; moved from overlays-feedback.css
    during R3. Semantic tokens only. */
@@ -1321,4 +1465,269 @@
 
 .chat-stream {
   justify-content: flex-start;
+}
+
+/* ─── Inline diff card (diff-card.tsx) ─────────────────────────────── */
+/* Ported from docs/proto-shell.css diff-card block. Renders a single-file
+   patch inline inside write/edit tool-call cards with Accept / Reject. */
+
+.diff-card {
+  border-radius: 10px;
+  margin: 4px 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.diff-card.accepted {
+  border-color: var(--ok);
+}
+
+.diff-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.diff-head .file {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.diff-head .stat {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+}
+
+.diff-head .stat .add {
+  color: var(--ok);
+}
+
+.diff-head .stat .del {
+  color: var(--danger);
+}
+
+.diff-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 7px;
+}
+
+.diff-card .btn {
+  height: 25px;
+  padding: 0 11px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  background: var(--control);
+  cursor: pointer;
+  transition:
+    color var(--motion-quick, 120ms) ease,
+    border-color var(--motion-quick, 120ms) ease,
+    filter var(--motion-quick, 120ms) ease;
+}
+
+.diff-card .btn:hover {
+  color: var(--text);
+  border-color: var(--faint);
+}
+
+.diff-card .btn.primary {
+  color: var(--canvas);
+  border-color: transparent;
+  background: var(--ok);
+}
+
+.diff-card .btn.primary:hover {
+  filter: brightness(1.06);
+}
+
+.review-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.review-badge.accepted {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.review-badge.rejected {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.diff-body {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.7;
+  padding: 8px 0;
+  background: var(--sunken);
+}
+
+.diff-body .ln {
+  display: flex;
+  padding: 0 12px;
+  white-space: pre;
+}
+
+.diff-body .ln .g {
+  width: 26px;
+  flex: none;
+  color: var(--faint);
+  text-align: right;
+  padding-right: 12px;
+  user-select: none;
+}
+
+.diff-body .ln.add {
+  background: var(--add-bg);
+  color: var(--add-text);
+}
+
+.diff-body .ln.del {
+  background: var(--del-bg);
+  color: var(--del-text);
+}
+
+.diff-body .ln.ctx {
+  color: var(--muted);
+}
+
+.diff-card.accepted .diff-body {
+  opacity: 0.45;
+}
+
+/* ─── Inline plan card (plan-card.tsx) ─────────────────────────────── */
+/* Ported from docs/proto-shell.css plan-card block. Renders the session
+   plan inline at the top of the chat thread. The card is session-level
+   (not anchored to a message), so only one is mounted at a time. */
+
+.plan-card {
+  border-radius: 10px;
+  margin: 4px 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--muted);
+  transition: background 120ms;
+}
+
+.plan-head:hover {
+  background: var(--hover);
+}
+
+.plan-head .ic {
+  width: 13px;
+  height: 13px;
+  color: var(--accent);
+}
+
+.plan-card .chev {
+  margin-left: auto;
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  color: var(--faint);
+  width: 13px;
+  height: 13px;
+}
+
+.plan-card.closed .chev {
+  transform: rotate(-90deg);
+}
+
+.plan-steps {
+  padding: 2px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.plan-card .step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.plan-card .step .box {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--line-strong);
+  color: transparent;
+  font-size: 9px;
+}
+
+.plan-card .step.done .box {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: var(--ok-fg);
+}
+
+.plan-card .step.done {
+  color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--line-strong);
+}
+
+.plan-card .step.run .box {
+  border-color: var(--accent);
+}
+
+.plan-card .step.run .box::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.plan-card .step.run {
+  color: var(--text);
+}
+
+/* Skipped: dashed box + faint strikethrough (no proto counterpart; the brief
+   calls for a补划线 + faint treatment distinct from done). */
+.plan-card .step.skipped .box {
+  border-style: dashed;
+  border-color: var(--faint);
+}
+
+.plan-card .step.skipped {
+  color: var(--faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--faint);
 }
