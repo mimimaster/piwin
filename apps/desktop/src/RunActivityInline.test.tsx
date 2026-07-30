@@ -34,10 +34,12 @@ describe('RunActivityInline', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
     act(() => root.unmount());
+    vi.useRealTimers();
     container.parentNode?.removeChild(container);
     window.matchMedia = previousMatchMedia;
   });

@@ -5,16 +5,13 @@ import type { RunActivityInput } from './run-activity-types.js';
 const input = (kind: RunActivityInput['kind']): RunActivityInput => ({ kind, locale: 'en' });
 
 describe('resolveActivityIcon', () => {
-  it('maps waiting-first-token to Sparkles with generated img path', () => {
+  it('maps waiting-first-token to Sparkles', () => {
     const icon = resolveActivityIcon(input('waiting-first-token'));
-    expect(icon.lucideName).toBe('Sparkles');
-    expect(icon.imgSrc).toBe('/ui/run-state-waiting-first-token.png');
-    expect(icon.kind).toBe('waiting-first-token');
+    expect(icon).toEqual({ kind: 'waiting-first-token', lucideName: 'Sparkles' });
   });
 
-  it('maps connecting-model to the matching generated asset', () => {
-    const icon = resolveActivityIcon(input('connecting-model'));
-    expect(icon.imgSrc).toBe('/ui/run-state-connecting-model.png');
+  it('maps connecting-model to Wifi', () => {
+    expect(resolveActivityIcon(input('connecting-model')).lucideName).toBe('Wifi');
   });
 
   it('maps working-with-tool to Terminal', () => {
