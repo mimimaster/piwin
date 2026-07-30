@@ -71,11 +71,51 @@ export const PIWIN_APPEARANCE_LIGHT: ThemeManifest = {
   },
 };
 
-export const BUILTIN_APPEARANCES: ThemeManifest[] = [PIWIN_APPEARANCE_DARK, PIWIN_APPEARANCE_LIGHT];
+/** Product warm light — 橙白: warm morning paper field with tangerine accent. */
+export const PIWIN_APPEARANCE_ORANGE_WHITE: ThemeManifest = {
+  id: 'piwin-orange-white',
+  name: '橙白',
+  version: '6.0.0',
+  description: 'Daybreak warm paper field with tangerine accent for piwin shell + artifacts',
+  mode: 'light',
+  tokens: {
+    bg: '#f7f3ed',
+    panel: '#fffdfa',
+    panel2: '#f2ede5',
+    border: 'rgba(80, 60, 40, 0.10)',
+    text: '#2f2924',
+    muted: '#82776a',
+    accent: '#e85d1f',
+    accent2: '#f4955c',
+    danger: '#d64541',
+    ok: '#1f9d63',
+    radius: '10px',
+    font: SHARED_FONT,
+  },
+  artifact: {
+    bg: 'transparent',
+    surface: 'rgba(255, 253, 250, 0.98)',
+    text: '#2f2924',
+    muted: '#82776a',
+    accent: '#e85d1f',
+    border: 'rgba(80, 60, 40, 0.12)',
+    radius: '0.625rem',
+    font: SHARED_FONT,
+  },
+};
+
+export const BUILTIN_APPEARANCES: ThemeManifest[] = [
+  PIWIN_APPEARANCE_DARK,
+  PIWIN_APPEARANCE_LIGHT,
+  PIWIN_APPEARANCE_ORANGE_WHITE,
+];
 
 export function resolveBuiltinAppearance(themeId: string | undefined): ThemeManifest {
   if (themeId === 'piwin-light') {
     return PIWIN_APPEARANCE_LIGHT;
+  }
+  if (themeId === 'piwin-orange-white') {
+    return PIWIN_APPEARANCE_ORANGE_WHITE;
   }
   return PIWIN_APPEARANCE_DARK;
 }
@@ -86,7 +126,11 @@ export function resolveBuiltinAppearance(themeId: string | undefined): ThemeMani
  * User-installed themes retain their own validated token manifest.
  */
 export function resolveDesktopAppearance(theme: ThemeManifest): ThemeManifest {
-  if (theme.id === 'piwin-dark' || theme.id === 'piwin-light') {
+  if (
+    theme.id === 'piwin-dark' ||
+    theme.id === 'piwin-light' ||
+    theme.id === 'piwin-orange-white'
+  ) {
     return resolveBuiltinAppearance(theme.id);
   }
   return theme;
@@ -110,6 +154,9 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   const root = document.documentElement;
   const tokens = theme.tokens;
   const isLight = theme.mode === 'light';
+  /** 橙白 uses warm-tinted derived values (shadows, hover, faint) that differ
+   *  from Paper's neutral cool ramp even though both are mode: light. */
+  const isWarmLight = theme.id === 'piwin-orange-white';
 
   // Surfaces — derived from the validated product manifest. Layout stays
   // product-owned (styles/tokens.css) so installed themes cannot reshape the shell.
@@ -131,13 +178,21 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Hover state fill for interactive row/item components. */
   root.style.setProperty(
     '--surface-hover',
-    isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)',
+    isLight
+      ? isWarmLight
+        ? 'rgba(60, 40, 20, 0.05)'
+        : 'rgba(0, 0, 0, 0.04)'
+      : 'rgba(255, 255, 255, 0.06)',
   );
   /** Rail shares the unified field (quiet workbench: no hard panel boxes). */
   root.style.setProperty('--rail', tokens.bg);
   root.style.setProperty(
     '--wb-hover',
-    isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)',
+    isLight
+      ? isWarmLight
+        ? 'rgba(60, 40, 20, 0.05)'
+        : 'rgba(0, 0, 0, 0.04)'
+      : 'rgba(255, 255, 255, 0.06)',
   );
   root.style.setProperty('--wb-line', tokens.border);
   root.style.setProperty(
@@ -169,7 +224,10 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Alias for --rail. */
   root.style.setProperty('--surface-rail', tokens.bg);
   /** Alias for --sidebar. */
-  root.style.setProperty('--surface-sidebar', isLight ? '#f2f2f4' : tokens.bg);
+  root.style.setProperty(
+    '--surface-sidebar',
+    isLight ? (isWarmLight ? tokens.bg : '#f2f2f4') : tokens.bg,
+  );
   /** Alias for --panel (the foreground overlay / popover surface). */
   root.style.setProperty('--surface-overlay', tokens.panel);
 
@@ -184,7 +242,10 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Alias of --muted for semantic readers. */
   root.style.setProperty('--content-secondary', tokens.muted);
   /** Alias of --faint for semantic readers. */
-  root.style.setProperty('--content-muted', isLight ? '#a0a0a8' : '#595959');
+  root.style.setProperty(
+    '--content-muted',
+    isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#595959',
+  );
   /** Disabled control labels and icons. */
   root.style.setProperty('--content-disabled', isLight ? '#b9b0a2' : '#5f5a64');
   /** Text on solid accent fills — deep roast on bright coral, white on tangerine. */
@@ -351,23 +412,51 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
     root.style.removeProperty(layoutToken);
   }
 
-  // ── Paper/Noir derived ramp (§1.2 of docs/plans/2026-07-30-paper-noir-theme-implementation.md)
-  root.style.setProperty('--card', isLight ? '#ffffff' : '#0f0f0f');
-  root.style.setProperty('--control', isLight ? '#ececee' : '#171717');
-  root.style.setProperty('--sunken', isLight ? '#f0f0f2' : '#050505');
-  root.style.setProperty('--sidebar', isLight ? '#f2f2f4' : tokens.bg);
-  root.style.setProperty('--user-bubble', isLight ? '#ececee' : '#171717');
-  root.style.setProperty('--term-bg', isLight ? '#16181d' : '#050505');
-  root.style.setProperty('--term-text', isLight ? '#b0b6c0' : '#b3b3b3');
-  root.style.setProperty('--hover', isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)');
+  // ── Paper/Noir/橙白 derived ramp (§1.2 of docs/plans/2026-07-30-paper-noir-theme-implementation.md)
+  // isWarmLight branches restore the original Daybreak warm-paper derived values.
+  root.style.setProperty('--card', isLight ? (isWarmLight ? tokens.panel : '#ffffff') : '#0f0f0f');
+  root.style.setProperty(
+    '--control',
+    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#171717',
+  );
+  root.style.setProperty(
+    '--sunken',
+    isLight ? (isWarmLight ? tokens.panel2 : '#f0f0f2') : '#050505',
+  );
+  root.style.setProperty('--sidebar', isLight ? (isWarmLight ? tokens.bg : '#f2f2f4') : tokens.bg);
+  root.style.setProperty(
+    '--user-bubble',
+    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#171717',
+  );
+  root.style.setProperty('--term-bg', isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#050505');
+  root.style.setProperty(
+    '--term-text',
+    isLight ? (isWarmLight ? '#6b6358' : '#b0b6c0') : '#b3b3b3',
+  );
+  root.style.setProperty(
+    '--hover',
+    isLight
+      ? isWarmLight
+        ? 'rgba(60, 40, 20, 0.05)'
+        : 'rgba(0, 0, 0, 0.04)'
+      : 'rgba(255, 255, 255, 0.06)',
+  );
   root.style.setProperty(
     '--selected',
-    isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.10)',
+    isLight
+      ? isWarmLight
+        ? 'rgba(232, 93, 31, 0.10)'
+        : 'rgba(0, 0, 0, 0.06)'
+      : 'rgba(255, 255, 255, 0.10)',
   );
-  root.style.setProperty('--faint', isLight ? '#a0a0a8' : '#595959');
+  root.style.setProperty('--faint', isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#595959');
   root.style.setProperty(
     '--line-strong',
-    isLight ? 'rgba(0, 0, 0, 0.14)' : 'rgba(255, 255, 255, 0.15)',
+    isLight
+      ? isWarmLight
+        ? 'rgba(80, 60, 40, 0.22)'
+        : 'rgba(0, 0, 0, 0.14)'
+      : 'rgba(255, 255, 255, 0.15)',
   );
   root.style.setProperty('--accent-fg', isLight ? '#ffffff' : '#000000');
   root.style.setProperty('--accent-soft', `color-mix(in srgb, ${tokens.accent} 10%, transparent)`);
@@ -391,7 +480,10 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   // PlanCard done-step checkmark foreground on the --ok (green) background
   root.style.setProperty('--ok-fg', isLight ? '#ffffff' : '#000000');
   // legacy --wb-* aliases repointed at the new ramp (existing CSS still reads them)
-  root.style.setProperty('--wb-term-bg', isLight ? '#16181d' : '#050505');
-  root.style.setProperty('--wb-dim', isLight ? '#a0a0a8' : '#595959');
+  root.style.setProperty(
+    '--wb-term-bg',
+    isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#050505',
+  );
+  root.style.setProperty('--wb-dim', isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#595959');
   root.style.setProperty('--wb-send-fg', isLight ? '#ffffff' : '#000000');
 }

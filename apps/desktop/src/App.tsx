@@ -674,7 +674,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }
 
   async function handleToggleAppearance(): Promise<void> {
-    const nextId = activeTheme.mode === 'light' ? 'piwin-dark' : 'piwin-light';
+    // Cycle through the three builtin themes: Noir → Paper → 橙白 → Noir.
+    const cycle: Record<string, string> = {
+      'piwin-dark': 'piwin-light',
+      'piwin-light': 'piwin-orange-white',
+      'piwin-orange-white': 'piwin-dark',
+    };
+    const nextId = cycle[activeTheme.id] ?? 'piwin-dark';
     const response = await hostClient.request({ type: 'theme/set-active', themeId: nextId });
     if (!response.success) {
       dispatch({ type: 'error', message: response.error });

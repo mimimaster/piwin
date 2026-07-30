@@ -122,7 +122,9 @@ export async function listThemes(piwinRoot: string): Promise<{
       const validated = validateThemeManifest(JSON.parse(raw));
       if (!validated.ok) continue;
       const source: ThemeSummary['source'] =
-        entry === 'piwin-dark' || entry === 'piwin-light' ? 'bundled' : 'user';
+        entry === 'piwin-dark' || entry === 'piwin-light' || entry === 'piwin-orange-white'
+          ? 'bundled'
+          : 'user';
       themes.push({
         id: validated.manifest.id,
         name: validated.manifest.name,
@@ -185,7 +187,11 @@ export async function installThemeFromLocalPath(
   await mkdir(getThemesDir(piwinRoot), { recursive: true });
   await cp(sourcePath, target, { recursive: true, force: true });
   // rewrite canonical manifest
-  await writeFile(join(target, 'theme.json'), `${JSON.stringify(validated.manifest, null, 2)}\n`, 'utf8');
+  await writeFile(
+    join(target, 'theme.json'),
+    `${JSON.stringify(validated.manifest, null, 2)}\n`,
+    'utf8',
+  );
   return { themeId: validated.manifest.id, path: target };
 }
 
