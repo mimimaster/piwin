@@ -22,6 +22,7 @@ export function PetSprite(props: PetSpriteProps) {
   const rafRef = useRef<number>(0);
   const frameRef = useRef<number>(0);
   const [dragging, setDragging] = useState(false);
+  const wasDraggingRef = useRef(false);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const dragStart = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   const [tempAction, setTempAction] = useState<TempAction>(null);
@@ -35,6 +36,17 @@ export function PetSprite(props: PetSpriteProps) {
     img.src = convertFileSrc(props.pet.spritesheetAbsolutePath);
     img.onload = () => {
       imageRef.current = img;
+    };
+    // On load failure (404, corrupt), drop any stale ref so we don't render a broken image.
+    img.onerror = () => {
+      imageRef.current = null;
+    };
+    return () => {
+      // Prevent a slow-loading previous sheet from overwriting a newer ref,
+      // and stop in-flight loads from mutating a dead ref after unmount.
+      img.onload = null;
+      img.onerror = null;
+      imageRef.current = null;
     };
   }, [props.pet.spritesheetAbsolutePath]);
 
@@ -118,6 +130,9 @@ export function PetSprite(props: PetSpriteProps) {
     setPos({ x: dragStart.current.px + dx, y: dragStart.current.py + dy });
   }
   function onPointerUp(e: React.PointerEvent): void {
+    // Capture the drag state synchronously before re-render clears it,
+    // so onClick can distinguish a drag-terminated release from a real click.
+    wasDraggingRef.current = dragging;
     setDragging(false);
     dragStart.current = null;
     (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
@@ -128,7 +143,12 @@ export function PetSprite(props: PetSpriteProps) {
     }
   }
   function onClick(): void {
-    if (dragging) return;
+    // Reads the ref synchronously before any re-render; the `dragging` state
+    // would already be false by the time the click handler runs.
+    if (wasDraggingRef.current) {
+      wasDraggingRef.current = false;
+      return;
+    }
     props.onOpenSettings?.();
   }
   function onMouseEnter(): void {
