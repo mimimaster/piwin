@@ -31,6 +31,13 @@ import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { createSecretResolver } from '../secret-resolver.js';
 import type { HostCommandContext } from './host-command-context.js';
 
+/**
+ * In-flight pet install/query AbortControllers keyed by request id, so the
+ * desktop can cancel a long-running download via `pet/cancel`. Entries are
+ * removed by the owning request's `finally` block on completion.
+ */
+const activePetAborts = new Map<string, AbortController>();
+
 const TYPES = new Set<HostCommand['type']>([
   'media/save',
   'skills/list',
@@ -53,6 +60,7 @@ const TYPES = new Set<HostCommand['type']>([
   'pet/install-local',
   'pet/store-query',
   'pet/install-registry',
+  'pet/cancel',
   'config/get',
   'config/set',
   'models/discover',
@@ -293,13 +301,41 @@ export async function handleCatalogCommand(
     }
     case 'pet/store-query': {
       const rootDir = getPiwinRoot(context.piwinRoot);
-      const results = await queryRemotePetStore(rootDir, command.query.query);
-      return ok(requestId, 'pet/store-query', { results });
+      const controller = new AbortController();
+      if (requestId) activePetAborts.set(requestId, controller);
+      try {
+        const results = await queryRemotePetStore(
+          rootDir,
+          command.query.query,
+          controller.signal,
+        );
+        return ok(requestId, 'pet/store-query', { results });
+      } finally {
+        if (requestId) activePetAborts.delete(requestId);
+      }
     }
     case 'pet/install-registry': {
       const rootDir = getPiwinRoot(context.piwinRoot);
-      const installed = await installPetFromRegistry(rootDir, command.url);
-      return ok(requestId, 'pet/install-registry', installed);
+      const controller = new AbortController();
+      if (requestId) activePetAborts.set(requestId, controller);
+      try {
+        const installed = await installPetFromRegistry(
+          rootDir,
+          command.url,
+          controller.signal,
+        );
+        return ok(requestId, 'pet/install-registry', installed);
+      } finally {
+        if (requestId) activePetAborts.delete(requestId);
+      }
+    }
+    case 'pet/cancel': {
+      const controller = activePetAborts.get(command.requestId);
+      if (controller) {
+        controller.abort();
+        activePetAborts.delete(command.requestId);
+      }
+      return ok(requestId, 'pet/cancel', { cancelled: true });
     }
 
     case 'config/get': {

@@ -20,6 +20,8 @@ export type DownloadOptions = {
   fetch?: typeof fetch;
   /** Override size cap (tests). */
   maxBytes?: number;
+  /** Abort the in-flight download; checked before each streamed chunk. */
+  signal?: AbortSignal;
 };
 
 export type DownloadResult = {
@@ -43,7 +45,9 @@ export async function downloadAndVerifyPackage(
   const tempPath = join(destDir, `${entry.id}.pet.zip.tmp`);
   const finalPath = join(destDir, `${entry.id}.pet.zip`);
   const fetchFn = options.fetch ?? fetch;
-  const response = await fetchFn(entry.url, { redirect: 'follow' });
+  const init: RequestInit = { redirect: 'follow' };
+  if (options.signal) init.signal = options.signal;
+  const response = await fetchFn(entry.url, init);
   if (!response.ok || !response.body) {
     throw new Error(`download failed: HTTP ${response.status}`);
   }
@@ -53,6 +57,7 @@ export async function downloadAndVerifyPackage(
   let firstChunk = true;
   try {
     for await (const chunk of response.body as unknown as Iterable<Uint8Array>) {
+      if (options.signal?.aborted) throw new Error('download aborted');
       if (firstChunk) {
         firstChunk = false;
         if (chunk.byteLength < 4 || !ZIP_MAGIC.equals(Buffer.from(chunk.buffer, chunk.byteOffset, 4))) {

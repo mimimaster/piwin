@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   HostResponse,
   PetRuntimeSnapshot,
@@ -17,13 +17,18 @@ export type PetPanelProps = {
       | 'pet/set-active'
       | 'pet/install-local'
       | 'pet/store-query'
-      | 'pet/install-registry';
+      | 'pet/install-registry'
+      | 'pet/cancel';
     petId?: string;
     sourcePath?: string;
     /** PetStoreQuery payload for pet/store-query. */
     query?: { query: string; source?: 'bundled' | 'local' | 'codex-live' | 'registry' };
     /** JSON-encoded registry entry (or bare URL) for pet/install-registry. */
     url?: string;
+    /** Request id to cancel for pet/cancel. */
+    requestId?: string;
+    /** Pre-generated request id for install-registry so it can be cancelled. */
+    id?: string;
   }) => Promise<HostResponse>;
   onActiveChanged: (pet: PetRuntimeSnapshot) => void;
   onClose?: () => void;
@@ -100,6 +105,10 @@ export function PetPanel(props: PetPanelProps) {
   const [registryResults, setRegistryResults] = useState<PetStoreQueryResult[]>([]);
   const [registryQuery, setRegistryQuery] = useState('');
   const [registryBusy, setRegistryBusy] = useState(false);
+  /** Request id of the in-flight registry install, so the Cancel button can
+   * target it with `pet/cancel`. Cleared on completion (success or failure). */
+  const [installRequestId, setInstallRequestId] = useState<string | null>(null);
+  const installIdCounter = useRef(0);
 
   async function handleQueryRegistry(): Promise<void> {
     setRegistryBusy(true);
@@ -133,7 +142,16 @@ export function PetPanel(props: PetPanelProps) {
       sha256: result.sha256 ?? '',
       sizeBytes: result.sizeBytes ?? 0,
     });
-    const response = await props.request({ type: 'pet/install-registry', url: entry });
+    // Pre-generate the request id so the Cancel button can cancel this exact
+    // install via `pet/cancel` while it is still in flight.
+    const requestId = `pet-install-${++installIdCounter.current}`;
+    setInstallRequestId(requestId);
+    const response = await props.request({
+      type: 'pet/install-registry',
+      url: entry,
+      id: requestId,
+    });
+    setInstallRequestId(null);
     setRegistryBusy(false);
     if (!response.success) {
       setError(response.error);
@@ -143,6 +161,11 @@ export function PetPanel(props: PetPanelProps) {
     setInfo(isChinese ? `已安装 ${data.petId}` : `Installed ${data.petId}`);
     await reload();
     await handleQueryRegistry();
+  }
+
+  async function handleCancelInstall(): Promise<void> {
+    if (!installRequestId) return;
+    await props.request({ type: 'pet/cancel', requestId: installRequestId });
   }
 
   return (
@@ -297,20 +320,31 @@ export function PetPanel(props: PetPanelProps) {
                     </div>
                   </div>
                 </div>
-                <Button
-                  variant={result.installed ? 'ghost' : 'primary'}
-                  size="compact"
-                  disabled={registryBusy || result.installed}
-                  onClick={() => void handleInstallRegistry(result)}
-                >
-                  {result.installed
-                    ? isChinese
-                      ? '已安装'
-                      : 'Installed'
-                    : isChinese
-                      ? '安装'
-                      : 'Install'}
-                </Button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button
+                    variant={result.installed ? 'ghost' : 'primary'}
+                    size="compact"
+                    disabled={registryBusy || result.installed}
+                    onClick={() => void handleInstallRegistry(result)}
+                  >
+                    {result.installed
+                      ? isChinese
+                        ? '已安装'
+                        : 'Installed'
+                      : isChinese
+                        ? '安装'
+                        : 'Install'}
+                  </Button>
+                  {registryBusy && installRequestId ? (
+                    <Button
+                      variant="ghost"
+                      size="compact"
+                      onClick={() => void handleCancelInstall()}
+                    >
+                      {isChinese ? '取消' : 'Cancel'}
+                    </Button>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

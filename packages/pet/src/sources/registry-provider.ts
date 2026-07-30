@@ -16,7 +16,7 @@ import type {
   PetStoreQueryResult,
 } from '@piwin/contracts';
 import { validatePetManifest } from '../validate-manifest.js';
-import { downloadAndVerifyPackage } from './registry-download.js';
+import { downloadAndVerifyPackage, type DownloadOptions } from './registry-download.js';
 import type { PetSourceProvider, PetSourceProviderContext } from './pet-source-provider.js';
 
 const execFileAsync = promisify(execFile);
@@ -76,12 +76,13 @@ export const registryProvider: PetSourceProvider = {
   async queryStore(
     ctx: PetSourceProviderContext,
     query: string,
+    signal?: AbortSignal,
   ): Promise<PetStoreQueryResult[]> {
     const reg = resolveCtx(ctx);
     const fetchFn = reg.fetch ?? fetch;
-    const response = await fetchFn(reg.registryUrl ?? DEFAULT_REGISTRY_URL, {
-      redirect: 'follow',
-    });
+    const init: RequestInit = { redirect: 'follow' };
+    if (signal) init.signal = signal;
+    const response = await fetchFn(reg.registryUrl ?? DEFAULT_REGISTRY_URL, init);
     if (!response.ok) {
       throw new Error(`registry query failed: HTTP ${response.status}`);
     }
@@ -116,6 +117,7 @@ export const registryProvider: PetSourceProvider = {
   async install(
     ctx: PetSourceProviderContext,
     location: string,
+    signal?: AbortSignal,
   ): Promise<PetInstallResult> {
     // location is either a JSON-encoded catalog entry (carrying sha256/size)
     // or a bare package URL — in the bare case we re-query the catalog to
@@ -125,7 +127,7 @@ export const registryProvider: PetSourceProvider = {
     try {
       entry = JSON.parse(location) as PetRegistryEntry;
     } catch {
-      const results = await registryProvider.queryStore!(ctx, '');
+      const results = await registryProvider.queryStore!(ctx, '', signal);
       const match = results.find((r) => r.location === location);
       if (!match || !match.sha256 || match.sizeBytes === undefined) {
         throw new Error(`registry entry not found for url: ${location}`);
@@ -142,11 +144,13 @@ export const registryProvider: PetSourceProvider = {
     const staging = join(ctx.piwinRoot, 'pets', '.staging', entry.id);
     await rm(staging, { recursive: true, force: true });
     await mkdir(staging, { recursive: true });
-    const downloaded = await downloadAndVerifyPackage(
-      entry,
-      staging,
-      reg.fetch ? { fetch: reg.fetch } : {},
-    );
+    const downloadOptions: DownloadOptions = reg.fetch ? { fetch: reg.fetch } : {};
+    if (signal) downloadOptions.signal = signal;
+    const downloaded = await downloadAndVerifyPackage(entry, staging, downloadOptions);
+
+    // Abort check before the unzip step — a cancelled install should not
+    // spawn a host process or touch the filesystem further.
+    if (signal?.aborted) throw new Error('install aborted');
 
     // Extract via host `unzip` (Node has no stdlib zip; keeps pkg dep-free).
     // macOS/Linux ship unzip; Windows follow-up tracked separately.

@@ -53,6 +53,7 @@ export type PetSourceProvider = {
   install?(
     ctx: PetSourceProviderContext,
     location: string,
+    signal?: AbortSignal,
   ): Promise<PetInstallResult>;
   /**
    * Optional remote catalog query. Only registry implements this.
@@ -60,6 +61,7 @@ export type PetSourceProvider = {
   queryStore?(
     ctx: PetSourceProviderContext,
     query: string,
+    signal?: AbortSignal,
   ): Promise<PetStoreQueryResult[]>;
 };
 
