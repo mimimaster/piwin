@@ -49,7 +49,6 @@ function getHostRequestTimeoutMs(command: HostCommand): number {
     case 'extensions/install':
     case 'theme/install-local':
     case 'pet/install-local':
-    case 'pet/import-codex':
       return HOST_REQUEST_OPERATION_TIMEOUT_MS;
     default:
       return HOST_REQUEST_QUERY_TIMEOUT_MS;
@@ -95,7 +94,10 @@ export class HostClient {
     this.hostMock = options.hostMock !== false;
     this.mockBackend =
       this.transport === 'mock'
-        ? new MockHostBackend((message) => this.emit(message), () => this.mode)
+        ? new MockHostBackend(
+            (message) => this.emit(message),
+            () => this.mode,
+          )
         : null;
   }
 

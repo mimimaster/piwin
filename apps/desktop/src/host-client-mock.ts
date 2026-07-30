@@ -1164,14 +1164,6 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           success: true,
           data: { petId: 'installed-pet', path: command.sourcePath },
         };
-      case 'pet/import-codex':
-        return {
-          id,
-          type: 'response',
-          command: 'pet/import-codex',
-          success: true,
-          data: { imported: [], skipped: [], errors: [] },
-        };
       case 'git/status':
         return {
           id,

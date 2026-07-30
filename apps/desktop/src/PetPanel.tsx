@@ -6,7 +6,7 @@ import { PageTitle } from './settings/page-title';
 
 export type PetPanelProps = {
   request: (command: {
-    type: 'pet/list' | 'pet/get-active' | 'pet/set-active' | 'pet/install-local' | 'pet/import-codex';
+    type: 'pet/list' | 'pet/get-active' | 'pet/set-active' | 'pet/install-local';
     petId?: string;
     sourcePath?: string;
   }) => Promise<HostResponse>;
@@ -84,12 +84,16 @@ export function PetPanel(props: PetPanelProps) {
 
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
-      <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
+      <div
+        className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}
+      >
         <PageTitle
           title={isChinese ? '桌面伙伴' : 'Desktop Companions'}
-          description={isChinese
-            ? '选择一个有趣的伙伴陪您一起编码。'
-            : 'Choose a fun companion to accompany your coding sessions.'}
+          description={
+            isChinese
+              ? '选择一个有趣的伙伴陪您一起编码。'
+              : 'Choose a fun companion to accompany your coding sessions.'
+          }
         />
 
         {error ? <Notice tone="error">{error}</Notice> : null}
@@ -98,13 +102,29 @@ export function PetPanel(props: PetPanelProps) {
         <ul className="ext-list">
           {pets.map((pet) => (
             <li key={pet.id} className="ext-list-item">
-              <div className="ext-list-main" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--surface-inset)', border: '1px solid var(--line-soft)', display: 'grid', placeItems: 'center', fontSize: '20px' }}>
+              <div
+                className="ext-list-main"
+                style={{ display: 'flex', alignItems: 'center', gap: '16px' }}
+              >
+                <div
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '50%',
+                    background: 'var(--surface-inset)',
+                    border: '1px solid var(--line-soft)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: '20px',
+                  }}
+                >
                   {pet.id === 'piwin-default' ? 'π' : '🐶'}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <strong>{pet.displayName}</strong>
-                  <div className="muted ext-desc" style={{ fontSize: '12px' }}>{pet.id}</div>
+                  <div className="muted ext-desc" style={{ fontSize: '12px' }}>
+                    {pet.id}
+                  </div>
                 </div>
               </div>
               <Button
@@ -113,7 +133,13 @@ export function PetPanel(props: PetPanelProps) {
                 disabled={busy || activeId === pet.id}
                 onClick={() => void handleActivate(pet.id)}
               >
-                {activeId === pet.id ? (isChinese ? '已激活' : 'Active') : (isChinese ? '选择' : 'Select')}
+                {activeId === pet.id
+                  ? isChinese
+                    ? '已激活'
+                    : 'Active'
+                  : isChinese
+                    ? '选择'
+                    : 'Select'}
               </Button>
             </li>
           ))}
@@ -122,7 +148,11 @@ export function PetPanel(props: PetPanelProps) {
         <div className="settings-section">
           <PageTitle
             title={isChinese ? '安装新伙伴' : 'Install New Companion'}
-            description={isChinese ? '从本地目录安装伙伴资源包。' : 'Install a companion package from a local directory.'}
+            description={
+              isChinese
+                ? '从本地目录安装伙伴资源包。'
+                : 'Install a companion package from a local directory.'
+            }
           />
           <div style={{ display: 'flex', gap: '12px' }}>
             <div style={{ flex: 1 }}>
@@ -130,13 +160,17 @@ export function PetPanel(props: PetPanelProps) {
                 value={installPath}
                 onChange={(e) => setInstallPath(e.target.value)}
                 placeholder={isChinese ? '本地目录路径...' : 'Local directory path...'}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--line-soft)',
+                  background: 'var(--surface-raised)',
+                  color: 'var(--text)',
+                }}
               />
             </div>
-            <Button
-              disabled={busy || !installPath.trim()}
-              onClick={() => void handleInstall()}
-            >
+            <Button disabled={busy || !installPath.trim()} onClick={() => void handleInstall()}>
               {isChinese ? '安装' : 'Install'}
             </Button>
           </div>
