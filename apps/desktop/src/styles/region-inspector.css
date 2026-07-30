@@ -19,7 +19,7 @@
   margin: 0;
   background: var(--sidebar);
   border: 0;
-  border-left: 1px solid color-mix(in srgb, var(--text) 4%, transparent);
+  border-left: 1px solid var(--line);
   box-shadow: none;
   overflow: hidden;
   /* Instant show/hide — opacity/transform open felt like a full-shell flash. */
@@ -112,10 +112,10 @@
 .right-panel-tabstrip {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-height: 0;
-  padding: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   background: transparent;
 }
@@ -139,7 +139,7 @@
   align-items: center;
   max-width: 160px;
   min-height: 28px;
-  border-radius: 8px 8px 0 0;
+  border-radius: 6px 6px 0 0;
   border: 1px solid transparent;
   border-bottom: 0;
   background: transparent;
@@ -148,10 +148,14 @@
 }
 
 .right-panel-tab.active {
-  background: var(--panel);
+  background: var(--card);
   color: var(--text);
-  border-color: color-mix(in srgb, var(--text) 8%, transparent);
-  box-shadow: 0 -1px 0 var(--panel);
+  border-color: var(--line);
+  box-shadow: 0 1px 0 var(--card);
+}
+
+.right-panel-tab:hover {
+  color: var(--text);
 }
 
 .right-panel-tab-main {
@@ -191,9 +195,8 @@
 
 .right-panel-tab-badge {
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--accent);
-  opacity: 0.9;
 }
 
 .right-panel-tab-attention {
@@ -605,6 +608,7 @@
   flex-direction: column;
   min-height: 0;
   overflow: auto;
+  gap: 4px;
 }
 
 .right-panel-section {
