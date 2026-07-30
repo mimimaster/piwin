@@ -7,6 +7,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import {
   PIWIN_APPEARANCE_DARK,
   PIWIN_APPEARANCE_LIGHT,
+  PIWIN_APPEARANCE_ORANGE_WHITE,
   applyAppearanceToDocument,
 } from './appearance-tokens';
 
@@ -170,6 +171,16 @@ describe('applyAppearanceToDocument', () => {
     }
   });
 
+  it('emits the full documented variable set for the orange-white manifest', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_ORANGE_WHITE);
+
+    const style = document.documentElement.style;
+    expect(emittedVariableNames(style)).toEqual([...DOCUMENTED_APPEARANCE_VARIABLES]);
+    for (const name of DOCUMENTED_APPEARANCE_VARIABLES) {
+      expect(style.getPropertyValue(name), `orange-white ${name}`).not.toBe('');
+    }
+  });
+
   it('makes theme switching a value swap only — identical variable-name sets', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_DARK);
     const darkNames = emittedVariableNames(document.documentElement.style);
@@ -184,7 +195,11 @@ describe('applyAppearanceToDocument', () => {
   });
 
   it('does not emit removed legacy aliases', () => {
-    for (const manifest of [PIWIN_APPEARANCE_DARK, PIWIN_APPEARANCE_LIGHT]) {
+    for (const manifest of [
+      PIWIN_APPEARANCE_DARK,
+      PIWIN_APPEARANCE_LIGHT,
+      PIWIN_APPEARANCE_ORANGE_WHITE,
+    ]) {
       applyAppearanceToDocument(manifest);
       for (const alias of REMOVED_LEGACY_ALIASES) {
         expect(
@@ -216,6 +231,11 @@ describe('applyAppearanceToDocument', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_LIGHT);
     expect(document.documentElement.dataset.themeMode).toBe('light');
     expect(document.documentElement.dataset.themeId).toBe('piwin-light');
+    expect(document.documentElement.style.colorScheme).toBe('light');
+
+    applyAppearanceToDocument(PIWIN_APPEARANCE_ORANGE_WHITE);
+    expect(document.documentElement.dataset.themeMode).toBe('light');
+    expect(document.documentElement.dataset.themeId).toBe('piwin-orange-white');
     expect(document.documentElement.style.colorScheme).toBe('light');
   });
 });
@@ -258,10 +278,32 @@ describe('applyAppearanceToDocument Paper/Noir projection', () => {
     expect(s.getPropertyValue('--del-text').trim()).toBe('#f08a92');
   });
 
+  it('projects 橙白 warm light derived ramp', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_ORANGE_WHITE);
+    const s = document.documentElement.style;
+    expect(s.getPropertyValue('--canvas').trim()).toBe('#f7f3ed');
+    expect(s.getPropertyValue('--card').trim()).toBe('#fffdfa');
+    expect(s.getPropertyValue('--sidebar').trim()).toBe('#f7f3ed');
+    expect(s.getPropertyValue('--sunken').trim()).toBe('#f2ede5');
+    expect(s.getPropertyValue('--user-bubble').trim()).toBe('#f2ede5');
+    expect(s.getPropertyValue('--faint').trim()).toBe('#a89d8f');
+    expect(s.getPropertyValue('--accent').trim()).toBe('#e85d1f');
+    expect(s.getPropertyValue('--accent-fg').trim()).toBe('#ffffff');
+    expect(s.getPropertyValue('--term-bg').trim()).toBe('#efe9e0');
+    expect(s.getPropertyValue('--term-text').trim()).toBe('#6b6358');
+    expect(s.getPropertyValue('--hover').trim()).toBe('rgba(60, 40, 20, 0.05)');
+    expect(s.getPropertyValue('--selected').trim()).toBe('rgba(232, 93, 31, 0.10)');
+    expect(s.getPropertyValue('--line-strong').trim()).toBe('rgba(80, 60, 40, 0.22)');
+    expect(s.getPropertyValue('--wb-term-bg').trim()).toBe('#efe9e0');
+    expect(s.getPropertyValue('--wb-dim').trim()).toBe('#a89d8f');
+  });
+
   it('keeps builtin theme ids stable for stored settings', () => {
     expect(PIWIN_APPEARANCE_LIGHT.id).toBe('piwin-light');
     expect(PIWIN_APPEARANCE_DARK.id).toBe('piwin-dark');
+    expect(PIWIN_APPEARANCE_ORANGE_WHITE.id).toBe('piwin-orange-white');
     expect(PIWIN_APPEARANCE_LIGHT.name).toBe('Paper');
     expect(PIWIN_APPEARANCE_DARK.name).toBe('Noir');
+    expect(PIWIN_APPEARANCE_ORANGE_WHITE.name).toBe('橙白');
   });
 });

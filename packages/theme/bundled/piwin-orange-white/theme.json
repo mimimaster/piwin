@@ -1,0 +1,31 @@
+{
+  "id": "piwin-orange-white",
+  "name": "橙白",
+  "version": "6.0.0",
+  "description": "Daybreak warm paper field with tangerine accent for piwin shell + artifacts",
+  "mode": "light",
+  "tokens": {
+    "bg": "#f7f3ed",
+    "panel": "#fffdfa",
+    "panel2": "#f2ede5",
+    "border": "rgba(80, 60, 40, 0.10)",
+    "text": "#2f2924",
+    "muted": "#82776a",
+    "accent": "#e85d1f",
+    "accent2": "#f4955c",
+    "danger": "#d64541",
+    "ok": "#1f9d63",
+    "radius": "10px",
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Segoe UI\", system-ui, sans-serif"
+  },
+  "artifact": {
+    "bg": "transparent",
+    "surface": "rgba(255, 253, 250, 0.98)",
+    "text": "#2f2924",
+    "muted": "#82776a",
+    "accent": "#e85d1f",
+    "border": "rgba(80, 60, 40, 0.12)",
+    "radius": "0.625rem",
+    "font": "-apple-system, BlinkMacSystemFont, \"SF Pro Text\", \"PingFang SC\", \"Segoe UI\", system-ui, sans-serif"
+  }
+}

@@ -41,7 +41,7 @@ export class MockHostBackend {
   private mockDisabledExtensionIds = new Set<string>();
   private mockBundledExtensionsInstalled = true;
   private mockDisabledPromptIds = new Set<string>();
-  private mockActiveThemeId: 'piwin-dark' | 'piwin-light' = 'piwin-dark';
+  private mockActiveThemeId: 'piwin-dark' | 'piwin-light' | 'piwin-orange-white' = 'piwin-dark';
   private mockProcesses = new Map<string, import('@piwin/contracts').ManagedProcessRecord>();
   private mockProcessLogs = new Map<string, string>();
   private mockPtys = new Map<string, { projectPath: string }>();
@@ -1019,6 +1019,15 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
                 source: 'bundled',
                 active: activeThemeId === 'piwin-light',
               },
+              {
+                id: 'piwin-orange-white',
+                name: '橙白',
+                version: '6.0.0',
+                mode: 'light',
+                path: '/mock/themes/piwin-orange-white',
+                source: 'bundled',
+                active: activeThemeId === 'piwin-orange-white',
+              },
             ],
           },
         };
@@ -1026,11 +1035,16 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       case 'theme/get-active':
       case 'theme/set-active': {
         if (command.type === 'theme/set-active') {
-          const nextId = command.themeId === 'piwin-light' ? 'piwin-light' : 'piwin-dark';
+          const nextId =
+            command.themeId === 'piwin-light' || command.themeId === 'piwin-orange-white'
+              ? command.themeId
+              : 'piwin-dark';
           this.mockActiveThemeId = nextId;
         }
         const themeId = this.mockActiveThemeId;
-        const isLight = themeId === 'piwin-light';
+        const isLight = themeId !== 'piwin-dark';
+        const themeName =
+          themeId === 'piwin-orange-white' ? '橙白' : isLight ? 'Piwin Light' : 'Piwin Dark';
         return {
           id,
           type: 'response',
@@ -1039,7 +1053,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           data: {
             theme: {
               id: themeId,
-              name: isLight ? 'Piwin Light' : 'Piwin Dark',
+              name: themeName,
               version: '5.0.0',
               mode: isLight ? 'light' : 'dark',
               tokens: isLight
@@ -1192,7 +1206,11 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           type: 'response',
           command: 'pet/install-registry',
           success: true,
-          data: { petId: 'mock-registry-pet', source: 'registry', path: '/mock/pets/mock-registry-pet' },
+          data: {
+            petId: 'mock-registry-pet',
+            source: 'registry',
+            path: '/mock/pets/mock-registry-pet',
+          },
         };
       case 'pet/cancel':
         return {
