@@ -388,6 +388,8 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
     isLight ? 'rgba(214, 69, 65, 0.08)' : 'rgba(235, 57, 70, 0.12)',
   );
   root.style.setProperty('--del-text', isLight ? '#c13a36' : '#f08a92');
+  // PlanCard done-step checkmark foreground on the --ok (green) background
+  root.style.setProperty('--ok-fg', isLight ? '#ffffff' : '#000000');
   // legacy --wb-* aliases repointed at the new ramp (existing CSS still reads them)
   root.style.setProperty('--wb-term-bg', isLight ? '#16181d' : '#050505');
   root.style.setProperty('--wb-dim', isLight ? '#a0a0a8' : '#595959');
