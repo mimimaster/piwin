@@ -51,34 +51,33 @@
 
 /* ─── Card ──────────────────────────────────────────────────────────── */
 
+.composer-hint {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--faint);
+  user-select: none;
+}
+
 .composer-card-v2 {
   display: flex;
   flex-direction: column;
   width: 100%;
   margin: 0 auto;
-  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--panel) 94%, var(--canvas));
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--text) 2%, transparent),
-    0 12px 32px color-mix(in srgb, var(--accent) 6%, rgba(0, 0, 0, 0.24)),
-    0 2px 6px rgba(0, 0, 0, 0.16);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--card);
   transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease;
+    border-color 200ms ease,
+    box-shadow 200ms ease;
   /* Popovers (slash menu, thinking effort) open upward past the card edge. */
   overflow: visible;
 }
 
 .composer-card-v2:focus-within,
 .composer-card-v2.drop-active {
-  border-color: color-mix(in srgb, var(--accent) 48%, transparent);
-  box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent),
-    0 12px 36px color-mix(in srgb, var(--accent) 10%, rgba(0, 0, 0, 0.26)),
-    0 2px 6px rgba(0, 0, 0, 0.16);
-  transform: translateY(-1px);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
 .composer-card-v2.is-streaming {
@@ -88,7 +87,7 @@
 /* Centered empty-state card is slightly wider-rounded and larger. */
 .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
   width: min(100%, 680px);
-  border-radius: 18px;
+  border-radius: 12px;
 }
 
 .chat-column-empty .composer-dock.layout-centered .composer-v2-input-area {
@@ -198,11 +197,11 @@
 .composer-v2-icon-btn {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -221,7 +220,7 @@
 
 .composer-v2-icon-btn:hover:not(:disabled) {
   color: var(--text);
-  background: color-mix(in srgb, var(--text) 6%, transparent);
+  background: var(--hover);
 }
 
 .composer-v2-icon-btn.active {
@@ -280,27 +279,19 @@
 .composer-v2-send-btn {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2, var(--accent)));
-  /* Deliberate literal: dark glyph on bright coral; light mode overrides below. */
-  color: #2b1508;
+  border-radius: 7px;
+  background: var(--accent);
+  color: var(--accent-fg);
   cursor: pointer;
   transition:
     transform 0.12s ease,
     opacity 0.12s ease,
-    box-shadow 0.15s ease,
     filter 0.12s ease;
   flex-shrink: 0;
-  box-shadow: 0 3px 12px color-mix(in srgb, var(--accent) 32%, transparent);
-}
-
-/* Light-mode tangerine is deeper — switch to a white glyph for contrast. */
-html[data-theme-mode='light'] .composer-v2-send-btn {
-  color: #ffffff;
 }
 
 .composer-v2-send-btn svg {
@@ -309,13 +300,11 @@ html[data-theme-mode='light'] .composer-v2-send-btn {
 }
 
 .composer-v2-send-btn:hover:not(:disabled) {
-  filter: brightness(1.06);
-  transform: scale(1.04);
-  box-shadow: 0 5px 18px color-mix(in srgb, var(--accent) 40%, transparent);
+  filter: brightness(1.08);
 }
 
 .composer-v2-send-btn:active:not(:disabled) {
-  transform: scale(0.96);
+  transform: scale(0.92);
 }
 
 .composer-v2-send-btn:disabled {
@@ -591,7 +580,7 @@ html[data-theme-mode='light'] .composer-v2-send-btn {
   background: color-mix(in srgb, var(--surface-inset) 75%, var(--canvas));
   color: var(--muted);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
   transition:
     background 120ms ease,
@@ -601,8 +590,8 @@ html[data-theme-mode='light'] .composer-v2-send-btn {
 
 .thinking-effort-trigger:hover:not(:disabled) {
   color: var(--text);
-  background: color-mix(in srgb, var(--text) 7%, transparent);
-  border-color: color-mix(in srgb, var(--text) 14%, transparent);
+  background: var(--hover);
+  border-color: var(--line);
 }
 
 .thinking-effort-trigger:disabled {
