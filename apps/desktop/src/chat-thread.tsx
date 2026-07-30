@@ -5,6 +5,7 @@ import { memo, useEffect, useRef, useState, type ReactElement } from 'react';
 import type { SessionPlan, ThemeManifest } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
+import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
 import { MarkdownView } from './MarkdownView';
 import { MediaPreview } from './MediaPreview';
 import { MessageActions } from './message-actions';
@@ -14,6 +15,7 @@ import { TurnWorkDetails } from './turn-work-details';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { IconAgent } from './shell-icons';
 import { PlanCard } from './plan-card';
+import { GateCard } from './gate-card';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
@@ -176,6 +178,10 @@ export type ChatThreadProps = {
   runRecordsById?: Record<string, RunRecordUi>;
   activeRunId?: string | null;
   permissionPrompt?: PermissionPromptUi | null;
+  /** Project path used to gate "always allow" (project remember) availability. */
+  projectPath?: string | null;
+  /** Existing permission respond handler (allow / deny / ask). */
+  onPermission?: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
   workDetailsExpanded?: WorkDetailsExpanded;
   toolDensity?: ToolCallDensity;
   onEdit: (messageId: string) => void;
@@ -263,6 +269,13 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           activeRunId={props.activeRunId ?? null}
           runRecordsById={props.runRecordsById ?? {}}
           {...(props.locale ? { locale: props.locale } : {})}
+        />
+      ) : null}
+      {props.permissionPrompt && props.onPermission ? (
+        <GateCard
+          prompt={props.permissionPrompt}
+          projectPath={props.projectPath ?? null}
+          onPermission={props.onPermission}
         />
       ) : null}
     </div>
