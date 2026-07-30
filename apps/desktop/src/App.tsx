@@ -1118,6 +1118,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               }}
               runState={runStatus}
               onStop={() => void handleAbort()}
+              onViewActivity={() => openRightTab('terminal')}
               onReviewPermission={() => {
                 // Focus the permission dialog when present; it is already open from state.
                 const dialog = document.querySelector<HTMLElement>(
