@@ -20,3 +20,11 @@
 .pet-sprite-root.hidden {
   display: none;
 }
+/* Overlay mode: center the sprite in the small transparent OS window. */
+.pet-sprite-root.overlay {
+  bottom: auto;
+  right: auto;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}

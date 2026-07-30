@@ -23,15 +23,18 @@ type TempAction = PetAnimationState | null;
 export function PetSprite(props: PetSpriteProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const petRef = useRef(props.pet);
   const rafRef = useRef<number>(0);
   const frameRef = useRef<number>(0);
   const [dragging, setDragging] = useState(false);
   const wasDraggingRef = useRef(false);
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const dragStart = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
-  const [tempAction, setTempAction] = useState<TempAction>(null);
+  const tempActionRef = useRef<TempAction>(null);
   const tempActionUntil = useRef<number>(0);
   const hoverRef = useRef<boolean>(false);
+
+  petRef.current = props.pet;
 
   // Load spritesheet.
   useEffect(() => {
@@ -41,16 +44,12 @@ export function PetSprite(props: PetSpriteProps) {
     img.onload = () => {
       imageRef.current = img;
     };
-    // On load failure (404, corrupt), drop any stale ref so we don't render a broken image.
-    img.onerror = () => {
-      imageRef.current = null;
-    };
+    // Keep the prior image available if the replacement cannot be loaded.
+    img.onerror = () => {};
     return () => {
-      // Prevent a slow-loading previous sheet from overwriting a newer ref,
-      // and stop in-flight loads from mutating a dead ref after unmount.
+      // Prevent a slow-loading previous sheet from overwriting a newer ref.
       img.onload = null;
       img.onerror = null;
-      imageRef.current = null;
     };
   }, [props.pet.spritesheetAbsolutePath]);
 
@@ -58,29 +57,29 @@ export function PetSprite(props: PetSpriteProps) {
   useEffect(() => {
     let lastFrame = 0;
     let lastIdle = performance.now();
-    const fps = props.pet.fps || 6;
-    const frameMs = 1000 / fps;
 
     function tick(now: number): void {
       const canvas = canvasRef.current;
       const img = imageRef.current;
+      const pet = petRef.current;
       if (canvas && img) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
+          const frameMs = 1000 / (pet.fps || 6);
           if (now - lastFrame >= frameMs) {
-            frameRef.current = (frameRef.current + 1) % props.pet.cols;
+            frameRef.current = (frameRef.current + 1) % pet.cols;
             lastFrame = now;
           }
           const state = effectiveState();
-          const row = props.pet.stateRows[state] ?? DEFAULT_PET_STATE_ROWS[state] ?? 0;
+          const row = pet.stateRows[state] ?? DEFAULT_PET_STATE_ROWS[state] ?? 0;
           const col = frameRef.current;
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(
             img,
-            col * props.pet.cellWidth,
-            row * props.pet.cellHeight,
-            props.pet.cellWidth,
-            props.pet.cellHeight,
+            col * pet.cellWidth,
+            row * pet.cellHeight,
+            pet.cellWidth,
+            pet.cellHeight,
             0,
             0,
             canvas.width,
@@ -90,34 +89,36 @@ export function PetSprite(props: PetSpriteProps) {
       }
       // Random idle action.
       if (
-        !tempAction &&
-        props.pet.state === 'idle' &&
+        !tempActionRef.current &&
+        pet.state === 'idle' &&
         !hoverRef.current &&
         now - lastIdle > IDLE_INTERVAL_MS &&
         Math.random() < 0.02
       ) {
         const actions: PetAnimationState[] = ['waving', 'jumping'];
         const action = actions[Math.floor(Math.random() * actions.length)] ?? 'waving';
-        setTempAction(action);
+        tempActionRef.current = action;
         tempActionUntil.current = now + ACTION_DURATION_MS;
         lastIdle = now;
       }
-      if (tempAction && now > tempActionUntil.current) {
-        setTempAction(null);
+      if (tempActionRef.current && now > tempActionUntil.current) {
+        tempActionRef.current = null;
       }
       rafRef.current = requestAnimationFrame(tick);
     }
     rafRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [props.pet, tempAction]);
+  }, []);
 
   function effectiveState(): PetAnimationState {
-    if (tempAction) return tempAction;
-    return props.pet.state;
+    return tempActionRef.current ?? petRef.current.state;
   }
 
   // Drag handling.
   function onPointerDown(e: React.PointerEvent): void {
+    // In overlay mode, the OS-level window drag is handled by PetOverlayApp's
+    // mousedown → startDragging(). Skip internal DOM drag to avoid conflict.
+    if (props.overlay) return;
     setDragging(true);
     dragStart.current = {
       x: e.clientX,
@@ -128,12 +129,13 @@ export function PetSprite(props: PetSpriteProps) {
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
   function onPointerMove(e: React.PointerEvent): void {
-    if (!dragging || !dragStart.current) return;
+    if (props.overlay || !dragging || !dragStart.current) return;
     const dx = e.clientX - dragStart.current.x;
     const dy = e.clientY - dragStart.current.y;
     setPos({ x: dragStart.current.px + dx, y: dragStart.current.py + dy });
   }
   function onPointerUp(e: React.PointerEvent): void {
+    if (props.overlay) return;
     // Capture the drag state synchronously before re-render clears it,
     // so onClick can distinguish a drag-terminated release from a real click.
     wasDraggingRef.current = dragging;
@@ -141,8 +143,8 @@ export function PetSprite(props: PetSpriteProps) {
     dragStart.current = null;
     (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
     // Jump on release if dragged.
-    if (tempAction === null) {
-      setTempAction('jumping');
+    if (tempActionRef.current === null) {
+      tempActionRef.current = 'jumping';
       tempActionUntil.current = performance.now() + ACTION_DURATION_MS;
     }
   }
@@ -157,8 +159,8 @@ export function PetSprite(props: PetSpriteProps) {
   }
   function onMouseEnter(): void {
     hoverRef.current = true;
-    if (props.pet.state === 'idle' && !tempAction) {
-      setTempAction('waving');
+    if (props.pet.state === 'idle' && tempActionRef.current === null) {
+      tempActionRef.current = 'waving';
       tempActionUntil.current = performance.now() + ACTION_DURATION_MS;
     }
   }
@@ -172,13 +174,11 @@ export function PetSprite(props: PetSpriteProps) {
 
   const style: React.CSSProperties = pos
     ? { left: `${pos.x}px`, top: `${pos.y}px`, bottom: 'auto', right: 'auto' }
-    : props.overlay
-      ? { left: '0', top: '0', bottom: 'auto', right: 'auto' }
-      : {};
+    : {};
 
   return (
     <div
-      className={`pet-sprite-root${dragging ? ' dragging' : ''}${props.hidden ? ' hidden' : ''}`}
+      className={`pet-sprite-root${props.overlay ? ' overlay' : ''}${dragging ? ' dragging' : ''}${props.hidden ? ' hidden' : ''}`}
       style={style}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
