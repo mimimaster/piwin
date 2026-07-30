@@ -16,6 +16,7 @@ const CONTROL_COMMAND_TYPES = new Set<HostCommand['type']>([
   'host/ping',
   'host/status',
   'project/authorize-terminal',
+  'pet/cancel',
 ]);
 
 const SERIALIZED_COMMAND_TYPES = new Set<HostCommand['type']>([
@@ -33,7 +34,6 @@ const SERIALIZED_COMMAND_TYPES = new Set<HostCommand['type']>([
   'pet/set-active',
   'pet/install-local',
   'pet/install-registry',
-  'pet/cancel',
   'session/rename',
   'session/archive',
   'session/unarchive',
