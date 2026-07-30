@@ -64,13 +64,7 @@ import {
   listThemes,
   setActiveTheme,
 } from '@piwin/theme';
-import {
-  getActivePet,
-  importPetsFromCodex,
-  installPetFromLocalPath,
-  listPets,
-  setActivePet,
-} from '@piwin/pet';
+import { getActivePet, installPetFromLocalPath, listPets, setActivePet } from '@piwin/pet';
 import {
   addBashAllowRule,
   addFileWriteAllowRule,

@@ -1,6 +1,7 @@
 /**
  * List / install / activate pets under ~/.piwin/pets.
- * Optional import from ~/.codex/pets (copy, not symlink).
+ * Also scans ~/.codex/pets live (in place, not copied) so codex pets are
+ * shared without duplication. piwin-owned pets win on id collisions.
  */
 import { cp, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
@@ -154,20 +155,45 @@ export async function listPets(piwinRoot: string): Promise<{
   await ensureBundledPetsInstalled(piwinRoot);
   const preference = await loadPetPreference(piwinRoot);
   const petsDir = getPetsDir(piwinRoot);
-  let entries: string[] = [];
-  try {
-    entries = await readdir(petsDir);
-  } catch {
-    entries = [];
-  }
   const pets: PetSummary[] = [];
-  for (const entry of entries) {
+  const seenIds = new Set<string>();
+
+  // 1. piwin-owned pets first (bundled + user-installed + codex-import copies).
+  let piwinEntries: string[] = [];
+  try {
+    piwinEntries = await readdir(petsDir);
+  } catch {
+    piwinEntries = [];
+  }
+  for (const entry of piwinEntries) {
     const petPath = join(petsDir, entry);
     const source: PetSummary['source'] =
       entry === 'piwin-default' ? 'bundled' : entry.startsWith('codex-') ? 'codex-import' : 'user';
     const summary = await loadPackageAt(petPath, source, preference.activePetId);
-    if (summary) pets.push(summary);
+    if (summary) {
+      pets.push(summary);
+      seenIds.add(summary.id);
+    }
   }
+
+  // 2. Live codex pets — scanned in place, not copied. Skipped if piwin already
+  //    has a pet with the same id (piwin-owned wins).
+  const codexDir = getDefaultCodexPetsDir();
+  let codexEntries: string[] = [];
+  try {
+    codexEntries = await readdir(codexDir);
+  } catch {
+    codexEntries = [];
+  }
+  for (const entry of codexEntries) {
+    const petPath = join(codexDir, entry);
+    const summary = await loadPackageAt(petPath, 'codex-live', preference.activePetId);
+    if (summary && !seenIds.has(summary.id)) {
+      pets.push(summary);
+      seenIds.add(summary.id);
+    }
+  }
+
   pets.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return { pets, activePetId: preference.activePetId };
 }
@@ -178,7 +204,7 @@ export async function loadPetManifest(
 ): Promise<{ manifest: PetManifest; packagePath: string; spritesheetAbsolutePath: string }> {
   await ensureBundledPetsInstalled(piwinRoot);
   const petsDir = getPetsDir(piwinRoot);
-  // Prefer directory named by id, else scan
+  // Prefer directory named by id, else scan piwin pets, then scan codex live.
   const candidates = [join(petsDir, petId)];
   try {
     for (const entry of await readdir(petsDir)) {
@@ -186,6 +212,15 @@ export async function loadPetManifest(
     }
   } catch {
     // empty
+  }
+  const codexDir = getDefaultCodexPetsDir();
+  candidates.push(join(codexDir, petId));
+  try {
+    for (const entry of await readdir(codexDir)) {
+      candidates.push(join(codexDir, entry));
+    }
+  } catch {
+    // codex dir missing — fine
   }
   for (const petPath of candidates) {
     try {
@@ -242,10 +277,7 @@ async function buildRuntimeSnapshot(
   };
 }
 
-export async function setActivePet(
-  piwinRoot: string,
-  petId: string,
-): Promise<PetRuntimeSnapshot> {
+export async function setActivePet(piwinRoot: string, petId: string): Promise<PetRuntimeSnapshot> {
   await loadPetManifest(piwinRoot, petId);
   await savePetPreference(piwinRoot, { activePetId: petId });
   return getActivePet(piwinRoot, 'idle');
@@ -269,54 +301,4 @@ export async function installPetFromLocalPath(
   await mkdir(getPetsDir(piwinRoot), { recursive: true });
   await cp(absolute, target, { recursive: true });
   return { petId: validated.manifest.id, path: target };
-}
-
-/**
- * Copy packages from ~/.codex/pets into ~/.piwin/pets with codex- prefix if needed.
- */
-export async function importPetsFromCodex(
-  piwinRoot: string,
-  codexPetsDir?: string,
-): Promise<{ imported: string[]; skipped: string[]; errors: string[] }> {
-  const sourceRoot = codexPetsDir ?? getDefaultCodexPetsDir();
-  const imported: string[] = [];
-  const skipped: string[] = [];
-  const errors: string[] = [];
-  let entries: string[] = [];
-  try {
-    entries = await readdir(sourceRoot);
-  } catch {
-    return { imported, skipped, errors: [`codex pets dir missing: ${sourceRoot}`] };
-  }
-  await mkdir(getPetsDir(piwinRoot), { recursive: true });
-  for (const entry of entries) {
-    const from = join(sourceRoot, entry);
-    try {
-      if (!(await stat(from)).isDirectory()) {
-        skipped.push(entry);
-        continue;
-      }
-      const raw = await readFile(join(from, 'pet.json'), 'utf8');
-      const validated = validatePetManifest(JSON.parse(raw));
-      if (!validated.ok) {
-        errors.push(`${entry}: ${validated.issues.map((i) => i.message).join(', ')}`);
-        continue;
-      }
-      const targetName = validated.manifest.id;
-      const to = join(getPetsDir(piwinRoot), targetName);
-      try {
-        await stat(join(to, 'pet.json'));
-        skipped.push(targetName);
-        continue;
-      } catch {
-        // copy
-      }
-      await cp(from, to, { recursive: true });
-      imported.push(targetName);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`${entry}: ${message}`);
-    }
-  }
-  return { imported, skipped, errors };
 }

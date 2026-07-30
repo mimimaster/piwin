@@ -19,7 +19,6 @@ export {
   getActivePet,
   setActivePet,
   installPetFromLocalPath,
-  importPetsFromCodex,
 } from './pet-store.js';
 
 export {

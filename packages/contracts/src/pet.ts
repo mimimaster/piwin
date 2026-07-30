@@ -2,13 +2,7 @@
 
 /** Animation state driven by agent runtime. */
 export type PetAnimationState =
-  | 'idle'
-  | 'running'
-  | 'waiting'
-  | 'failed'
-  | 'waving'
-  | 'jumping'
-  | 'review';
+  'idle' | 'running' | 'waiting' | 'failed' | 'waving' | 'jumping' | 'review';
 
 /** Standard Codex spritesheet layout (8×9 cells of 192×208). */
 export const PET_SPRITE_COLS = 8;
@@ -57,7 +51,7 @@ export type PetSummary = {
   description?: string;
   path: string;
   spritesheetAbsolutePath: string;
-  source: 'bundled' | 'user' | 'codex-import';
+  source: 'bundled' | 'user' | 'codex-import' | 'codex-live';
   active: boolean;
   valid: boolean;
   issues: string[];

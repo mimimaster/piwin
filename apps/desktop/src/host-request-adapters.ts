@@ -26,10 +26,10 @@ export type HostRequestAdapters = {
       | 'project/permissions-revoke';
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
-      apiKey?: string;
-      modelId?: string;
-      providerId?: string;
-      secret?: string;
+    apiKey?: string;
+    modelId?: string;
+    providerId?: string;
+    secret?: string;
     path?: string;
     key?: string;
   }) => Promise<HostResponse>;
@@ -89,7 +89,7 @@ export type HostRequestAdapters = {
     sourcePath?: string;
   }) => Promise<HostResponse>;
   requestPet: (command: {
-    type: 'pet/list' | 'pet/get-active' | 'pet/set-active' | 'pet/install-local' | 'pet/import-codex';
+    type: 'pet/list' | 'pet/get-active' | 'pet/set-active' | 'pet/install-local';
     petId?: string;
     sourcePath?: string;
   }) => Promise<HostResponse>;
@@ -323,9 +323,6 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       }
       if (command.type === 'pet/set-active') {
         return hostClient.request({ type: 'pet/set-active', petId: command.petId ?? '' });
-      }
-      if (command.type === 'pet/import-codex') {
-        return hostClient.request({ type: 'pet/import-codex' });
       }
       return hostClient.request({
         type: 'pet/install-local',
