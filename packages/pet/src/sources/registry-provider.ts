@@ -5,35 +5,40 @@
  * manifest post-extract. For now we assume the registry serves a directory
  * zip (no internal nesting); if a top-level folder is present we use it.
  */
-import { mkdir, readFile, readdir, rename, rm, stat } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { mkdir, readFile, readdir, rename, rm, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import type {
   PetDiscoveredEntry,
   PetInstallResult,
+  PetRegistryEntry,
   PetStoreQueryResult,
 } from '@piwin/contracts';
 import { validatePetManifest } from '../validate-manifest.js';
 import { downloadAndVerifyPackage } from './registry-download.js';
 import type { PetSourceProvider, PetSourceProviderContext } from './pet-source-provider.js';
 
+const execFileAsync = promisify(execFile);
+
 export type RegistryProviderContext = PetSourceProviderContext & {
   /** HTTPS catalog URL. */
   registryUrl?: string;
   /** Override fetch (tests). */
   fetch?: typeof fetch;
+  /**
+   * Override the host unzip step (tests). Receives the downloaded zip path
+   * and the staging dir; must extract the archive contents into staging.
+   */
+  unzip?: (zipPath: string, destDir: string) => Promise<void>;
 };
 
 const DEFAULT_REGISTRY_URL = 'https://codexpethub.com/catalog.json';
 
-type CatalogEntry = {
-  id: string;
-  displayName: string;
-  description?: string;
-  version?: string;
-  url: string;
-  sha256: string;
-  sizeBytes: number;
-};
+/** Default host extraction via the `unzip` CLI (macOS/Linux). */
+async function defaultUnzip(zipPath: string, destDir: string): Promise<void> {
+  await execFileAsync('unzip', ['-o', zipPath, '-d', destDir]);
+}
 
 function resolveCtx(ctx: PetSourceProviderContext): RegistryProviderContext {
   const override = ctx as RegistryProviderContext;
@@ -41,6 +46,7 @@ function resolveCtx(ctx: PetSourceProviderContext): RegistryProviderContext {
     ...ctx,
     registryUrl: override.registryUrl ?? DEFAULT_REGISTRY_URL,
     ...(override.fetch ? { fetch: override.fetch } : {}),
+    ...(override.unzip ? { unzip: override.unzip } : {}),
   };
 }
 
@@ -79,7 +85,7 @@ export const registryProvider: PetSourceProvider = {
     if (!response.ok) {
       throw new Error(`registry query failed: HTTP ${response.status}`);
     }
-    const entries = (await response.json()) as CatalogEntry[];
+    const entries = (await response.json()) as PetRegistryEntry[];
     const q = query.trim().toLowerCase();
     const out: PetStoreQueryResult[] = [];
     for (const entry of entries) {
@@ -115,9 +121,9 @@ export const registryProvider: PetSourceProvider = {
     // or a bare package URL — in the bare case we re-query the catalog to
     // recover the checksum/size before downloading.
     const reg = resolveCtx(ctx);
-    let entry: CatalogEntry;
+    let entry: PetRegistryEntry;
     try {
-      entry = JSON.parse(location) as CatalogEntry;
+      entry = JSON.parse(location) as PetRegistryEntry;
     } catch {
       const results = await registryProvider.queryStore!(ctx, '');
       const match = results.find((r) => r.location === location);
@@ -144,17 +150,25 @@ export const registryProvider: PetSourceProvider = {
 
     // Extract via host `unzip` (Node has no stdlib zip; keeps pkg dep-free).
     // macOS/Linux ship unzip; Windows follow-up tracked separately.
-    const { execFile } = await import('node:child_process');
-    const { promisify } = await import('node:util');
-    const execFileAsync = promisify(execFile);
-    await execFileAsync('unzip', ['-o', downloaded.filePath, '-d', staging]);
+    const unzipFn = reg.unzip ?? defaultUnzip;
+    try {
+      await unzipFn(downloaded.filePath, staging);
+    } catch (err) {
+      // Clean up staging so a failed extraction never leaves partial state.
+      await rm(staging, { recursive: true, force: true });
+      throw err;
+    }
+
+    // The downloaded zip lives inside staging; delete it before we scan the
+    // directory so it can never leak into the installed pet dir (flat archives
+    // keep petDir === staging, which would otherwise be renamed with the zip).
+    await unlink(downloaded.filePath).catch(() => undefined);
 
     // Locate the extracted pet dir: a single top-level folder, else staging.
     let petDir = staging;
     const children = await readdir(staging);
-    const nonZipChildren = children.filter((name) => !name.endsWith('.zip'));
-    if (nonZipChildren.length === 1) {
-      const candidate = join(staging, nonZipChildren[0]!);
+    if (children.length === 1) {
+      const candidate = join(staging, children[0]!);
       try {
         if ((await stat(candidate)).isDirectory()) petDir = candidate;
       } catch {
