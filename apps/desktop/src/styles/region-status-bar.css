@@ -4,12 +4,12 @@
 .status-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 22px;
+  gap: 14px;
+  height: 24px;
   flex-shrink: 0;
-  padding: 0 12px;
-  border-top: 1px solid color-mix(in srgb, var(--text) 3%, transparent);
-  background: var(--canvas);
+  padding: 0 14px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
   font-size: 10.5px;
   color: var(--faint);
   -webkit-app-region: no-drag;
@@ -25,11 +25,16 @@
   min-width: 0;
 }
 
+/* Right cluster pushed to the trailing edge (proto: margin-left:auto on .right). */
+.status-bar-right {
+  margin-left: auto;
+}
+
 .status-bar-agent {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-weight: 550;
+  gap: 4px;
+  font-weight: 400;
 }
 
 .status-bar-dot {
@@ -41,6 +46,7 @@
 
 .status-bar-agent.state-running {
   color: var(--accent);
+  font-weight: 500;
 }
 
 .status-bar-agent.state-running .status-bar-dot {
@@ -50,7 +56,7 @@
 
 /* Quiet workbench: terminal output while panel home/collapsed — pulse only. */
 .status-bar-agent.has-terminal-attention .status-bar-dot {
-  background: var(--ok, #43c384);
+  background: var(--ok);
   animation: status-bar-pulse 1.4s ease-in-out infinite;
 }
 
@@ -80,9 +86,15 @@
   font-variant-numeric: tabular-nums;
 }
 
-.status-bar-context.tone-ok { color: var(--ok); }
-.status-bar-context.tone-warn { color: var(--accent); }
-.status-bar-context.tone-critical { color: var(--danger); }
+.status-bar-context.tone-ok {
+  color: var(--ok);
+}
+.status-bar-context.tone-warn {
+  color: var(--accent);
+}
+.status-bar-context.tone-critical {
+  color: var(--danger);
+}
 
 .status-bar-chip {
   display: inline-flex;
@@ -96,7 +108,9 @@
   color: var(--muted);
   font-size: 11px;
   cursor: pointer;
-  transition: color var(--duration-fast) ease, background var(--duration-fast) ease;
+  transition:
+    color var(--duration-fast) ease,
+    background var(--duration-fast) ease;
   font-variant-numeric: tabular-nums;
 }
 
@@ -124,13 +138,24 @@
 }
 
 @keyframes status-bar-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 @keyframes status-bar-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

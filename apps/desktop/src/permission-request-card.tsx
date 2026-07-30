@@ -13,24 +13,21 @@ export type PermissionRequestCardProps = {
   headingId?: string;
 };
 
-export function PermissionRequestCard(props: PermissionRequestCardProps): ReactElement {
+/**
+ * Per-kind fact table (command / file-write / git / network / mcp / unknown).
+ * Extracted so the inline GateCard can reuse the same rendering inside its
+ * gate-cmd region without duplicating the per-kind branching.
+ */
+export function PermissionFacts(props: {
+  action: string;
+  detail: string;
+  context?: PermissionRequestContext | null | undefined;
+}): ReactElement {
   const context = props.context;
   const kind = context?.kind ?? 'unknown';
 
   return (
-    <div
-      className="permission-request-card"
-      data-testid="permission-request-card"
-      data-kind={kind}
-      tabIndex={-1}
-      aria-labelledby={props.headingId}
-    >
-      <h3 id={props.headingId}>Permission required</h3>
-      <p className="permission-summary">
-        <strong>{context?.summary ?? props.action}</strong>
-      </p>
-      {context?.reason ? <p className="muted">{context.reason}</p> : null}
-
+    <>
       {kind === 'command' ? (
         <dl className="permission-facts">
           {context?.command ? (
@@ -166,6 +163,29 @@ export function PermissionRequestCard(props: PermissionRequestCardProps): ReactE
       ) : null}
 
       {!context ? <pre className="permission-detail">{props.detail}</pre> : null}
+    </>
+  );
+}
+
+export function PermissionRequestCard(props: PermissionRequestCardProps): ReactElement {
+  const context = props.context;
+  const kind = context?.kind ?? 'unknown';
+
+  return (
+    <div
+      className="permission-request-card"
+      data-testid="permission-request-card"
+      data-kind={kind}
+      tabIndex={-1}
+      aria-labelledby={props.headingId}
+    >
+      <h3 id={props.headingId}>Permission required</h3>
+      <p className="permission-summary">
+        <strong>{context?.summary ?? props.action}</strong>
+      </p>
+      {context?.reason ? <p className="muted">{context.reason}</p> : null}
+
+      <PermissionFacts action={props.action} detail={props.detail} context={props.context} />
 
       <p className="muted">Default: {props.defaultDecision}</p>
     </div>

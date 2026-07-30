@@ -60,20 +60,20 @@
   position: relative;
   min-height: var(--titleband-height);
   height: var(--titleband-height);
-  gap: 5px;
-  /* macOS traffic lights sit top-left; reserve their overlay area. The right
-     cluster (.titlebar-actions) flushes to the window edge minus breathing
-     room — there is no OS-drawn chrome on the right. */
-  padding: 0 0 0 76px;
-  border-bottom: 0;
+  gap: 10px;
+  /* macOS traffic lights sit top-left; reserve their overlay area (76px left
+     padding preserved for Tauri overlay). Right padding gives the action
+     cluster breathing room from the window edge. */
+  padding: 0 14px 0 76px;
+  border-bottom: 1px solid var(--line);
   /* Unified field: titleband matches sidebar + stage (quiet workbench). */
-  background: var(--canvas);
+  background: var(--bg);
   box-sizing: border-box;
 }
 
 .app-shell[data-layout='desktop']:not(.nav-open) > .workbench-topbar,
 .app-shell.settings-open[data-layout='desktop'] > .workbench-topbar {
-  background: var(--canvas);
+  background: var(--bg);
 }
 
 /* Compact shell topbar uses full product chrome height. */
@@ -88,11 +88,16 @@
 /* ── Controls ─────────────────────────────────────────────────────── */
 
 .app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
+  display: grid;
+  place-items: center;
   color: var(--muted);
   flex-shrink: 0;
+  transition:
+    background var(--motion-quick, 120ms),
+    color var(--motion-quick, 120ms);
 }
 
 .app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button svg {
@@ -104,7 +109,7 @@
 
 .app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button:hover {
   color: var(--text);
-  background: var(--wb-hover, var(--surface-hover));
+  background: var(--hover);
 }
 
 .app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button:disabled,
@@ -181,7 +186,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: 4px;
   margin-left: auto;
   flex-shrink: 0;
 }

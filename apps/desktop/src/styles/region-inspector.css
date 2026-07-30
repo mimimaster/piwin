@@ -19,7 +19,7 @@
   margin: 0;
   background: var(--sidebar);
   border: 0;
-  border-left: 1px solid color-mix(in srgb, var(--text) 4%, transparent);
+  border-left: 1px solid var(--line);
   box-shadow: none;
   overflow: hidden;
   /* Instant show/hide — opacity/transform open felt like a full-shell flash. */
@@ -112,10 +112,10 @@
 .right-panel-tabstrip {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-height: 0;
-  padding: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  padding: 6px 8px 0;
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   background: transparent;
 }
@@ -139,7 +139,7 @@
   align-items: center;
   max-width: 160px;
   min-height: 28px;
-  border-radius: 8px 8px 0 0;
+  border-radius: 6px 6px 0 0;
   border: 1px solid transparent;
   border-bottom: 0;
   background: transparent;
@@ -148,10 +148,14 @@
 }
 
 .right-panel-tab.active {
-  background: var(--panel);
+  background: var(--card);
   color: var(--text);
-  border-color: color-mix(in srgb, var(--text) 8%, transparent);
-  box-shadow: 0 -1px 0 var(--panel);
+  border-color: var(--line);
+  box-shadow: 0 1px 0 var(--card);
+}
+
+.right-panel-tab:hover {
+  color: var(--text);
 }
 
 .right-panel-tab-main {
@@ -165,7 +169,7 @@
   color: inherit;
   font: inherit;
   font-size: 12px;
-  font-weight: 550;
+  font-weight: 500;
   cursor: pointer;
 }
 
@@ -191,9 +195,8 @@
 
 .right-panel-tab-badge {
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 600;
   color: var(--accent);
-  opacity: 0.9;
 }
 
 .right-panel-tab-attention {
@@ -605,6 +608,7 @@
   flex-direction: column;
   min-height: 0;
   overflow: auto;
+  gap: 4px;
 }
 
 .right-panel-section {
@@ -667,10 +671,12 @@
   width: 100%;
   height: 26px;
   border: 0;
+  border-radius: 6px;
   background: transparent;
-  color: var(--text);
+  color: var(--muted);
   cursor: pointer;
-  font-size: 12px;
+  font-family: var(--mono, ui-monospace, 'SF Mono', Menlo, monospace);
+  font-size: 11px;
   text-align: left;
 }
 
@@ -680,7 +686,8 @@
 
 .file-tree-row:hover,
 .file-tree-node.selected > .file-tree-row {
-  background: var(--surface-hover);
+  background: var(--hover);
+  color: var(--text);
 }
 
 .file-tree-twist {
@@ -853,7 +860,7 @@
   min-height: 34px;
   padding: 0 10px;
   border-bottom: 1px solid var(--line-soft);
-  background: rgb(14, 18, 24); /* console header — deliberate dark literal */
+  background: var(--term-bg);
 }
 
 .terminal-dock-tabs {
@@ -949,7 +956,7 @@
   grid-template-columns: 52px 42px minmax(0, 1fr);
   gap: 8px;
   padding: 1px 0;
-  color: rgb(197, 205, 219); /* console foreground — deliberate literal */
+  color: var(--term-text);
 }
 
 .terminal-line.level-warn .terminal-level,
@@ -995,7 +1002,7 @@
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  color: rgb(215, 224, 234); /* console foreground — deliberate literal */
+  color: var(--term-text);
 }
 
 .pty-input-row {
@@ -1004,7 +1011,7 @@
   gap: 6px;
   padding: 6px 8px;
   border-top: 1px solid var(--line-soft);
-  background: rgb(14, 18, 24); /* console input strip — deliberate literal */
+  background: var(--term-bg);
 }
 
 .pty-prompt {
@@ -1017,7 +1024,7 @@
   height: 28px;
   border: 1px solid var(--line-soft);
   border-radius: 6px;
-  background: rgb(10, 12, 16); /* console input field — deliberate literal */
+  background: var(--term-bg);
   color: var(--text);
   padding: 0 8px;
   font-family: var(--mono);
@@ -1041,7 +1048,8 @@
   flex: 1;
   min-height: 140px;
   padding: 4px 0 4px 6px;
-  background: rgb(15, 17, 21); /* xterm canvas — deliberate literal */
+  background: var(--term-bg);
+  border: 1px solid var(--line);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -1254,16 +1262,19 @@
   width: 100%;
   padding: 0 4px 0 6px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
-  color: var(--text);
+  color: var(--muted);
   cursor: pointer;
   text-align: left;
   font: inherit;
+  font-family: var(--mono, ui-monospace, 'SF Mono', Menlo, monospace);
+  font-size: 11px;
 }
 
 .changes-row:hover {
-  background: var(--surface-hover);
+  background: var(--hover);
+  color: var(--text);
 }
 
 .changes-row.selected {
@@ -2066,7 +2077,7 @@
   padding: 0 8px;
   border: 1px solid var(--line-soft);
   border-radius: 6px;
-  background: rgb(10, 12, 16);
+  background: var(--control);
   color: var(--text);
   font-family: var(--mono);
   font-size: 12px;
@@ -2134,7 +2145,7 @@
   flex: 1;
   min-height: 0;
   position: relative;
-  background: rgb(15, 17, 21);
+  background: var(--sunken);
   cursor: crosshair;
 }
 
@@ -2200,7 +2211,7 @@
   padding: 0 10px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
-  background: rgb(10, 12, 16);
+  background: var(--control);
   color: var(--text);
   font-size: 13px;
 }

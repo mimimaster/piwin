@@ -2,9 +2,10 @@
  * Scrollable assistant/user message list with edit/retry actions.
  */
 import { memo, useEffect, useRef, useState, type ReactElement } from 'react';
-import type { ThemeManifest } from '@piwin/contracts';
+import type { SessionPlan, ThemeManifest } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
+import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
 import { MarkdownView } from './MarkdownView';
 import { MediaPreview } from './MediaPreview';
 import { MessageActions } from './message-actions';
@@ -13,8 +14,11 @@ import { SubagentActivityCard } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { IconAgent } from './shell-icons';
+import { PlanCard } from './plan-card';
+import { GateCard } from './gate-card';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
+import type { DiffCardRequest } from './diff-card';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import type { PendingComposerAttachment } from './media-utils';
 
@@ -170,9 +174,17 @@ export type ChatThreadProps = {
   lastUserMessageId: string | null;
   activeTheme: ThemeManifest | null;
   artifactThemeKey: number;
+  /** Session-level plan rendered once at the top of the thread (not per-message). */
+  plan?: SessionPlan | null;
   runRecordsById?: Record<string, RunRecordUi>;
   activeRunId?: string | null;
   permissionPrompt?: PermissionPromptUi | null;
+  /** Project path used to gate "always allow" (project remember) availability. */
+  projectPath?: string | null;
+  /** Host git request adapter forwarded to tool cards → DiffCard. */
+  toolDiffRequest?: DiffCardRequest;
+  /** Existing permission respond handler (allow / deny / ask). */
+  onPermission?: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
   workDetailsExpanded?: WorkDetailsExpanded;
   toolDensity?: ToolCallDensity;
   onEdit: (messageId: string) => void;
@@ -220,6 +232,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
 
   return (
     <div className="chat-thread">
+      {props.plan ? <PlanCard plan={props.plan} /> : null}
       {props.messages.map((message, messageIndex) => (
         <ChatMessageRow
           key={message.id}
@@ -236,6 +249,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           permissionPrompt={props.permissionPrompt ?? null}
           workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
           toolDensity={props.toolDensity ?? 'comfortable'}
+          {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+          {...(props.toolDiffRequest !== undefined
+            ? { toolDiffRequest: props.toolDiffRequest }
+            : {})}
           onEdit={props.onEdit}
           onCancelEdit={props.onCancelEdit}
           onEditResend={props.onEditResend}
@@ -261,6 +278,13 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.locale ? { locale: props.locale } : {})}
         />
       ) : null}
+      {props.permissionPrompt && props.onPermission ? (
+        <GateCard
+          prompt={props.permissionPrompt}
+          projectPath={props.projectPath ?? null}
+          onPermission={props.onPermission}
+        />
+      ) : null}
     </div>
   );
 }
@@ -280,6 +304,10 @@ type ChatMessageRowProps = {
   permissionPrompt: PermissionPromptUi | null;
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity: ToolCallDensity;
+  /** Project root forwarded to tool cards → DiffCard. */
+  projectPath?: string | null;
+  /** Host git request adapter forwarded to tool cards → DiffCard. */
+  toolDiffRequest?: DiffCardRequest;
   onEdit: (messageId: string) => void;
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
@@ -359,6 +387,8 @@ const ChatMessageRow = memo(
             permissionPrompt={props.permissionPrompt}
             workDetailsExpanded={props.workDetailsExpanded}
             toolDensity={props.toolDensity}
+            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+            {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
             {...(props.locale ? { locale: props.locale } : {})}
           />
         ) : null}

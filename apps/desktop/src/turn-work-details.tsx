@@ -14,6 +14,7 @@ import { TurnToolGroup } from './turn-tool-group';
 import { IconChevronDown } from './shell-icons';
 import { RunActivitySplash } from './RunActivitySplash.js';
 import { turnPresentationToActivityInput } from './run-activity-mappers.js';
+import type { DiffCardRequest } from './diff-card';
 
 export type TurnWorkDetailsProps = {
   message: ChatMessageUi;
@@ -23,6 +24,10 @@ export type TurnWorkDetailsProps = {
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity?: 'compact' | 'comfortable' | 'detailed';
   locale?: 'zh-CN' | 'en';
+  /** Project root forwarded to tool cards → DiffCard. */
+  projectPath?: string | null;
+  /** Host request adapter forwarded to tool cards → DiffCard. */
+  request?: DiffCardRequest;
 };
 
 export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | null {
@@ -134,6 +139,8 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
           <TurnToolGroup
             tools={tools}
             {...(props.toolDensity ? { density: props.toolDensity } : { density: 'compact' })}
+            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+            {...(props.request !== undefined ? { request: props.request } : {})}
           />
         ) : null}
 

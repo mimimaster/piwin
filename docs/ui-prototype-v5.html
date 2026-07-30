@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="zh-CN" data-mode="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>V5 · Obsidian — Linear 式冷黑</title>
+    <link rel="stylesheet" href="proto-shell.css" />
+    <style>
+      /* V5 OBSIDIAN — Linear/Raycast 式冷调近黑
+   零辉光零渐变，发丝线分隔，靛蓝 accent 只用在关键动作 */
+      :root {
+        color-scheme: dark;
+        --bg: #0e0f12;
+        --sidebar: #0e0f12;
+        --card: #16181d;
+        --control: #1c1f25;
+        --sunken: #0a0b0e;
+        --user-bubble: #1c1f25;
+        --term: #0a0b0e;
+        --term-text: #b0b6c0;
+        --line: rgba(255, 255, 255, 0.06);
+        --line-strong: rgba(255, 255, 255, 0.12);
+        --hover: rgba(255, 255, 255, 0.04);
+        --selected: rgba(255, 255, 255, 0.07);
+        --text: #e8eaf0;
+        --muted: #9ba1ad;
+        --faint: #5d626e;
+        --accent: #6e7bf2;
+        --accent-fg: #ffffff;
+        --accent-soft: rgba(110, 123, 242, 0.14);
+        --accent-ring: rgba(110, 123, 242, 0.22);
+        --accent-text: #a5aff7;
+        --ok: #4fc08d;
+        --ok-fg: #06170f;
+        --danger: #e5636a;
+        --warn: #d9a13c;
+        --warn-fg: #1d1300;
+        --warn-line: rgba(217, 161, 60, 0.3);
+        --add-bg: rgba(79, 192, 141, 0.1);
+        --add-text: #7dd8ab;
+        --del-bg: rgba(229, 99, 106, 0.1);
+        --del-text: #ef9a9e;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="titleband">
+        <div class="traffic"><i></i><i></i><i></i></div>
+        <button class="tb-btn">
+          <svg class="ic" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="16" rx="3" />
+            <path d="M9.5 4v16" />
+          </svg>
+        </button>
+        <div class="tb-crumb">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M3 8l6.5-5L16 8v12H3z" /></svg>piwin<span
+            style="color: var(--faint)"
+            >/</span
+          ><b>重构设置页路由</b>
+        </div>
+        <div class="tb-right">
+          <button class="tb-btn">
+            <svg class="ic" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.5-4.5" />
+            </svg>
+          </button>
+          <button class="tb-btn">
+            <svg class="ic" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="16" rx="3" />
+              <path d="M14.5 4v16" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="main">
+        <aside class="sidebar">
+          <div class="sb-search">
+            <svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.5-4.5" /></svg
+            >搜索…<span class="kbd">⌘K</span>
+          </div>
+          <button class="sb-new">
+            <svg
+              class="ic"
+              viewBox="0 0 24 24"
+              style="width: 12px; height: 12px; stroke-width: 2.2"
+            >
+              <path d="M12 5v14M5 12h14" /></svg
+            >新建 Agent
+          </button>
+          <div class="sb-scroll">
+            <div class="sb-sec">
+              <h4>项目</h4>
+              <div class="proj-row">
+                <span class="proj-dot" style="background: #6e7bf2"></span>piwin<span
+                  class="count num"
+                  >12</span
+                >
+              </div>
+              <div class="sess active">
+                <span class="t">重构设置页路由 + 键盘导航</span
+                ><span class="m"
+                  ><span class="live"><i></i>运行中</span><span class="num">2:41</span></span
+                >
+              </div>
+              <div class="sess">
+                <span class="t">Obsidian 主题原型</span><span class="m"><span>昨天</span></span>
+              </div>
+              <div class="sess">
+                <span class="t">修复 transcript 抖动</span><span class="m"><span>周二</span></span>
+              </div>
+              <div class="proj-row">
+                <span class="proj-dot" style="background: #4fc08d"></span>openwebui_m<span
+                  class="count num"
+                  >4</span
+                >
+              </div>
+              <div class="proj-row">
+                <span class="proj-dot" style="background: #d9a13c"></span>dotfiles<span
+                  class="count num"
+                  >2</span
+                >
+              </div>
+            </div>
+            <div class="sb-sec">
+              <h4>最近</h4>
+              <div class="sess" style="margin-left: 0">
+                <span class="t">pet 覆盖层系统级窗口</span
+                ><span class="m"><span>3 天前</span></span>
+              </div>
+              <div class="sess" style="margin-left: 0">
+                <span class="t">MCP 权限策略</span><span class="m"><span>上周</span></span>
+              </div>
+            </div>
+          </div>
+          <div class="sb-foot">
+            <div class="who"><span class="avatar">YJ</span><span>yorick</span></div>
+            <button class="tb-btn">
+              <svg class="ic" viewBox="0 0 24 24">
+                <path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z" />
+              </svg>
+            </button>
+            <button class="tb-btn">
+              <svg class="ic" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.9 2.9l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.9-2.9l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.9-2.9l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.9 2.9l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1h.1a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"
+                />
+              </svg>
+            </button>
+          </div>
+        </aside>
+
+        <main class="stage">
+          <div class="chat-col">
+            <div class="ctx-bar">
+              <div class="ctx-crumb">
+                <svg
+                  class="ic"
+                  viewBox="0 0 24 24"
+                  style="width: 13px; height: 13px; color: var(--faint)"
+                >
+                  <path d="M3 8l6.5-5L16 8v12H3z" /></svg
+                >piwin<span style="color: var(--faint)">/</span><b>重构设置页路由 + 键盘导航</b>
+              </div>
+              <span class="mode-pill"
+                ><svg class="ic" viewBox="0 0 24 24">
+                  <path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z" /></svg
+                >Agent</span
+              >
+              <div class="ctx-status">
+                <span class="git"
+                  ><svg class="ic" viewBox="0 0 24 24">
+                    <circle cx="6" cy="6" r="2.5" />
+                    <circle cx="6" cy="18" r="2.5" />
+                    <circle cx="18" cy="8" r="2.5" />
+                    <path d="M6 8.5v7M18 10.5c0 5-7 3.5-10 5.5" /></svg
+                  ><span class="num">feat/ui-shell-redesign</span></span
+                >
+                <span class="num">2 文件已改</span>
+              </div>
+            </div>
+
+            <div class="transcript">
+              <div class="msg-user">
+                <div class="msg-meta" style="justify-content: flex-end">
+                  <time class="num">14:02</time><span class="name">你</span>
+                </div>
+                <div class="bubble">
+                  把设置页从面板拆成独立路由，加上全局键盘导航，顺便把外观设置里主题切换的闪烁修一下。
+                </div>
+              </div>
+              <div class="msg-assistant">
+                <div class="msg-meta">
+                  <span class="name">piwin</span><time class="num">14:02</time>
+                </div>
+                <div class="think">
+                  <span class="dotty"><i></i><i></i><i></i></span>思考了 6 秒 · 已折叠推理过程
+                </div>
+                <div class="plan-card closed" id="planCard">
+                  <div class="plan-head" onclick="toggleCard('planCard')">
+                    <svg class="ic" viewBox="0 0 24 24">
+                      <path d="M9 5h11M9 12h11M9 19h11" />
+                      <path d="M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2" /></svg
+                    >计划 · 3 步（先讲清楚再动手）<svg class="chev ic" viewBox="0 0 24 24">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </div>
+                  <div class="plan-steps">
+                    <div class="step done">
+                      <span class="box">✓</span>设置页抽成 <code>/settings/*</code> 路由
+                    </div>
+                    <div class="step run">
+                      <span class="box"></span>接入全局键盘导航（g s / g c / ⌘K）
+                    </div>
+                    <div class="step">
+                      <span class="box"></span>主题切换闪烁：token 应用移到 layout effect
+                    </div>
+                  </div>
+                </div>
+                <div class="tool closed" id="tool1">
+                  <div class="tool-head" onclick="toggleCard('tool1')">
+                    <svg class="ic" viewBox="0 0 24 24">
+                      <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                      <path d="M14 3v5h5" /></svg
+                    >读取 <span class="path">settings-shell.tsx</span><span class="ok-dot"></span
+                    ><span class="elapsed num">412ms</span
+                    ><svg class="chev ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+                  </div>
+                  <div class="tool-body"><span class="dim">// 213 行 · 已读入上下文</span></div>
+                </div>
+                <p>先拆路由。设置壳目前是巨型条件渲染，改成嵌套路由，保留 deep-link：</p>
+                <div class="diff-card" id="diffCard">
+                  <div class="diff-head">
+                    <svg class="ic" viewBox="0 0 24 24" style="color: var(--muted)">
+                      <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                      <path d="M14 3v5h5" />
+                    </svg>
+                    <span class="file">settings-shell.tsx</span>
+                    <span class="stat num"
+                      ><span class="add">+38</span> <span class="del">−52</span></span
+                    >
+                    <div class="diff-actions" id="diffActions">
+                      <button class="btn" onclick="verdict(false)">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg
+                        >拒绝
+                      </button>
+                      <button class="btn primary" onclick="verdict(true)">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg>接受
+                      </button>
+                    </div>
+                  </div>
+                  <div class="diff-body">
+                    <div class="ln ctx">
+                      <span class="g">41</span>export function SettingsShell() {
+                    </div>
+                    <div class="ln del">
+                      <span class="g">42</span> const [page, setPage] = useState('general')
+                    </div>
+                    <div class="ln add"><span class="g">42</span> return (</div>
+                    <div class="ln add">
+                      <span class="g">43</span> &lt;Routes base="/settings"&gt;
+                    </div>
+                    <div class="ln add">
+                      <span class="g">44</span> &lt;Route path="general" element={&lt;General/&gt;}
+                      /&gt;
+                    </div>
+                    <div class="ln add">
+                      <span class="g">45</span> &lt;Route path="appearance"
+                      element={&lt;Appearance/&gt;} /&gt;
+                    </div>
+                    <div class="ln ctx"><span class="g">46</span> &lt;/Routes&gt;</div>
+                  </div>
+                </div>
+                <div class="gate">
+                  <div class="gate-head">
+                    <svg class="ic" viewBox="0 0 24 24">
+                      <path d="M12 9v4M12 17h.01" />
+                      <path
+                        d="M10.3 3.8L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.8a2 2 0 00-3.4 0z"
+                      /></svg
+                    >需要审批 · 运行测试套件
+                  </div>
+                  <div class="gate-cmd">
+                    <span style="color: var(--faint)">$</span> pnpm --filter @piwin/desktop test
+                  </div>
+                  <div class="gate-actions">
+                    <button class="btn warn-p">
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg>允许一次
+                    </button>
+                    <button class="btn">总是允许</button>
+                    <button class="btn">拒绝</button>
+                    <span class="hint">权限: ask · ADR 0019</span>
+                  </div>
+                </div>
+                <p id="streamTarget">路由拆完了<span class="stream-caret"></span></p>
+              </div>
+            </div>
+
+            <div class="composer-zone">
+              <div class="composer">
+                <textarea placeholder="继续追问，或 @ 文件 / # 技能…">
+继续，键盘导航用 g 键系列，别和浏览器冲突。</textarea>
+                <div class="composer-bar">
+                  <button class="cbtn">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+                  </button>
+                  <button class="cbtn model">
+                    <svg class="ic" viewBox="0 0 24 24" style="width: 11px; height: 11px">
+                      <rect x="4" y="4" width="16" height="16" rx="3" />
+                      <path d="M9 9h6v6H9z" /></svg
+                    >Kimi K3<svg class="ic" viewBox="0 0 24 24" style="width: 10px; height: 10px">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                  <button class="cbtn">
+                    <svg class="ic" viewBox="0 0 24 24">
+                      <path d="M9.5 14.5L4 20M4 20h5M4 20v-5M14.5 9.5L20 4M20 4h-5M20 4v5" /></svg
+                    >深度思考
+                  </button>
+                  <div class="right">
+                    <svg class="ring" viewBox="0 0 20 20">
+                      <circle class="bg" cx="10" cy="10" r="7.5" />
+                      <circle class="fg" cx="10" cy="10" r="7.5" />
+                    </svg>
+                    <button class="send">
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="composer-hint">⏎ 发送 · ⇧⏎ 换行 · ⌘K 命令 · Esc 中断</div>
+            </div>
+          </div>
+        </main>
+
+        <aside class="signal">
+          <div class="sg-tabs">
+            <button class="sg-tab on" data-pane="changes">
+              更改<span class="badge num">3</span>
+            </button>
+            <button class="sg-tab" data-pane="term">终端</button>
+            <button class="sg-tab" data-pane="outline">大纲</button>
+          </div>
+          <div class="sg-body">
+            <div class="sg-pane on" id="pane-changes">
+              <div class="file-row">
+                <svg class="ic" viewBox="0 0 24 24">
+                  <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                  <path d="M14 3v5h5" /></svg
+                >settings-shell.tsx<span class="tag num"
+                  ><span class="add">+38</span> <span class="del">−52</span></span
+                >
+              </div>
+              <div class="file-row">
+                <svg class="ic" viewBox="0 0 24 24">
+                  <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                  <path d="M14 3v5h5" /></svg
+                >use-desktop-shortcuts.ts<span class="tag num"><span class="add">+41</span></span>
+              </div>
+              <div class="file-row">
+                <svg class="ic" viewBox="0 0 24 24">
+                  <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                  <path d="M14 3v5h5" /></svg
+                >appearance-page.tsx<span class="tag num"
+                  ><span class="add">+9</span> <span class="del">−4</span></span
+                >
+              </div>
+            </div>
+            <div class="sg-pane" id="pane-term">
+              <div class="term-mock">
+                <div><span class="dim">$</span> pnpm --filter @piwin/desktop test</div>
+                <div class="dim">…</div>
+                <div>
+                  <span class="ok">✓</span> settings-shell.test.tsx <span class="dim">(14)</span>
+                </div>
+                <div>
+                  <span class="ok">✓</span> use-desktop-shortcuts.test.ts
+                  <span class="dim">(9)</span>
+                </div>
+                <div class="dim">Test Files 2 passed · 23 tests · 1.2s</div>
+              </div>
+            </div>
+            <div class="sg-pane" id="pane-outline">
+              <div class="outline-item">
+                <svg class="ic" viewBox="0 0 24 24">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 21c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5" /></svg
+                >把设置页拆成独立路由…
+              </div>
+              <div class="outline-item">
+                <svg class="ic" viewBox="0 0 24 24"><path d="M9 5h11M9 12h11M9 19h11" /></svg>计划 ·
+                3 步
+              </div>
+              <div class="outline-item">
+                <svg class="ic" viewBox="0 0 24 24">
+                  <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /></svg
+                >读取 settings-shell.tsx
+              </div>
+              <div class="outline-item">
+                <svg class="ic" viewBox="0 0 24 24">
+                  <path d="M12 9v4M12 17h.01" />
+                  <circle cx="12" cy="12" r="9" /></svg
+                >审批门 · pnpm test
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="statusbar">
+        <span class="sb-item run"
+          ><span class="live"><i></i>agent 运行中 · 步骤 2/3</span></span
+        >
+        <span class="sb-item num">86.2k / 128k</span>
+        <span class="sb-item"
+          ><svg class="ic" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 3" /></svg
+          ><span class="num">2:41</span></span
+        >
+        <div class="right">
+          <span class="sb-item"
+            ><svg class="ic" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"
+              /></svg
+            >RPC · 已连接</span
+          >
+          <span class="sb-item">权限 ask</span>
+        </div>
+      </footer>
+    </div>
+
+    <div class="vbar">
+      <a href="#" class="on">V5 Obsidian</a>
+      <a href="ui-prototype-v6.html">V6 Noir</a>
+      <a href="ui-prototype-v7.html">V7 Paper</a>
+      <a href="ui-prototype-m1.html" style="opacity: 0.6">M1-4</a>
+    </div>
+
+    <script>
+      function toggleCard(id) {
+        document.getElementById(id).classList.toggle('closed');
+      }
+      function verdict(ok) {
+        document.getElementById('diffCard').classList.toggle('accepted', ok);
+        document.getElementById('diffActions').style.display = 'none';
+      }
+      document.querySelectorAll('.sg-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.sg-tab').forEach((t) => t.classList.remove('on'));
+          document.querySelectorAll('.sg-pane').forEach((p) => p.classList.remove('on'));
+          tab.classList.add('on');
+          document.getElementById('pane-' + tab.dataset.pane).classList.add('on');
+        });
+      });
+      document.querySelectorAll('.sess').forEach((s) => {
+        s.addEventListener('click', () => {
+          document.querySelectorAll('.sess').forEach((x) => x.classList.remove('active'));
+          s.classList.add('active');
+        });
+      });
+      const FULL =
+        '路由拆完了，deep-link 行为保持不变。接下来接键盘导航：g s 进设置、g c 回会话、⌘K 全局命令——都在一个 use-hotkey 层里注册。';
+      let timer = null;
+      (function replayStream() {
+        const target = document.getElementById('streamTarget');
+        const caret = '<span class="stream-caret"></span>';
+        clearInterval(timer);
+        let i = 0;
+        timer = setInterval(() => {
+          i += 1 + Math.floor(Math.random() * 3);
+          if (i >= FULL.length) {
+            target.innerHTML = FULL;
+            clearInterval(timer);
+          } else {
+            target.innerHTML = FULL.slice(0, i) + caret;
+          }
+        }, 34);
+      })();
+    </script>
+  </body>
+</html>

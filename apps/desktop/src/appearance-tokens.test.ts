@@ -19,7 +19,11 @@ import {
 const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--accent',
   '--accent-2',
+  '--accent-fg',
+  '--accent-ring',
   '--accent-soft',
+  '--add-bg',
+  '--add-text',
   '--bg',
   '--border',
   '--border-default',
@@ -27,21 +31,26 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--border-interactive',
   '--border-subtle',
   '--canvas',
+  '--card',
   '--content-disabled',
   '--content-muted',
   '--content-on-accent',
   '--content-primary',
   '--content-secondary',
+  '--control',
   '--control-height-compact',
   '--control-height-default',
   '--control-height-large',
   '--danger',
+  '--del-bg',
+  '--del-text',
   '--duration-fast',
   '--duration-standard',
   '--easing-standard',
   '--faint',
   '--focus-ring',
   '--font',
+  '--hover',
   '--line',
   '--line-soft',
   '--line-strong',
@@ -50,6 +59,7 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--motion-standard',
   '--muted',
   '--ok',
+  '--ok-fg',
   '--overlay-backdrop',
   '--panel',
   '--radius',
@@ -59,6 +69,7 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--radius-surface',
   '--rail',
   '--sage',
+  '--selected',
   '--shadow',
   '--shadow-overlay',
   '--sidebar',
@@ -75,6 +86,7 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--state-success',
   '--state-waiting',
   '--state-warning',
+  '--sunken',
   '--surface',
   '--surface-canvas',
   '--surface-control',
@@ -86,8 +98,14 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--surface-raised',
   '--surface-selected',
   '--surface-sidebar',
+  '--term-bg',
+  '--term-text',
   '--text',
+  '--user-bubble',
   '--violet',
+  '--warn',
+  '--warn-fg',
+  '--warn-line',
   '--wb-accent-soft',
   '--wb-dim',
   '--wb-hover',
@@ -199,5 +217,51 @@ describe('applyAppearanceToDocument', () => {
     expect(document.documentElement.dataset.themeMode).toBe('light');
     expect(document.documentElement.dataset.themeId).toBe('piwin-light');
     expect(document.documentElement.style.colorScheme).toBe('light');
+  });
+});
+
+describe('applyAppearanceToDocument Paper/Noir projection', () => {
+  beforeEach(() => {
+    document.documentElement.removeAttribute('style');
+  });
+
+  it('projects Paper light derived ramp', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_LIGHT);
+    const s = document.documentElement.style;
+    expect(s.getPropertyValue('--canvas').trim()).toBe('#f7f7f8');
+    expect(s.getPropertyValue('--card').trim()).toBe('#ffffff');
+    expect(s.getPropertyValue('--sidebar').trim()).toBe('#f2f2f4');
+    expect(s.getPropertyValue('--sunken').trim()).toBe('#f0f0f2');
+    expect(s.getPropertyValue('--user-bubble').trim()).toBe('#ececee');
+    expect(s.getPropertyValue('--faint').trim()).toBe('#a0a0a8');
+    expect(s.getPropertyValue('--accent').trim()).toBe('#2f6bed');
+    expect(s.getPropertyValue('--accent-fg').trim()).toBe('#ffffff');
+    expect(s.getPropertyValue('--warn').trim()).toBe('#b25000');
+    expect(s.getPropertyValue('--add-text').trim()).toBe('#0e7a4c');
+    expect(s.getPropertyValue('--del-text').trim()).toBe('#c13a36');
+    expect(s.getPropertyValue('--term-bg').trim()).toBe('#16181d');
+  });
+
+  it('projects Noir dark derived ramp with inverted accent', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_DARK);
+    const s = document.documentElement.style;
+    expect(s.getPropertyValue('--canvas').trim()).toBe('#000000');
+    expect(s.getPropertyValue('--card').trim()).toBe('#0f0f0f');
+    expect(s.getPropertyValue('--sidebar').trim()).toBe('#000000');
+    expect(s.getPropertyValue('--sunken').trim()).toBe('#050505');
+    expect(s.getPropertyValue('--faint').trim()).toBe('#595959');
+    expect(s.getPropertyValue('--accent').trim()).toBe('#f5f5f5');
+    // Noir: accent 是白，accent 上的字必须是黑
+    expect(s.getPropertyValue('--accent-fg').trim()).toBe('#000000');
+    expect(s.getPropertyValue('--warn').trim()).toBe('#f5b83d');
+    expect(s.getPropertyValue('--add-text').trim()).toBe('#6fdcab');
+    expect(s.getPropertyValue('--del-text').trim()).toBe('#f08a92');
+  });
+
+  it('keeps builtin theme ids stable for stored settings', () => {
+    expect(PIWIN_APPEARANCE_LIGHT.id).toBe('piwin-light');
+    expect(PIWIN_APPEARANCE_DARK.id).toBe('piwin-dark');
+    expect(PIWIN_APPEARANCE_LIGHT.name).toBe('Paper');
+    expect(PIWIN_APPEARANCE_DARK.name).toBe('Noir');
   });
 });
