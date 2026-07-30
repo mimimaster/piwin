@@ -11,5 +11,4 @@ export type RunActivityInput = {
 export type ActivityIconSource = {
   kind: RunStatusKind;
   lucideName: string;
-  imgSrc?: string;
 };
