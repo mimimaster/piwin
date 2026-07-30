@@ -1194,6 +1194,14 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           success: true,
           data: { petId: 'mock-registry-pet', source: 'registry', path: '/mock/pets/mock-registry-pet' },
         };
+      case 'pet/cancel':
+        return {
+          id,
+          type: 'response',
+          command: 'pet/cancel',
+          success: true,
+          data: { cancelled: true },
+        };
       case 'git/status':
         return {
           id,

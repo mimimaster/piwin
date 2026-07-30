@@ -77,20 +77,22 @@ export async function installPet(
   ctx: PetSourceProviderContext,
   source: PetSourceKind,
   location: string,
+  signal?: AbortSignal,
 ): Promise<PetInstallResult> {
   const provider = registry.byKind.get(source);
   if (!provider || !provider.install) {
     throw new Error(`install not supported for source: ${source}`);
   }
-  return provider.install(ctx, location);
+  return provider.install(ctx, location, signal);
 }
 
 export async function queryPetStore(
   registry: PetSourceRegistry,
   ctx: PetSourceProviderContext,
   query: string,
+  signal?: AbortSignal,
 ): Promise<PetStoreQueryResult[]> {
   const provider = registry.byKind.get('registry');
   if (!provider || !provider.queryStore) return [];
-  return provider.queryStore(ctx, query);
+  return provider.queryStore(ctx, query, signal);
 }

@@ -235,6 +235,7 @@ export type HostCommand =
   | { id?: string; type: 'pet/install-local'; sourcePath: string }
   | { id?: string; type: 'pet/store-query'; query: PetStoreQuery }
   | { id?: string; type: 'pet/install-registry'; url: string; sha256?: string }
+  | { id?: string; type: 'pet/cancel'; requestId: string }
   | { id?: string; type: 'plan/get'; sessionId: string }
   | { id?: string; type: 'plan/set'; sessionId: string; plan: SessionPlan }
   | { id?: string; type: 'plan/clear'; sessionId: string }

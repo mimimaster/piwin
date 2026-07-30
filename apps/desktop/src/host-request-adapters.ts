@@ -95,11 +95,18 @@ export type HostRequestAdapters = {
       | 'pet/set-active'
       | 'pet/install-local'
       | 'pet/store-query'
-      | 'pet/install-registry';
+      | 'pet/install-registry'
+      | 'pet/cancel';
     petId?: string;
     sourcePath?: string;
+    /** PetStoreQuery payload for pet/store-query. */
     query?: { query: string; source?: 'bundled' | 'local' | 'codex-live' | 'registry' };
+    /** JSON-encoded registry entry (or bare URL) for pet/install-registry. */
     url?: string;
+    /** Request id to cancel for pet/cancel. */
+    requestId?: string;
+    /** Pre-generated request id for install-registry so it can be cancelled. */
+    id?: string;
   }) => Promise<HostResponse>;
   requestPty: (command: {
     type: 'pty/open' | 'pty/write' | 'pty/resize' | 'pty/close' | 'pty/list';
@@ -339,7 +346,19 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         });
       }
       if (command.type === 'pet/install-registry') {
-        return hostClient.request({ type: 'pet/install-registry', url: command.url ?? '' });
+        const payload: {
+          type: 'pet/install-registry';
+          url: string;
+          id?: string;
+        } = { type: 'pet/install-registry', url: command.url ?? '' };
+        if (command.id) payload.id = command.id;
+        return hostClient.request(payload);
+      }
+      if (command.type === 'pet/cancel') {
+        return hostClient.request({
+          type: 'pet/cancel',
+          requestId: command.requestId ?? '',
+        });
       }
       return hostClient.request({
         type: 'pet/install-local',

@@ -174,16 +174,18 @@ export async function installPetFromLocalPath(
 export async function installPetFromRegistry(
   piwinRoot: string,
   entryJson: string,
+  signal?: AbortSignal,
 ): Promise<{ petId: string; path: string }> {
   const ctx = buildContext(piwinRoot);
-  const result = await installPet(getRegistry(), ctx, 'registry', entryJson);
+  const result = await installPet(getRegistry(), ctx, 'registry', entryJson, signal);
   return { petId: result.petId, path: result.path };
 }
 
 export async function queryRemotePetStore(
   piwinRoot: string,
   query: string,
+  signal?: AbortSignal,
 ): Promise<PetStoreQueryResult[]> {
   const ctx = buildContext(piwinRoot);
-  return queryPetStore(getRegistry(), ctx, query);
+  return queryPetStore(getRegistry(), ctx, query, signal);
 }
