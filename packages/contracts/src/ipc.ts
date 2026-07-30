@@ -43,6 +43,12 @@ import type {
 import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
 import type { NoteSearchQuery, NoteUpdateInput, NoteWriteInput } from './notes.js';
 import type {
+  PetInstallResult,
+  PetRuntimeSnapshot,
+  PetStoreQuery,
+  PetStoreQueryResult,
+} from './pet.js';
+import type {
   ManagedProcessLogChunk,
   ManagedProcessLogsQuery,
   ManagedProcessRecord,
@@ -232,6 +238,8 @@ export type HostCommand =
   | { id?: string; type: 'pet/get-active' }
   | { id?: string; type: 'pet/set-active'; petId: string }
   | { id?: string; type: 'pet/install-local'; sourcePath: string }
+  | { id?: string; type: 'pet/store-query'; query: PetStoreQuery }
+  | { id?: string; type: 'pet/install-registry'; url: string; sha256?: string }
   | { id?: string; type: 'plan/get'; sessionId: string }
   | { id?: string; type: 'plan/set'; sessionId: string; plan: SessionPlan }
   | { id?: string; type: 'plan/clear'; sessionId: string }
@@ -466,7 +474,8 @@ export type HostPush =
       message?: string;
       options?: string[];
       placeholder?: string;
-    };
+    }
+  | { type: 'pet/state'; pet: PetRuntimeSnapshot };
 
 /** Pi ExtensionUIContext dialog kinds bridged to Desktop. */
 export type ExtensionUiKind = 'confirm' | 'select' | 'input';
