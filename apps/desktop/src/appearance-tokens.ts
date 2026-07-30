@@ -131,18 +131,18 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Hover state fill for interactive row/item components. */
   root.style.setProperty(
     '--surface-hover',
-    isLight ? 'rgba(60, 40, 20, 0.05)' : 'rgba(255, 240, 225, 0.055)',
+    isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)',
   );
   /** Rail shares the unified field (quiet workbench: no hard panel boxes). */
   root.style.setProperty('--rail', tokens.bg);
   root.style.setProperty(
     '--wb-hover',
-    isLight ? 'rgba(60, 40, 20, 0.05)' : 'rgba(255, 240, 225, 0.055)',
+    isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)',
   );
   root.style.setProperty('--wb-line', tokens.border);
   root.style.setProperty(
     '--wb-accent-soft',
-    `color-mix(in srgb, ${tokens.accent} ${isLight ? 10 : 13}%, transparent)`,
+    `color-mix(in srgb, ${tokens.accent} 10%, transparent)`,
   );
 
   /**
