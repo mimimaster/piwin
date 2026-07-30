@@ -445,15 +445,14 @@
   cursor: not-allowed;
 }
 
-/* ─── Tool call cards — flat inline lines (quiet interface) ─────────── */
+/* ─── Tool call cards — Paper/Noir card (proto-shell.css .tool block) ── */
 
 .tool-call-card {
-  border: none;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 0;
-  margin: 6px 0 10px;
+  border-radius: 10px;
+  margin: 4px 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
   animation: tool-line-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -485,32 +484,34 @@
 @keyframes tool-line-in {
   from {
     opacity: 0;
-    transform: translateX(-4px);
+    transform: translateY(-2px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
+/* Head row — proto .tool-head */
 .tool-call-summary {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 3px 0;
+  padding: 9px 12px;
   border: none;
   background: transparent;
   cursor: pointer;
   text-align: left;
-  font-size: 13px;
+  font-size: 12.5px;
+  font-weight: 500;
   line-height: 1.5;
   color: var(--muted);
-  transition: color 0.12s ease;
+  transition: background 120ms;
 }
 
 .tool-call-summary:hover {
-  color: var(--text);
+  background: var(--hover);
 }
 
 .tool-call-summary:hover .tool-call-chevron {
@@ -518,47 +519,55 @@
 }
 
 .tool-call-card.density-compact .tool-call-summary {
-  padding: 5px 8px;
+  padding: 7px 12px;
 }
 
+/* Kind icon — proto .tool-head .ic (13px, accent) */
+.tool-call-kind-icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--accent);
+  stroke-width: 1.7;
+}
+
+/* Verb label (read / write / bash …) */
 .tool-call-name {
   font-weight: 500;
   color: var(--muted);
   font-size: 12.5px;
-  font-family: var(--mono);
   letter-spacing: -0.01em;
-}
-
-.tool-call-summary:hover .tool-call-name {
-  color: var(--text);
+  flex: none;
 }
 
 .tool-call-card.density-compact .tool-call-name {
-  font-size: 11px;
+  font-size: 12px;
 }
 
+/* Mono path — proto .tool-head .path */
 .tool-call-preview {
-  font-size: 12px;
-  color: var(--faint);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
   min-width: 0;
-  opacity: 0.7;
 }
 
 .tool-call-card.is-expanded .tool-call-preview {
   white-space: normal;
 }
 
+/* Elapsed — proto .tool-head .elapsed (margin-left auto, mono 10.5px, faint) */
 .tool-call-duration {
-  font-size: 11px;
+  margin-left: auto;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 10.5px;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
-  opacity: 0.6;
   flex-shrink: 0;
-  font-family: var(--mono);
 }
 
 .tool-call-duration-live {
@@ -575,26 +584,36 @@
   }
 }
 
+/* OK dot — proto .tool-head .ok-dot (6px circle, --ok) */
+.tool-call-ok {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex-shrink: 0;
+}
+
+/* Error marker — danger-tinted dot */
+.tool-call-err {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+}
+
+/* Running status dot (kept for in-flight tools) */
 .tool-status-dot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
   background: var(--faint);
 }
 
-.tool-status-dot.status-done {
-  background: var(--sage);
-  opacity: 0.7;
-}
-
 .tool-status-dot.status-running {
   background: var(--accent);
   animation: dot-breathe 1.4s ease-in-out infinite;
-}
-
-.tool-status-dot.status-error {
-  background: var(--danger);
 }
 
 @keyframes dot-breathe {
@@ -609,42 +628,35 @@
   }
 }
 
-.tool-call-card.status-done .tool-status-dot {
-  animation: dot-complete 400ms ease-out both;
-}
-
-@keyframes dot-complete {
-  0% {
-    transform: scale(1.6);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 0.7;
-  }
-}
-
+/* Chevron — proto .chev (13px, faint, rotate -90 when closed) */
 .tool-call-chevron {
-  width: 12px;
-  height: 12px;
-  opacity: 0;
+  width: 13px;
+  height: 13px;
+  opacity: 0.5;
   transition:
     opacity 0.12s ease,
-    transform 0.15s ease;
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
   flex-shrink: 0;
   color: var(--faint);
 }
 
 .tool-call-chevron.open {
-  transform: rotate(180deg);
+  transform: rotate(0deg);
   opacity: 0.5;
 }
 
+.tool-call-card:not(.is-expanded) .tool-call-chevron {
+  transform: rotate(-90deg);
+}
+
+/* Body — proto .tool-body (border-top, --sunken, mono 11.5px, muted) */
 .tool-call-body {
-  padding: 4px 0 6px 13px;
-  border-left: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
-  margin-left: 2px;
-  font-size: 12px;
+  border-top: 1px solid var(--line);
+  padding: 10px 12px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11.5px;
+  color: var(--muted);
+  background: var(--sunken);
   animation: tool-body-in 180ms ease-out both;
 }
 
@@ -665,14 +677,18 @@
 
 .tool-call-empty {
   font-size: 11px;
-  padding-bottom: 10px;
+}
+
+/* Dim helper — proto .tool-body .dim (faint) */
+.tool-call-body .dim {
+  color: var(--faint);
 }
 
 .tool-call-output {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: var(--mono);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--muted);
@@ -689,11 +705,11 @@
 
 .tool-call-command {
   margin-bottom: 6px;
-  font-size: var(--code-font-size, 13px);
+  font-size: 11.5px;
 }
 
 .tool-call-command code {
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text);
   background: color-mix(in srgb, var(--text) 4%, transparent);
   padding: 1px 5px;
@@ -703,12 +719,29 @@
 .tool-call-paths {
   margin-bottom: 6px;
   font-size: 11.5px;
-  font-family: var(--mono);
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  color: var(--faint);
 }
 
 .tool-call-error {
   color: var(--danger);
-  font-size: 12px;
+  font-size: 11.5px;
+}
+
+/* Raw output fold (below DiffCard for write/edit tools) */
+.tool-call-raw-fold {
+  margin-top: 8px;
+}
+
+.tool-call-raw-fold > summary {
+  cursor: pointer;
+  font-size: 10.5px;
+  color: var(--faint);
+  list-style: none;
+}
+
+.tool-call-raw-fold > summary::-webkit-details-marker {
+  display: none;
 }
 
 /* ─── Turn tool group ───────────────────────────────────────────────── */
@@ -882,35 +915,6 @@
   border: none;
   border-radius: 8px;
   background: color-mix(in srgb, var(--state-warning) 10%, transparent);
-}
-
-.tool-call-card {
-  margin: 2px 0;
-  padding-left: 10px;
-  border-left: 1.5px solid rgba(255, 255, 255, 0.12);
-}
-
-.tool-call-name {
-  font-weight: 600;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-}
-
-.tool-call-ok {
-  margin-left: auto;
-  color: var(--ok);
-  font-size: 12px;
-  font-weight: 650;
-  flex-shrink: 0;
-}
-
-.tool-call-err {
-  margin-left: auto;
-  color: var(--danger);
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
 }
 
 .bubble-header::before {
