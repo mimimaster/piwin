@@ -1382,3 +1382,149 @@
 .chat-stream {
   justify-content: flex-start;
 }
+
+/* ─── Inline diff card (diff-card.tsx) ─────────────────────────────── */
+/* Ported from docs/proto-shell.css diff-card block. Renders a single-file
+   patch inline inside write/edit tool-call cards with Accept / Reject. */
+
+.diff-card {
+  border-radius: 10px;
+  margin: 4px 0 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--card);
+}
+
+.diff-card.accepted {
+  border-color: var(--ok);
+}
+
+.diff-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.diff-head .file {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.diff-head .stat {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11px;
+}
+
+.diff-head .stat .add {
+  color: var(--ok);
+}
+
+.diff-head .stat .del {
+  color: var(--danger);
+}
+
+.diff-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 7px;
+}
+
+.diff-card .btn {
+  height: 25px;
+  padding: 0 11px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  background: var(--control);
+  cursor: pointer;
+  transition:
+    color var(--motion-quick, 120ms) ease,
+    border-color var(--motion-quick, 120ms) ease,
+    filter var(--motion-quick, 120ms) ease;
+}
+
+.diff-card .btn:hover {
+  color: var(--text);
+  border-color: var(--faint);
+}
+
+.diff-card .btn.primary {
+  color: var(--canvas);
+  border-color: transparent;
+  background: var(--ok);
+}
+
+.diff-card .btn.primary:hover {
+  filter: brightness(1.06);
+}
+
+.review-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.review-badge.accepted {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+
+.review-badge.rejected {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.diff-body {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.7;
+  padding: 8px 0;
+  background: var(--sunken);
+}
+
+.diff-body .ln {
+  display: flex;
+  padding: 0 12px;
+  white-space: pre;
+}
+
+.diff-body .ln .g {
+  width: 26px;
+  flex: none;
+  color: var(--faint);
+  text-align: right;
+  padding-right: 12px;
+  user-select: none;
+}
+
+.diff-body .ln.add {
+  background: var(--add-bg);
+  color: var(--add-text);
+}
+
+.diff-body .ln.del {
+  background: var(--del-bg);
+  color: var(--del-text);
+}
+
+.diff-body .ln.ctx {
+  color: var(--muted);
+}
+
+.diff-card.accepted .diff-body {
+  opacity: 0.45;
+}
