@@ -1,0 +1,2293 @@
+<!doctype html>
+<html lang="zh-CN" data-mode="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>piwin · Ember Glass 壳原型</title>
+    <style>
+      /* ============================================================
+   piwin shell — Ember Glass (增量主题原型)
+   挂载方式映射: 本文件中 [data-mode] 下的全部变量 → ThemeManifest.tokens
+   全部视觉覆盖 → html[data-theme-id='piwin-ember'] 作用域的增量 CSS 层
+   布局几何 (260px 侧栏 / 36px titleband / 280px 信号栏) 保持 tokens.css 不变
+   ============================================================ */
+
+      :root,
+      [data-mode='dark'] {
+        color-scheme: dark;
+        /* surfaces — 深暖墨底，逐层抬升；每层带顶光梯度 */
+        --canvas: #0e0c11;
+        --panel: #16131a;
+        --panel-grad: linear-gradient(180deg, #1a1620 0%, #15121a 100%);
+        --panel-2: #1d1923;
+        --panel-2-grad: linear-gradient(180deg, #221d28 0%, #1b1722 100%);
+        --glass: rgba(26, 22, 30, 0.55);
+        --glass-grad: linear-gradient(
+          180deg,
+          rgba(38, 32, 44, 0.5) 0%,
+          rgba(24, 20, 28, 0.62) 100%
+        );
+        --glass-strong: rgba(32, 27, 38, 0.78);
+        --glass-strong-grad: linear-gradient(
+          180deg,
+          rgba(42, 36, 50, 0.72) 0%,
+          rgba(28, 23, 34, 0.84) 100%
+        );
+        --raised: #221d29;
+        --raised-grad: linear-gradient(180deg, #272230 0%, #1f1a27 100%);
+        --hover: rgba(255, 240, 224, 0.045);
+        --active: rgba(255, 240, 224, 0.08);
+        --selected: color-mix(in srgb, var(--ember) 12%, var(--panel));
+        /* hairlines — 暖调，0.5px 发丝 */
+        --line: rgba(255, 236, 214, 0.07);
+        --line-strong: rgba(255, 236, 214, 0.14);
+        --edge-light: rgba(255, 240, 226, 0.045);
+        /* content */
+        --text: #f5f0ea;
+        --muted: #a89eb0;
+        --faint: #6a6478;
+        --on-accent: #2a1409;
+        /* accent — 余烬珊瑚 */
+        --ember: #ff7f56;
+        --ember-2: #ffb182;
+        --ember-soft: color-mix(in srgb, var(--ember) 13%, transparent);
+        --ember-glow: color-mix(in srgb, var(--ember) 34%, transparent);
+        --ember-grad: linear-gradient(180deg, #ff8d67 0%, #f96d40 100%);
+        /* semantic */
+        --ok: #55c594;
+        --warn: #ffb224;
+        --danger: #f26a63;
+        --violet: #c9a6ff;
+        --sage: #72d4e8;
+        /* elevation — 多层：近距锐影 + 远距漫射 + 顶部内高光 */
+        --shadow-1: 0 1px 2px rgba(6, 4, 9, 0.4), 0 0 0 0.5px rgba(255, 236, 214, 0.04);
+        --shadow-2:
+          0 1px 2px rgba(6, 4, 9, 0.5), 0 8px 24px rgba(6, 4, 9, 0.36),
+          0 0 0 0.5px rgba(255, 236, 214, 0.05);
+        --shadow-3:
+          0 1px 3px rgba(6, 4, 9, 0.5), 0 12px 40px rgba(6, 4, 9, 0.42),
+          0 32px 80px rgba(6, 4, 9, 0.5), 0 0 0 0.5px rgba(255, 236, 214, 0.06);
+        --inset-top: inset 0 1px 0 rgba(255, 240, 226, 0.05);
+        --inset-top-strong: inset 0 1px 0 rgba(255, 240, 226, 0.08);
+        /* radius scale */
+        --r-sm: 7px;
+        --r-md: 11px;
+        --r-lg: 16px;
+        --r-xl: 22px;
+        /* motion — “浮现”弹簧 */
+        --t-fast: 120ms;
+        --t-std: 220ms;
+        --t-slow: 380ms;
+        --ease: cubic-bezier(0.16, 1, 0.3, 1);
+        --font:
+          -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Segoe UI', system-ui,
+          sans-serif;
+        --mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+      }
+
+      [data-mode='light'] {
+        color-scheme: light;
+        --canvas: #f5f0e8;
+        --panel: #fffdf9;
+        --panel-grad: linear-gradient(180deg, #fffefb 0%, #fbf8f2 100%);
+        --panel-2: #f0eae0;
+        --panel-2-grad: linear-gradient(180deg, #f4eee5 0%, #ece6dc 100%);
+        --glass: rgba(255, 253, 249, 0.68);
+        --glass-grad: linear-gradient(
+          180deg,
+          rgba(255, 253, 249, 0.6) 0%,
+          rgba(248, 243, 235, 0.76) 100%
+        );
+        --glass-strong: rgba(255, 253, 249, 0.86);
+        --glass-strong-grad: linear-gradient(
+          180deg,
+          rgba(255, 253, 249, 0.8) 0%,
+          rgba(250, 246, 240, 0.92) 100%
+        );
+        --raised: #ffffff;
+        --raised-grad: linear-gradient(180deg, #ffffff 0%, #faf7f1 100%);
+        --hover: rgba(70, 45, 20, 0.045);
+        --active: rgba(70, 45, 20, 0.075);
+        --selected: color-mix(in srgb, var(--ember) 9%, var(--panel));
+        --line: rgba(84, 62, 40, 0.09);
+        --line-strong: rgba(84, 62, 40, 0.18);
+        --edge-light: rgba(255, 255, 255, 0.6);
+        --text: #2d2823;
+        --muted: #857a6c;
+        --faint: #b3a898;
+        --on-accent: #ffffff;
+        --ember: #e75a1f;
+        --ember-2: #f4955c;
+        --ember-soft: color-mix(in srgb, var(--ember) 9%, transparent);
+        --ember-glow: color-mix(in srgb, var(--ember) 22%, transparent);
+        --ember-grad: linear-gradient(180deg, #f06a2e 0%, #d94e15 100%);
+        --ok: #1f9d63;
+        --warn: #b25000;
+        --danger: #d64541;
+        --violet: #8a5cf5;
+        --sage: #0e7d99;
+        --shadow-1: 0 1px 2px rgba(90, 65, 40, 0.07), 0 0 0 0.5px rgba(84, 62, 40, 0.08);
+        --shadow-2:
+          0 1px 2px rgba(90, 65, 40, 0.08), 0 8px 24px rgba(90, 65, 40, 0.1),
+          0 0 0 0.5px rgba(84, 62, 40, 0.1);
+        --shadow-3:
+          0 1px 3px rgba(90, 65, 40, 0.1), 0 12px 40px rgba(90, 65, 40, 0.14),
+          0 32px 80px rgba(90, 65, 40, 0.18), 0 0 0 0.5px rgba(84, 62, 40, 0.12);
+        --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        --inset-top-strong: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: var(--canvas);
+        color: var(--text);
+        font: 13px/1.5 var(--font);
+        letter-spacing: -0.006em;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: 0;
+        cursor: pointer;
+        padding: 0;
+      }
+      svg.ic {
+        width: 15px;
+        height: 15px;
+        display: block;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.7;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .num {
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* ── 壳网格（几何与现网一致） ─────────────────────────────── */
+      .app-shell {
+        height: 100vh;
+        display: grid;
+        grid-template-columns: 264px minmax(0, 1fr) 304px;
+        grid-template-rows: 36px minmax(0, 1fr);
+        grid-template-areas: 'topbar topbar topbar' 'nav stage signal';
+      }
+
+      /* ── 顶部 titleband ──────────────────────────────────────── */
+      .titleband {
+        grid-area: topbar;
+        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 12px 0 84px; /* macOS 红绿灯留白 */
+        border-bottom: 1px solid var(--line);
+        background: color-mix(in srgb, var(--canvas) 86%, transparent);
+        box-shadow: var(--inset-top);
+      }
+      .titleband::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -1px;
+        height: 1px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--edge-light) 18%,
+          var(--edge-light) 82%,
+          transparent
+        );
+      }
+      .traffic {
+        display: flex;
+        gap: 8px;
+        margin-left: -72px;
+        margin-right: 60px;
+      }
+      .traffic i {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        display: block;
+      }
+      .traffic i:nth-child(1) {
+        background: #ff5f57;
+      }
+      .traffic i:nth-child(2) {
+        background: #febc2e;
+      }
+      .traffic i:nth-child(3) {
+        background: #28c840;
+      }
+      .tb-group {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+      .tb-btn {
+        height: 26px;
+        min-width: 26px;
+        padding: 0 6px;
+        border-radius: var(--r-sm);
+        display: grid;
+        place-items: center;
+        color: var(--muted);
+        transition:
+          background var(--t-fast) var(--ease),
+          color var(--t-fast) var(--ease);
+      }
+      .tb-btn:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+      .tb-title {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .tb-title b {
+        color: var(--text);
+        font-weight: 560;
+      }
+      .tb-spacer {
+        flex: 1;
+      }
+      .kbd-hint {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--faint);
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        padding: 1px 5px;
+        background: color-mix(in srgb, var(--panel-2) 50%, transparent);
+        box-shadow: var(--inset-top);
+      }
+
+      /* ── 侧栏 ───────────────────────────────────────────────── */
+      .sidebar {
+        grid-area: nav;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        border-right: 1px solid var(--line);
+        background: var(--panel-grad);
+        box-shadow: var(--inset-top);
+      }
+      .sidebar::after {
+        content: '';
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: linear-gradient(
+          180deg,
+          transparent,
+          var(--edge-light) 12%,
+          var(--edge-light) 88%,
+          transparent
+        );
+      }
+      .sb-head {
+        padding: 12px 12px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .sb-brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 2px;
+      }
+      .sb-logo {
+        width: 26px;
+        height: 26px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, var(--ember) 0%, var(--ember-2) 100%);
+        box-shadow:
+          0 3px 12px var(--ember-glow),
+          0 0 0 0.5px rgba(255, 240, 226, 0.12),
+          inset 0 1px 0 rgba(255, 255, 255, 0.4),
+          inset 0 -1px 0 rgba(120, 50, 20, 0.25);
+        display: grid;
+        place-items: center;
+        color: var(--on-accent);
+      }
+      .sb-logo svg {
+        width: 13px;
+        height: 13px;
+        stroke-width: 2.2;
+      }
+      .sb-brand b {
+        font-size: 13.5px;
+        font-weight: 640;
+        letter-spacing: -0.02em;
+      }
+      .sb-search {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        height: 30px;
+        padding: 0 9px;
+        border-radius: var(--r-sm);
+        border: 1px solid var(--line);
+        background: var(--panel-2-grad);
+        color: var(--faint);
+        font-size: 12px;
+        cursor: text;
+        box-shadow: var(--inset-top);
+        transition:
+          border-color var(--t-fast) var(--ease),
+          box-shadow var(--t-std) var(--ease);
+      }
+      .sb-search:hover {
+        border-color: var(--line-strong);
+        box-shadow:
+          var(--inset-top),
+          0 0 0 3px var(--hover);
+      }
+      .sb-search .kbd-hint {
+        margin-left: auto;
+      }
+      .sb-new {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        height: 32px;
+        border-radius: var(--r-sm);
+        font-weight: 600;
+        font-size: 12.5px;
+        color: var(--on-accent);
+        background: var(--ember-grad);
+        box-shadow:
+          0 4px 14px var(--ember-glow),
+          0 0 0 0.5px rgba(255, 240, 226, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.32),
+          inset 0 -1px 0 rgba(120, 50, 20, 0.2);
+        transition:
+          transform var(--t-fast) var(--ease),
+          box-shadow var(--t-std) var(--ease),
+          filter var(--t-fast) var(--ease);
+      }
+      .sb-new:hover {
+        filter: brightness(1.06);
+        box-shadow:
+          0 6px 22px var(--ember-glow),
+          0 0 0 0.5px rgba(255, 240, 226, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.36),
+          inset 0 -1px 0 rgba(120, 50, 20, 0.2);
+      }
+      .sb-new:active {
+        transform: scale(0.985);
+        box-shadow:
+          0 2px 8px var(--ember-glow),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      }
+
+      .sb-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 4px 8px 12px;
+      }
+      .sb-section {
+        margin-top: 14px;
+      }
+      .sb-section > h4 {
+        margin: 0;
+        padding: 0 8px 5px;
+        font-size: 10.5px;
+        font-weight: 620;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--faint);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .sb-section > h4 .ic {
+        width: 12px;
+        height: 12px;
+      }
+
+      .proj {
+        margin-bottom: 2px;
+      }
+      .proj-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        height: 28px;
+        padding: 0 8px;
+        border-radius: var(--r-sm);
+        color: var(--muted);
+        font-weight: 560;
+        font-size: 12.5px;
+        cursor: pointer;
+        transition: background var(--t-fast) var(--ease);
+      }
+      .proj-row:hover {
+        background: var(--hover);
+      }
+      .proj-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 3px;
+        flex: none;
+      }
+      .proj-row .count {
+        margin-left: auto;
+        font-size: 10.5px;
+        color: var(--faint);
+        font-weight: 400;
+      }
+
+      .sess {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        margin: 1px 0 1px 11px;
+        padding: 5px 9px 5px 11px;
+        border-radius: var(--r-sm);
+        cursor: pointer;
+        transition: background var(--t-fast) var(--ease);
+      }
+      .sess:hover {
+        background: var(--hover);
+      }
+      .sess .t {
+        font-size: 12.5px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: color var(--t-fast) var(--ease);
+      }
+      .sess .m {
+        font-size: 10.5px;
+        color: var(--faint);
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .sess.active {
+        background: var(--selected);
+        box-shadow: var(--inset-top);
+      }
+      .sess.active::before {
+        content: '';
+        position: absolute;
+        left: -3px;
+        top: 8px;
+        bottom: 8px;
+        width: 2.5px;
+        border-radius: 2px;
+        background: linear-gradient(180deg, var(--ember), var(--ember-2));
+        box-shadow:
+          0 0 8px var(--ember-glow),
+          0 0 2px var(--ember);
+      }
+      .sess.active .t {
+        color: var(--text);
+      }
+      .sess .live {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--ember);
+      }
+      .live-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--ember);
+        position: relative;
+      }
+      .live-dot::after {
+        content: '';
+        position: absolute;
+        inset: -3px;
+        border-radius: 50%;
+        border: 1px solid var(--ember);
+        opacity: 0.7;
+        animation: ping 1.8s var(--ease) infinite;
+      }
+      @keyframes ping {
+        0% {
+          transform: scale(0.5);
+          opacity: 0.8;
+        }
+        80%,
+        100% {
+          transform: scale(1.5);
+          opacity: 0;
+        }
+      }
+
+      .sb-foot {
+        border-top: 1px solid var(--line);
+        padding: 8px 10px;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+      .sb-foot .who {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-right: auto;
+        padding: 3px 6px;
+        border-radius: var(--r-sm);
+        cursor: pointer;
+      }
+      .sb-foot .who:hover {
+        background: var(--hover);
+      }
+      .avatar {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        font-size: 10px;
+        font-weight: 640;
+        display: grid;
+        place-items: center;
+        color: var(--on-accent);
+        background: linear-gradient(135deg, var(--violet), var(--sage));
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.3),
+          0 0 0 0.5px rgba(255, 240, 226, 0.1);
+      }
+      .sb-foot .who span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      /* ── 主舞台 ─────────────────────────────────────────────── */
+      .stage {
+        grid-area: stage;
+        min-width: 0;
+        min-height: 0;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        background:
+          radial-gradient(
+            1100px 440px at 50% -160px,
+            color-mix(in srgb, var(--ember) 13%, transparent),
+            transparent 70%
+          ),
+          radial-gradient(
+            760px 320px at 86% -90px,
+            color-mix(in srgb, var(--violet) 7%, transparent),
+            transparent 68%
+          ),
+          radial-gradient(
+            900px 600px at 50% 120%,
+            color-mix(in srgb, var(--canvas) 60%, var(--panel)),
+            transparent 60%
+          ),
+          var(--canvas);
+      }
+      /* 噪点覆层 — 质感来源之一，2.5% 透明度 */
+      .stage::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.025;
+        z-index: 1;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      .chat-col {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        max-width: 880px;
+        width: 100%;
+        margin: 0 auto;
+        position: relative;
+        z-index: 2;
+      }
+
+      /* context bar */
+      .ctx-bar {
+        height: 44px;
+        flex: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 20px;
+        border-bottom: 1px solid var(--line);
+      }
+      .ctx-crumb {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12.5px;
+        color: var(--muted);
+        min-width: 0;
+      }
+      .ctx-crumb b {
+        color: var(--text);
+        font-weight: 580;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .ctx-crumb .ic {
+        width: 13px;
+        height: 13px;
+        color: var(--faint);
+      }
+      .mode-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        height: 22px;
+        padding: 0 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--ember);
+        background: var(--ember-soft);
+        border: 1px solid color-mix(in srgb, var(--ember) 24%, transparent);
+        box-shadow: var(--inset-top);
+      }
+      .mode-pill .ic {
+        width: 11px;
+        height: 11px;
+      }
+      .ctx-status {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--faint);
+        font-size: 11.5px;
+      }
+      .ctx-status .git {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--muted);
+      }
+      .ctx-status .git .ic {
+        width: 12px;
+        height: 12px;
+      }
+
+      /* transcript */
+      .transcript {
+        flex: 1;
+        overflow-y: auto;
+        padding: 22px 20px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .msg-user {
+        align-self: flex-end;
+        max-width: 72%;
+      }
+      .msg-user .bubble {
+        background: var(--panel-2-grad);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg);
+        padding: 9px 14px;
+        font-size: 13.5px;
+        line-height: 1.6;
+        box-shadow: var(--shadow-2);
+      }
+      .msg-meta {
+        display: flex;
+        gap: 6px;
+        align-items: baseline;
+        margin-bottom: 6px;
+      }
+      .msg-meta .name {
+        font-size: 12px;
+        font-weight: 640;
+        letter-spacing: -0.01em;
+      }
+      .msg-meta .name .spark {
+        color: var(--ember);
+        display: inline-flex;
+        vertical-align: -2px;
+        margin-right: 5px;
+      }
+      .msg-meta .name .spark svg {
+        width: 13px;
+        height: 13px;
+        stroke-width: 2;
+      }
+      .msg-meta time {
+        font-size: 10.5px;
+        color: var(--faint);
+      }
+      .msg-assistant {
+        max-width: 100%;
+        font-size: 13.5px;
+        line-height: 1.68;
+      }
+      .msg-assistant p {
+        margin: 0 0 10px;
+      }
+      .msg-assistant code {
+        font-family: var(--mono);
+        font-size: 12px;
+        background: var(--ember-soft);
+        color: var(--ember-2);
+        padding: 1px 5px;
+        border-radius: 5px;
+      }
+      [data-mode='light'] .msg-assistant code {
+        color: var(--ember);
+      }
+
+      /* plan 卡 — Cursor Plan Mode 启发 */
+      .plan-card {
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        overflow: hidden;
+        background: var(--panel-grad);
+        box-shadow: var(--shadow-2);
+        margin: 4px 0 10px;
+      }
+      .plan-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 12px;
+        cursor: pointer;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--muted);
+        transition: background var(--t-fast) var(--ease);
+      }
+      .plan-head:hover {
+        background: var(--hover);
+      }
+      .plan-head .ic {
+        width: 13px;
+        height: 13px;
+        color: var(--violet);
+      }
+      .plan-head .chev {
+        margin-left: auto;
+        transition: transform var(--t-std) var(--ease);
+        color: var(--faint);
+      }
+      .plan-card.closed .chev {
+        transform: rotate(-90deg);
+      }
+      .plan-steps {
+        padding: 2px 12px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+      .plan-card.closed .plan-steps {
+        display: none;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .step .box {
+        width: 15px;
+        height: 15px;
+        border-radius: 5px;
+        flex: none;
+        display: grid;
+        place-items: center;
+        border: 1.5px solid var(--line-strong);
+        color: transparent;
+        font-size: 10px;
+        transition: all var(--t-std) var(--ease);
+      }
+      .step.done .box {
+        background: var(--ok);
+        border-color: var(--ok);
+        color: #08251a;
+      }
+      .step.done {
+        color: var(--faint);
+        text-decoration: line-through;
+        text-decoration-color: var(--line-strong);
+      }
+      .step.run .box {
+        border-color: var(--ember);
+      }
+      .step.run .box::after {
+        content: '';
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: var(--ember);
+        animation: breathe 1.4s ease-in-out infinite;
+      }
+      .step.run {
+        color: var(--text);
+      }
+      @keyframes breathe {
+        50% {
+          opacity: 0.35;
+          transform: scale(0.7);
+        }
+      }
+
+      /* tool call 行 — 可观测性 */
+      .tool {
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        background: var(--panel-grad);
+        margin: 4px 0;
+        overflow: hidden;
+        box-shadow: var(--shadow-1);
+      }
+      .tool-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        cursor: pointer;
+        font-size: 12px;
+        color: var(--muted);
+        transition: background var(--t-fast) var(--ease);
+      }
+      .tool-head:hover {
+        background: var(--hover);
+      }
+      .tool-head .ic {
+        width: 13px;
+        height: 13px;
+        color: var(--sage);
+      }
+      .tool-head .path {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--text);
+      }
+      .tool-head .elapsed {
+        margin-left: auto;
+        font-family: var(--mono);
+        font-size: 10.5px;
+        color: var(--faint);
+      }
+      .tool-head .ok-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--ok);
+      }
+      .tool-body {
+        border-top: 1px solid var(--line);
+        padding: 10px 12px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        line-height: 1.6;
+        color: var(--muted);
+        background: color-mix(in srgb, var(--canvas) 55%, transparent);
+      }
+      .tool.closed .tool-body {
+        display: none;
+      }
+      .tool-body .dim {
+        color: var(--faint);
+      }
+
+      /* diff 卡 — Cursor 信任原语 Accept / Reject */
+      .diff-card {
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        overflow: hidden;
+        background: var(--panel-grad);
+        box-shadow: var(--shadow-3);
+        margin: 6px 0 10px;
+      }
+      .diff-head {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 9px 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .diff-head .file {
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 560;
+      }
+      .diff-head .stat {
+        font-family: var(--mono);
+        font-size: 11px;
+      }
+      .diff-head .stat .add {
+        color: var(--ok);
+      }
+      .diff-head .stat .del {
+        color: var(--danger);
+      }
+      .diff-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 7px;
+      }
+      .btn {
+        height: 26px;
+        padding: 0 12px;
+        border-radius: var(--r-sm);
+        font-size: 12px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid var(--line-strong);
+        color: var(--muted);
+        background: var(--raised-grad);
+        box-shadow: var(--inset-top);
+        transition: all var(--t-fast) var(--ease);
+      }
+      .btn:hover {
+        color: var(--text);
+        border-color: var(--faint);
+        transform: translateY(-0.5px);
+        box-shadow:
+          var(--inset-top-strong),
+          0 4px 12px rgba(6, 4, 9, 0.18);
+      }
+      .btn .ic {
+        width: 12px;
+        height: 12px;
+      }
+      .btn.primary {
+        color: var(--on-accent);
+        border-color: transparent;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--ok) 94%, white), var(--ok));
+        box-shadow:
+          0 3px 10px color-mix(in srgb, var(--ok) 32%, transparent),
+          0 0 0 0.5px rgba(255, 240, 226, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3),
+          inset 0 -1px 0 rgba(0, 60, 30, 0.2);
+      }
+      .btn.primary:hover {
+        filter: brightness(1.05);
+        box-shadow:
+          0 5px 16px color-mix(in srgb, var(--ok) 36%, transparent),
+          0 0 0 0.5px rgba(255, 240, 226, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.34),
+          inset 0 -1px 0 rgba(0, 60, 30, 0.2);
+      }
+      .btn:disabled {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+      .diff-body {
+        font-family: var(--mono);
+        font-size: 11.5px;
+        line-height: 1.7;
+        padding: 8px 0;
+      }
+      .diff-body .ln {
+        display: flex;
+        padding: 0 12px;
+        white-space: pre;
+      }
+      .diff-body .ln .g {
+        width: 26px;
+        flex: none;
+        color: var(--faint);
+        text-align: right;
+        padding-right: 12px;
+        user-select: none;
+      }
+      .ln.add {
+        background: color-mix(in srgb, var(--ok) 9%, transparent);
+        color: color-mix(in srgb, var(--ok) 88%, var(--text));
+      }
+      .ln.add .g {
+        color: color-mix(in srgb, var(--ok) 65%, transparent);
+      }
+      .ln.del {
+        background: color-mix(in srgb, var(--danger) 8%, transparent);
+        color: color-mix(in srgb, var(--danger) 82%, var(--text));
+        text-decoration: line-through;
+        text-decoration-color: color-mix(in srgb, var(--danger) 35%, transparent);
+      }
+      .ln.del .g {
+        color: color-mix(in srgb, var(--danger) 60%, transparent);
+      }
+      .ln.ctx {
+        color: var(--muted);
+      }
+      .diff-verdict {
+        display: none;
+        padding: 10px 12px;
+        font-size: 12.5px;
+        font-weight: 580;
+        align-items: center;
+        gap: 7px;
+      }
+      .diff-card.accepted .diff-verdict.ok,
+      .diff-card.rejected .diff-verdict.no {
+        display: flex;
+      }
+      .diff-verdict.ok {
+        color: var(--ok);
+      }
+      .diff-verdict.no {
+        color: var(--danger);
+      }
+      .diff-card.accepted .diff-body,
+      .diff-card.rejected .diff-body {
+        opacity: 0.45;
+      }
+
+      /* approval gate — 高风险操作审批门 */
+      .gate {
+        border: 1px solid color-mix(in srgb, var(--warn) 32%, transparent);
+        border-radius: var(--r-md);
+        overflow: hidden;
+        margin: 6px 0 10px;
+        background:
+          linear-gradient(180deg, color-mix(in srgb, var(--warn) 8%, transparent), transparent 55%),
+          var(--panel-grad);
+        box-shadow:
+          var(--shadow-2),
+          0 0 0 0.5px color-mix(in srgb, var(--warn) 18%, transparent);
+      }
+      .gate-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 12px;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--warn);
+      }
+      .gate-head .ic {
+        width: 14px;
+        height: 14px;
+      }
+      .gate-cmd {
+        margin: 0 12px 10px;
+        padding: 8px 11px;
+        border-radius: var(--r-sm);
+        background: color-mix(in srgb, var(--canvas) 62%, transparent);
+        border: 1px solid var(--line);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+      .gate-actions {
+        display: flex;
+        gap: 8px;
+        padding: 0 12px 11px;
+      }
+      .btn.warn-p {
+        color: #2a1c05;
+        border-color: transparent;
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--warn) 94%, white),
+          var(--warn)
+        );
+        box-shadow:
+          0 3px 10px color-mix(in srgb, var(--warn) 30%, transparent),
+          0 0 0 0.5px rgba(255, 240, 226, 0.12),
+          inset 0 1px 0 rgba(255, 255, 255, 0.34),
+          inset 0 -1px 0 rgba(80, 50, 0, 0.2);
+      }
+      [data-mode='dark'] .btn.warn-p {
+        color: #241600;
+      }
+      .gate .hint {
+        margin-left: auto;
+        align-self: center;
+        font-size: 11px;
+        color: var(--faint);
+      }
+
+      /* streaming 文本 + 光标 */
+      .stream-caret {
+        display: inline-block;
+        width: 7px;
+        height: 15px;
+        margin-left: 2px;
+        vertical-align: -2px;
+        border-radius: 2px;
+        background: var(--ember);
+        box-shadow: 0 0 10px var(--ember-glow);
+        animation: caret 1s steps(2, jump-none) infinite;
+      }
+      @keyframes caret {
+        50% {
+          opacity: 0;
+        }
+      }
+
+      /* thinking 折叠条 */
+      .think {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 28px;
+        padding: 0 10px;
+        margin: 2px 0 8px;
+        border-radius: var(--r-sm);
+        font-size: 12px;
+        color: var(--faint);
+        cursor: pointer;
+        width: fit-content;
+        transition:
+          background var(--t-fast) var(--ease),
+          color var(--t-fast) var(--ease);
+      }
+      .think:hover {
+        background: var(--hover);
+        color: var(--muted);
+      }
+      .think .dotty {
+        display: inline-flex;
+        gap: 3px;
+      }
+      .think .dotty i {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: var(--violet);
+        animation: breathe 1.3s ease-in-out infinite;
+      }
+      .think .dotty i:nth-child(2) {
+        animation-delay: 0.15s;
+      }
+      .think .dotty i:nth-child(3) {
+        animation-delay: 0.3s;
+      }
+
+      /* ── composer — 悬浮玻璃卡 + 渐变描边聚焦 ────────────────── */
+      .composer-zone {
+        flex: none;
+        padding: 10px 20px 8px;
+        position: relative;
+      }
+      .composer {
+        position: relative;
+        border-radius: var(--r-lg);
+        background: var(--glass-grad);
+        backdrop-filter: blur(22px) saturate(1.5);
+        -webkit-backdrop-filter: blur(22px) saturate(1.5);
+        border: 1px solid var(--line-strong);
+        box-shadow: var(--shadow-3), var(--inset-top-strong);
+        transition:
+          border-color var(--t-std) var(--ease),
+          box-shadow var(--t-std) var(--ease);
+      }
+      .composer:focus-within {
+        border-color: color-mix(in srgb, var(--ember) 48%, transparent);
+        box-shadow:
+          var(--shadow-3),
+          var(--inset-top-strong),
+          0 0 0 3px color-mix(in srgb, var(--ember) 14%, transparent),
+          0 0 32px color-mix(in srgb, var(--ember) 12%, transparent);
+      }
+      .composer .chips {
+        display: flex;
+        gap: 6px;
+        padding: 10px 12px 0;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 24px;
+        padding: 0 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        color: var(--muted);
+        border: 1px solid var(--line);
+        background: var(--panel-2-grad);
+        box-shadow: var(--inset-top);
+        transition: all var(--t-fast) var(--ease);
+        cursor: pointer;
+      }
+      .chip:hover {
+        border-color: var(--line-strong);
+        color: var(--text);
+      }
+      .chip .ic {
+        width: 11px;
+        height: 11px;
+      }
+      .chip img {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        object-fit: cover;
+        background: linear-gradient(135deg, var(--sage), var(--violet));
+      }
+      .composer textarea {
+        width: 100%;
+        border: 0;
+        outline: 0;
+        resize: none;
+        background: transparent;
+        color: var(--text);
+        font: 13.5px/1.6 var(--font);
+        letter-spacing: -0.006em;
+        padding: 10px 14px 6px;
+        min-height: 46px;
+      }
+      .composer textarea::placeholder {
+        color: var(--faint);
+      }
+      .composer-bar {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 10px 9px;
+      }
+      .cbtn {
+        height: 28px;
+        min-width: 28px;
+        padding: 0 7px;
+        border-radius: var(--r-sm);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        transition:
+          background var(--t-fast) var(--ease),
+          color var(--t-fast) var(--ease);
+      }
+      .cbtn:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+      .cbtn.model {
+        border: 1px solid var(--line);
+        font-weight: 560;
+      }
+      .composer-bar .right {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .ring {
+        width: 20px;
+        height: 20px;
+        transform: rotate(-90deg);
+      }
+      .ring .bg {
+        stroke: var(--line-strong);
+      }
+      .ring .fg {
+        stroke: var(--ok);
+        stroke-linecap: round;
+        transition: stroke-dashoffset var(--t-slow) var(--ease);
+      }
+      .send {
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        color: var(--on-accent);
+        background: var(--ember-grad);
+        box-shadow:
+          0 4px 14px var(--ember-glow),
+          0 0 0 0.5px rgba(255, 240, 226, 0.14),
+          inset 0 1px 0 rgba(255, 255, 255, 0.34),
+          inset 0 -1px 0 rgba(120, 50, 20, 0.22);
+        transition:
+          transform var(--t-fast) var(--ease),
+          filter var(--t-fast) var(--ease),
+          box-shadow var(--t-std) var(--ease);
+      }
+      .send:hover {
+        filter: brightness(1.07);
+        box-shadow:
+          0 6px 20px var(--ember-glow),
+          0 0 0 0.5px rgba(255, 240, 226, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.38),
+          inset 0 -1px 0 rgba(120, 50, 20, 0.22);
+      }
+      .send:active {
+        transform: scale(0.92);
+        box-shadow:
+          0 2px 8px var(--ember-glow),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      }
+      .send .ic {
+        width: 14px;
+        height: 14px;
+        stroke-width: 2.1;
+      }
+      .composer-hint {
+        text-align: center;
+        font-size: 10.5px;
+        color: var(--faint);
+        padding-top: 6px;
+      }
+
+      /* ── status bar ─────────────────────────────────────────── */
+      .statusbar {
+        grid-area: unset;
+        flex: none;
+        height: 26px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 14px;
+        border-top: 1px solid var(--line);
+        font-size: 11px;
+        color: var(--faint);
+        background: color-mix(in srgb, var(--canvas) 80%, transparent);
+        box-shadow: inset 0 1px 0 var(--edge-light);
+      }
+      .sb-item {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .sb-item .ic {
+        width: 11px;
+        height: 11px;
+      }
+      .sb-item.run {
+        color: var(--ember);
+        font-weight: 560;
+      }
+      .statusbar .right {
+        margin-left: auto;
+        display: flex;
+        gap: 12px;
+      }
+
+      /* ── 右侧面板 — 玻璃信号栏 ───────────────────────────────── */
+      .signal {
+        grid-area: signal;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+        border-left: 1px solid var(--line);
+        background: var(--glass-grad);
+        backdrop-filter: blur(26px) saturate(1.45);
+        -webkit-backdrop-filter: blur(26px) saturate(1.45);
+        box-shadow: var(--inset-top);
+      }
+      .signal::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+        background: linear-gradient(
+          180deg,
+          transparent,
+          var(--edge-light) 12%,
+          var(--edge-light) 88%,
+          transparent
+        );
+      }
+      .sg-tabs {
+        flex: none;
+        display: flex;
+        gap: 2px;
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--line);
+      }
+      .sg-tab {
+        height: 26px;
+        padding: 0 11px;
+        border-radius: var(--r-sm);
+        font-size: 12px;
+        color: var(--muted);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all var(--t-fast) var(--ease);
+      }
+      .sg-tab:hover {
+        color: var(--text);
+      }
+      .sg-tab.on {
+        background: var(--active);
+        color: var(--text);
+        font-weight: 600;
+        box-shadow:
+          inset 0 0 0 1px var(--line),
+          var(--inset-top);
+      }
+      .sg-tab .badge {
+        font-size: 10px;
+        font-family: var(--mono);
+        background: var(--ember-soft);
+        color: var(--ember);
+        border-radius: 999px;
+        padding: 0 5px;
+      }
+      .sg-body {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .sg-pane {
+        display: none;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .sg-pane.on {
+        display: flex;
+      }
+      .file-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 9px;
+        border-radius: var(--r-sm);
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--muted);
+        cursor: pointer;
+        transition: background var(--t-fast) var(--ease);
+      }
+      .file-row:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+      .file-row .tag {
+        margin-left: auto;
+        font-size: 10px;
+        font-family: var(--mono);
+      }
+      .file-row .tag .add {
+        color: var(--ok);
+      }
+      .file-row .tag .del {
+        color: var(--danger);
+      }
+      .term-mock {
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        padding: 10px 11px;
+        background: #0c0a0f;
+        font-family: var(--mono);
+        font-size: 11px;
+        line-height: 1.7;
+        color: #b8b0a8;
+      }
+      [data-mode='light'] .term-mock {
+        background: #17141c;
+        color: #a89e94;
+      }
+      .term-mock .ok {
+        color: var(--ok);
+      }
+      .term-mock .dim {
+        color: var(--faint);
+      }
+      .outline-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 9px;
+        border-radius: var(--r-sm);
+        font-size: 12px;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .outline-item:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+      .outline-item .ic {
+        width: 12px;
+        height: 12px;
+        color: var(--faint);
+      }
+      .outline-item.you {
+        justify-content: flex-end;
+        color: var(--faint);
+      }
+
+      /* ── ⌘K 命令面板 ────────────────────────────────────────── */
+      .palette-scrim {
+        position: fixed;
+        inset: 0;
+        z-index: 40;
+        display: none;
+        background: color-mix(in srgb, var(--canvas) 62%, transparent);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+      }
+      .palette-scrim.open {
+        display: block;
+        animation: fade var(--t-std) var(--ease);
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+        }
+      }
+      .palette {
+        position: fixed;
+        top: 16vh;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 41;
+        width: 560px;
+        max-width: 92vw;
+        border-radius: var(--r-lg);
+        overflow: hidden;
+        background: var(--glass-strong-grad);
+        backdrop-filter: blur(32px) saturate(1.6);
+        -webkit-backdrop-filter: blur(32px) saturate(1.6);
+        border: 1px solid var(--line-strong);
+        box-shadow: var(--shadow-3), var(--inset-top-strong);
+        display: none;
+      }
+      .palette.open {
+        display: block;
+        animation: pop var(--t-std) var(--ease);
+      }
+      @keyframes pop {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(8px) scale(0.985);
+        }
+      }
+      .palette input {
+        width: 100%;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--text);
+        font: 15px/1.4 var(--font);
+        padding: 15px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .palette input::placeholder {
+        color: var(--faint);
+      }
+      .pal-list {
+        max-height: 320px;
+        overflow-y: auto;
+        padding: 7px;
+      }
+      .pal-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: var(--r-sm);
+        font-size: 13px;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .pal-item .ic {
+        width: 14px;
+        height: 14px;
+        color: var(--faint);
+      }
+      .pal-item .kbd-hint {
+        margin-left: auto;
+      }
+      .pal-item.on {
+        background: var(--selected);
+        color: var(--text);
+        box-shadow: var(--inset-top);
+      }
+      .pal-item.on .ic {
+        color: var(--ember);
+      }
+
+      /* ── 原型控制条（不属于壳） ──────────────────────────────── */
+      .proto-controls {
+        position: fixed;
+        right: 14px;
+        bottom: 40px;
+        z-index: 50;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .pbtn {
+        height: 28px;
+        padding: 0 11px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        border: 1px solid var(--line-strong);
+        background: var(--glass-strong-grad);
+        backdrop-filter: blur(16px) saturate(1.4);
+        -webkit-backdrop-filter: blur(16px) saturate(1.4);
+        box-shadow: var(--shadow-1), var(--inset-top);
+        transition: all var(--t-fast) var(--ease);
+      }
+      .pbtn:hover {
+        color: var(--text);
+        transform: translateY(-1px);
+        box-shadow: var(--shadow-2);
+      }
+
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: color-mix(in srgb, var(--text) 12%, transparent);
+        border-radius: 4px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: color-mix(in srgb, var(--text) 20%, transparent);
+        background-clip: content-box;
+        border: 2px solid transparent;
+      }
+      ::selection {
+        background: color-mix(in srgb, var(--ember) 28%, transparent);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <!-- titleband -->
+      <header class="titleband">
+        <div class="traffic"><i></i><i></i><i></i></div>
+        <div class="tb-group">
+          <button class="tb-btn" title="侧栏">
+            <svg class="ic" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="16" rx="3" />
+              <path d="M9.5 4v16" />
+            </svg>
+          </button>
+          <button class="tb-btn" title="后退">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
+          </button>
+          <button class="tb-btn" title="前进">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+        <div class="tb-title"><b>重构设置页路由</b><span>·</span><span>piwin</span></div>
+        <div class="tb-spacer"></div>
+        <div class="tb-group">
+          <button class="tb-btn" title="命令面板" onclick="togglePalette(true)">
+            <svg class="ic" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.5-4.5" />
+            </svg>
+          </button>
+          <button class="tb-btn" title="通知">
+            <svg class="ic" viewBox="0 0 24 24">
+              <path d="M18 9a6 6 0 10-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9z" />
+              <path d="M10 20a2.3 2.3 0 004 0" />
+            </svg>
+          </button>
+          <button class="tb-btn" title="右侧面板">
+            <svg class="ic" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="16" rx="3" />
+              <path d="M14.5 4v16" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- sidebar -->
+      <aside class="sidebar">
+        <div class="sb-head">
+          <div class="sb-brand">
+            <span class="sb-logo"
+              ><svg class="ic" viewBox="0 0 24 24" style="stroke: currentColor">
+                <path
+                  d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.2 2.2M16.2 16.2l2.2 2.2M18.4 5.6l-2.2 2.2M7.8 16.2l-2.2 2.2"
+                />
+                <circle cx="12" cy="12" r="3.2" /></svg
+            ></span>
+            <b>piwin</b>
+          </div>
+          <div class="sb-search" onclick="togglePalette(true)">
+            <svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.5-4.5" />
+            </svg>
+            搜索会话…<span class="kbd-hint">⌘K</span>
+          </div>
+          <button class="sb-new">
+            <svg
+              class="ic"
+              viewBox="0 0 24 24"
+              style="width: 13px; height: 13px; stroke-width: 2.2"
+            >
+              <path d="M12 5v14M5 12h14" /></svg
+            >新建 Agent
+          </button>
+        </div>
+        <div class="sb-scroll">
+          <div class="sb-section">
+            <h4>
+              <svg class="ic" viewBox="0 0 24 24">
+                <path d="M3 8l6.5-5L16 8v12H3z" />
+                <path d="M16 8h5v12h-5" /></svg
+              >项目
+            </h4>
+            <div class="proj">
+              <div class="proj-row">
+                <span class="proj-dot" style="background: var(--ember)"></span>piwin<span
+                  class="count num"
+                  >12</span
+                >
+              </div>
+              <div class="sess active">
+                <span class="t">重构设置页路由 + 键盘导航</span>
+                <span class="m"
+                  ><span class="live"><i class="live-dot"></i>运行中</span
+                  ><span class="num">2:41</span></span
+                >
+              </div>
+              <div class="sess">
+                <span class="t">Ember Glass 主题原型</span
+                ><span class="m"
+                  ><span>昨天</span><span>·</span><span class="num">86k tokens</span></span
+                >
+              </div>
+              <div class="sess">
+                <span class="t">修复 transcript 抖动</span><span class="m"><span>周二</span></span>
+              </div>
+            </div>
+            <div class="proj">
+              <div class="proj-row">
+                <span class="proj-dot" style="background: var(--sage)"></span>openwebui_m<span
+                  class="count num"
+                  >4</span
+                >
+              </div>
+            </div>
+            <div class="proj">
+              <div class="proj-row">
+                <span class="proj-dot" style="background: var(--violet)"></span>dotfiles<span
+                  class="count num"
+                  >2</span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="sb-section">
+            <h4>
+              <svg class="ic" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" /></svg
+              >最近
+            </h4>
+            <div class="sess" style="margin-left: 0">
+              <span class="t">pet 覆盖层系统级窗口</span><span class="m"><span>3 天前</span></span>
+            </div>
+            <div class="sess" style="margin-left: 0">
+              <span class="t">MCP 权限策略黄金用例</span><span class="m"><span>上周</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="sb-foot">
+          <div class="who"><span class="avatar">YJ</span><span>yorick</span></div>
+          <button class="tb-btn" title="技能">
+            <svg class="ic" viewBox="0 0 24 24">
+              <path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z" />
+            </svg>
+          </button>
+          <button class="tb-btn" title="设置">
+            <svg class="ic" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.9 2.9l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.9-2.9l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.9-2.9l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.9 2.9l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1h.1a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"
+              />
+            </svg>
+          </button>
+        </div>
+      </aside>
+
+      <!-- stage -->
+      <main class="stage">
+        <div class="chat-col">
+          <div class="ctx-bar">
+            <div class="ctx-crumb">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M3 8l6.5-5L16 8v12H3z" /></svg>
+              piwin<span style="color: var(--faint)">/</span><b>重构设置页路由 + 键盘导航</b>
+            </div>
+            <span class="mode-pill"
+              ><svg class="ic" viewBox="0 0 24 24">
+                <path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z" /></svg
+              >Agent</span
+            >
+            <div class="ctx-status">
+              <span class="git"
+                ><svg class="ic" viewBox="0 0 24 24">
+                  <circle cx="6" cy="6" r="2.5" />
+                  <circle cx="6" cy="18" r="2.5" />
+                  <circle cx="18" cy="8" r="2.5" />
+                  <path d="M6 8.5v7M18 10.5c0 5-7 3.5-10 5.5" /></svg
+                ><span class="num">feat/ui-shell-redesign</span></span
+              >
+              <span class="num">2 文件已改</span>
+            </div>
+          </div>
+
+          <div class="transcript" id="transcript">
+            <div class="msg-user">
+              <div class="msg-meta" style="justify-content: flex-end">
+                <time class="num">14:02</time><span class="name">你</span>
+              </div>
+              <div class="bubble">
+                把设置页从面板拆成独立路由，加上全局键盘导航，顺便把外观设置里主题切换的闪烁修一下。
+              </div>
+            </div>
+
+            <div class="msg-assistant">
+              <div class="msg-meta">
+                <span class="name"
+                  ><span class="spark"
+                    ><svg class="ic" viewBox="0 0 24 24">
+                      <path
+                        d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"
+                      /></svg></span
+                  >piwin</span
+                ><time class="num">14:02</time>
+              </div>
+
+              <div class="think">
+                <span class="dotty"><i></i><i></i><i></i></span>思考了 6 秒 · 已折叠推理过程
+              </div>
+
+              <div class="plan-card" id="planCard">
+                <div class="plan-head" onclick="toggleCard('planCard')">
+                  <svg class="ic" viewBox="0 0 24 24">
+                    <path d="M9 5h11M9 12h11M9 19h11" />
+                    <path d="M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2" />
+                  </svg>
+                  计划 · 3 步（先讲清楚再动手）
+                  <svg class="ic chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" /></svg>
+                </div>
+                <div class="plan-steps">
+                  <div class="step done">
+                    <span class="box">✓</span>设置页抽成
+                    <code>/settings/*</code> 路由，面板改为路由出口
+                  </div>
+                  <div class="step run">
+                    <span class="box"></span>接入全局键盘导航（g s / g c / ⌘K）
+                  </div>
+                  <div class="step">
+                    <span class="box"></span>主题切换闪烁：token 应用移到 layout effect
+                  </div>
+                </div>
+              </div>
+
+              <div class="tool closed" id="tool1">
+                <div class="tool-head" onclick="toggleCard('tool1')">
+                  <svg class="ic" viewBox="0 0 24 24">
+                    <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                    <path d="M14 3v5h5" />
+                  </svg>
+                  读取 <span class="path">apps/desktop/src/settings/settings-shell.tsx</span>
+                  <span class="ok-dot"></span><span class="elapsed num">412ms</span>
+                </div>
+                <div class="tool-body"><span class="dim">// 213 行 · 已读入上下文</span></div>
+              </div>
+
+              <p>
+                先拆路由。设置壳目前是一个巨型条件渲染，我把它改成嵌套路由，保留现有 deep-link
+                行为：
+              </p>
+
+              <div class="diff-card" id="diffCard">
+                <div class="diff-head">
+                  <svg class="ic" viewBox="0 0 24 24" style="color: var(--sage)">
+                    <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                    <path d="M14 3v5h5" />
+                  </svg>
+                  <span class="file">settings-shell.tsx</span>
+                  <span class="stat num"
+                    ><span class="add">+38</span> <span class="del">−52</span></span
+                  >
+                  <div class="diff-actions" id="diffActions">
+                    <button class="btn" onclick="verdict(false)">
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg
+                      >拒绝
+                    </button>
+                    <button class="btn primary" onclick="verdict(true)">
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg>接受
+                    </button>
+                  </div>
+                  <div class="diff-verdict ok">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg>已接受 ·
+                    写入工作区
+                  </div>
+                  <div class="diff-verdict no">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" /></svg
+                    >已拒绝 · 未改动磁盘
+                  </div>
+                </div>
+                <div class="diff-body">
+                  <div class="ln ctx">
+                    <span class="g">41</span>export function SettingsShell() {
+                  </div>
+                  <div class="ln del">
+                    <span class="g">42</span> const [page, setPage] =
+                    useState&lt;SettingsPage&gt;('general')
+                  </div>
+                  <div class="ln del">
+                    <span class="g">43</span> return page === 'general' ? &lt;General/&gt; : …
+                  </div>
+                  <div class="ln add"><span class="g">42</span> return (</div>
+                  <div class="ln add">
+                    <span class="g">43</span> &lt;Routes base="/settings"&gt;
+                  </div>
+                  <div class="ln add">
+                    <span class="g">44</span> &lt;Route path="general" element={&lt;General/&gt;}
+                    /&gt;
+                  </div>
+                  <div class="ln add">
+                    <span class="g">45</span> &lt;Route path="appearance"
+                    element={&lt;Appearance/&gt;} /&gt;
+                  </div>
+                  <div class="ln ctx"><span class="g">46</span> &lt;/Routes&gt;</div>
+                  <div class="ln ctx"><span class="g">47</span> )</div>
+                </div>
+              </div>
+
+              <div class="gate">
+                <div class="gate-head">
+                  <svg class="ic" viewBox="0 0 24 24">
+                    <path d="M12 9v4M12 17h.01" />
+                    <path
+                      d="M10.3 3.8L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.8a2 2 0 00-3.4 0z"
+                    /></svg
+                  >需要审批 · 运行测试套件
+                </div>
+                <div class="gate-cmd">
+                  <span style="color: var(--faint)">$</span> pnpm --filter @piwin/desktop test
+                </div>
+                <div class="gate-actions">
+                  <button class="btn warn-p">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" /></svg>允许一次
+                  </button>
+                  <button class="btn">总是允许</button>
+                  <button class="btn">拒绝</button>
+                  <span class="hint">权限模式: ask · ADR 0019</span>
+                </div>
+              </div>
+
+              <p id="streamTarget">路由拆完了<span class="stream-caret" id="caret"></span></p>
+            </div>
+          </div>
+
+          <div class="composer-zone">
+            <div class="composer">
+              <div class="chips">
+                <span class="chip"><img alt="" />screenshot.png</span>
+                <span class="chip"
+                  ><svg class="ic" viewBox="0 0 24 24">
+                    <path
+                      d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.8-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"
+                    /></svg
+                  >2 条引用</span
+                >
+              </div>
+              <textarea placeholder="继续追问，或 @ 文件 / # 技能…">
+继续，键盘导航部分用 g 键系列，别和浏览器冲突。</textarea>
+              <div class="composer-bar">
+                <button class="cbtn">
+                  <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+                </button>
+                <button class="cbtn model">
+                  <svg class="ic" viewBox="0 0 24 24" style="width: 12px; height: 12px">
+                    <rect x="4" y="4" width="16" height="16" rx="3" />
+                    <path d="M9 9h6v6H9z" /></svg
+                  >Kimi K3 High<svg
+                    class="ic"
+                    viewBox="0 0 24 24"
+                    style="width: 11px; height: 11px"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+                <button class="cbtn">
+                  <svg class="ic" viewBox="0 0 24 24">
+                    <path d="M9.5 14.5L4 20M4 20h5M4 20v-5M14.5 9.5L20 4M20 4h-5M20 4v5" /></svg
+                  >深度思考
+                </button>
+                <div class="right">
+                  <svg class="ring" viewBox="0 0 20 20" title="上下文 62%">
+                    <circle class="bg" cx="10" cy="10" r="7.5" fill="none" stroke-width="2.5" />
+                    <circle
+                      class="fg"
+                      cx="10"
+                      cy="10"
+                      r="7.5"
+                      fill="none"
+                      stroke-width="2.5"
+                      stroke-dasharray="47.1"
+                      stroke-dashoffset="17.9"
+                    />
+                  </svg>
+                  <button class="send" title="发送">
+                    <svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="composer-hint">⏎ 发送 · ⇧⏎ 换行 · ⌘K 命令 · Esc 中断运行</div>
+          </div>
+
+          <footer class="statusbar">
+            <span class="sb-item run"><i class="live-dot"></i>agent 运行中 · 步骤 2/3</span>
+            <span class="sb-item num">86.2k / 128k</span>
+            <span class="sb-item"
+              ><svg class="ic" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M12 7v5l3 3" /></svg
+              ><span class="num">2:41</span></span
+            >
+            <div class="right">
+              <span class="sb-item"
+                ><svg class="ic" viewBox="0 0 24 24">
+                  <path d="M5 12.5C7 7 17 7 19 12.5M12 12.5v.01" />
+                  <circle cx="12" cy="16" r="1" /></svg
+                >RPC · 已连接</span
+              >
+              <span class="sb-item">权限 ask</span>
+              <span class="sb-item num">UTF-8</span>
+            </div>
+          </footer>
+        </div>
+      </main>
+
+      <!-- signal panel -->
+      <aside class="signal">
+        <div class="sg-tabs">
+          <button class="sg-tab on" data-pane="changes">
+            更改<span class="badge num">3</span>
+          </button>
+          <button class="sg-tab" data-pane="term">终端</button>
+          <button class="sg-tab" data-pane="outline">大纲</button>
+        </div>
+        <div class="sg-body">
+          <div class="sg-pane on" id="pane-changes">
+            <div class="file-row">
+              <svg class="ic" viewBox="0 0 24 24">
+                <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                <path d="M14 3v5h5" /></svg
+              >settings-shell.tsx<span class="tag num"
+                ><span class="add">+38</span> <span class="del">−52</span></span
+              >
+            </div>
+            <div class="file-row">
+              <svg class="ic" viewBox="0 0 24 24">
+                <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                <path d="M14 3v5h5" /></svg
+              >use-desktop-shortcuts.ts<span class="tag num"><span class="add">+41</span></span>
+            </div>
+            <div class="file-row">
+              <svg class="ic" viewBox="0 0 24 24">
+                <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" />
+                <path d="M14 3v5h5" /></svg
+              >appearance-page.tsx<span class="tag num"
+                ><span class="add">+9</span> <span class="del">−4</span></span
+              >
+            </div>
+          </div>
+          <div class="sg-pane" id="pane-term">
+            <div class="term-mock">
+              <div><span class="dim">$</span> pnpm --filter @piwin/desktop test</div>
+              <div class="dim">…</div>
+              <div>
+                <span class="ok">✓</span> settings-shell.test.tsx <span class="dim">(14)</span>
+              </div>
+              <div>
+                <span class="ok">✓</span> use-desktop-shortcuts.test.ts <span class="dim">(9)</span>
+              </div>
+              <div class="dim">Test Files 2 passed · 23 tests · 1.2s</div>
+            </div>
+          </div>
+          <div class="sg-pane" id="pane-outline">
+            <div class="outline-item you">
+              <span>把设置页拆成独立路由…</span
+              ><svg class="ic" viewBox="0 0 24 24">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5" />
+              </svg>
+            </div>
+            <div class="outline-item">
+              <svg class="ic" viewBox="0 0 24 24">
+                <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" /></svg
+              >计划 · 3 步
+            </div>
+            <div class="outline-item">
+              <svg class="ic" viewBox="0 0 24 24">
+                <path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z" /></svg
+              >读取 settings-shell.tsx
+            </div>
+            <div class="outline-item">
+              <svg class="ic" viewBox="0 0 24 24">
+                <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z" /></svg
+              >路由 diff（待审批）
+            </div>
+            <div class="outline-item">
+              <svg class="ic" viewBox="0 0 24 24">
+                <path d="M12 9v4M12 17h.01" />
+                <circle cx="12" cy="12" r="9" /></svg
+              >审批门 · pnpm test
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- command palette -->
+    <div class="palette-scrim" id="palScrim" onclick="togglePalette(false)"></div>
+    <div class="palette" id="palette">
+      <input placeholder="输入命令或搜索会话…" />
+      <div class="pal-list">
+        <div class="pal-item on">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>新建 Agent<span
+            class="kbd-hint"
+            >⌘N</span
+          >
+        </div>
+        <div class="pal-item">
+          <svg class="ic" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.9 2.9l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.9-2.9l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.9-2.9l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.9 2.9l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1h.1a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"
+            /></svg
+          >打开设置<span class="kbd-hint">⌘,</span>
+        </div>
+        <div class="pal-item">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18" /></svg>切换主题 Ember /
+          Paper
+        </div>
+        <div class="pal-item">
+          <svg class="ic" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="16" rx="3" />
+            <path d="M14.5 4v16" /></svg
+          >切换右侧面板<span class="kbd-hint">⌘.</span>
+        </div>
+        <div class="pal-item">
+          <svg class="ic" viewBox="0 0 24 24">
+            <path
+              d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.8-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"
+            /></svg
+          >跳转：Ember Glass 主题原型
+        </div>
+      </div>
+    </div>
+
+    <!-- prototype controls -->
+    <div class="proto-controls">
+      <button class="pbtn" onclick="toggleMode()">◐ 亮 / 暗</button>
+      <button class="pbtn" onclick="replayStream()">↻ 重播流式</button>
+      <button class="pbtn" onclick="togglePalette(true)">⌘K 面板</button>
+    </div>
+
+    <script>
+      function toggleMode() {
+        const el = document.documentElement;
+        el.dataset.mode = el.dataset.mode === 'dark' ? 'light' : 'dark';
+      }
+      function toggleCard(id) {
+        document.getElementById(id).classList.toggle('closed');
+      }
+      function verdict(ok) {
+        const card = document.getElementById('diffCard');
+        card.classList.toggle('accepted', ok);
+        card.classList.toggle('rejected', !ok);
+        document.getElementById('diffActions').style.display = 'none';
+      }
+      function togglePalette(open) {
+        document.getElementById('palette').classList.toggle('open', open);
+        document.getElementById('palScrim').classList.toggle('open', open);
+        if (open) document.querySelector('#palette input').focus();
+      }
+      document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          togglePalette(true);
+        }
+        if (e.key === 'Escape') togglePalette(false);
+      });
+      document.querySelectorAll('.sg-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.sg-tab').forEach((t) => t.classList.remove('on'));
+          document.querySelectorAll('.sg-pane').forEach((p) => p.classList.remove('on'));
+          tab.classList.add('on');
+          document.getElementById('pane-' + tab.dataset.pane).classList.add('on');
+        });
+      });
+      document.querySelectorAll('.sess').forEach((s) => {
+        s.addEventListener('click', () => {
+          document.querySelectorAll('.sess').forEach((x) => x.classList.remove('active'));
+          s.classList.add('active');
+        });
+      });
+      const FULL =
+        '路由拆完了，deep-link 行为保持不变。接下来接键盘导航：g s 进设置、g c 回会话、⌘K 全局命令——都在一个 use-hotkey 层里注册，避免和浏览器默认快捷键打架。';
+      let timer = null;
+      function replayStream() {
+        const target = document.getElementById('streamTarget');
+        const caret = '<span class="stream-caret" id="caret"></span>';
+        clearInterval(timer);
+        let i = 0;
+        timer = setInterval(() => {
+          i += 1 + Math.floor(Math.random() * 3);
+          if (i >= FULL.length) {
+            target.innerHTML = FULL;
+            clearInterval(timer);
+          } else {
+            target.innerHTML = FULL.slice(0, i) + caret;
+          }
+        }, 34);
+      }
+      replayStream();
+    </script>
+  </body>
+</html>

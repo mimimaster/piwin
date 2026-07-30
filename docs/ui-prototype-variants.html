@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="zh-CN" data-mode="dark" data-variant="ember">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>piwin · 壳原型对比 · 3 版</title>
+<style>
+/* ============================================================
+   共享壳 — 严格对齐现网 quiet-workbench：
+   sidebar/signal 用 var(--bg) 同色场，发丝线分隔，无面板框
+   几何: 260px 侧栏 / 36px titleband / 280px 信号栏 (tokens.css)
+   只在主舞台 + 交互元素上做质感变体
+   ============================================================ */
+
+:root, [data-mode='dark'] {
+  color-scheme: dark;
+  /* 现网 Daybreak 暗色 token (appearance-tokens.ts PIWIN_APPEARANCE_DARK) */
+  --bg: #151318; --panel: #1a181f; --panel2: #211e26;
+  --border: rgba(255, 238, 220, 0.07);
+  --text: #f0eae3; --muted: #a8a09f; --faint: #736d76;
+  --accent: #ff8359; --accent2: #ffb37e;
+  --danger: #f0685c; --ok: #4fca92;
+  --violet: #cba6ff; --sage: #6fd3e8;
+  /* 派生 — 与 appearance-tokens.ts 一致 */
+  --hover: rgba(255, 240, 225, 0.055);
+  --wb-line: rgba(255, 238, 220, 0.07);
+  --wb-accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
+  --line: color-mix(in srgb, var(--text) 4%, transparent);
+  --line-soft: color-mix(in srgb, var(--text) 6%, transparent);
+  --shadow: 0 10px 28px rgba(8, 5, 10, 0.42);
+  --r-sm: 7px; --r-md: 10px; --r-lg: 14px;
+  --t-fast: 120ms; --t-std: 200ms; --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+[data-mode='light'] {
+  color-scheme: light;
+  --bg: #f7f3ed; --panel: #fffdfa; --panel2: #f2ede5;
+  --border: rgba(80, 60, 40, 0.10);
+  --text: #2f2924; --muted: #82776a; --faint: #a89d8f;
+  --accent: #e85d1f; --accent2: #f4955c;
+  --danger: #d64541; --ok: #1f9d63;
+  --violet: #8a5cf5; --sage: #0e7d99;
+  --hover: rgba(60, 40, 20, 0.05);
+  --wb-line: rgba(80, 60, 40, 0.06);
+  --wb-accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --line: color-mix(in srgb, var(--text) 5%, transparent);
+  --line-soft: color-mix(in srgb, var(--text) 8%, transparent);
+  --shadow: 0 10px 28px rgba(90, 65, 40, 0.10);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; overflow: hidden; background: var(--bg); color: var(--text);
+  font: 13px/1.5 var(--font); letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+svg.ic { width: 15px; height: 15px; display: block; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ── 壳网格 (现网 region-shell.css) ──────────────────────── */
+.app-shell {
+  height: 100vh; display: grid;
+  grid-template-columns: 260px minmax(0, 1fr) 280px;
+  grid-template-rows: 36px minmax(0, 1fr);
+  grid-template-areas: "topbar topbar topbar" "nav stage signal";
+}
+
+/* ── titleband (现网 region-titlebar.css) ────────────────── */
+.titleband {
+  grid-area: topbar; display: flex; align-items: center; gap: 10px;
+  padding: 0 12px 0 78px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-soft);
+}
+.traffic { display: flex; gap: 8px; margin-left: -66px; margin-right: 54px; }
+.traffic i { width: 12px; height: 12px; border-radius: 50%; }
+.traffic i:nth-child(1) { background: #ff5f57; } .traffic i:nth-child(2) { background: #febc2e; } .traffic i:nth-child(3) { background: #28c840; }
+.tb-btn { height: 26px; min-width: 26px; padding: 0 6px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--muted); transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+.tb-btn:hover { background: var(--hover); color: var(--text); }
+.tb-title { position: absolute; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.tb-title b { color: var(--text); font-weight: 560; }
+.tb-spacer { flex: 1; }
+.kbd { font-family: var(--mono); font-size: 10px; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
+
+/* ── sidebar (现网 region-sidebar.css — 同色场) ───────────── */
+.sidebar {
+  grid-area: nav; display: flex; flex-direction: column; min-height: 0;
+  padding: 8px 10px 10px;
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+}
+.sb-head { display: flex; flex-direction: column; gap: 8px; padding: 0 2px 6px; }
+.sb-brand { display: flex; align-items: center; gap: 8px; }
+.sb-logo { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: grid; place-items: center; color: #2b1508; box-shadow: inset 0 1px 0 rgba(255,255,255,0.3); }
+.sb-logo svg { width: 12px; height: 12px; stroke-width: 2.2; }
+.sb-brand b { font-size: 13px; font-weight: 600; letter-spacing: -0.02em; }
+.sb-search { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 8px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--panel2); color: var(--faint); font-size: 12px; }
+.sb-search .kbd { margin-left: auto; }
+.sb-new { display: flex; align-items: center; justify-content: center; gap: 6px; height: 30px; border-radius: var(--r-sm); font-weight: 560; font-size: 12px; color: #2b1508; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 94%, white), var(--accent)); box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 25%, transparent), inset 0 1px 0 rgba(255,255,255,0.25); }
+.sb-scroll { flex: 1; overflow-y: auto; padding: 4px 0; }
+.sb-sec > h4 { margin: 10px 0 4px; padding: 0 6px; font-size: 10px; font-weight: 620; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.proj-row { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px; border-radius: var(--r-sm); color: var(--muted); font-weight: 560; font-size: 12px; cursor: pointer; }
+.proj-row:hover { background: var(--hover); }
+.proj-dot { width: 6px; height: 6px; border-radius: 3px; }
+.proj-row .count { margin-left: auto; font-size: 10px; color: var(--faint); }
+.sess { position: relative; display: flex; flex-direction: column; gap: 1px; margin: 1px 0 1px 9px; padding: 4px 8px 4px 10px; border-radius: var(--r-sm); cursor: pointer; }
+.sess:hover { background: var(--hover); }
+.sess .t { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sess .m { font-size: 10px; color: var(--faint); display: flex; gap: 5px; align-items: center; }
+.sess.active { background: var(--wb-accent-soft); }
+.sess.active::before { content: ""; position: absolute; left: -2px; top: 7px; bottom: 7px; width: 2px; border-radius: 2px; background: var(--accent); }
+.sess.active .t { color: var(--text); }
+.live { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
+.live i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: ping 1.8s var(--ease) infinite; position: relative; }
+.live i::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1px solid var(--accent); opacity: 0.6; animation: ping 1.8s var(--ease) infinite; }
+@keyframes ping { 0% { transform: scale(0.5); opacity: 0.8; } 80%,100% { transform: scale(1.5); opacity: 0; } }
+.sb-foot { display: flex; align-items: center; gap: 2px; padding: 6px 4px 0; border-top: 1px solid var(--line); margin-top: 4px; }
+.sb-foot .who { display: flex; align-items: center; gap: 7px; margin-right: auto; padding: 3px 5px; border-radius: var(--r-sm); cursor: pointer; }
+.sb-foot .who:hover { background: var(--hover); }
+.avatar { width: 20px; height: 20px; border-radius: 50%; font-size: 9px; font-weight: 640; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--violet), var(--sage)); }
+.sb-foot .who span { font-size: 11px; color: var(--muted); }
+
+/* ── stage (现网 region-shell.css — Daybreak 辉光) ────────── */
+.stage {
+  grid-area: stage; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column;
+  background:
+    radial-gradient(960px 380px at 50% -120px, color-mix(in srgb, var(--accent) 13%, transparent), transparent 74%),
+    radial-gradient(640px 280px at 84% -100px, color-mix(in srgb, var(--accent2) 8%, transparent), transparent 72%),
+    var(--bg);
+}
+.chat-col { flex: 1; min-height: 0; display: flex; flex-direction: column; max-width: 960px; width: 100%; margin: 0 auto; }
+
+/* context bar (现网 region-context-bar.css) */
+.ctx-bar { height: 42px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 18px; border-bottom: 1px solid var(--line-soft); }
+.ctx-crumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.ctx-crumb b { color: var(--text); font-weight: 560; }
+.ctx-crumb .ic { width: 13px; height: 13px; color: var(--faint); }
+.mode-pill { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 560; color: var(--accent); background: var(--wb-accent-soft); }
+.mode-pill .ic { width: 10px; height: 10px; }
+.ctx-status { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--faint); font-size: 11px; }
+.ctx-status .git { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+.ctx-status .git .ic { width: 11px; height: 11px; }
+
+/* transcript */
+.transcript { flex: 1; overflow-y: auto; padding: 20px 18px 8px; display: flex; flex-direction: column; gap: 16px; }
+.msg-meta { display: flex; gap: 6px; align-items: baseline; margin-bottom: 5px; }
+.msg-meta .name { font-size: 12px; font-weight: 600; }
+.msg-meta .name .spark { color: var(--accent); display: inline-flex; vertical-align: -2px; margin-right: 4px; }
+.msg-meta .name .spark svg { width: 12px; height: 12px; stroke-width: 2; }
+.msg-meta time { font-size: 10px; color: var(--faint); }
+.msg-assistant { max-width: 100%; font-size: 13.5px; line-height: 1.65; }
+.msg-assistant p { margin: 0 0 9px; }
+.msg-assistant code { font-family: var(--mono); font-size: 12px; background: var(--wb-accent-soft); color: var(--accent2); padding: 1px 5px; border-radius: 4px; }
+
+/* ── 变体: 共享交互组件骨架 ──────────────────────────────── */
+.plan-card, .tool, .diff-card, .gate { border-radius: var(--r-md); margin: 4px 0 8px; overflow: hidden; }
+.plan-head, .tool-head { display: flex; align-items: center; gap: 8px; padding: 8px 11px; cursor: pointer; font-size: 12px; color: var(--muted); }
+.plan-head:hover, .tool-head:hover { background: var(--hover); }
+.plan-head .ic { width: 13px; height: 13px; color: var(--violet); }
+.chev { margin-left: auto; transition: transform var(--t-std) var(--ease); color: var(--faint); }
+.closed .chev { transform: rotate(-90deg); }
+.plan-steps { padding: 2px 11px 9px; display: flex; flex-direction: column; gap: 6px; }
+.closed .plan-steps, .closed .tool-body, .closed .diff-body { display: none; }
+.step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.step .box { width: 14px; height: 14px; border-radius: 4px; flex: none; display: grid; place-items: center; border: 1.5px solid var(--line); color: transparent; font-size: 9px; }
+.step.done .box { background: var(--ok); border-color: var(--ok); color: #08251a; }
+.step.done { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line); }
+.step.run .box { border-color: var(--accent); }
+.step.run .box::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: breathe 1.4s ease-in-out infinite; }
+.step.run { color: var(--text); }
+@keyframes breathe { 50% { opacity: 0.35; transform: scale(0.7); } }
+.tool-head .path { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.tool-head .elapsed { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--faint); }
+.tool-head .ok-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.tool-body { border-top: 1px solid var(--line); padding: 9px 11px; font-family: var(--mono); font-size: 11px; color: var(--muted); background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.tool-body .dim { color: var(--faint); }
+.diff-head { display: flex; align-items: center; gap: 8px; padding: 8px 11px; border-bottom: 1px solid var(--line); }
+.diff-head .file { font-family: var(--mono); font-size: 11.5px; font-weight: 560; }
+.diff-head .stat { font-family: var(--mono); font-size: 10.5px; }
+.diff-head .stat .add { color: var(--ok); } .diff-head .stat .del { color: var(--danger); }
+.diff-actions { margin-left: auto; display: flex; gap: 6px; }
+.btn { height: 24px; padding: 0 10px; border-radius: var(--r-sm); font-size: 11.5px; font-weight: 560; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); color: var(--muted); background: var(--panel2); transition: all var(--t-fast) var(--ease); }
+.btn:hover { color: var(--text); border-color: var(--faint); }
+.btn .ic { width: 11px; height: 11px; }
+.btn.primary { color: #08251a; border-color: transparent; background: linear-gradient(180deg, color-mix(in srgb, var(--ok) 94%, white), var(--ok)); box-shadow: 0 2px 8px color-mix(in srgb, var(--ok) 25%, transparent), inset 0 1px 0 rgba(255,255,255,0.25); }
+.btn.primary:hover { filter: brightness(1.05); }
+.diff-body { font-family: var(--mono); font-size: 11px; line-height: 1.7; padding: 6px 0; }
+.diff-body .ln { display: flex; padding: 0 11px; white-space: pre; }
+.diff-body .ln .g { width: 24px; flex: none; color: var(--faint); text-align: right; padding-right: 10px; user-select: none; }
+.ln.add { background: color-mix(in srgb, var(--ok) 9%, transparent); color: color-mix(in srgb, var(--ok) 85%, var(--text)); }
+.ln.del { background: color-mix(in srgb, var(--danger) 8%, transparent); color: color-mix(in srgb, var(--danger) 80%, var(--text)); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.ln.ctx { color: var(--muted); }
+.gate { border: 1px solid color-mix(in srgb, #ffb020 30%, transparent); background: linear-gradient(180deg, color-mix(in srgb, #ffb020 7%, transparent), transparent 55%), var(--panel); }
+.gate-head { display: flex; align-items: center; gap: 7px; padding: 8px 11px; font-size: 12px; font-weight: 600; color: #ffb020; }
+.gate-head .ic { width: 13px; height: 13px; }
+.gate-cmd { margin: 0 11px 8px; padding: 7px 10px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--bg) 62%, transparent); border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; }
+.gate-actions { display: flex; gap: 7px; padding: 0 11px 9px; }
+.btn.warn-p { color: #241600; border-color: transparent; background: linear-gradient(180deg, color-mix(in srgb, #ffb020 94%, white), #ffb020); box-shadow: 0 2px 8px color-mix(in srgb, #ffb020 25%, transparent), inset 0 1px 0 rgba(255,255,255,0.3); }
+.gate .hint { margin-left: auto; align-self: center; font-size: 10px; color: var(--faint); }
+.stream-caret { display: inline-block; width: 7px; height: 14px; margin-left: 2px; vertical-align: -2px; border-radius: 2px; background: var(--accent); animation: caret 1s steps(2, jump-none) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+.think { display: flex; align-items: center; gap: 7px; height: 26px; padding: 0 9px; margin: 2px 0 6px; border-radius: var(--r-sm); font-size: 11.5px; color: var(--faint); cursor: pointer; width: fit-content; }
+.think:hover { background: var(--hover); }
+.think .dotty { display: inline-flex; gap: 3px; }
+.think .dotty i { width: 4px; height: 4px; border-radius: 50%; background: var(--violet); animation: breathe 1.3s ease-in-out infinite; }
+.think .dotty i:nth-child(2) { animation-delay: 0.15s; } .think .dotty i:nth-child(3) { animation-delay: 0.3s; }
+
+/* ── 变体 A: Ember — 卡片用 panel 实色 + 顶部高光 (克制) ──── */
+[data-variant='ember'] .plan-card,
+[data-variant='ember'] .tool,
+[data-variant='ember'] .diff-card { border: 1px solid var(--line); background: var(--panel); box-shadow: 0 1px 3px rgba(8,5,10,0.3), inset 0 1px 0 color-mix(in srgb, var(--text) 3%, transparent); }
+[data-variant='ember'] .msg-user .bubble { background: var(--panel2); border: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) var(--r-sm) var(--r-md); padding: 8px 13px; font-size: 13.5px; line-height: 1.6; box-shadow: 0 1px 3px rgba(8,5,10,0.25); }
+[data-variant='ember'] .composer { border: 1px solid var(--line); background: var(--panel); border-radius: var(--r-md); box-shadow: 0 4px 16px rgba(8,5,10,0.35), inset 0 1px 0 color-mix(in srgb, var(--text) 3%, transparent); transition: border-color var(--t-std) var(--ease), box-shadow var(--t-std) var(--ease); }
+[data-variant='ember'] .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 40%, transparent); box-shadow: 0 4px 16px rgba(8,5,10,0.35), 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent), inset 0 1px 0 color-mix(in srgb, var(--text) 3%, transparent); }
+
+/* ── 变体 B: Glass — 玻璃磨砂 + 透出 stage 辉光 ──────────── */
+[data-variant='glass'] .plan-card,
+[data-variant='glass'] .tool,
+[data-variant='glass'] .diff-card { border: 1px solid color-mix(in srgb, var(--text) 8%, transparent); background: color-mix(in srgb, var(--panel) 55%, transparent); backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3); box-shadow: 0 4px 20px rgba(8,5,10,0.3), inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent); }
+[data-variant='glass'] .msg-user .bubble { background: color-mix(in srgb, var(--panel2) 65%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid color-mix(in srgb, var(--text) 7%, transparent); border-radius: var(--r-md) var(--r-md) var(--r-sm) var(--r-md); padding: 8px 13px; font-size: 13.5px; line-height: 1.6; box-shadow: 0 2px 12px rgba(8,5,10,0.25); }
+[data-variant='glass'] .composer { border: 1px solid color-mix(in srgb, var(--text) 10%, transparent); background: color-mix(in srgb, var(--panel) 48%, transparent); backdrop-filter: blur(20px) saturate(1.4); -webkit-backdrop-filter: blur(20px) saturate(1.4); border-radius: var(--r-md); box-shadow: 0 8px 32px rgba(8,5,10,0.4), inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent); transition: border-color var(--t-std) var(--ease), box-shadow var(--t-std) var(--ease); }
+[data-variant='glass'] .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 45%, transparent); box-shadow: 0 8px 32px rgba(8,5,10,0.4), 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent), 0 0 24px color-mix(in srgb, var(--accent) 10%, transparent), inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent); }
+
+/* ── 变体 C: Outline — 无填充、仅发丝线框 (Linear 风) ────── */
+[data-variant='outline'] .plan-card,
+[data-variant='outline'] .tool,
+[data-variant='outline'] .diff-card { border: 1px solid color-mix(in srgb, var(--text) 9%, transparent); background: transparent; box-shadow: none; }
+[data-variant='outline'] .plan-card:hover,
+[data-variant='outline'] .tool:hover,
+[data-variant='outline'] .diff-card:hover { border-color: color-mix(in srgb, var(--text) 14%, transparent); }
+[data-variant='outline'] .msg-user .bubble { background: transparent; border: 1px solid color-mix(in srgb, var(--text) 10%, transparent); border-radius: var(--r-md) var(--r-md) var(--r-sm) var(--r-md); padding: 8px 13px; font-size: 13.5px; line-height: 1.6; }
+[data-variant='outline'] .composer { border: 1px solid color-mix(in srgb, var(--text) 10%, transparent); background: transparent; border-radius: var(--r-md); box-shadow: none; transition: border-color var(--t-std) var(--ease); }
+[data-variant='outline'] .composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+[data-variant='outline'] .gate { background: transparent; }
+
+/* ── composer 共享内部 ──────────────────────────────────── */
+.composer-zone { flex: none; padding: 8px 18px 6px; }
+.composer { position: relative; }
+.composer .chips { display: flex; gap: 5px; padding: 9px 11px 0; }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); background: var(--panel2); }
+.chip .ic { width: 10px; height: 10px; }
+.chip img { width: 13px; height: 13px; border-radius: 3px; background: linear-gradient(135deg, var(--sage), var(--violet)); }
+.composer textarea { width: 100%; border: 0; outline: 0; resize: none; background: transparent; color: var(--text); font: 13.5px/1.6 var(--font); padding: 9px 13px 5px; min-height: 42px; }
+.composer textarea::placeholder { color: var(--faint); }
+.composer-bar { display: flex; align-items: center; gap: 3px; padding: 5px 9px 8px; }
+.cbtn { height: 26px; min-width: 26px; padding: 0 6px; border-radius: var(--r-sm); display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11.5px; }
+.cbtn:hover { background: var(--hover); color: var(--text); }
+.cbtn.model { border: 1px solid var(--line); font-weight: 560; }
+.composer-bar .right { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+.ring { width: 18px; height: 18px; transform: rotate(-90deg); }
+.ring .bg { stroke: var(--line); fill: none; stroke-width: 2.5; }
+.ring .fg { stroke: var(--ok); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 42.4; stroke-dashoffset: 16.1; }
+.send { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; color: #2b1508; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 94%, white), var(--accent)); box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 28%, transparent), inset 0 1px 0 rgba(255,255,255,0.3); transition: transform var(--t-fast) var(--ease), filter var(--t-fast) var(--ease); }
+.send:hover { filter: brightness(1.07); } .send:active { transform: scale(0.92); }
+.send .ic { width: 13px; height: 13px; stroke-width: 2.1; }
+.composer-hint { text-align: center; font-size: 10px; color: var(--faint); padding-top: 5px; }
+
+/* ── statusbar (现网 region-status-bar.css) ───────────────── */
+.statusbar { flex: none; height: 22px; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-top: 1px solid var(--line-soft); font-size: 10.5px; color: var(--faint); background: var(--bg); }
+.sb-item { display: flex; align-items: center; gap: 4px; }
+.sb-item .ic { width: 11px; height: 11px; }
+.sb-item.run { color: var(--accent); font-weight: 560; }
+.statusbar .right { margin-left: auto; display: flex; gap: 10px; }
+
+/* ── signal panel (现网 region-inspector.css — 同色场 + 片式 tab) ─ */
+.signal { grid-area: signal; display: flex; flex-direction: column; min-height: 0; background: var(--bg); border-left: 1px solid var(--line); }
+.sg-tabs { flex: none; display: flex; align-items: center; gap: 2px; padding: 0; border-bottom: 1px solid var(--line-soft); }
+.sg-tab { display: inline-flex; align-items: center; gap: 5px; max-width: 130px; min-height: 28px; padding: 4px 8px; border-radius: 8px 8px 0 0; border: 1px solid transparent; border-bottom: 0; background: transparent; color: var(--muted); font-size: 11.5px; font-weight: 550; }
+.sg-tab:hover { color: var(--text); }
+.sg-tab.on { background: var(--panel); color: var(--text); border-color: var(--line-soft); box-shadow: 0 -1px 0 var(--panel); }
+.sg-tab .badge { font-size: 9.5px; font-weight: 650; color: var(--accent); }
+.sg-body { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+.sg-pane { display: none; flex-direction: column; gap: 6px; }
+.sg-pane.on { display: flex; }
+.file-row { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: var(--r-sm); font-family: var(--mono); font-size: 11px; color: var(--muted); cursor: pointer; }
+.file-row:hover { background: var(--hover); color: var(--text); }
+.file-row .tag { margin-left: auto; font-size: 9.5px; }
+.file-row .tag .add { color: var(--ok); } .file-row .tag .del { color: var(--danger); }
+.file-row .ic { width: 13px; height: 13px; }
+.term-mock { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 9px 10px; background: #100e12; font-family: var(--mono); font-size: 10.5px; line-height: 1.7; color: #b8b0a8; }
+.term-mock .ok { color: var(--ok); } .term-mock .dim { color: var(--faint); }
+.outline-item { display: flex; align-items: center; gap: 7px; padding: 5px 8px; border-radius: var(--r-sm); font-size: 11.5px; color: var(--muted); cursor: pointer; }
+.outline-item:hover { background: var(--hover); color: var(--text); }
+.outline-item .ic { width: 12px; height: 12px; color: var(--faint); }
+.outline-item.you { justify-content: flex-end; color: var(--faint); }
+
+/* ── 变体切换条 ──────────────────────────────────────────── */
+.variant-bar { position: fixed; top: 8px; right: 12px; z-index: 50; display: flex; gap: 5px; padding: 5px; border-radius: 999px; background: color-mix(in srgb, var(--panel) 85%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.vbtn { height: 24px; padding: 0 11px; border-radius: 999px; font-size: 11px; font-weight: 560; color: var(--muted); }
+.vbtn.on { background: var(--wb-accent-soft); color: var(--accent); }
+.mode-toggle { position: fixed; top: 8px; right: 200px; z-index: 50; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text) 14%, transparent); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text) 22%, transparent); }
+::selection { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="variant-bar">
+  <button class="vbtn on" data-v="ember" onclick="setVariant('ember')">Ember 实色</button>
+  <button class="vbtn" data-v="glass" onclick="setVariant('glass')">Glass 玻璃</button>
+  <button class="vbtn" data-v="outline" onclick="setVariant('outline')">Outline 线框</button>
+</div>
+<button class="vbtn mode-toggle" onclick="toggleMode()">◐ 亮/暗</button>
+
+<div class="app-shell">
+  <header class="titleband">
+    <div class="traffic"><i></i><i></i><i></i></div>
+    <button class="tb-btn"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9.5 4v16"/></svg></button>
+    <button class="tb-btn"><svg class="ic" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button class="tb-btn"><svg class="ic" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+    <div class="tb-title"><b>重构设置页路由</b><span>·</span><span>piwin</span></div>
+    <div class="tb-spacer"></div>
+    <button class="tb-btn"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg></button>
+    <button class="tb-btn"><svg class="ic" viewBox="0 0 24 24"><path d="M18 9a6 6 0 10-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9z"/><path d="M10 20a2.3 2.3 0 004 0"/></svg></button>
+    <button class="tb-btn"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M14.5 4v16"/></svg></button>
+  </header>
+
+  <aside class="sidebar">
+    <div class="sb-head">
+      <div class="sb-brand"><span class="sb-logo"><svg class="ic" viewBox="0 0 24 24" style="stroke:currentColor"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.2 2.2M16.2 16.2l2.2 2.2M18.4 5.6l-2.2 2.2M7.8 16.2l-2.2 2.2"/><circle cx="12" cy="12" r="3.2"/></svg></span><b>piwin</b></div>
+      <div class="sb-search"><svg class="ic" viewBox="0 0 24 24" style="width:12px;height:12px"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>搜索会话…<span class="kbd">⌘K</span></div>
+      <button class="sb-new"><svg class="ic" viewBox="0 0 24 24" style="width:12px;height:12px;stroke-width:2.2"><path d="M12 5v14M5 12h14"/></svg>新建 Agent</button>
+    </div>
+    <div class="sb-scroll">
+      <div class="sb-sec">
+        <h4>项目</h4>
+        <div class="proj-row"><span class="proj-dot" style="background:var(--accent)"></span>piwin<span class="count num">12</span></div>
+        <div class="sess active"><span class="t">重构设置页路由 + 键盘导航</span><span class="m"><span class="live"><i></i>运行中</span><span class="num">2:41</span></span></div>
+        <div class="sess"><span class="t">Ember Glass 主题原型</span><span class="m"><span>昨天</span><span>·</span><span class="num">86k</span></span></div>
+        <div class="sess"><span class="t">修复 transcript 抖动</span><span class="m"><span>周二</span></span></div>
+        <div class="proj-row"><span class="proj-dot" style="background:var(--sage)"></span>openwebui_m<span class="count num">4</span></div>
+        <div class="proj-row"><span class="proj-dot" style="background:var(--violet)"></span>dotfiles<span class="count num">2</span></div>
+      </div>
+      <div class="sb-sec">
+        <h4>最近</h4>
+        <div class="sess" style="margin-left:0"><span class="t">pet 覆盖层系统级窗口</span><span class="m"><span>3 天前</span></span></div>
+        <div class="sess" style="margin-left:0"><span class="t">MCP 权限策略黄金用例</span><span class="m"><span>上周</span></span></div>
+      </div>
+    </div>
+    <div class="sb-foot">
+      <div class="who"><span class="avatar">YJ</span><span>yorick</span></div>
+      <button class="tb-btn"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z"/></svg></button>
+      <button class="tb-btn"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.9 2.9l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.9-2.9l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.9-2.9l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.9 2.9l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1h.1a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></button>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="chat-col">
+      <div class="ctx-bar">
+        <div class="ctx-crumb"><svg class="ic" viewBox="0 0 24 24"><path d="M3 8l6.5-5L16 8v12H3z"/></svg>piwin<span style="color:var(--faint)">/</span><b>重构设置页路由 + 键盘导航</b></div>
+        <span class="mode-pill"><svg class="ic" viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>Agent</span>
+        <div class="ctx-status">
+          <span class="git"><svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 5-7 3.5-10 5.5"/></svg><span class="num">feat/ui-shell-redesign</span></span>
+          <span class="num">2 文件已改</span>
+        </div>
+      </div>
+
+      <div class="transcript">
+        <div class="msg-user" style="align-self:flex-end;max-width:72%">
+          <div class="msg-meta" style="justify-content:flex-end"><time class="num">14:02</time><span class="name">你</span></div>
+          <div class="bubble">把设置页从面板拆成独立路由，加上全局键盘导航，顺便把外观设置里主题切换的闪烁修一下。</div>
+        </div>
+
+        <div class="msg-assistant">
+          <div class="msg-meta"><span class="name"><span class="spark"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>piwin</span><time class="num">14:02</time></div>
+          <div class="think"><span class="dotty"><i></i><i></i><i></i></span>思考了 6 秒 · 已折叠推理过程</div>
+
+          <div class="plan-card closed" id="planCard">
+            <div class="plan-head" onclick="toggleCard('planCard')">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M9 5h11M9 12h11M9 19h11"/><path d="M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/></svg>
+              计划 · 3 步（先讲清楚再动手）
+              <svg class="ic chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="plan-steps">
+              <div class="step done"><span class="box">✓</span>设置页抽成 <code>/settings/*</code> 路由</div>
+              <div class="step run"><span class="box"></span>接入全局键盘导航（g s / g c / ⌘K）</div>
+              <div class="step"><span class="box"></span>主题切换闪烁：token 应用移到 layout effect</div>
+            </div>
+          </div>
+
+          <div class="tool closed" id="tool1">
+            <div class="tool-head" onclick="toggleCard('tool1')">
+              <svg class="ic" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/></svg>
+              读取 <span class="path">settings-shell.tsx</span>
+              <span class="ok-dot"></span><span class="elapsed num">412ms</span>
+              <svg class="ic chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+            <div class="tool-body"><span class="dim">// 213 行 · 已读入上下文</span></div>
+          </div>
+
+          <p>先拆路由。设置壳目前是巨型条件渲染，改成嵌套路由，保留 deep-link：</p>
+
+          <div class="diff-card" id="diffCard">
+            <div class="diff-head">
+              <svg class="ic" viewBox="0 0 24 24" style="color:var(--sage)"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/></svg>
+              <span class="file">settings-shell.tsx</span>
+              <span class="stat num"><span class="add">+38</span> <span class="del">−52</span></span>
+              <div class="diff-actions" id="diffActions">
+                <button class="btn" onclick="verdict(false)"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>拒绝</button>
+                <button class="btn primary" onclick="verdict(true)"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>接受</button>
+              </div>
+            </div>
+            <div class="diff-body">
+              <div class="ln ctx"><span class="g">41</span>export function SettingsShell() {</div>
+              <div class="ln del"><span class="g">42</span>  const [page, setPage] = useState('general')</div>
+              <div class="ln del"><span class="g">43</span>  return page === 'general' ? &lt;General/&gt; : …</div>
+              <div class="ln add"><span class="g">42</span>  return (</div>
+              <div class="ln add"><span class="g">43</span>    &lt;Routes base="/settings"&gt;</div>
+              <div class="ln add"><span class="g">44</span>      &lt;Route path="general" element={&lt;General/&gt;} /&gt;</div>
+              <div class="ln add"><span class="g">45</span>      &lt;Route path="appearance" element={&lt;Appearance/&gt;} /&gt;</div>
+              <div class="ln ctx"><span class="g">46</span>    &lt;/Routes&gt;</div>
+            </div>
+          </div>
+
+          <div class="gate">
+            <div class="gate-head"><svg class="ic" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.8L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.8a2 2 0 00-3.4 0z"/></svg>需要审批 · 运行测试套件</div>
+            <div class="gate-cmd"><span style="color:var(--faint)">$</span> pnpm --filter @piwin/desktop test</div>
+            <div class="gate-actions">
+              <button class="btn warn-p"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>允许一次</button>
+              <button class="btn">总是允许</button>
+              <button class="btn">拒绝</button>
+              <span class="hint">权限: ask · ADR 0019</span>
+            </div>
+          </div>
+
+          <p id="streamTarget">路由拆完了<span class="stream-caret"></span></p>
+        </div>
+      </div>
+
+      <div class="composer-zone">
+        <div class="composer">
+          <div class="chips">
+            <span class="chip"><img alt="" />screenshot.png</span>
+            <span class="chip"><svg class="ic" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.8-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg>2 条引用</span>
+          </div>
+          <textarea placeholder="继续追问，或 @ 文件 / # 技能…">继续，键盘导航用 g 键系列，别和浏览器冲突。</textarea>
+          <div class="composer-bar">
+            <button class="cbtn"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button class="cbtn model"><svg class="ic" viewBox="0 0 24 24" style="width:11px;height:11px"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/></svg>Kimi K3<svg class="ic" viewBox="0 0 24 24" style="width:10px;height:10px"><path d="M6 9l6 6 6-6"/></svg></button>
+            <button class="cbtn"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 14.5L4 20M4 20h5M4 20v-5M14.5 9.5L20 4M20 4h-5M20 4v5"/></svg>深度思考</button>
+            <div class="right">
+              <svg class="ring" viewBox="0 0 20 20"><circle class="bg" cx="10" cy="10" r="7.5"/><circle class="fg" cx="10" cy="10" r="7.5"/></svg>
+              <button class="send"><svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="composer-hint">⏎ 发送 · ⇧⏎ 换行 · ⌘K 命令 · Esc 中断</div>
+      </div>
+
+      <footer class="statusbar">
+        <span class="sb-item run"><i class="live"><i></i>agent 运行中 · 步骤 2/3</span>
+        <span class="sb-item num">86.2k / 128k</span>
+        <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span class="num">2:41</span></span>
+        <div class="right">
+          <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>RPC · 已连接</span>
+          <span class="sb-item">权限 ask</span>
+        </div>
+      </footer>
+    </div>
+  </main>
+
+  <aside class="signal">
+    <div class="sg-tabs">
+      <button class="sg-tab on" data-pane="changes">更改<span class="badge num">3</span></button>
+      <button class="sg-tab" data-pane="term">终端</button>
+      <button class="sg-tab" data-pane="outline">大纲</button>
+    </div>
+    <div class="sg-body">
+      <div class="sg-pane on" id="pane-changes">
+        <div class="file-row"><svg class="ic" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/></svg>settings-shell.tsx<span class="tag num"><span class="add">+38</span> <span class="del">−52</span></span></div>
+        <div class="file-row"><svg class="ic" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/></svg>use-desktop-shortcuts.ts<span class="tag num"><span class="add">+41</span></span></div>
+        <div class="file-row"><svg class="ic" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/></svg>appearance-page.tsx<span class="tag num"><span class="add">+9</span> <span class="del">−4</span></span></div>
+      </div>
+      <div class="sg-pane" id="pane-term">
+        <div class="term-mock">
+          <div><span class="dim">$</span> pnpm --filter @piwin/desktop test</div>
+          <div class="dim">…</div>
+          <div><span class="ok">✓</span> settings-shell.test.tsx <span class="dim">(14)</span></div>
+          <div><span class="ok">✓</span> use-desktop-shortcuts.test.ts <span class="dim">(9)</span></div>
+          <div class="dim">Test Files 2 passed · 23 tests · 1.2s</div>
+        </div>
+      </div>
+      <div class="sg-pane" id="pane-outline">
+        <div class="outline-item you"><span>把设置页拆成独立路由…</span><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-5.5 8-5.5s6.5 1.5 8 5.5"/></svg></div>
+        <div class="outline-item"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>计划 · 3 步</div>
+        <div class="outline-item"><svg class="ic" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/></svg>读取 settings-shell.tsx</div>
+        <div class="outline-item"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg>路由 diff（待审批）</div>
+        <div class="outline-item"><svg class="ic" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>审批门 · pnpm test</div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+function setVariant(v) {
+  document.documentElement.dataset.variant = v;
+  document.querySelectorAll('.vbtn[data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === v));
+}
+function toggleMode() {
+  const el = document.documentElement;
+  el.dataset.mode = el.dataset.mode === 'dark' ? 'light' : 'dark';
+}
+function toggleCard(id) { document.getElementById(id).classList.toggle('closed'); }
+function verdict(ok) {
+  const card = document.getElementById('diffCard');
+  card.classList.toggle('accepted', ok);
+  card.classList.toggle('rejected', !ok);
+  document.getElementById('diffActions').style.display = 'none';
+}
+document.querySelectorAll('.sg-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.sg-tab').forEach((t) => t.classList.remove('on'));
+    document.querySelectorAll('.sg-pane').forEach((p) => p.classList.remove('on'));
+    tab.classList.add('on');
+    document.getElementById('pane-' + tab.dataset.pane).classList.add('on');
+  });
+});
+document.querySelectorAll('.sess').forEach((s) => {
+  s.addEventListener('click', () => {
+    document.querySelectorAll('.sess').forEach((x) => x.classList.remove('active'));
+    s.classList.add('active');
+  });
+});
+const FULL = '路由拆完了，deep-link 行为保持不变。接下来接键盘导航：g s 进设置、g c 回会话、⌘K 全局命令——都在一个 use-hotkey 层里注册，避免和浏览器默认快捷键打架。';
+let timer = null;
+function replayStream() {
+  const target = document.getElementById('streamTarget');
+  const caret = '<span class="stream-caret"></span>';
+  clearInterval(timer);
+  let i = 0;
+  timer = setInterval(() => {
+    i += 1 + Math.floor(Math.random() * 3);
+    if (i >= FULL.length) { target.innerHTML = FULL; clearInterval(timer); }
+    else { target.innerHTML = FULL.slice(0, i) + caret; }
+  }, 34);
+}
+replayStream();
+</script>
+</body>
+</html>

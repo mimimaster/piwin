@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN" data-mode="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>V1 · Command Deck — 命令甲板</title>
+<style>
+/* 共享 Daybreak token (appearance-tokens.ts PIWIN_APPEARANCE_DARK) */
+:root {
+  color-scheme: dark;
+  --bg: #151318; --panel: #1a181f; --panel2: #211e26;
+  --border: rgba(255, 238, 220, 0.07);
+  --text: #f0eae3; --muted: #a8a09f; --faint: #736d76;
+  --accent: #ff8359; --accent2: #ffb37e;
+  --danger: #f0685c; --ok: #4fca92;
+  --violet: #cba6ff; --sage: #6fd3e8;
+  --hover: rgba(255, 240, 225, 0.055);
+  --wb-line: rgba(255, 238, 220, 0.07);
+  --wb-accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
+  --line: color-mix(in srgb, var(--text) 4%, transparent);
+  --line-soft: color-mix(in srgb, var(--text) 6%, transparent);
+  --r-sm: 7px; --r-md: 10px; --r-lg: 14px;
+  --t-fast: 120ms; --t-std: 200ms; --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+[data-mode='light'] {
+  color-scheme: light;
+  --bg: #f7f3ed; --panel: #fffdfa; --panel2: #f2ede5;
+  --border: rgba(80, 60, 40, 0.10);
+  --text: #2f2924; --muted: #82776a; --faint: #a89d8f;
+  --accent: #e85d1f; --accent2: #f4955c;
+  --danger: #d64541; --ok: #1f9d63;
+  --violet: #8a5cf5; --sage: #0e7d99;
+  --hover: rgba(60, 40, 20, 0.05);
+  --wb-line: rgba(80, 60, 40, 0.06);
+  --wb-accent-soft: color-mix(in srgb, var(--accent) 10%, transparent);
+  --line: color-mix(in srgb, var(--text) 5%, transparent);
+  --line-soft: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { overflow: hidden; background: var(--bg); color: var(--text); font: 13px/1.5 var(--font); letter-spacing: -0.01em; -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; padding: 0; }
+svg.ic { width: 15px; height: 15px; display: block; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   V1 COMMAND DECK — 结构重排：
+   顶部 deck bar 融合交通灯 + 全局导航 (无左侧栏)
+   底部 activity dock 常驻运行任务
+   左侧 icon rail 切面板 / 右侧抽屉式 agent 列表
+   ============================================================ */
+
+.shell { height: 100vh; display: grid; grid-template-rows: 52px minmax(0, 1fr) 40px; }
+
+/* ── deck bar ─────────────────────────────────────────── */
+.deck {
+  display: flex; align-items: center; gap: 10px; padding: 0 14px 0 78px;
+  background: color-mix(in srgb, var(--panel) 60%, var(--bg));
+  border-bottom: 1px solid var(--line-soft);
+  backdrop-filter: blur(12px) saturate(1.3); -webkit-backdrop-filter: blur(12px) saturate(1.3);
+}
+.traffic { display: flex; gap: 8px; margin-left: -64px; margin-right: 48px; }
+.traffic i { width: 12px; height: 12px; border-radius: 50%; }
+.traffic i:nth-child(1) { background: #ff5f57; } .traffic i:nth-child(2) { background: #febc2e; } .traffic i:nth-child(3) { background: #28c840; }
+.deck-brand { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 13px; letter-spacing: -0.02em; }
+.deck-brand .logo { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: grid; place-items: center; color: #2b1508; box-shadow: inset 0 1px 0 rgba(255,255,255,0.3); }
+.deck-brand .logo svg { width: 12px; height: 12px; stroke-width: 2.2; }
+.deck-sep { width: 1px; height: 20px; background: var(--line-soft); }
+.deck-nav { display: flex; gap: 2px; }
+.deck-tab { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: var(--r-sm); font-size: 12px; color: var(--muted); transition: all var(--t-fast) var(--ease); }
+.deck-tab:hover { color: var(--text); }
+.deck-tab.on { color: var(--text); background: var(--hover); }
+.deck-tab .ic { width: 13px; height: 13px; }
+.deck-tab .ic.on { color: var(--accent); }
+.deck-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.deck-search { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 9px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--panel2); color: var(--faint); font-size: 12px; min-width: 160px; }
+.deck-search .kbd { margin-left: auto; }
+.kbd { font-family: var(--mono); font-size: 10px; color: var(--faint); border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; }
+.deck-btn { height: 28px; width: 28px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--muted); }
+.deck-btn:hover { background: var(--hover); color: var(--text); }
+
+/* ── stage + icon rail ────────────────────────────────── */
+.main { display: grid; grid-template-columns: 48px minmax(0, 1fr); min-height: 0; }
+.rail { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 0; border-right: 1px solid var(--line); background: var(--bg); }
+.rail-btn { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--muted); position: relative; }
+.rail-btn:hover { background: var(--hover); color: var(--text); }
+.rail-btn.on { color: var(--accent); background: var(--wb-accent-soft); }
+.rail-btn.on::before { content: ""; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 2px; border-radius: 2px; background: var(--accent); }
+.rail-spacer { flex: 1; }
+.rail-badge { position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+.stage { min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column;
+  background: radial-gradient(960px 380px at 50% -120px, color-mix(in srgb, var(--accent) 11%, transparent), transparent 74%), var(--bg); }
+.chat-col { flex: 1; min-height: 0; display: flex; flex-direction: column; max-width: 920px; width: 100%; margin: 0 auto; }
+
+/* context bar */
+.ctx-bar { height: 42px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 18px; border-bottom: 1px solid var(--line-soft); }
+.ctx-crumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.ctx-crumb b { color: var(--text); font-weight: 560; }
+.ctx-crumb .ic { width: 13px; height: 13px; color: var(--faint); }
+.mode-pill { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 560; color: var(--accent); background: var(--wb-accent-soft); }
+.mode-pill .ic { width: 10px; height: 10px; }
+.ctx-status { margin-left: auto; display: flex; align-items: center; gap: 10px; color: var(--faint); font-size: 11px; }
+.ctx-status .git { display: flex; align-items: center; gap: 4px; color: var(--muted); }
+.ctx-status .git .ic { width: 11px; height: 11px; }
+
+/* transcript */
+.transcript { flex: 1; overflow-y: auto; padding: 20px 18px 8px; display: flex; flex-direction: column; gap: 16px; }
+.msg-meta { display: flex; gap: 6px; align-items: baseline; margin-bottom: 5px; }
+.msg-meta .name { font-size: 12px; font-weight: 600; }
+.msg-meta .name .spark { color: var(--accent); display: inline-flex; vertical-align: -2px; margin-right: 4px; }
+.msg-meta .name .spark svg { width: 12px; height: 12px; stroke-width: 2; }
+.msg-meta time { font-size: 10px; color: var(--faint); }
+.msg-assistant { max-width: 100%; font-size: 13.5px; line-height: 1.65; }
+.msg-assistant p { margin: 0 0 9px; }
+.msg-assistant code { font-family: var(--mono); font-size: 12px; background: var(--wb-accent-soft); color: var(--accent2); padding: 1px 5px; border-radius: 4px; }
+.msg-user .bubble { background: var(--panel2); border: 1px solid var(--line); border-radius: var(--r-md) var(--r-md) var(--r-sm) var(--r-md); padding: 8px 13px; font-size: 13.5px; line-height: 1.6; box-shadow: 0 1px 3px rgba(8,5,10,0.25); }
+
+/* cards */
+.plan-card, .tool, .diff-card, .gate { border-radius: var(--r-md); margin: 4px 0 8px; overflow: hidden; border: 1px solid var(--line); background: var(--panel); box-shadow: 0 1px 3px rgba(8,5,10,0.3), inset 0 1px 0 color-mix(in srgb, var(--text) 3%, transparent); }
+.plan-head, .tool-head { display: flex; align-items: center; gap: 8px; padding: 8px 11px; cursor: pointer; font-size: 12px; color: var(--muted); }
+.plan-head:hover, .tool-head:hover { background: var(--hover); }
+.plan-head .ic { width: 13px; height: 13px; color: var(--violet); }
+.chev { margin-left: auto; transition: transform var(--t-std) var(--ease); color: var(--faint); }
+.closed .chev { transform: rotate(-90deg); }
+.plan-steps { padding: 2px 11px 9px; display: flex; flex-direction: column; gap: 6px; }
+.closed .plan-steps, .closed .tool-body, .closed .diff-body { display: none; }
+.step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.step .box { width: 14px; height: 14px; border-radius: 4px; flex: none; display: grid; place-items: center; border: 1.5px solid var(--line); color: transparent; font-size: 9px; }
+.step.done .box { background: var(--ok); border-color: var(--ok); color: #08251a; }
+.step.done { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line); }
+.step.run .box { border-color: var(--accent); }
+.step.run .box::after { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: breathe 1.4s ease-in-out infinite; }
+.step.run { color: var(--text); }
+@keyframes breathe { 50% { opacity: 0.35; transform: scale(0.7); } }
+.tool-head .path { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.tool-head .elapsed { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--faint); }
+.tool-head .ok-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.tool-body { border-top: 1px solid var(--line); padding: 9px 11px; font-family: var(--mono); font-size: 11px; color: var(--muted); background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.tool-body .dim { color: var(--faint); }
+.diff-head { display: flex; align-items: center; gap: 8px; padding: 8px 11px; border-bottom: 1px solid var(--line); }
+.diff-head .file { font-family: var(--mono); font-size: 11.5px; font-weight: 560; }
+.diff-head .stat { font-family: var(--mono); font-size: 10.5px; }
+.diff-head .stat .add { color: var(--ok); } .diff-head .stat .del { color: var(--danger); }
+.diff-actions { margin-left: auto; display: flex; gap: 6px; }
+.btn { height: 24px; padding: 0 10px; border-radius: var(--r-sm); font-size: 11.5px; font-weight: 560; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); color: var(--muted); background: var(--panel2); transition: all var(--t-fast) var(--ease); }
+.btn:hover { color: var(--text); border-color: var(--faint); }
+.btn .ic { width: 11px; height: 11px; }
+.btn.primary { color: #08251a; border-color: transparent; background: linear-gradient(180deg, color-mix(in srgb, var(--ok) 94%, white), var(--ok)); box-shadow: 0 2px 8px color-mix(in srgb, var(--ok) 25%, transparent), inset 0 1px 0 rgba(255,255,255,0.25); }
+.btn.primary:hover { filter: brightness(1.05); }
+.diff-body { font-family: var(--mono); font-size: 11px; line-height: 1.7; padding: 6px 0; }
+.diff-body .ln { display: flex; padding: 0 11px; white-space: pre; }
+.diff-body .ln .g { width: 24px; flex: none; color: var(--faint); text-align: right; padding-right: 10px; user-select: none; }
+.ln.add { background: color-mix(in srgb, var(--ok) 9%, transparent); color: color-mix(in srgb, var(--ok) 85%, var(--text)); }
+.ln.del { background: color-mix(in srgb, var(--danger) 8%, transparent); color: color-mix(in srgb, var(--danger) 80%, var(--text)); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 35%, transparent); }
+.ln.ctx { color: var(--muted); }
+.gate { border: 1px solid color-mix(in srgb, #ffb020 30%, transparent); background: linear-gradient(180deg, color-mix(in srgb, #ffb020 7%, transparent), transparent 55%), var(--panel); }
+.gate-head { display: flex; align-items: center; gap: 7px; padding: 8px 11px; font-size: 12px; font-weight: 600; color: #ffb020; }
+.gate-head .ic { width: 13px; height: 13px; }
+.gate-cmd { margin: 0 11px 8px; padding: 7px 10px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--bg) 62%, transparent); border: 1px solid var(--line); font-family: var(--mono); font-size: 11px; }
+.gate-actions { display: flex; gap: 7px; padding: 0 11px 9px; }
+.btn.warn-p { color: #241600; border-color: transparent; background: linear-gradient(180deg, color-mix(in srgb, #ffb020 94%, white), #ffb020); box-shadow: 0 2px 8px color-mix(in srgb, #ffb020 25%, transparent), inset 0 1px 0 rgba(255,255,255,0.3); }
+.gate .hint { margin-left: auto; align-self: center; font-size: 10px; color: var(--faint); }
+.stream-caret { display: inline-block; width: 7px; height: 14px; margin-left: 2px; vertical-align: -2px; border-radius: 2px; background: var(--accent); animation: caret 1s steps(2, jump-none) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+.think { display: flex; align-items: center; gap: 7px; height: 26px; padding: 0 9px; margin: 2px 0 6px; border-radius: var(--r-sm); font-size: 11.5px; color: var(--faint); cursor: pointer; width: fit-content; }
+.think:hover { background: var(--hover); }
+.think .dotty { display: inline-flex; gap: 3px; }
+.think .dotty i { width: 4px; height: 4px; border-radius: 50%; background: var(--violet); animation: breathe 1.3s ease-in-out infinite; }
+.think .dotty i:nth-child(2) { animation-delay: 0.15s; } .think .dotty i:nth-child(3) { animation-delay: 0.3s; }
+
+/* composer */
+.composer-zone { flex: none; padding: 8px 18px 6px; }
+.composer { position: relative; border: 1px solid var(--line); background: var(--panel); border-radius: var(--r-md); box-shadow: 0 4px 16px rgba(8,5,10,0.35), inset 0 1px 0 color-mix(in srgb, var(--text) 3%, transparent); transition: border-color var(--t-std) var(--ease), box-shadow var(--t-std) var(--ease); }
+.composer:focus-within { border-color: color-mix(in srgb, var(--accent) 40%, transparent); box-shadow: 0 4px 16px rgba(8,5,10,0.35), 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent), inset 0 1px 0 color-mix(in srgb, var(--text) 3%, transparent); }
+.composer .chips { display: flex; gap: 5px; padding: 9px 11px 0; }
+.chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); background: var(--panel2); }
+.chip .ic { width: 10px; height: 10px; }
+.chip img { width: 13px; height: 13px; border-radius: 3px; background: linear-gradient(135deg, var(--sage), var(--violet)); }
+.composer textarea { width: 100%; border: 0; outline: 0; resize: none; background: transparent; color: var(--text); font: 13.5px/1.6 var(--font); padding: 9px 13px 5px; min-height: 42px; }
+.composer textarea::placeholder { color: var(--faint); }
+.composer-bar { display: flex; align-items: center; gap: 3px; padding: 5px 9px 8px; }
+.cbtn { height: 26px; min-width: 26px; padding: 0 6px; border-radius: var(--r-sm); display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11.5px; }
+.cbtn:hover { background: var(--hover); color: var(--text); }
+.cbtn.model { border: 1px solid var(--line); font-weight: 560; }
+.composer-bar .right { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+.ring { width: 18px; height: 18px; transform: rotate(-90deg); }
+.ring .bg { stroke: var(--line); fill: none; stroke-width: 2.5; }
+.ring .fg { stroke: var(--ok); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 42.4; stroke-dashoffset: 16.1; }
+.send { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; color: #2b1508; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 94%, white), var(--accent)); box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 28%, transparent), inset 0 1px 0 rgba(255,255,255,0.3); transition: transform var(--t-fast) var(--ease), filter var(--t-fast) var(--ease); }
+.send:hover { filter: brightness(1.07); } .send:active { transform: scale(0.92); }
+.send .ic { width: 13px; height: 13px; stroke-width: 2.1; }
+.composer-hint { text-align: center; font-size: 10px; color: var(--faint); padding-top: 5px; }
+
+/* ── activity dock ────────────────────────────────────── */
+.dock { display: flex; align-items: center; gap: 10px; padding: 0 14px; border-top: 1px solid var(--line-soft); background: color-mix(in srgb, var(--panel) 50%, var(--bg)); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.dock-label { font-size: 10.5px; font-weight: 620; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+.dock-task { display: flex; align-items: center; gap: 7px; height: 26px; padding: 0 10px; border-radius: var(--r-sm); font-size: 11.5px; color: var(--muted); cursor: pointer; border: 1px solid var(--line); background: var(--panel2); }
+.dock-task:hover { color: var(--text); border-color: var(--faint); }
+.dock-task .ic { width: 11px; height: 11px; }
+.dock-task.run { border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
+.dock-task .live { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); }
+.dock-task .live i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: ping 1.8s var(--ease) infinite; position: relative; }
+.dock-task .live i::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1px solid var(--accent); opacity: 0.6; animation: ping 1.8s var(--ease) infinite; }
+@keyframes ping { 0% { transform: scale(0.5); opacity: 0.8; } 80%,100% { transform: scale(1.5); opacity: 0; } }
+.dock-right { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 10.5px; color: var(--faint); }
+.dock-right .sb-item { display: flex; align-items: center; gap: 4px; }
+.dock-right .ic { width: 11px; height: 11px; }
+
+/* variant switcher */
+.vbar { position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); z-index: 50; display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: color-mix(in srgb, var(--panel) 90%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.vbar a { display: flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11px; font-weight: 560; color: var(--muted); text-decoration: none; }
+.vbar a.on { background: var(--wb-accent-soft); color: var(--accent); }
+.vbar a:hover { color: var(--text); }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text) 14%, transparent); border-radius: 3px; }
+::selection { background: color-mix(in srgb, var(--accent) 25%, transparent); }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- deck bar -->
+  <header class="deck">
+    <div class="traffic"><i></i><i></i><i></i></div>
+    <div class="deck-brand"><span class="logo"><svg class="ic" viewBox="0 0 24 24" style="stroke:currentColor"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.2 2.2M16.2 16.2l2.2 2.2M18.4 5.6l-2.2 2.2M7.8 16.2l-2.2 2.2"/><circle cx="12" cy="12" r="3.2"/></svg></span>piwin</div>
+    <div class="deck-sep"></div>
+    <nav class="deck-nav">
+      <button class="deck-tab on"><svg class="ic on" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.8-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg>会话</button>
+      <button class="deck-tab"><svg class="ic" viewBox="0 0 24 24"><path d="M3 8l6.5-5L16 8v12H3z"/></svg>项目</button>
+      <button class="deck-tab"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z"/></svg>技能</button>
+      <button class="deck-tab"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.9 2.9l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.6 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.9-2.9l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.6-1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.9-2.9l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.9 2.9l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1h.1a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>设置</button>
+    </nav>
+    <div class="deck-right">
+      <div class="deck-search"><svg class="ic" viewBox="0 0 24 24" style="width:12px;height:12px"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>搜索…<span class="kbd">⌘K</span></div>
+      <button class="deck-btn"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="deck-btn"><svg class="ic" viewBox="0 0 24 24"><path d="M18 9a6 6 0 10-12 0c0 6-2.5 7-2.5 7h17S18 15 18 9z"/><path d="M10 20a2.3 2.3 0 004 0"/></svg></button>
+    </div>
+  </header>
+
+  <!-- main: icon rail + stage -->
+  <div class="main">
+    <aside class="rail">
+      <button class="rail-btn on" title="会话"><svg class="ic" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.8-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg></button>
+      <button class="rail-btn" title="文件"><svg class="ic" viewBox="0 0 24 24"><path d="M3 8l6.5-5L16 8v12H3z"/><path d="M16 8h5v12h-5"/></svg></button>
+      <button class="rail-btn" title="终端"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg></button>
+      <button class="rail-btn" title="更改"><svg class="ic" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h4M18 12h4M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="3"/></svg><span class="rail-badge"></span></button>
+      <div class="rail-spacer"></div>
+      <button class="rail-btn" title="头像"><span class="avatar" style="width:24px;height:24px;border-radius:50%;font-size:9px;font-weight:640;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--violet),var(--sage));">YJ</span></button>
+    </aside>
+
+    <main class="stage">
+      <div class="chat-col">
+        <div class="ctx-bar">
+          <div class="ctx-crumb"><svg class="ic" viewBox="0 0 24 24"><path d="M3 8l6.5-5L16 8v12H3z"/></svg>piwin<span style="color:var(--faint)">/</span><b>重构设置页路由 + 键盘导航</b></div>
+          <span class="mode-pill"><svg class="ic" viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>Agent</span>
+          <div class="ctx-status">
+            <span class="git"><svg class="ic" viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 5-7 3.5-10 5.5"/></svg><span class="num">feat/ui-shell-redesign</span></span>
+            <span class="num">2 文件已改</span>
+          </div>
+        </div>
+
+        <div class="transcript">
+          <div class="msg-user" style="align-self:flex-end;max-width:72%">
+            <div class="msg-meta" style="justify-content:flex-end"><time class="num">14:02</time><span class="name">你</span></div>
+            <div class="bubble">把设置页从面板拆成独立路由，加上全局键盘导航，顺便把外观设置里主题切换的闪烁修一下。</div>
+          </div>
+          <div class="msg-assistant">
+            <div class="msg-meta"><span class="name"><span class="spark"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></svg></span>piwin</span><time class="num">14:02</time></div>
+            <div class="think"><span class="dotty"><i></i><i></i><i></i></span>思考了 6 秒 · 已折叠推理过程</div>
+            <div class="plan-card closed" id="planCard">
+              <div class="plan-head" onclick="toggleCard('planCard')"><svg class="ic" viewBox="0 0 24 24"><path d="M9 5h11M9 12h11M9 19h11"/><path d="M4 5l1 1 2-2M4 12l1 1 2-2M4 19l1 1 2-2"/></svg>计划 · 3 步（先讲清楚再动手）<svg class="ic chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+              <div class="plan-steps">
+                <div class="step done"><span class="box">✓</span>设置页抽成 <code>/settings/*</code> 路由</div>
+                <div class="step run"><span class="box"></span>接入全局键盘导航（g s / g c / ⌘K）</div>
+                <div class="step"><span class="box"></span>主题切换闪烁：token 应用移到 layout effect</div>
+              </div>
+            </div>
+            <div class="tool closed" id="tool1">
+              <div class="tool-head" onclick="toggleCard('tool1')"><svg class="ic" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/></svg>读取 <span class="path">settings-shell.tsx</span><span class="ok-dot"></span><span class="elapsed num">412ms</span><svg class="ic chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+              <div class="tool-body"><span class="dim">// 213 行 · 已读入上下文</span></div>
+            </div>
+            <p>先拆路由。设置壳目前是巨型条件渲染，改成嵌套路由，保留 deep-link：</p>
+            <div class="diff-card" id="diffCard">
+              <div class="diff-head">
+                <svg class="ic" viewBox="0 0 24 24" style="color:var(--sage)"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/></svg>
+                <span class="file">settings-shell.tsx</span>
+                <span class="stat num"><span class="add">+38</span> <span class="del">−52</span></span>
+                <div class="diff-actions" id="diffActions">
+                  <button class="btn" onclick="verdict(false)"><svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>拒绝</button>
+                  <button class="btn primary" onclick="verdict(true)"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>接受</button>
+                </div>
+              </div>
+              <div class="diff-body">
+                <div class="ln ctx"><span class="g">41</span>export function SettingsShell() {</div>
+                <div class="ln del"><span class="g">42</span>  const [page, setPage] = useState('general')</div>
+                <div class="ln del"><span class="g">43</span>  return page === 'general' ? &lt;General/&gt; : …</div>
+                <div class="ln add"><span class="g">42</span>  return (</div>
+                <div class="ln add"><span class="g">43</span>    &lt;Routes base="/settings"&gt;</div>
+                <div class="ln add"><span class="g">44</span>      &lt;Route path="general" element={&lt;General/&gt;} /&gt;</div>
+                <div class="ln add"><span class="g">45</span>      &lt;Route path="appearance" element={&lt;Appearance/&gt;} /&gt;</div>
+                <div class="ln ctx"><span class="g">46</span>    &lt;/Routes&gt;</div>
+              </div>
+            </div>
+            <div class="gate">
+              <div class="gate-head"><svg class="ic" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.8L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.8a2 2 0 00-3.4 0z"/></svg>需要审批 · 运行测试套件</div>
+              <div class="gate-cmd"><span style="color:var(--faint)">$</span> pnpm --filter @piwin/desktop test</div>
+              <div class="gate-actions">
+                <button class="btn warn-p"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>允许一次</button>
+                <button class="btn">总是允许</button>
+                <button class="btn">拒绝</button>
+                <span class="hint">权限: ask · ADR 0019</span>
+              </div>
+            </div>
+            <p id="streamTarget">路由拆完了<span class="stream-caret"></span></p>
+          </div>
+        </div>
+
+        <div class="composer-zone">
+          <div class="composer">
+            <div class="chips">
+              <span class="chip"><img alt="" />screenshot.png</span>
+              <span class="chip"><svg class="ic" viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 01-9 8.4 8.6 8.6 0 01-3.8-.9L3 20l1-4.9a8.4 8.4 0 1117-3.6z"/></svg>2 条引用</span>
+            </div>
+            <textarea placeholder="继续追问，或 @ 文件 / # 技能…">继续，键盘导航用 g 键系列，别和浏览器冲突。</textarea>
+            <div class="composer-bar">
+              <button class="cbtn"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+              <button class="cbtn model"><svg class="ic" viewBox="0 0 24 24" style="width:11px;height:11px"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/></svg>Kimi K3<svg class="ic" viewBox="0 0 24 24" style="width:10px;height:10px"><path d="M6 9l6 6 6-6"/></svg></button>
+              <button class="cbtn"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 14.5L4 20M4 20h5M4 20v-5M14.5 9.5L20 4M20 4h-5M20 4v5"/></svg>深度思考</button>
+              <div class="right">
+                <svg class="ring" viewBox="0 0 20 20"><circle class="bg" cx="10" cy="10" r="7.5"/><circle class="fg" cx="10" cy="10" r="7.5"/></svg>
+                <button class="send"><svg class="ic" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+              </div>
+            </div>
+          </div>
+          <div class="composer-hint">⏎ 发送 · ⇧⏎ 换行 · ⌘K 命令 · Esc 中断</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- activity dock -->
+  <footer class="dock">
+    <span class="dock-label">活动</span>
+    <div class="dock-task run">
+      <span class="live"><i></i>重构设置页路由</span>
+      <span class="num">2:41</span>
+    </div>
+    <div class="dock-task">
+      <svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      <span>pet 覆盖层系统级窗口</span>
+    </div>
+    <div class="dock-task">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+      <span>MCP 权限策略黄金用例</span>
+    </div>
+    <div class="dock-right">
+      <span class="sb-item"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>RPC · 已连接</span>
+      <span class="sb-item num">86.2k / 128k</span>
+    </div>
+  </footer>
+</div>
+
+<div class="vbar">
+  <a href="#" class="on">V1 Command Deck</a>
+  <a href="ui-prototype-m2.html">V2 Studio Split</a>
+  <a href="ui-prototype-m3.html">V3 Command Center</a>
+  <a href="ui-prototype-m4.html">V4 Focus</a>
+</div>
+
+<script>
+function toggleCard(id) { document.getElementById(id).classList.toggle('closed'); }
+function verdict(ok) { document.getElementById('diffCard').classList.toggle('accepted', ok); document.getElementById('diffCard').classList.toggle('rejected', !ok); document.getElementById('diffActions').style.display = 'none'; }
+document.querySelectorAll('.sess').forEach((s) => { s.addEventListener('click', () => { document.querySelectorAll('.sess').forEach((x) => x.classList.remove('active')); s.classList.add('active'); }); });
+const FULL = '路由拆完了，deep-link 行为保持不变。接下来接键盘导航：g s 进设置、g c 回会话、⌘K 全局命令——都在一个 use-hotkey 层里注册，避免和浏览器默认快捷键打架。';
+let timer = null;
+(function replayStream() {
+  const target = document.getElementById('streamTarget');
+  const caret = '<span class="stream-caret"></span>';
+  clearInterval(timer); let i = 0;
+  timer = setInterval(() => { i += 1 + Math.floor(Math.random() * 3); if (i >= FULL.length) { target.innerHTML = FULL; clearInterval(timer); } else { target.innerHTML = FULL.slice(0, i) + caret; } }, 34);
+})();
+</script>
+</body>
+</html>
