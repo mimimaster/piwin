@@ -708,7 +708,7 @@
   height: 5px;
   border-radius: 50%;
   background: var(--accent);
-  animation: live-pulse 1.6s ease-in-out infinite;
+  animation: live-pulse var(--motion-pulse, 1.6s) ease-in-out infinite;
 }
 
 @keyframes live-pulse {
