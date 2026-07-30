@@ -4,6 +4,14 @@
 
 Accepted (2026-07-24) · Implemented (hybrid gateway + lazy lifecycle + structured call risk)
 
+> **Superseded in part by [ADR 0019](./0019-permission-rule-engine.md) §5:**
+> Decision 5's "per-call until a later structured risk policy lands" MCP
+> approval is superseded. ADR 0019 makes **server enablement the trust
+> boundary** — once an MCP server is enabled in config, its tools run without
+> per-call prompts; explicit `deny`/`ask` MCP rules in `permissions.json` still
+> apply. ADR 0014's other decisions (hybrid gateway, lazy lifecycle, metadata
+> cache, "MCP is not a sandbox") stand.
+
 ## Context
 
 Project open / session create was coupling to MCP process startup and

@@ -10,6 +10,35 @@ export function buildPermissionRequestContext(
   const lowered = action.toLowerCase();
   const detailText = detail.trim();
 
+  // Explicit action kinds first — these are the canonical permission action
+  // strings emitted by the host gates (evaluateFileWritePermission /
+  // evaluateBashPermission). Matching them up front keeps the generic
+  // `includes` fallbacks below from misclassifying edge cases.
+  if (lowered === 'file-write' || lowered.startsWith('file-write:')) {
+    const paths = extractPaths(detailText);
+    const secretRelated = /\.env|id_rsa|credentials|secret|api[_-]?key|token/i.test(detailText);
+    return {
+      kind: 'file-write',
+      summary: action,
+      secretRelated,
+      ...(paths.length > 0 ? { paths } : {}),
+      reason: secretRelated
+        ? 'Write may touch secrets or credentials'
+        : 'File write requires review',
+      ...(detailText ? { command: detailText } : {}),
+    };
+  }
+
+  if (lowered === 'bash' || lowered.startsWith('bash:')) {
+    return {
+      kind: 'command',
+      summary: action,
+      command: detailText || action,
+      reason: 'Shell command requires review',
+      destructive: /rm\s+-rf|sudo|mkfs|dd\s+if=|shutdown|reboot/i.test(detailText),
+    };
+  }
+
   if (lowered.startsWith('network:') || lowered.includes('web_') || lowered.includes('fetch')) {
     const host = extractHost(detailText);
     return {
@@ -148,9 +177,7 @@ function extractMcpToolFromToolDetail(detail: string): string | undefined {
   return match?.[1];
 }
 
-function extractMcpRiskFromDetail(
-  detail: string,
-): import('@piwin/contracts').McpToolRisk {
+function extractMcpRiskFromDetail(detail: string): import('@piwin/contracts').McpToolRisk {
   const match = detail.match(/\brisk=([a-z-]+)/i);
   const value = match?.[1]?.toLowerCase();
   switch (value) {

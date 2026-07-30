@@ -10,6 +10,7 @@
 export type ShellSettingsSection =
   | 'general'
   | 'appearance'
+  | 'permissions'
   | 'skills'
   | 'extensions'
   | 'prompts'
@@ -25,8 +26,7 @@ export type ShellSettingsSection =
   | 'rules';
 
 export type ShellRoute =
-  | { kind: 'workspace' }
-  | { kind: 'settings'; section: ShellSettingsSection };
+  { kind: 'workspace' } | { kind: 'settings'; section: ShellSettingsSection };
 
 export type ShellNavigationState = {
   entries: ShellRoute[];

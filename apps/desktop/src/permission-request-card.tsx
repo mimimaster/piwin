@@ -176,8 +176,8 @@ export function canRememberPermissionForProject(
   context: PermissionRequestContext | null | undefined,
   action: string,
 ): boolean {
-  if (context?.kind === 'network') {
-    return true;
+  if (!context) {
+    return action.startsWith('network:');
   }
-  return action.startsWith('network:');
+  return context.kind === 'network' || context.kind === 'command' || context.kind === 'file-write';
 }

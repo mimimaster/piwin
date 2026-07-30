@@ -22,7 +22,10 @@ export type PiRpcAdapterOptions = {
   onPermissionRequest?: PiSdkAdapterOptions['onPermissionRequest'];
   onExtensionUiRequest?: PiSdkAdapterOptions['onExtensionUiRequest'];
   onExtensionNotify?: PiSdkAdapterOptions['onExtensionNotify'];
+  onLog?: PiSdkAdapterOptions['onLog'];
   processRegistry?: ProcessRegistry;
+  /** Session-level permission mode override (ADR 0019 §3). */
+  permissionModeOverride?: PiSdkAdapterOptions['permissionModeOverride'];
   /**
    * When true (default), real sessions use PiSdkAdapter so extensions/tools load.
    * Stock `pi --mode rpc` cannot register custom tools (ADR 0008 / D-EXT-07).
@@ -163,8 +166,14 @@ export class PiRpcAdapter implements AgentHost {
       if (this.options.onExtensionNotify) {
         sdkOptions.onExtensionNotify = this.options.onExtensionNotify;
       }
+      if (this.options.onLog) {
+        sdkOptions.onLog = this.options.onLog;
+      }
       if (this.options.processRegistry) {
         sdkOptions.processRegistry = this.options.processRegistry;
+      }
+      if (this.options.permissionModeOverride) {
+        sdkOptions.permissionModeOverride = this.options.permissionModeOverride;
       }
       this.sdkBackend = new PiSdkAdapter(sdkOptions);
     }

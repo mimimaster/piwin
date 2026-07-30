@@ -64,6 +64,7 @@ export type DesktopTranslator = {
     nav: {
       general: string;
       appearance: string;
+      permissions: string;
       models: string;
       sessions: string;
       rules: string;
@@ -245,9 +246,10 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       nav: {
         general: isChinese ? '通用' : 'General',
         appearance: isChinese ? '外观' : 'Appearance',
+        permissions: isChinese ? '权限' : 'Permissions',
         models: isChinese ? '模型' : 'Models',
         sessions: isChinese ? '会话' : 'Sessions',
-          rules: isChinese ? '规则' : 'Rules',
+        rules: isChinese ? '规则' : 'Rules',
         skills: 'Skills',
         tools: 'MCP',
         web: isChinese ? 'Web 工具' : 'Web tools',
@@ -267,20 +269,36 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         providerNamePlaceholder: isChinese ? '例如 OpenAI' : 'e.g. OpenAI',
         providerTypeField: isChinese ? '提供商类型' : 'Provider type',
         default: isChinese ? '默认' : 'Default',
-        models: (count) => isChinese ? `${count} 个模型` : `${count} ${count === 1 ? 'model' : 'models'}`,
-        selectOrAdd: isChinese ? '选择左侧提供商，或点击添加。' : 'Select a provider on the left, or add one.',
-        keysDescription: isChinese ? '密钥保存在环境变量或钥匙串中，绝不写入配置。' : 'Keys stay in env / keychain — never store raw secrets in config.',
+        models: (count) =>
+          isChinese ? `${count} 个模型` : `${count} ${count === 1 ? 'model' : 'models'}`,
+        selectOrAdd: isChinese
+          ? '选择左侧提供商，或点击添加。'
+          : 'Select a provider on the left, or add one.',
+        keysDescription: isChinese
+          ? '密钥保存在环境变量或钥匙串中，绝不写入配置。'
+          : 'Keys stay in env / keychain — never store raw secrets in config.',
         setDefault: isChinese ? '设为默认' : 'Set default',
         providerId: isChinese ? '提供商 ID' : 'Provider ID',
         displayName: isChinese ? '显示名称' : 'Display name',
         protocol: isChinese ? '协议' : 'Protocol',
         baseUrl: 'Base URL',
-        baseUrlDescription: isChinese ? '用于模型发现和请求的自定义服务地址。' : 'Custom provider endpoint used for model discovery and requests.',
+        baseUrlDescription: isChinese
+          ? '用于模型发现和请求的自定义服务地址。'
+          : 'Custom provider endpoint used for model discovery and requests.',
         apiKeyLabel: isChinese ? 'API 密钥' : 'API key',
-        apiKeyPlaceholder: isChinese ? '粘贴 API 密钥（本地无密钥可留空）' : 'Paste API key (leave empty for local no-auth)',
-        apiKeyStoredPlaceholder: isChinese ? '••••••••  已保存，留空保持不变' : '••••••••  saved — leave blank to keep',
-        apiKeyStoredKeychain: isChinese ? '密钥已保存在本机钥匙串，不会写入配置文件。' : 'Key is stored in the local keychain — not written to config.',
-        apiKeyStoredEnv: (envName) => isChinese ? `当前使用环境变量 ${envName}（进程内需已导出）。` : `Using env var ${envName} (must be exported in the process).`,
+        apiKeyPlaceholder: isChinese
+          ? '粘贴 API 密钥（本地无密钥可留空）'
+          : 'Paste API key (leave empty for local no-auth)',
+        apiKeyStoredPlaceholder: isChinese
+          ? '••••••••  已保存，留空保持不变'
+          : '••••••••  saved — leave blank to keep',
+        apiKeyStoredKeychain: isChinese
+          ? '密钥已保存在本机钥匙串，不会写入配置文件。'
+          : 'Key is stored in the local keychain — not written to config.',
+        apiKeyStoredEnv: (envName) =>
+          isChinese
+            ? `当前使用环境变量 ${envName}（进程内需已导出）。`
+            : `Using env var ${envName} (must be exported in the process).`,
         apiKeyPasteHint: isChinese
           ? '直接粘贴 API 密钥后点「获取模型列表」或「保存」。密钥进本机钥匙串，不会写入配置文件。'
           : 'Paste your API key, then Fetch models or Save. Keys go to the local keychain — never into config files.',
@@ -293,11 +311,14 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         hideKeychain: isChinese ? '隐藏钥匙串引用' : 'Hide keychain reference',
         detect: isChinese ? '检测' : 'Test',
         detecting: isChinese ? '检测中…' : 'Testing…',
-        detectOk: (count) => isChinese ? `连接成功，发现 ${count} 个模型` : `Connected — found ${count} models`,
+        detectOk: (count) =>
+          isChinese ? `连接成功，发现 ${count} 个模型` : `Connected — found ${count} models`,
         detectFail: isChinese ? '连接失败' : 'Connection failed',
         keyManager: isChinese ? '密钥管理' : 'Key manager',
-        keyManagerTitle: (name) => isChinese ? `${name} API 密钥管理` : `${name} API keys`,
-        keyManagerHint: isChinese ? '多个密钥每行一个；请求使用第一行。密钥存入本机钥匙串。' : 'One key per line; the first line is used for requests. Keys stay in the local keychain.',
+        keyManagerTitle: (name) => (isChinese ? `${name} API 密钥管理` : `${name} API keys`),
+        keyManagerHint: isChinese
+          ? '多个密钥每行一个；请求使用第一行。密钥存入本机钥匙串。'
+          : 'One key per line; the first line is used for requests. Keys stay in the local keychain.',
         keyManagerAdd: isChinese ? '添加' : 'Add',
         requestHeaders: isChinese ? '请求头' : 'Request headers',
         requestHeadersHint: isChinese
@@ -311,13 +332,19 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         advanced: isChinese ? '高级' : 'Advanced',
         saveProvider: isChinese ? '保存' : 'Save',
         ultraThinking: isChinese ? 'Ultra 思考' : 'Ultra thinking',
-        ultraThinkingDescription: isChinese ? '为产品提供 Ultra 档位。OpenAI 兼容请求映射为 xhigh；Anthropic 兼容请求映射为 max。' : 'Adds the product-only Ultra stop. OpenAI-compatible requests map to xhigh; Anthropic-compatible requests map to max.',
+        ultraThinkingDescription: isChinese
+          ? '为产品提供 Ultra 档位。OpenAI 兼容请求映射为 xhigh；Anthropic 兼容请求映射为 max。'
+          : 'Adds the product-only Ultra stop. OpenAI-compatible requests map to xhigh; Anthropic-compatible requests map to max.',
         enableUltra: isChinese ? '启用 Ultra' : 'Enable Ultra',
         removeProviderTitle: isChinese ? '移除提供商？' : 'Remove provider?',
-        removeProviderDescription: isChinese ? '该提供商配置将从产品配置中移除。' : 'The provider configuration will be removed from product config.',
+        removeProviderDescription: isChinese
+          ? '该提供商配置将从产品配置中移除。'
+          : 'The provider configuration will be removed from product config.',
         deleteProvider: isChinese ? '删除提供商' : 'Delete provider',
         modelsHeading: isChinese ? '模型' : 'Models',
-        modelsEmpty: isChinese ? '暂无模型。获取列表或手动添加。' : 'No models yet. Fetch the list or add one.',
+        modelsEmpty: isChinese
+          ? '暂无模型。获取列表或手动添加。'
+          : 'No models yet. Fetch the list or add one.',
         fetchModelList: isChinese ? '获取模型列表' : 'Fetch models',
         discover: isChinese ? '发现' : 'Discover',
         addModel: isChinese ? '手动添加模型' : 'Add model manually',
@@ -329,7 +356,9 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         modelGroupPlaceholder: isChinese ? '例如 ChatGPT' : 'e.g. ChatGPT',
         contextUnset: isChinese ? '未设置上下文' : 'Context unset',
         outputUnset: isChinese ? '未设置输出' : 'Output unset',
-        runtimeLimits: isChinese ? '运行时限制按模型单独设置。' : 'Runtime limits are explicit per model.',
+        runtimeLimits: isChinese
+          ? '运行时限制按模型单独设置。'
+          : 'Runtime limits are explicit per model.',
         modelId: isChinese ? '模型 ID' : 'Model ID',
         modelDisplayName: isChinese ? '模型名称' : 'Model name',
         contextLimit: isChinese ? '上下文 token 上限' : 'Context token limit',
@@ -337,8 +366,10 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         tooltipMarkdown: isChinese ? '提示 Markdown' : 'Tooltip markdown',
         discoveryLabel: isChinese ? '获取模型列表' : 'Fetch model list',
         discoveryTitle: isChinese ? '发现模型' : 'Discover models',
-        discoveryTitleFor: (name) => isChinese ? `${name} 模型` : `${name} models`,
-        discoveryDescription: isChinese ? '从该提供商获取模型 ID，然后为每个模型配置运行时限制。' : 'Fetch model IDs from this provider, then configure runtime limits per model.',
+        discoveryTitleFor: (name) => (isChinese ? `${name} 模型` : `${name} models`),
+        discoveryDescription: isChinese
+          ? '从该提供商获取模型 ID，然后为每个模型配置运行时限制。'
+          : 'Fetch model IDs from this provider, then configure runtime limits per model.',
         discoveryKeyHint: isChinese
           ? '关闭此弹窗，在提供商页粘贴 API 密钥后重试；本地无密钥服务请把密钥栏留空并保存。'
           : 'Close this dialog, paste an API key on the provider form, then retry. For local no-auth endpoints, leave the key blank and save.',
@@ -347,7 +378,10 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         configured: isChinese ? '已配置' : 'configured',
         new: isChinese ? '新增' : 'new',
         noMatchingModels: isChinese ? '没有匹配的模型。' : 'No matching models found.',
-        selectedModels: (selected, newModels) => isChinese ? `已选 ${selected} 个 · 新增 ${newModels} 个` : `${selected} selected · ${newModels} new`,
+        selectedModels: (selected, newModels) =>
+          isChinese
+            ? `已选 ${selected} 个 · 新增 ${newModels} 个`
+            : `${selected} selected · ${newModels} new`,
         importSelected: isChinese ? '导入所选模型' : 'Import selected',
       },
     },

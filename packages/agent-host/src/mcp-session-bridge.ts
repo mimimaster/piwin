@@ -1,8 +1,6 @@
-import {
-  createMcpLifecycleManager,
-  type McpLifecycleManager,
-} from '@piwin/mcp';
+import { createMcpLifecycleManager, type McpLifecycleManager } from '@piwin/mcp';
 import type { HostToolDefinition } from '@piwin/tools-web';
+import type { PermissionRuleSet } from '@piwin/contracts';
 import { buildCachedMcpToolDefinitions } from './mcp-cached-tool-definitions.js';
 import { buildMcpGatewayToolDefinition } from './mcp-gateway-tool.js';
 import type { ToolPermissionGate } from './session-tools.js';
@@ -18,6 +16,11 @@ export type CreateMcpSessionBridgeOptions = {
   piwinRoot: string;
   sessionId: string;
   requestPermission?: ToolPermissionGate;
+  /**
+   * Merged permission ruleset (bundled + user/project layers). When omitted,
+   * MCP tool calls are allowed without prompting (ADR 0019 §5).
+   */
+  rules?: PermissionRuleSet;
   /**
    * Host-owned lifecycle manager. When omitted, a temporary manager is created
    * for this bridge (disposed on close). Prefer injecting HostRuntime's manager.
@@ -45,17 +48,15 @@ export async function createMcpSessionBridge(
   const cached = await buildCachedMcpToolDefinitions({
     piwinRoot: options.piwinRoot,
     lifecycleManager: manager,
-    ...(options.requestPermission
-      ? { requestPermission: options.requestPermission }
-      : {}),
+    ...(options.rules ? { rules: options.rules } : {}),
+    ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
   });
 
   const gateway = buildMcpGatewayToolDefinition({
     piwinRoot: options.piwinRoot,
     lifecycleManager: manager,
-    ...(options.requestPermission
-      ? { requestPermission: options.requestPermission }
-      : {}),
+    ...(options.rules ? { rules: options.rules } : {}),
+    ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
   });
 
   const tools = [...cached.tools, gateway];

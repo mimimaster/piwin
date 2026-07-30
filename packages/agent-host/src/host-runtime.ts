@@ -15,6 +15,7 @@ import type {
   MediaSaveData,
   ModelRef,
   PermissionDecision,
+  PermissionMode,
   PromptInput,
   SessionHandle,
   AgentEventEnvelope,
@@ -71,6 +72,8 @@ import {
   setActivePet,
 } from '@piwin/pet';
 import {
+  addBashAllowRule,
+  addFileWriteAllowRule,
   allowNetworkFetchHost,
   allowNetworkWebSearch,
   listProjects,
@@ -155,6 +158,11 @@ export type HostRuntimeOptions = {
    * callers omit it and always create sessions through the Pi adapter.
    */
   testFixture?: HostRuntimeTestFixture;
+  /**
+   * Session-level permission mode override (ADR 0019 §3). Takes precedence
+   * over `config.permissions.mode` without persisting to disk.
+   */
+  permissionModeOverride?: PermissionMode;
 };
 
 export type HostRuntimeTestFixture =
@@ -286,12 +294,18 @@ export class HostRuntime {
           message: `[extension] ${message}`,
         });
       },
+      onLog: (message, level) => {
+        this.push({ type: 'host/log', level, message });
+      },
     };
     if (typeof options.piwinRoot === 'string') {
       createOptions.piwinRoot = options.piwinRoot;
     }
     if (typeof options.rpcCommand === 'string') {
       createOptions.rpcCommand = options.rpcCommand;
+    }
+    if (options.permissionModeOverride) {
+      createOptions.permissionModeOverride = options.permissionModeOverride;
     }
     this.host = createAgentHost(createOptions);
   }
@@ -772,9 +786,6 @@ export class HostRuntime {
     scope: 'project' = 'project',
     pendingProjectPath?: string,
   ): Promise<void> {
-    if (!action.startsWith('network:')) {
-      return;
-    }
     const projectPath = pendingProjectPath ?? this.sessionProjects.get(sessionId);
     // Empty path / general workspace path = no project allowlist to mutate.
     if (!projectPath || projectPath.trim().length === 0) {
@@ -782,16 +793,39 @@ export class HostRuntime {
     }
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const projectsFile = getPiwinProjectsPath(rootDir);
-    if (action === 'network:web_search') {
-      await allowNetworkWebSearch(projectsFile, projectPath);
+
+    if (action === 'bash' || action.startsWith('bash:')) {
+      // Detail format from gated-bash-tool is `<reason>: <command>`. The command
+      // is the remainder after the first `": "` separator, remembered verbatim
+      // so an exact-match allowlist cannot be widened by prefix tricks.
+      const commandString = extractBashCommandFromDetail(detail);
+      if (commandString) {
+        await addBashAllowRule(projectsFile, projectPath, commandString);
+      }
       return;
     }
-    if (action === 'network:web_fetch') {
-      try {
-        const hostname = new URL(detail).hostname;
-        await allowNetworkFetchHost(projectsFile, projectPath, hostname);
-      } catch {
-        // ignore invalid url detail
+
+    if (action === 'file-write' || action.startsWith('file-write:')) {
+      // Detail is the resolved absolute path approved by the user.
+      const trimmed = detail.trim();
+      if (trimmed) {
+        await addFileWriteAllowRule(projectsFile, projectPath, trimmed);
+      }
+      return;
+    }
+
+    if (action.startsWith('network:')) {
+      if (action === 'network:web_search') {
+        await allowNetworkWebSearch(projectsFile, projectPath);
+        return;
+      }
+      if (action === 'network:web_fetch') {
+        try {
+          const hostname = new URL(detail).hostname;
+          await allowNetworkFetchHost(projectsFile, projectPath, hostname);
+        } catch {
+          // ignore invalid url detail
+        }
       }
     }
   }
@@ -1952,6 +1986,23 @@ export class HostRuntime {
   private isTerminalRun(sessionId: string, runId: string): boolean {
     return this.terminalRunIdsBySession.get(sessionId)?.has(runId) === true;
   }
+}
+
+/**
+ * Extract the bash command from a gated-bash permission detail.
+ *
+ * The gated bash tool formats detail as `<reason>: <command>` (see
+ * `gated-bash-tool.ts`). The command is the remainder after the first
+ * `": "` separator, so a reason containing `: ` cannot steal command text.
+ * Returns the empty string when no separator is present (no command to
+ * remember).
+ */
+function extractBashCommandFromDetail(detail: string): string {
+  const separatorIndex = detail.indexOf(': ');
+  if (separatorIndex === -1) {
+    return '';
+  }
+  return detail.slice(separatorIndex + 2).trim();
 }
 
 function readEventRunId(event: AgentEvent): string | undefined {
