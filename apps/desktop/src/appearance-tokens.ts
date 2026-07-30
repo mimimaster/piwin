@@ -169,7 +169,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Alias for --rail. */
   root.style.setProperty('--surface-rail', tokens.bg);
   /** Alias for --sidebar. */
-  root.style.setProperty('--surface-sidebar', tokens.bg);
+  root.style.setProperty('--surface-sidebar', isLight ? '#f2f2f4' : tokens.bg);
   /** Alias for --panel (the foreground overlay / popover surface). */
   root.style.setProperty('--surface-overlay', tokens.panel);
 
@@ -184,7 +184,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Alias of --muted for semantic readers. */
   root.style.setProperty('--content-secondary', tokens.muted);
   /** Alias of --faint for semantic readers. */
-  root.style.setProperty('--content-muted', isLight ? '#a89d8f' : '#736d76');
+  root.style.setProperty('--content-muted', isLight ? '#a0a0a8' : '#595959');
   /** Disabled control labels and icons. */
   root.style.setProperty('--content-disabled', isLight ? '#b9b0a2' : '#5f5a64');
   /** Text on solid accent fills — deep roast on bright coral, white on tangerine. */
