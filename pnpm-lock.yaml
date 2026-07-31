@@ -32,6 +32,9 @@ importers:
       '@piwin/agent-host':
         specifier: workspace:*
         version: link:../../packages/agent-host
+      '@piwin/browser':
+        specifier: workspace:*
+        version: link:../../packages/browser
       '@piwin/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
