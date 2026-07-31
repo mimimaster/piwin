@@ -610,6 +610,50 @@ describe('redactAndBoundEvidence', () => {
     expect(parsed.tools[0].exitCode).toBe(0);
     expect(parsed.plan.steps[0].id).toBe('s1');
   });
+
+  it('redacts secrets in plan title, goal, and step detail', () => {
+    const evidence = makeEvidence({
+      plan: {
+        id: 'plan-1',
+        title: 'Plan with API_KEY=sk-secret123',
+        goal: 'Goal uses token=abc456',
+        status: 'done',
+        steps: [
+          {
+            id: 's1',
+            title: 'Step with Bearer dGhpcyBpcyBhIHRva2Vu',
+            status: 'done',
+            detail: 'Detail has API_KEY=sk-leaked',
+          },
+        ],
+      },
+    });
+    const result = redactAndBoundEvidence(evidence);
+    const parsed = JSON.parse(result.bounded);
+    expect(parsed.plan.title).not.toContain('sk-secret123');
+    expect(parsed.plan.title).toContain('[redacted]');
+    expect(parsed.plan.goal).not.toContain('abc456');
+    expect(parsed.plan.goal).toContain('[redacted]');
+    expect(parsed.plan.steps[0].title).not.toContain('dGhpcyBpcyBhIHRva2Vu');
+    expect(parsed.plan.steps[0].detail).not.toContain('sk-leaked');
+    expect(parsed.plan.steps[0].detail).toContain('[redacted]');
+  });
+
+  it('redacts secrets in media labels', () => {
+    const evidence = makeEvidence({
+      media: [
+        {
+          kind: 'screenshot',
+          path: '/media/session-1/shot.png',
+          label: 'Screenshot with API_KEY=sk-media-secret',
+        },
+      ],
+    });
+    const result = redactAndBoundEvidence(evidence);
+    const parsed = JSON.parse(result.bounded);
+    expect(parsed.media[0].label).not.toContain('sk-media-secret');
+    expect(parsed.media[0].label).toContain('[redacted]');
+  });
 });
 
 /* ------------------------------------------------------------------ */
@@ -717,6 +761,37 @@ describe('assembleUserPrompt', () => {
       const evidenceSection = prompt.slice(openIdx + EVIDENCE_DELIMITER_OPEN.length, closeIdx);
       expect(evidenceSection).toContain(bounded);
     }
+  });
+
+  it('custom mode truncates oversized custom prompt to 16 KiB', () => {
+    const oversized = 'P'.repeat(20 * KIB);
+    const bounded = '{"userRequest":"test"}';
+    const prompt = assembleUserPrompt('custom', oversized, bounded);
+    // The prompt portion before the data-warning line must be bounded.
+    const dataWarningIdx = prompt.indexOf('The following is bounded, redacted evidence');
+    expect(dataWarningIdx).toBeGreaterThan(-1);
+    const promptSection = prompt.slice(0, dataWarningIdx);
+    // Should contain the truncation marker.
+    expect(promptSection).toContain('[truncated]');
+    // The custom prompt portion (excluding the trailing newlines) should be
+    // at most 16 KiB + the [truncated] marker.
+    const trimmed = promptSection.trimEnd();
+    expect(new TextEncoder().encode(trimmed).length).toBeLessThanOrEqual(
+      16 * KIB + '[truncated]'.length + 10,
+    );
+    // Evidence delimiter should still be present.
+    expect(prompt).toContain(EVIDENCE_DELIMITER_OPEN);
+    expect(prompt).toContain(EVIDENCE_DELIMITER_CLOSE);
+  });
+
+  it('custom mode does not truncate prompts under 16 KiB', () => {
+    const within = 'P'.repeat(15 * KIB);
+    const bounded = '{"userRequest":"test"}';
+    const prompt = assembleUserPrompt('custom', within, bounded);
+    const dataWarningIdx = prompt.indexOf('The following is bounded, redacted evidence');
+    const promptSection = prompt.slice(0, dataWarningIdx).trimEnd();
+    expect(promptSection).not.toContain('[truncated]');
+    expect(promptSection).toBe(within);
   });
 });
 
