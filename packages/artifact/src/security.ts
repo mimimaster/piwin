@@ -22,6 +22,11 @@ const EXTERNAL_RESOURCE_PATTERNS: Array<{
   { kind: 'script', pattern: /<script\b[^>]*\bsrc\s*=\s*(["'])(https?:\/\/[^"']+)\1/gi },
   { kind: 'image', pattern: /<img\b[^>]*\bsrc\s*=\s*(["'])(https?:\/\/[^"']+)\1/gi },
   {
+    kind: 'image',
+    pattern:
+      /<(?:image|use)\b[^>]*\b(?:href|xlink:href|src)\s*=\s*(['"])(https?:\/\/[^'"]+)\1/gi,
+  },
+  {
     kind: 'iframe',
     pattern:
       /<iframe\b[^>]*\bsrc\s*=\s*(?:(['"])(https?:\/\/[^'">\s]+|\/\/[^'">\s]+)\1|(https?:\/\/[^\s>]+|\/\/[^\s>]+))/gi,

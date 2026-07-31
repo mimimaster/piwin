@@ -84,6 +84,17 @@ describe('classifyArtifactSecurity', () => {
     );
     expect(result.canRender).toBe(true);
   });
+
+  it('blocks external SVG image and use references', () => {
+    const result = classifyArtifactSecurity(`
+      <svg>
+        <image href="https://cdn.example.com/pelican.png" />
+        <use xlink:href="https://cdn.example.com/symbol.svg#bird" />
+      </svg>
+    `);
+    expect(result.blockReason).toBe('blocked-external-resource');
+    expect(result.externalResources.map((resource) => resource.kind)).toEqual(['image', 'image']);
+  });
 });
 
 describe('classifyArtifactSecurity — inline XSS vectors (sandbox-mitigated)', () => {

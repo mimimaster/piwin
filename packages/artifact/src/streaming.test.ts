@@ -20,6 +20,12 @@ describe('findOpenArtifactFence', () => {
   it('returns null when html ui mode disabled', () => {
     expect(findOpenArtifactFence('```html\n<div>', false)).toBeNull();
   });
+
+  it('finds an incomplete svg fence for source-safe normalization', () => {
+    const open = findOpenArtifactFence('```svg\n<svg viewBox="0 0 10 10"><circle r="5" />', true);
+    expect(open).not.toBeNull();
+    expect(open?.info).toBe('svg');
+  });
 });
 
 describe('normalizeStreamingArtifactFences', () => {
