@@ -182,3 +182,10 @@ export type {
   CollectWalkthroughEvidenceOptions,
   WalkthroughEvidence,
 } from './walkthrough-source.js';
+
+export { completeWalkthrough, WalkthroughCompletionError } from './walkthrough-completion.js';
+export type {
+  WalkthroughCompletionDependencies,
+  WalkthroughCompletionRequest,
+  WalkthroughCompletionResult,
+} from './walkthrough-completion.js';
