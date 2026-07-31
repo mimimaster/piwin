@@ -179,6 +179,7 @@ describe('completeWalkthrough — Anthropic-compatible', () => {
       system: 'You are a walkthrough generator.',
       messages: [{ role: 'user', content: 'Summarize the changes.' }],
       max_tokens: 4096,
+      temperature: 0.2,
     });
     expect(result.text).toBe('## Walkthrough\n\nSteps here.');
   });

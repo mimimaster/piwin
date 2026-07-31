@@ -214,6 +214,7 @@ function buildCompletionBody(request: WalkthroughCompletionRequest): Record<stri
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
       max_tokens: maxOutputTokens,
+      temperature,
     };
   }
   return {
