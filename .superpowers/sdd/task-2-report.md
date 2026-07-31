@@ -63,3 +63,34 @@ Implemented tests alongside the store (tests written immediately after the imple
 
 ## Concerns
 - None blocking. Orphan file cleanup-on-write is intentionally deferred to the generation task per spec wording.
+
+---
+
+## Fix report: sound type guard + variant test coverage (review findings 1 & 2)
+
+### Finding 1 — `isWalkthroughArtifact` type guard made sound
+File: `packages/agent-host/src/walkthrough-store.ts`
+
+The guard now branches on `status` and validates variant-specific required fields:
+- base fields: `version === 1`, `id`, `sessionId`, `messageId`, `mode`, `sourceHash`, `createdAt`, `updatedAt` (all strings). `model` on base stays optional.
+- `generating`: requires `generationId` (string)
+- `ready`: requires `markdown` (string), `generatedAt` (string), `model` (validated as a `ModelRef` via a new `isModelRef` helper — `protocol`, `providerId`, `modelId` must be non-empty strings)
+- `error`: requires `error` (validated via a new `isWalkthroughError` helper — `code` and `message` strings) and `generatedAt` (string)
+
+A corrupted disk file with `status: 'ready'` but no `markdown`/`model` now fails the guard and is treated as `null`/skipped instead of causing runtime undefined access.
+
+### Finding 2 — generating/error variant test coverage
+File: `packages/agent-host/src/walkthrough-store.test.ts`
+
+Added `makeGeneratingArtifact` and `makeErrorArtifact` helpers (mirroring `makeReadyArtifact`) and three new tests:
+- round-trip `generating` artifact (save → load → verify `generationId` + `status`)
+- round-trip `error` artifact (save → load → verify `error.code`, `error.message`, `status`)
+- `listWalkthroughs` includes both `generating` and `error` artifacts when their `messageId` is present in the transcript
+- bonus regression test: `loadWalkthrough` returns `null` for a `ready`-shaped file missing `markdown`/`model`/`generatedAt` (directly exercises the sound guard)
+
+### Verification
+- `pnpm --filter @piwin/agent-host typecheck` → pass (exit 0)
+- `pnpm --filter @piwin/agent-host test` → 57 files / 405 tests pass (exit 0), `walkthrough-store.test.ts` now 17 tests (was 13).
+
+### Concerns
+- None. The `isModelRef`/`isWalkthroughError` helpers are local to the store module; no public API change.

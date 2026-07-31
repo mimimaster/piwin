@@ -19,6 +19,8 @@ const MODEL = {
 };
 
 type ReadyWalkthroughArtifact = Extract<WalkthroughArtifact, { status: 'ready' }>;
+type GeneratingWalkthroughArtifact = Extract<WalkthroughArtifact, { status: 'generating' }>;
+type ErrorWalkthroughArtifact = Extract<WalkthroughArtifact, { status: 'error' }>;
 
 function makeReadyArtifact(sessionId: string, messageId: string): ReadyWalkthroughArtifact {
   return {
@@ -33,6 +35,40 @@ function makeReadyArtifact(sessionId: string, messageId: string): ReadyWalkthrou
     updatedAt: '2026-08-01T00:00:00.000Z',
     status: 'ready',
     markdown: '# Walkthrough\n\nSummary here.',
+    generatedAt: '2026-08-01T00:00:01.000Z',
+  };
+}
+
+function makeGeneratingArtifact(
+  sessionId: string,
+  messageId: string,
+): GeneratingWalkthroughArtifact {
+  return {
+    version: 1,
+    id: `wt-${messageId}`,
+    sessionId,
+    messageId,
+    mode: 'default',
+    sourceHash: 'abc123',
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+    status: 'generating',
+    generationId: 'gen-1',
+  };
+}
+
+function makeErrorArtifact(sessionId: string, messageId: string): ErrorWalkthroughArtifact {
+  return {
+    version: 1,
+    id: `wt-${messageId}`,
+    sessionId,
+    messageId,
+    mode: 'default',
+    sourceHash: 'abc123',
+    createdAt: '2026-08-01T00:00:00.000Z',
+    updatedAt: '2026-08-01T00:00:00.000Z',
+    status: 'error',
+    error: { code: 'provider-request-failed', message: 'boom' },
     generatedAt: '2026-08-01T00:00:01.000Z',
   };
 }
@@ -221,5 +257,79 @@ describe('walkthrough-store', () => {
     if (loaded?.status === 'ready') {
       expect(loaded.markdown).toBe('# Updated');
     }
+  });
+
+  it('round-trips a generating artifact via save then load', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
+    const sessionId = 'sess-1';
+    const messageId = 'msg-gen';
+    const artifact = makeGeneratingArtifact(sessionId, messageId);
+
+    await saveWalkthrough(rootDir, sessionId, artifact);
+    const loaded = await loadWalkthrough(rootDir, sessionId, messageId);
+
+    expect(loaded).not.toBeNull();
+    expect(loaded?.status).toBe('generating');
+    if (loaded?.status === 'generating') {
+      expect(loaded.generationId).toBe(artifact.generationId);
+    }
+  });
+
+  it('round-trips an error artifact via save then load', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
+    const sessionId = 'sess-1';
+    const messageId = 'msg-err';
+    const artifact = makeErrorArtifact(sessionId, messageId);
+
+    await saveWalkthrough(rootDir, sessionId, artifact);
+    const loaded = await loadWalkthrough(rootDir, sessionId, messageId);
+
+    expect(loaded).not.toBeNull();
+    expect(loaded?.status).toBe('error');
+    if (loaded?.status === 'error') {
+      expect(loaded.error.code).toBe(artifact.error.code);
+      expect(loaded.error.message).toBe(artifact.error.message);
+    }
+  });
+
+  it('listWalkthroughs includes generating and error artifacts bound to live messages', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
+    const sessionId = 'sess-1';
+    const genId = 'msg-gen';
+    const errId = 'msg-err';
+    await writeTranscript(rootDir, makeTranscript(sessionId, [genId, errId]));
+
+    await saveWalkthrough(rootDir, sessionId, makeGeneratingArtifact(sessionId, genId));
+    await saveWalkthrough(rootDir, sessionId, makeErrorArtifact(sessionId, errId));
+
+    const list = await listWalkthroughs(rootDir, sessionId);
+    expect(list).toHaveLength(2);
+    const byId = new Map(list.map((a) => [a.messageId, a]));
+    expect(byId.get(genId)?.status).toBe('generating');
+    expect(byId.get(errId)?.status).toBe('error');
+  });
+
+  it('loadWalkthrough returns null for a ready-shaped file missing markdown', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
+    const sessionId = 'sess-1';
+    const messageId = 'msg-bad';
+    const dir = getPiwinSessionWalkthroughDir(rootDir, sessionId);
+    await mkdir(dir, { recursive: true });
+    // ready status but missing required `markdown`/`model`/`generatedAt`.
+    const corrupted = {
+      ...makeReadyArtifact(sessionId, messageId),
+      status: 'ready',
+      markdown: undefined,
+      model: undefined,
+      generatedAt: undefined,
+    };
+    await writeFile(
+      getPiwinSessionWalkthroughPath(rootDir, sessionId, messageId),
+      JSON.stringify(corrupted),
+      'utf8',
+    );
+
+    const loaded = await loadWalkthrough(rootDir, sessionId, messageId);
+    expect(loaded).toBeNull();
   });
 });

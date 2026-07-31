@@ -19,24 +19,68 @@ import {
 /** Current persisted artifact schema version; older versions are ignored by `listWalkthroughs`. */
 const WALKTHROUGH_ARTIFACT_VERSION = 1;
 
+function isModelRef(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const model = value as Record<string, unknown>;
+  return (
+    typeof model.protocol === 'string' &&
+    model.protocol.length > 0 &&
+    typeof model.providerId === 'string' &&
+    model.providerId.length > 0 &&
+    typeof model.modelId === 'string' &&
+    model.modelId.length > 0
+  );
+}
+
+function isWalkthroughError(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const error = value as Record<string, unknown>;
+  return typeof error.code === 'string' && typeof error.message === 'string';
+}
+
+/**
+ * Sound type guard for persisted Walkthrough artifacts.
+ *
+ * The base fields are validated once, then the guard branches on `status` and
+ * validates the variant-specific required fields. This prevents a corrupted
+ * disk file (e.g. `status: 'ready'` with no `markdown`/`model`) from passing the
+ * guard and causing runtime undefined access downstream (spec §7.2).
+ */
 function isWalkthroughArtifact(value: unknown): value is WalkthroughArtifact {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
   const record = value as Record<string, unknown>;
-  return (
-    record.version === WALKTHROUGH_ARTIFACT_VERSION &&
-    typeof record.id === 'string' &&
-    typeof record.sessionId === 'string' &&
-    typeof record.messageId === 'string' &&
-    typeof record.mode === 'string' &&
-    typeof record.sourceHash === 'string' &&
-    typeof record.createdAt === 'string' &&
-    typeof record.updatedAt === 'string' &&
-    (record.status === 'generating' ||
-      record.status === 'ready' ||
-      record.status === 'error')
-  );
+  if (
+    record.version !== WALKTHROUGH_ARTIFACT_VERSION ||
+    typeof record.id !== 'string' ||
+    typeof record.sessionId !== 'string' ||
+    typeof record.messageId !== 'string' ||
+    typeof record.mode !== 'string' ||
+    typeof record.sourceHash !== 'string' ||
+    typeof record.createdAt !== 'string' ||
+    typeof record.updatedAt !== 'string'
+  ) {
+    return false;
+  }
+  switch (record.status) {
+    case 'generating':
+      return typeof record.generationId === 'string';
+    case 'ready':
+      return (
+        typeof record.markdown === 'string' &&
+        typeof record.generatedAt === 'string' &&
+        isModelRef(record.model)
+      );
+    case 'error':
+      return isWalkthroughError(record.error) && typeof record.generatedAt === 'string';
+    default:
+      return false;
+  }
 }
 
 /**
@@ -45,10 +89,7 @@ function isWalkthroughArtifact(value: unknown): value is WalkthroughArtifact {
  * message was truncated from the transcript (spec §7.2). Returns an empty
  * set when the transcript does not exist.
  */
-async function loadTranscriptMessageIds(
-  rootDir: string,
-  sessionId: string,
-): Promise<Set<string>> {
+async function loadTranscriptMessageIds(rootDir: string, sessionId: string): Promise<Set<string>> {
   const transcriptPath = getPiwinSessionTranscriptPath(rootDir, sessionId);
   let raw: string;
   try {
@@ -225,10 +266,7 @@ export async function deleteWalkthrough(
  * Removes the entire walkthroughs directory for a session. Called on session
  * permanent deletion so artifacts do not outlive their session (spec §7.2).
  */
-export async function deleteSessionWalkthroughs(
-  rootDir: string,
-  sessionId: string,
-): Promise<void> {
+export async function deleteSessionWalkthroughs(rootDir: string, sessionId: string): Promise<void> {
   const dir = getPiwinSessionWalkthroughDir(rootDir, sessionId);
   try {
     await rm(dir, { recursive: true, force: true });
