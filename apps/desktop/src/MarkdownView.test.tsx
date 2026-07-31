@@ -19,6 +19,7 @@ const PLAIN_HTML_FENCE = '```html\n<div class="card"><p>Hello</p></div>\n```';
 const FLASHCARD_FENCE =
   '```html\n<div class="piwin-flashcard" data-card-id="card-abc12345-xyz"></div>\n```';
 const MERMAID_FENCE = '```mermaid\ngraph TD\nA-->B\n```';
+const SVG_FENCE = '```svg\n<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" /></svg>\n```';
 
 function renderMarkdown(node: ReactElement): { container: HTMLElement; root: Root } {
   const container = document.createElement('div');
@@ -100,6 +101,33 @@ describe('MarkdownView artifact preview policy', () => {
     );
     // MermaidBlock is mounted (not the streaming source fallback).
     expect(container.querySelector('[data-testid="mermaid-stream-source"]')).toBeNull();
+  });
+
+  it('capability off: svg fence stays ordinary source code', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={SVG_FENCE} renderingPhase="completed" />,
+    );
+    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+  });
+
+  it('capability on: svg fence shows a Preview SVG toggle', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+    );
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(toggle).not.toBeNull();
+    expect(toggle?.textContent).toContain('Preview SVG');
+  });
+
+  it('streaming: svg never mounts an Artifact toggle', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={SVG_FENCE} renderingPhase="streaming" artifactPreviewEnabled />,
+    );
+    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
   });
 
   it('byte-stability: artifact-html language label identical in both modes', () => {

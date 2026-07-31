@@ -37,6 +37,11 @@ export type ArtifactFrameProps = {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
 };
 
+/** User-facing content label for an artifact descriptor type. */
+function getArtifactContentLabel(type: 'html' | 'svg'): string {
+  return type === 'svg' ? 'SVG' : 'HTML UI';
+}
+
 /**
  * Desktop adapter for HTML artifacts.
  * - Uses sandboxed iframe + srcdoc from @piwin/artifact
@@ -49,6 +54,7 @@ export function ArtifactFrame({
   initPriority = 0,
   onArtifactAction,
 }: ArtifactFrameProps): ReactElement {
+  const contentLabel = getArtifactContentLabel(decision.descriptor.type);
   if (decision.kind === 'blocked') {
     return (
       <div className="artifact-frame blocked">
@@ -57,13 +63,13 @@ export function ArtifactFrame({
           <span className="pill">blocked</span>
         </div>
         <p className="muted">
-          Cannot preview this HTML UI: <code>{decision.reason}</code>
+          Cannot preview this {contentLabel}: <code>{decision.reason}</code>
           {decision.security.externalResources.length > 0
             ? ` (${decision.security.externalResources.length} external resource(s))`
             : ''}
         </p>
         <details>
-          <summary>Source</summary>
+          <summary>Source (raw model {contentLabel})</summary>
           <pre className="md-code">
             <code>{decision.descriptor.source}</code>
           </pre>
@@ -81,7 +87,7 @@ export function ArtifactFrame({
         </div>
         <p className="muted">{decision.message}</p>
         <details>
-          <summary>Source so far</summary>
+          <summary>Source (raw model {contentLabel}) so far</summary>
           <pre className="md-code">
             <code>{decision.descriptor.source}</code>
           </pre>
