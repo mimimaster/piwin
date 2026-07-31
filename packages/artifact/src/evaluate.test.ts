@@ -69,4 +69,21 @@ describe('evaluateCodeFence', () => {
     });
     expect(decision.kind).toBe('code');
   });
+
+  it('renders a safe svg fence through the Artifact srcdoc pipeline', () => {
+    const decision = evaluateCodeFence({
+      language: 'svg',
+      source: '<svg viewBox="0 0 100 60"><circle cx="50" cy="30" r="20" /></svg>',
+      id: 'svg-render',
+      htmlUiModeEnabled: true,
+    });
+    expect(decision.kind).toBe('render');
+    if (decision.kind === 'render') {
+      expect(decision.descriptor.type).toBe('svg');
+      expect(decision.descriptor.source).toContain('<svg');
+      expect(decision.srcdoc).toContain('<svg viewBox="0 0 100 60">');
+      expect(decision.srcdoc).toContain("default-src 'none'");
+      expect(decision.srcdoc).toContain('piwin-artifact:ready');
+    }
+  });
 });

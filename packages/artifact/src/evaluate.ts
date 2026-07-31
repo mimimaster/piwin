@@ -16,7 +16,7 @@ import type {
   ArtifactRenderMode,
   ArtifactThemeContractRepair,
   ArtifactThemeVariables,
-  HtmlArtifactDescriptor,
+  ArtifactDescriptor,
 } from './types.js';
 
 export type EvaluateCodeFenceOptions = {
@@ -75,7 +75,7 @@ export function evaluateCodeFence(options: EvaluateCodeFenceOptions): ArtifactPr
   if (options.applyThemeContract !== undefined) {
     evaluateOptions.applyThemeContract = options.applyThemeContract;
   }
-  return evaluateHtmlArtifactDescriptor(descriptor, evaluateOptions);
+  return evaluateArtifactDescriptor(descriptor, evaluateOptions);
 }
 
 export type EvaluateDescriptorOptions = {
@@ -91,8 +91,8 @@ export type EvaluateDescriptorOptions = {
   renderSource?: string;
 };
 
-export function evaluateHtmlArtifactDescriptor(
-  descriptor: HtmlArtifactDescriptor,
+export function evaluateArtifactDescriptor(
+  descriptor: ArtifactDescriptor,
   options: EvaluateDescriptorOptions = {},
 ): ArtifactPreviewDecision {
   const iframePolicy = options.iframePolicy ?? createDefaultArtifactIframePolicy('allowlist');
@@ -156,6 +156,13 @@ export function evaluateHtmlArtifactDescriptor(
     csp,
     themeRepairs,
   };
+}
+
+export function evaluateHtmlArtifactDescriptor(
+  descriptor: ArtifactDescriptor,
+  options: EvaluateDescriptorOptions = {},
+): ArtifactPreviewDecision {
+  return evaluateArtifactDescriptor(descriptor, options);
 }
 
 function hashSeed(language: string, source: string): string {

@@ -129,6 +129,7 @@ export { applyArtifactThemeContract } from './theme-contract.js';
 
 export {
   evaluateCodeFence,
+  evaluateArtifactDescriptor,
   evaluateHtmlArtifactDescriptor,
 } from './evaluate.js';
 export type { EvaluateCodeFenceOptions, EvaluateDescriptorOptions } from './evaluate.js';
