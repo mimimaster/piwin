@@ -161,6 +161,22 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
         return;
       }
+      if (message.type === 'subagent/merged') {
+        // Stream state is no longer live once the child is merged.
+        dispatch({
+          type: 'subagent/clear-stream',
+          childSessionId: message.childSessionId,
+        });
+        return;
+      }
+      if (message.type === 'subagent/updated') {
+        dispatch({
+          type: 'subagent/updated',
+          parentSessionId: message.parentSessionId,
+          child: message.child,
+        });
+        return;
+      }
       if (message.type === 'permission/request') {
         dispatch({
           type: 'permission/show',

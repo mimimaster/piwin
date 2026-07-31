@@ -10,6 +10,7 @@ import type {
   ModelDiscoveryResult,
   ModelProviderConfig,
   PiwinConfig,
+  SessionSummary,
 } from '@piwin/contracts';
 import type { SkillsPanelProps } from '../SkillsPanel';
 import type { McpPanelProps } from '../McpPanel';
@@ -80,6 +81,8 @@ export type SettingsContextValue = {
   requestPet: PetPanelProps['request'];
   requestAutomation: AutomationPanelProps['request'];
   requestSubAgent: SubAgentPanelProps['request'] | undefined;
+  /** Live child summaries from host pushes (keyed by childSessionId). */
+  subagentChildren?: Record<string, SessionSummary>;
   onThemeApplied: ThemePanelProps['onApplied'];
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
   discoverProviderModels: (

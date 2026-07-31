@@ -905,4 +905,75 @@ describe('chatUiReducer', () => {
       expect(state.messages).toHaveLength(0);
     });
   });
+
+  describe('subagent children + streams', () => {
+    it('upserts subagent/updated into subagentChildren', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'subagent/updated',
+        parentSessionId: 'parent-1',
+        child: {
+          id: 'child-1',
+          scope: { kind: 'project', projectPath: '/p' },
+          projectPath: '/p',
+          workingDirectory: '/p',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+          messageCount: 0,
+          kind: 'subagent',
+          depth: 1,
+          subagentStatus: 'done',
+          parentSessionId: 'parent-1',
+        },
+      });
+      expect(state.subagentChildren['child-1']).toMatchObject({ subagentStatus: 'done' });
+    });
+
+    it('replaces a previous child summary on later subagent/updated', () => {
+      let state = createInitialChatUiState();
+      const child = (subagentStatus: 'running' | 'done') => ({
+        id: 'child-1',
+        scope: { kind: 'project', projectPath: '/p' } as const,
+        projectPath: '/p',
+        workingDirectory: '/p',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+        messageCount: 0,
+        kind: 'subagent' as const,
+        depth: 1,
+        subagentStatus,
+        parentSessionId: 'parent-1',
+      });
+      state = chatUiReducer(state, {
+        type: 'subagent/updated',
+        parentSessionId: 'parent-1',
+        child: child('running'),
+      });
+      state = chatUiReducer(state, {
+        type: 'subagent/updated',
+        parentSessionId: 'parent-1',
+        child: child('done'),
+      });
+      expect(state.subagentChildren['child-1']).toMatchObject({ subagentStatus: 'done' });
+      expect(Object.keys(state.subagentChildren)).toHaveLength(1);
+    });
+
+    it('clear-stream removes only the targeted child stream', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+      state = chatUiReducer(state, {
+        type: 'subagent/stream',
+        parentSessionId: 'parent-1',
+        childSessionId: 'child-1',
+        event: { type: 'message/start', messageId: 'm1', role: 'assistant' },
+      });
+      state = chatUiReducer(state, {
+        type: 'subagent/stream',
+        parentSessionId: 'parent-1',
+        childSessionId: 'child-2',
+        event: { type: 'message/start', messageId: 'm2', role: 'assistant' },
+      });
+      state = chatUiReducer(state, { type: 'subagent/clear-stream', childSessionId: 'child-1' });
+      expect(state.subagentStreams['child-1']).toBeUndefined();
+      expect(state.subagentStreams['child-2']).toBeDefined();
+    });
+  });
 });

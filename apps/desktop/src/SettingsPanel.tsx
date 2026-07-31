@@ -67,6 +67,8 @@ type SettingsPanelProps = {
   requestAutomation: AutomationPanelProps['request'];
   requestSubAgent?: import('./SubAgentPanel').SubAgentPanelProps['request'];
   activeSessionId?: string | null;
+  /** Live child summaries from host pushes (keyed by childSessionId). */
+  subagentChildren?: Record<string, import('@piwin/contracts').SessionSummary>;
   onOpenSubagentSession?: (sessionId: string) => void;
   onThemeApplied: ThemePanelProps['onApplied'];
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
@@ -92,6 +94,7 @@ export function SettingsPanel({
   requestAutomation,
   requestSubAgent,
   activeSessionId = null,
+  subagentChildren,
   onOpenSubagentSession,
   onThemeApplied,
   onPetActiveChanged,
@@ -268,6 +271,7 @@ export function SettingsPanel({
       requestPet,
       requestAutomation,
       requestSubAgent,
+      ...(subagentChildren ? { subagentChildren } : {}),
       onThemeApplied,
       onPetActiveChanged,
       discoverProviderModels,
@@ -298,6 +302,7 @@ export function SettingsPanel({
       requestPet,
       requestAutomation,
       requestSubAgent,
+      subagentChildren,
       onThemeApplied,
       onPetActiveChanged,
       discoverProviderModels,

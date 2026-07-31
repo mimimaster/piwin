@@ -27,6 +27,8 @@ export type SubAgentPanelProps = {
   /** Called after a successful merge so parent chat can reload messages. */
   onMergedIntoParent?: (parentSessionId: string) => void;
   variant?: 'drawer' | 'embedded';
+  /** Live child list from host pushes; when provided, supersedes local reload. */
+  children?: SessionSummary[];
 };
 
 export function SubAgentPanel(props: SubAgentPanelProps) {
@@ -146,42 +148,45 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
       <div className="settings-section">
         <PageTitle title={isChinese ? '活跃子代理' : 'Active Sub-agents'} />
         <ul className="ext-list">
-          {children.length === 0 && !busy ? (
-            <li className="muted" style={{ textAlign: 'center', padding: '32px' }}>
-              {copy.noSubAgents}
-            </li>
-          ) : (
-            children.map((child) => (
-              <li key={child.id} className="ext-list-item">
-                <div className="ext-list-main">
-                  <div className="ext-list-title">
-                    <strong>{child.name || child.id}</strong>
-                    <span className="pill">{child.subagentStatus || 'unknown'}</span>
-                  </div>
-                  <div className="muted ext-desc">{child.lastPreview || child.task}</div>
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button
-                    size="compact"
-                    variant="ghost"
-                    onClick={() => props.onOpenSession(child.id)}
-                  >
-                    {isChinese ? '打开' : 'Open'}
-                  </Button>
-                  {!child.mergedAt && (
-                    <Button size="compact" onClick={() => void handleMerge(child.id)}>
-                      {isChinese ? '合并' : 'Merge'}
-                    </Button>
-                  )}
-                  <IconButton label={common.delete} onClick={() => void handleCancel(child.id)}>
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                      <path d="M3 4h10M6 4V2.75h4V4M5 6.25v5.5M8 6.25v5.5M11 6.25v5.5M4 4l.5 9h7l.5-9" />
-                    </svg>
-                  </IconButton>
-                </div>
+          {(() => {
+            const effectiveChildren = props.children ?? children;
+            return effectiveChildren.length === 0 && !busy ? (
+              <li className="muted" style={{ textAlign: 'center', padding: '32px' }}>
+                {copy.noSubAgents}
               </li>
-            ))
-          )}
+            ) : (
+              effectiveChildren.map((child) => (
+                <li key={child.id} className="ext-list-item">
+                  <div className="ext-list-main">
+                    <div className="ext-list-title">
+                      <strong>{child.name || child.id}</strong>
+                      <span className="pill">{child.subagentStatus || 'unknown'}</span>
+                    </div>
+                    <div className="muted ext-desc">{child.lastPreview || child.task}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      onClick={() => props.onOpenSession(child.id)}
+                    >
+                      {isChinese ? '打开' : 'Open'}
+                    </Button>
+                    {!child.mergedAt && (
+                      <Button size="compact" onClick={() => void handleMerge(child.id)}>
+                        {isChinese ? '合并' : 'Merge'}
+                      </Button>
+                    )}
+                    <IconButton label={common.delete} onClick={() => void handleCancel(child.id)}>
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M3 4h10M6 4V2.75h4V4M5 6.25v5.5M8 6.25v5.5M11 6.25v5.5M4 4l.5 9h7l.5-9" />
+                      </svg>
+                    </IconButton>
+                  </div>
+                </li>
+              ))
+            );
+          })()}
         </ul>
         {busy && (
           <div style={{ textAlign: 'center', padding: '20px' }}>

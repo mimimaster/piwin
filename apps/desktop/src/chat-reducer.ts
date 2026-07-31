@@ -8,6 +8,7 @@ import type {
   SessionRunOutcome,
   SessionRunPhase,
   SessionScope,
+  SessionSummary,
   SessionTranscriptMessage,
   SubagentActivityView,
   ToolPresentation,
@@ -173,6 +174,8 @@ export type ChatUiState = {
   runRecordsById: Record<string, RunRecordUi>;
   /** Inline subagent streams keyed by childSessionId for live expand UX. */
   subagentStreams: Record<string, SubagentStreamState>;
+  /** Latest child session summaries keyed by childSessionId (live list sync). */
+  subagentChildren: Record<string, SessionSummary>;
 };
 
 export type ChatUiAction =
@@ -225,7 +228,8 @@ export type ChatUiAction =
       childSessionId: string;
       event: AgentEvent;
     }
-  | { type: 'subagent/clear-stream'; childSessionId: string };
+  | { type: 'subagent/clear-stream'; childSessionId: string }
+  | { type: 'subagent/updated'; parentSessionId: string; child: SessionSummary };
 
 export function createInitialChatUiState(): ChatUiState {
   return {
@@ -262,6 +266,7 @@ export function createInitialChatUiState(): ChatUiState {
     lastAcceptedSequenceByRun: {},
     runRecordsById: {},
     subagentStreams: {},
+    subagentChildren: {},
   };
 }
 
@@ -744,6 +749,11 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         return state;
       }
       return applySubagentStreamEvent(state, action.childSessionId, action.event);
+    }
+    case 'subagent/updated': {
+      const child = action.child;
+      const nextChildren = { ...state.subagentChildren, [child.id]: child };
+      return { ...state, subagentChildren: nextChildren };
     }
     case 'subagent/clear-stream': {
       if (!(action.childSessionId in state.subagentStreams)) {
