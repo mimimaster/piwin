@@ -19,7 +19,7 @@
   margin: 0;
   background: var(--sidebar);
   border: 0;
-  border-left: 1px solid var(--line);
+  border-left: none;
   box-shadow: none;
   overflow: hidden;
   /* Instant show/hide — opacity/transform open felt like a full-shell flash. */

@@ -1,9 +1,10 @@
 /* Region: settings shell chrome (settings/settings-shell.tsx).
-   Owns the settings page frame ONLY: .settings-page, .settings-nav*,
-   .settings-search, .settings-main, .settings-main-header,
-   .settings-main-content (+ models flush modifiers).
+   Owns the settings popup modal sub-form frame ONLY: .settings-page backdrop,
+   .settings-modal-dialog, .settings-nav*, .settings-search, .settings-main,
+   .settings-main-header, .settings-main-content (+ models flush modifiers).
    Semantic runtime tokens only; no forced declarations. */
 
+/* Fullscreen modal backdrop overlay */
 .settings-page {
   position: fixed;
   top: var(--titleband-height, 34px);
@@ -11,32 +12,81 @@
   bottom: 0;
   left: 0;
   z-index: var(--layer-settings);
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  min-height: 0;
-  background: var(--canvas);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--canvas) 50%, rgba(0, 0, 0, 0.55));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: settings-fade-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   font-family: var(--font);
   font-size: 13px;
   letter-spacing: -0.011em;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Sidebar with subtle blur and distinct color */
+@keyframes settings-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Floating modal sub-form dialog frame */
+.settings-modal-dialog {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  width: min(980px, calc(100vw - 48px));
+  height: min(720px, calc(100vh - var(--titleband-height, 34px) - 48px));
+  max-height: calc(100vh - var(--titleband-height, 34px) - 32px);
+  background: var(--surface-raised, var(--canvas));
+  border: 1px solid color-mix(in srgb, var(--line-soft) 85%, var(--accent));
+  border-radius: var(--radius-window, 14px);
+  box-shadow:
+    0 24px 48px -12px rgba(0, 0, 0, 0.35),
+    0 0 0 1px color-mix(in srgb, var(--line-soft) 50%, transparent);
+  overflow: hidden;
+  animation: settings-dialog-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes settings-dialog-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Sidebar inside sub-form dialog */
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 14px 14px;
+  gap: 14px;
+  padding: 18px 12px 12px;
   min-height: 0;
   overflow: hidden;
   border-right: 1px solid var(--line-soft);
-  background: color-mix(in srgb, var(--sidebar) 92%, transparent);
-  backdrop-filter: blur(8px);
+  background: color-mix(in srgb, var(--sidebar) 95%, transparent);
 }
 
 .settings-nav-brand {
-  margin-bottom: 4px;
-  padding-left: 8px;
+  padding: 2px 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-nav-mark {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
 }
 
 .settings-nav-brand strong {
@@ -44,26 +94,19 @@
   font-weight: 650;
   letter-spacing: -0.015em;
   color: var(--text);
-}
-
-.settings-nav-brand small {
-  display: block;
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--faint);
-  margin-top: 1px;
+  line-height: 1;
 }
 
 /* Search bar style */
 .settings-search-container {
   position: relative;
-  margin: 0 4px;
+  margin: 0 2px;
 }
 
 .settings-search-icon {
   position: absolute;
   top: 50%;
-  left: 10px;
+  left: 9px;
   transform: translateY(-50%);
   color: var(--faint);
   pointer-events: none;
@@ -71,13 +114,13 @@
 
 .settings-search-input {
   width: 100%;
-  min-height: var(--control-height-default, 32px);
-  padding: 7px 10px 7px 32px;
+  min-height: var(--control-height-default, 30px);
+  padding: 5px 8px 5px 28px;
   border: 1px solid var(--line-soft);
-  border-radius: var(--radius-control, 8px);
+  border-radius: var(--radius-control, 7px);
   background: var(--surface-inset, var(--surface-control));
   color: var(--text);
-  font-size: 12.5px;
+  font-size: 12px;
   outline: none;
   transition:
     border-color var(--motion-quick, 120ms) var(--motion-ease, ease),
@@ -106,10 +149,10 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: 2px;
 }
 
 .settings-nav-group {
@@ -119,8 +162,8 @@
 }
 
 .settings-nav-group-label {
-  margin: 0 10px 6px;
-  font-size: 11px;
+  margin: 0 8px 4px;
+  font-size: 10.5px;
   font-weight: 650;
   letter-spacing: 0.03em;
   color: var(--faint);
@@ -131,16 +174,16 @@
 .settings-nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   text-align: left;
   border: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   background: transparent;
   color: var(--muted);
-  padding: 7px 10px;
+  padding: 6px 8px;
   cursor: pointer;
   font: inherit;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 450;
   letter-spacing: -0.012em;
   transition: background 0.12s ease, color 0.12s ease;
@@ -163,8 +206,8 @@
   content: '';
   position: absolute;
   left: 0;
-  top: 8px;
-  bottom: 8px;
+  top: 6px;
+  bottom: 6px;
   width: 3px;
   background: var(--accent);
   border-radius: 0 2px 2px 0;
@@ -188,15 +231,34 @@
   flex: 1;
 }
 
-/* ── Content page frame ───────────────────────────────────────────── */
+.settings-nav-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px 0;
+  font-size: 11px;
+  color: var(--faint);
+  border-top: 1px solid var(--line-soft);
+}
+
+.settings-connection-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+/* ── Main Content Area inside sub-form dialog ────────────────────────────── */
 
 .settings-main {
   position: relative;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding: 24px 32px 48px;
+  padding: 20px 28px 36px;
   background: var(--canvas);
 }
 
@@ -212,7 +274,8 @@
 .settings-main-header {
   display: flex;
   align-items: center;
-  margin: 0 0 24px;
+  justify-content: space-between;
+  margin: 0 0 20px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line-soft);
 }
@@ -220,14 +283,25 @@
 .settings-main-header h2 {
   margin: 0;
   color: var(--text);
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 650;
   letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
+.settings-close-btn {
+  color: var(--muted);
+  border-radius: 8px;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.settings-close-btn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+
 .settings-main-content {
-  width: min(100%, 800px);
+  width: min(100%, 760px);
   min-width: 0;
   margin: 0 auto;
 }
@@ -244,4 +318,25 @@
 .settings-content--models-flush .settings-card-flush {
   margin: 0;
   padding: 0;
+}
+
+/* Responsive compact viewport adjustments */
+@media (max-width: 720px) {
+  .settings-page {
+    padding: 12px;
+  }
+
+  .settings-modal-dialog {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .settings-nav {
+    border-right: none;
+    border-bottom: 1px solid var(--line-soft);
+    max-height: 180px;
+  }
 }

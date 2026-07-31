@@ -35,16 +35,16 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
   const isChinese = locale === 'zh-CN';
   const copy = isChinese
     ? {
-        subAgents: '子代理',
-        description: '创建拥有独立记录的子会话。',
+        subAgents: 'Agent',
+        description: '创建拥有独立记录的 Agent 子会话。',
         spawn: '创建',
         refresh: '刷新',
         noSubAgents: '尚无子代理',
         task: '任务',
         mode: '模式',
         applyPolicy: '应用策略',
-        spawnNew: '创建子代理',
-        spawnDesc: '启动一个执行特定任务的子会话。',
+        spawnNew: '创建 Agent',
+        spawnDesc: '启动一个专用于特定任务的子会话。',
       }
     : {
         subAgents: 'Sub-agents',
@@ -124,7 +124,10 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
   async function handleMerge(sessionId: string): Promise<void> {
     if (!props.parentSessionId) return;
     setBusy(true);
-    const response = await props.request({ type: 'session/merge-subagent', childSessionId: sessionId });
+    const response = await props.request({
+      type: 'session/merge-subagent',
+      childSessionId: sessionId,
+    });
     setBusy(false);
     if (!response.success) {
       setError(response.error);
@@ -136,10 +139,7 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
 
   return (
     <div className="settings-inline-content">
-      <PageTitle
-        title={copy.subAgents}
-        description={copy.description}
-      />
+      <PageTitle title={copy.subAgents} description={copy.description} />
 
       {error ? <Notice tone="error">{error}</Notice> : null}
 
@@ -147,7 +147,9 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
         <PageTitle title={isChinese ? '活跃子代理' : 'Active Sub-agents'} />
         <ul className="ext-list">
           {children.length === 0 && !busy ? (
-            <li className="muted" style={{ textAlign: 'center', padding: '32px' }}>{copy.noSubAgents}</li>
+            <li className="muted" style={{ textAlign: 'center', padding: '32px' }}>
+              {copy.noSubAgents}
+            </li>
           ) : (
             children.map((child) => (
               <li key={child.id} className="ext-list-item">
@@ -159,7 +161,11 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
                   <div className="muted ext-desc">{child.lastPreview || child.task}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button size="compact" variant="ghost" onClick={() => props.onOpenSession(child.id)}>
+                  <Button
+                    size="compact"
+                    variant="ghost"
+                    onClick={() => props.onOpenSession(child.id)}
+                  >
                     {isChinese ? '打开' : 'Open'}
                   </Button>
                   {!child.mergedAt && (
@@ -177,7 +183,11 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
             ))
           )}
         </ul>
-        {busy && <div style={{ textAlign: 'center', padding: '20px' }}><Spinner /></div>}
+        {busy && (
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            <Spinner />
+          </div>
+        )}
       </div>
 
       <div className="settings-section">
@@ -188,8 +198,19 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
             <textarea
               value={task}
               onChange={(e) => setTask(e.target.value)}
-              placeholder={isChinese ? '描述子代理需要完成的任务...' : 'What should the sub-agent do?'}
-              style={{ width: '100%', minHeight: '80px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)', resize: 'vertical' }}
+              placeholder={
+                isChinese ? '描述子代理需要完成的任务...' : 'What should the sub-agent do?'
+              }
+              style={{
+                width: '100%',
+                minHeight: '80px',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: '1px solid var(--line-soft)',
+                background: 'var(--surface-raised)',
+                color: 'var(--text)',
+                resize: 'vertical',
+              }}
             />
           </div>
           <div style={{ display: 'flex', gap: '16px' }}>
@@ -198,7 +219,14 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
               <select
                 value={mode}
                 onChange={(e) => setMode(e.target.value as any)}
-                style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--line-soft)',
+                  background: 'var(--surface-raised)',
+                  color: 'var(--text)',
+                }}
               >
                 <option value="readonly">{isChinese ? '只读' : 'Readonly'}</option>
                 <option value="worktree">{isChinese ? '工作树' : 'Worktree'}</option>
@@ -209,7 +237,14 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
               <select
                 value={applyPolicy}
                 onChange={(e) => setApplyPolicy(e.target.value as any)}
-                style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)' }}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--line-soft)',
+                  background: 'var(--surface-raised)',
+                  color: 'var(--text)',
+                }}
               >
                 <option value="none">{isChinese ? '不应用' : 'None'}</option>
                 <option value="auto">{isChinese ? '自动' : 'Auto'}</option>

@@ -2,21 +2,30 @@
  * Left project/session rail: brand, repositories, agent list, host status footer.
  * Handlers stay in App — this component is presentation + local open menu state only.
  */
-import type { ReactElement } from 'react';
+import { useMemo, useState, type ReactElement } from 'react';
 import type { HostStatusData, ProjectRecord } from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer';
 import type { SessionTimeGroup } from './session-groups';
-import { Button, IconButton, ListRow } from '@piwin/ui-kit';
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  IconButton,
+} from '@piwin/ui-kit';
 import { projectDisplayName } from './project-display-name';
 import {
   IconBook,
   IconChat,
   IconFolder,
+  IconFolderOpen,
   IconFolderPlus,
   IconPin,
   IconPlus,
   IconSearch,
   IconSettings,
+  IconSliders,
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 
@@ -42,7 +51,11 @@ export type ProjectSessionSidebarProps = {
   settingsOpen: boolean;
   onOpenWorkspace: () => void;
   onOpenProject: (path: string) => void;
-  onNewSession: () => void;
+  onNewSession: (options?: {
+    scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+  }) => void;
+  /** Switch to General scope and create a new general session in one sequenced flow. */
+  onNewGeneralSession: () => void;
   onResumeSession: (sessionId: string) => void;
   onOpenSessionMenu: (sessionId: string, x: number, y: number) => void;
   onOpenSettings: () => void;
@@ -55,6 +68,17 @@ export type ProjectSessionSidebarProps = {
 
 export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactElement {
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
+  const [sortBy, setSortBy] = useState<'updated' | 'alphabetical'>('updated');
+  const [groupBy, setGroupBy] = useState<'time' | 'none'>('time');
+  const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
+
+  const sortedFilteredSessions = useMemo(() => {
+    const list = [...props.filteredSessions];
+    if (sortBy === 'alphabetical') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return list;
+  }, [props.filteredSessions, sortBy]);
 
   return (
     <aside className="sidebar" aria-label={copy.workspace}>
@@ -73,19 +97,12 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           </div>
         ) : null}
 
-        <div className="sidebar-brand" data-testid="sidebar-brand">
-          <span className="brand-mark" aria-hidden>
-            <img src="/ui/brand-mark.jpg" alt="" />
-          </span>
-          <strong>piwin</strong>
-        </div>
-
         {/* New Agent — top priority action (Cursor-style) */}
         <button
           type="button"
           className="sidebar-new-agent"
           data-testid="new-session-btn"
-          onClick={props.onNewSession}
+          onClick={() => props.onNewSession()}
           title="New session"
           aria-label="New session"
         >
@@ -106,180 +123,257 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         </label>
       </div>
 
-      {/* Sessions — primary content (Agent-first) */}
-      <div className="sidebar-section sidebar-sessions">
-        <div className="sidebar-section-label sidebar-section-label-row">
-          <span>{props.showArchivedSessions ? 'Archived' : 'Sessions'}</span>
-          <div className="sidebar-section-label-actions">
-            {props.projectPath ? (
-              <button
-                type="button"
-                className={
-                  props.showArchivedSessions
-                    ? 'sidebar-archive-toggle active'
-                    : 'sidebar-archive-toggle'
-                }
-                data-testid="show-archived-toggle"
-                title={
-                  props.showArchivedSessions ? 'Show active sessions' : 'Show archived sessions'
-                }
-                aria-pressed={props.showArchivedSessions}
-                onClick={props.onToggleShowArchived}
-              >
-                {props.showArchivedSessions ? 'Active' : 'Archived'}
-              </button>
-            ) : null}
-            {props.projectPath ? (
-              <span className="sidebar-section-count muted">{props.filteredSessions.length}</span>
-            ) : null}
-          </div>
-        </div>
-        {props.filteredSessions.length === 0 ? (
-          <div className="muted sessions-empty" data-testid="sessions-empty">
-            {props.sessions.length === 0
-              ? props.showArchivedSessions
-                ? 'No archived sessions'
-                : 'No sessions yet — type below or press New session.'
-              : 'No matches'}
-          </div>
-        ) : (
-          <div className="session-groups" data-testid="sessions-list">
-            {props.sessionGroups.map((group) => (
-              <div key={group.id} className="session-group" data-testid="session-group">
-                <div className="sidebar-section-label">{group.label}</div>
-                <ul className="session-list">
-                  {group.sessions.map((session) => (
-                    <li key={session.id} className="session-row">
-                      <button
-                        type="button"
-                        data-testid="session-item"
-                        data-session-id={session.id}
-                        data-pinned={session.isPinned === true ? 'true' : 'false'}
-                        data-archived={session.isArchived === true ? 'true' : 'false'}
-                        className={
-                          session.id === props.activeSessionId
-                            ? 'session-item active'
-                            : 'session-item'
-                        }
-                        onClick={() => props.onResumeSession(session.id)}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          props.onOpenSessionMenu(session.id, event.clientX, event.clientY);
-                        }}
-                      >
-                        <span
-                          className={`session-status-dot${session.id === props.activeSessionId ? ' is-active' : ''}`}
-                          aria-hidden
-                        />
-                        <span className="session-item-body">
-                          <span className="session-item-name">
-                            {session.isPinned === true ? (
-                              <span className="session-pin-mark" aria-hidden>
-                                <IconPin width={12} height={12} />
-                              </span>
-                            ) : null}
-                            {session.name}
-                          </span>
-                          {session.lastPreview ? (
-                            <span className="session-item-preview muted">
-                              {session.lastPreview}
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        className="session-menu-btn"
-                        data-testid="session-menu-btn"
-                        title="Session actions"
-                        aria-label="Session actions"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          const rect = event.currentTarget.getBoundingClientRect();
-                          props.onOpenSessionMenu(session.id, rect.right - 8, rect.bottom + 4);
-                        }}
-                      >
-                        ···
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Projects — secondary, collapsible */}
-      <details className="sidebar-projects-details" open>
-        <summary className="sidebar-section-label sidebar-section-label-row sidebar-projects-summary">
+      {/* Unified Folder Tree (Antigravity project-conversation tree style) */}
+      <div className="sidebar-folder-tree" data-testid="sessions-list">
+        {/* Header Toolbar: Projects Title, Display Options, Add Project */}
+        <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
           <span>Projects</span>
           <div className="sidebar-section-label-actions">
             <span className="sidebar-section-count muted">{props.recentProjects.length}</span>
-            <IconButton
-              className="sidebar-icon-btn"
-              label="Open workspace folder"
-              data-testid="open-workspace-btn"
-              title={props.projectPath ?? 'Open workspace folder'}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                props.onOpenWorkspace();
-              }}
+
+            {/* Display Options Dropdown (Sort, Group By, Filter) */}
+            <DropdownMenu
+              trigger={
+                <IconButton
+                  className="sidebar-icon-btn"
+                  label="Display options"
+                  title="Display options"
+                  data-testid="display-options-btn"
+                >
+                  <IconSliders />
+                </IconButton>
+              }
             >
-              <IconFolderPlus />
-            </IconButton>
+              <DropdownMenuLabel className="plus-menu-caption muted">
+                Sort Conversations
+              </DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setSortBy('updated')}>
+                {sortBy === 'updated' ? '✓ ' : ''}Last Updated
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setSortBy('alphabetical')}>
+                {sortBy === 'alphabetical' ? '✓ ' : ''}Alphabetical (A-Z)
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuLabel className="plus-menu-caption muted">Group By</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setGroupBy('time')}>
+                {groupBy === 'time' ? '✓ ' : ''}Date / Time
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setGroupBy('none')}>
+                {groupBy === 'none' ? '✓ ' : ''}None (Flat list)
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuLabel className="plus-menu-caption muted">Filter</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => props.onToggleShowArchived()}>
+                {props.showArchivedSessions ? '✓ Archived Sessions' : 'Active Sessions'}
+              </DropdownMenuItem>
+            </DropdownMenu>
+
+            {/* New Project / Open Workspace Dropdown */}
+            <DropdownMenu
+              trigger={
+                <IconButton
+                  className="sidebar-icon-btn"
+                  label="Open workspace folder"
+                  data-testid="open-workspace-btn"
+                  title={props.projectPath ?? 'Open workspace folder'}
+                >
+                  <IconFolderPlus />
+                </IconButton>
+              }
+            >
+              <DropdownMenuItem onSelect={() => props.onOpenWorkspace()}>
+                <IconFolder width={14} height={14} /> Open Workspace Folder…
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => props.onSelectGeneral?.()}>
+                <IconChat width={14} height={14} /> General Chat (Quick Start)
+              </DropdownMenuItem>
+            </DropdownMenu>
           </div>
-        </summary>
+        </div>
 
-        {/* General chat */}
-        <ListRow
-          className="repository-row"
-          selected={props.generalActive !== false && !props.projectPath}
-          data-testid="general-workspace-btn"
-          onClick={() => props.onSelectGeneral?.()}
-          title="Chat without a project folder"
-        >
-          <IconChat />
-          <span className="repository-row-copy">
-            <span>General chat</span>
-            <small>No project required</small>
-          </span>
-        </ListRow>
+        {/* Project Folders list */}
+        <div className="tree-node-list">
+          {props.recentProjects.map((project) => {
+            const isActiveProject = project.path === props.projectPath;
+            const isProjectOpen = openProjects[project.path] ?? isActiveProject;
+            const displayName = project.displayName ?? projectDisplayName(project.path);
+            const projectSessions = isActiveProject ? sortedFilteredSessions : [];
 
-        {props.recentProjects.length === 0 ? (
-          <button
-            type="button"
-            className="repository-empty-btn"
-            onClick={props.onOpenWorkspace}
-          >
-            Open a folder to add it here.
-          </button>
-        ) : (
-          <div className="repository-list">
-            {props.recentProjects.slice(0, 8).map((project) => {
-              const isActiveProject = project.path === props.projectPath;
-              return (
-                <ListRow
-                  key={project.path}
-                  className="repository-row"
-                  selected={isActiveProject}
+            return (
+              <details key={project.path} className="tree-folder-details" open={isProjectOpen}>
+                <summary
+                  className={isActiveProject ? 'tree-folder-summary active' : 'tree-folder-summary'}
                   data-testid="repository-item"
                   data-project-path={project.path}
-                  onClick={() => props.onOpenProject(project.path)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setOpenProjects((prev) => ({
+                      ...prev,
+                      [project.path]: !isProjectOpen,
+                    }));
+                    props.onOpenProject(project.path);
+                  }}
                   title={project.path}
                 >
-                  <IconFolder />
-                  <span className="repository-row-copy">
-                    <span>{project.displayName ?? projectDisplayName(project.path)}</span>
-                    <small>{project.trust === 'trusted' ? 'Trusted' : 'Untrusted'}</small>
+                  <span className="tree-folder-title">
+                    {isProjectOpen ? (
+                      <IconFolderOpen className="tree-folder-icon" />
+                    ) : (
+                      <IconFolder className="tree-folder-icon" />
+                    )}
+                    <span>{displayName}</span>
                   </span>
-                </ListRow>
-              );
-            })}
+                  <button
+                    type="button"
+                    className="tree-folder-add-btn"
+                    title={`New conversation in ${displayName}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      props.onOpenProject(project.path);
+                      props.onNewSession();
+                    }}
+                  >
+                    <IconPlus width={12} height={12} />
+                  </button>
+                </summary>
+
+                {/* Sessions under this project */}
+                {isActiveProject && projectSessions.length > 0 ? (
+                  <ul className="tree-session-list">
+                    {projectSessions.map((session) => (
+                      <li key={session.id} className="session-row">
+                        <button
+                          type="button"
+                          data-testid="session-item"
+                          data-session-id={session.id}
+                          data-pinned={session.isPinned === true ? 'true' : 'false'}
+                          data-archived={session.isArchived === true ? 'true' : 'false'}
+                          className={
+                            session.id === props.activeSessionId
+                              ? 'session-item active'
+                              : 'session-item'
+                          }
+                          onClick={() => props.onResumeSession(session.id)}
+                          onContextMenu={(event) => {
+                            event.preventDefault();
+                            props.onOpenSessionMenu(session.id, event.clientX, event.clientY);
+                          }}
+                        >
+                          <span
+                            className={`session-status-dot${session.id === props.activeSessionId ? ' is-active' : ''}`}
+                            aria-hidden
+                          />
+                          <span className="session-item-body">
+                            <span className="session-item-name">
+                              {session.isPinned === true ? (
+                                <span className="session-pin-mark" aria-hidden>
+                                  <IconPin width={12} height={12} />
+                                </span>
+                              ) : null}
+                              {session.name}
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="session-menu-btn"
+                          data-testid="session-menu-btn"
+                          title="Session actions"
+                          aria-label="Session actions"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            const rect = event.currentTarget.getBoundingClientRect();
+                            props.onOpenSessionMenu(session.id, rect.right - 8, rect.bottom + 4);
+                          }}
+                        >
+                          ···
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </details>
+            );
+          })}
+        </div>
+
+        {/* SECTION 2: CONVERSATIONS (General / Non-Project Sessions) */}
+        <div className="sidebar-conversations-section">
+          <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
+            <span>Conversations</span>
+            <div className="sidebar-section-label-actions">
+              <IconButton
+                className="sidebar-icon-btn"
+                label={copy.newSession}
+                title={copy.newSession}
+                data-testid="general-workspace-btn"
+                onClick={() => props.onNewGeneralSession()}
+              >
+                <IconPlus width={14} height={14} />
+              </IconButton>
+            </div>
           </div>
-        )}
-      </details>
+
+          <ul className="tree-session-list conversations-list">
+            {(!props.projectPath || props.generalActive) && sortedFilteredSessions.length > 0 ? (
+              sortedFilteredSessions.map((session) => (
+                <li key={session.id} className="session-row">
+                  <button
+                    type="button"
+                    data-testid="session-item"
+                    data-session-id={session.id}
+                    data-pinned={session.isPinned === true ? 'true' : 'false'}
+                    data-archived={session.isArchived === true ? 'true' : 'false'}
+                    className={
+                      session.id === props.activeSessionId ? 'session-item active' : 'session-item'
+                    }
+                    onClick={() => props.onResumeSession(session.id)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      props.onOpenSessionMenu(session.id, event.clientX, event.clientY);
+                    }}
+                  >
+                    <span
+                      className={`session-status-dot${session.id === props.activeSessionId ? ' is-active' : ''}`}
+                      aria-hidden
+                    />
+                    <span className="session-item-body">
+                      <span className="session-item-name">
+                        {session.isPinned === true ? (
+                          <span className="session-pin-mark" aria-hidden>
+                            <IconPin width={12} height={12} />
+                          </span>
+                        ) : null}
+                        {session.name}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="session-menu-btn"
+                    data-testid="session-menu-btn"
+                    title="Session actions"
+                    aria-label="Session actions"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      props.onOpenSessionMenu(session.id, rect.right - 8, rect.bottom + 4);
+                    }}
+                  >
+                    ···
+                  </button>
+                </li>
+              ))
+            ) : (
+              <li className="sidebar-empty-hint muted">No general conversations</li>
+            )}
+          </ul>
+        </div>
+      </div>
 
       <div className="sidebar-footer">
         <button

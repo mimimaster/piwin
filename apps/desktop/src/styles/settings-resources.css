@@ -15,26 +15,46 @@
 }
 
 .settings-section + .settings-section {
-  margin-top: 40px;
-  padding-top: 32px;
-  border-top: 1px solid var(--line-soft);
+  margin-top: 24px;
+}
+
+/* Card-wrapped section styling for clean grouped settings */
+.settings-section-card {
+  background: var(--surface-raised, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+.settings-section-card .settings-card-heading {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line-soft) 60%, transparent);
+}
+
+.settings-section-card .ui-field-row:first-child {
+  padding-top: 0;
+}
+
+.settings-section-card .ui-field-row:last-child {
+  padding-bottom: 0;
 }
 
 .settings-card-heading {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 .settings-card-heading h4 {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 650;
   color: var(--text);
   letter-spacing: -0.015em;
 }
 
 .settings-card-heading p {
-  margin: 6px 0 0;
-  font-size: 13.5px;
+  margin: 4px 0 0;
+  font-size: 13px;
   color: var(--muted);
   line-height: 1.5;
   max-width: 640px;

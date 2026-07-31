@@ -7,6 +7,8 @@
  * classes and data-testids) — R3 owns any CSS restructuring.
  */
 import type { ReactElement, ReactNode } from 'react';
+import { IconButton } from '@piwin/ui-kit';
+import { IconClose } from '../shell-icons';
 import { getDesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
 import {
@@ -219,10 +221,12 @@ export type SettingsShellProps = {
   contextValue: SettingsContextValue;
   /** Error/info banners owned by SettingsPanel; rendered above the content. */
   banners?: ReactNode;
+  /** Callback to close the modal sub-form. */
+  onClose?: (() => void) | undefined;
 };
 
 export function SettingsShell(props: SettingsShellProps): ReactElement {
-  const { activeSection, onSelectSection, contextValue } = props;
+  const { activeSection, onSelectSection, contextValue, onClose } = props;
   const { locale, translator } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const copy = getDesktopCopy(locale);
@@ -233,97 +237,116 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
   const PageComponent = getSettingsSection(activeSection);
 
   return (
-    <div className="settings-page" data-testid="settings-panel" aria-label={copy.settings}>
-      <aside className="settings-nav">
-        <div className="settings-nav-brand">
-          <span className="settings-nav-mark" aria-hidden>
-            π
-          </span>
-          <span>
+    <div
+      className="settings-page"
+      data-testid="settings-panel"
+      aria-label={copy.settings}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && onClose) {
+          onClose();
+        }
+      }}
+    >
+      <div className="settings-modal-dialog" role="dialog" aria-modal="true" aria-label={copy.settings}>
+        <aside className="settings-nav">
+          <div className="settings-nav-brand">
+            <span className="settings-nav-mark" aria-hidden>
+              π
+            </span>
             <strong>{copy.settings}</strong>
-            <small>piwin Desktop</small>
-          </span>
-        </div>
-        <div className="settings-search-container">
-          <svg
-            className="settings-search-icon"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            type="text"
-            className="settings-search-input"
-            placeholder={isChinese ? '搜索设置...' : 'Search Settings...'}
-            disabled
-          />
-        </div>
-        <nav className="settings-nav-list" aria-label={copy.settings}>
-          {SETTINGS_GROUPS.map((group) => (
-            <div key={group.id} className="settings-nav-group">
-              <div className="settings-nav-group-label">{translator.settings[group.labelKey]}</div>
-              {sectionsForGroup(group.id).map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={
-                    activeSection === item.id ? 'settings-nav-item active' : 'settings-nav-item'
-                  }
-                  onClick={() => onSelectSection(item.id)}
-                  aria-current={activeSection === item.id ? 'page' : undefined}
-                  data-testid={`settings-nav-${item.id}`}
-                >
-                  <span className="settings-nav-icon">{SECTION_ICONS[item.id]}</span>
-                  <span className="settings-nav-label">
-                    {translator.settings.nav[item.labelKey]}
-                  </span>
-                  {item.beta ? (
-                    <span className="settings-beta-badge" aria-label={copy.betaFeature}>
-                      Beta
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <div className="settings-nav-footer">
-          <span className="settings-connection-dot" aria-hidden />
-          {copy.localConfiguration}
-        </div>
-      </aside>
-      <div className="settings-main">
-        <header className="settings-main-header">
-          <h2>{activeMeta ? translator.settings.nav[activeMeta.labelKey] : copy.settings}</h2>
-        </header>
-        {/* Overlay host: must NOT sit in normal flow. In-flow Notice on
-            switch/save was pushing the whole page (and every label) down,
-            then jumping back when the 3.5s info TTL cleared. */}
-        {props.banners ? (
-          <div className="ui-feedback-host settings-feedback-host" aria-live="polite">
-            {props.banners}
           </div>
-        ) : null}
-        <div
-          className={`settings-main-content${
-            activeSection === 'models'
-              ? ' settings-content--models settings-content--models-flush'
-              : ''
-          }`}
-        >
-          {PageComponent ? (
-            <SettingsProvider value={contextValue}>
-              <PageComponent />
-            </SettingsProvider>
+          <div className="settings-search-container">
+            <svg
+              className="settings-search-icon"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              className="settings-search-input"
+              placeholder={isChinese ? '搜索设置...' : 'Search Settings...'}
+              disabled
+            />
+          </div>
+          <nav className="settings-nav-list" aria-label={copy.settings}>
+            {SETTINGS_GROUPS.map((group) => (
+              <div key={group.id} className="settings-nav-group">
+                <div className="settings-nav-group-label">{translator.settings[group.labelKey]}</div>
+                {sectionsForGroup(group.id).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={
+                      activeSection === item.id ? 'settings-nav-item active' : 'settings-nav-item'
+                    }
+                    onClick={() => onSelectSection(item.id)}
+                    aria-current={activeSection === item.id ? 'page' : undefined}
+                    data-testid={`settings-nav-${item.id}`}
+                  >
+                    <span className="settings-nav-icon">{SECTION_ICONS[item.id]}</span>
+                    <span className="settings-nav-label">
+                      {translator.settings.nav[item.labelKey]}
+                    </span>
+                    {item.beta ? (
+                      <span className="settings-beta-badge" aria-label={copy.betaFeature}>
+                        Beta
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
+          <div className="settings-nav-footer">
+            <span className="settings-connection-dot" aria-hidden />
+            {copy.localConfiguration}
+          </div>
+        </aside>
+        <div className="settings-main">
+          <header className="settings-main-header">
+            <h2>{activeMeta ? translator.settings.nav[activeMeta.labelKey] : copy.settings}</h2>
+            {onClose ? (
+              <IconButton
+                label={isChinese ? '关闭设置' : 'Close settings'}
+                title={isChinese ? '关闭设置 (Esc)' : 'Close settings (Esc)'}
+                onClick={onClose}
+                className="settings-close-btn"
+                data-testid="settings-close-button"
+              >
+                <IconClose />
+              </IconButton>
+            ) : null}
+          </header>
+          {/* Overlay host: must NOT sit in normal flow. In-flow Notice on
+              switch/save was pushing the whole page (and every label) down,
+              then jumping back when the 3.5s info TTL cleared. */}
+          {props.banners ? (
+            <div className="ui-feedback-host settings-feedback-host" aria-live="polite">
+              {props.banners}
+            </div>
           ) : null}
+          <div
+            className={`settings-main-content${
+              activeSection === 'models'
+                ? ' settings-content--models settings-content--models-flush'
+                : ''
+            }`}
+          >
+            {PageComponent ? (
+              <SettingsProvider value={contextValue}>
+                <PageComponent />
+              </SettingsProvider>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

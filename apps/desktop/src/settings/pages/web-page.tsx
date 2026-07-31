@@ -17,12 +17,12 @@ export function WebPage(): ReactElement {
 
   return (
     <div className="settings-card" data-testid="settings-web-tools">
-      <div className="settings-section">
+      <div className="settings-section settings-section-card">
         <PageTitle
-          title={locale === 'zh-CN' ? 'Web 工具' : 'Web Tools'}
+          title={locale === 'zh-CN' ? 'Web 工具配置' : 'Web Tools'}
           description={locale === 'zh-CN'
-            ? '配置 web_search 与 web_fetch 插件以访问互联网。'
-            : 'Configure web_search and web_fetch plugins to access the internet.'}
+            ? '配置用于网络检索与抓取的 web_search 与 web_fetch 工具引擎。'
+            : 'Configure web_search and web_fetch providers for internet browsing.'}
         />
 
         <div className="settings-segmented-wrap" style={{ marginBottom: 24 }}>

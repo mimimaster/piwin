@@ -21,6 +21,7 @@ import { WorkspaceTitlebar } from './workspace-titlebar';
 import { SettingsPanel } from './SettingsPanel';
 import { NotificationRegion } from './NotificationRegion';
 import { ProjectSessionSidebar } from './project-session-sidebar';
+import { projectDisplayName } from './project-display-name';
 import { ChatThread } from './chat-thread';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import { FileTreePanel } from './file-tree-panel';
@@ -501,8 +502,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     }
     void (async () => {
       if (lastSession.scope.kind === 'project') {
-        await handleOpenProject(lastSession.scope.projectPath, lastSession.sessionId, {
+        await handleOpenProject(lastSession.scope.projectPath, {
           autoTrust: false,
+          resumeSessionId: lastSession.sessionId,
         });
         return;
       }
@@ -1061,6 +1063,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           workPanelOpen={rightPanelOpen}
           onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
           locale={desktopLocale}
+          sessionTitle={
+            state.projectPath
+              ? `${projectDisplayName(state.projectPath)} / ${activeSessionName}`
+              : activeSessionName
+          }
+          scopeLabel={
+            state.activeScope.kind === 'general'
+              ? desktopCopy.general
+              : desktopLocale === 'zh-CN'
+                ? '项目'
+                : 'Project'
+          }
+          permissionMode={config?.permissions?.mode ?? null}
+          onOpenPermissions={() => openSettingsSection('permissions')}
         />
 
         <WorkspaceShell
@@ -1093,6 +1109,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onOpenWorkspace={() => void handleOpenWorkspaceClick()}
               onOpenProject={(path) => void handleOpenProject(path)}
               onNewSession={() => void handleNewSession()}
+              onNewGeneralSession={() => {
+                void (async () => {
+                  // Sequence: switch scope → hydrate general list → create new
+                  // general session. Awaiting hydrate before create avoids the
+                  // session/hydrate dispatch clobbering session/add, and the
+                  // explicit general scope avoids reading stale activeScope.
+                  dispatch({ type: 'project/clear' });
+                  await hydrateSessions(
+                    { kind: 'general' },
+                    { includeArchived: showArchivedSessions },
+                  );
+                  await handleNewSession({ scope: { kind: 'general' } });
+                })();
+              }}
               onResumeSession={(sessionId) => void handleResumeSession(sessionId)}
               onOpenSessionMenu={(sessionId, x, y) => setSessionMenu({ sessionId, x, y })}
               onOpenSettings={() => openSettingsSection('general')}
@@ -1114,7 +1144,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           contextBar={
             <ContextBar
               session={{
-                title: activeSessionName,
+                title: state.projectPath
+                  ? `${projectDisplayName(state.projectPath)} / ${activeSessionName}`
+                  : activeSessionName,
                 scopeLabel:
                   state.activeScope.kind === 'general'
                     ? desktopCopy.general
@@ -1413,7 +1445,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           onProjectInputChange={setProjectInput}
           projectPickerOpen={projectPickerOpen}
           onProjectPickerOpenChange={setProjectPickerOpen}
-          onOpenProject={(path) => void handleOpenProject(path)}
+          onOpenProject={(path) => {
+            if (path) {
+              void handleOpenProject(path);
+            }
+          }}
           onBrowseProject={() => void handleBrowseProject()}
           projectPath={state.projectPath}
           trustDialogOpen={state.trustDialogOpen}
@@ -1545,6 +1581,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             }}
             onThemeApplied={onThemeApplied}
             onPetActiveChanged={setActivePet}
+            onClose={shell.closeSettings}
             onSaved={(next) => {
               setConfig(next);
               if (next.defaultProviderId && next.defaultModelId) {

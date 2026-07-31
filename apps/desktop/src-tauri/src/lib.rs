@@ -180,6 +180,17 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if window.label() == "pet-overlay" {
+                static REAPPLYING_PET_OVERLAY_FLAGS: AtomicBool = AtomicBool::new(false);
+                if matches!(event, WindowEvent::Moved(_) | WindowEvent::Focused(_)) {
+                    if !REAPPLYING_PET_OVERLAY_FLAGS.swap(true, Ordering::SeqCst) {
+                        let _ = window.set_always_on_top(true);
+                        let _ = window.set_visible_on_all_workspaces(true);
+                        REAPPLYING_PET_OVERLAY_FLAGS.store(false, Ordering::SeqCst);
+                    }
+                }
+            }
+
             let WindowEvent::CloseRequested { api, .. } = event else {
                 return;
             };

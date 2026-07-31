@@ -5,6 +5,8 @@
 import type { ReactElement } from 'react';
 import type { SubagentActivityView } from '@piwin/contracts';
 import { Button } from '@piwin/ui-kit';
+import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
+import type { RunStatusKind } from './run-status.js';
 
 export type SubagentActivityCardProps = {
   activity: SubagentActivityView;
@@ -20,8 +22,19 @@ const STATE_LABEL: Record<SubagentActivityView['state'], string> = {
   merged: 'Merged',
 };
 
+const STATE_KIND_MAP: Record<SubagentActivityView['state'], RunStatusKind> = {
+  started: 'preparing',
+  running: 'working',
+  completed: 'complete',
+  failed: 'failed',
+  cancelled: 'stopping',
+  merged: 'complete',
+};
+
 export function SubagentActivityCard(props: SubagentActivityCardProps): ReactElement {
   const { activity } = props;
+  const statusKind = STATE_KIND_MAP[activity.state] ?? 'working';
+
   return (
     <div
       className="subagent-activity-card"
@@ -30,7 +43,10 @@ export function SubagentActivityCard(props: SubagentActivityCardProps): ReactEle
       data-child-session-id={activity.childSessionId}
     >
       <header className="subagent-activity-header">
-        <strong>Subagent</strong>
+        <div className="subagent-activity-title">
+          <ActivitySvgIcon kind={statusKind} className="subagent-status-icon" />
+          <strong>Subagent</strong>
+        </div>
         <span className={`subagent-activity-state state-${activity.state}`}>
           {STATE_LABEL[activity.state]}
         </span>
@@ -41,6 +57,11 @@ export function SubagentActivityCard(props: SubagentActivityCardProps): ReactEle
         {activity.worktreePath ? (
           <div className="subagent-activity-worktree muted" title={activity.worktreePath}>
             Worktree: <code>{activity.worktreePath}</code>
+          </div>
+        ) : null}
+        {activity.state === 'running' ? (
+          <div className="subagent-activity-progress" aria-hidden="true">
+            <div className="subagent-activity-progress-bar" />
           </div>
         ) : null}
       </div>

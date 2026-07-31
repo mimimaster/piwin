@@ -36,6 +36,11 @@ export type WorkspaceTitlebarProps = {
   workPanelOpen?: boolean;
   onToggleWorkPanel?: () => void;
   locale?: DesktopLocale;
+  /** Session identity rendered inside titlebar */
+  sessionTitle?: string;
+  scopeLabel?: string;
+  permissionMode?: import('@piwin/contracts').PermissionMode | null;
+  onOpenPermissions?: () => void;
 };
 
 function startNativeWindowDrag(): void {
@@ -111,6 +116,54 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
           <IconChevronRight />
         </IconButton>
       </div>
+
+      {/* Session Title & Badges in Titlebar */}
+      {props.sessionTitle ? (
+        <div className="titlebar-session-identity">
+          {props.sessionTitle.includes(' / ') ? (
+            <>
+              <span className="titlebar-project-name">
+                {props.sessionTitle.split(' / ')[0]}
+              </span>
+              <span className="titlebar-sep">/</span>
+              <span className="titlebar-session-name">
+                {props.sessionTitle.split(' / ').slice(1).join(' / ')}
+              </span>
+            </>
+          ) : (
+            <span className="titlebar-session-title" title={props.sessionTitle}>
+              {props.sessionTitle}
+            </span>
+          )}
+          {props.scopeLabel ? (
+            <span className="titlebar-scope-pill">{props.scopeLabel}</span>
+          ) : null}
+          {props.permissionMode ? (
+            <button
+              type="button"
+              className={
+                props.permissionMode === 'bypass'
+                  ? 'titlebar-mode-badge is-warning'
+                  : 'titlebar-mode-badge'
+              }
+              data-testid="titlebar-mode-badge"
+              data-mode={props.permissionMode}
+              title={
+                props.locale === 'zh-CN'
+                  ? '权限模式 — 点击打开权限设置'
+                  : 'Permission mode — click to open Permissions settings'
+              }
+              onClick={props.onOpenPermissions}
+            >
+              {props.permissionMode === 'auto'
+                ? 'Auto'
+                : props.permissionMode === 'ask-all'
+                  ? 'Ask all'
+                  : 'Bypass'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       <div
         className="titlebar-spacer"

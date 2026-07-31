@@ -40,7 +40,13 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["$HOME/.piwin/media/**", "$HOME/.piwin/pets/**", "$HOME/.codex/pets/**"],
+          "allow": [
+            "$HOME/.piwin/media/**",
+            "$HOME/.piwin/pets/**",
+            "$HOME/.codex/pets/**",
+            "$APPDIR/**",
+            "$RESOURCE/**"
+          ],
           "deny": ["$HOME/.piwin/credentials/**", "$HOME/.ssh/**", "$HOME/.aws/**"]
         }
       }

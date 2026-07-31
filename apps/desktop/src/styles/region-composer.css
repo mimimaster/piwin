@@ -24,16 +24,16 @@
   gap: 10px;
   width: min(100%, var(--chat-max, 760px));
   margin: 0 auto;
-  padding: 8px 16px 28px;
+  padding: 8px 0 28px;
   border-top: none;
 }
 
 /* Empty stage: dock is packed under the hero as one vertical system. */
 .chat-column-empty .composer-dock.layout-centered {
   flex: 0 0 auto;
-  width: min(100%, 720px);
+  width: min(100%, var(--chat-max, 760px));
   margin: 0 auto;
-  padding: 4px 16px 24px;
+  padding: 4px 0 24px;
   border-top: 0;
   background: transparent;
 }
@@ -64,9 +64,10 @@
   flex-direction: column;
   width: 100%;
   margin: 0 auto;
-  border: 1px solid var(--line-strong);
+  border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--card);
+  background: var(--card, #ffffff);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
   transition:
     border-color 200ms ease,
     box-shadow 200ms ease;
@@ -76,17 +77,17 @@
 
 .composer-card-v2:focus-within,
 .composer-card-v2.drop-active {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-ring);
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .composer-card-v2.is-streaming {
-  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
 }
 
-/* Centered empty-state card is slightly wider-rounded and larger. */
+/* Centered empty-state card matches conversation width cleanly. */
 .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
-  width: min(100%, 680px);
+  width: 100%;
   border-radius: 12px;
 }
 
@@ -287,10 +288,12 @@
   background: var(--accent);
   color: var(--accent-fg);
   cursor: pointer;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 20%, transparent);
   transition:
-    transform 0.12s ease,
-    opacity 0.12s ease,
-    filter 0.12s ease;
+    transform 0.14s ease,
+    opacity 0.14s ease,
+    filter 0.14s ease,
+    box-shadow 0.14s ease;
   flex-shrink: 0;
 }
 
@@ -301,16 +304,20 @@
 
 .composer-v2-send-btn:hover:not(:disabled) {
   filter: brightness(1.08);
+  transform: translateY(-0.5px);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 .composer-v2-send-btn:active:not(:disabled) {
-  transform: scale(0.92);
+  transform: scale(0.94);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .composer-v2-send-btn:disabled {
   opacity: 0.3;
   cursor: default;
   background: var(--faint);
+  box-shadow: none;
 }
 
 .composer-v2-stop-btn {
@@ -571,27 +578,29 @@
   align-items: center;
   justify-content: flex-start;
   gap: 5px;
-  height: 28px;
+  height: 26px;
   min-width: 0;
   max-width: 280px;
-  padding: 0 9px;
-  border: 1px solid var(--line);
+  padding: 2px 6px;
+  border: none;
   border-radius: 6px;
-  background: color-mix(in srgb, var(--surface-inset) 75%, var(--canvas));
+  background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 11px;
-  line-height: 1;
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1.4;
+  box-shadow: none;
   transition:
-    background 120ms ease,
-    border-color 120ms ease,
-    color 120ms ease;
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .thinking-effort-trigger:hover:not(:disabled) {
   color: var(--text);
-  background: var(--hover);
-  border-color: var(--line);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border: none;
+  box-shadow: none;
 }
 
 .thinking-effort-trigger:disabled {
@@ -603,7 +612,9 @@
   min-width: 0;
   overflow: hidden;
   color: var(--text);
-  font-weight: 550;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -612,27 +623,39 @@
   flex-shrink: 0;
   color: var(--faint);
   font-weight: 500;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .thinking-effort-value {
   flex-shrink: 0;
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 0;
+  background: transparent;
 }
 
 .thinking-effort-control.ultra-active .thinking-effort-value {
   color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 14%, transparent);
 }
 
 .thinking-effort-chevron {
   flex-shrink: 0;
   width: 6px;
   height: 6px;
-  margin-left: 1px;
+  margin-left: 2px;
   border-right: 1.5px solid var(--muted);
   border-bottom: 1.5px solid var(--muted);
   transform: translateY(-1px) rotate(45deg);
   opacity: 0.75;
+  transition: transform 140ms ease;
+}
+
+.thinking-effort-trigger:hover .thinking-effort-chevron {
+  transform: translateY(0px) rotate(45deg);
 }
 
 /* Radix (ui-kit Popover) owns placement, portal, and layering; this rule only
@@ -641,10 +664,15 @@
 .ui-popover-content.thinking-effort-popover {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  width: min(300px, calc(100vw - 24px));
-  padding: 12px;
+  gap: 14px;
+  width: min(320px, calc(100vw - 24px));
+  padding: 14px;
+  border-radius: 14px;
   border-color: var(--line-strong);
+  box-shadow:
+    0 12px 32px -6px rgba(0, 0, 0, 0.28),
+    0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
+  backdrop-filter: blur(16px);
 }
 
 .thinking-effort-section {
@@ -656,41 +684,63 @@
 
 .thinking-effort-section-title {
   margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   color: var(--faint);
   font-size: 10.5px;
   font-weight: 650;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
+}
+
+.thinking-effort-active-tag {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .thinking-effort-chip-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 .thinking-effort-chip {
-  height: 28px;
-  padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 3.5%, transparent);
+  flex: 1 1 auto;
+  height: 26px;
+  min-width: 40px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
   color: var(--muted);
   cursor: pointer;
   font: inherit;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 550;
   line-height: 1;
+  display: grid;
+  place-items: center;
   transition:
     background 120ms ease,
     border-color 120ms ease,
-    color 120ms ease;
+    color 120ms ease,
+    box-shadow 120ms ease;
 }
 
 .thinking-effort-chip:hover:not(:disabled) {
   color: var(--text);
   background: color-mix(in srgb, var(--text) 7%, transparent);
-  border-color: color-mix(in srgb, var(--text) 14%, transparent);
 }
 
 .thinking-effort-chip:disabled {
@@ -699,48 +749,80 @@
 }
 
 .thinking-effort-chip.is-active {
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  color: var(--text);
+  background: var(--accent);
+  color: var(--accent-fg);
   font-weight: 650;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .thinking-effort-popover.ultra-active .thinking-effort-chip.is-active {
-  border-color: color-mix(in srgb, var(--violet) 55%, transparent);
-  background: color-mix(in srgb, var(--violet) 16%, transparent);
+  background: var(--violet);
+  color: #fff;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--violet) 35%, transparent);
 }
 
 .thinking-effort-model-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   max-height: 220px;
-  overflow: auto;
+  overflow-y: auto;
   padding: 2px;
   margin: 0 -2px;
-  border-radius: 8px;
 }
 
 .thinking-effort-model-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   width: 100%;
-  min-height: 32px;
+  min-height: 36px;
   padding: 6px 10px;
-  border: 0;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 9px;
   background: transparent;
   color: var(--text);
   cursor: pointer;
   font: inherit;
-  font-size: 12.5px;
   text-align: left;
-  transition: background 100ms ease;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.thinking-effort-model-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--muted);
+  flex-shrink: 0;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.thinking-effort-model-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.thinking-effort-model-provider-badge {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .thinking-effort-model-option:hover:not(:disabled) {
   background: color-mix(in srgb, var(--text) 6%, transparent);
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
 }
 
 .thinking-effort-model-option:disabled {
@@ -750,26 +832,39 @@
 
 .thinking-effort-model-option.is-selected {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.thinking-effort-model-option.is-selected .thinking-effort-model-icon {
+  background: var(--accent);
+  color: var(--accent-fg);
 }
 
 .thinking-effort-model-option-label {
-  flex: 1;
-  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .thinking-effort-model-check {
-  flex-shrink: 0;
-  color: var(--accent-2);
-  font-size: 12px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: 10px;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .thinking-effort-model-empty {
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 10px;
+  border-radius: 9px;
   background: color-mix(in srgb, var(--text) 4%, transparent);
   color: var(--muted);
   font-size: 12px;
@@ -965,3 +1060,223 @@
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   background: var(--canvas);
 }
+
+/* ─── Focus Glow & Outer Dynamic Glow ────────────────────────────────── */
+
+.composer-card-v2:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent),
+    0 4px 20px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* ─── At-Mention Menu (@mentions) ────────────────────────────────────── */
+
+.at-menu-root {
+  position: absolute;
+  bottom: 100%;
+  left: 12px;
+  right: 12px;
+  margin-bottom: 8px;
+  z-index: 100;
+}
+
+.at-menu {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card, #1e1e24);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+}
+
+.at-menu-empty {
+  padding: 12px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.at-menu-section + .at-menu-section {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
+}
+
+.at-menu-section-title {
+  padding: 4px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.at-menu-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.at-menu-item:hover,
+.at-menu-item.active {
+  background: var(--hover);
+}
+
+.at-menu-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.at-menu-item-name {
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.at-menu-item-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.at-menu-item-desc {
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+
+/* ─── Dropzone Overlay ────────────────────────────────────────────────── */
+
+.composer-v2-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card) 85%, var(--accent));
+  border: 2px dashed var(--accent);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  animation: fadeIn 150ms ease;
+}
+
+.composer-v2-drop-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.composer-v2-drop-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* ─── Expanded Modal Editor ───────────────────────────────────────────── */
+
+.composer-modal-editor {
+  display: flex;
+  flex-direction: column;
+  width: min(92vw, 840px);
+  height: min(80vh, 600px);
+  padding: 18px;
+  border-radius: 14px;
+  background: var(--card, #1c1c22);
+  color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.composer-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.composer-modal-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.composer-modal-stats {
+  font-size: 12px;
+  font-weight: normal;
+}
+
+.composer-modal-close {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.composer-modal-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.composer-modal-body {
+  flex: 1;
+  padding: 12px 0;
+}
+
+.composer-modal-textarea {
+  width: 100%;
+  height: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-mono, monospace);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.composer-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.composer-modal-hint {
+  font-size: 12px;
+}
+
+.composer-modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+

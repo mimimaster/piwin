@@ -1,12 +1,7 @@
 /**
  * Project open/trust + session lifecycle + chat ops (edit/retry/abort/compact).
  */
-import {
-  useCallback,
-  useRef,
-  type Dispatch,
-  type SetStateAction,
-} from 'react';
+import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import type {
   ExecutionMode,
   MediaAttachmentRef,
@@ -24,10 +19,7 @@ import { pushInfo } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import { applyAgentModeToPrompt, type AgentModeId } from '../agent-mode';
 import type { SessionRowMenuAction } from '../session-row-menu';
-import {
-  isDesktopShellRuntime,
-  pickProjectDirectory,
-} from '../pick-project-directory';
+import { isDesktopShellRuntime, pickProjectDirectory } from '../pick-project-directory';
 import { mapSummariesToListItems, summaryToListItem } from './session-list-item';
 import { resolveSessionOutline } from '../transcript-outline';
 
@@ -52,9 +44,7 @@ export type UseSessionActionsArgs = {
   modelOptions: ModelOption[];
   agentMode: AgentModeId;
   setEditingMessageId: Dispatch<SetStateAction<string | null>>;
-  setRenameDraft: Dispatch<
-    SetStateAction<{ sessionId: string; name: string } | null>
-  >;
+  setRenameDraft: Dispatch<SetStateAction<{ sessionId: string; name: string } | null>>;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
 };
 
@@ -65,7 +55,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     dispatch,
     dispatchNotification,
     projectInput,
-    setProjectInput,
     setProjectPickerOpen,
     showArchivedSessions,
     executionMode,
@@ -257,65 +246,65 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         options?.projectPath ??
         (explicitScope?.kind === 'project' ? explicitScope.projectPath : undefined) ??
         state.projectPath;
-      const scopeKey = useGeneral
-        ? 'general'
-        : `project:${requestedProjectPath?.trim() ?? ''}`;
+      const scopeKey = useGeneral ? 'general' : `project:${requestedProjectPath?.trim() ?? ''}`;
       const existingCreation = pendingSessionCreations.current.get(scopeKey);
       if (existingCreation) {
         return existingCreation;
       }
 
       const createSession = async (): Promise<string | null> => {
-
-      let createInput: {
-        scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
-        projectPath?: string;
-        model?: ModelRef;
-        executionMode?: ExecutionMode;
-        sessionName?: string;
-      };
-
-      if (useGeneral) {
-        createInput = { scope: { kind: 'general' }, executionMode: options?.executionMode ?? executionMode };
-      } else {
-        const projectPath = requestedProjectPath;
-        if (!projectPath) {
-          dispatch({ type: 'error', message: 'Open a project first' });
-          return null;
-        }
-        const trusted = options?.alreadyTrusted === true || state.projectTrusted;
-        if (!trusted) {
-          dispatch({ type: 'project/trust-dialog', open: true });
-          return null;
-        }
-        createInput = {
-          scope: { kind: 'project', projectPath },
-          projectPath,
-          executionMode: options?.executionMode ?? executionMode,
+        let createInput: {
+          scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+          projectPath?: string;
+          model?: ModelRef;
+          executionMode?: ExecutionMode;
+          sessionName?: string;
         };
-      }
-      if (options?.sessionName) {
-        createInput.sessionName = options.sessionName;
-      }
-      const model = selectedModelRef();
-      if (model) {
-        createInput.model = model;
-      }
-      const created = await hostClient.request({
-        type: 'session/create',
-        input: createInput,
-      });
-      if (!created.success) {
-        dispatch({ type: 'error', message: created.error });
-        return null;
-      }
-      const sessionId = (created.data as { sessionId: string }).sessionId;
-      dispatch({
-        type: 'session/add',
-        sessionId,
-        name: options?.sessionName ?? `session-${sessionId.slice(0, 8)}`,
-      });
-      return sessionId;
+
+        if (useGeneral) {
+          createInput = {
+            scope: { kind: 'general' },
+            executionMode: options?.executionMode ?? executionMode,
+          };
+        } else {
+          const projectPath = requestedProjectPath;
+          if (!projectPath) {
+            dispatch({ type: 'error', message: 'Open a project first' });
+            return null;
+          }
+          const trusted = options?.alreadyTrusted === true || state.projectTrusted;
+          if (!trusted) {
+            dispatch({ type: 'project/trust-dialog', open: true });
+            return null;
+          }
+          createInput = {
+            scope: { kind: 'project', projectPath },
+            projectPath,
+            executionMode: options?.executionMode ?? executionMode,
+          };
+        }
+        if (options?.sessionName) {
+          createInput.sessionName = options.sessionName;
+        }
+        const model = selectedModelRef();
+        if (model) {
+          createInput.model = model;
+        }
+        const created = await hostClient.request({
+          type: 'session/create',
+          input: createInput,
+        });
+        if (!created.success) {
+          dispatch({ type: 'error', message: created.error });
+          return null;
+        }
+        const sessionId = (created.data as { sessionId: string }).sessionId;
+        dispatch({
+          type: 'session/add',
+          sessionId,
+          name: options?.sessionName ?? `session-${sessionId.slice(0, 8)}`,
+        });
+        return sessionId;
       };
 
       const creation = createSession().finally(() => {
@@ -337,16 +326,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const handleOpenProject = useCallback(
     async (
-      pathOverride?: string,
-      resumeSessionId?: string,
-      options?: { autoTrust?: boolean },
+      path: string,
+      options?: { autoTrust?: boolean; resumeSessionId?: string; switchSession?: boolean },
     ): Promise<void> => {
-      const path = (pathOverride ?? projectInput).trim();
-      if (!path) {
-        return;
-      }
-      setProjectInput(path);
-      const response = await hostClient.request({ type: 'project/open', path });
+      const resumeSessionId = options?.resumeSessionId;
+      const response = await hostClient.request({
+        type: 'project/open',
+        path,
+      });
       if (!response.success) {
         dispatch({ type: 'error', message: response.error });
         return;
@@ -375,16 +362,19 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       dispatch({ type: 'project/set', path: openedPath, trusted });
       setProjectPickerOpen(false);
-      // Resume the explicitly restored session when available; otherwise use
-      // newest history, or create a blank session so composer is live.
+      // Hydrate sessions for opened project. Do not force-switch session when simply opening/expanding a folder.
       const sessions = await hydrateSessions(openedPath);
-      const sessionToResume = resumeSessionId
-        ? sessions.find((session) => session.id === resumeSessionId)
-        : sessions[0];
-      if (sessionToResume) {
-        await handleResumeSession(sessionToResume.id);
-      } else if (trusted) {
-        await ensureSession({ projectPath: openedPath, alreadyTrusted: true });
+      if (resumeSessionId) {
+        const sessionToResume = sessions.find((session) => session.id === resumeSessionId);
+        if (sessionToResume) {
+          await handleResumeSession(sessionToResume.id);
+        }
+      } else if (options?.switchSession) {
+        if (sessions[0]) {
+          await handleResumeSession(sessions[0].id);
+        } else if (trusted) {
+          await ensureSession({ projectPath: openedPath, alreadyTrusted: true });
+        }
       }
     },
     [
@@ -393,8 +383,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       handleResumeSession,
       hostClient,
       hydrateSessions,
-      projectInput,
-      setProjectInput,
       setProjectPickerOpen,
     ],
   );
@@ -439,8 +427,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         setHostLogEntries((current) =>
           appendHostLogEntry(current, {
             level: 'info',
-            message:
-              'Project left untrusted — tools and shell stay blocked until you trust it.',
+            message: 'Project left untrusted — tools and shell stay blocked until you trust it.',
             at: new Date().toISOString(),
           }),
         );
@@ -476,9 +463,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
-  const handleNewSession = useCallback(async (): Promise<void> => {
-    await ensureSession();
-  }, [ensureSession]);
+  const handleNewSession = useCallback(
+    async (options?: {
+      scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+    }): Promise<void> => {
+      await ensureSession(options);
+    },
+    [ensureSession],
+  );
 
   const handleExportSession = useCallback(
     async (options?: { format?: 'md' | 'html'; redactTools?: boolean }): Promise<void> => {
@@ -550,8 +542,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       const data = response.data as { path?: string; byteLength?: number; format?: string };
       const pathLabel = data.path ?? '(unknown path)';
-      const sizeLabel =
-        typeof data.byteLength === 'number' ? ` (${data.byteLength} bytes)` : '';
+      const sizeLabel = typeof data.byteLength === 'number' ? ` (${data.byteLength} bytes)` : '';
       setHostLogEntries((current) =>
         appendHostLogEntry(current, {
           level: 'info',
@@ -1008,10 +999,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         return;
       }
       const payload: {
-      type: 'permission/resolve';
-      requestId: string;
-      decision: PermissionDecision;
-      rememberScope?: PermissionRememberScope;
+        type: 'permission/resolve';
+        requestId: string;
+        decision: PermissionDecision;
+        rememberScope?: PermissionRememberScope;
       } = {
         type: 'permission/resolve',
         requestId: prompt.requestId,

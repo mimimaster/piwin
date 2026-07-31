@@ -295,4 +295,31 @@ describe('PetSprite animation loop', () => {
     expect(lastDrawSourceY()).toBe(0);
     expect(rafCancelCount).toBe(0);
   });
+
+  it('resets the animation column to 0 when switching states to avoid mid-animation jumps', async () => {
+    const pet = createPet();
+    const sprite = mount(pet);
+    await flushImageLoad();
+
+    // Advance 5 frames in idle mode so frameRef is non-zero
+    nowValue = 0;
+    driveFrame(0);
+    for (let i = 1; i <= 5; i++) {
+      nowValue += 200; // > frameMs (166.6ms)
+      driveFrame(nowValue);
+    }
+    // Verify column was non-zero before transition
+    const lastDraw = drawCalls[drawCalls.length - 1];
+    expect(lastDraw?.[1]).toBeGreaterThan(0);
+
+    // Trigger state change (hover enter -> waving)
+    nowValue += 50;
+    hoverEnter(sprite);
+    driveFrame(nowValue);
+
+    // First frame of waving MUST start at col 0 (sx = 0)
+    const newDraw = drawCalls[drawCalls.length - 1];
+    expect(newDraw?.[1]).toBe(0);
+    expect(newDraw?.[2]).toBe(pet.stateRows['waving'] * pet.cellHeight);
+  });
 });

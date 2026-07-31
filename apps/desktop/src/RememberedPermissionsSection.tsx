@@ -78,7 +78,7 @@ export function RememberedPermissionsSection(
   }
 
   return (
-    <div className="settings-section" data-testid="remembered-permissions">
+    <div className="settings-section settings-section-card" data-testid="remembered-permissions">
       <button
         type="button"
         className="settings-collapsible-trigger"

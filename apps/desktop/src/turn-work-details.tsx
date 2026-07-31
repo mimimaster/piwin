@@ -14,6 +14,7 @@ import { TurnToolGroup } from './turn-tool-group';
 import { IconChevronDown } from './shell-icons';
 import { RunActivitySplash } from './RunActivitySplash.js';
 import { turnPresentationToActivityInput } from './run-activity-mappers.js';
+import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
 import type { DiffCardRequest } from './diff-card';
 
 export type TurnWorkDetailsProps = {
@@ -96,6 +97,9 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         data-testid="turn-work-details-summary"
         onClick={() => setOpen((previous) => !previous)}
       >
+        {presentation.isActive ? (
+          <ActivitySvgIcon kind="working" className="turn-summary-active-icon" />
+        ) : null}
         <span className="turn-work-details-label">{presentation.summaryLabel}</span>
         {presentation.outcome ? (
           <span className="muted turn-work-details-outcome" data-outcome={presentation.outcome}>

@@ -1,46 +1,20 @@
-import { type ComponentType, type ReactElement } from 'react';
-import {
-  Loader2,
-  Settings,
-  Wifi,
-  Sparkles,
-  Map,
-  Code,
-  Terminal,
-  ShieldQuestion,
-  Minimize2,
-  Square,
-  Circle,
-  XCircle,
-  CheckCircle2,
-  type LucideProps,
-} from 'lucide-react';
+import { type ReactElement } from 'react';
 import type { ActivityIconSource } from './run-activity-types.js';
-
-const iconMap: Record<string, ComponentType<LucideProps>> = {
-  Loader2,
-  Settings,
-  Wifi,
-  Sparkles,
-  Map,
-  Code,
-  Terminal,
-  ShieldQuestion,
-  Minimize2,
-  Square,
-  Circle,
-  XCircle,
-  CheckCircle2,
-};
+import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
 
 export type RunActivityIconProps = {
   source: ActivityIconSource;
-  className?: string;
-  'data-testid'?: string;
+  className?: string | undefined;
+  'data-testid'?: string | undefined;
 };
 
 export function RunActivityIcon(props: RunActivityIconProps): ReactElement {
-  const LucideIcon = iconMap[props.source.lucideName] ?? Loader2;
-
-  return <LucideIcon className={props.className} aria-hidden data-testid={props['data-testid']} />;
+  return (
+    <ActivitySvgIcon
+      kind={props.source.kind}
+      lucideName={props.source.lucideName}
+      {...(props.className !== undefined ? { className: props.className } : {})}
+      {...(props['data-testid'] !== undefined ? { 'data-testid': props['data-testid'] } : {})}
+    />
+  );
 }

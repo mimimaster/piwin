@@ -2,19 +2,7 @@
    Uses runtime semantic tokens from appearance-tokens.ts only. */
 
 .status-bar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  height: 24px;
-  flex-shrink: 0;
-  padding: 0 14px;
-  border-top: 1px solid var(--line);
-  background: var(--bg);
-  font-size: 10.5px;
-  color: var(--faint);
-  -webkit-app-region: no-drag;
-  user-select: none;
-  animation: status-bar-in 300ms ease-out both;
+  display: none;
 }
 
 .status-bar-left,
