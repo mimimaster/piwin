@@ -1,23 +1,38 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PiwinConfig } from '@piwin/contracts';
-import { resolveImageProvider, callImageEndpoint, buildImageGenTool } from './image-gen-tool.js';
+import type {
+  GoogleGeminiProviderConfig,
+  OpenAiCompatibleProviderConfig,
+  PiwinConfig,
+} from '@piwin/contracts';
+import {
+  resolveImageProvider,
+  callImageEndpoint,
+  buildImageGenTool,
+  ImageGenConfigError,
+} from './image-gen-tool.js';
 
-const openAiProvider = {
+const openAiProvider: OpenAiCompatibleProviderConfig = {
   id: 'openai',
-  protocol: 'openai-compatible' as const,
+  protocol: 'openai-compatible',
   name: 'OpenAI',
   baseUrl: 'https://api.openai.com/v1',
   apiKeyEnv: 'OPENAI_API_KEY',
-  models: [{ id: 'gpt-image-1', label: 'gpt-image-1' }],
+  models: [{ id: 'gpt-image-1', label: 'gpt-image-1', capabilities: ['image-generation'] }],
 };
 
-const geminiProvider = {
+const geminiProvider: GoogleGeminiProviderConfig = {
   id: 'gemini',
-  protocol: 'google-gemini' as const,
+  protocol: 'google-gemini',
   name: 'Gemini',
   baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
   apiKeyEnv: 'GEMINI_API_KEY',
-  models: [{ id: 'imagen-4.0-generate-001', label: 'imagen-4.0' }],
+  models: [
+    {
+      id: 'imagen-4.0-generate-001',
+      label: 'imagen-4.0',
+      capabilities: ['image-generation'],
+    },
+  ],
 };
 
 const baseConfig = {
@@ -40,7 +55,24 @@ describe('resolveImageProvider', () => {
     expect(model.id).toBe('imagen-4.0-generate-001');
   });
 
-  it('falls back to default provider/model', () => {
+  it('prefers config.imageGeneration.defaultModel over the chat default', () => {
+    const { provider, model } = resolveImageProvider(
+      configWith({
+        imageGeneration: {
+          defaultModel: {
+            protocol: 'google-gemini',
+            providerId: 'gemini',
+            modelId: 'imagen-4.0-generate-001',
+          },
+        },
+      }),
+      undefined,
+    );
+    expect(provider.id).toBe('gemini');
+    expect(model.id).toBe('imagen-4.0-generate-001');
+  });
+
+  it('falls back to the chat default when no image-generation default is set (backward compat)', () => {
     const { provider, model } = resolveImageProvider(configWith({}), undefined);
     expect(provider.id).toBe('openai');
     expect(model.id).toBe('gpt-image-1');
@@ -87,6 +119,103 @@ describe('callImageEndpoint', () => {
     );
     expect(fetchMock.mock.calls[0]?.[0]).toContain('models/imagen-4.0-generate-001:predict');
     expect(new TextDecoder().decode(bytes)).toBe('world');
+  });
+
+  it('routes to a custom path from model routes when configured', async () => {
+    const providerWithRoute = {
+      ...openAiProvider,
+      models: [
+        {
+          ...openAiProvider.models[0]!,
+          routes: { 'image-generation': { path: '/custom/path' } },
+        },
+      ],
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
+    });
+    const bytes = await callImageEndpoint(
+      providerWithRoute,
+      providerWithRoute.models[0]!,
+      { prompt: 'a cat' },
+      'sk-test',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.openai.com/v1/custom/path',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(new TextDecoder().decode(bytes)).toBe('hello');
+  });
+
+  it('normalizes a custom route path missing its leading slash', async () => {
+    const providerWithRoute = {
+      ...openAiProvider,
+      models: [
+        {
+          ...openAiProvider.models[0]!,
+          routes: { 'image-generation': { path: 'images/custom' } },
+        },
+      ],
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
+    });
+    await callImageEndpoint(
+      providerWithRoute,
+      providerWithRoute.models[0]!,
+      { prompt: 'a cat' },
+      'sk-test',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.openai.com/v1/images/custom',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('rejects an absolute URL as a custom route path before fetching', async () => {
+    const providerWithRoute = {
+      ...openAiProvider,
+      models: [
+        {
+          ...openAiProvider.models[0]!,
+          routes: { 'image-generation': { path: 'https://other.example/v1/images' } },
+        },
+      ],
+    };
+    const fetchMock = vi.fn();
+    await expect(
+      callImageEndpoint(
+        providerWithRoute,
+        providerWithRoute.models[0]!,
+        { prompt: 'a cat' },
+        'sk-test',
+        undefined,
+        fetchMock as unknown as typeof fetch,
+      ),
+    ).rejects.toBeInstanceOf(ImageGenConfigError);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('passes an AbortSignal timeout to the fetch call', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
+    });
+    await callImageEndpoint(
+      openAiProvider,
+      openAiProvider.models[0]!,
+      { prompt: 'a cat' },
+      'sk-test',
+      undefined,
+      fetchMock as unknown as typeof fetch,
+    );
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('rejects anthropic-compatible with a clear unsupported error', async () => {
