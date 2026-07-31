@@ -47,6 +47,12 @@ export function createFrameLoop(options: FrameLoopOptions): FrameLoop {
       const ts = now();
       lastEmit = ts;
       options.emit({ ...payload, ts });
+    } catch {
+      // Frame capture is best-effort: a failing screenshot (e.g. while a
+      // navigation is tearing the page down) must not reject `requestFrame()`
+      // — `navigate()` awaits it — nor become an unhandled rejection from the
+      // interval call sites. The `finally` block resets inFlight/pending so
+      // the loop stays healthy and the next tick retries.
     } finally {
       inFlight = false;
       if (pending) {

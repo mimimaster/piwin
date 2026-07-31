@@ -96,6 +96,25 @@ describe('parseAriaSnapshot', () => {
       },
     ]);
   });
+
+  it('preserves bracket tokens inside leaf text', () => {
+    const [textNode] = parseAriaSnapshot('- text: see [1]');
+    expect(textNode?.name).toBe('see [1]');
+    expect(textNode?.ref).toBeUndefined();
+  });
+
+  it('does not treat brackets in the text part as annotations', () => {
+    const [paragraph] = parseAriaSnapshot('- paragraph: ref [ref=e9] x');
+    expect(paragraph?.name).toBe('ref [ref=e9] x');
+    expect(paragraph?.ref).toBeUndefined();
+  });
+
+  it('still extracts annotations that precede the text part', () => {
+    const [paragraph] = parseAriaSnapshot('- paragraph [ref=e12] [box=8,158,1264,18]: see [1]');
+    expect(paragraph).toMatchObject({ ref: 'e12' });
+    expect(paragraph?.box).toEqual({ x: 8, y: 158, width: 1264, height: 18 });
+    expect(paragraph?.name).toBe('see [1]');
+  });
 });
 
 describe('matchRefByPoint', () => {
