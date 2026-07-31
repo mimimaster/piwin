@@ -1,14 +1,48 @@
-# Image Generation Skill Implementation Plan
+# Image Generation Skill — Implementation Plan (v2)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Tasks are numbered `Task 1..4` so `scripts/task-brief PLAN_FILE N` extracts each one for subagent dispatch.
 
-**Goal:** Add a first-class, feature-gated, hidden-from-UI piwin **image generation skill** (`imagegen`) that replaces the deprecated imagegen-MCP approach. The skill guides the agent to a new host tool `image_gen`, which routes by **model name** to the correct configured provider/endpoint, saves the generated image through `@piwin/media` (path-based, no base64 in context), and returns an absolute path.
+## What changed from v1
 
-**Architecture:** Contracts-first. Add `hidden?: boolean` to `SkillSummary` so system skills (like `imagegen`) stay out of the Skills panel and CLI lists. New host tool `image-gen-tool.ts` in `@piwin/agent-host` (existing `HostToolDefinition` pattern from `tools-web`/`gated-file-tools`) is registered into Pi customTools **only when the `imagegen` skill is enabled** (i.e. not in `config.skills.disabledIds`). The tool resolves the target provider by model name against `config.providers`, routes by provider protocol (`openai-compatible` → `POST {baseUrl}/images/generations`; `google-gemini` → `POST {baseUrl}...:predict` for `imagen-*`; `anthropic-compatible` → clear unsupported error), decodes the returned base64, saves via `@piwin/media` `saveMediaAsset` to `~/.piwin/media/<session>/`, and returns the absolute path. The outbound call is permission-gated as a network action (rule engine `kind: network`). The bundled skill `skills/imagegen/SKILL.md` (frontmatter `hidden: true`, modeled on Codex's `imagegen` skill) teaches when/how to use `image_gen`.
+v1 shipped a minimal `image_gen` host tool with **hardcoded** request paths (`/images/generations` for openai-compatible, `:predict` for gemini) and **no dedicated config UI** — it reused the chat default model (`defaultProviderId` + `defaultModelId`). v2 adds:
+
+1. **Model capability config** — `ModelConfigEntry` gains `capabilities` and per-capability `routes` (custom request path + timeout).
+2. **Image-generation default model** — `PiwinConfig.imageGeneration.defaultModel` (a `ModelRef`), independent from the chat default.
+3. **Dedicated image generation settings page** — a new Desktop settings section (`image-generation`) with the screenshot-style layout: provider/model picker, custom request path, timeout, API key, model ID, model notes/description.
+4. **Config-driven routing** — `callImageEndpoint` reads `model.routes.imageGeneration.path` and `timeoutMs` from config instead of hardcoding paths.
+
+### What's already done (v1, commits `901429c`–`371e52d` on `feat/image-generation-skill`)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Task 1: `hidden` flag on skills | ✅ Done | `SkillSummary.hidden`, scanner parsing, tests |
+| Task 2: Hide hidden skills from UI/CLI | ✅ Done | SkillsPanel filter, CLI filter, tests |
+| Task 3: `image_gen` host tool | ⚠️ Needs refactor | Hardcoded paths → config-driven; `resolveImageProvider` → prefer image-gen default model |
+| Task 4: Wire `image_gen` into Pi sessions | ⚠️ Minor update | Read `config.imageGeneration` instead of only chat defaults |
+| Task 5: Bundled `imagegen` skill | ✅ Done | `skills/imagegen/SKILL.md` |
+| Task 6: Docs (ADR, architecture) | ⚠️ Needs update | ADR 0021 must reflect config-driven routing + new settings page |
+
+### What needs to be rolled back / refactored
+
+1. **`packages/agent-host/src/image-gen-tool.ts`** — `callImageEndpoint` hardcoded paths (`/images/generations`, `:predict`) must be replaced with config-driven route resolution. `resolveImageProvider` must prefer `config.imageGeneration?.defaultModel` before falling back to chat defaults.
+2. **`packages/agent-host/src/image-gen-tool.test.ts`** — tests must be updated to pass `routes` in model entries and assert config-driven paths.
+3. **`packages/agent-host/src/sdk-adapter.ts`** — `buildImageGenTool` call must pass the updated config shape (no structural change, but the config now carries `imageGeneration`).
+
+No full rollback needed — the existing tool structure (router → HTTP → media save → permission gate) is sound. We're extending it with config-driven routes and a dedicated default model.
+
+---
+
+**Goal:** Add a first-class, feature-gated, hidden-from-UI piwin **image generation skill** (`imagegen`) with a **dedicated settings page** for configuring image generation models. The skill guides the agent to a host tool `image_gen`, which routes by **model name** to the correct configured provider/endpoint using **config-driven request paths and timeouts**, saves the generated image through `@piwin/media` (path-based, no base64 in context), and returns an absolute path.
+
+**Architecture:** Contracts-first. Three layers:
+
+1. **Contracts** — `ModelConfigEntry` gains `capabilities?: ModelCapability[]` and `routes?: Partial<Record<ModelCapability, ModelRouteConfig>>`. `PiwinConfig` gains `imageGeneration?: { defaultModel?: ModelRef }`. These are additive optional fields — existing chat model config is untouched.
+2. **Host tool** — `image-gen-tool.ts` resolves the image model by: (a) explicit `model` arg → scan all providers for matching model id with `image-generation` capability, (b) `config.imageGeneration.defaultModel` → resolve via `ModelRef`, (c) fall back to chat `defaultProviderId` + `defaultModelId` (backward compat). `callImageEndpoint` reads `model.routes?.imageGeneration?.path` (falls back to protocol defaults) and `timeoutMs`.
+3. **Desktop settings** — new `image-generation` settings section with screenshot-style layout: provider dropdown, API endpoint, custom request path, timeout, API key, model ID + discover, model notes, model description. Saves to `config.providers[].models[]` with `capabilities: ['image-generation']` and `routes.imageGeneration`.
 
 **Tech Stack:** TypeScript (strict, NodeNext, ESM), vitest, pnpm workspace, `typebox` (already in `@piwin/agent-host`), Pi 0.80.10 `@earendil-works/pi-coding-agent`.
 
-**ADR:** `docs/adr/0021-image-generation-skill.md`
+**ADR:** `docs/adr/0021-image-generation-skill.md` (update existing)
 
 ## Global Constraints
 
@@ -19,17 +53,21 @@
 - Colocated tests: `foo.ts` + `foo.test.ts` in same `src/` dir.
 - `pnpm typecheck` and `pnpm test` must stay green after every task.
 - Keep diffs minimal — do not refactor unrelated code.
-- **No base64 in model context** (AGENTS.md §3.6): generated images are saved to `~/.piwin/media/<session>/` and injected as **absolute paths** only. Never return base64/data-URLs from `image_gen`.
+- **No base64 in model context** (AGENTS.md §3.6): generated images are saved to `~/.piwin/media/<session>/` and injected as **absolute paths** only.
 - **Secrets never logged** (AGENTS.md §3.6): resolve API keys via the existing `secret-resolver`; never include keys in tool output, error messages, or logs.
-- Media writes go through `@piwin/media` `saveMediaAsset` (media-root + realpath validation, ADR 0019) — the tool must not hand-roll path writes.
+- Media writes go through `@piwin/media` `saveMediaAsset` (media-root + realpath validation, ADR 0019).
 - `exactOptionalPropertyTypes` is on: never assign `undefined` to optional fields — use conditional spread in builders.
-- **No new MCP**: imagegen must not be exposed as or depend on an MCP server. The deprecated imagegen-MCP path is removed; no `mcp.json` entry is added.
-- **Routing by model name only** — no new `imageGeneration` config section. The tool reuses `config.providers` + `config.defaultProviderId`/`defaultModelId`.
-- The `image_gen` tool is registered **only when `imagegen` is not in `config.skills.disabledIds`**. Disabling the skill removes both the skill guidance and the tool.
+- **No new MCP**: imagegen must not be exposed as or depend on an MCP server.
+- **Config-driven routing**: request paths and timeouts are read from `ModelConfigEntry.routes.imageGeneration`, with protocol-specific defaults as fallback. No hardcoded paths in the tool.
+- **Image-gen default model is independent from chat default**: `config.imageGeneration.defaultModel` (a `ModelRef`) is preferred over `config.defaultProviderId` + `config.defaultModelId`. Chat defaults are only a last-resort fallback for backward compat.
+- The `image_gen` tool is registered **only when `imagegen` is not in `config.skills.disabledIds`**.
 - Hidden skills (frontmatter `hidden: true`) are excluded from the Desktop Skills panel and CLI skill lists, but **still loadable by Pi** when enabled.
-- Image generation is a paid/network capability: the outbound HTTP call requires permission (`network:image-gen` → rule engine `kind: network`, default `ask`). The tool returns a clear "requires permission / configure model" error when gated or unconfigured.
+- Image generation is a paid/network capability: the outbound HTTP call requires permission (default `ask`).
 - `@piwin/agent-host` already depends on `@earendil-works/pi-coding-agent` and `typebox`; the tool uses global `fetch` (Node ≥20) — **no new dependencies**.
-- Intentional: image **editing** (`openai /images/edits`) is a documented follow-up and is **not** wired in this plan — the openai branch throws a clear not-yet-supported error if `editPath` is passed. Only prompt-based **generation** is shipped.
+- Image **editing** is a documented follow-up and is **not** wired in this plan.
+- The new settings page must follow the existing `settings/pages/*` pattern: registered via `section-registry.ts`, reads `useSettings()` context, saves through `saveConfig`.
+- **Working-tree hygiene (subagent-driven execution):** the branch working tree carries unrelated, uncommitted user changes (artifact code-first work in `apps/desktop/src/*` and `packages/artifact/*`, plus a `tool-presentation.ts` fix). Implementer subagents must **stage only the files named in their task** — never `git add -A`, `git add .`, or `git commit -am`. The `pnpm typecheck`/`pnpm test` baseline is already green with these changes present; do not "fix" failures in unrelated files.
+- **i18n is one file:** Desktop copy lives in `apps/desktop/src/desktop-locale.ts` (a single `DesktopTranslator` type + `getDesktopTranslator(locale)` returning both zh-CN and en). There is no `apps/desktop/src/locales/*` directory. Adding a settings section also requires adding its `labelKey` to `DesktopTranslator['settings']['nav']` (the `SettingsSectionMeta.labelKey` type is `keyof nav`).
 
 ---
 
@@ -37,1120 +75,550 @@
 
 | File | Responsibility | Action |
 |------|----------------|--------|
-| `packages/contracts/src/skills.ts` | add `hidden?: boolean` to `SkillSummary` | Modify (Task 1) |
-| `packages/skills/src/skill-scanner.ts` | parse `hidden` from SKILL.md frontmatter into `SkillSummary.hidden` | Modify (Task 1) |
-| `packages/skills/src/skill-scanner.test.ts` | golden cases: hidden true/false/absent | Modify (Task 1) |
-| `apps/desktop/src/SkillsPanel.tsx` | filter `!skill.hidden` from the visible list | Modify (Task 2) |
-| `apps/desktop/src/SkillsPanel.test.tsx` | hidden skill not rendered | Modify (Task 2) |
-| `apps/cli/src` (skills list command) | filter hidden skills from `piwin skill list` output | Modify (Task 2) |
-| `packages/agent-host/src/image-gen-tool.ts` | `image_gen` `HostToolDefinition`: provider-by-model router + HTTP call + media save | Create (Task 3) |
-| `packages/agent-host/src/image-gen-tool.test.ts` | router + HTTP + media save unit tests (mock fetch) | Create (Task 3) |
-| `packages/agent-host/src/pi-tool-adapter.ts` | add `image_gen` TypeBox parameter schema case | Modify (Task 4) |
-| `packages/agent-host/src/sdk-adapter.ts` | build `image_gen` tool when skill enabled; include in `codingTools` | Modify (Task 4) |
-| `skills/imagegen/SKILL.md` | bundled imagegen skill (frontmatter `hidden: true`) | Create (Task 5) |
-| `docs/architecture.md` | add `image_gen` tool + `imagegen` skill to package map / capability notes | Modify (Task 6) |
-| `docs/adr/0021-image-generation-skill.md` | ADR: deprecate imagegen-MCP; skill + host tool + disabledIds switch + hidden UI | Create (Task 6) |
-| `docs/superpowers/plans/2026-07-31-image-generation-skill.md` | this plan | Create (Task 6) |
+| `packages/contracts/src/config.ts` | add `ModelCapability`, `ModelRouteConfig`, `ModelConfigEntry.capabilities`, `ModelConfigEntry.routes`, `PiwinConfig.imageGeneration` | Modify (Task 1) |
+| `packages/contracts/src/config.test.ts` | compile-time type gate for new fields | Create (Task 1) |
+| `packages/agent-host/src/image-gen-tool.ts` | refactor `resolveImageProvider` (prefer image-gen default) + `callImageEndpoint` (config-driven routes) | Modify (Task 2) |
+| `packages/agent-host/src/image-gen-tool.test.ts` | update tests for config-driven routes + image-gen default model | Modify (Task 2) |
+| `packages/agent-host/src/sdk-adapter.ts` | pass updated config to `buildImageGenTool` (no structural change) | Verify (Task 2) |
+| `apps/desktop/src/settings/section-registry.ts` | add `image-generation` section id | Modify (Task 3) |
+| `apps/desktop/src/settings/pages/image-generation-page.tsx` | new settings page: screenshot-style image model config | Create (Task 3) |
+| `apps/desktop/src/settings/pages/index.ts` | register `ImageGenerationPage` | Modify (Task 3) |
+| `apps/desktop/src/ImageGenerationSettings.tsx` | main config component (provider picker, route, timeout, model, key) | Create (Task 3) |
+| `apps/desktop/src/ImageGenerationSettings.test.tsx` | render + config save test | Create (Task 3) |
+| `apps/desktop/src/desktop-locale.ts` | add `nav.imageGeneration` + image-gen copy (single-file i18n; no `locales/*` dir) | Modify (Task 3) |
+| `skills/imagegen/SKILL.md` | update guidance to mention config-driven routes | Verify (Task 4) |
+| `docs/adr/0021-image-generation-skill.md` | update ADR for config-driven routing + settings page | Modify (Task 4) |
+| `docs/architecture.md` | update package map + config notes | Modify (Task 4) |
 
 ---
 
-## Task 1: `hidden` flag on skills (contracts + scanner)
+## Task 1: Contracts — model capability + route config + image-gen default
 
-**Why:** The `imagegen` skill must not appear in the UI skills panel or CLI lists while remaining loadable by Pi. A `hidden` flag on `SkillSummary`, read from SKILL.md frontmatter, is the cleanest mechanism and does not couple the panel to a hardcoded id set.
+**Why:** The image generation tool needs to read custom request paths and timeouts from config (not hardcode them), and it needs a default model that's independent from the chat default. This is a contracts-first additive change — existing chat model config is untouched.
 
 **Files:**
-- Modify: `packages/contracts/src/skills.ts:5-12`
-- Modify: `packages/skills/src/skill-scanner.ts:59-68`
-- Modify: `packages/skills/src/skill-scanner.test.ts`
+- Modify: `packages/contracts/src/config.ts:17-30` (`ModelConfigEntry`)
+- Modify: `packages/contracts/src/config.ts:133-170` (`PiwinConfig`)
+- Create: `packages/contracts/src/config.test.ts` (compile-time type gate)
 
 **Interfaces:**
-- Consumes: `SkillSummary` (existing), frontmatter parser `parseFrontmatter` (existing, returns `Record<string, string>`).
-- Produces: `SkillSummary.hidden?: boolean`. `scanSkills()` now returns summaries where `hidden` is `true` for skills whose SKILL.md frontmatter contains `hidden: true` (case-insensitive), and `undefined` otherwise. Later tasks read `skill.hidden` to filter UI/CLI lists.
+
+New types in `config.ts`:
+
+```ts
+/** Model capability tags. Drives tool routing and settings UI grouping. */
+export type ModelCapability = 'chat' | 'image-generation';
+
+/** Per-capability route override (request path + timeout). */
+export type ModelRouteConfig = {
+  /** Custom request path appended to provider baseUrl (e.g. '/images/generations'). */
+  path?: string;
+  /** Request timeout in milliseconds. */
+  timeoutMs?: number;
+};
+```
+
+Extended `ModelConfigEntry`:
+
+```ts
+export type ModelConfigEntry = {
+  id: string;
+  label?: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  tooltipMarkdown?: string;
+  /** Capabilities this model supports. Omit = ['chat'] for backward compat. */
+  capabilities?: ModelCapability[];
+  /** Per-capability route overrides (path, timeout). */
+  routes?: Partial<Record<ModelCapability, ModelRouteConfig>>;
+};
+```
+
+Extended `PiwinConfig`:
+
+```ts
+export type ImageGenerationConfig = {
+  /** Default model for image generation (independent from chat default). */
+  defaultModel?: ModelRef;
+};
+
+export type PiwinConfig = {
+  // ... existing fields ...
+  /** Image generation config (default model, future options). */
+  imageGeneration?: ImageGenerationConfig;
+};
+```
+
+`ModelRef` already exists in `host.ts` — it's `{ protocol, providerId, modelId }`.
 
 - [ ] **Step 1: Write the failing compile-time gate**
 
-The `hidden` field is optional, so a vitest runtime test cannot observe its absence (esbuild transpiles without typechecking). Instead, gate on the **type**: add a small compile-time assertion in `packages/contracts/src/skills.test.ts` (new file) that reads `.hidden` through the public `SkillSummary` type. Before the field exists, `pnpm typecheck` fails; after adding the field, it passes.
-
-Create `packages/contracts/src/skills.test.ts`:
+Create `packages/contracts/src/config.test.ts`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import type { SkillSummary } from './skills.js';
+import type { ModelConfigEntry, ModelCapability, ModelRouteConfig, PiwinConfig, ImageGenerationConfig } from './config.js';
 
-describe('SkillSummary', () => {
-  it('exposes an optional hidden flag', () => {
-    const visible: SkillSummary = {
-      id: 'hatch-theme',
-      name: 'hatch-theme',
-      description: 'x',
-      source: 'bundled',
-      path: '/x/SKILL.md',
-      enabled: true,
-    };
-    const hidden: SkillSummary = {
-      ...visible,
-      hidden: true,
-    };
-    // Runtime is trivial; the real signal is that `.hidden` typechecks on the
-    // public type. The scanner test (Step 4) covers actual parse behavior.
-    expect(visible.hidden).toBeUndefined();
-    expect(hidden.hidden).toBe(true);
-  });
-});
-```
-
-Run to verify it fails: `pnpm typecheck`
-Expected: FAIL — `Property 'hidden' does not exist on type 'SkillSummary'` in `packages/contracts/src/skills.test.ts` (the `.hidden` accesses at lines 92-93).
-
-> Note: `pnpm --filter @piwin/contracts test skills` alone will PASS here (vitest does not typecheck); the failing gate is `pnpm typecheck`. Treat Step 1's "failing test" as the typecheck failure, per AGENTS.md §3.7 (contracts type change → typecheck green).
-
-- [ ] **Step 2: Add the field**
-
-Edit `packages/contracts/src/skills.ts:5-12`:
-
-```ts
-export type SkillSummary = {
-  id: string;
-  name: string;
-  description: string;
-  source: SkillSource;
-  path: string;
-  enabled: boolean;
-  /** System skills (e.g. imagegen) are excluded from UI/CLI skill lists. */
-  hidden?: boolean;
-};
-```
-
-- [ ] **Step 3: Run the gate + tests**
-
-Run: `pnpm typecheck`
-Expected: PASS (the `.hidden` accesses in `skills.test.ts` now typecheck).
-
-Run: `pnpm --filter @piwin/contracts test skills`
-Expected: PASS.
-
-- [ ] **Step 4: Write the failing scanner test**
-
-Add to `packages/skills/src/skill-scanner.test.ts` (create the file if it does not exist). It writes temp skill dirs with and without `hidden` frontmatter and asserts the scanned summaries:
-
-```ts
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { scanSkills } from './skill-scanner.js';
-
-let root = '';
-beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'piwin-skills-test-'));
-});
-afterEach(async () => {
-  await import('node:fs/promises').then(({ rm }) => rm(root, { recursive: true, force: true }));
-});
-
-describe('scanSkills hidden flag', () => {
-  it('marks a skill hidden when frontmatter has hidden: true', async () => {
-    const dir = join(root, 'skills', 'imagegen');
-    await mkdir(dir, { recursive: true });
-    await writeFile(
-      join(dir, 'SKILL.md'),
-      '---\nname: imagegen\ndescription: Generate images\nhidden: true\n---\n# Imagegen\n',
-      'utf8',
-    );
-    const skills = await scanSkills({ piwinRoot: root });
-    const imagegen = skills.find((s) => s.id === 'imagegen');
-    expect(imagegen?.hidden).toBe(true);
-  });
-
-  it('leaves hidden undefined when frontmatter omits hidden', async () => {
-    const dir = join(root, 'skills', 'hatch-theme');
-    await mkdir(dir, { recursive: true });
-    await writeFile(
-      join(dir, 'SKILL.md'),
-      '---\nname: hatch-theme\ndescription: Hatch a theme\n---\n# Hatch Theme\n',
-      'utf8',
-    );
-    const skills = await scanSkills({ piwinRoot: root });
-    const theme = skills.find((s) => s.id === 'hatch-theme');
-    expect(theme?.hidden).toBeUndefined();
-  });
-});
-```
-
-Run to verify it fails: `pnpm --filter @piwin/skills test skill-scanner`
-Expected: FAIL — `hidden` is not parsed (assertions fail).
-
-- [ ] **Step 5: Implement frontmatter `hidden` parsing**
-
-Edit `packages/skills/src/skill-scanner.ts:59-68` — inside `parseSkillMarkdown`, read `hidden` after parsing frontmatter and include it in the returned summary. The frontmatter values are already trimmed strings; treat any case-insensitive `true`/`1` as hidden:
-
-```ts
-async function parseSkillMarkdown(filePath: string, source: SkillSource, directoryPath?: string): Promise<SkillSummary | null> {
-  let raw: string;
-  try { raw = await readFile(filePath, 'utf8'); } catch { return null; }
-  const fm = parseFrontmatter(raw);
-  const name = (fm.name ?? basename(directoryPath ?? filePath).replace(/\.md$/i, '')).trim();
-  if (!name) return null;
-  const description = (fm.description ?? '').trim() || '(no description)';
-  const id = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
-  const hiddenRaw = (fm.hidden ?? '').trim().toLowerCase();
-  const hidden = hiddenRaw === 'true' || hiddenRaw === '1';
-  return {
-    id,
-    name,
-    description,
-    source,
-    path: directoryPath ?? filePath,
-    enabled: true,
-    ...(hidden ? { hidden: true } : {}),
-  };
-}
-```
-
-Note: `parseFrontmatter` returns `Record<string, string>`; `fm.hidden` is `string | undefined` under `noUncheckedIndexedAccess`, so `(fm.hidden ?? '')` is required.
-
-- [ ] **Step 6: Run the scanner test**
-
-Run: `pnpm --filter @piwin/skills test skill-scanner`
-Expected: PASS.
-
-- [ ] **Step 7: Typecheck + commit**
-
-Run: `pnpm typecheck`
-Expected: PASS (no new errors from the optional field).
-
-```bash
-git add packages/contracts/src/skills.ts packages/contracts/src/skills.test.ts packages/skills/src/skill-scanner.ts packages/skills/src/skill-scanner.test.ts
-git commit -m "feat(contracts,skills): add hidden flag to SkillSummary for system skills"
-```
-
----
-
-## Task 2: Hide `hidden` skills from Desktop Skills panel and CLI
-
-**Why:** The `imagegen` skill must not be listed/toggled in the Skills UI (user requirement: "不在界面配置显示"). The switch is `config.skills.disabledIds`, not the panel toggle, so the panel must not show it at all.
-
-**Files:**
-- Modify: `apps/desktop/src/SkillsPanel.tsx:107-116` (`visible` memo)
-- Modify: `apps/desktop/src/SkillsPanel.test.tsx`
-- Modify: `apps/cli/src` skills list command
-
-**Interfaces:**
-- Consumes: `SkillSummary.hidden` (Task 1).
-- Produces: Desktop Skills panel and CLI `piwin skill list` exclude any skill with `hidden: true`. No contract/IPC change needed — filtering happens at the presentation layer.
-
-- [ ] **Step 1: Write the failing desktop test**
-
-Create `apps/desktop/src/SkillsPanel.test.tsx` (new file — none exists). Follow the repo's established happy-dom + `react-dom/client` + `createRoot` pattern (see `apps/desktop/src/right-panel.test.tsx`); `@testing-library/react` is **not** a dependency — do not use it. `SkillsPanel` needs `DesktopLocaleProvider` (locale + onLocaleChange) and the `request` prop. The render surfaces skills under `<ul data-testid="skills-list">` with a toggle per skill at `data-testid="skill-toggle-<id>"` (SkillsPanel.tsx:289-306):
-
-```tsx
-// @vitest-environment happy-dom
-import { describe, expect, it, afterEach, vi } from 'vitest';
-import { act, type ReactElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { SkillsPanel } from './SkillsPanel.js';
-import { DesktopLocaleProvider } from './desktop-locale-context.js';
-
-declare global {
-  var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
-}
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-
-function skillsRequestStub() {
-  const fn = async (command: { type: string; projectPath?: string }) => {
-    if (command.type === 'skills/list') {
-      return {
-        success: true,
-        data: {
-          skills: [
-            {
-              id: 'hatch-theme',
-              name: 'hatch-theme',
-              description: 'Hatch a theme',
-              source: 'bundled',
-              path: '/x/hatch-theme',
-              enabled: true,
-            },
-            {
-              id: 'imagegen',
-              name: 'imagegen',
-              description: 'Generate images',
-              source: 'bundled',
-              path: '/x/imagegen',
-              enabled: true,
-              hidden: true,
-            },
-          ],
+describe('ModelConfigEntry capabilities + routes', () => {
+  it('accepts capabilities and routes', () => {
+    const entry: ModelConfigEntry = {
+      id: 'glm-image',
+      label: 'GLM-图像生成',
+      capabilities: ['image-generation'],
+      routes: {
+        'image-generation': {
+          path: '/images/generations',
+          timeoutMs: 300_000,
         },
-      };
-    }
-    if (command.type === 'config/get') {
-      return { success: true, data: { config: { skills: { extraPaths: [], disabledIds: [] } } } };
-    }
-    return { success: true, data: {} };
-  };
-  return fn as (command: never) => Promise<{ success: boolean; data: unknown }>;
-}
-
-function renderPanel(): { container: HTMLDivElement; root: Root } {
-  const container = document.createElement('div');
-  document.body.appendChild(container);
-  const root = createRoot(container);
-  act(() => {
-    root.render(
-      <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
-        <SkillsPanel projectPath={null} request={skillsRequestStub()} variant="inline" />
-      </DesktopLocaleProvider> as ReactElement,
-    );
-  });
-  return { container, root };
-}
-
-describe('SkillsPanel hidden skills', () => {
-  let root: Root | undefined;
-  let container: HTMLDivElement | undefined;
-
-  afterEach(() => {
-    if (root && container) {
-      act(() => root?.unmount());
-      container.remove();
-    }
-    root = undefined;
-    container = undefined;
+      },
+    };
+    expect(entry.capabilities).toContain('image-generation');
+    expect(entry.routes?.['image-generation']?.path).toBe('/images/generations');
   });
 
-  it('does not render skills with hidden: true', async () => {
-    ({ root, container } = renderPanel());
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    const list = container!.querySelector('[data-testid="skills-list"]');
-    expect(list).not.toBeNull();
-    expect(container!.querySelector('[data-testid="skill-toggle-hatch-theme"]')).not.toBeNull();
-    expect(container!.querySelector('[data-testid="skill-toggle-imagegen"]')).toBeNull();
+  it('accepts a chat-only model without capabilities (backward compat)', () => {
+    const entry: ModelConfigEntry = { id: 'gpt-4.1' };
+    expect(entry.capabilities).toBeUndefined();
+  });
+});
+
+describe('PiwinConfig.imageGeneration', () => {
+  it('accepts an imageGeneration default model', () => {
+    const config: PiwinConfig = {
+      hostMode: 'sdk',
+      providers: [],
+      media: { maxPasteBytes: 0, allowedMimeTypes: [] },
+      artifact: { maxBytes: 0, htmlUiModeDefault: false },
+      imageGeneration: {
+        defaultModel: {
+          protocol: 'openai-compatible',
+          providerId: 'zhipu',
+          modelId: 'glm-image',
+        },
+      },
+    };
+    expect(config.imageGeneration?.defaultModel?.modelId).toBe('glm-image');
   });
 });
 ```
 
-Run to verify it fails: `pnpm --filter @piwin/desktop test SkillsPanel`
-Expected: FAIL — `skill-toggle-imagegen` is present because `hidden` is not filtered yet.
+Run: `pnpm --filter @piwin/contracts typecheck`
+Expected: FAIL — `ModelCapability`, `ModelRouteConfig`, `ImageGenerationConfig` don't exist; `capabilities`/`routes` not on `ModelConfigEntry`; `imageGeneration` not on `PiwinConfig`.
 
-> Note: `SkillsPanel`'s `request` prop type expects a specific command union; the stub's `as (command: never) => ...` cast keeps the test focused without widening the component's prop types. If `act` flushing needs the skills `useEffect` to resolve, keep the `setTimeout(0)` await inside `act` as shown (matches the async load pattern in `SkillsPanel.loadSkills`).
+- [ ] **Step 2: Add the types**
 
-- [ ] **Step 2: Filter hidden skills in the panel**
+Edit `packages/contracts/src/config.ts`:
 
-Edit `apps/desktop/src/SkillsPanel.tsx:107-116` — the `visible` memo filters both the text filter and `hidden`:
+1. Add `ModelCapability` and `ModelRouteConfig` types before `ModelConfigEntry`.
+2. Add `capabilities?: ModelCapability[]` and `routes?: Partial<Record<ModelCapability, ModelRouteConfig>>` to `ModelConfigEntry`.
+3. Add `ImageGenerationConfig` type (after `PiwinConfig` or near it).
+4. Add `imageGeneration?: ImageGenerationConfig` to `PiwinConfig`.
 
-```tsx
-const visible = useMemo(() => {
-  const unhidden = skills.filter((s) => s.hidden !== true);
-  if (!filter) return unhidden;
-  const lower = filter.toLowerCase();
-  return unhidden.filter(
-    (s) =>
-      s.name.toLowerCase().includes(lower) ||
-      s.id.toLowerCase().includes(lower) ||
-      s.description?.toLowerCase().includes(lower),
-  );
-}, [skills, filter]);
-```
+- [ ] **Step 3: Export the new types**
 
-- [ ] **Step 3: Run the desktop test**
+Ensure `packages/contracts/src/index.ts` re-exports `ModelCapability`, `ModelRouteConfig`, `ImageGenerationConfig` (check if config types are already bulk-exported; if so, no change needed).
 
-Run: `pnpm --filter @piwin/desktop test SkillsPanel`
+- [ ] **Step 4: Run typecheck + tests**
+
+Run: `pnpm --filter @piwin/contracts typecheck`
 Expected: PASS.
 
-- [ ] **Step 4: Filter hidden skills in the CLI**
+Run: `pnpm --filter @piwin/contracts test config`
+Expected: PASS.
 
-Edit `apps/cli/src/index.ts:696-704` (the `skill list` subcommand). Filter out `hidden` summaries before printing:
-
-```ts
-const skills = await scanSkills(scanOptions);
-const visible = skills.filter((s) => s.hidden !== true);
-if (visible.length === 0) {
-  console.log('(no skills found)');
-  return;
-}
-for (const skill of visible) {
-  const flag = skill.enabled ? 'on ' : 'off';
-  console.log(`${flag}\t${skill.id}\t${skill.source}\t${skill.name}\t${skill.path}`);
-}
-```
-
-The CLI has no dedicated unit test for `skill list` output (it shells to stdout); verify via the smoke step below (`piwin skill list` should omit a temp `hidden: true` skill).
-
-- [ ] **Step 5: Typecheck + smoke + commit**
+- [ ] **Step 5: Verify no downstream breakage**
 
 Run: `pnpm typecheck`
-Expected: PASS.
+Expected: PASS (additive optional fields — no implementer breaks).
 
-Smoke: `pnpm --filter @piwin/desktop test SkillsPanel` → PASS; and confirm a temporary skill dir with `hidden: true` does not appear in `piwin skill list`.
+- [ ] **Step 6: Commit**
 
 ```bash
-git add apps/desktop/src/SkillsPanel.tsx apps/desktop/src/SkillsPanel.test.tsx apps/cli/src
-git commit -m "feat(desktop,cli): hide hidden system skills from skill lists"
+git add packages/contracts/src/config.ts packages/contracts/src/config.test.ts
+git commit -m "feat(contracts): add model capabilities, route config, and imageGeneration default"
 ```
 
 ---
 
-## Task 3: `image_gen` host tool (router + HTTP + media save)
+## Task 2: Refactor `image_gen` host tool for config-driven routing
 
-**Why:** This is the core capability. The tool is a `HostToolDefinition` in `@piwin/agent-host` that: (a) resolves the target provider by **model name** against `config.providers`; (b) routes by provider protocol to the right endpoint; (c) permission-gates the outbound call; (d) saves the decoded image through `@piwin/media`; (e) returns an absolute path. No MCP, no new deps.
+**Why:** The existing `callImageEndpoint` hardcodes `/images/generations` (openai) and `:predict` (gemini). The existing `resolveImageProvider` falls back to chat defaults. Both must be updated to read from the new config fields, with protocol defaults as fallback.
 
 **Files:**
-- Create: `packages/agent-host/src/image-gen-tool.ts`
-- Create: `packages/agent-host/src/image-gen-tool.test.ts`
+- Modify: `packages/agent-host/src/image-gen-tool.ts`
+- Modify: `packages/agent-host/src/image-gen-tool.test.ts`
+- Verify: `packages/agent-host/src/sdk-adapter.ts` (no structural change, just passes updated config)
 
-**Interfaces:**
-- Consumes:
-  - `config.providers: ModelProviderConfig[]`, `config.defaultProviderId`, `config.defaultModelId`
-  - `SecretResolver.resolveProviderSecret(provider)` (`packages/agent-host/src/secret-resolver.ts`)
-  - `@piwin/media` `saveMediaAsset` + `createMediaService`
-  - `@piwin/tools-web` `HostToolDefinition`
-  - `PermissionRuleSet` + `requestPermission?: ToolPermissionGate` (same shape as `gated-file-tools.ts`)
-- Produces:
-  - `buildImageGenTool(options: ImageGenToolOptions): HostToolDefinition | null`
-    - returns `null` when the provider registry has no resolvable image model at build time (callers skip registration)
-  - `resolveImageProvider(config, modelId?): { provider, model }` — throws `ImageGenConfigError` if no matching provider/model
-  - `callImageEndpoint(provider, model, args, apiKey, signal): Promise<Uint8Array>` — routes per protocol
-  - `formatImageGenError(error): string` — user-facing string, never includes API key
-  - Returned tool `execute` returns `JSON.stringify({ paths: string[], size?: number, ...meta })` — paths only, never base64.
+**Key changes:**
 
-**Options type:**
+### B.1 `resolveImageProvider` — prefer image-gen default
+
+New resolution order:
+1. Explicit `modelId` arg → scan all providers for a model with that id (prefer models with `image-generation` capability, but accept any match for backward compat).
+2. `config.imageGeneration?.defaultModel` → resolve via `ModelRef` (`protocol` + `providerId` + `modelId`).
+3. Fall back to `config.defaultProviderId` + `config.defaultModelId` (chat default — backward compat).
+4. If none: throw `ImageGenConfigError`.
 
 ```ts
-export type ImageGenToolOptions = {
-  piwinRoot: string;
-  sessionId: string;
-  config: PiwinConfig;
-  mediaConfig: { mediaRoot: string; maxPasteBytes: number; allowedMimeTypes: string[] };
-  secretResolver: SecretResolver;
-  rules?: PermissionRuleSet;
-  requestPermission?: (request: {
-    action: string;
-    detail: string;
-    defaultDecision: 'allow' | 'deny' | 'ask';
-    signal?: AbortSignal;
-  }) => Promise<'allow' | 'deny' | 'ask'>;
-};
-```
-
-- [ ] **Step 1: Write the failing router + HTTP tests**
-
-Create `packages/agent-host/src/image-gen-tool.test.ts` with a stubbed `fetch`. Golden cases:
-
-```ts
-import { describe, expect, it, vi } from 'vitest';
-import type { PiwinConfig } from '@piwin/contracts';
-import {
-  resolveImageProvider,
-  callImageEndpoint,
-  buildImageGenTool,
-} from './image-gen-tool.js';
-
-const openAiProvider = {
-  id: 'openai',
-  protocol: 'openai-compatible' as const,
-  name: 'OpenAI',
-  baseUrl: 'https://api.openai.com/v1',
-  apiKeyEnv: 'OPENAI_API_KEY',
-  models: [{ id: 'gpt-image-1', label: 'gpt-image-1' }],
-};
-
-const geminiProvider = {
-  id: 'gemini',
-  protocol: 'google-gemini' as const,
-  name: 'Gemini',
-  baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-  apiKeyEnv: 'GEMINI_API_KEY',
-  models: [{ id: 'imagen-4.0-generate-001', label: 'imagen-4.0' }],
-};
-
-const baseConfig = {
-  hostMode: 'sdk' as const,
-  providers: [openAiProvider, geminiProvider],
-  defaultProviderId: 'openai',
-  defaultModelId: 'gpt-image-1',
-  media: { maxPasteBytes: 10 * 1024 * 1024, allowedMimeTypes: ['image/png', 'image/jpeg'] },
-  artifact: { maxBytes: 100_000, htmlUiModeDefault: false },
-};
-
-function configWith(overrides: Partial<PiwinConfig>): PiwinConfig {
-  return { ...baseConfig, ...overrides } as PiwinConfig;
-}
-
-describe('resolveImageProvider', () => {
-  it('resolves by explicit model name across providers', () => {
-    const { provider, model } = resolveImageProvider(configWith({}), 'imagen-4.0-generate-001');
-    expect(provider.id).toBe('gemini');
-    expect(model.id).toBe('imagen-4.0-generate-001');
-  });
-
-  it('falls back to default provider/model', () => {
-    const { provider, model } = resolveImageProvider(configWith({}), undefined);
-    expect(provider.id).toBe('openai');
-    expect(model.id).toBe('gpt-image-1');
-  });
-
-  it('throws a config error for an unknown model name', () => {
-    expect(() => resolveImageProvider(configWith({}), 'nope-9')).toThrow(/model/i);
-  });
-});
-
-describe('callImageEndpoint', () => {
-  it('routes openai-compatible to /images/generations and returns bytes', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
-    });
-    const bytes = await callImageEndpoint(openAiProvider, openAiProvider.models[0]!, { prompt: 'a cat' }, 'sk-test', undefined, fetchMock as unknown as typeof fetch);
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.openai.com/v1/images/generations',
-      expect.objectContaining({ method: 'POST' }),
-    );
-    expect(new TextDecoder().decode(bytes)).toBe('hello');
-  });
-
-  it('routes gemini imagen to :predict and reads bytesBase64Encoded', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ predictions: [{ bytesBase64Encoded: 'd29ybGQ=' }] }),
-    });
-    const bytes = await callImageEndpoint(geminiProvider, geminiProvider.models[0]!, { prompt: 'a dog' }, 'sk-gem', undefined, fetchMock as unknown as typeof fetch);
-    expect(fetchMock.mock.calls[0]?.[0]).toContain('models/imagen-4.0-generate-001:predict');
-    expect(new TextDecoder().decode(bytes)).toBe('world');
-  });
-
-  it('rejects anthropic-compatible with a clear unsupported error', async () => {
-    const anthropic = {
-      id: 'anthropic',
-      protocol: 'anthropic-compatible' as const,
-      name: 'Anthropic',
-      baseUrl: 'https://api.anthropic.com',
-      models: [{ id: 'claude-image-1' }],
-    };
-    await expect(
-      callImageEndpoint(anthropic, anthropic.models[0]!, { prompt: 'x' }, 'key'),
-    ).rejects.toThrow(/not support|unsupported/i);
-  });
-});
-
-describe('buildImageGenTool', () => {
-  it('returns null when no image model can be resolved at build time', () => {
-    const tool = buildImageGenTool({
-      piwinRoot: '/tmp/piwin',
-      sessionId: 's1',
-      config: configWith({ providers: [], defaultProviderId: undefined, defaultModelId: undefined }),
-      mediaConfig: { mediaRoot: '/tmp/piwin/media', maxPasteBytes: 10_000_000, allowedMimeTypes: ['image/png'] },
-      secretResolver: { resolveProviderSecret: async () => 'k' } as never,
-    });
-    expect(tool).toBeNull();
-  });
-});
-```
-
-Run to verify it fails: `pnpm --filter @piwin/agent-host test image-gen-tool`
-Expected: FAIL — module does not exist / functions undefined.
-
-- [ ] **Step 2: Implement the router**
-
-Create `packages/agent-host/src/image-gen-tool.ts` with the provider-resolution logic. Pure, unit-testable:
-
-```ts
-import type { ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
-import type { HostToolDefinition } from '@piwin/tools-web';
-
-export class ImageGenConfigError extends Error {
-  readonly name = 'ImageGenConfigError';
-}
-
-export type ResolvedImageProvider = {
-  provider: ModelProviderConfig;
-  /** The selected model entry (subtype of ModelConfigEntry, always has `.id`). */
-  model: ModelProviderConfig['models'][number];
-};
-
-/** Resolve the provider + model for image generation by model name (or default). */
 export function resolveImageProvider(
-  config: Pick<PiwinConfig, 'providers' | 'defaultProviderId' | 'defaultModelId'>,
+  config: Pick<PiwinConfig, 'providers' | 'defaultProviderId' | 'defaultModelId' | 'imageGeneration'>,
   modelId?: string,
 ): ResolvedImageProvider {
-  const requested = modelId?.trim();
   const providers = config.providers ?? [];
+  const requested = modelId?.trim();
+
+  // 1. Explicit model name
   if (requested) {
     for (const provider of providers) {
       const match = (provider.models ?? []).find((m) => m.id === requested);
       if (match) return { provider, model: match };
     }
     throw new ImageGenConfigError(
-      `image_gen: no configured provider exposes image model "${requested}". Add it under Settings → Providers.`,
+      `image_gen: no configured provider exposes image model "${requested}". Add it under Settings → Image Generation.`,
     );
   }
+
+  // 2. Image-generation default model
+  const imageGenDefault = config.imageGeneration?.defaultModel;
+  if (imageGenDefault) {
+    const provider = providers.find((p) => p.id === imageGenDefault.providerId);
+    const model = provider?.models?.find((m) => m.id === imageGenDefault.modelId);
+    if (provider && model) {
+      return { provider, model };
+    }
+    // Fall through to chat default if image-gen default is misconfigured.
+  }
+
+  // 3. Chat default (backward compat)
   const defaultProvider = providers.find((p) => p.id === config.defaultProviderId);
   const defaultModel = defaultProvider?.models?.find((m) => m.id === config.defaultModelId);
-  if (!defaultProvider || !defaultModel) {
-    throw new ImageGenConfigError(
-      'image_gen: no default image model configured. Enable image generation and add an image-capable model under Settings → Providers.',
-    );
+  if (defaultProvider && defaultModel) {
+    return { provider: defaultProvider, model: defaultModel };
   }
-  return { provider: defaultProvider, model: defaultModel };
+
+  throw new ImageGenConfigError(
+    'image_gen: no image model configured. Set a default image model under Settings → Image Generation.',
+  );
 }
 ```
 
-Note: `ModelConfigEntry` (from `@piwin/contracts`) has optional fields; the tests only read `.id`, and `callImageEndpoint` accepts `model: { id: string }`, so the resolved model type is structurally compatible. Under `noUncheckedIndexedAccess`, `defaultProvider?.models?.find(...)` may be `undefined` — the guard `if (!defaultProvider || !defaultModel)` handles it before the return.
+### B.2 `callImageEndpoint` — config-driven route
 
-- [ ] **Step 3: Implement the HTTP router**
+Read `model.routes?.['image-generation']?.path` and `timeoutMs`. Fall back to protocol defaults:
 
-Append to `packages/agent-host/src/image-gen-tool.ts`:
+| Protocol | Default path | Default timeout |
+|----------|-------------|-----------------|
+| `openai-compatible` | `/images/generations` | 120_000 ms |
+| `google-gemini` | `/models/{modelId}:predict` | 120_000 ms |
+| `anthropic-compatible` | (unsupported — throw) | — |
 
 ```ts
-const OPENAI_IMAGE_PROTOCOLS = new Set(['openai-compatible']);
-const GEMINI_PROTOCOLS = new Set(['google-gemini']);
+const DEFAULT_IMAGE_TIMEOUT_MS = 120_000;
 
-/** Call the provider's image endpoint and return raw image bytes. */
+function resolveImagePath(provider: ModelProviderConfig, model: { id: string; routes?: Partial<Record<ModelCapability, ModelRouteConfig>> }): string {
+  const route = model.routes?.['image-generation'];
+  if (route?.path) {
+    const base = provider.baseUrl.replace(/\/+$/, '');
+    return `${base}${route.path}`;
+  }
+  // Protocol defaults
+  if (provider.protocol === 'openai-compatible') {
+    return `${provider.baseUrl.replace(/\/+$/, '')}/images/generations`;
+  }
+  if (provider.protocol === 'google-gemini') {
+    return `${provider.baseUrl.replace(/\/+$/, '')}/models/${model.id}:predict`;
+  }
+  throw new ImageGenConfigError(
+    `image_gen: protocol "${provider.protocol}" does not support image generation.`,
+  );
+}
+
+function resolveImageTimeout(model: { routes?: Partial<Record<ModelCapability, ModelRouteConfig>> }): number {
+  return model.routes?.['image-generation']?.timeoutMs ?? DEFAULT_IMAGE_TIMEOUT_MS;
+}
+```
+
+**Custom path validation:** `route.path` is appended to `provider.baseUrl` (trailing slash stripped). A custom path should be a **relative path suffix** starting with `/` (e.g. `/images/generations`). If it lacks a leading `/`, add one; if it looks like an absolute URL (`/^https?:\/\//i`), throw `ImageGenConfigError` — the route is a path, not a host override. The Desktop page should normalize input to a leading-slash path before saving.
+
+The `callImageEndpoint` signature changes to accept the full `ModelConfigEntry` (with `routes`) instead of just `{ id: string }`:
+
+```ts
 export async function callImageEndpoint(
   provider: ModelProviderConfig,
-  model: { id: string },
+  model: ModelConfigEntry,
   args: { prompt: string; editPath?: string; size?: string; quality?: string; n?: number },
   apiKey: string,
   signal?: AbortSignal,
   fetchImpl: typeof fetch = fetch,
-): Promise<Uint8Array> {
-  const prompt = args.prompt.trim();
-  if (!prompt) throw new ImageGenConfigError('image_gen: prompt is required');
-
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (OPENAI_IMAGE_PROTOCOLS.has(provider.protocol)) {
-    // Image editing (/images/edits) requires multipart image upload and is not
-    // wired in this plan — fail loudly rather than send a malformed JSON body.
-    if (args.editPath) {
-      throw new ImageGenConfigError(
-        'image_gen: image editing is not yet supported. Use generation (prompt-only) instead.',
-      );
-    }
-    headers.authorization = `Bearer ${apiKey}`;
-    const endpoint = `${provider.baseUrl.replace(/\/+$/, '')}/images/generations`;
-    const body: Record<string, unknown> = { model: model.id, prompt, n: args.n ?? 1 };
-    if (args.size) body.size = args.size;
-    if (args.quality) body.quality = args.quality;
-    const response = await fetchImpl(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(body),
-      ...(signal ? { signal } : {}),
-    });
-    if (!response.ok) {
-      throw new ImageGenConfigError(
-        `image_gen: provider returned HTTP ${response.status} (${model.id})`,
-      );
-    }
-    const json = (await response.json()) as { data?: Array<{ b64_json?: string; url?: string }> };
-    const item = json.data?.[0];
-    const b64 = item?.b64_json;
-    if (b64) return base64ToBytes(b64);
-    const url = item?.url;
-    if (url) {
-      const imageResp = await fetchImpl(url, { signal });
-      if (!imageResp.ok) throw new ImageGenConfigError(`image_gen: failed to download image from ${url}`);
-      return new Uint8Array(await imageResp.arrayBuffer());
-    }
-    throw new ImageGenConfigError('image_gen: provider returned no image data');
-  }
-
-  if (GEMINI_PROTOCOLS.has(provider.protocol)) {
-    const base = provider.baseUrl.replace(/\/+$/, '');
-    const endpoint = `${base}/models/${model.id}:predict`;
-    const body = {
-      instances: [{ prompt }],
-      parameters: {
-        sampleCount: args.n ?? 1,
-        ...(args.size ? { aspectRatio: args.size } : {}),
-      },
-    };
-    const response = await fetchImpl(endpoint, {
-      method: 'POST',
-      headers: { ...headers, 'x-goog-api-key': apiKey },
-      body: JSON.stringify(body),
-      ...(signal ? { signal } : {}),
-    });
-    if (!response.ok) {
-      throw new ImageGenConfigError(
-        `image_gen: provider returned HTTP ${response.status} (${model.id})`,
-      );
-    }
-    const json = (await response.json()) as {
-      predictions?: Array<{ bytesBase64Encoded?: string }>;
-    };
-    const b64 = json.predictions?.[0]?.bytesBase64Encoded;
-    if (!b64) throw new ImageGenConfigError('image_gen: provider returned no image data');
-    return base64ToBytes(b64);
-  }
-
-  throw new ImageGenConfigError(
-    `image_gen: protocol "${provider.protocol}" does not support image generation in piwin (supported: openai-compatible, google-gemini).`,
-  );
-}
-
-export function base64ToBytes(base64Data: string): Uint8Array {
-  const normalized = base64Data.replace(/\s/g, '');
-  if (normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(normalized)) {
-    throw new ImageGenConfigError('image_gen: provider returned invalid base64');
-  }
-  return new Uint8Array(Buffer.from(normalized, 'base64'));
-}
+): Promise<Uint8Array>
 ```
 
-Note: `editPath` is accepted in the args type but image editing (openai `/images/edits`) is **not wired in this plan** — the openai branch throws a clear not-yet-supported `ImageGenConfigError` before any HTTP call, so there is no silent stub and no malformed multipart request. This matches the "Image editing is a documented follow-up" known limitation in the ADR and Global Constraints. `buildImageGenTool` (Step 4) does not expose `editPath` to the model at all — the tool's `parameters` schema only lists `prompt`/`model`/`size`/`quality`/`n`.
+The timeout is applied via `AbortSignal.timeout()` merged with the caller's signal (if any). Use `AbortSignal.any([callerSignal, AbortSignal.timeout(timeoutMs)])` when the caller passes a signal, else `AbortSignal.timeout(timeoutMs)` (Node ≥20.3; the repo targets Node ≥20). The request path is resolved via `resolveImagePath`.
 
-- [ ] **Step 4: Implement `buildImageGenTool` (permission + media save + path return)**
+### B.3 `buildImageGenTool` — pass updated config
 
-Append to `packages/agent-host/src/image-gen-tool.ts`:
+`resolveImageProvider` now reads `config.imageGeneration` — the `ImageGenToolOptions.config` field already carries the full `PiwinConfig`, so no options shape change is needed. The `buildImageGenTool` null-check (`try { resolveImageProvider(config) } catch { return null }`) still works — it returns `null` when no image model is resolvable.
 
-```ts
-import { createMediaService } from '@piwin/media';
-import type { PermissionDecision, PermissionRuleSet } from '@piwin/contracts';
-import type { SecretResolver } from './secret-resolver.js';
-import { evaluateWebPermission, resolveNonInteractiveDecision } from './permission-policy.js';
-import type { ToolPermissionGate } from './session-tools.js';
+- [ ] **Step 1: Update the failing tests**
 
-export type ImageGenToolOptions = {
-  piwinRoot: string;
-  sessionId: string;
-  config: PiwinConfig;
-  mediaConfig: { mediaRoot: string; maxPasteBytes: number; allowedMimeTypes: string[] };
-  secretResolver: SecretResolver;
-  rules?: PermissionRuleSet;
-  requestPermission?: ToolPermissionGate;
-};
+Update `packages/agent-host/src/image-gen-tool.test.ts`:
 
-/** Build the image_gen host tool, or null when no image model is configured. */
-export function buildImageGenTool(options: ImageGenToolOptions): HostToolDefinition | null {
-  const { config, sessionId, mediaConfig, secretResolver } = options;
-  try {
-    resolveImageProvider(config);
-  } catch {
-    return null;
-  }
+1. Add `capabilities` and `routes` to test model entries.
+2. Add a test case: `callImageEndpoint` with `routes.imageGeneration.path = '/custom/path'` → fetch called with custom path.
+3. Add a test case: `resolveImageProvider` with `config.imageGeneration.defaultModel` → resolves to the image-gen default, not the chat default.
+4. Add a test case: `resolveImageProvider` with no image-gen default, falls back to chat default (backward compat).
+5. Existing tests (openai `/images/generations`, gemini `:predict`, anthropic unsupported) still pass — they exercise the fallback paths.
 
-  return {
-    name: 'image_gen',
-    description:
-      'Generate a raster image from a text prompt using a configured image model. ' +
-      'Returns the absolute path(s) to saved images under the media store. ' +
-      'Use for photos, illustrations, icons, textures, mockups, or transparent cutouts. ' +
-      'Do not use for SVG/vector/code-native assets or HTML/CSS/canvas visuals.',
-    parameters: {
-      type: 'object',
-      properties: {
-        prompt: { type: 'string', description: 'Detailed prompt describing the image to generate' },
-        model: { type: 'string', description: 'Optional image model id (routed by name). Defaults to the configured default model.' },
-        size: { type: 'string', description: 'Optional size (openai: e.g. 1024x1024; gemini: aspect ratio e.g. 1:1)' },
-        quality: { type: 'string', description: 'Optional quality (openai only)' },
-        n: { type: 'number', description: 'Optional number of images (default 1)' },
-      },
-      required: ['prompt'],
-      additionalProperties: false,
-    },
-    async execute(args, signal) {
-      const prompt = String(args.prompt ?? '').trim();
-      if (!prompt) return JSON.stringify({ error: 'prompt is required' }, null, 2);
+- [ ] **Step 2: Implement the refactored `resolveImageProvider`**
 
-      // Permission gate — mirrors wrapWebToolWithPermission (session-tools.ts)
-      // for the network image call, but with a hard 'ask' default (image gen costs money).
-      const target = prompt.slice(0, 160);
-      const evaluation = evaluateWebPermission('image-gen' as never, target, options.rules);
-      let decision: PermissionDecision = evaluation.decision;
-      if (decision === 'ask') {
-        if (options.requestPermission) {
-          decision = await options.requestPermission({
-            action: 'network:image-gen',
-            detail: target,
-            defaultDecision: 'ask',
-            ...(signal ? { signal } : {}),
-          });
-        } else {
-          decision = resolveNonInteractiveDecision(evaluation);
-        }
-      }
-      if (decision !== 'allow') {
-        return JSON.stringify({ error: `image_gen permission ${decision}: ${evaluation.reason}` }, null, 2);
-      }
+Update `packages/agent-host/src/image-gen-tool.ts` with the new resolution order (B.1 above).
 
-      const { provider, model } = resolveImageProvider(config, typeof args.model === 'string' ? args.model : undefined);
-      const apiKey = await secretResolver.resolveProviderSecret(provider);
-      const bytes = await callImageEndpoint(
-        provider,
-        model,
-        {
-          prompt,
-          ...(typeof args.size === 'string' ? { size: args.size } : {}),
-          ...(typeof args.quality === 'string' ? { quality: args.quality } : {}),
-          ...(typeof args.n === 'number' && Number.isFinite(args.n) ? { n: Math.max(1, Math.floor(args.n)) } : {}),
-        },
-        apiKey,
-        signal,
-      );
+- [ ] **Step 3: Implement config-driven `callImageEndpoint`**
 
-      const media = createMediaService({
-        mediaRoot: mediaConfig.mediaRoot,
-        maxPasteBytes: mediaConfig.maxPasteBytes,
-        allowedMimeTypes: mediaConfig.allowedMimeTypes,
-      });
-      const asset = await media.saveMediaAsset({
-        sessionId,
-        bytes,
-        mimeType: 'image/png',
-        source: 'image_gen',
-      });
-      return JSON.stringify({ paths: [asset.absolutePath], mimeType: asset.mimeType, byteSize: asset.byteSize }, null, 2);
-    },
-  };
-}
-```
+Add `resolveImagePath` and `resolveImageTimeout` helpers. Update `callImageEndpoint` to use them. Change the `model` parameter type from `{ id: string }` to `ModelConfigEntry`. Apply timeout via `AbortSignal.timeout()` merged with caller signal.
 
-**Important implementation note:** `evaluateWebPermission` is typed for `WebPermissionAction = 'web_search' | 'web_fetch'`. The `as never` cast on `'image-gen'` above is only a compile-time shim for the plan. When implementing, extend `WebPermissionAction` in `permission-policy.ts` (or add a dedicated `evaluateImageGenPermission` that mirrors it) with an `image_gen` branch whose rule subject is `{ kind: 'web-fetch', host }` semantics — i.e. treat the provider base URL as the network host. The gate **must**:
-- consult `options.rules` via `findMatchingRule({ kind: 'web-fetch', host: providerBaseUrlHost })` (import from `./permission-rule-engine.js` — exported at line ~318; reuse `evaluateWebPermission`'s host-extraction approach),
-- default to `ask` (paid API call), degrade to `deny` in non-interactive sessions via `resolveNonInteractiveDecision` (exported from `./permission-policy.js`),
-- never leak the API key in the deny/error string (use `evaluation.reason` / a fixed message).
-
-Add a golden unit test to `image-gen-tool.test.ts`: with `requestPermission` returning `'deny'`, `execute` returns a string containing `permission denied` and does **not** call the provider endpoint; with `'allow'`, it proceeds to media save.
-
-- [ ] **Step 5: Run the unit tests**
+- [ ] **Step 4: Run tests**
 
 Run: `pnpm --filter @piwin/agent-host test image-gen-tool`
-Expected: PASS.
+Expected: PASS (all updated tests green).
 
-- [ ] **Step 6: Typecheck**
+- [ ] **Step 5: Typecheck**
 
-Run: `pnpm typecheck`
-Expected: PASS. If `ResolvedImageProvider` / `evaluateImageNetworkPermission` types fight strictness, tighten them per the real `ModelProviderConfig['models'][number]` shape and the existing `web_fetch` gate signatures in `session-tools.ts`.
+Run: `pnpm --filter @piwin/agent-host typecheck`
+Expected: PASS (no new errors besides pre-existing `tool-presentation.ts`).
+
+- [ ] **Step 6: Verify sdk-adapter still compiles**
+
+Run: `pnpm --filter @piwin/agent-host typecheck`
+Expected: PASS. `sdk-adapter.ts` passes `config` (full `PiwinConfig`) to `buildImageGenTool` — no change needed.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add packages/agent-host/src/image-gen-tool.ts packages/agent-host/src/image-gen-tool.test.ts
-git commit -m "feat(agent-host): add image_gen host tool with model-name routing and media save"
+git commit -m "refactor(agent-host): config-driven image_gen routing with capability + route config"
 ```
 
 ---
 
-## Task 4: Wire `image_gen` into Pi sessions (TypeBox schema + registration gated on skill enablement)
+## Task 3: Desktop image generation settings page
 
-**Why:** The tool must reach the Pi agent as a custom tool, and only when the `imagegen` skill is enabled (switch = `config.skills.disabledIds`).
+**Why:** Users need a dedicated UI to configure image generation models — provider, API endpoint, custom request path, timeout, API key, model ID, model notes, and model description. This matches the screenshot layout and keeps image-gen config separate from chat model config while sharing the same `config.providers` data store.
 
 **Files:**
-- Modify: `packages/agent-host/src/pi-tool-adapter.ts` (`parametersForHostTool`)
-- Modify: `packages/agent-host/src/sdk-adapter.ts` (build + register in `codingTools`)
+- Modify: `apps/desktop/src/settings/section-registry.ts` — add `'image-generation'` to `SettingsSectionId` and `SETTINGS_SECTIONS`
+- Create: `apps/desktop/src/settings/pages/image-generation-page.tsx`
+- Modify: `apps/desktop/src/settings/pages/index.ts` — register `ImageGenerationPage`
+- Create: `apps/desktop/src/ImageGenerationSettings.tsx` — main config component
+- Create: `apps/desktop/src/ImageGenerationSettings.test.tsx` — render + save test
+- Modify: `apps/desktop/src/desktop-locale.ts` — `nav.imageGeneration` + image-gen page copy (single-file i18n; no `locales/*` dir)
 
-**Interfaces:**
-- Consumes: `buildImageGenTool` (Task 3), `config.skills.disabledIds`, `config.providers`, existing `secretResolver` instance in `createPiSdkSession`, existing media config, `rootDir`, `sessionId`.
-- Produces: Pi customTool `image_gen` registered only when `imagegen` is enabled. No behavior change when disabled.
+**UI layout (matching screenshot):**
 
-- [ ] **Step 1: Add the TypeBox schema**
+```
+┌─────────────────────────────────────────────┐
+│ Settings → Image Generation                  │
+├─────────────────────────────────────────────┤
+│                                              │
+│  接口通道            API 接口地址             │
+│  [智谱 / GLM ▾]      [https://...]           │
+│                                              │
+│  自定义请求路径       模型超时时间             │
+│  [/images/generations] [300] 秒              │
+│                                              │
+│  API Key                                     │
+│  [••••••••] [⚙]                             │
+│                                              │
+│  模型 ID                                     │
+│  [glm-image] [获取模型]                      │
+│                                              │
+│  模型备注                                    │
+│  [GLM-图像生成]                              │
+│                                              │
+│  模型介绍                                    │
+│  [textarea...]                               │
+│                                              │
+│  [设为默认图片模型]                          │
+│                                              │
+└─────────────────────────────────────────────┘
+```
 
-Edit `packages/agent-host/src/pi-tool-adapter.ts:171-176` (before the generic fallback). Add an `image_gen` case:
+**Design decisions:**
+
+1. **Provider reuse**: The page lists providers from `config.providers` (same data store as chat models). Selecting a provider shows its connection info (baseUrl, API key — read-only here, editable in Models page). The image-gen-specific fields (request path, timeout, model ID, notes) are per-model, stored in `provider.models[].routes['image-generation']` and `provider.models[].label` / `tooltipMarkdown`.
+
+2. **Model filtering**: Only models with `capabilities: ['image-generation']` (or no capabilities — backward compat) are shown in the image-gen page. A model can have both `chat` and `image-generation` capabilities.
+
+3. **Adding an image model**: User selects a provider → enters model ID → clicks "获取模型" (discover) or types manually → the model is added to `provider.models` with `capabilities: ['image-generation']` and `routes.imageGeneration = { path, timeoutMs }`.
+
+4. **Default image model**: "设为默认图片模型" button sets `config.imageGeneration.defaultModel = { protocol, providerId, modelId }`.
+
+5. **API key**: Read-only display (shows `••••••••` if keychain ref exists, or env var name). Editing is done in the existing Models page — this page only shows the status. This avoids duplicating key management.
+
+6. **Auto-save**: Same debounced auto-save pattern as `ProviderSettings` — drafts on field change, saves to `config.providers` via `saveConfig`.
+
+**Section registry change:**
 
 ```ts
-if (tool.name === 'image_gen') {
-  return Type.Object({
-    prompt: Type.String({ description: 'Detailed prompt describing the image to generate' }),
-    model: Type.Optional(Type.String({ description: 'Optional image model id (routed by name)' })),
-    size: Type.Optional(Type.String({ description: 'Optional size / aspect ratio' })),
-    quality: Type.Optional(Type.String({ description: 'Optional quality (openai only)' })),
-    n: Type.Optional(Type.Number({ description: 'Optional number of images (default 1)' })),
-  });
+// section-registry.ts
+export type SettingsSectionId =
+  | 'general'
+  | 'appearance'
+  | 'permissions'
+  | 'models'
+  | 'image-generation'  // NEW
+  | 'skills'
+  // ... rest unchanged
+
+// Add to SETTINGS_SECTIONS, in the 'agent' group, after 'models':
+{ id: 'image-generation', group: 'agent', labelKey: 'imageGeneration' },
+```
+
+**Page component:**
+
+`image-generation-page.tsx` follows the `models-page.tsx` pattern — reads `useSettings()`, renders `ImageGenerationSettings`.
+
+`ImageGenerationSettings.tsx`:
+- Reads `config` from `useSettings()`
+- Lists providers in a dropdown (only providers that have at least one image-generation model, or all providers if none have one yet)
+- For the selected provider, shows:
+  - API endpoint (read-only `provider.baseUrl`)
+  - API key status (read-only — keychain ref or env var)
+  - Image generation models list (filtered by `capabilities` includes `image-generation`)
+  - Add image model form: model ID, custom request path, timeout (seconds), label, description
+  - Per-model: edit route path, timeout, label, description; set as default; remove
+- Auto-saves to `config.providers[].models[]` via `saveConfig`
+
+- [ ] **Step 1: Add the section to the registry**
+
+Edit `apps/desktop/src/settings/section-registry.ts`:
+- Add `'image-generation'` to `SettingsSectionId`
+- Add `{ id: 'image-generation', group: 'agent', labelKey: 'imageGeneration' }` to `SETTINGS_SECTIONS` (after `models`)
+
+- [ ] **Step 2: Add i18n strings**
+
+Edit `apps/desktop/src/desktop-locale.ts` (single-file i18n — there is no `locales/*` dir):
+- Add `imageGeneration: string` to `DesktopTranslator['settings']['nav']` (required: `SettingsSectionMeta.labelKey` is typed `keyof DesktopTranslator['settings']['nav']`, so the section won't typecheck without it), and return it from `getDesktopTranslator` in both `zh-CN` and `en` (e.g. 图像生成 / Image Generation).
+- Add an `imageGeneration` sub-object under `settings` in `DesktopTranslator` for page copy: page title, provider, API endpoint, custom request path, timeout, API key, model ID, discover models, model label, model description, set as default, add model, remove model, no models configured. Provide both locales.
+- Add a `settings.nav.imageGeneration` label so the new nav item renders.
+
+- [ ] **Step 3: Write the failing test**
+
+Create `apps/desktop/src/ImageGenerationSettings.test.tsx`:
+- Render with a config that has one provider with one image-generation model
+- Assert: provider dropdown shows the provider, model row shows the model ID, custom request path is visible
+- Assert: saving updates `config.providers[0].models[0].routes['image-generation'].path`
+
+Follow the `SkillsPanel.test.tsx` pattern: happy-dom + `createRoot` + `act()`, `PiwinUiProvider` + `DesktopLocaleProvider` wrappers, `useSettings` context stub.
+
+- [ ] **Step 4: Implement `ImageGenerationSettings.tsx`**
+
+Build the component with:
+- Provider dropdown (from `config.providers`)
+- Selected provider detail: read-only baseUrl + API key status
+- Image model list (filtered by `capabilities` includes `image-generation'`)
+- Add model form (model ID, request path, timeout in seconds, label, description)
+- Per-model edit: inline expansion with route path, timeout, label, description fields
+- "设为默认" button → sets `config.imageGeneration.defaultModel`
+- Debounced auto-save via `saveConfig`
+
+- [ ] **Step 5: Create the page wrapper**
+
+Create `apps/desktop/src/settings/pages/image-generation-page.tsx`:
+
+```tsx
+import type { ReactElement } from 'react';
+import { ImageGenerationSettings } from '../../ImageGenerationSettings';
+import { useSettings } from '../settings-context';
+
+export function ImageGenerationPage(): ReactElement {
+  const settings = useSettings();
+  if (!settings.config) {
+    return <p className="muted">Loading…</p>;
+  }
+  return (
+    <div className="settings-card" data-testid="settings-image-generation">
+      <ImageGenerationSettings />
+    </div>
+  );
 }
 ```
 
-- [ ] **Step 2: Build + register the tool in `createPiSdkSession`**
+- [ ] **Step 6: Register the page**
 
-Edit `packages/agent-host/src/sdk-adapter.ts`. Inside `createPiSdkSession`, **before** the `codingTools`/`customTools` build section (lines ~661-677), build the image_gen tool gated on skill enablement. `secretResolver` is not in scope at that point (it is created locally inside `createPiModelRuntime` at line ~871, called later at line ~780) — so create a local one with the already-imported `createSecretResolver()` (it is a cheap stateless closure):
+Edit `apps/desktop/src/settings/pages/index.ts`:
+- Import `ImageGenerationPage`
+- `registerSettingsSection('image-generation', ImageGenerationPage)`
 
-```ts
-// image_gen tool: only when the imagegen skill is enabled (switch = disabledIds).
-const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
-const imageGenTool = imagegenDisabled
-  ? null
-  : buildImageGenTool({
-      piwinRoot: rootDir,
-      sessionId,
-      config,
-      mediaConfig: {
-        mediaRoot: getPiwinMediaDir(rootDir),
-        maxPasteBytes: config.media.maxPasteBytes,
-        allowedMimeTypes: config.media.allowedMimeTypes,
-      },
-      secretResolver: createSecretResolver(),
-      ...(mergedRules ? { rules: mergedRules } : {}),
-      ...(permissionHandler
-        ? {
-            requestPermission: wrapPermissionHandler(permissionHandler, sessionId, permissionProjectPath),
-          }
-        : {}),
-    });
-```
+- [ ] **Step 7: Run tests**
 
-Add `...(imageGenTool ? [imageGenTool] : [])` into the `codingTools` array (line ~661):
-
-```ts
-const codingTools: import('@piwin/tools-web').HostToolDefinition[] = [
-  ...webTools,
-  ...mcpBridge.tools,
-  planTool,
-  planCreateTool,
-  ...processTools,
-  ...notesTools,
-  ...(flashcardsInCoding ? flashcardTools : []),
-  ...(subagentRunTool ? [subagentRunTool] : []),
-  ...(imageGenTool ? [imageGenTool] : []),
-];
-```
-
-Verified locals in `createPiSdkSession`: `rootDir` (line ~439), `sessionId` (~438), `mergedRules` (~487), `permissionHandler`/`requestPermission` (~442), `permissionProjectPath` (~428), `config` (~424) are all in scope. Import `getPiwinMediaDir` from `./paths.js` and confirm `createSecretResolver` is already imported (it is, at line ~49). Do **not** try to reuse the `secretResolver` from `createPiModelRuntime` — it is out of scope here.
-
-- [ ] **Step 3: Add a registration test**
-
-Extend `packages/agent-host/src/sdk-adapter.test.ts` (or a focused test) to assert:
-- With `disabledIds: ['imagegen']`, the built custom tool list does **not** include `image_gen`.
-- Without it, `image_gen` **is** included (when a provider/model is configured).
-
-Use the existing mock-session + fake Pi module harness in `sdk-adapter.test.ts`. If the harness makes this heavy, add the assertion at the `createPiSdkSession` level with a stubbed `@earendil-works/pi-coding-agent` `createAgentSession` that records `customTools` names.
-
-- [ ] **Step 4: Run tests + typecheck**
-
-Run: `pnpm --filter @piwin/agent-host test`
+Run: `pnpm --filter @piwin/desktop test ImageGenerationSettings`
 Expected: PASS.
 
-Run: `pnpm typecheck`
+Run: `pnpm --filter @piwin/desktop test settings-shell`
+Expected: PASS. Note: the shell test counts nav items via `SETTINGS_SECTIONS.length` (settings-shell.test.tsx:124), so it auto-adapts to the new section — no update needed.
+
+- [ ] **Step 8: Typecheck**
+
+Run: `pnpm --filter @piwin/desktop typecheck`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add packages/agent-host/src/pi-tool-adapter.ts packages/agent-host/src/sdk-adapter.ts packages/agent-host/src/sdk-adapter.test.ts
-git commit -m "feat(agent-host): register image_gen tool gated on imagegen skill enablement"
+git add apps/desktop/src/settings/section-registry.ts apps/desktop/src/settings/pages/image-generation-page.tsx apps/desktop/src/settings/pages/index.ts apps/desktop/src/ImageGenerationSettings.tsx apps/desktop/src/ImageGenerationSettings.test.tsx apps/desktop/src/desktop-locale.ts
+git commit -m "feat(desktop): image generation settings page with config-driven model routing"
 ```
 
 ---
 
-## Task 5: Bundled `imagegen` skill
+## Task 4: Update docs (ADR, architecture, skill)
 
-**Why:** The first-class surface the agent sees. Modeled on Codex's `imagegen` skill: frontmatter `hidden: true` (Task 1), guidance on when/how to use `image_gen`, routing notes, and clear "configure a model" fallback messaging. Bundled via the existing `ensureBundledSkillsInstalled` copy (`skills/` → `~/.piwin/skills/`).
+**Why:** ADR 0021 and architecture.md must reflect the config-driven routing and the new settings page. The bundled skill should mention that request paths are configurable.
 
 **Files:**
-- Create: `skills/imagegen/SKILL.md`
-
-**Interfaces:**
-- Consumes: `image_gen` host tool (Task 3), `hidden` frontmatter (Task 1).
-- Produces: a Pi-loadable skill with `name: imagegen`. `scanSkills` returns it with `hidden: true`; the UI/CLI hide it (Task 2); Pi loads it when not in `disabledIds` (existing `disabledSkillIds` mechanism).
-
-- [ ] **Step 1: Write the skill**
-
-Create `skills/imagegen/SKILL.md`:
-
-```markdown
----
-name: imagegen
-description: Generate or edit raster images when the task benefits from AI-created bitmap visuals such as photos, illustrations, textures, sprites, mockups, or transparent-background cutouts. Use when the agent should create a brand-new image or derive visual variants from references, and the output should be a bitmap asset rather than repo-native code or vector. Do not use when the task is better handled by editing existing SVG/vector/code-native assets, extending an established icon or logo system, or building the visual directly in HTML/CSS/canvas.
-hidden: true
----
-
-# Image Generation Skill
-
-Generate raster images for the current project (website assets, game assets, UI
-mockups, product shots, wireframes, logo drafts, photorealistic images,
-infographics, or transparent-background cutouts).
-
-## When to use
-
-Use the `image_gen` tool when a deliverable benefits from AI-created bitmap
-visuals. Examples:
-
-- A hero image or cover for a web page
-- Game sprites or textures
-- UI mockups and product mockups
-- Icon drafts (then refine to a final SVG/icon system if the project needs it)
-- Concept art for a feature
-
-Do **not** use it for:
-
-- Editing existing SVG / vector / code-native assets
-- Extending an established icon or logo system
-- Visuals that are better expressed in HTML/CSS/canvas or inline SVG
-
-## How to use `image_gen`
-
-Call the host tool `image_gen` with a detailed `prompt`. The tool:
-
-1. Routes by `model` name (optional) to the configured provider; without it,
-   uses the configured default model. Only models added under Settings →
-   Providers are usable.
-2. Saves the generated image under the piwin media store and returns an
-   **absolute path** — never a base64 blob.
-3. Returns `{ "paths": [ ... ], "mimeType", "byteSize" }`.
-
-### Prompting guidance
-
-- Be specific about subject, style, composition, and palette.
-- State dimensions or aspect ratio when it matters (e.g. `1024x1024`, `1:1`).
-- For transparent-background cutouts, ask the model to render the subject on a
-  flat solid chroma-key background and note that true native transparency is
-  not guaranteed — validate the alpha channel after generation.
-
-## When the tool is unavailable
-
-If `image_gen` is missing or errors with "no default image model configured":
-
-- Tell the user: image generation is enabled but no image-capable model is
-  configured. They should add an image model under Settings → Providers
-  (e.g. an OpenAI-compatible provider with a `gpt-image-*` model, or Google
-  Gemini with an `imagen-*` model).
-- Do not fall back to ad-hoc curl scripts or base64-in-context workarounds.
-
-## Known limitations
-
-- Image editing (reference-image workflows) is a documented follow-up and is
-  not yet available; `image_gen` currently supports prompt-based generation
-  only.
-- Anthropic-compatible providers do not expose an image-generation endpoint.
-```
-
-- [ ] **Step 2: Verify scan + load**
-
-Run: `pnpm typecheck` (contracts/skills tests already cover `hidden`).
-Then add a scanner test in `packages/skills/src/skill-scanner.test.ts` pointing `scanSkills` at a `piwinRoot` whose `skills/imagegen/SKILL.md` is the file above, asserting `hidden === true` and `id === 'imagegen'`.
-
-Run: `pnpm --filter @piwin/skills test skill-scanner`
-Expected: PASS.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add skills/imagegen/SKILL.md packages/skills/src/skill-scanner.test.ts
-git commit -m "feat(skills): bundle hidden imagegen skill guiding image_gen usage"
-```
-
----
-
-## Task 6: Docs — ADR, architecture, plan
-
-**Why:** AGENTS.md requires ADR updates for new cross-cutting capabilities (host tool + config semantics) and architecture.md package-map updates.
-
-**Files:**
-- Create: `docs/adr/0021-image-generation-skill.md`
+- Modify: `docs/adr/0021-image-generation-skill.md`
 - Modify: `docs/architecture.md`
-- Create: `docs/superpowers/plans/2026-07-31-image-generation-skill.md` (this plan)
+- Verify: `skills/imagegen/SKILL.md` (minor update if needed)
 
-**Interfaces:**
-- Consumes: everything from Tasks 1–5.
-- Produces: ADR recording the decision (deprecate imagegen-MCP; skill + host tool; disabledIds switch; hidden-from-UI), architecture.md updated capability/package notes, and the saved plan.
+- [ ] **Step 1: Update ADR 0021**
 
-- [ ] **Step 1: Write the ADR**
+Update the ADR to reflect:
+- `ModelConfigEntry` now has `capabilities` and `routes` for per-capability request path + timeout.
+- `PiwinConfig.imageGeneration.defaultModel` is the image-gen default (independent from chat).
+- `callImageEndpoint` reads `model.routes.imageGeneration.path` with protocol defaults as fallback.
+- New `image-generation` settings section in Desktop.
+- Backward compat: chat default model still works as last-resort fallback.
 
-Create `docs/adr/0021-image-generation-skill.md`:
+- [ ] **Step 2: Update architecture.md**
 
-```markdown
-# ADR 0021: Image generation as a skill (deprecates imagegen-MCP)
+- Update `@piwin/agent-host` description to mention config-driven image routing.
+- Add note about `imageGeneration` config section and `image-generation` settings page.
+- Update config root section to mention `imageGeneration` under `config.json`.
 
-## Status
+- [ ] **Step 3: Update bundled skill (if needed)**
 
-Accepted (2026-07-31)
+Review `skills/imagegen/SKILL.md` — update the "When the tool is unavailable" section to mention the Image Generation settings page (not just Settings → Providers).
 
-## Context
-
-The earlier imagegen-MCP approach (an MCP server exposing image generation) had
-a poor design fit: it split configuration between an MCP server and piwin's
-provider model, could not reuse piwin's permission/media/path-injection
-discipline, and duplicated the `imagegen` skill already shipped by Codex/Claude
-as a skill. We want image generation as a first-class piwin skill: feature-gated,
-reusing `config.providers` (routed by model name), hidden from the UI skill list,
-and saving outputs through `@piwin/media`.
-
-## Decision
-
-1. **Deprecate imagegen-MCP.** No `mcp.json` entry, no MCP server dependency.
-   The capability is delivered as a bundled skill + host tool.
-2. **Bundled skill** `skills/imagegen/SKILL.md` with frontmatter `hidden: true`.
-   It guides when/how to use the `image_gen` host tool.
-3. **Host tool** `image_gen` in `@piwin/agent-host`:
-   - Routes by **model name** against `config.providers` (no new config section);
-     falls back to `defaultProviderId`/`defaultModelId`.
-   - Protocol routing: `openai-compatible` → `POST {baseUrl}/images/generations`;
-     `google-gemini` (imagen) → `{baseUrl}/models/{model}:predict`;
-     `anthropic-compatible` → unsupported error.
-   - Permission-gated as a network action (`network:image-gen`), default `ask`.
-   - Saves decoded bytes via `@piwin/media` to `~/.piwin/media/<session>/` and
-     returns absolute path(s) only (AGENTS.md §3.6: no base64 in context).
-4. **Switch = `config.skills.disabledIds`.** Adding `imagegen` disables both the
-   skill and the `image_gen` tool. No new `imageGeneration` config field.
-5. **Hidden from UI/CLI.** `SkillSummary.hidden` (frontmatter `hidden: true`) is
-   filtered from the Desktop Skills panel and CLI skill lists, but the skill is
-   still loadable by Pi when enabled.
-
-## Consequences
-
-- System skills can opt out of the Skills panel via `hidden` frontmatter.
-- Image generation requires a configured image-capable model (openai-compatible
-  or google-gemini) in Settings → Providers.
-- Anthropic-compatible providers cannot generate images (clear error).
-- Image editing via `/images/edits` is a documented follow-up, not shipped here.
-- CLI and Desktop share the same host tool and switch; no CLI degradation.
-```
-
-- [ ] **Step 2: Update `docs/architecture.md`**
-
-Add `image_gen` to the host tools/capabilities list and the `imagegen` skill to
-the skills/capability notes. Keep it a short addition (match existing section
-style): mention the tool routes by model name, is gated on the `imagegen` skill
-being enabled, and that the skill is hidden from the skills UI.
-
-- [ ] **Step 3: Save this plan document (already in place)**
-
-Ensure `docs/superpowers/plans/2026-07-31-image-generation-skill.md` is saved.
-
-- [ ] **Step 4: Final verification**
-
-Run: `pnpm typecheck`
-Expected: PASS.
-
-Run: `pnpm test`
-Expected: PASS.
-
-Smoke (mock mode): `pnpm dev:cli --mock` and trigger a prompt that requests an
-image; confirm the agent sees `image_gen` only when the skill is enabled, and
-that a disabled `imagegen` (in `disabledIds`) hides the tool.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add docs/adr/0021-image-generation-skill.md docs/architecture.md docs/superpowers/plans/2026-07-31-image-generation-skill.md
-git commit -m "docs: ADR 0021 image generation skill, architecture notes, plan"
+git add docs/adr/0021-image-generation-skill.md docs/architecture.md skills/imagegen/SKILL.md
+git commit -m "docs: update ADR 0021 and architecture for config-driven image generation"
 ```
 
 ---
 
-## Self-Review
+## Self-Review Checklist (after all tasks)
 
-**1. Spec coverage:**
-- Deprecate imagegen-MCP: ADR 0021 (Task 6) records it; no MCP wiring added anywhere (Global Constraints).
-- Skill-first surface: Task 5 bundles `skills/imagegen/SKILL.md`; frontmatter `hidden: true` (Task 1).
-- Switch via `disabledIds`: Task 4 gates `image_gen` registration on `!disabledIds.includes('imagegen')`; existing Pi loader already filters the skill via `disabledSkillIds`.
-- Hidden from UI: Task 2 filters `hidden` from Desktop panel + CLI.
-- Route by model name, no new config: Task 3 `resolveImageProvider` uses `config.providers` + defaults; no `imageGeneration` section introduced.
-- Model config requirement: `buildImageGenTool` returns `null` when no image model resolves; skill text + tool error tell the user to add a model under Providers (Task 3/5).
-
-**2. Placeholder scan:**
-- No "TBD" / "TODO" / "implement later" in shipped code. The only deferred item is openai `/images/edits` (explicitly documented as a known limitation with a clear throw in the plan's Step 3 note — not a silent stub).
-- Every step has exact file paths, code, commands, and expected results.
-
-**3. Type consistency:**
-- `SkillSummary.hidden?: boolean` (Task 1) consumed as `s.hidden !== true` in panel/CLI (Task 2) and `hidden: true` in scanner (Task 1).
-- `buildImageGenTool(options) → HostToolDefinition | null` (Task 3) consumed in `sdk-adapter.ts` as `imageGenTool ? [imageGenTool] : []` (Task 4).
-- `resolveImageProvider(config, modelId?) → { provider, model }` (Task 3) consumed by `buildImageGenTool.execute` (Task 3) — model `.id` used consistently.
-- `HostToolDefinition.execute` returns `Promise<string>` (tools-web) — `image_gen` returns `JSON.stringify(...)` strings, matching `toPiCustomTool` (Task 4).
-
-**4. Acceptance criteria:**
-- Contracts `hidden` test green; scanner parses `hidden`; panel/CLI hide hidden skills.
-- `image_gen` routes by model name (openai + gemini golden cases), permission-gated, saves via `@piwin/media`, returns paths only.
-- `image_gen` registered iff `imagegen` enabled; disabled → no tool.
-- Bundled `imagegen` skill loads into Pi when enabled; `typecheck` + `pnpm test` green.
+- [ ] `pnpm typecheck` green across all packages
+- [ ] `pnpm test` green across all touched packages
+- [ ] `config.providers` with no `imageGeneration` config still works (backward compat — falls back to chat default)
+- [ ] `image_gen` tool returns `null` (not registered) when no image model is resolvable
+- [ ] Custom request path from `model.routes.imageGeneration.path` is used over hardcoded defaults
+- [ ] Timeout from `model.routes.imageGeneration.timeoutMs` is applied to the fetch call
+- [ ] Image generation settings page renders, saves config, and filters models by capability
+- [ ] No base64 in tool output (paths only)
+- [ ] No API keys in logs or error messages
+- [ ] ADR 0021 and architecture.md reflect the final implementation
+- [ ] No new dependencies added
