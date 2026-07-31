@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- 2D 极简纯平全身躺平水豚 (Full-body Lounging Capybara) -->
+  <g transform="translate(10, 10)">
+    <!-- 2D 侧躺肥嘟嘟身体 -->
+    <path d="M 120,320 C 100,240 160,180 240,180 L 320,180 C 390,180 430,230 420,300 C 410,360 350,380 270,380 L 180,380 C 130,380 120,350 120,320 Z" fill="#F59E0B"/>
+    
+    <!-- 浅色大肚皮 -->
+    <path d="M 180,380 C 170,320 220,290 280,290 C 350,290 380,340 370,380 Z" fill="#FEF3C7"/>
+
+    <!-- 圆头 -->
+    <path d="M 90,260 C 80,190 130,150 190,150 C 240,150 260,180 250,240 C 240,290 190,300 130,290 C 90,290 90,270 90,260 Z" fill="#F59E0B"/>
+
+    <!-- 圆耳朵 -->
+    <circle cx="210" cy="155" r="22" fill="#D97706"/>
+    <circle cx="210" cy="155" r="12" fill="#92400E"/>
+
+    <!-- 翘起来的小后腿 -->
+    <path d="M 370,340 C 420,340 440,300 430,280 C 420,270 400,290 370,310 Z" fill="#D97706"/>
+    
+    <!-- 放在肚子上的惬意小前爪 -->
+    <ellipse cx="230" cy="315" rx="22" ry="16" fill="#D97706"/>
+
+    <!-- 纯平鼻子 -->
+    <ellipse cx="115" cy="255" rx="20" ry="15" fill="#78350F"/>
+
+    <!-- 得意笑嘴 -->
+    <path d="M 130,272 Q 150,285 170,270" fill="none" stroke="#78350F" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- 2D 纯平黑墨镜 -->
+    <g transform="translate(-10, -5)">
+      <path d="M 115,195 L 185,195 C 190,220 175,232 135,232 C 120,232 112,215 115,195 Z" fill="#0F172A"/>
+      <path d="M 195,195 L 235,195 C 240,215 232,228 205,228 C 195,228 192,215 195,195 Z" fill="#0F172A"/>
+      <rect x="180" y="200" width="20" height="6" fill="#0F172A"/>
+      <!-- 白色高光线 -->
+      <line x1="125" y1="202" x2="155" y2="202" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+      <line x1="202" y1="202" x2="222" y2="202" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round"/>
+    </g>
+
+    <!-- 赢麻了的 Zzz / 惬意气团 -->
+    <path d="M 360,130 L 375,130 L 360,150 L 375,150" fill="none" stroke="#F59E0B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 395,100 L 415,100 L 395,125 L 415,125" fill="none" stroke="#F59E0B" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -50,9 +50,18 @@ one-shot 50-token completion.
 
 `emitRunTerminal` with `outcome: 'completed'` in `host-runtime.ts`. The
 `maybeTriggerAutoName` method checks:
-- `messageCount >= 2` (first exchange = user + assistant)
+- `messageCount >= 1` — `messageCount` counts completed runs (not messages), so
+  >= 1 means the first exchange finished. The session index is touched *before*
+  the terminal event so the trigger sees the current run.
 - `nameSource !== 'user'` (never overwrite manual renames)
 - `nameSource !== 'auto'` with existing name (only trigger once)
+
+The trigger fires after **every** completed exchange while the session is still
+unnamed: if naming fails (LLM error + empty text fallback), `nameSource` stays
+`'default'` and the next exchange retries until naming succeeds. Normally the
+first exchange succeeds. The LLM title is generated from the latest user message
+plus the latest assistant reply (captured from the event stream), falling back to
+a text-derived name from the user message when no model/provider is configured.
 
 Fire-and-forget: failures are logged via `host/log` warn, never propagated.
 
