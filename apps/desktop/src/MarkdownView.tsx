@@ -261,6 +261,8 @@ function CodeFenceView(props: {
         </div>
       );
     }
+    const previewLabel =
+      decision.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview artifact';
     return (
       <div className="artifact-with-source">
         <div className="md-code-block">
@@ -275,7 +277,7 @@ function CodeFenceView(props: {
                   aria-expanded={artifactPreviewOpen}
                   onClick={() => setArtifactPreviewOpen((previous) => !previous)}
                 >
-                  {artifactPreviewOpen ? 'Hide preview' : 'Preview artifact'}
+                  {artifactPreviewOpen ? 'Hide preview' : previewLabel}
                 </Button>
               ) : null}
             </div>
