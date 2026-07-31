@@ -305,5 +305,9 @@ function extractActionDetails(
     }
   }
 
-  return { actionVerb, lineRange, countTag };
+  return {
+    actionVerb,
+    ...(lineRange !== undefined ? { lineRange } : {}),
+    ...(countTag !== undefined ? { countTag } : {}),
+  };
 }
