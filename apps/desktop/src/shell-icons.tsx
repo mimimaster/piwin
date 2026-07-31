@@ -41,16 +41,6 @@ export function IconSideChat(props: IconProps): ReactElement {
   );
 }
 
-export function IconBrowser(props: IconProps): ReactElement {
-  return (
-    <IconBase {...props}>
-      <circle cx="12" cy="12" r="8.5" />
-      <ellipse cx="12" cy="12" rx="8.5" ry="3.2" />
-      <path d="M12 3.5v17" />
-    </IconBase>
-  );
-}
-
 export function IconCanvas(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
@@ -540,4 +530,3 @@ export function IconExpand(props: IconProps): ReactElement {
     </IconBase>
   );
 }
-
