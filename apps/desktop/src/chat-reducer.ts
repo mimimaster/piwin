@@ -413,8 +413,10 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         error: null,
         runRecordsById: buildRunRecordsFromTranscriptMessages(action.messages),
         // Walkthrough artifacts are hydrated separately via walkthrough/list
-        // after load; clear stale entries from the previous session.
-        walkthroughsByMessageId: {},
+        // after load. Do NOT clear the map here: session/set (which fires
+        // before load-messages) already clears it, and a walkthrough/list
+        // response may resolve before load-messages is dispatched — clearing
+        // here would wipe the freshly-hydrated map.
       };
     }
     case 'session/add':
@@ -780,9 +782,18 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
     }
     case 'walkthrough/updated': {
       const existing = state.walkthroughsByMessageId[action.artifact.messageId];
-      // Drop stale updates: a terminal (ready/error) artifact must not be
-      // overwritten by a later generating push for the same generation.
-      if (existing && existing.status !== 'generating' && action.artifact.status === 'generating') {
+      // Only drop a `generating` push when a *different* generation is still
+      // in flight — that is a stale late push from an old generation. A
+      // `generating` push against a terminal (ready/error) artifact represents
+      // a fresh regeneration request (e.g. the user clicked Regenerate) and
+      // must be accepted so the UI shows "Generating...". Terminal pushes
+      // (ready/error) always update.
+      if (
+        existing &&
+        existing.status === 'generating' &&
+        action.artifact.status === 'generating' &&
+        existing.generationId !== action.artifact.generationId
+      ) {
         return state;
       }
       return {

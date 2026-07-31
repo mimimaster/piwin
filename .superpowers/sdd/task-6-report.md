@@ -145,3 +145,47 @@ Commit: `574fcb2 feat(desktop): walkthrough chat state, host push, action, card,
 - `apps/desktop/src/walkthrough-card.test.tsx` (Finding 4 case 12)
 - `apps/desktop/src/chat-thread.tsx` (Finding 3 — added `chat-message-row` class)
 - `apps/desktop/src/styles/region-transcript.css` (Finding 3 — hover/focus CSS)
+
+---
+
+## Review fix commit: walkthrough reducer stale guard and load-messages race
+
+### Finding 1 (Important): Stale guard blocks force-regeneration
+
+**File:** `apps/desktop/src/chat-reducer.ts` — `walkthrough/updated` handler
+
+**Problem:** The previous guard dropped any `generating` push when a terminal (ready/error) artifact already existed. This blocked force-regeneration: clicking Regenerate on a ready artifact publishes a new `generating` push, but the reducer dropped it, so the user never saw "Generating..." feedback.
+
+**Fix:** The guard now only drops a `generating` push when the existing artifact is *also* `generating` with a *different* `generationId` (a stale late push from an old generation). A `generating` push against a terminal (ready/error) artifact is accepted (fresh regeneration request). Terminal pushes (ready/error) always update.
+
+- existing `generating` + incoming `generating` + different `generationId` → drop (stale)
+- existing `generating` + incoming `generating` + same `generationId` → accept (update)
+- existing terminal (ready/error) + incoming `generating` → accept (new generation)
+- incoming `ready`/`error` → always accept
+
+### Finding 2 (Important): walkthrough/list hydrate vs session/load-messages race
+
+**File:** `apps/desktop/src/chat-reducer.ts` — `session/load-messages` handler
+
+**Problem:** `session/load-messages` unconditionally set `walkthroughsByMessageId: {}`, which could wipe a freshly-hydrated walkthrough map if the `walkthrough/list` response resolved before `session/load-messages` was dispatched.
+
+**Fix:** Removed the `walkthroughsByMessageId: {}` clearing from `session/load-messages`. The map is already cleared by `session/set` (which fires before `session/load-messages`). The hydrate effect populates it via `walkthrough/list`.
+
+### Tests added/updated (`apps/desktop/src/chat-reducer.test.ts`)
+
+- Force regeneration (ready → generating with new generationId is accepted)
+- Force regeneration (error → generating with new generationId is accepted)
+- Stale late push (generating → generating with different generationId is dropped)
+- Same-generationId generating push is accepted (update)
+- Terminal (ready) push always accepted over generating
+- `session/load-messages` does NOT clear `walkthroughsByMessageId` (hydrate race)
+
+### Test results after fixes
+
+- `pnpm --filter @piwin/desktop typecheck` → **PASS** (exit 0)
+- `pnpm --filter @piwin/desktop test` → **75 files, 436 tests, all PASS**
+
+### Files changed (this fix commit)
+
+- `apps/desktop/src/chat-reducer.ts` (Finding 1 + Finding 2)
+- `apps/desktop/src/chat-reducer.test.ts` (test updates + new tests)
