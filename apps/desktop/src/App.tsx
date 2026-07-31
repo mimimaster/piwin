@@ -34,7 +34,6 @@ import type { HostLogEntry } from './HostLogPanel';
 import { NotesPanel } from './NotesPanel';
 import { FlashcardsPanel } from './FlashcardsPanel';
 import { KnowledgeCenterPanel } from './KnowledgeCenterPanel';
-import { BrowserPanel } from './browser-panel';
 import { CanvasPanel } from './canvas-panel';
 import { SideChatPanel } from './side-chat-panel';
 import { DocPreviewPanel, type SessionDocItem } from './DocPreviewPanel';
@@ -1622,7 +1621,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     }}
                   />
                 }
-                browserContent={<BrowserPanel />}
                 canvasContent={<CanvasPanel />}
                 sideChatContent={<SideChatPanel sessionId={state.activeSessionId} />}
                 docPreviewContent={

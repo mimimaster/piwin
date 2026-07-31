@@ -37,8 +37,6 @@ export type RightPanelProps = {
   reviewContent: ReactNode;
   notesContent?: ReactNode;
   cardsContent?: ReactNode;
-  /** Stubs for side-tool expansion (Browser / Canvas / Side Chat). */
-  browserContent?: ReactNode;
   canvasContent?: ReactNode;
   sideChatContent?: ReactNode;
   docPreviewContent?: ReactNode;
@@ -65,8 +63,6 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
       return props.notesContent;
     case 'cards':
       return props.cardsContent;
-    case 'browser':
-      return props.browserContent;
     case 'canvas':
       return props.canvasContent;
     case 'sideChat':

@@ -2047,9 +2047,8 @@
   font-size: 11px;
 }
 
-/* ── Browser, Canvas, Side Chat panels ─────────────────────────────── */
+/* ── Canvas, Side Chat panels ───────────────────────────────────────── */
 
-.browser-panel,
 .canvas-panel,
 .side-chat-panel {
   display: flex;
@@ -2057,47 +2056,6 @@
   flex: 1;
   min-height: 0;
   height: 100%;
-}
-
-/* Browser */
-
-.browser-panel-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line-soft);
-  flex-shrink: 0;
-}
-
-.browser-panel-input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 12px;
-}
-
-.browser-panel-input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.browser-panel-frame {
-  flex: 1;
-  min-height: 0;
-  background: var(--panel);
-}
-
-.browser-panel-iframe {
-  width: 100%;
-  height: 100%;
-  border: 0;
 }
 
 /* Canvas */

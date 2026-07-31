@@ -3,15 +3,7 @@
  */
 
 export type RightPanelTabKind =
-  | 'files'
-  | 'terminal'
-  | 'review'
-  | 'notes'
-  | 'cards'
-  | 'browser'
-  | 'canvas'
-  | 'sideChat'
-  | 'docPreview';
+  'files' | 'terminal' | 'review' | 'notes' | 'cards' | 'canvas' | 'sideChat' | 'docPreview';
 
 export type StoredRightPanelState = {
   openTabs: RightPanelTabKind[];
@@ -24,7 +16,7 @@ export const RIGHT_PANEL_STATE_STORAGE_KEY = 'piwin.desktop.rightPanelTabs.v1';
 export const RIGHT_PANEL_VIEW_STORAGE_KEY = 'piwin.desktop.rightPanelView';
 
 /** Tabs exposed in the home grid and + menu. */
-const ALLOWED_KINDS: RightPanelTabKind[] = ['files', 'terminal', 'browser', 'review', 'docPreview'];
+const ALLOWED_KINDS: RightPanelTabKind[] = ['files', 'terminal', 'review', 'docPreview'];
 
 function isAllowedKind(value: unknown): value is RightPanelTabKind {
   return typeof value === 'string' && (ALLOWED_KINDS as string[]).includes(value);
