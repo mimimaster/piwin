@@ -52,6 +52,22 @@ function formatRelativeTime(dateString?: string): string {
   return `${years}y`;
 }
 
+/** Sort sessions: pinned first, then updatedAt descending. */
+function sortByPinnedThenUpdated(list: SessionListItemUi[]): SessionListItemUi[] {
+  const sorted = [...list];
+  sorted.sort((left, right) => {
+    const leftPinned = left.isPinned === true;
+    const rightPinned = right.isPinned === true;
+    if (leftPinned !== rightPinned) {
+      return leftPinned ? -1 : 1;
+    }
+    const leftTime = left.updatedAt ?? '';
+    const rightTime = right.updatedAt ?? '';
+    return rightTime.localeCompare(leftTime);
+  });
+  return sorted;
+}
+
 export type ProjectSessionSidebarProps = {
   projectPath: string | null;
   projectTrusted: boolean;
@@ -65,6 +81,8 @@ export type ProjectSessionSidebarProps = {
   recentProjects: ProjectRecord[];
   sessions: SessionListItemUi[];
   filteredSessions: SessionListItemUi[];
+  /** General-scope sessions for the Conversations section (always visible). */
+  generalSessions: SessionListItemUi[];
   sessionGroups: SessionTimeGroup<SessionListItemUi>[];
   activeSessionId: string | null;
   sessionSearch: string;
@@ -161,7 +179,11 @@ function SessionRowItem({
         </button>
         <button
           type="button"
-          className={isPinned ? 'session-action-btn session-pin-btn active' : 'session-action-btn session-pin-btn'}
+          className={
+            isPinned
+              ? 'session-action-btn session-pin-btn active'
+              : 'session-action-btn session-pin-btn'
+          }
           data-testid="session-pin-btn"
           title={isPinned ? 'Unpin session' : 'Pin session'}
           aria-label={isPinned ? 'Unpin session' : 'Pin session'}
@@ -174,7 +196,11 @@ function SessionRowItem({
         </button>
         <button
           type="button"
-          className={isArchived ? 'session-action-btn session-archive-btn active' : 'session-action-btn session-archive-btn'}
+          className={
+            isArchived
+              ? 'session-action-btn session-archive-btn active'
+              : 'session-action-btn session-archive-btn'
+          }
           data-testid="session-archive-btn"
           title={isArchived ? 'Restore session' : 'Archive session'}
           aria-label={isArchived ? 'Restore session' : 'Archive session'}
@@ -194,7 +220,6 @@ function SessionRowItem({
   );
 }
 
-
 export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactElement {
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
   const [sortBy, setSortBy] = useState<'updated' | 'alphabetical'>('updated');
@@ -204,12 +229,23 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const [showAllGeneralSessions, setShowAllGeneralSessions] = useState<boolean>(false);
 
   const sortedFilteredSessions = useMemo(() => {
-    const list = [...props.filteredSessions];
     if (sortBy === 'alphabetical') {
+      const list = [...props.filteredSessions];
       list.sort((a, b) => a.name.localeCompare(b.name));
+      return list;
     }
-    return list;
+    // 'updated' — pinned first, then updatedAt desc.
+    return sortByPinnedThenUpdated(props.filteredSessions);
   }, [props.filteredSessions, sortBy]);
+
+  const sortedGeneralSessions = useMemo(() => {
+    if (sortBy === 'alphabetical') {
+      const list = [...props.generalSessions];
+      list.sort((a, b) => a.name.localeCompare(b.name));
+      return list;
+    }
+    return sortByPinnedThenUpdated(props.generalSessions);
+  }, [props.generalSessions, sortBy]);
 
   return (
     <aside className="sidebar" aria-label={copy.workspace}>
@@ -334,7 +370,9 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             const displayName = project.displayName ?? projectDisplayName(project.path);
             const projectSessions = isActiveProject ? sortedFilteredSessions : [];
 
-            const activeSessionIndex = projectSessions.findIndex((s) => s.id === props.activeSessionId);
+            const activeSessionIndex = projectSessions.findIndex(
+              (s) => s.id === props.activeSessionId,
+            );
             const hasActiveInHidden = activeSessionIndex >= 6;
             const isProjectExpanded = showAllProjectSessions[project.path] ?? hasActiveInHidden;
             const visibleProjectSessions = isProjectExpanded
@@ -420,8 +458,12 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
 
         {/* SECTION 2: CONVERSATIONS (General / Non-Project Sessions) */}
         {(() => {
-          const generalSessions = (!props.projectPath || props.generalActive) ? sortedFilteredSessions : [];
-          const activeGeneralIndex = generalSessions.findIndex((s) => s.id === props.activeSessionId);
+          // General sessions are maintained independently so the Conversations
+          // section stays populated even when a project is active.
+          const generalSessions = sortedGeneralSessions;
+          const activeGeneralIndex = generalSessions.findIndex(
+            (s) => s.id === props.activeSessionId,
+          );
           const hasGeneralActiveInHidden = activeGeneralIndex >= 6;
           const isGeneralExpanded = showAllGeneralSessions || hasGeneralActiveInHidden;
           const visibleGeneralSessions = isGeneralExpanded

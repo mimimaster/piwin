@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  cancelArtifactInit,
   getActiveArtifactInitCount,
+  getQueuedArtifactInitCount,
   releaseArtifactInit,
   requestArtifactInit,
   resetArtifactInitQueueForTests,
@@ -59,5 +61,30 @@ describe('artifact init queue', () => {
     releaseArtifactInit('a1');
     releaseArtifactInit('a1');
     expect(getActiveArtifactInitCount()).toBe(0);
+  });
+
+  it('cancelling a queued request lets a released slot go to the next live one', async () => {
+    await requestArtifactInit('a1', { priority: 0 });
+    void requestArtifactInit('stale', { priority: 0 });
+    const liveGranted = requestArtifactInit('live', { priority: 0 }).then((grant) => grant.granted);
+    expect(getQueuedArtifactInitCount()).toBe(2);
+
+    // "stale" unmounted while queued — drop it so it cannot burn the slot.
+    cancelArtifactInit('stale');
+    expect(getQueuedArtifactInitCount()).toBe(1);
+
+    releaseArtifactInit('a1');
+    expect(await liveGranted).toBe(true);
+    expect(getActiveArtifactInitCount()).toBe(1);
+    releaseArtifactInit('live');
+  });
+
+  it('cancel is a no-op for an active or unknown id', async () => {
+    await requestArtifactInit('active');
+    cancelArtifactInit('active');
+    expect(getActiveArtifactInitCount()).toBe(1);
+    cancelArtifactInit('never-queued');
+    expect(getQueuedArtifactInitCount()).toBe(0);
+    releaseArtifactInit('active');
   });
 });

@@ -20,6 +20,7 @@ export type ShellSettingsSection =
   | 'pets'
   | 'automation'
   | 'session'
+  | 'usage'
   // Legacy deep links preserved for backward compatibility; consumers should
   // normalize through the section registry before rendering.
   | 'agents'

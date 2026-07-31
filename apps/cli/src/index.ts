@@ -25,6 +25,7 @@ import type {
   HostServerMessage,
   HostStatusData,
   PermissionMode,
+  UsageRollup,
 } from '@piwin/contracts';
 import { formatCapabilityMatrixLines } from '@piwin/contracts';
 import { formatTextModelImageInjection } from '@piwin/contracts';
@@ -82,6 +83,7 @@ Usage:
   piwin doccards rebind <oldPath> <newPath>
   piwin doccards forget <folder>
   piwin cron list [--mock]
+  piwin usage [--project <path> | --global] [--mock]
 
 Host modes: sdk | rpc
 Offline: --mock or PIWIN_MOCK=1
@@ -1854,6 +1856,80 @@ async function commandCron(argv: string[]): Promise<void> {
   }
 }
 
+async function commandUsage(argv: string[]): Promise<void> {
+  const mock = parseMock(argv);
+  const projectPath = parseOptionalProject(argv);
+  const globalFlag = hasFlag(argv, '--global');
+  const runtime = new HostRuntime({
+    mode: 'sdk',
+    mock,
+  });
+  try {
+    const response = await runtime.handleCommand({
+      type: 'usage/get-rollup',
+      ...(globalFlag || !projectPath ? {} : { projectPath }),
+      topSessions: 10,
+    });
+    if (!response.success) {
+      console.error(response.error);
+      process.exitCode = 1;
+      return;
+    }
+    const rollup = (response.data as { rollup?: UsageRollup }).rollup;
+    if (!rollup) {
+      console.error('No rollup returned.');
+      process.exitCode = 1;
+      return;
+    }
+    const scope =
+      rollup.scope.kind === 'global'
+        ? 'global'
+        : rollup.scope.kind === 'project'
+          ? rollup.scope.projectPath
+          : 'general';
+    console.log(`piwin usage — ${scope}`);
+    console.log('---');
+    console.log(
+      `total tokens: ${formatUsageNumber(rollup.totalTokens)}  ` +
+        `input: ${formatUsageNumber(rollup.promptTokens)}  ` +
+        `output: ${formatUsageNumber(rollup.completionTokens)}  ` +
+        `sessions: ${rollup.sessionCount}  turns: ${rollup.entryCount}`,
+    );
+    if (rollup.firstAt) {
+      console.log(`range: ${rollup.firstAt.slice(0, 10)} → ${rollup.lastAt?.slice(0, 10) ?? ''}`);
+    }
+    const models = Object.entries(rollup.byModel).sort(
+      ([, a], [, b]) => b.totalTokens - a.totalTokens,
+    );
+    if (models.length > 0) {
+      console.log('--- by model ---');
+      for (const [modelId, bucket] of models) {
+        console.log(
+          `${modelId}\t${formatUsageNumber(bucket.totalTokens)} total\t` +
+            `${formatUsageNumber(bucket.promptTokens)} in\t${formatUsageNumber(bucket.completionTokens)} out`,
+        );
+      }
+    }
+    if (rollup.bySession.length > 0) {
+      console.log('--- by session (top) ---');
+      for (const session of rollup.bySession) {
+        console.log(
+          `${session.sessionId}\t${formatUsageNumber(session.totalTokens)} total\t` +
+            `${session.entryCount} turns`,
+        );
+      }
+    }
+  } finally {
+    await runtime.dispose();
+  }
+}
+
+function formatUsageNumber(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+  return String(value);
+}
+
 async function main(argv: string[]): Promise<void> {
   const command = argv[0] ?? 'help';
 
@@ -1923,6 +1999,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'host' && argv[1] === 'serve') {
     await commandHostServe(argv);
+    return;
+  }
+  if (command === 'usage') {
+    await commandUsage(argv);
     return;
   }
 

@@ -46,7 +46,8 @@ function createContextValue(
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
-      artifactPreviewEnabled: false,
+      artifactPreviewEnabled: true,
+      artifactCodeFirst: false,
     },
     onPreferencesChange: vi.fn(),
     projectPath: null,
@@ -213,7 +214,7 @@ describe('SettingsShell', () => {
     expect(container.querySelector('[data-testid="legacy-skills"]')).toBeNull();
   });
 
-  it('renders the Artifact preview switch on the Appearance page and toggles it', () => {
+  it('renders the Code-first mode switch on the Appearance page and toggles it', () => {
     const contextValue = createContextValue(vi.fn());
     act(() => {
       root.render(
@@ -228,7 +229,7 @@ describe('SettingsShell', () => {
     });
     // Mantine Switch puts data-testid on the <input> (role="switch") directly.
     const input = container.querySelector<HTMLInputElement>(
-      '[data-testid="artifact-preview-switch"]',
+      '[data-testid="artifact-code-first-switch"]',
     );
     expect(input).not.toBeNull();
     // Starts unchecked (defaults to false).
@@ -239,14 +240,14 @@ describe('SettingsShell', () => {
       input?.click();
     });
     expect(contextValue.onPreferencesChange).toHaveBeenCalledWith(
-      expect.objectContaining({ artifactPreviewEnabled: true }),
+      expect.objectContaining({ artifactCodeFirst: true }),
     );
 
     // Toggle off.
     const mockFn = contextValue.onPreferencesChange as ReturnType<typeof vi.fn>;
     mockFn.mockClear();
     const contextValueOn = createContextValue(vi.fn());
-    contextValueOn.preferences.artifactPreviewEnabled = true;
+    contextValueOn.preferences.artifactCodeFirst = true;
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -259,7 +260,7 @@ describe('SettingsShell', () => {
       );
     });
     const inputOn = container.querySelector<HTMLInputElement>(
-      '[data-testid="artifact-preview-switch"]',
+      '[data-testid="artifact-code-first-switch"]',
     );
     expect(inputOn).not.toBeNull();
     expect(inputOn?.checked).toBe(true);
@@ -267,7 +268,7 @@ describe('SettingsShell', () => {
       inputOn?.click();
     });
     expect(contextValueOn.onPreferencesChange).toHaveBeenCalledWith(
-      expect.objectContaining({ artifactPreviewEnabled: false }),
+      expect.objectContaining({ artifactCodeFirst: false }),
     );
   });
 });

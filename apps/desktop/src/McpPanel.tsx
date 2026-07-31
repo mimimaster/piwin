@@ -288,18 +288,35 @@ export function McpPanel(props: McpPanelProps) {
             onValueChange={(value) => setMainTab(value as 'configured' | 'registry')}
             testId="mcp-main-tabs"
           >
-            <TabsList className="segmented-control" label={isChinese ? 'MCP 视图' : 'MCP views'}>
-              <TabsTrigger value="configured" className="segmented-control-item" testId="mcp-tab-configured">
-                {isChinese ? '已配置' : 'Configured'}
-              </TabsTrigger>
-              <TabsTrigger value="registry" className="segmented-control-item" testId="mcp-tab-registry">
-                {isChinese ? '市场' : 'Marketplace'}
-              </TabsTrigger>
-            </TabsList>
+            <div className="mcp-header-bar" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 16 }}>
+              <PageTitle
+                title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
+                description={
+                  mainTab === 'configured'
+                    ? (isChinese ? '管理本地 MCP 服务器配置。点击服务器卡片编辑详情。' : 'Manage local MCP server configurations. Click a server to edit details.')
+                    : (isChinese ? '从开放市场浏览并安装社区 MCP 服务器。' : 'Browse and install MCP servers from the community marketplace.')
+                }
+              />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                <TabsList className="segmented-control" label={isChinese ? 'MCP 视图' : 'MCP views'}>
+                  <TabsTrigger value="configured" className="segmented-control-item" testId="mcp-tab-configured">
+                    {isChinese ? '已配置' : 'Configured'}
+                  </TabsTrigger>
+                  <TabsTrigger value="registry" className="segmented-control-item" testId="mcp-tab-registry">
+                    {isChinese ? '市场' : 'Marketplace'}
+                  </TabsTrigger>
+                </TabsList>
+                {mainTab === 'configured' && (
+                  <Button size="compact" variant="primary" onClick={openAddEditor} data-testid="mcp-add-btn">
+                    + {isChinese ? '添加服务器' : 'Add Server'}
+                  </Button>
+                )}
+              </div>
+            </div>
 
             <TabsContent value="configured" className="mcp-tab-content">
               {(error || info) ? (
-                <div className="ui-feedback-host" aria-live="polite">
+                <div className="ui-feedback-host" aria-live="polite" style={{ marginBottom: 16 }}>
                   {error ? (
                     <Notice tone="error" title={isChinese ? 'MCP 操作失败' : 'MCP action failed'}>
                       {error}
@@ -309,21 +326,16 @@ export function McpPanel(props: McpPanelProps) {
                 </div>
               ) : null}
 
-              <PageTitle
-                title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
-                description={isChinese ? '管理本地 MCP 服务器配置。点击服务器编辑详情，或添加新服务器。' : 'Manage local MCP server configurations. Click a server to edit, or add a new one.'}
-                trailing={
-                  <Button size="compact" variant="primary" onClick={openAddEditor} data-testid="mcp-add-btn">
-                    + {isChinese ? '添加' : 'Add'}
-                  </Button>
-                }
-              />
-
               {loading ? (
                 <div className="mcp-loading-state"><Spinner /></div>
               ) : serverIds.length === 0 ? (
-                <div className="mcp-empty-list">
-                  <p className="muted">{isChinese ? '尚未配置服务器。点击「添加」创建第一个 MCP 服务器。' : 'No servers configured. Click "Add" to create your first MCP server.'}</p>
+                <div className="mcp-empty-list" style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  <p className="muted" style={{ marginBottom: 16 }}>
+                    {isChinese ? '尚未配置服务器。点击「添加服务器」创建第一个 MCP 服务器。' : 'No servers configured. Click "Add Server" to create your first MCP server.'}
+                  </p>
+                  <Button size="compact" variant="primary" onClick={openAddEditor}>
+                    + {isChinese ? '添加服务器' : 'Add Server'}
+                  </Button>
                 </div>
               ) : (
                 <ul className="ext-list mcp-server-list-clean" data-testid="mcp-server-list">
@@ -412,10 +424,6 @@ export function McpPanel(props: McpPanelProps) {
             </TabsContent>
 
             <TabsContent value="registry" className="mcp-tab-content" testId="mcp-registry-panel">
-              <PageTitle
-                title={isChinese ? 'MCP 市场' : 'MCP Marketplace'}
-                description={isChinese ? '从开放市场浏览并安装 MCP 服务器' : 'Browse and install MCP servers from the community.'}
-              />
               <div className="settings-toolbar mcp-marketplace-search">
                 <TextInput
                   toolbar

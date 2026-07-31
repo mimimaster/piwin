@@ -23,7 +23,8 @@ export type HostRequestAdapters = {
       | 'secrets/set'
       | 'secrets/get'
       | 'project/permissions-list'
-      | 'project/permissions-revoke';
+      | 'project/permissions-revoke'
+      | 'usage/get-rollup';
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
     apiKey?: string;
@@ -32,6 +33,10 @@ export type HostRequestAdapters = {
     secret?: string;
     path?: string;
     key?: string;
+    scope?: import('@piwin/contracts').SessionScope;
+    projectPath?: string;
+    window?: { from?: string; to?: string };
+    topSessions?: number;
   }) => Promise<HostResponse>;
   requestSkills: (command: {
     type:
@@ -197,6 +202,25 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           type: 'secrets/get',
           providerId: command.providerId ?? '',
         });
+      }
+      if (command.type === 'usage/get-rollup') {
+        const payload: {
+          type: 'usage/get-rollup';
+          topSessions?: number;
+          window?: { from?: string; to?: string };
+          projectPath?: string;
+        } = {
+          type: 'usage/get-rollup',
+        };
+        const projectPath =
+          command.projectPath ??
+          (command.scope && command.scope.kind === 'project'
+            ? command.scope.projectPath
+            : undefined);
+        if (projectPath) payload.projectPath = projectPath;
+        if (command.window) payload.window = command.window;
+        if (command.topSessions !== undefined) payload.topSessions = command.topSessions;
+        return hostClient.request(payload);
       }
       return hostClient.request({ type: 'config/set', config: command.config! });
     },

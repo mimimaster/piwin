@@ -28,17 +28,10 @@ export type ArtifactHeightPhase = 'protected' | 'final-trim' | 'interactive';
 export type ArtifactHeightMeasurementMode = 'normal' | 'interaction' | 'trim';
 
 export type ArtifactSecurityBlockReason =
-  | 'blocked-empty'
-  | 'blocked-too-large'
-  | 'blocked-external-resource';
+  'blocked-empty' | 'blocked-too-large' | 'blocked-external-resource';
 
 export type ExternalArtifactResourceKind =
-  | 'script'
-  | 'link'
-  | 'image'
-  | 'iframe'
-  | 'object'
-  | 'media';
+  'script' | 'link' | 'image' | 'iframe' | 'object' | 'media';
 
 export type ExternalArtifactResource = {
   kind: ExternalArtifactResourceKind;
@@ -119,6 +112,14 @@ export type ArtifactThemeContractResult = {
   changed: boolean;
 };
 
+export type ArtifactLayoutContractIssueKind = 'full-page-height';
+
+export type ArtifactLayoutContractRepair = {
+  kind: ArtifactLayoutContractIssueKind;
+  from: string;
+  to: string;
+};
+
 export type StreamablePreviewResult = {
   canStream: boolean;
   previewSource: string;
@@ -130,9 +131,7 @@ export type OpenArtifactFence = {
   contentStartIndex: number;
 };
 
-export type ArtifactBridgeMessageType =
-  | 'piwin-artifact:ready'
-  | 'piwin-artifact:resize';
+export type ArtifactBridgeMessageType = 'piwin-artifact:ready' | 'piwin-artifact:resize';
 
 export type ArtifactBridgeMessage = {
   type: ArtifactBridgeMessageType;
@@ -160,17 +159,19 @@ export type FlashcardOpenSourceActionPayload = {
   sourceLine?: number;
 };
 
-export type ArtifactActionMessage = {
-  type: 'piwin-artifact:action';
-  channelId: string;
-  action: 'flashcard/rate';
-  payload: FlashcardRateActionPayload;
-} | {
-  type: 'piwin-artifact:action';
-  channelId: string;
-  action: 'flashcard/open-source';
-  payload: FlashcardOpenSourceActionPayload;
-};
+export type ArtifactActionMessage =
+  | {
+      type: 'piwin-artifact:action';
+      channelId: string;
+      action: 'flashcard/rate';
+      payload: FlashcardRateActionPayload;
+    }
+  | {
+      type: 'piwin-artifact:action';
+      channelId: string;
+      action: 'flashcard/open-source';
+      payload: FlashcardOpenSourceActionPayload;
+    };
 
 export type ArtifactPreviewDecision =
   | {
@@ -181,6 +182,8 @@ export type ArtifactPreviewDecision =
       srcdoc: string;
       csp: string;
       themeRepairs: ArtifactThemeContractRepair[];
+      /** Soft layout repairs (e.g. viewport-unit heights) applied for preview. */
+      layoutRepairs: ArtifactLayoutContractRepair[];
     }
   | {
       kind: 'blocked';

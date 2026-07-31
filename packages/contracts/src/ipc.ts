@@ -408,6 +408,19 @@ export type HostCommand =
   | { id?: string; type: 'hooks/set'; hooks: HookDefinition[] }
   | { id?: string; type: 'todo/get'; sessionId: string }
   | { id?: string; type: 'todo/set'; sessionId: string; items: SessionTodoList['items'] }
+  /** CE-OBS: token usage rollup (global / project / session). */
+  | {
+      id?: string;
+      type: 'usage/get-rollup';
+      /** When set, restrict to one project (else projectPath below). */
+      scope?: import('./host.js').SessionScope;
+      /** Legacy project path filter (project scope shorthand). */
+      projectPath?: string;
+      /** Optional ISO datetime window [from, to]. */
+      window?: { from?: string; to?: string };
+      /** Max number of per-session rows in the breakdown. Default 20. */
+      topSessions?: number;
+    }
   | {
       id?: string;
       type: 'extension/ui_resolve';

@@ -177,22 +177,22 @@ export function AppearancePage(): ReactElement {
           />
         </FieldRow>
 
-        {/* Artifact 动态渲染 toggle */}
+        {/* Artifact 代码优先 toggle */}
         <FieldRow
-          label={isChinese ? 'Artifact 动态渲染' : 'Artifact live rendering'}
+          label={isChinese ? '代码优先' : 'Code-first mode'}
           description={
             locale === 'zh-CN'
-              ? '开启后代码块将提供 Artifact 渲染按钮以实时预览 HTML 与 Web 内容。'
-              : 'When enabled, code blocks display an Artifact button for live HTML/Web preview.'
+              ? '开启后生成 Artifact 时优先展示源代码，悬停代码块可通过 Preview 按钮切换具现 UI。'
+              : 'When enabled, Artifacts display source code first with a Preview toggle to render the UI.'
           }
         >
           <Switch
-            checked={preferences.artifactPreviewEnabled}
+            checked={preferences.artifactCodeFirst}
             onCheckedChange={(checked) => {
-              updatePreference(preferences, 'artifactPreviewEnabled', checked, onPreferencesChange);
+              updatePreference(preferences, 'artifactCodeFirst', checked, onPreferencesChange);
             }}
-            aria-label={isChinese ? 'Artifact 动态渲染' : 'Artifact live rendering'}
-            testId="artifact-preview-switch"
+            aria-label={isChinese ? '代码优先' : 'Code-first mode'}
+            testId="artifact-code-first-switch"
           />
         </FieldRow>
 
@@ -208,7 +208,8 @@ export function AppearancePage(): ReactElement {
                 codeWrap: false,
                 toolDensity: 'comfortable',
                 workDetailsExpanded: 'auto',
-                artifactPreviewEnabled: false,
+                artifactPreviewEnabled: true,
+                artifactCodeFirst: false,
               };
               saveDesktopPreferences(defaults);
               onPreferencesChange(defaults);

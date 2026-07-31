@@ -15,11 +15,13 @@ export type DesktopPreferences = {
   codeWrap: boolean;
   toolDensity: ToolCallDensity;
   workDetailsExpanded: WorkDetailsExpanded;
-  /**
-   * When false (default), chat never offers the heavy Artifact iframe path
-   * except the flashcard exception (design §6). Markdown + ordinary code only.
-   */
+  /** Always enabled by default */
   artifactPreviewEnabled: boolean;
+  /**
+   * When true, artifact blocks display source code first with a preview toggle on hover.
+   * When false (default), artifact blocks immediately render dynamic UI.
+   */
+  artifactCodeFirst: boolean;
 };
 
 const TOOL_DENSITY_KEY = 'piwin.desktop.toolCallDensity';
@@ -28,6 +30,7 @@ const CODE_TEXT_SIZE_KEY = 'piwin.desktop.codeTextSize';
 const CODE_WRAP_KEY = 'piwin.desktop.codeWrap';
 const WORK_DETAILS_EXPANDED_KEY = 'piwin.desktop.workDetailsExpanded';
 const ARTIFACT_PREVIEW_KEY = 'piwin.desktop.artifactPreviewEnabled';
+const ARTIFACT_CODE_FIRST_KEY = 'piwin.desktop.artifactCodeFirst';
 
 function readString(key: string): string | null {
   try {
@@ -82,7 +85,8 @@ export function loadDesktopPreferences(): DesktopPreferences {
     codeWrap: readString(CODE_WRAP_KEY) === 'true',
     toolDensity: parseToolCallDensity(readString(TOOL_DENSITY_KEY)),
     workDetailsExpanded: parseWorkDetails(readString(WORK_DETAILS_EXPANDED_KEY)),
-    artifactPreviewEnabled: parseBoolean(readString(ARTIFACT_PREVIEW_KEY), false),
+    artifactPreviewEnabled: true,
+    artifactCodeFirst: parseBoolean(readString(ARTIFACT_CODE_FIRST_KEY), false),
   };
 }
 
@@ -92,7 +96,8 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   writeString(CODE_TEXT_SIZE_KEY, prefs.codeTextSize);
   writeString(CODE_WRAP_KEY, String(prefs.codeWrap));
   writeString(WORK_DETAILS_EXPANDED_KEY, prefs.workDetailsExpanded);
-  writeString(ARTIFACT_PREVIEW_KEY, String(prefs.artifactPreviewEnabled));
+  writeString(ARTIFACT_PREVIEW_KEY, 'true');
+  writeString(ARTIFACT_CODE_FIRST_KEY, String(prefs.artifactCodeFirst));
 }
 
 // ---- Backward-compat helpers (used by existing callers and the old tests) ----

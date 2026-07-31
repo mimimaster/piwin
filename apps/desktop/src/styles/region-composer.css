@@ -938,6 +938,52 @@
   display: inline-flex;
 }
 
+.context-usage-hover-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 1000;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface-overlay, #1f242d);
+  border: 1px solid color-mix(in srgb, var(--text, #fff) 12%, transparent);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  pointer-events: none;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text, #e2e8f0);
+  animation: context-usage-hover-tooltip-in 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes context-usage-hover-tooltip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.context-usage-hover-tooltip-used {
+  font-weight: 550;
+  color: var(--text, #f1f5f9);
+}
+
+.context-usage-hover-tooltip-cache {
+  font-weight: 400;
+  color: var(--muted, #94a3b8);
+  margin-top: 4px;
+}
+
+.context-usage-hover-tooltip-expired {
+  font-weight: 500;
+  color: #f97316;
+  margin-top: 4px;
+}
+
 .context-usage-ring {
   display: grid;
   place-items: center;

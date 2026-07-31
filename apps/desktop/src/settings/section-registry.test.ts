@@ -23,6 +23,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'session',
   'automation',
   'pets',
+  'usage',
 ];
 
 describe('section registry', () => {

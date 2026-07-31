@@ -17,8 +17,8 @@ export const NATIVE_SVG_ARTIFACT_LANGUAGES = ['svg'] as const;
 
 export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 
-export const MIN_ARTIFACT_IFRAME_HEIGHT = 160;
-export const INITIAL_ARTIFACT_IFRAME_HEIGHT = 260;
+export const MIN_ARTIFACT_IFRAME_HEIGHT = 40;
+export const INITIAL_ARTIFACT_IFRAME_HEIGHT = 80;
 export const MAX_ARTIFACT_IFRAME_HEIGHT = 900;
 /** User-expanded max height for tall dashboards (D-ART-06). */
 export const MAX_ARTIFACT_EXPANDED_HEIGHT = 2200;
@@ -29,6 +29,13 @@ export const MAX_CONCURRENT_ARTIFACT_INITS = 1;
 
 /** Confirm shrink after interaction before applying a smaller height. */
 export const ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS = 70;
+
+/**
+ * Settle window after ready during which measured heights may shrink back to
+ * the real content height (final-trim). Afterwards the height locks and only
+ * grows again. Matches openwebui_m ARTIFACT_FINAL_TRIM_SETTLE_MS.
+ */
+export const ARTIFACT_FINAL_TRIM_SETTLE_MS = 900;
 
 /** Re-measure ladder after ready (ms). */
 export const ARTIFACT_HEIGHT_MEASURE_LADDER_MS = [0, 80, 180, 360, 720, 1200] as const;

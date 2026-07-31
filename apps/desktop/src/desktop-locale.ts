@@ -76,6 +76,7 @@ export type DesktopTranslator = {
       automation: string;
       agents: string;
       pets: string;
+      usage: string;
     };
     provider: {
       search: string;
@@ -258,6 +259,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         automation: isChinese ? '自动化' : 'Automation',
         agents: isChinese ? 'Agent' : 'Sub-agents',
         pets: isChinese ? '宠物' : 'Companion',
+        usage: isChinese ? '用量统计' : 'Usage',
       },
       provider: {
         search: isChinese ? '搜索提供商…' : 'Search providers…',

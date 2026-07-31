@@ -16,7 +16,17 @@
   letter-spacing: 0;
 }
 .piwin-button--compact { min-height: var(--control-height-compact); }
-.piwin-button--primary { box-shadow: none; }
+.piwin-button--primary {
+  box-shadow: none;
+  color: var(--bg, #000000);
+}
+.piwin-button--primary .mantine-Button-label {
+  color: var(--bg, #000000);
+}
+.piwin-button--primary svg {
+  color: var(--bg, #000000);
+  stroke: currentColor;
+}
 .piwin-button--ghost { color: var(--muted); }
 .piwin-button--danger { color: var(--danger); }
 
@@ -538,6 +548,12 @@
   font-size: 12.5px;
   font-weight: 550;
   padding-inline: 10px;
+  color: var(--muted);
+  transition: color 150ms ease;
+}
+
+[data-mantine-color-scheme] .piwin-segmented-control .mantine-SegmentedControl-label[data-active] {
+  color: var(--bg, #000000);
 }
 
 /* ── Card ────────────────────────────────────────────────────────── */

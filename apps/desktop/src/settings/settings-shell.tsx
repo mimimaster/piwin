@@ -213,6 +213,23 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
     </svg>
   ),
+  usage: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 3v18h18" />
+      <path d="M7 15v3" />
+      <path d="M12 10v8" />
+      <path d="M17 5v13" />
+    </svg>
+  ),
 };
 
 export type SettingsShellProps = {
@@ -247,7 +264,12 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
         }
       }}
     >
-      <div className="settings-modal-dialog" role="dialog" aria-modal="true" aria-label={copy.settings}>
+      <div
+        className="settings-modal-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={copy.settings}
+      >
         <aside className="settings-nav">
           <div className="settings-nav-brand">
             <span className="settings-nav-mark" aria-hidden>
@@ -280,7 +302,9 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
           <nav className="settings-nav-list" aria-label={copy.settings}>
             {SETTINGS_GROUPS.map((group) => (
               <div key={group.id} className="settings-nav-group">
-                <div className="settings-nav-group-label">{translator.settings[group.labelKey]}</div>
+                <div className="settings-nav-group-label">
+                  {translator.settings[group.labelKey]}
+                </div>
                 {sectionsForGroup(group.id).map((item) => (
                   <button
                     key={item.id}

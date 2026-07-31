@@ -21,7 +21,7 @@
   min-height: 0;
   gap: 0;
   padding: 10px 8px;
-  background: var(--sidebar-bg, #f0f1f4);
+  background: var(--sidebar);
   border-right: none;
   transition:
     opacity 200ms ease,

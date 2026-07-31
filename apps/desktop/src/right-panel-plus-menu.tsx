@@ -3,12 +3,7 @@
  */
 
 import { type ReactElement } from 'react';
-import {
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  IconButton,
-} from '@piwin/ui-kit';
+import { DropdownMenu, DropdownMenuItem, DropdownMenuLabel, IconButton } from '@piwin/ui-kit';
 import { IconPlus } from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
 import { SECTION_META, sectionLabel, type RightPanelTab } from './right-panel-sections';
@@ -50,7 +45,7 @@ export function RightPanelPlusMenu(props: RightPanelPlusMenuProps): ReactElement
       <DropdownMenuLabel className="right-panel-plus-caption muted">
         {props.locale === 'zh-CN' ? '打开' : 'Open'}
       </DropdownMenuLabel>
-      {SECTION_META.map((tab) => {
+      {SECTION_META.filter((tab) => !tab.hidden).map((tab) => {
         const labelText = sectionLabel(tab.id, props.locale);
         const alreadyOpen = props.openTabs.includes(tab.id);
         return (

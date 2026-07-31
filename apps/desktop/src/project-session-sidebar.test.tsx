@@ -50,6 +50,7 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
     ],
     sessions: [],
     filteredSessions: [],
+    generalSessions: [],
     sessionGroups: [],
     activeSessionId: null,
     sessionSearch: '',
@@ -71,7 +72,7 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
     root.render(
       <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
         <ProjectSessionSidebar {...defaultProps} />
-      </PiwinUiProvider>
+      </PiwinUiProvider>,
     );
   });
 

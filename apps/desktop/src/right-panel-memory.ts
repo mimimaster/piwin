@@ -23,7 +23,7 @@ export const RIGHT_PANEL_STATE_STORAGE_KEY = 'piwin.desktop.rightPanelTabs.v1';
 /** @deprecated legacy key — read once for migration */
 export const RIGHT_PANEL_VIEW_STORAGE_KEY = 'piwin.desktop.rightPanelView';
 
-/** Tabs exposed in the home grid and + menu. */
+/** Kinds that can be stored/restored as open right-panel tabs. */
 const ALLOWED_KINDS: RightPanelTabKind[] = ['files', 'terminal', 'browser', 'review', 'docPreview'];
 
 function isAllowedKind(value: unknown): value is RightPanelTabKind {

@@ -14,7 +14,7 @@ import type {
   SessionSearchHit,
   ThemeManifest,
 } from '@piwin/contracts';
-import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
+import { chatUiReducer, createInitialChatUiState, type SessionListItemUi } from './chat-reducer';
 import { HostClient } from './host-client';
 import { useHostRequestAdapters } from './host-request-adapters';
 import { WorkspaceTitlebar } from './workspace-titlebar';
@@ -111,6 +111,15 @@ export type AppProps = {
   /** Root callback that resolves, applies document tokens, and stores a manifest. */
   onThemeApplied: (theme: ThemeManifest) => void;
 };
+
+/** Merge two session lists, deduplicating by id (first occurrence wins). */
+function mergeSessionsForLookup(
+  primary: SessionListItemUi[],
+  secondary: SessionListItemUi[],
+): SessionListItemUi[] {
+  const seen = new Set(primary.map((session) => session.id));
+  return [...primary, ...secondary.filter((session) => !seen.has(session.id))];
+}
 
 export function App({ activeTheme, onThemeApplied }: AppProps) {
   const hostClient = useMemo(() => new HostClient({ transport: 'auto', hostMock: false }), []);
@@ -1000,6 +1009,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     });
   }, [sessionSearch, state.sessions, remoteSearchHits]);
 
+  // General sessions are maintained independently so the Conversations sidebar
+  // section stays populated even when a project is active. Client-side filter
+  // only — remote search is scope-specific and doesn't cover general sessions.
+  const filteredGeneralSessions = useMemo(() => {
+    const query = sessionSearch.trim().toLowerCase();
+    if (!query) {
+      return state.generalSessions;
+    }
+    return state.generalSessions.filter((session) => {
+      const haystack = `${session.name} ${session.lastPreview ?? ''}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [sessionSearch, state.generalSessions]);
+
   const sessionGroups = useMemo(() => groupSessionsByRecency(filteredSessions), [filteredSessions]);
 
   const sessionTools = useMemo(() => collectSessionTools(state.messages), [state.messages]);
@@ -1293,6 +1316,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               recentProjects={recentProjects}
               sessions={state.sessions}
               filteredSessions={filteredSessions}
+              generalSessions={filteredGeneralSessions}
               sessionGroups={sessionGroups}
               activeSessionId={state.activeSessionId}
               sessionSearch={sessionSearch}
@@ -1303,6 +1327,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 setShowArchivedSessions(next);
                 if (state.projectPath) {
                   void hydrateSessions(state.projectPath, { includeArchived: next });
+                  // Also refresh general sessions so the Conversations section
+                  // respects the archive filter while a project is active.
+                  void hydrateSessions({ kind: 'general' }, { includeArchived: next });
                 } else {
                   void hydrateSessions({ kind: 'general' }, { includeArchived: next });
                 }
@@ -1478,6 +1505,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     workDetailsExpanded={preferences.workDetailsExpanded}
                     toolDensity={preferences.toolDensity}
                     artifactPreviewEnabled={preferences.artifactPreviewEnabled}
+                    artifactCodeFirst={preferences.artifactCodeFirst}
                     plan={sessionPlan}
                     {...(config?.artifact?.maxBytes !== undefined
                       ? { artifactMaxBytes: config.artifact.maxBytes }
@@ -1688,7 +1716,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           onExtensionUiResolve={(payload) => void handleExtensionUiResolve(payload)}
           sessionMenu={sessionMenu}
           onCloseSessionMenu={() => setSessionMenu(null)}
-          sessions={state.sessions}
+          sessions={mergeSessionsForLookup(state.sessions, state.generalSessions)}
           showArchivedSessions={showArchivedSessions}
           onSessionMenuAction={(sessionId, action) => {
             if (action === 'delete') {

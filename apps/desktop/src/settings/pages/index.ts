@@ -15,6 +15,7 @@ import { ExtensionsPage } from './extensions-page';
 import { PromptsPage } from './prompts-page';
 import { AutomationPage } from './automation-page';
 import { PetsPage } from './pets-page';
+import { UsagePage } from './usage-page';
 
 registerSettingsSection('general', GeneralPage);
 registerSettingsSection('appearance', AppearancePage);
@@ -28,3 +29,4 @@ registerSettingsSection('extensions', ExtensionsPage);
 registerSettingsSection('prompts', PromptsPage);
 registerSettingsSection('automation', AutomationPage);
 registerSettingsSection('pets', PetsPage);
+registerSettingsSection('usage', UsagePage);

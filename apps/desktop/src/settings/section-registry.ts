@@ -23,7 +23,8 @@ export type SettingsSectionId =
   | 'web'
   | 'session'
   | 'automation'
-  | 'pets';
+  | 'pets'
+  | 'usage';
 
 /** Legacy settings deep links that now redirect to a canonical section. */
 export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionId>> = {
@@ -57,6 +58,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'extensions', group: 'integrations', labelKey: 'extensions', beta: true },
   { id: 'prompts', group: 'integrations', labelKey: 'prompts' },
   { id: 'automation', group: 'system', labelKey: 'automation', beta: true },
+  { id: 'usage', group: 'system', labelKey: 'usage' },
   { id: 'pets', group: 'personalization', labelKey: 'pets' },
 ] as const;
 

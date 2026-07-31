@@ -106,12 +106,14 @@ import {
   mergeProductHistoryIntoPrompt,
   exportTranscript,
   suggestSessionExportBasename,
+  appendUsageRecord,
 } from '@piwin/session';
 import type {
   ContextUsageSnapshot,
   ExecutionMode,
   SessionResumeData,
   SessionTranscriptMessage,
+  UsageRecord,
 } from '@piwin/contracts';
 import { estimateMockUsage } from './usage-map.js';
 import { createTranscriptRecorder } from './transcript-recorder.js';
@@ -137,6 +139,7 @@ import {
   getPiwinSessionTranscriptPath,
   getPiwinSessionPlanPath,
   getPiwinSessionDir,
+  getPiwinUsageLedgerPath,
 } from './paths.js';
 import { buildPermissionRequestContext } from './permission-context.js';
 import { fail, ok } from './response-helpers.js';
@@ -1611,6 +1614,11 @@ export class HostRuntime {
       }
       if (event.type === 'usage/update') {
         this.sessionUsage.set(session.id, event.usage);
+        // CE-OBS: only agent_end (assistant-usage) is a billable per-turn
+        // count. pi-contextUsage is cumulative context occupancy — never sum.
+        if (event.usage.source !== 'pi-contextUsage') {
+          void this.recordUsageToLedger(session.id, event.usage);
+        }
       }
       // CE-OBS: if mock/host did not emit usage, estimate after assistant message ends.
       if (correlatedEvent.type === 'message/end') {
@@ -2029,6 +2037,37 @@ export class HostRuntime {
     }
   }
 
+  private async recordUsageToLedger(sessionId: string, usage: ContextUsageSnapshot): Promise<void> {
+    const totalTokens = usage.totalTokens ?? usage.tokensUsed;
+    if (totalTokens === undefined || !Number.isFinite(totalTokens)) {
+      return;
+    }
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const ledgerPath = getPiwinUsageLedgerPath(rootDir);
+    const projectPath = this.sessionProjects.get(sessionId) ?? '';
+    const modelRef = this.sessionModels.get(sessionId);
+    const record: UsageRecord = {
+      sessionId,
+      projectPath: projectPath.trim().length > 0 ? projectPath : null,
+      ...(modelRef?.modelId ? { modelId: modelRef.modelId } : {}),
+      ...(usage.promptTokens !== undefined ? { promptTokens: usage.promptTokens } : {}),
+      ...(usage.completionTokens !== undefined ? { completionTokens: usage.completionTokens } : {}),
+      totalTokens,
+      source: usage.source === 'host-estimate' ? 'host-estimate' : 'assistant-usage',
+      recordedAt: new Date().toISOString(),
+    };
+    try {
+      await appendUsageRecord(ledgerPath, record);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `usage ledger write failed: ${message}`,
+      });
+    }
+  }
+
   private async maybeEmitUsageOnMessageEnd(sessionId: string, messageId: string): Promise<void> {
     const existing = this.sessionUsage.get(sessionId);
     if (existing && existing.updatedAt) {
@@ -2046,6 +2085,7 @@ export class HostRuntime {
       const promptText = this.sessionLastPromptText.get(sessionId) ?? '';
       const usage = estimateMockUsage(sessionId, promptText, message.text);
       this.sessionUsage.set(sessionId, usage);
+      void this.recordUsageToLedger(sessionId, usage);
       this.push({
         type: 'event',
         sessionId,

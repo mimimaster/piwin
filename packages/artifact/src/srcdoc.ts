@@ -56,7 +56,9 @@ html {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  background: transparent;
+  min-height: auto !important;
+  height: auto !important;
+  background: transparent !important;
   overflow: hidden;
 }
 *, *::before, *::after { box-sizing: inherit; }
@@ -66,21 +68,30 @@ body {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  background: transparent;
+  min-height: auto !important;
+  height: auto !important;
+  background: transparent !important;
   color: var(--piwin-artifact-text);
   font-family: var(--piwin-artifact-font);
   overflow: hidden;
   overflow-wrap: break-word;
 }
+body > *, body > div {
+  min-height: auto !important;
+}
 img, svg, canvas, video { max-width: 100%; height: auto; }
 a { color: var(--piwin-artifact-accent); }
 button, input, select, textarea { font: inherit; }
-.piwin-artifact-root {
+.piwin-artifact-root,
+.artifact-root,
+.owi-artifact-root {
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  padding: 8px;
-  background: transparent;
+  min-height: auto !important;
+  height: auto !important;
+  padding: 4px 0;
+  background: transparent !important;
   color: var(--piwin-artifact-text);
 }
 .piwin-artifact-surface {
@@ -152,10 +163,43 @@ export function buildArtifactBridgeBootstrapScript(channelId: string): string {
     if (style.display === 'none' || style.visibility === 'hidden') return false;
     return true;
   };
+  var readElementBottom = function (element) {
+    var rect = element.getBoundingClientRect();
+    var elementTop = rect.top + window.scrollY;
+    var elementBottom = Number.isFinite(rect.bottom)
+      ? rect.bottom + window.scrollY
+      : elementTop + (rect.height || 0);
+    var style = window.getComputedStyle(element);
+    // Keep visible overflow measurable, but let ancestor clipping prevent
+    // scroll containers from inflating the iframe.
+    if (style.overflowY === 'visible') {
+      elementBottom = Math.max(elementBottom, elementTop + (element.scrollHeight || 0));
+    }
+    return Math.max(elementBottom, elementTop + (element.offsetHeight || 0));
+  };
+  var clipToAncestorBounds = function (element, bottom) {
+    var ancestor = element.parentElement;
+    while (ancestor) {
+      var style = window.getComputedStyle(ancestor);
+      if (style.overflowY !== 'visible') {
+        var rect = ancestor.getBoundingClientRect();
+        if (Number.isFinite(rect.bottom)) {
+          bottom = Math.min(bottom, rect.bottom + window.scrollY);
+        }
+      }
+      ancestor = ancestor.parentElement;
+    }
+    return bottom;
+  };
+  var readVisibleElementBottom = function (element) {
+    if (!element || !isVisibleElement(element)) return 0;
+    return clipToAncestorBounds(element, readElementBottom(element));
+  };
   var readRenderedBoxHeight = function (element) {
     if (!element || !isVisibleElement(element)) return 0;
     var rect = element.getBoundingClientRect();
-    return Math.max(0, rect.height || 0, element.scrollHeight || 0, element.offsetHeight || 0);
+    var elementTop = rect.top + window.scrollY;
+    return Math.max(0, readVisibleElementBottom(element) - elementTop);
   };
   var readVisibleBoundsHeight = function (root) {
     if (!root || !root.querySelectorAll) return 0;
@@ -163,15 +207,8 @@ export function buildArtifactBridgeBootstrapScript(channelId: string): string {
     var rootTop = rootRect.top + window.scrollY;
     var bottom = rootTop + readRenderedBoxHeight(root);
     root.querySelectorAll('*').forEach(function (element) {
-      if (!isVisibleElement(element)) return;
-      var rect = element.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) return;
-      var elementTop = rect.top + window.scrollY;
-      var elementBoxHeight = Math.max(rect.height || 0, element.scrollHeight || 0, element.offsetHeight || 0);
-      if (Number.isFinite(rect.bottom)) bottom = Math.max(bottom, rect.bottom + window.scrollY);
-      if (Number.isFinite(elementTop) && elementBoxHeight > 0) {
-        bottom = Math.max(bottom, elementTop + elementBoxHeight);
-      }
+      var elementBottom = readVisibleElementBottom(element);
+      if (Number.isFinite(elementBottom)) bottom = Math.max(bottom, elementBottom);
     });
     return Math.max(0, bottom - rootTop);
   };

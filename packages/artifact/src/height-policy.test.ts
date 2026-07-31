@@ -21,7 +21,7 @@ describe('normalizeArtifactHeight', () => {
 
   it('raises tiny positive measurements to the minimum height', () => {
     expect(
-      normalizeArtifactHeight(42, MIN_ARTIFACT_IFRAME_HEIGHT, INITIAL_ARTIFACT_IFRAME_HEIGHT),
+      normalizeArtifactHeight(12, MIN_ARTIFACT_IFRAME_HEIGHT, INITIAL_ARTIFACT_IFRAME_HEIGHT),
     ).toBe(MIN_ARTIFACT_IFRAME_HEIGHT);
   });
 });
@@ -86,6 +86,36 @@ describe('resolveImmediateArtifactHeight', () => {
         initialHeight: INITIAL_ARTIFACT_IFRAME_HEIGHT,
       }),
     ).toBe(360);
+  });
+
+  it('final-trim phase allows shrink back to content height', () => {
+    // A tall artifact (e.g. after Expand or a spiked measurement) must be able
+    // to recover down to the real content height during the settle window.
+    expect(
+      resolveImmediateArtifactHeight({
+        height: 240,
+        currentHeight: 900,
+        floor: 900,
+        phase: 'final-trim',
+        mode: 'normal',
+        minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
+        initialHeight: INITIAL_ARTIFACT_IFRAME_HEIGHT,
+      }),
+    ).toBe(240);
+  });
+
+  it('final-trim phase still grows when content is taller', () => {
+    expect(
+      resolveImmediateArtifactHeight({
+        height: 520,
+        currentHeight: 240,
+        floor: 240,
+        phase: 'final-trim',
+        mode: 'normal',
+        minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
+        initialHeight: INITIAL_ARTIFACT_IFRAME_HEIGHT,
+      }),
+    ).toBe(520);
   });
 });
 
