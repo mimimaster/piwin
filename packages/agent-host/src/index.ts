@@ -70,7 +70,16 @@ export {
   getPiwinSessionsDir,
   getPiwinSessionDir,
   getPiwinSessionTranscriptPath,
+  getPiwinSessionWalkthroughDir,
+  getPiwinSessionWalkthroughPath,
 } from './paths.js';
+export {
+  listWalkthroughs,
+  loadWalkthrough,
+  saveWalkthrough,
+  deleteWalkthrough,
+  deleteSessionWalkthroughs,
+} from './walkthrough-store.js';
 export { buildSessionTools, attachToolsToPiSession } from './session-tools.js';
 export type {
   SessionToolRegistration,
