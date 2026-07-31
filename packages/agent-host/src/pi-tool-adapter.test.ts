@@ -7,7 +7,11 @@ describe('toPiCustomTool', () => {
     const hostTool: HostToolDefinition = {
       name: 'web_search',
       description: 'search',
-      parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+      parameters: {
+        type: 'object',
+        properties: { query: { type: 'string' } },
+        required: ['query'],
+      },
       async execute(args) {
         return JSON.stringify({ query: args.query, hits: [] });
       },
@@ -61,5 +65,32 @@ describe('toPiCustomTool', () => {
     });
 
     expect(piTool.parameters).toMatchObject(schema);
+  });
+
+  it('maps image_gen parameters to a TypeBox object schema', () => {
+    const piTool = toPiCustomTool({
+      name: 'image_gen',
+      description: 'generate image',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: { type: 'string', description: 'Detailed prompt' },
+          model: { type: 'string', description: 'Optional model id' },
+        },
+        required: ['prompt'],
+      },
+      async execute() {
+        return '{}';
+      },
+    });
+    expect(piTool.name).toBe('image_gen');
+    expect(piTool.parameters).toBeTruthy();
+    // The TypeBox schema should have prompt as a required string property
+    const params = piTool.parameters as {
+      properties?: Record<string, unknown>;
+      required?: string[];
+    };
+    expect(params.properties?.prompt).toBeTruthy();
+    expect(params.required).toContain('prompt');
   });
 });
