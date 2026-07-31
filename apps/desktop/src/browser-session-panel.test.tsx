@@ -9,7 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { HostPush, WebElementPickResult } from '@piwin/contracts';
+import type { HostPush, HostResponse, WebElementPickResult } from '@piwin/contracts';
 import { HostClient } from './host-client';
 import { BrowserSessionPanel } from './browser-session-panel';
 
@@ -234,5 +234,200 @@ describe('BrowserSessionPanel', () => {
 
     const highlight = queryByTestId('browser-session-highlight');
     expect(highlight).not.toBeNull();
+  });
+
+  it('offsets the highlight overlay when the frame img is letterboxed in the container', async () => {
+    const client = createMockHostClient();
+    renderPanel({ hostClient: client });
+
+    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
+    act(() => {
+      for (const listener of listeners) {
+        listener({
+          type: 'browser/frame',
+          dataUrl: 'data:image/png;base64,AAAA',
+          width: 800,
+          height: 600,
+          ts: Date.now(),
+        } as HostPush);
+      }
+    });
+
+    const containerEl = queryByTestId('browser-session-frame-container') as HTMLDivElement;
+    const img = queryByTestId('browser-session-frame') as HTMLImageElement;
+    // Scale 1 (clientWidth === naturalWidth). The img is centered: its origin
+    // sits 100px right / 50px down inside a 1000x700 container.
+    Object.defineProperty(img, 'clientWidth', { value: 800, configurable: true });
+    img.getBoundingClientRect = () => ({
+      left: 100,
+      top: 50,
+      right: 900,
+      bottom: 650,
+      width: 800,
+      height: 600,
+      x: 100,
+      y: 50,
+      toJSON: () => '',
+    });
+    containerEl.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 1000,
+      bottom: 700,
+      width: 1000,
+      height: 700,
+      x: 0,
+      y: 0,
+      toJSON: () => '',
+    });
+
+    const toggle = queryByTestId('browser-session-pick-toggle') as HTMLButtonElement;
+    await act(async () => {
+      toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      img.dispatchEvent(
+        new window.MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 400,
+          clientY: 300,
+        }),
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const highlight = queryByTestId('browser-session-highlight') as HTMLDivElement;
+    expect(highlight).not.toBeNull();
+    // Click (300,250) display px → viewport (300,250) at scale 1; the mock
+    // picked boundingRect is (x-20, y-10) = (280,240). The letterbox offset
+    // (100,50) must be added to the container-relative overlay origin.
+    expect(highlight.style.left).toBe('380px');
+    expect(highlight.style.top).toBe('290px');
+  });
+
+  it('clears the pick pending indicator and shows an error when browserPickAt rejects', async () => {
+    const client = createMockHostClient();
+    const onAddWebElement = vi.fn();
+    const pickAtSpy = vi.spyOn(client, 'browserPickAt').mockRejectedValue(new Error('boom'));
+    renderPanel({ hostClient: client, onAddWebElement });
+
+    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
+    act(() => {
+      for (const listener of listeners) {
+        listener({
+          type: 'browser/frame',
+          dataUrl: 'data:image/png;base64,AAAA',
+          width: 800,
+          height: 600,
+          ts: Date.now(),
+        } as HostPush);
+      }
+    });
+
+    const img = queryByTestId('browser-session-frame') as HTMLImageElement;
+    Object.defineProperty(img, 'clientWidth', { value: 800, configurable: true });
+    img.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      width: 800,
+      height: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => '',
+    });
+
+    const toggle = queryByTestId('browser-session-pick-toggle') as HTMLButtonElement;
+    await act(async () => {
+      toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      img.dispatchEvent(
+        new window.MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 400,
+          clientY: 300,
+        }),
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(pickAtSpy).toHaveBeenCalledTimes(1);
+    // The rejection was handled: pending cleared, inline error shown, and no
+    // browser/picked push means no composer chip.
+    expect(queryByTestId('browser-session-pick-pending')).toBeNull();
+    const errorEl = queryByTestId('browser-session-pick-error');
+    expect(errorEl).not.toBeNull();
+    expect(errorEl?.textContent).toContain('Could not resolve element');
+    expect(onAddWebElement).not.toHaveBeenCalled();
+  });
+
+  it('clears the pick pending indicator and shows an error when browserPickAt returns success:false', async () => {
+    const client = createMockHostClient();
+    const pickAtSpy = vi.spyOn(client, 'browserPickAt').mockResolvedValue({
+      type: 'response',
+      command: 'browser/pick-at',
+      success: false,
+      error: 'pick failed',
+    } as HostResponse);
+    renderPanel({ hostClient: client });
+
+    const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
+    act(() => {
+      for (const listener of listeners) {
+        listener({
+          type: 'browser/frame',
+          dataUrl: 'data:image/png;base64,AAAA',
+          width: 800,
+          height: 600,
+          ts: Date.now(),
+        } as HostPush);
+      }
+    });
+
+    const img = queryByTestId('browser-session-frame') as HTMLImageElement;
+    Object.defineProperty(img, 'clientWidth', { value: 800, configurable: true });
+    img.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      width: 800,
+      height: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => '',
+    });
+
+    const toggle = queryByTestId('browser-session-pick-toggle') as HTMLButtonElement;
+    await act(async () => {
+      toggle.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      img.dispatchEvent(
+        new window.MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 400,
+          clientY: 300,
+        }),
+      );
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(pickAtSpy).toHaveBeenCalledTimes(1);
+    expect(queryByTestId('browser-session-pick-pending')).toBeNull();
+    expect(queryByTestId('browser-session-pick-error')?.textContent).toContain(
+      'Could not resolve element',
+    );
   });
 });

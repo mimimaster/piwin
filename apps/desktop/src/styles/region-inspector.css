@@ -2682,6 +2682,11 @@
   color: var(--muted);
 }
 
+.browser-session-pick-error {
+  font-size: 11px;
+  color: var(--danger);
+}
+
 .browser-session-clear-highlight {
   display: grid;
   place-items: center;
@@ -2711,6 +2716,12 @@
 }
 
 .browser-session-frame {
+  /* IMPORTANT: the img MUST stay auto-sized — max-width/max-height with no
+     fixed width/height. Pick coordinate scaling uses img.clientWidth and the
+     highlight overlay offset assumes the img's box equals the displayed image;
+     a fixed size (or object-fit) that detaches clientWidth from the visible
+     image would break both. object-fit: contain is inert here (auto-sized img)
+     but kept in case a fixed size is ever introduced. */
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
