@@ -220,4 +220,88 @@ describe('ipc types', () => {
       expect((push.event as { runId?: string }).runId).toBe('run-1');
     });
   });
+
+  describe('walkthrough commands and pushes', () => {
+    it('accepts walkthrough/list command shape', () => {
+      const command: HostCommand = { type: 'walkthrough/list', sessionId: 's1' };
+      expect(command.type).toBe('walkthrough/list');
+      if (command.type === 'walkthrough/list') {
+        expect(command.sessionId).toBe('s1');
+      }
+    });
+
+    it('accepts walkthrough/generate command shape', () => {
+      const command: HostCommand = {
+        type: 'walkthrough/generate',
+        sessionId: 's1',
+        messageId: 'm1',
+        runId: 'r1',
+        force: true,
+      };
+      expect(command.type).toBe('walkthrough/generate');
+      if (command.type === 'walkthrough/generate') {
+        expect(command.messageId).toBe('m1');
+        expect(command.force).toBe(true);
+      }
+    });
+
+    it('accepts walkthrough/cancel command shape', () => {
+      const command: HostCommand = {
+        type: 'walkthrough/cancel',
+        sessionId: 's1',
+        messageId: 'm1',
+        generationId: 'g1',
+      };
+      expect(command.type).toBe('walkthrough/cancel');
+      if (command.type === 'walkthrough/cancel') {
+        expect(command.generationId).toBe('g1');
+      }
+    });
+
+    it('accepts walkthrough/updated push shape with a ready artifact', () => {
+      const push: HostPush = {
+        type: 'walkthrough/updated',
+        sessionId: 's1',
+        artifact: {
+          version: 1,
+          id: 'art-1',
+          sessionId: 's1',
+          messageId: 'm1',
+          mode: 'default',
+          sourceHash: 'hash',
+          createdAt: '2026-08-01T00:00:00.000Z',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+          status: 'ready',
+          markdown: '# Walkthrough',
+          generatedAt: '2026-08-01T00:01:00.000Z',
+        },
+      };
+      expect(push.type).toBe('walkthrough/updated');
+      if (push.type === 'walkthrough/updated') {
+        expect(push.artifact.status).toBe('ready');
+      }
+    });
+
+    it('accepts walkthrough/updated push shape with a generating artifact', () => {
+      const push: HostPush = {
+        type: 'walkthrough/updated',
+        sessionId: 's1',
+        artifact: {
+          version: 1,
+          id: 'art-1',
+          sessionId: 's1',
+          messageId: 'm1',
+          mode: 'default',
+          sourceHash: 'hash',
+          createdAt: '2026-08-01T00:00:00.000Z',
+          updatedAt: '2026-08-01T00:00:00.000Z',
+          status: 'generating',
+          generationId: 'g1',
+        },
+      };
+      if (push.type === 'walkthrough/updated' && push.artifact.status === 'generating') {
+        expect(push.artifact.generationId).toBe('g1');
+      }
+    });
+  });
 });
