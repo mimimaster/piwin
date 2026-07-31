@@ -115,15 +115,41 @@ function parseNodeLine(rest: string): BrowserSnapshotNodeWithBox {
     rest_ = name.rest;
   }
 
-  applyAnnotations(node, rest_);
-  rest_ = rest_.replace(/\[[^\]]*\]/g, '').trim();
+  // The `: text` leaf suffix always comes after every annotation token, so it
+  // is split off BEFORE annotation scanning. Otherwise bracket tokens inside
+  // the text (e.g. `see [1]`) would be misread as annotations and stripped
+  // from the name, and a `[ref=…]` inside the text would fabricate a node ref.
+  const { prefix, text } = splitTextSuffix(rest_);
+  applyAnnotations(node, prefix);
 
-  if (rest_.startsWith(':')) {
-    const text = rest_.slice(1).trim();
-    if (text !== '' && node.name === undefined) node.name = text;
-  }
+  // Leaf text becomes the name when no quoted name is present (the contract
+  // node has no text field). Quoted names always win over text-as-name.
+  if (node.name === undefined && text !== undefined && text !== '') node.name = text;
 
   return node;
+}
+
+/**
+ * Splits `s` into the annotation-bearing prefix and the optional `: text` leaf
+ * suffix. The separator is the first `:` at bracket-depth zero: annotation
+ * tokens (`[ref=e1]`, `[box=…]`, …) never contain a `:`, while the text part
+ * may itself contain colons or bracket tokens that must be left intact. A bare
+ * trailing `:` (parent with children) yields no text.
+ */
+function splitTextSuffix(s: string): { prefix: string; text?: string } {
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charAt(i);
+    if (ch === '[') {
+      depth += 1;
+    } else if (ch === ']') {
+      if (depth > 0) depth -= 1;
+    } else if (ch === ':' && depth === 0) {
+      const text = s.slice(i + 1).trim();
+      return { prefix: s.slice(0, i).trimEnd(), ...(text !== '' ? { text } : {}) };
+    }
+  }
+  return { prefix: s.trimEnd() };
 }
 
 /** Reads a leading double-quoted name, handling `\"` escapes. Returns undefined if none. */
@@ -152,7 +178,7 @@ function readQuotedName(s: string): { value: string; rest: string } | undefined 
 function applyAnnotations(node: BrowserSnapshotNodeWithBox, s: string): void {
   const annotationRe = /\[([^\]]*)\]/g;
   for (const match of s.matchAll(annotationRe)) {
-    const annotation = match[1]!;
+    const annotation = match[1] ?? '';
     const eq = annotation.indexOf('=');
     const key = eq === -1 ? annotation : annotation.slice(0, eq);
     const value = eq === -1 ? '' : annotation.slice(eq + 1);
@@ -167,7 +193,10 @@ function applyAnnotations(node: BrowserSnapshotNodeWithBox, s: string): void {
           y !== undefined &&
           w !== undefined &&
           h !== undefined &&
-          !Number.isNaN(x)
+          Number.isFinite(x) &&
+          Number.isFinite(y) &&
+          Number.isFinite(w) &&
+          Number.isFinite(h)
         ) {
           node.box = { x, y, width: w, height: h };
         }

@@ -6,7 +6,12 @@ vi.mock('playwright-core', () => ({
   chromium: { launch: launchMock },
 }));
 
-import { BrowserUnavailableError, NavigateError, createBrowserSession } from './browser-session.js';
+import {
+  BrowserSessionClosedError,
+  BrowserUnavailableError,
+  NavigateError,
+  createBrowserSession,
+} from './browser-session.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -207,6 +212,19 @@ describe('session operations', () => {
     await expect(waiting).rejects.toThrow('aborted');
   });
 
+  it('wait removes its abort listener on the normal resolve path', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    const controller = new AbortController();
+    const signal = controller.signal;
+    const removeSpy = vi.spyOn(signal, 'removeEventListener');
+
+    await session.wait(5, { signal });
+
+    // Without this, a reused signal would accumulate a stale listener per wait.
+    expect(removeSpy).toHaveBeenCalled();
+  });
+
   it('screenshot writes a file when a path is given', async () => {
     const { page } = installWorkingBrowser();
     const session = createBrowserSession();
@@ -221,5 +239,25 @@ describe('session operations', () => {
     await session.navigate('https://example.com');
     await session.close();
     expect(browser.close).toHaveBeenCalled();
+  });
+
+  it('throws on operations after close instead of relaunching', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.navigate('https://example.com');
+    await session.close();
+
+    await expect(session.navigate('https://example.com')).rejects.toBeInstanceOf(
+      BrowserSessionClosedError,
+    );
+    await expect(session.snapshot()).rejects.toBeInstanceOf(BrowserSessionClosedError);
+    expect(launchMock).toHaveBeenCalledTimes(1); // no silent relaunch
+  });
+
+  it('keeps close idempotent', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.close();
+    await expect(session.close()).resolves.toBeUndefined();
   });
 });

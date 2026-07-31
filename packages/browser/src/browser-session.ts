@@ -90,6 +90,10 @@ export class AbortOperationError extends BrowserSessionError {
   override name: string = 'AbortOperationError';
 }
 
+export class BrowserSessionClosedError extends BrowserSessionError {
+  override name: string = 'BrowserSessionClosedError';
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -134,6 +138,9 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const state: BrowserSessionState = {};
 
   async function getPage(): Promise<Page> {
+    // After `close()`, every operation must fail fast rather than silently
+    // relaunching a fresh browser.
+    if (closed) throw new BrowserSessionClosedError('browser session is closed');
     if (page !== undefined) return page;
     if (launchPromise !== undefined) return launchPromise;
     launchPromise = launch();
@@ -334,15 +341,17 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         const signal = options?.signal;
         if (signal?.aborted) throw new AbortOperationError('operation aborted');
         await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(resolve, ms);
-          signal?.addEventListener(
-            'abort',
-            () => {
-              clearTimeout(timer);
-              reject(new AbortOperationError('operation aborted'));
-            },
-            { once: true },
-          );
+          const onAbort = () => {
+            clearTimeout(timer);
+            reject(new AbortOperationError('operation aborted'));
+          };
+          const timer = setTimeout(() => {
+            // Remove the listener on the normal path so a reused signal does
+            // not accumulate stale listeners after the wait has resolved.
+            signal?.removeEventListener('abort', onAbort);
+            resolve();
+          }, ms);
+          signal?.addEventListener('abort', onAbort, { once: true });
         });
       }, options?.signal),
 

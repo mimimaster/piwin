@@ -21,7 +21,13 @@ describe('createFrameLoop', () => {
     });
 
     // 5 rapid requests at t=0 → exactly one emission (the rest are throttled).
-    await Promise.all([loop.requestFrame(), loop.requestFrame(), loop.requestFrame(), loop.requestFrame(), loop.requestFrame()]);
+    await Promise.all([
+      loop.requestFrame(),
+      loop.requestFrame(),
+      loop.requestFrame(),
+      loop.requestFrame(),
+      loop.requestFrame(),
+    ]);
     expect(emitted).toHaveLength(1);
 
     // Advancing time lets a new frame through.
@@ -75,5 +81,63 @@ describe('createFrameLoop', () => {
     await Promise.all([loop.requestFrame(), loop.requestFrame(), loop.requestFrame()]);
     expect(captureCount).toBeLessThanOrEqual(2);
     expect(emitted.length).toBeGreaterThan(0);
+  });
+
+  it('resolves requestFrame when capture rejects (must not break navigate-style awaits)', async () => {
+    let shouldFail = true;
+    const capture = async (): Promise<FramePayload> => {
+      if (shouldFail) throw new Error('screenshot failed mid-navigation');
+      return { dataUrl: 'data:image/jpeg;base64,AAA', width: 100, height: 100 };
+    };
+    const emitted: unknown[] = [];
+    let clock = 0;
+
+    const loop = createFrameLoop({
+      capture,
+      hasSubscriber: () => true,
+      intervalMs: 0,
+      now: () => clock,
+      emit: (frame) => emitted.push(frame),
+    });
+
+    // `navigate()` awaits requestFrame(); a rejecting capture must resolve,
+    // not reject the navigation.
+    await expect(loop.requestFrame()).resolves.toBeUndefined();
+    expect(emitted).toHaveLength(0);
+
+    // The in-flight/pending guards were reset by `finally`, so a later
+    // successful capture still flows through.
+    shouldFail = false;
+    clock = 10;
+    await loop.requestFrame();
+    expect(emitted).toHaveLength(1);
+  });
+
+  it('keeps the loop healthy when a pending request follows a rejecting capture', async () => {
+    let captureCount = 0;
+    const capture = async (): Promise<FramePayload> => {
+      captureCount += 1;
+      if (captureCount === 1) throw new Error('boom');
+      return { dataUrl: 'data:image/jpeg;base64,AAA', width: 100, height: 100 };
+    };
+    const emitted: unknown[] = [];
+
+    const loop = createFrameLoop({
+      capture,
+      hasSubscriber: () => true,
+      intervalMs: 0,
+      now: () => 0,
+      emit: (frame) => emitted.push(frame),
+    });
+
+    // The first request starts a capture that rejects; the second marks
+    // `pending` while it is in flight. Both must resolve (no unhandled
+    // rejection) and the pending drain retries, so the loop is not wedged.
+    await expect(Promise.all([loop.requestFrame(), loop.requestFrame()])).resolves.toEqual([
+      undefined,
+      undefined,
+    ]);
+    expect(emitted).toHaveLength(1);
+    expect(captureCount).toBe(2);
   });
 });

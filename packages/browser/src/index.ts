@@ -13,5 +13,6 @@ export {
   NavigateError,
   BrowserUnavailableError,
   AbortOperationError,
+  BrowserSessionClosedError,
 } from './browser-session.js';
 export type { RunExclusive } from './mutex.js';
