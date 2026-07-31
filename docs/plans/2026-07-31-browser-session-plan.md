@@ -22,7 +22,7 @@
 - No base64 in model context (AGENTS.md §3.6): frames/pick screenshots go to UI as data-URLs or are saved to `~/.piwin/media/<session>/` and injected as **paths** only.
 - `browser_navigate`: **loopback only** (`localhost`, `127.0.0.1`, `::1`) allowed by default; **link-local/cloud metadata (`169.254.169.254`, `fe80::/10`) and private ranges (`10/8`, `172.16/12`, `192.168/16`, `fd00::/8`) go through the rule engine with default `ask`** — never blanket-allow private (SSRF). Agent navigations still honor the rule engine (bundled `ask`/`deny` + user `permissions.json`). Element pick/attach is user-initiated (no prompt).
 - Snapshot `ref`s valid until next page change (`@playwright/mcp` semantics); pick results carry both a durable `selector` and instant `ref`.
-- **No `page.accessibility`** — removed in Playwright 1.x. Snapshots use `locator('html').ariaSnapshot({ mode: 'ai', boxes: true })` (public API, YAML with `[ref=eN]` + `[box=x,y,w,h]`); refs resolve via `locator('aria-ref=e5')`. `ariaSnapshot` returns YAML text → add `yaml` dep and parse into `BrowserSnapshotNode[]`.
+- **No `page.accessibility`** — removed in Playwright 1.x. Snapshots use `locator('html').ariaSnapshot({ mode: 'ai', boxes: true })` (public API; indentation-based line format with `[ref=eN]` + `[box=x,y,w,h]` annotations); refs resolve via `locator('aria-ref=e5')`. The output is **not** parseable YAML (`yaml` folds the indented `- child` lines and throws `MULTILINE_IMPLICIT_KEY`) → parse into `BrowserSnapshotNode[]` with a dedicated line parser (**no `yaml` dep**).
 - `@medv/finder` runs **in the page context** — bundle and inject via `page.addInitScript` before `elementFromPoint` picks.
 - Agent tools + user pick share **one page**; serialize via an in-host mutex ("browser bus"); pick mode disabled while an agent tool runs (concurrency, ADR §6).
 - `playwright-core` does not download browsers; reuse chromium from `pnpm --dir apps/desktop e2e:install` (`playwright install chromium`), document fallback, add a doctor check. Production chromium bundling is a follow-up (ADR Consequences).
@@ -49,10 +49,10 @@
 | `packages/contracts/src/host.ts` | `PromptInput.attachments` → `PromptAttachment[]` | Modify (Task 1) |
 | `packages/contracts/src/ipc.ts` | browser `HostCommand` + `HostPush` variants | Modify (Task 1) |
 | `packages/contracts/src/index.ts` | export `browser.js` | Modify (Task 1) |
-| `packages/browser/package.json` | workspace pkg: contracts + playwright-core + @medv/finder + yaml | Create (Task 2) |
+| `packages/browser/package.json` | workspace pkg: contracts + playwright-core + @medv/finder (no yaml) | Create (Task 2) |
 | `packages/browser/tsconfig.json` | package tsconfig (extends base) | Create (Task 2) |
 | `packages/browser/src/browser-session.ts` | owns Chromium, navigate/snapshot/click/type/pick | Create (Task 2) |
-| `packages/browser/src/snapshot.ts` | `ariaSnapshot({ mode:'ai', boxes:true })` YAML → `BrowserSnapshotNode[]` (ref + box parse) | Create (Task 2) |
+| `packages/browser/src/snapshot.ts` | `ariaSnapshot({ mode:'ai', boxes:true })` line format → `BrowserSnapshotNode[]` (ref + box parse, no yaml) | Create (Task 2) |
 | `packages/browser/src/pick.ts` | `elementFromPoint` + injected `@medv/finder` selector + ref-by-box + bounded text/html + crop | Create (Task 2) |
 | `packages/browser/src/frames.ts` | throttled screenshot frame capture (JPEG, size-capped) | Create (Task 2) |
 | `packages/browser/src/index.ts` | public exports (no Pi, no DOM) | Create (Task 2) |
@@ -136,21 +136,21 @@ export function formatTextModelWebElementInjection(ref: WebElementAttachmentRef)
 
 **Why:** ADR 0020 §2. Pure capability service below the host boundary; agent tools + panel both consume one instance.
 
-- [ ] **Step 1: Scaffold package** — `package.json` (`@piwin/browser`, workspace `type: module`, deps `@piwin/contracts: workspace:*`, `playwright-core`, `@medv/finder`, `yaml`; scripts build/typecheck/test like `tools-web`). tsconfig extends base. **Add `packages/browser` to root `tsconfig.json` `references`.**
+- [ ] **Step 1: Scaffold package** — `package.json` (`@piwin/browser`, workspace `type: module`, deps `@piwin/contracts: workspace:*`, `playwright-core`, `@medv/finder` — **no `yaml`**; scripts build/typecheck/test like `tools-web`). tsconfig extends base. **Add `packages/browser` to root `tsconfig.json` `references`.**
 - [ ] **Step 2: `browser-session.ts`** — `createBrowserSession(options)`:
   - Lazy `chromium.launch({ headless: true })`; resolve executable from `playwright install chromium` path (reuse e2e install via `pnpm --dir apps/desktop e2e:install`); fail fast with actionable error if missing.
   - One page/context; `navigate(url)`, `snapshot()`, `click(ref|selector)`, `type(ref|selector, text)`, `fillForm`, `scroll`, `screenshot(path?)`, `back/forward`, `find(text)`, `wait`.
   - **Serialization mutex ("browser bus")**: all operations (tool calls + pick) acquire one in-process lock; a pick in flight queues or cancels against an in-progress tool call. Expose `runExclusive<T>(fn)`.
   - Emits URL/title + throttled frames via subscriber callbacks (unsubscribe fn returned).
   - Abortable long ops via `AbortSignal`.
-- [ ] **Step 3: `snapshot.ts`** — snapshot via **`page.locator('html').ariaSnapshot({ mode: 'ai', boxes: true })`** (NOT `page.accessibility` — removed in 1.x). Parse the returned YAML (`yaml` pkg) into `BrowserSnapshotNode[]`, preserving `[ref=eN]` and `[box=x,y,w,h]` (viewport CSS px). Refs resolve via `page.locator('aria-ref=e5')`. Pure + unit-testable: raw YAML fixture → expected tree.
+- [ ] **Step 3: `snapshot.ts`** — snapshot via **`page.locator('html').ariaSnapshot({ mode: 'ai', boxes: true })`** (NOT `page.accessibility` — removed in 1.x). The output is an indentation-based line format (`- role "name" [ref=eN] [box=x,y,w,h]`, annotations as an order-independent bag), **not** parseable YAML — derive `BrowserSnapshotNode[]` with a small dedicated line parser (**no `yaml` dep**), preserving `[ref=eN]` and `[box=x,y,w,h]` (viewport CSS px). Refs resolve via `page.locator('aria-ref=e5')`. Pure + unit-testable: raw snapshot fixture → expected tree.
 - [ ] **Step 4: `pick.ts`** — `pickElementAt(page, x, y)`:
   - **Inject `@medv/finder` via `page.addInitScript`** (page-context lib; re-inject on every navigation) so `findElement` is available inside `page.evaluate`.
   - `page.evaluate(elementFromPoint(x,y))` → clamp to element; compute stable selector via `@medv/finder`; extract bounded `innerText`/`outerHTML`; bounding rect.
   - Best-effort `ref`: match the click point against the latest `ariaSnapshot({ mode:'ai', boxes:true })` `[box=…]` annotations → the enclosing ref'd element's `ref` (reliable for interactive elements; else omit). CSS `selector` is the durable anchor.
   - Optional element-cropped screenshot (clip to rect) saved by caller.
 - [ ] **Step 5: `frames.ts`** — throttled frame capture: `page.screenshot({ type:'jpeg', quality: 70 })` at ≤ ~4 fps, max dimension ~1280, base64 data-URL; skip when no subscriber. Documented ceiling: data-URL over IPC is MVP; local HTTP frame server is a follow-up.
-- [ ] **Step 6: Unit tests** — snapshot shape/ref/box parsing from YAML fixture; pick selector stability + bounds + ref-by-box matching; frame throttle (n calls → ≤ n/fps emissions); navigate rejects non-http(s); mutex serializes concurrent calls.
+- [ ] **Step 6: Unit tests** — snapshot shape/ref/box parsing from line-format fixture; pick selector stability + bounds + ref-by-box matching; frame throttle (n calls → ≤ n/fps emissions); navigate rejects non-http(s); mutex serializes concurrent calls.
 - [ ] **Step 7: Public exports** in `index.ts` — session factory + types; nothing else.
 
 ## Task 3: Host wiring — tools, permission, IPC, attachment injection
@@ -198,7 +198,7 @@ export function formatTextModelWebElementInjection(ref: WebElementAttachmentRef)
 ## Definition of Done
 
 - [ ] `browser-panel.tsx` + `.test.ts` deleted; `normalizeUrl` ported to `normalize-url.ts` with tests; no `browser-panel`/`IconBrowser`/panel `'browser'` references remain.
-- [ ] `@piwin/browser` package typechecks + unit tests pass (snapshot/ref/box via `ariaSnapshot({mode:'ai',boxes:true})`, pick selector + ref-by-box, bounds, frame throttle, mutex serialization). Uses `yaml` parser; **no `page.accessibility`** anywhere.
+- [ ] `@piwin/browser` package typechecks + unit tests pass (snapshot/ref/box via `ariaSnapshot({mode:'ai',boxes:true})`, pick selector + ref-by-box, bounds, frame throttle, mutex serialization). Uses a dedicated line parser (**no `yaml` dep**); **no `page.accessibility`** anywhere.
 - [ ] `@piwin/browser` added to root `tsconfig.json` `references`; package builds under `exactOptionalPropertyTypes` (conditional spread for optional fields).
 - [ ] Host registers `browser_*` tools; `browser_navigate` permission: **loopback allowed by default, link-local/private default `ask`** (no SSRF hole); attachment injection no-base64, `screenshotPath` guarded by `assertInsideMediaRoot`.
 - [ ] Desktop panel mirrors the agent's browser; pick → scaled-coordinate forwarding → composer chip → model-facing injection works end-to-end; pick mode disabled during agent tool runs.
