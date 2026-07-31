@@ -41,6 +41,44 @@ describe('tryParseHtmlArtifactFence', () => {
       }),
     ).toBeNull();
   });
+
+  it('promotes a valid svg fence when Artifact parsing is enabled', () => {
+    const descriptor = tryParseHtmlArtifactFence({
+      language: 'svg title="Pelican"',
+      source: '<?xml version="1.0"?>\n<svg viewBox="0 0 10 10"><circle r="5" /></svg>',
+      id: 'svg-1',
+      htmlUiModeEnabled: true,
+    });
+    expect(descriptor).toMatchObject({
+      type: 'svg',
+      title: 'Pelican',
+      rawLanguage: 'svg title="Pelican"',
+      alias: 'svg',
+    });
+    expect(descriptor?.source).toContain('<svg');
+  });
+
+  it('keeps svg source as code when Artifact parsing is disabled', () => {
+    expect(
+      tryParseHtmlArtifactFence({
+        language: 'svg',
+        source: '<svg><circle r="5" /></svg>',
+        id: 'svg-2',
+        htmlUiModeEnabled: false,
+      }),
+    ).toBeNull();
+  });
+
+  it('rejects a non-svg source in an svg fence', () => {
+    expect(
+      tryParseHtmlArtifactFence({
+        language: 'svg',
+        source: '<div>not an SVG</div>',
+        id: 'svg-3',
+        htmlUiModeEnabled: true,
+      }),
+    ).toBeNull();
+  });
 });
 
 describe('splitMarkdownBlocks', () => {

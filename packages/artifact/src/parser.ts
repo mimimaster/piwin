@@ -6,18 +6,22 @@ import {
   AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES,
   ARTIFACT_LANGUAGE_ALIASES,
   NATIVE_HTML_ARTIFACT_LANGUAGES,
+  NATIVE_SVG_ARTIFACT_LANGUAGES,
 } from './constants.js';
 import { normalizeHtmlDocumentToArtifactFragment } from './html-document-fragment.js';
-import type { HtmlArtifactDescriptor } from './types.js';
+import type { ArtifactDescriptor } from './types.js';
 
 const ARTIFACT_ALIAS_SET = new Set<string>(ARTIFACT_LANGUAGE_ALIASES);
 const AMBIGUOUS_ALIAS_SET = new Set<string>(AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES);
 const NATIVE_HTML_SET = new Set<string>(NATIVE_HTML_ARTIFACT_LANGUAGES);
+const NATIVE_SVG_SET = new Set<string>(NATIVE_SVG_ARTIFACT_LANGUAGES);
 
 const PLACEHOLDER_SOURCE_PATTERN =
   /^(?:enter your code here\.{0,3}|todo|tbd|placeholder|\/\/\s*todo|<!--\s*(?:todo|placeholder|visible content here)\s*-->)$/i;
 const HTML_LIKE_SOURCE_PATTERN =
   /<\s*(?:style|script|div|section|article|main|aside|header|footer|button|input|select|textarea|form|table|ul|ol|li|details|summary|dialog|canvas|svg)\b|--piwin-artifact-/i;
+const SVG_SOURCE_PATTERN =
+  /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg\b[\s\S]*(?:<\/svg\s*>|\/>)\s*$/i;
 const NATIVE_HTML_UI_SOURCE_PATTERN =
   /(?:<!doctype\s+html\b|<\s*html\b|<\s*body\b|<\s*style\b|<\s*iframe\b|<\s*(?:section|main|article|details|summary|form|button|table)\b|<\s*div\b[^>]*(?:class|id)\s*=)/i;
 const FENCE_ATTRIBUTE_PATTERN =
@@ -108,16 +112,24 @@ function isNativeHtmlLanguage(rawLanguage: string): boolean {
   return NATIVE_HTML_SET.has(getAlias(rawLanguage));
 }
 
+function isNativeSvgLanguage(rawLanguage: string): boolean {
+  return NATIVE_SVG_SET.has(getAlias(rawLanguage));
+}
+
+function isSvgSource(source: string): boolean {
+  return SVG_SOURCE_PATTERN.test(source);
+}
+
 /**
- * Decide whether a fenced code block should become an HTML artifact.
- * When htmlUiMode is false, never promote native ```html``` fences.
+ * Decide whether a fenced code block should become an HTML or SVG artifact.
+ * When htmlUiMode is false, never promote native ```html``` or ```svg``` fences.
  */
-export function tryParseHtmlArtifactFence(input: {
+export function tryParseArtifactFence(input: {
   language: string;
   source: string;
   id: string;
   htmlUiModeEnabled?: boolean;
-}): HtmlArtifactDescriptor | null {
+}): ArtifactDescriptor | null {
   const htmlUiModeEnabled = input.htmlUiModeEnabled !== false;
   const rawLanguage = stripFenceInfo(input.language);
   const alias = getAlias(rawLanguage);
@@ -148,6 +160,20 @@ export function tryParseHtmlArtifactFence(input: {
     };
   }
 
+  if (isNativeSvgLanguage(rawLanguage)) {
+    if (!htmlUiModeEnabled || !isSvgSource(source)) {
+      return null;
+    }
+    return {
+      id: input.id,
+      type: 'svg',
+      title: parseTitle(rawLanguage) ?? 'SVG',
+      source,
+      rawLanguage,
+      alias,
+    };
+  }
+
   if (
     htmlUiModeEnabled &&
     isNativeHtmlLanguage(rawLanguage) &&
@@ -164,6 +190,15 @@ export function tryParseHtmlArtifactFence(input: {
   }
 
   return null;
+}
+
+export function tryParseHtmlArtifactFence(input: {
+  language: string;
+  source: string;
+  id: string;
+  htmlUiModeEnabled?: boolean;
+}): ArtifactDescriptor | null {
+  return tryParseArtifactFence(input);
 }
 
 /**

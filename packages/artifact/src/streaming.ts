@@ -6,12 +6,14 @@ import {
   AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES,
   ARTIFACT_LANGUAGE_ALIASES,
   NATIVE_HTML_ARTIFACT_LANGUAGES,
+  NATIVE_SVG_ARTIFACT_LANGUAGES,
 } from './constants.js';
 import type { OpenArtifactFence } from './types.js';
 
 const ARTIFACT_ALIAS_SET = new Set<string>(ARTIFACT_LANGUAGE_ALIASES);
 const AMBIGUOUS_ALIAS_SET = new Set<string>(AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES);
 const NATIVE_HTML_SET = new Set<string>(NATIVE_HTML_ARTIFACT_LANGUAGES);
+const NATIVE_SVG_SET = new Set<string>(NATIVE_SVG_ARTIFACT_LANGUAGES);
 
 const FENCE_LINE_PATTERN = /^```([^\n`]*)$/gm;
 const COMPLETE_FENCE_BLOCK_PATTERN = /^```([^\n`]*)\n([\s\S]*?)\n?```/gm;
@@ -24,6 +26,7 @@ const HTML_LIKE_SOURCE_PATTERN =
   /<\s*(?:style|script|div|section|article|main|aside|header|footer|button|input|select|textarea|form|table|ul|ol|li|details|summary|dialog|canvas|svg)\b|--piwin-artifact-/i;
 const NATIVE_HTML_UI_SOURCE_PATTERN =
   /(?:<!doctype\s+html\b|<\s*html\b|<\s*body\b|<\s*style\b|<\s*iframe\b|<\s*(?:section|main|article|details|summary|form|button|table)\b|<\s*div\b[^>]*(?:class|id)\s*=)/i;
+const SVG_LIKE_SOURCE_PATTERN = /<\s*svg\b/i;
 const PLACEHOLDER_SOURCE_PATTERN =
   /^(?:enter your code here\.{0,3}|todo|tbd|placeholder|\/\/\s*todo|<!--\s*(?:todo|placeholder|visible content here)\s*-->)$/i;
 
@@ -42,6 +45,10 @@ function isAmbiguousArtifactLanguageAlias(info: string): boolean {
 
 function isNativeHtmlLanguage(info: string): boolean {
   return NATIVE_HTML_SET.has(getAlias(info));
+}
+
+function isNativeSvgLanguage(info: string): boolean {
+  return NATIVE_SVG_SET.has(getAlias(info));
 }
 
 function isHtmlLikeArtifactSource(source: string): boolean {
@@ -94,7 +101,8 @@ export function findOpenArtifactFence(
     if (
       isArtifactLanguageAlias(info) ||
       (isAmbiguousArtifactLanguageAlias(info) && isHtmlLikeArtifactSource(source)) ||
-      (isNativeHtmlLanguage(info) && isUiLikeHtmlArtifactSource(source))
+      (isNativeHtmlLanguage(info) && isUiLikeHtmlArtifactSource(source)) ||
+      (isNativeSvgLanguage(info) && SVG_LIKE_SOURCE_PATTERN.test(source))
     ) {
       activeFence = { startIndex, info, contentStartIndex };
     }
