@@ -11,6 +11,7 @@ import type {
   PromptInput,
   SessionSummary,
 } from './host.js';
+import type { WebElementPickResult } from './browser.js';
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import type { SavedMediaAsset, SaveMediaInput } from './media.js';
 import type { SkillSummary } from './skills.js';
@@ -415,7 +416,12 @@ export type HostCommand =
       confirmed?: boolean;
       value?: string;
       cancelled?: boolean;
-    };
+    }
+  | { id?: string; type: 'browser/start' }
+  | { id?: string; type: 'browser/navigate'; url: string }
+  | { id?: string; type: 'browser/pick-at'; x: number; y: number }
+  | { id?: string; type: 'browser/screenshot'; path?: string }
+  | { id?: string; type: 'browser/stop' };
 
 /** Host → UI / external client (responses + push) */
 export type HostResponse =
@@ -482,7 +488,10 @@ export type HostPush =
       options?: string[];
       placeholder?: string;
     }
-  | { type: 'pet/state'; pet: PetRuntimeSnapshot };
+  | { type: 'pet/state'; pet: PetRuntimeSnapshot }
+  | { type: 'browser/frame'; dataUrl: string; width: number; height: number; ts: number }
+  | { type: 'browser/state'; url?: string; title?: string; ts: number }
+  | { type: 'browser/picked'; result: WebElementPickResult };
 
 /** Pi ExtensionUIContext dialog kinds bridged to Desktop. */
 export type ExtensionUiKind = 'confirm' | 'select' | 'input';
@@ -588,6 +597,7 @@ export function toMediaAttachmentRef(
 ): MediaAttachmentRef {
   const attachment: MediaAttachmentRef = {
     id: asset.id,
+    kind: 'media',
     path: asset.absolutePath,
     mimeType: asset.mimeType,
     byteSize: asset.byteSize,
