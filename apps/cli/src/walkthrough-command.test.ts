@@ -429,6 +429,81 @@ describe('runWalkthroughGenerate', () => {
     ).rejects.toThrow('disabled');
   });
 
+  it('does not produce an unhandled rejection when the host command fails', async () => {
+    // Regression: previously the wait promise's timeout timer kept running after
+    // the command threw, eventually rejecting with "Timed out waiting for
+    // walkthrough generation" with no awaiter -> unhandled promise rejection.
+    const client = createMockClient({
+      handleCommand: async () => ({
+        type: 'response',
+        command: 'walkthrough/generate',
+        success: false,
+        error: 'disabled',
+      }),
+    });
+    const { log } = captureLog();
+
+    const rejections: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      rejections.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      await expect(
+        runWalkthroughGenerate(client, 'sess-1', 'msg-1', log, { timeoutMs: 20 }),
+      ).rejects.toThrow('disabled');
+      // Wait well past the (now-cancelled) timeout so any orphaned timer would
+      // have fired and surfaced as an unhandled rejection.
+      await new Promise((r) => setTimeout(r, 60));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
+  it('does not produce an unhandled rejection when a cached ready artifact is returned', async () => {
+    // Same regression class: the cached-ready early return must also cancel the
+    // wait so its timeout timer does not orphan into an unhandled rejection.
+    const ready = makeReadyArtifact();
+    const client = createMockClient({
+      handleCommand: async (command) => {
+        if (command.type === 'walkthrough/generate') {
+          return {
+            type: 'response',
+            command: 'walkthrough/generate',
+            success: true,
+            data: {
+              sessionId: command.sessionId,
+              messageId: command.messageId,
+              status: 'ready',
+              artifact: ready,
+            },
+          };
+        }
+        return { type: 'response', command: command.type, success: false, error: 'unexpected' };
+      },
+    });
+    const { log } = captureLog();
+
+    const rejections: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      rejections.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+
+    try {
+      const result = await runWalkthroughGenerate(client, 'sess-1', 'msg-1', log, {
+        timeoutMs: 20,
+      });
+      expect(result).toBe(ready);
+      await new Promise((r) => setTimeout(r, 60));
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
+
   it('rejects on timeout when no push arrives', async () => {
     const client = createMockClient({
       handleCommand: async (command) => {

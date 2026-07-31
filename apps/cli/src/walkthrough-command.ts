@@ -137,30 +137,38 @@ export async function runWalkthroughGenerate(
   options?: { timeoutMs?: number },
 ): Promise<WalkthroughArtifact> {
   const timeoutMs = options?.timeoutMs ?? 120_000;
-  const updated = waitForWalkthroughUpdated(client, sessionId, messageId, timeoutMs);
+  const wait = waitForWalkthroughUpdated(client, sessionId, messageId, timeoutMs);
 
-  const response = await client.handleCommand({
-    type: 'walkthrough/generate',
-    sessionId,
-    messageId,
-  });
-  if (!response.success) {
-    throw new Error(response.error);
+  try {
+    const response = await client.handleCommand({
+      type: 'walkthrough/generate',
+      sessionId,
+      messageId,
+    });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+
+    const data = response.data as WalkthroughGenerateData | undefined;
+
+    // If the host returned a ready artifact directly (cached, no new generation),
+    // print it without waiting for a push.
+    if (data?.status === 'ready' && data.artifact) {
+      printWalkthroughArtifact(data.artifact, log);
+      return data.artifact;
+    }
+
+    // Otherwise wait for the walkthrough/updated push with ready|error.
+    const artifact = await wait.promise;
+    printWalkthroughArtifact(artifact, log);
+    return artifact;
+  } finally {
+    // Always cancel the wait so the timeout timer and push subscription are
+    // torn down on every exit path (success, host error, cached ready, throw).
+    // Without this, an orphaned timer would reject with "Timed out waiting for
+    // walkthrough generation" and become an unhandled promise rejection.
+    wait.cancel();
   }
-
-  const data = response.data as WalkthroughGenerateData | undefined;
-
-  // If the host returned a ready artifact directly (cached, no new generation),
-  // print it without waiting for a push.
-  if (data?.status === 'ready' && data.artifact) {
-    printWalkthroughArtifact(data.artifact, log);
-    return data.artifact;
-  }
-
-  // Otherwise wait for the walkthrough/updated push with ready|error.
-  const artifact = await updated;
-  printWalkthroughArtifact(artifact, log);
-  return artifact;
 }
 
 /**
@@ -241,33 +249,55 @@ function printWalkthroughArtifact(
  * Subscribe to host pushes and resolve when a `walkthrough/updated` push for
  * the matching `sessionId` + `messageId` arrives with `ready` or `error`
  * status. Rejects on timeout so the CLI does not hang forever.
+ *
+ * Returns `{ promise, cancel }`: callers MUST `cancel()` on every exit path
+ * (try/finally) to tear down the timer and subscription. Otherwise an orphaned
+ * timer would reject after `timeoutMs` and, since nobody awaits the promise,
+ * surface as an unhandled promise rejection.
  */
 function waitForWalkthroughUpdated(
   client: WalkthroughHostClient,
   sessionId: string,
   messageId: string,
   timeoutMs: number,
-): Promise<WalkthroughArtifact> {
-  return new Promise<WalkthroughArtifact>((resolvePromise, rejectPromise) => {
-    let settled = false;
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      unsubscribe();
-      rejectPromise(new Error(`Timed out waiting for walkthrough generation (${timeoutMs}ms).`));
-    }, timeoutMs);
-
-    const unsubscribe = client.onPush((message) => {
-      if (message.type !== 'walkthrough/updated') return;
-      if (message.sessionId !== sessionId) return;
-      const artifact = message.artifact;
-      if (artifact.messageId !== messageId) return;
-      if (artifact.status !== 'ready' && artifact.status !== 'error') return;
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      unsubscribe();
-      resolvePromise(artifact);
-    });
+): { promise: Promise<WalkthroughArtifact>; cancel: () => void } {
+  let resolvePromise!: (artifact: WalkthroughArtifact) => void;
+  let rejectPromise!: (error: Error) => void;
+  const promise = new Promise<WalkthroughArtifact>((res, rej) => {
+    resolvePromise = res;
+    rejectPromise = rej;
   });
+
+  let settled = false;
+  let unsubscribe: () => void = () => undefined;
+  const timer = setTimeout(() => {
+    if (settled) return;
+    settled = true;
+    unsubscribe();
+    rejectPromise(new Error(`Timed out waiting for walkthrough generation (${timeoutMs}ms).`));
+  }, timeoutMs);
+
+  unsubscribe = client.onPush((message) => {
+    if (message.type !== 'walkthrough/updated') return;
+    if (message.sessionId !== sessionId) return;
+    const artifact = message.artifact;
+    if (artifact.messageId !== messageId) return;
+    if (artifact.status !== 'ready' && artifact.status !== 'error') return;
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    unsubscribe();
+    resolvePromise(artifact);
+  });
+
+  // Tear down the timer and subscription. Idempotent: safe to call after the
+  // promise has already settled (success or timeout).
+  const cancel = (): void => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    unsubscribe();
+  };
+
+  return { promise, cancel };
 }
