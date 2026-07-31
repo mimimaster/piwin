@@ -37,12 +37,20 @@ export async function scanSkills(options: ScanSkillsOptions): Promise<SkillSumma
 async function scanSkillRoot(rootPath: string, source: SkillSource): Promise<SkillSummary[]> {
   const absolute = resolve(expandHome(rootPath));
   let entries: string[] = [];
-  try { entries = await readdir(absolute); } catch { return []; }
+  try {
+    entries = await readdir(absolute);
+  } catch {
+    return [];
+  }
   const skills: SkillSummary[] = [];
   for (const entry of entries) {
     const dir = join(absolute, entry);
     let isDir = false;
-    try { isDir = (await stat(dir)).isDirectory(); } catch { continue; }
+    try {
+      isDir = (await stat(dir)).isDirectory();
+    } catch {
+      continue;
+    }
     if (!isDir) {
       if (entry.endsWith('.md') && source === 'user') {
         const parsed = await parseSkillMarkdown(join(absolute, entry), source);
@@ -56,15 +64,33 @@ async function scanSkillRoot(rootPath: string, source: SkillSource): Promise<Ski
   return skills;
 }
 
-async function parseSkillMarkdown(filePath: string, source: SkillSource, directoryPath?: string): Promise<SkillSummary | null> {
+async function parseSkillMarkdown(
+  filePath: string,
+  source: SkillSource,
+  directoryPath?: string,
+): Promise<SkillSummary | null> {
   let raw: string;
-  try { raw = await readFile(filePath, 'utf8'); } catch { return null; }
+  try {
+    raw = await readFile(filePath, 'utf8');
+  } catch {
+    return null;
+  }
   const fm = parseFrontmatter(raw);
   const name = (fm.name ?? basename(directoryPath ?? filePath).replace(/\.md$/i, '')).trim();
   if (!name) return null;
   const description = (fm.description ?? '').trim() || '(no description)';
   const id = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
-  return { id, name, description, source, path: directoryPath ?? filePath, enabled: true };
+  const hiddenRaw = (fm.hidden ?? '').trim().toLowerCase();
+  const hidden = hiddenRaw === 'true' || hiddenRaw === '1';
+  return {
+    id,
+    name,
+    description,
+    source,
+    path: directoryPath ?? filePath,
+    enabled: true,
+    ...(hidden ? { hidden: true } : {}),
+  };
 }
 
 function parseFrontmatter(markdown: string): Record<string, string> {
@@ -75,7 +101,10 @@ function parseFrontmatter(markdown: string): Record<string, string> {
     const idx = line.indexOf(':');
     if (idx === -1) continue;
     const key = line.slice(0, idx).trim();
-    const value = line.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
+    const value = line
+      .slice(idx + 1)
+      .trim()
+      .replace(/^["']|["']$/g, '');
     if (key) result[key] = value;
   }
   return result;
