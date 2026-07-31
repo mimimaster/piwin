@@ -105,6 +105,25 @@ describe('walkthrough config', () => {
     expect(issues.some((i) => i.path === 'walkthrough.custom.model')).toBe(true);
   });
 
+  it('rejects null model in custom mode', () => {
+    const config: WalkthroughConfig = {
+      ...createDefaultWalkthroughConfig(),
+      mode: 'custom',
+      custom: { model: null, prompt: 'explain' },
+    };
+    const issues = validateWalkthroughConfig(config);
+    expect(issues.some((i) => i.path === 'walkthrough.custom.model')).toBe(true);
+  });
+
+  it('accepts null model in default mode', () => {
+    const config: WalkthroughConfig = {
+      ...createDefaultWalkthroughConfig(),
+      mode: 'default',
+      custom: { model: null, prompt: 'explain' },
+    };
+    expect(validateWalkthroughConfig(config)).toEqual([]);
+  });
+
   it('accepts a fully valid custom config', () => {
     const config: WalkthroughConfig = {
       enabled: false,

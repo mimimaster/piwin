@@ -103,7 +103,14 @@ export function validateWalkthroughConfig(config: WalkthroughConfig): Walkthroug
   }
 
   const model = config.custom?.model;
-  if (model !== null && model !== undefined) {
+  // In custom mode a generation model is required; default mode uses the
+  // Antigravity public structure and needs no model.
+  if (config.mode === 'custom' && (model === null || model === undefined)) {
+    issues.push({
+      path: 'walkthrough.custom.model',
+      message: 'a generation model is required in custom mode',
+    });
+  } else if (model !== null && model !== undefined) {
     if (!model.providerId || !model.modelId || !model.protocol) {
       issues.push({
         path: 'walkthrough.custom.model',
