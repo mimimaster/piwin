@@ -163,3 +163,22 @@ export {
   buildRunTerminalEvent,
 } from './active-run.js';
 export type { ActiveRun, ActiveRunRegistry } from './active-run.js';
+
+export {
+  assembleSystemPrompt,
+  assembleUserPrompt,
+  collectWalkthroughEvidence,
+  computeSourceHash,
+  computeSourceHashFromBounded,
+  EVIDENCE_DELIMITER_CLOSE,
+  EVIDENCE_DELIMITER_OPEN,
+  isMediaPathUnderMediaRoot,
+  isWalkthroughEligibleMessage,
+  redactAndBoundEvidence,
+  WALKTHROUGH_SYSTEM_PROMPT,
+} from './walkthrough-source.js';
+export type {
+  BoundedEvidence,
+  CollectWalkthroughEvidenceOptions,
+  WalkthroughEvidence,
+} from './walkthrough-source.js';
