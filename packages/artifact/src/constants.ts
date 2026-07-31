@@ -13,6 +13,8 @@ export const AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES = ['artifact', 'artifact-'] as 
 
 export const NATIVE_HTML_ARTIFACT_LANGUAGES = ['html', 'htm'] as const;
 
+export const NATIVE_SVG_ARTIFACT_LANGUAGES = ['svg'] as const;
+
 export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 
 export const MIN_ARTIFACT_IFRAME_HEIGHT = 160;

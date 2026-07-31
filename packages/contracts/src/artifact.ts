@@ -13,6 +13,8 @@ export const ARTIFACT_LANGUAGE_ALIASES = [
 
 export const NATIVE_HTML_ARTIFACT_LANGUAGES = ['html', 'htm'] as const;
 
+export const NATIVE_SVG_ARTIFACT_LANGUAGES = ['svg'] as const;
+
 export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 
 export type ArtifactStatus =
@@ -26,14 +28,23 @@ export type ArtifactStatus =
   | 'timeout'
   | 'error';
 
-export type HtmlArtifactDescriptor = {
+export type ArtifactDescriptorBase = {
   id: string;
-  type: 'html';
   title: string;
   source: string;
   rawLanguage: string;
   alias: string;
 };
+
+export type HtmlArtifactDescriptor = ArtifactDescriptorBase & {
+  type: 'html';
+};
+
+export type SvgArtifactDescriptor = ArtifactDescriptorBase & {
+  type: 'svg';
+};
+
+export type ArtifactDescriptor = HtmlArtifactDescriptor | SvgArtifactDescriptor;
 
 export type ArtifactSecurityBlockReason =
   | 'blocked-empty'
