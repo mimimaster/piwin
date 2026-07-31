@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- 2D 极简纯平全身大佬瘫坐熊猫 (Full-body Seated Panda) -->
+  <g transform="translate(0, 15)">
+    <!-- 圆黑耳 -->
+    <circle cx="160" cy="150" r="36" fill="#1E293B"/>
+    <circle cx="352" cy="150" r="38" fill="#1E293B"/>
+
+    <!-- 伸出的黑脚掌 (瘫坐姿态) -->
+    <ellipse cx="150" cy="380" rx="45" ry="32" fill="#1E293B"/>
+    <ellipse cx="362" cy="380" rx="45" ry="32" fill="#1E293B"/>
+
+    <!-- 胖嘟嘟白身子 -->
+    <path d="M 160,220 C 140,300 150,400 256,400 C 362,400 372,300 352,220 C 340,150 172,150 160,220 Z" fill="#FFFFFF"/>
+
+    <!-- 抱在身上的黑手臂 -->
+    <path d="M 130,260 C 130,340 382,340 382,260 C 382,210 130,210 130,260 Z" fill="#1E293B"/>
+
+    <!-- 头部白圆盖板 -->
+    <path d="M 165,190 C 165,130 347,130 347,190 C 347,260 305,275 256,275 C 207,275 165,260 165,190 Z" fill="#FFFFFF"/>
+
+    <!-- 黑鼻子 -->
+    <ellipse cx="256" cy="225" rx="16" ry="11" fill="#1E293B"/>
+
+    <!-- 得意微笑嘴 -->
+    <path d="M 235,242 Q 256,260 277,242" fill="none" stroke="#1E293B" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- 2D 酷炫墨镜 (金色高光) -->
+    <g transform="translate(0, -10)">
+      <path d="M 172,168 L 242,168 C 246,198 230,212 188,212 C 175,212 168,192 172,168 Z" fill="#0F172A"/>
+      <path d="M 270,168 L 340,168 C 344,192 339,212 324,212 C 282,212 266,198 270,168 Z" fill="#0F172A"/>
+      <rect x="238" y="174" width="36" height="6" fill="#0F172A"/>
+      <line x1="182" y1="175" x2="212" y2="175" stroke="#F59E0B" stroke-width="5" stroke-linecap="round"/>
+      <line x1="280" y1="175" x2="310" y2="175" stroke="#F59E0B" stroke-width="5" stroke-linecap="round"/>
+    </g>
+
+    <!-- 捧在肚子上的 2D 大金币 -->
+    <circle cx="256" cy="335" r="28" fill="#F59E0B" stroke="#D97706" stroke-width="4"/>
+    <rect x="246" y="325" width="20" height="20" fill="none" stroke="#FEF08A" stroke-width="3"/>
+  </g>
+</svg>

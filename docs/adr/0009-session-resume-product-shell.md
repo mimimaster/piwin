@@ -34,3 +34,9 @@ from the same transcript.
 - Live tool/MCP process state is recreated on next live session, not restored
   from Pi JSONL.
 - No half-broken “looks resumed but wrong model state”.
+- `session/truncate-from` (revert) drops the adapter's cached Product Shell /
+  live Pi handle (`AgentHost.dropSession`) and rebuilds a fresh shell from the
+  truncated product transcript. The next prompt passes `requireSession` and
+  injects the truncated history via `needsProductHistoryInjection`, so an
+  edited-and-resent message replaces the pre-truncation turns instead of
+  duplicating them.

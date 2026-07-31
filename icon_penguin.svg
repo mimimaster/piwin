@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- macOS 精品软件图标级：企鹅 (Tux-style Winning Penguin Mascot) -->
+  <defs>
+    <linearGradient id="penguinBody" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2D3748"/>
+      <stop offset="100%" stop-color="#1A202C"/>
+    </linearGradient>
+    <linearGradient id="penguinBelly" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#F1F5F9"/>
+    </linearGradient>
+    <linearGradient id="beakGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F6AD55"/>
+      <stop offset="100%" stop-color="#DD6B20"/>
+    </linearGradient>
+    <linearGradient id="sunglassesGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1A202C"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+    <linearGradient id="goldScarf" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="100%" stop-color="#CA8A04"/>
+    </linearGradient>
+    <filter id="macShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#macShadow)">
+    <!-- 翅膀 -->
+    <path d="M 120,280 C 80,300 75,370 125,350 C 145,340 155,300 150,280 Z" fill="#1A202C"/>
+    <path d="M 392,280 C 432,300 437,370 387,350 C 367,340 357,300 362,280 Z" fill="#1A202C"/>
+
+    <!-- 橙黄小脚丫 -->
+    <path d="M 170,410 C 150,440 210,450 230,420 Z" fill="url(#beakGrad)"/>
+    <path d="M 342,410 C 362,440 302,450 282,420 Z" fill="url(#beakGrad)"/>
+
+    <!-- 企鹅身体 -->
+    <path d="M 150,240 C 150,130 200,100 256,100 C 312,100 362,130 362,240 C 362,350 320,430 256,430 C 192,430 150,350 150,240 Z" fill="url(#penguinBody)"/>
+
+    <!-- 白大肚皮 -->
+    <path d="M 185,250 C 185,180 220,165 256,165 C 292,165 327,180 327,250 C 327,340 300,410 256,410 C 212,410 185,340 185,250 Z" fill="url(#penguinBelly)"/>
+
+    <!-- 嘴巴 -->
+    <path d="M 230,225 Q 256,255 282,225 Z" fill="url(#beakGrad)"/>
+
+    <!-- 酷炫黑墨镜 -->
+    <g transform="translate(0, 0)">
+      <path d="M 165,170 L 242,170 C 246,205 230,220 185,220 C 170,220 162,200 165,170 Z" fill="url(#sunglassesGrad)"/>
+      <path d="M 270,170 L 347,170 C 350,200 342,220 297,220 C 252,220 266,205 270,170 Z" fill="url(#sunglassesGrad)"/>
+      <rect x="238" y="174" width="36" height="8" rx="4" fill="#000000"/>
+      <!-- 镜片白色反光高光 -->
+      <path d="M 175,175 L 205,175 L 190,210 L 172,210 Z" fill="#FFFFFF" opacity="0.4"/>
+      <path d="M 280,175 L 310,175 L 295,210 L 277,210 Z" fill="#FFFFFF" opacity="0.4"/>
+    </g>
+
+    <!-- 赢麻了胜利金围巾 + 勋章 -->
+    <path d="M 195,260 Q 256,290 317,260 L 327,285 Q 256,320 185,285 Z" fill="url(#goldScarf)"/>
+    <circle cx="256" cy="305" r="20" fill="url(#goldScarf)" stroke="#B7791F" stroke-width="2"/>
+    <text x="256" y="312" font-family="system-ui, sans-serif" font-weight="900" font-size="16" fill="#744210" text-anchor="middle">W</text>
+  </g>
+</svg>
