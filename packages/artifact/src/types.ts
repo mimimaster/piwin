@@ -52,15 +52,24 @@ export type ArtifactSecurityResult = {
   externalResources: ExternalArtifactResource[];
 };
 
-export type HtmlArtifactDescriptor = {
+export type ArtifactDescriptorBase = {
   id: string;
-  type: 'html';
   title: string;
   /** Raw model source (never the wrapped srcdoc). */
   source: string;
   rawLanguage: string;
   alias: string;
 };
+
+export type HtmlArtifactDescriptor = ArtifactDescriptorBase & {
+  type: 'html';
+};
+
+export type SvgArtifactDescriptor = ArtifactDescriptorBase & {
+  type: 'svg';
+};
+
+export type ArtifactDescriptor = HtmlArtifactDescriptor | SvgArtifactDescriptor;
 
 export type ArtifactIframePolicyMode = 'disabled' | 'allowlist' | 'permissive';
 
@@ -167,7 +176,7 @@ export type ArtifactPreviewDecision =
   | {
       kind: 'render';
       mode: ArtifactRenderMode;
-      descriptor: HtmlArtifactDescriptor;
+      descriptor: ArtifactDescriptor;
       security: ArtifactSecurityResult;
       srcdoc: string;
       csp: string;
@@ -175,13 +184,13 @@ export type ArtifactPreviewDecision =
     }
   | {
       kind: 'blocked';
-      descriptor: HtmlArtifactDescriptor;
+      descriptor: ArtifactDescriptor;
       security: ArtifactSecurityResult;
       reason: ArtifactSecurityBlockReason;
     }
   | {
       kind: 'preparing';
-      descriptor: HtmlArtifactDescriptor;
+      descriptor: ArtifactDescriptor;
       message: string;
     }
   | {
