@@ -1831,6 +1831,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             requestPet={requestPet}
             requestAutomation={requestAutomation}
             requestSubAgent={requestSubAgent as never}
+            subagentChildren={state.subagentChildren}
             activeSessionId={state.activeSessionId}
             onOpenSubagentSession={(sessionId) => {
               void handleResumeSession(sessionId);
