@@ -185,6 +185,7 @@ export type DesktopTranslator = {
       addModel: string;
       removeModel: string;
       noModels: string;
+      discoveryError: string;
       modelsHeading: string;
     };
   };
@@ -415,6 +416,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         pageDescription: isChinese
           ? '配置图像生成模型、接口地址与默认图片模型。'
           : 'Configure image generation models, API endpoints, and the default image model.',
+        discoveryError: isChinese ? '模型发现失败。' : 'Model discovery failed.',
         provider: isChinese ? '接口通道' : 'Provider',
         apiEndpoint: isChinese ? 'API 接口地址' : 'API endpoint',
         apiKey: isChinese ? 'API Key' : 'API key',
