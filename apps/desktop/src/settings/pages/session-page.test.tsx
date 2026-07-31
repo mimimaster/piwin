@@ -317,6 +317,32 @@ describe('SessionPage Walkthrough settings', () => {
     act(() => root.unmount());
   });
 
+  it('shows a field-level error and blocks save when model is unselected in custom mode', () => {
+    const saveConfig = vi.fn(async () => true);
+    const { container, root } = renderPage(baseConfig(), saveConfig, vi.fn());
+
+    setSelect(container, 'walkthrough-mode-select', 'custom');
+    // Leave model unselected: the draft's modelValue stays '' (no option match),
+    // so the resolved model is null even though the native <select> may display
+    // the first option visually. Keep the default prompt (valid).
+    const modelSelect = container.querySelector<HTMLSelectElement>(
+      'select[data-testid="walkthrough-model-select"]',
+    );
+    expect(modelSelect).toBeTruthy();
+
+    // The model error element should be rendered.
+    const modelError = container.querySelector('[data-testid="walkthrough-model-error"]');
+    expect(modelError).toBeTruthy();
+
+    // Save button should be disabled when issues exist.
+    const button = container.querySelector<HTMLButtonElement>(
+      '[data-testid="walkthrough-save-button"]',
+    );
+    expect(button?.disabled).toBe(true);
+    expect(saveConfig).not.toHaveBeenCalled();
+    act(() => root.unmount());
+  });
+
   it('shows a field-level error when prompt exceeds the byte limit', () => {
     const { container, root } = renderPage(baseConfig());
     setSelect(container, 'walkthrough-mode-select', 'custom');

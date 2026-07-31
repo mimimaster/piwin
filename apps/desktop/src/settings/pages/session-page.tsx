@@ -261,19 +261,22 @@ export function SessionPage(): ReactElement {
                     error={promptIssue ? promptIssue.message : null}
                   />
                 </div>
-
-                <div className="ui-field-row-control" style={{ justifyContent: 'flex-end' }}>
-                  <Button
-                    variant="primary"
-                    data-testid="walkthrough-save-button"
-                    onClick={() => void handleSaveWalkthrough()}
-                    disabled={issues.length > 0}
-                  >
-                    {locale === 'zh-CN' ? '保存' : 'Save'}
-                  </Button>
-                </div>
               </div>
             </Collapse>
+
+            {/* Save button lives outside the Collapse so it stays visible in
+                both Default and Custom modes — otherwise toggling the enabled
+                switch or switching Custom → Default could never be persisted. */}
+            <div className="ui-field-row-control" style={{ justifyContent: 'flex-end' }}>
+              <Button
+                variant="primary"
+                data-testid="walkthrough-save-button"
+                onClick={() => void handleSaveWalkthrough()}
+                disabled={issues.length > 0}
+              >
+                {locale === 'zh-CN' ? '保存' : 'Save'}
+              </Button>
+            </div>
           </>
         ) : null}
       </div>
