@@ -178,7 +178,22 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         aria-label={`${displayName} ${tool.status}`}
       >
         {kindIcon(kind)}
-        <span className="tool-call-name">{kindVerb(kind, displayName)}</span>
+        <span className="tool-call-action-verb">
+          {tool.presentation?.actionVerb ?? kindVerb(kind, displayName)}
+        </span>
+        {tool.presentation?.targetPaths && tool.presentation.targetPaths[0] ? (
+          <span className="tool-call-file-pill">
+            <span className="tool-call-file-name">
+              {tool.presentation.targetPaths[0].split('/').pop()}
+            </span>
+            {tool.presentation.lineRange ? (
+              <span className="tool-call-line-range">#{tool.presentation.lineRange}</span>
+            ) : null}
+          </span>
+        ) : null}
+        {tool.presentation?.countTag ? (
+          <span className="tool-call-count-tag">{tool.presentation.countTag}</span>
+        ) : null}
         <span className="tool-call-preview">
           {summary === displayName || !summary ? '' : summary}
         </span>

@@ -8,6 +8,7 @@ export type SessionRowMenuAction =
   | 'pin'
   | 'unpin'
   | 'rename'
+  | 'copy-id'
   | 'duplicate'
   | 'archive'
   | 'unarchive'

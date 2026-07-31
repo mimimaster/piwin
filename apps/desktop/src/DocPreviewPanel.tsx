@@ -1,0 +1,170 @@
+import { useState, type ReactElement } from 'react';
+import { DropdownMenu, DropdownMenuItem, IconButton } from '@piwin/ui-kit';
+import { IconBook, IconCopy, IconDocument, IconDownload, IconLink, IconMenuList, IconMore } from './shell-icons';
+import { EnhancedMarkdownView } from './EnhancedMarkdownView';
+import type { DesktopLocale } from './desktop-locale';
+
+export type SessionDocItem = {
+  id: string;
+  title: string;
+  path?: string | undefined;
+  iconKind?: 'doc' | 'book' | 'plan' | undefined;
+};
+
+export type DocPreviewPanelProps = {
+  title?: string | undefined;
+  content?: string | undefined;
+  filePath?: string | null | undefined;
+  sessionDocuments?: SessionDocItem[] | undefined;
+  onSelectDocument?: ((doc: { title: string; path?: string }) => void) | undefined;
+  onClose?: (() => void) | undefined;
+  onOpenFile?: ((filePath: string) => void) | undefined;
+  locale?: DesktopLocale | undefined;
+};
+
+export function DocPreviewPanel({
+  title = 'Implementation Plan',
+  content = '',
+  filePath = null,
+  sessionDocuments,
+  onSelectDocument,
+  onClose: _onClose,
+  onOpenFile,
+  locale = 'zh-CN',
+}: DocPreviewPanelProps): ReactElement {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Strip file path and extension from display title e.g. "/path/to/自我介绍.md" -> "自我介绍"
+  const rawTitle = title || 'Implementation Plan';
+  const cleanName = rawTitle.split(/[\\/]/).pop() || rawTitle;
+  const displayTitle = cleanName.replace(/\.md$/i, '');
+  const defaultContent =
+    content || `# ${displayTitle}\n\n*${locale === 'zh-CN' ? '暂无文档内容' : 'No document content available'}*`;
+
+  function handleCopy(): void {
+    if (!content) return;
+    void (async () => {
+      try {
+        await navigator.clipboard.writeText(content);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }
+
+  function handleCopyPath(): void {
+    const pathText = filePath || `${displayTitle}.md`;
+    void (async () => {
+      try {
+        await navigator.clipboard.writeText(pathText);
+      } catch {
+        /* ignore */
+      }
+    })();
+  }
+
+  function handleExportArtifact(): void {
+    if (!content) return;
+    try {
+      const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${displayTitle}.md`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <div className="doc-preview-panel" data-testid="doc-preview-panel">
+      <header className="doc-preview-header">
+        <div className="doc-preview-title-group">
+          <h2 className="doc-preview-title">{displayTitle}</h2>
+        </div>
+        <div className="doc-preview-actions">
+          <DropdownMenu
+            trigger={
+              <IconButton label={locale === 'zh-CN' ? '更多选项' : 'More options'}>
+                <IconMore width={14} height={14} />
+              </IconButton>
+            }
+          >
+            <DropdownMenuItem onSelect={handleCopy} testId="doc-menu-copy">
+              <span className="doc-menu-item-content">
+                <IconCopy width={14} height={14} /> Copy
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleCopyPath} testId="doc-menu-copy-path">
+              <span className="doc-menu-item-content">
+                <IconLink width={14} height={14} /> Copy Path
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={handleExportArtifact} testId="doc-menu-export">
+              <span className="doc-menu-item-content">
+                <IconDownload width={14} height={14} /> Export Artifact
+              </span>
+            </DropdownMenuItem>
+          </DropdownMenu>
+
+          <IconButton
+            label={locale === 'zh-CN' ? '切换侧边栏' : 'Toggle Sidebar'}
+            title={locale === 'zh-CN' ? '切换侧边栏' : 'Toggle Sidebar'}
+            onClick={() => setSidebarOpen((prev) => !prev)}
+            className={sidebarOpen ? 'doc-action-active' : ''}
+          >
+            <IconMenuList width={14} height={14} />
+          </IconButton>
+        </div>
+      </header>
+
+      <div className="doc-preview-container">
+        {sidebarOpen && sessionDocuments && sessionDocuments.length > 0 ? (
+          <aside className="doc-sidebar" data-testid="doc-sidebar">
+            <div className="doc-sidebar-header">
+              <span>Artifacts</span>
+            </div>
+            <ul className="doc-sidebar-list">
+              {sessionDocuments.map((docItem) => {
+                const isActive =
+                  docItem.title.toLowerCase() === displayTitle.toLowerCase() ||
+                  (docItem.path && filePath && docItem.path.includes(filePath));
+                return (
+                  <li key={docItem.id}>
+                    <button
+                      type="button"
+                      className={`doc-sidebar-item${isActive ? ' active' : ''}`}
+                      onClick={() =>
+                        onSelectDocument?.({
+                          title: docItem.title,
+                          ...(docItem.path ? { path: docItem.path } : {}),
+                        })
+                      }
+                    >
+                      <span className="doc-sidebar-icon">
+                        {docItem.iconKind === 'book' ? (
+                          <IconBook width={14} height={14} />
+                        ) : (
+                          <IconDocument width={14} height={14} />
+                        )}
+                      </span>
+                      <span className="doc-sidebar-title">{docItem.title}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </aside>
+        ) : null}
+
+        <div className="doc-preview-body">
+          <EnhancedMarkdownView text={defaultContent} onOpenFile={onOpenFile} />
+        </div>
+      </div>
+    </div>
+  );
+}

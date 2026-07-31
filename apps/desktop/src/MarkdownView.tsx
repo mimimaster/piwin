@@ -8,6 +8,7 @@ import {
   type ArtifactThemeVariables,
 } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
+import { fileNameFromPath, PathChip } from './path-chip';
 import { ArtifactFrame } from './ArtifactFrame';
 import { isFlashcardArtifactSource } from './flashcard-artifact';
 import { MermaidBlock } from './MermaidBlock';
@@ -57,6 +58,8 @@ type MarkdownViewProps = {
   artifactPreviewEnabled?: boolean;
   /** Security byte cap forwarded to evaluateCodeFence when heavy path runs. */
   artifactMaxBytes?: number;
+  /** Callback when user clicks a markdown document link or plan document chip. */
+  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
 };
 
 /**
@@ -75,6 +78,7 @@ export function MarkdownView({
   onArtifactAction,
   artifactPreviewEnabled = false,
   artifactMaxBytes,
+  onOpenDocument,
 }: MarkdownViewProps): ReactElement {
   const phase: MarkdownRenderingPhase =
     renderingPhase ?? (streamComplete ? 'completed' : 'streaming');
@@ -126,23 +130,29 @@ export function MarkdownView({
           return (
             <ul key={index} className="md-list">
               {block.items.map((item, itemIndex) => (
-                <li key={itemIndex}>{renderInline(item)}</li>
+                <li key={itemIndex}>{renderInline(item, onOpenDocument)}</li>
               ))}
             </ul>
           );
         }
-        return <ParagraphView key={index} value={block.value} />;
+        return <ParagraphView key={index} value={block.value} onOpenDocument={onOpenDocument} />;
       })}
+      {phase === 'streaming' && text.length > 0 ? (
+        <span className="streaming-cursor-pulse" aria-hidden="true" />
+      ) : null}
     </div>
   );
 }
 
-function ParagraphView(props: { value: string }): ReactElement {
+function ParagraphView(props: {
+  value: string;
+  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
+}): ReactElement {
   const standaloneMath = extractStandaloneDisplayMath(props.value);
   if (standaloneMath !== null) {
     return <MathView tex={standaloneMath} display />;
   }
-  return <p className="md-p">{renderInline(props.value)}</p>;
+  return <p className="md-p">{renderInline(props.value, props.onOpenDocument)}</p>;
 }
 
 function CodeFenceView(props: {
@@ -261,45 +271,73 @@ function CodeFenceView(props: {
         </div>
       );
     }
-    const previewLabel =
-      decision.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview artifact';
-    return (
-      <div className="artifact-with-source">
-        <div className="md-code-block">
-          <div className="md-code-header">
-            <span className="md-code-lang muted">{props.language || 'html'}</span>
-            <div className="md-code-header-actions">
+    const previewLabel = decision.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview artifact';
+
+    // Blocked: no render to show — display source + blocked strip, no toggle.
+    if (decision.kind === 'blocked') {
+      return (
+        <div className="artifact-with-source">
+          <div className="md-code-block" data-testid="code-fence-source">
+            <div className="md-code-header">
+              <span className="md-code-lang muted">{props.language || 'html'}</span>
               <CopyCodeButton text={props.source} />
-              {decision.kind === 'render' || decision.kind === 'preparing' ? (
-                <Button
-                  size="compact"
-                  data-testid="artifact-preview-toggle"
-                  aria-expanded={artifactPreviewOpen}
-                  onClick={() => setArtifactPreviewOpen((previous) => !previous)}
-                >
-                  {artifactPreviewOpen ? 'Hide preview' : previewLabel}
-                </Button>
-              ) : null}
             </div>
+            <pre className="md-code">
+              <code data-language={props.language || undefined}>{props.source}</code>
+            </pre>
           </div>
-          <pre className="md-code">
-            <code data-language={props.language || undefined}>{props.source}</code>
-          </pre>
-        </div>
-        {decision.kind === 'blocked' ? (
           <div className="artifact-blocked muted" data-testid="artifact-blocked" role="status">
             Artifact blocked
             {`: ${decision.reason}`}
           </div>
-        ) : null}
-        {artifactPreviewOpen && (decision.kind === 'render' || decision.kind === 'preparing') ? (
+        </div>
+      );
+    }
+
+    // render | preparing: in-place toggle. Closed → source code with Preview
+    // affordance; open → rendered ArtifactFrame replaces the source in place
+    // (no stacked second code block). The "Show code" action lives inside the
+    // ArtifactFrame header via `extraHeaderAction`.
+    return (
+      <div className="artifact-with-source">
+        {artifactPreviewOpen ? (
           <ArtifactFrame
             key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}
             decision={decision}
             initPriority={props.initPriority}
+            extraHeaderAction={
+              <Button
+                size="compact"
+                data-testid="artifact-preview-toggle"
+                aria-expanded
+                onClick={() => setArtifactPreviewOpen(false)}
+              >
+                Show code
+              </Button>
+            }
             {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
           />
-        ) : null}
+        ) : (
+          <div className="md-code-block" data-testid="code-fence-source">
+            <div className="md-code-header">
+              <span className="md-code-lang muted">{props.language || 'html'}</span>
+              <div className="md-code-header-actions">
+                <CopyCodeButton text={props.source} />
+                <Button
+                  size="compact"
+                  data-testid="artifact-preview-toggle"
+                  aria-expanded={false}
+                  onClick={() => setArtifactPreviewOpen(true)}
+                >
+                  {previewLabel}
+                </Button>
+              </div>
+            </div>
+            <pre className="md-code">
+              <code data-language={props.language || undefined}>{props.source}</code>
+            </pre>
+          </div>
+        )}
       </div>
     );
   }
@@ -371,30 +409,21 @@ function FlashcardPreviewCard(props: {
   const decision = evaluateCodeFence(evaluateOptions);
   return (
     <div className="artifact-with-source">
-      <div className="md-code-block">
-        <div className="md-code-header">
-          <span className="md-code-lang muted">{props.language || 'html'}</span>
-          <div className="md-code-header-actions">
-            <CopyCodeButton text={props.source} />
+      {decision.kind === 'render' || decision.kind === 'preparing' ? (
+        <ArtifactFrame
+          key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}
+          decision={decision}
+          initPriority={props.initPriority}
+          extraHeaderAction={
             <Button
               size="compact"
               data-testid="flashcard-preview-card"
               aria-expanded
               onClick={() => setOpen(false)}
             >
-              Hide preview
+              Show code
             </Button>
-          </div>
-        </div>
-        <pre className="md-code">
-          <code data-language={props.language || undefined}>{props.source}</code>
-        </pre>
-      </div>
-      {decision.kind === 'render' || decision.kind === 'preparing' ? (
-        <ArtifactFrame
-          key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}
-          decision={decision}
-          initPriority={props.initPriority}
+          }
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
         />
       ) : decision.kind === 'blocked' ? (
@@ -476,20 +505,84 @@ function MathView(props: { tex: string; display: boolean }): ReactElement {
   );
 }
 
-function renderInline(text: string): Array<string | ReactElement> {
+function renderInline(
+  text: string,
+  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined,
+): Array<string | ReactElement> {
   const parts: Array<string | ReactElement> = [];
   let key = 0;
+
+  // Regex pattern to tokenize inline links `[title](url)` alongside normal segments
+  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+
   for (const segment of tokenizeInlineWithMath(text)) {
     if (segment.kind === 'text') {
-      parts.push(segment.value);
+      let lastIdx = 0;
+      let match: RegExpExecArray | null;
+
+      while ((match = linkRegex.exec(segment.value)) !== null) {
+        if (match.index > lastIdx) {
+          const subText = segment.value.slice(lastIdx, match.index);
+          pushTextWithFilePaths(subText, parts, key, onOpenDocument);
+          key += 100;
+        }
+
+        const title = match[1] ?? 'Document';
+        const url = match[2] ?? '';
+        const isDocLink =
+          url.endsWith('.md') ||
+          title.includes('Plan') ||
+          title.includes('Document') ||
+          title.startsWith('📄');
+
+        if (isDocLink && onOpenDocument) {
+          parts.push(
+            <PathChip
+              key={key++}
+              fullPath={url}
+              label={title}
+              onOpen={() => onOpenDocument({ title, path: url })}
+            />,
+          );
+        } else {
+          parts.push(
+            <a key={key++} href={url} target="_blank" rel="noopener noreferrer" className="md-link">
+              {title}
+            </a>,
+          );
+        }
+        lastIdx = linkRegex.lastIndex;
+      }
+
+      if (lastIdx < segment.value.length) {
+        const remaining = segment.value.slice(lastIdx);
+        pushTextWithFilePaths(remaining, parts, key, onOpenDocument);
+        key += 100;
+      }
       continue;
     }
     if (segment.kind === 'code') {
-      parts.push(
-        <code key={key++} className="md-inline-code">
-          {segment.value}
-        </code>,
-      );
+      const codeVal = segment.value.trim();
+      // Only convert inline code to chip if it contains a path (e.g. /path/to/file.md or ./file.md or file://)
+      const isPathMd =
+        (codeVal.includes('/') || codeVal.includes('\\') || codeVal.startsWith('file://')) &&
+        codeVal.endsWith('.md');
+
+      if (isPathMd && onOpenDocument) {
+        parts.push(
+          <PathChip
+            key={key++}
+            fullPath={codeVal}
+            onOpen={() => onOpenDocument({ title: fileNameFromPath(codeVal), path: codeVal })}
+          />,
+        );
+      } else {
+        parts.push(
+          <code key={key++} className="md-inline-code">
+            {segment.value}
+          </code>,
+        );
+      }
       continue;
     }
     if (segment.kind === 'strong') {
@@ -503,4 +596,41 @@ function renderInline(text: string): Array<string | ReactElement> {
     parts.push(<MathView key={key++} tex={segment.value} display={segment.display} />);
   }
   return parts;
+}
+
+function pushTextWithFilePaths(
+  text: string,
+  parts: Array<string | ReactElement>,
+  keyBase: number,
+  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined,
+): void {
+  if (!onOpenDocument) {
+    parts.push(text);
+    return;
+  }
+  // Match full absolute or relative file paths with slashes ending in .md
+  // e.g. /Users/yorickjue/.piwin/workspace/自我介绍.md, ./docs/guide.md, file:///...
+  const pathRegex = /(?:file:\/\/|\/|[A-Za-z]:[\\/]|(?:\.\.?\/))+[\w\u4e00-\u9fa5_./-]+\.md\b/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = keyBase;
+
+  while ((match = pathRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const fullPath = match[0];
+    parts.push(
+      <PathChip
+        key={key++}
+        fullPath={fullPath}
+        onOpen={() => onOpenDocument({ title: fileNameFromPath(fullPath), path: fullPath })}
+      />,
+    );
+    lastIndex = pathRegex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
 }

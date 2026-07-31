@@ -66,23 +66,17 @@
      Right padding (2px) keeps the right tools cluster flush against the edge. */
   padding: 0 2px 0 88px;
   border-bottom: none;
-  background: #ffffff;
+  background: transparent;
   box-sizing: border-box;
 }
 
 .app-shell[data-layout='desktop'].nav-open > .workbench-topbar {
-  background: linear-gradient(
-    90deg,
-    var(--sidebar-bg, #f0f1f4) 0px,
-    var(--sidebar-bg, #f0f1f4) var(--sidebar-width),
-    #ffffff var(--sidebar-width),
-    #ffffff 100%
-  );
+  background: transparent;
 }
 
 .app-shell[data-layout='desktop']:not(.nav-open) > .workbench-topbar,
 .app-shell.settings-open[data-layout='desktop'] > .workbench-topbar {
-  background: #ffffff;
+  background: transparent;
 }
 
 /* Compact shell topbar uses full product chrome height. */

@@ -6,6 +6,7 @@
  * History navigation (`ArrowUp`/`ArrowDown`) recalls past sent prompts.
  */
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -15,7 +16,7 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
-import type { ContextUsageSnapshot } from '@piwin/contracts';
+import type { ContextUsageSnapshot, HostStatusData } from '@piwin/contracts';
 import { IconButton } from '@piwin/ui-kit';
 import {
   ComposerPlusMenu,
@@ -101,6 +102,11 @@ export type ComposerDockProps = {
   ultraThinkingEnabled?: boolean;
   onSteer?: () => void;
   onFollowUp?: () => void;
+  hostStatus?: HostStatusData | null;
+  hostReady?: boolean;
+  hostMock?: boolean;
+  transportLabel?: string;
+  onOpenHostSettings?: () => void;
 };
 
 export function ComposerCard(props: ComposerDockProps): ReactElement {
@@ -447,14 +453,20 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   }
 
   // Auto-resize textarea using rAF to avoid sync layout thrashing
-  function autoResize(): void {
+  const autoResize = useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
     requestAnimationFrame(() => {
       el.style.height = 'auto';
-      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+      if (props.composer) {
+        el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+      }
     });
-  }
+  }, [props.composer]);
+
+  useEffect(() => {
+    autoResize();
+  }, [props.composer, props.layoutMode, autoResize]);
 
   return (
     <div
@@ -698,6 +710,18 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 }
 
 export function ComposerDock(props: ComposerDockProps): ReactElement {
+  const hostReady = props.hostReady ?? props.hostStatus?.ready ?? true;
+  const hostMode = (props.hostStatus?.mode ?? 'sdk').toUpperCase();
+  const isMock = props.hostMock ?? props.hostStatus?.mock ?? false;
+
+  const statusLabel = hostReady
+    ? `Host: ${hostMode}${isMock ? ' (mock)' : ''}`
+    : 'Host: Connecting...';
+
+  const tooltipText = `Host Mode: ${hostMode}${isMock ? ' (Mock)' : ' (Live)'} | Status: ${
+    hostReady ? 'Ready' : 'Connecting'
+  }${props.transportLabel ? ` | Transport: ${props.transportLabel}` : ''}`;
+
   return (
     <footer
       className={`composer-dock layout-${props.layoutMode}`}
@@ -705,9 +729,23 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
       data-layout={props.layoutMode}
     >
       <ComposerCard {...props} />
-      <div className="composer-hint">
-        ⏎ 发送 · ⇧⏎ 换行 · / 命令 · @ 提及 · ↑/↓ 历史记录 · Esc 中断
+      <div className="composer-footer-row">
+        <button
+          type="button"
+          className="composer-host-status"
+          data-testid="composer-host-status"
+          title={tooltipText}
+          aria-label={tooltipText}
+          onClick={props.onOpenHostSettings}
+        >
+          <span className={`host-status-dot ${hostReady ? 'online' : 'offline'}`} />
+          <span className="host-status-label">{statusLabel}</span>
+        </button>
+        <div className="composer-hint">
+          ⏎ 发送 · ⇧⏎ 换行 · / 命令 · @ 提及 · ↑/↓ 历史记录 · Esc 中断
+        </div>
       </div>
     </footer>
   );
 }
+

@@ -47,12 +47,16 @@
 
   /* Base typography — font values are overwritten at runtime by appearance-tokens.ts
      but these fallbacks prevent a flash before the first applyAppearanceToDocument call. */
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.45;
   font-weight: 400;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.011em;
   font-feature-settings:
+    'cv02', 'cv03', 'cv04', 'cv11',
     'kern' 1,
     'liga' 1;
   -webkit-font-smoothing: antialiased;

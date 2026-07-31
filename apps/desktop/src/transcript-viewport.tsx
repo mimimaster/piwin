@@ -5,6 +5,7 @@
 import type { ReactElement, ReactNode } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
 import { useTranscriptScroll } from './use-transcript-scroll';
+import { HistoryTicksDrawer } from './history-ticks-drawer';
 
 export type TranscriptViewportProps = {
   messageCount: number;
@@ -21,6 +22,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
 
   return (
     <div className="transcript-viewport">
+      <HistoryTicksDrawer messages={props.messages} />
       <div
         className="chat-stream"
         data-testid="chat-stream"

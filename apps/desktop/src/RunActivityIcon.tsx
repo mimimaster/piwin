@@ -12,8 +12,9 @@ export function RunActivityIcon(props: RunActivityIconProps): ReactElement {
   return (
     <ActivitySvgIcon
       kind={props.source.kind}
+      actionCategory={props.source.actionCategory}
       lucideName={props.source.lucideName}
-      {...(props.className !== undefined ? { className: props.className } : {})}
+      className={props.className}
       {...(props['data-testid'] !== undefined ? { 'data-testid': props['data-testid'] } : {})}
     />
   );

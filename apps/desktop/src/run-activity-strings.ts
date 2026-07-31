@@ -1,4 +1,5 @@
 import type { RunActivityInput } from './run-activity-types.js';
+import { resolveActionCategory } from './run-activity-icon.js';
 
 const TAKING_TOO_LONG_MS = 15_000;
 
@@ -13,6 +14,38 @@ export function buildBasePhrases(input: RunActivityInput): string[] {
   const isZh = input.locale === 'zh-CN';
   const toolName = input.activeToolName;
   const planStep = input.planStep;
+  const category = resolveActionCategory(input);
+
+  if (category === 'terminal') {
+    return isZh
+      ? [toolName ? `运行 ${toolName}` : '执行 Shell 指令…', '捕获标准输出…', '监控进程状态…']
+      : [toolName ? `Running ${toolName}` : 'Running shell command…', 'Capturing stdout…', 'Monitoring process…'];
+  }
+  if (category === 'edit') {
+    return isZh
+      ? [toolName ? `运行 ${toolName}` : '修改项目代码…', '写入文件变更…', '校验代码语法…']
+      : [toolName ? `Running ${toolName}` : 'Editing source file…', 'Applying code diff…', 'Validating syntax…'];
+  }
+  if (category === 'search') {
+    return isZh
+      ? [toolName ? `运行 ${toolName}` : '检索项目代码…', '查阅文件结构…', '定位逻辑符号…']
+      : [toolName ? `Running ${toolName}` : 'Searching codebase…', 'Inspecting file structure…', 'Locating symbols…'];
+  }
+  if (category === 'web') {
+    return isZh
+      ? [toolName ? `运行 ${toolName}` : '检索网络信息…', '获取网页内容…', '提取参考资料…']
+      : [toolName ? `Running ${toolName}` : 'Searching web resources…', 'Fetching page content…', 'Extracting reference data…'];
+  }
+  if (category === 'subagent') {
+    return isZh
+      ? [toolName ? `运行 ${toolName}` : '调度 子Agent 协作…', '分发独立任务…', '汇总 Agent 结果…']
+      : [toolName ? `Running ${toolName}` : 'Delegating to Subagent…', 'Running subtask concurrently…', 'Merging agent response…'];
+  }
+  if (category === 'ask') {
+    return isZh
+      ? ['等待你的决策…', '整理交互选项…']
+      : ['Waiting for your decision…', 'Preparing options…'];
+  }
 
   switch (input.kind) {
     case 'preparing':

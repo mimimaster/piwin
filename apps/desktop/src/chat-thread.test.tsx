@@ -720,6 +720,59 @@ describe('ChatThread render isolation (E1)', () => {
     expect(waitingLine).not.toBeNull();
     expect(waitingLine?.textContent).toContain('Connecting to model…');
   });
+
+  it('renders time display, copy button, and revert button on user messages', async () => {
+    const onRetrySpy = vi.fn();
+    const onFeedbackSpy = vi.fn();
+    const userMsg: ChatMessageUi = {
+      id: 'msg-u1',
+      role: 'user',
+      text: 'Test user prompt for actions bar',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      createdAt: '2026-07-31T13:53:00.000Z',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMsg]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId="msg-u1"
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={onRetrySpy}
+            onFeedback={onFeedbackSpy}
+            onOpenSubagentSession={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const timeEl = container.querySelector('[data-testid="user-message-time"]');
+    expect(timeEl).not.toBeNull();
+
+    const copyBtn = container.querySelector('[data-testid="message-copy-btn"]') as HTMLButtonElement;
+    expect(copyBtn).not.toBeNull();
+
+    const revertBtn = container.querySelector('[data-testid="message-revert-btn"]') as HTMLButtonElement;
+    expect(revertBtn).not.toBeNull();
+
+    // Revert button click triggers onRetry with message id
+    act(() => {
+      revertBtn.click();
+    });
+    expect(onRetrySpy).toHaveBeenCalledWith('msg-u1');
+  });
 });
 
 // ---------------------------------------------------------------------------

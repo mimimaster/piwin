@@ -16,11 +16,11 @@ export function useRunActivityPhrases(input: RunActivityInput): UseRunActivityPh
   const reduced = useReducedMotion() ?? false;
   const base = useMemo(
     () => buildBasePhrases(input),
-    [input.kind, input.activeToolName, input.planStep, input.locale],
+    [input.kind, input.activeToolName, input.actionCategory, input.planStep, input.locale],
   );
   const takingTooLong = useMemo(
     () => buildTakingTooLongPhrases(input),
-    [input.kind, input.activeToolName, input.planStep, input.locale],
+    [input.kind, input.activeToolName, input.actionCategory, input.planStep, input.locale],
   );
   const [isTakingTooLong, setIsTakingTooLong] = useState(
     typeof input.elapsedMs === 'number' && input.elapsedMs >= TAKING_TOO_LONG_MS,

@@ -771,6 +771,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             name: session?.name ?? '',
           });
           break;
+        case 'copy-id':
+          try {
+            await navigator.clipboard.writeText(sessionId);
+            dispatchNotification(pushSuccess('Session ID copied to clipboard'));
+          } catch {
+            dispatchNotification(pushError('Could not copy session ID'));
+          }
+          break;
         case 'duplicate':
           await handleDuplicateSession(sessionId);
           break;

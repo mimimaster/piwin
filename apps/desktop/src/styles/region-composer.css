@@ -7,12 +7,15 @@
 /* ─── Dock ──────────────────────────────────────────────────────────── */
 
 .composer-dock {
-  /* Above the transcript so upward popovers (slash, thinking, plus) are visible. */
+  /* Positioned at stage bottom; upward popovers (slash, thinking) open above. */
   position: relative;
   z-index: 10;
   flex-shrink: 0;
-  padding: 10px 16px 16px;
-  /* Floating card: no hard divider between transcript and dock. */
+  width: 100%;
+  max-width: var(--chat-max, 760px);
+  margin: 0 auto;
+  padding: 10px 20px 16px;
+  box-sizing: border-box;
   border-top: none;
   background: transparent;
 }
@@ -22,41 +25,99 @@
   flex-direction: column;
   align-items: stretch;
   gap: 10px;
-  width: min(100%, var(--chat-max, 760px));
+  width: 100%;
+  max-width: var(--chat-max, 760px);
   margin: 0 auto;
-  padding: 8px 0 28px;
+  padding: 8px 20px 28px;
+  box-sizing: border-box;
   border-top: none;
 }
 
 /* Empty stage: dock is packed under the hero as one vertical system. */
 .chat-column-empty .composer-dock.layout-centered {
   flex: 0 0 auto;
-  width: min(100%, var(--chat-max, 760px));
+  width: 100%;
+  max-width: var(--chat-max, 760px);
   margin: 0 auto;
-  padding: 4px 0 24px;
+  padding: 4px 20px 24px;
+  box-sizing: border-box;
   border-top: 0;
   background: transparent;
 }
 
 @media (max-width: 820px) {
   .composer-dock {
-    padding-inline: 12px;
+    padding-bottom: 12px;
   }
 
   .chat-column-empty .composer-dock.layout-centered {
-    width: 100%;
-    padding: 4px 12px 14px;
+    padding: 4px 20px 14px;
   }
 }
 
 /* ─── Card ──────────────────────────────────────────────────────────── */
 
-.composer-hint {
+.composer-footer-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
   margin-top: 6px;
+  padding: 0 4px;
+}
+
+.composer-host-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--faint);
+  user-select: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  transition: color 150ms ease, background-color 150ms ease;
+  justify-self: start;
+  font-family: inherit;
+}
+
+.composer-host-status:hover {
+  color: var(--fg);
+  background-color: var(--hover-bg, rgba(255, 255, 255, 0.06));
+}
+
+.composer-host-status .host-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.composer-host-status .host-status-dot.online {
+  background-color: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.composer-host-status .host-status-dot.offline {
+  background-color: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+  animation: host-status-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes host-status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.composer-hint {
+  grid-column: 2;
+  margin-top: 0;
   text-align: center;
   font-size: 10.5px;
   color: var(--faint);
   user-select: none;
+  white-space: nowrap;
 }
 
 .composer-card-v2 {

@@ -18,13 +18,20 @@ const COMMAND_ALIASES: Record<string, 'compact' | 'stop'> = {
 const MODE_NAMES: ReadonlySet<string> = new Set(['agent', 'plan', 'debug', 'ask']);
 
 /**
+ * Slash aliases that resolve to a bundled skill id. The alias is the slash
+ * name without the leading `/`. Each value is the canonical skill id (and
+ * name) the alias should behave like. This keeps a single canonical skill
+ * asset while exposing friendlier trigger names.
+ */
+const SKILL_ALIASES: Record<string, string> = {
+  'write-plan': 'writing-plans',
+};
+
+/**
  * Find the slash token under the caret.
  * Token runs from the last whitespace (or start) if it begins with `/`.
  */
-export function detectActiveSlashToken(
-  text: string,
-  caretIndex: number,
-): ActiveSlashToken | null {
+export function detectActiveSlashToken(text: string, caretIndex: number): ActiveSlashToken | null {
   const safeCaret = Math.max(0, Math.min(caretIndex, text.length));
   let startIndex = safeCaret;
   while (startIndex > 0) {
@@ -118,6 +125,22 @@ export function parseComposerSlashSubmit(
       skillName: skillByName.name,
       args,
     };
+  }
+
+  // Alias resolution: `/write-plan` → canonical `writing-plans` skill.
+  const aliasTarget = SKILL_ALIASES[name];
+  if (aliasTarget) {
+    const aliasedSkill = skills.find(
+      (skill) => skill.id.toLowerCase() === aliasTarget || skill.name.toLowerCase() === aliasTarget,
+    );
+    if (aliasedSkill) {
+      return {
+        kind: 'skill',
+        skillId: aliasedSkill.id,
+        skillName: aliasedSkill.name,
+        args,
+      };
+    }
   }
 
   return { kind: 'unknown', name, args };

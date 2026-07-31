@@ -23,7 +23,7 @@
   overflow: hidden;
   /* Prevent sparse auto tracks from stealing layout height. */
   grid-auto-rows: minmax(0, auto);
-  background: var(--bg-white, #ffffff);
+  background: var(--bg);
   /* Never animate track sizes — intermediate frames look like a refresh. */
   transition: none;
 }
@@ -138,11 +138,11 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: #ffffff;
+  background: transparent;
 }
 
 html[data-theme-mode='light'] .workspace {
-  background: #ffffff;
+  background: transparent;
 }
 
 .chat-column {
@@ -152,6 +152,7 @@ html[data-theme-mode='light'] .workspace {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   /* Transparent so the workspace Daybreak glow shows through the stage. */
   background: transparent;
   /* Panel open/close changes stage width; avoid width transitions on chrome. */
@@ -164,6 +165,7 @@ html[data-theme-mode='light'] .workspace {
   padding: 0;
   overflow: hidden;
 }
+
 
 /* ── App-level error boundary ─────────────────────────────────────── */
 

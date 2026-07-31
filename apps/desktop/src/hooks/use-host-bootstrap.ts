@@ -144,6 +144,23 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
         return;
       }
+      if (message.type === 'session/name-updated') {
+        // Host auto-named the session; refresh the sidebar row without a full re-list.
+        dispatch({
+          type: 'session/update',
+          session: { id: message.sessionId, name: message.name },
+        });
+        return;
+      }
+      if (message.type === 'subagent/stream') {
+        dispatch({
+          type: 'subagent/stream',
+          parentSessionId: message.parentSessionId,
+          childSessionId: message.childSessionId,
+          event: message.event,
+        });
+        return;
+      }
       if (message.type === 'permission/request') {
         dispatch({
           type: 'permission/show',
@@ -166,6 +183,12 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       }
       if (message.type === 'plan/updated') {
         setSessionPlan(message.plan);
+        return;
+      }
+      if (message.type === 'plan/execution-updated') {
+        // Execution state is already embedded in the latest plan/updated push;
+        // no separate state update needed here. This handler exists so the
+        // push is not logged as unhandled.
         return;
       }
       if (message.type === 'pet/state') {
