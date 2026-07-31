@@ -48,7 +48,7 @@ and saving outputs through `@piwin/media`.
 
 - System skills can opt out of the Skills panel via `hidden` frontmatter.
 - Image generation requires a configured image-capable model (openai-compatible
-  or google-gemini) in Settings → Providers.
+  or google-gemini) in Settings → Image Generation.
 - Anthropic-compatible providers cannot generate images (clear error).
 - Image editing via `/images/edits` is a documented follow-up, not shipped here.
 - CLI and Desktop share the same host tool and switch; no CLI degradation.
