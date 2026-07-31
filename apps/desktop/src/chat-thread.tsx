@@ -19,7 +19,6 @@ import type {
 import { MarkdownView } from './MarkdownView';
 import { MediaPreview } from './MediaPreview';
 import { WebElementChip } from './WebElementChip';
-import { MessageActions } from './message-actions';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { SubagentActivityCard } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
