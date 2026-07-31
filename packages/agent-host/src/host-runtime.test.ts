@@ -1330,4 +1330,147 @@ describe('HostRuntime', () => {
       console.warn = originalWarn;
     }
   });
+
+  it('rejects session/spawn with empty task', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-spawn-empty-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/spawn-empty' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const parentId = (created.data as { sessionId: string }).sessionId;
+
+    const empty = await runtime.handleCommand({
+      type: 'session/spawn',
+      parentSessionId: parentId,
+      task: '   ',
+    });
+    expect(empty.success).toBe(false);
+    if (empty.success) throw new Error('expected failure');
+    expect(empty.error).toContain('task is required');
+
+    await runtime.dispose();
+  });
+
+  it('rejects session/merge-subagent for a non-subagent session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-merge-nonsub-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/merge-nonsub' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const parentId = (created.data as { sessionId: string }).sessionId;
+
+    const merged = await runtime.handleCommand({
+      type: 'session/merge-subagent',
+      childSessionId: parentId,
+    });
+    expect(merged.success).toBe(false);
+    if (merged.success) throw new Error('expected failure');
+    expect(merged.error).toContain('not a sub-agent');
+
+    await runtime.dispose();
+  });
+
+  it('rejects session/merge-subagent for unknown child', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-merge-unknown-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const merged = await runtime.handleCommand({
+      type: 'session/merge-subagent',
+      childSessionId: 'nonexistent-session-id',
+    });
+    expect(merged.success).toBe(false);
+    if (merged.success) throw new Error('expected failure');
+    expect(merged.error).toContain('Unknown session');
+    await runtime.dispose();
+  });
+
+  it('rejects session/complete-subagent for a non-subagent session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-complete-nonsub-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/complete-nonsub' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const completed = await runtime.handleCommand({
+      type: 'session/complete-subagent',
+      sessionId,
+    });
+    expect(completed.success).toBe(false);
+    if (completed.success) throw new Error('expected failure');
+    expect(completed.error).toContain('not a sub-agent');
+
+    await runtime.dispose();
+  });
+
+  it('rejects session/cancel-subagent for a non-subagent session', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-cancel-nonsub-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/cancel-nonsub' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const cancelled = await runtime.handleCommand({
+      type: 'session/cancel-subagent',
+      sessionId,
+    });
+    expect(cancelled.success).toBe(false);
+    if (cancelled.success) throw new Error('expected failure');
+    expect(cancelled.error).toContain('not a sub-agent');
+
+    await runtime.dispose();
+  });
+
+  it('emits subagent/merged and subagent/updated pushes on merge', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-merge-push-'));
+    const pushes: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        pushes.push(message.type);
+      },
+    });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/merge-push' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const parentId = (created.data as { sessionId: string }).sessionId;
+
+    const spawned = await runtime.handleCommand({
+      type: 'session/spawn',
+      parentSessionId: parentId,
+      task: 'Emit merge events',
+    });
+    expect(spawned.success).toBe(true);
+    if (!spawned.success) throw new Error(spawned.error);
+    const childId = (spawned.data as { sessionId: string }).sessionId;
+
+    await runtime.handleCommand({ type: 'session/complete-subagent', sessionId: childId });
+    const merged = await runtime.handleCommand({
+      type: 'session/merge-subagent',
+      childSessionId: childId,
+    });
+    expect(merged.success).toBe(true);
+    if (!merged.success) throw new Error(merged.error);
+
+    expect(pushes).toContain('subagent/merged');
+    expect(pushes).toContain('subagent/updated');
+    await runtime.dispose();
+  });
 });
