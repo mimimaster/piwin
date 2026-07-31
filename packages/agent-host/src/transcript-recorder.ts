@@ -4,6 +4,7 @@
  */
 import type {
   AgentEvent,
+  ModelRef,
   PromptInput,
   SessionTranscriptDocument,
   SessionTranscriptMessage,
@@ -33,6 +34,12 @@ export function createTranscriptRecorder(options: {
   flushIntervalMs?: number;
   maxToolOutputBytes?: number;
   onError?: (error: unknown) => void;
+  /**
+   * Returns the model snapshot to write onto assistant transcript messages
+   * (spec §7.3). Called when an assistant message is created (`message/start`).
+   * May return undefined for legacy sessions without a resolved model.
+   */
+  resolveModel?: () => ModelRef | undefined;
 }): TranscriptRecorder {
   let lastAssistantId: string | null = null;
   const assistantIdsByRunId = new Map<string, string>();
@@ -171,6 +178,13 @@ export function createTranscriptRecorder(options: {
                 message.runId = event.runId;
                 assistantIdsByRunId.set(event.runId, event.messageId);
               }
+              // Spec §7.3: snapshot the model used for this run onto the
+              // assistant transcript message so default-mode walkthrough
+              // generation can recover the historical model later.
+              const modelSnapshot = options.resolveModel?.();
+              if (modelSnapshot) {
+                message.model = modelSnapshot;
+              }
               const currentDocument = document;
               if (!currentDocument) {
                 throw new Error('transcript document was not initialized');
@@ -205,9 +219,9 @@ export function createTranscriptRecorder(options: {
           case 'message/end': {
             updateMessage(event.messageId, (message) => ({ ...message, status: 'done' }));
             const currentDocument = document;
-            const messageIndex = currentDocument?.messages.findIndex(
-              (message) => message.id === event.messageId,
-            ) ?? -1;
+            const messageIndex =
+              currentDocument?.messages.findIndex((message) => message.id === event.messageId) ??
+              -1;
             const completedMessage =
               messageIndex >= 0 ? currentDocument?.messages[messageIndex] : undefined;
             // The Pi SDK may emit empty assistant lifecycle entries while
@@ -253,7 +267,9 @@ export function createTranscriptRecorder(options: {
               ...message,
               tools: (message.tools ?? []).map((tool) =>
                 tool.toolCallId === event.toolCallId &&
-                (event.runId === undefined || tool.runId === undefined || tool.runId === event.runId)
+                (event.runId === undefined ||
+                  tool.runId === undefined ||
+                  tool.runId === event.runId)
                   ? {
                       ...tool,
                       output:
@@ -277,7 +293,9 @@ export function createTranscriptRecorder(options: {
               ...message,
               tools: (message.tools ?? []).map((tool) =>
                 tool.toolCallId === event.toolCallId &&
-                (event.runId === undefined || tool.runId === undefined || tool.runId === event.runId)
+                (event.runId === undefined ||
+                  tool.runId === undefined ||
+                  tool.runId === event.runId)
                   ? {
                       ...tool,
                       status: event.isError ? ('error' as const) : ('done' as const),

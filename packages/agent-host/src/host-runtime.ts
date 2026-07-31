@@ -111,6 +111,7 @@ import {
 import type {
   ContextUsageSnapshot,
   ExecutionMode,
+  SessionPlan,
   SessionResumeData,
   SessionTranscriptMessage,
   UsageRecord,
@@ -150,6 +151,11 @@ import {
   type SessionLiveContext,
 } from './commands/session-live-commands.js';
 import type { HostCommandContext } from './commands/host-command-context.js';
+import {
+  handleWalkthroughCancel,
+  WalkthroughGenerationRegistry,
+  type WalkthroughCommandContext,
+} from './commands/walkthrough-commands.js';
 import { RunEventCorrelator } from './run-event-correlator.js';
 import { createEventEnvelopeGenerator } from './event-map.js';
 
@@ -220,6 +226,10 @@ export class HostRuntime {
   private readonly runEventCorrelator = new RunEventCorrelator();
   /** Host-side guard for context-owned events after terminal cleanup. */
   private readonly terminalRunIdsBySession = new Map<string, Set<string>>();
+  /** §11.3: global in-flight walkthrough generation registry. */
+  private readonly walkthroughRegistry = new WalkthroughGenerationRegistry((level, message) =>
+    this.push({ type: 'host/log', level, message }),
+  );
   private petStateStore: PetStateStore | null = null;
   /** Guards first init of `petStateStore` so concurrent callers share one promise. */
   private petStateStoreInit: Promise<PetStateStore> | null = null;
@@ -431,6 +441,18 @@ export class HostRuntime {
   async handleCommand(command: HostCommand): Promise<HostResponse> {
     const requestId = typeof command.id === 'string' ? command.id : undefined;
     try {
+      // §8.1: walkthrough/cancel is a control-channel request that must bypass
+      // the normal long-task dispatch chain and abort the in-flight generation
+      // immediately. Handle it before buildDomainCommands so it is never queued
+      // behind a slow domain handler or a live session operation.
+      if (command.type === 'walkthrough/cancel') {
+        return handleWalkthroughCancel(
+          command,
+          requestId,
+          this.buildWalkthroughContext(),
+          this.walkthroughRegistry,
+        );
+      }
       const ctx = await this.buildDomainContext();
       const domain = await dispatchDomainCommands(command, requestId, ctx);
       if (domain) {
@@ -1370,6 +1392,29 @@ export class HostRuntime {
     return this.petStateStoreInit;
   }
 
+  /**
+   * Builds the WalkthroughCommandContext seam (spec §11.1) shared by the SDK
+   * and RPC adapters. The seam reads config/transcript/plan from disk and the
+   * live session model from the in-memory map, so walkthrough handlers never
+   * depend on HostRuntime directly.
+   */
+  private buildWalkthroughContext(): WalkthroughCommandContext {
+    return {
+      ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
+      push: (message) => this.push(message),
+      loadTranscriptMessages: (sessionId) => this.loadTranscriptMessages(sessionId),
+      loadSessionPlan: (sessionId) => this.loadSessionPlanForWalkthrough(sessionId),
+      loadConfig: () => loadPiwinConfig(this.options.piwinRoot),
+      resolveSessionModel: (sessionId) => this.sessionModels.get(sessionId),
+    };
+  }
+
+  private async loadSessionPlanForWalkthrough(sessionId: string): Promise<SessionPlan | null> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const planPath = getPiwinSessionPlanPath(rootDir, sessionId);
+    return loadSessionPlan(planPath);
+  }
+
   private async buildDomainContext(): Promise<
     import('./commands/domain-command-dispatch.js').DomainDispatchContext
   > {
@@ -1392,6 +1437,10 @@ export class HostRuntime {
         mergeSubagent: (childSessionId) => this.mergePlanSubagent(childSessionId),
         promptSession: (sessionId, text) => this.promptPlanSession(sessionId, text),
         abortSession: (sessionId) => this.abortPlanSession(sessionId),
+      },
+      walkthrough: {
+        context: this.buildWalkthroughContext(),
+        registry: this.walkthroughRegistry,
       },
     };
     return {
@@ -1917,6 +1966,7 @@ export class HostRuntime {
         transcriptPath,
         sessionId,
         projectPath,
+        resolveModel: () => this.sessionModels.get(sessionId),
       }),
     );
   }
@@ -2143,6 +2193,8 @@ export class HostRuntime {
       }
       this.transcriptRecorders.delete(sessionId);
     }
+    // §11.3: abort in-flight walkthrough generations for the disposed session.
+    this.walkthroughRegistry.abortSession(sessionId);
   }
 
   private requireSession(sessionId: string): SessionHandle {

@@ -189,3 +189,12 @@ export type {
   WalkthroughCompletionRequest,
   WalkthroughCompletionResult,
 } from './walkthrough-completion.js';
+
+export {
+  handleWalkthroughList,
+  handleWalkthroughGenerate,
+  handleWalkthroughCancel,
+  isWalkthroughCommand,
+  WalkthroughGenerationRegistry,
+} from './commands/walkthrough-commands.js';
+export type { WalkthroughCommandContext } from './commands/walkthrough-commands.js';

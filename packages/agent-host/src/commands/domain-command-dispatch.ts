@@ -15,6 +15,7 @@ import { handleProjectCommand } from './project-commands.js';
 import { handleSessionProductCommand } from './session-product-commands.js';
 import { handleUsageCommand } from './usage-commands.js';
 import type { SessionProductCommandContext } from './session-product-commands.js';
+import { handleWalkthroughList, handleWalkthroughGenerate } from './walkthrough-commands.js';
 
 export type DomainDispatchContext = HostCommandContext & {
   sessionProduct: SessionProductCommandContext;
@@ -25,6 +26,21 @@ export async function dispatchDomainCommands(
   requestId: string | undefined,
   context: DomainDispatchContext,
 ): Promise<HostResponse | null> {
+  // Walkthrough list/generate are short control commands handled before the
+  // rest of the domain chain. walkthrough/cancel is handled even earlier in
+  // HostRuntime.handleCommand so it bypasses the normal dispatch entirely.
+  if (command.type === 'walkthrough/list' && context.walkthrough) {
+    return handleWalkthroughList(command, requestId, context.walkthrough.context);
+  }
+  if (command.type === 'walkthrough/generate' && context.walkthrough) {
+    return handleWalkthroughGenerate(
+      command,
+      requestId,
+      context.walkthrough.context,
+      context.walkthrough.registry,
+    );
+  }
+
   const product = await handleSessionProductCommand(command, requestId, context.sessionProduct);
   if (product) return product;
 
