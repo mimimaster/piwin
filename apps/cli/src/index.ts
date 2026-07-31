@@ -694,11 +694,12 @@ async function commandSkill(argv: string[]): Promise<void> {
       scanOptions.skillsConfig = config.skills;
     }
     const skills = await scanSkills(scanOptions);
-    if (skills.length === 0) {
+    const visibleSkills = skills.filter((s) => s.hidden !== true);
+    if (visibleSkills.length === 0) {
       console.log('(no skills found)');
       return;
     }
-    for (const skill of skills) {
+    for (const skill of visibleSkills) {
       const flag = skill.enabled ? 'on ' : 'off';
       console.log(`${flag}\t${skill.id}\t${skill.source}\t${skill.name}\t${skill.path}`);
     }
