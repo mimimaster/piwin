@@ -1,0 +1,76 @@
+/**
+ * Throttled screenshot frame capture for the desktop mirror panel (ADR 0020 §2).
+ * Frames are size-capped JPEG data-URLs emitted at most every `intervalMs`
+ * (~250 ms = 4 fps), and only while at least one subscriber is attached.
+ */
+export type FramePayload = { dataUrl: string; width: number; height: number };
+
+export type FrameEvent = FramePayload & { ts: number };
+
+export type FrameLoopOptions = {
+  capture: () => Promise<FramePayload>;
+  hasSubscriber: () => boolean;
+  /** Minimum interval between emissions in ms (default 250 ≈ 4 fps). */
+  intervalMs?: number;
+  now?: () => number;
+  emit: (frame: FrameEvent) => void;
+};
+
+export type FrameLoop = {
+  start(): void;
+  stop(): void;
+  /** Captures now if the throttle allows and a subscriber is present. */
+  requestFrame(): Promise<void>;
+};
+
+export function createFrameLoop(options: FrameLoopOptions): FrameLoop {
+  const intervalMs = options.intervalMs ?? 250;
+  const now = options.now ?? (() => Date.now());
+  let timer: ReturnType<typeof setInterval> | undefined;
+  // Start "in the past" so the very first request/capture emits immediately
+  // instead of being throttled by the initial timestamp of 0.
+  let lastEmit = -Infinity;
+  let inFlight = false;
+  let pending = false;
+
+  async function attemptCapture(): Promise<void> {
+    if (inFlight) {
+      pending = true;
+      return;
+    }
+    if (!options.hasSubscriber()) return;
+    if (now() - lastEmit < intervalMs) return;
+
+    inFlight = true;
+    try {
+      const payload = await options.capture();
+      const ts = now();
+      lastEmit = ts;
+      options.emit({ ...payload, ts });
+    } finally {
+      inFlight = false;
+      if (pending) {
+        pending = false;
+        void attemptCapture();
+      }
+    }
+  }
+
+  return {
+    start(): void {
+      if (timer !== undefined) return;
+      timer = setInterval(() => {
+        void attemptCapture();
+      }, intervalMs);
+    },
+    stop(): void {
+      if (timer !== undefined) {
+        clearInterval(timer);
+        timer = undefined;
+      }
+    },
+    requestFrame(): Promise<void> {
+      return attemptCapture();
+    },
+  };
+}
