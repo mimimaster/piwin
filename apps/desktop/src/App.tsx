@@ -602,11 +602,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [hostClient, state.activeSessionId],
   );
 
-  // Hydrate walkthrough artifacts when a session's messages finish loading.
-  // Fires after session/load-messages populates the transcript; the host
-  // returns persisted artifacts which we dispatch into the reducer map.
+  // Hydrate walkthrough artifacts whenever the active session changes.
+  // We intentionally do NOT guard on messages.length === 0: session/set fires
+  // first (clearing messages), so an early return would skip the hydrate call
+  // and the later session/load-messages dispatch doesn't change activeSessionId,
+  // meaning the effect would never re-run. The host returns persisted artifacts
+  // (empty list when none exist) which we dispatch into the reducer map.
   useEffect(() => {
-    if (!state.activeSessionId || state.messages.length === 0) return;
+    if (!state.activeSessionId) return;
     void hostClient
       .request({ type: 'walkthrough/list', sessionId: state.activeSessionId })
       .then((response) => {

@@ -558,6 +558,7 @@ const ChatMessageRow = memo(
 
     const rowClass = [
       'bubble',
+      'chat-message-row',
       `role-${message.role}`,
       message.status === 'streaming' ? 'is-streaming' : '',
       props.isNew ? 'is-new' : '',
