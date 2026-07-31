@@ -164,4 +164,17 @@ describe('WalkthroughCard', () => {
     });
     expect(regenerated).toBe(true);
   });
+
+  it('does not enable Artifact iframe for walkthrough markdown (spec §15.6 case 12)', () => {
+    // Walkthrough markdown is source-only (§5.3). Even when the markdown
+    // contains an ```html fence, no Artifact iframe should be mounted.
+    const artifact = readyArtifact({
+      markdown: '# Walkthrough\n\n```html\n<div>hello</div>\n```\n',
+    });
+    const { container } = renderCard(<WalkthroughCard artifact={artifact} messageId="a1" />);
+    // No iframe is rendered for the html fence.
+    expect(container.querySelector('iframe')).toBeNull();
+    // The source-only path renders a code-fence-source block instead.
+    expect(container.querySelector('[data-testid="code-fence-source"]')).toBeTruthy();
+  });
 });

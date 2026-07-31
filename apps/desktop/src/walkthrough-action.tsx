@@ -75,52 +75,29 @@ export function WalkthroughAction(props: WalkthroughActionProps): ReactElement |
 
   const isGenerating = artifact?.status === 'generating';
 
+  // When a ready artifact exists, WalkthroughCard already renders the
+  // View + Regenerate buttons (testids walkthrough-doc-btn-* and
+  // walkthrough-regenerate-btn-*). Rendering them again here would duplicate
+  // the walkthrough-regenerate-btn-* testid. So the action's own button
+  // section only shows the Generate button when there is no ready artifact
+  // (i.e., no artifact, or generating/error state).
+  const showGenerateButton = eligible && !(artifact && artifact.status === 'ready');
+
   return (
     <div className="walkthrough-action" data-testid={`walkthrough-action-${message.id}`}>
-      {eligible ? (
+      {showGenerateButton ? (
         <div className="walkthrough-action-buttons">
-          {artifact && artifact.status === 'ready' ? (
-            <>
-              <button
-                type="button"
-                className="walkthrough-btn walkthrough-view-btn"
-                onClick={() =>
-                  props.onOpenDocument?.({
-                    title: 'Walkthrough',
-                    path: `walkthroughs/${message.id}.md`,
-                    content: artifact.markdown,
-                  })
-                }
-                aria-label="View Walkthrough"
-                title="View Walkthrough"
-                data-testid={`walkthrough-view-btn-${message.id}`}
-              >
-                View Walkthrough
-              </button>
-              <button
-                type="button"
-                className="walkthrough-btn walkthrough-regenerate-btn"
-                onClick={() => void props.onGenerate(message.id, true)}
-                aria-label="Regenerate Walkthrough"
-                title="Regenerate Walkthrough"
-                data-testid={`walkthrough-regenerate-btn-${message.id}`}
-              >
-                Regenerate
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="walkthrough-btn walkthrough-generate-btn"
-              onClick={() => void props.onGenerate(message.id, false)}
-              disabled={isGenerating}
-              aria-label="Generate Walkthrough"
-              title="Generate Walkthrough"
-              data-testid={`walkthrough-generate-btn-${message.id}`}
-            >
-              {isGenerating ? 'Generating…' : 'Generate Walkthrough'}
-            </button>
-          )}
+          <button
+            type="button"
+            className="walkthrough-btn walkthrough-generate-btn"
+            onClick={() => void props.onGenerate(message.id, false)}
+            disabled={isGenerating}
+            aria-label="Generate Walkthrough"
+            title="Generate Walkthrough"
+            data-testid={`walkthrough-generate-btn-${message.id}`}
+          >
+            {isGenerating ? 'Generating…' : 'Generate Walkthrough'}
+          </button>
         </div>
       ) : null}
       {artifact ? (
