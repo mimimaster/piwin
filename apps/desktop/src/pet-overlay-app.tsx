@@ -11,8 +11,13 @@ export function PetOverlayApp() {
   const [pet, setPet] = useState<PetRuntimeSnapshot | null>(null);
 
   useEffect(() => {
-    // Fetch initial pet state from host.
-    void (async () => {
+    let disposed = false;
+    let receivedPush = false;
+    let retryTimer: number | undefined;
+    let unlisten: (() => void) | undefined;
+
+    async function fetchInitialPet(): Promise<boolean> {
+      // Fetch initial pet state from host.
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         // The overlay window shares the same host process as the main window;
@@ -20,31 +25,54 @@ export function PetOverlayApp() {
         const response = (await invoke('host_request', {
           command: { type: 'pet/get-active' },
           timeoutMs: 5000,
-        })) as { success: boolean; data?: { pet: PetRuntimeSnapshot } };
+        })) as { success: boolean; data?: { pet?: PetRuntimeSnapshot } };
         if (response.success && response.data?.pet) {
-          setPet(response.data.pet);
+          if (!disposed && !receivedPush) {
+            setPet(response.data.pet);
+          }
+          return true;
         }
       } catch {
         // host not ready yet — will pick up state from push
       }
-    })();
+      return false;
+    }
 
-    // Listen for pet/state pushes from the host.
-    let unlisten: (() => void) | undefined;
+    async function loadPet(): Promise<void> {
+      if (disposed) return;
+      const loaded = await fetchInitialPet();
+      if (!loaded && !disposed) {
+        retryTimer = window.setTimeout(() => void loadPet(), 250);
+      }
+    }
+
     void (async () => {
       try {
         const { listen } = await import('@tauri-apps/api/event');
-        unlisten = await listen<{ pet: PetRuntimeSnapshot }>('pet-state-push', (event) => {
-          if (event.payload?.pet) {
+        const removeListener = await listen<{ pet: PetRuntimeSnapshot }>(
+          'pet-state-push',
+          (event) => {
+            if (disposed || !event.payload?.pet) return;
+            receivedPush = true;
             setPet(event.payload.pet);
-          }
-        });
+          },
+        );
+        if (disposed) {
+          removeListener();
+        } else {
+          unlisten = removeListener;
+        }
       } catch {
         // Tauri event API not available in mock mode
       }
+      await loadPet();
     })();
 
     return () => {
+      disposed = true;
+      if (retryTimer !== undefined) {
+        window.clearTimeout(retryTimer);
+      }
       void unlisten?.();
     };
   }, []);
