@@ -61,6 +61,17 @@ describe('buildToolPresentation', () => {
     });
     expect(presentation.error?.category).toBe('execution');
   });
+
+  it('extracts actionVerb, lineRange and countTag for search/view tools', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'grep_search',
+      args: { Query: 'TurnToolGroup', StartLine: 1, EndLine: 90 },
+      outputText: JSON.stringify([{ file: 'turn-tool-group.tsx' }, { file: 'turn-work-details.tsx' }]),
+    });
+    expect(presentation.actionVerb).toBe('Searched');
+    expect(presentation.lineRange).toBe('L1-90');
+    expect(presentation.countTag).toBe('2 results');
+  });
 });
 
 describe('redactToolText / boundToolOutput', () => {

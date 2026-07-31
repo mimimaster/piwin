@@ -117,4 +117,54 @@ describe('RunEventCorrelator', () => {
     );
     expect(staleEvent.accepted).toBe(false);
   });
+
+  it('attributes foreground events to the active run when execution context is lost', () => {
+    // Pi SDK emits events from internal async stream callbacks that can break
+    // the AsyncLocalStorage chain. When that happens, executionRunId is
+    // undefined but the active run is still registered. Foreground events
+    // with a stable identity (message/tool/permission) must be attributed to
+    // the active run — there is no other run they could belong to (ADR 0015).
+    const correlator = new RunEventCorrelator();
+
+    const start = correlator.correlate(
+      'session-1',
+      { type: 'message/start', messageId: 'msg-1', role: 'assistant' },
+      'run-1',
+      undefined, // execution context lost
+    );
+    expect(start.accepted).toBe(true);
+    expect(start.event).toMatchObject({ messageId: 'msg-1', runId: 'run-1' });
+
+    const delta = correlator.correlate(
+      'session-1',
+      { type: 'message/text_delta', messageId: 'msg-1', delta: 'hello' },
+      'run-1',
+      undefined,
+    );
+    expect(delta.accepted).toBe(true);
+    expect(delta.event).toMatchObject({ runId: 'run-1', delta: 'hello' });
+
+    const toolStart = correlator.correlate(
+      'session-1',
+      { type: 'tool/start', toolCallId: 'tool-1', toolName: 'write' },
+      'run-1',
+      undefined,
+    );
+    expect(toolStart.accepted).toBe(true);
+    expect(toolStart.event).toMatchObject({ runId: 'run-1', toolName: 'write' });
+  });
+
+  it('still rejects uncorrelated errors when execution context is lost', () => {
+    // Errors have no stable identity, so they must NOT be attributed to the
+    // active run when the execution context is missing — a late background
+    // error should not contaminate the current foreground run.
+    const correlator = new RunEventCorrelator();
+    const result = correlator.correlate(
+      'session-1',
+      { type: 'error', message: 'mystery error' },
+      'run-1',
+      undefined,
+    );
+    expect(result.accepted).toBe(false);
+  });
 });

@@ -276,6 +276,7 @@ function createControlContext(
     createSession: async () => session,
     resumeSession: async () => session,
     listSessions: async () => [],
+    dropSession: async () => undefined,
     dispose: async () => undefined,
   };
   const context: SessionLiveContext = {

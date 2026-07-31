@@ -1,14 +1,43 @@
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import type {
   ContextUsageSnapshot,
   HostPush,
   SessionSearchResult,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
+import { getSessionRecord } from '@piwin/session';
 import { HostRuntime } from './host-runtime.js';
+import { savePiwinConfig } from './config-store.js';
+import { getPiwinSessionIndexPath } from './paths.js';
+
+/** Wait for a new run/terminal event for the session after `fromIndex` (ADR 0015 prompt ack). */
+async function waitForTerminal(
+  pushes: HostPush[],
+  sessionId: string,
+  fromIndex: number,
+): Promise<void> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const terminal = pushes
+      .slice(fromIndex)
+      .find(
+        (push) =>
+          push.type === 'event' &&
+          push.event.type === 'run/terminal' &&
+          push.event.sessionId === sessionId,
+      );
+    if (terminal) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`timed out waiting for run/terminal for ${sessionId}`);
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  delete process.env.PIWIN_TEST_LLM_KEY;
+});
 
 describe('CE-CHAT session ops', () => {
   it('pins, searches, truncates, and emits usage in mock agent mode', async () => {
@@ -112,13 +141,86 @@ describe('CE-CHAT session ops', () => {
     expect(truncData.messages).toHaveLength(0);
 
     const usageEvents = pushes.filter(
-      (push) =>
-        push.type === 'event' &&
-        push.event.type === 'usage/update',
+      (push) => push.type === 'event' && push.event.type === 'usage/update',
     );
     expect(usageEvents.length).toBeGreaterThan(0);
     const usage = (usageEvents[0] as { event: { usage: ContextUsageSnapshot } }).event.usage;
     expect(usage.totalTokens ?? usage.tokensUsed).toBeTruthy();
+
+    await runtime.dispose();
+  });
+
+  it('rebuilds a fresh shell after truncate so a revert resend does not duplicate history', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-truncate-rebuild-'));
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message),
+    });
+
+    const projectPath = join(rootDir, 'proj');
+    await runtime.handleCommand({ type: 'project/open', path: projectPath });
+    await runtime.handleCommand({ type: 'project/trust', path: projectPath });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath, sessionName: 'revert-demo', executionMode: 'agent' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompt1 = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'old-message-to-be-reverted' },
+    });
+    expect(prompt1.success).toBe(true);
+    if (!prompt1.success) throw new Error(prompt1.error);
+    await waitForTerminal(pushes, sessionId, 0);
+
+    const messagesBefore = await runtime.handleCommand({ type: 'session/messages', sessionId });
+    if (!messagesBefore.success) throw new Error(messagesBefore.error);
+    const before = (messagesBefore.data as { messages: SessionTranscriptMessage[] }).messages;
+    const firstUser = before.find((message) => message.role === 'user');
+    expect(firstUser).toBeTruthy();
+    const beforeUserCount = before.filter((message) => message.role === 'user').length;
+
+    // Revert: truncate at the first user message, then resend the edited text.
+    const truncated = await runtime.handleCommand({
+      type: 'session/truncate-from',
+      sessionId,
+      messageId: firstUser!.id,
+    });
+    expect(truncated.success).toBe(true);
+    if (!truncated.success) throw new Error(truncated.error);
+
+    // Before the dropSession fix this prompt failed with "Unknown session"
+    // because truncate-from removed the session from the host map but the
+    // stale adapter shell was reused (or no shell existed for requireSession).
+    const prompt2 = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'edited-message-after-revert' },
+    });
+    expect(prompt2.success).toBe(true);
+    if (!prompt2.success) throw new Error(prompt2.error);
+    await waitForTerminal(pushes, sessionId, pushes.length);
+
+    const messagesAfter = await runtime.handleCommand({ type: 'session/messages', sessionId });
+    expect(messagesAfter.success).toBe(true);
+    if (!messagesAfter.success) throw new Error(messagesAfter.error);
+    const after = (messagesAfter.data as { messages: SessionTranscriptMessage[] }).messages;
+    const afterUserCount = after.filter((message) => message.role === 'user').length;
+    // The reverted (edited) message replaces the pre-truncation turn instead of
+    // duplicating it: one user turn, not the original + edited copy.
+    expect(afterUserCount).toBe(1);
+    expect(after.map((message) => message.text)).toContain('edited-message-after-revert');
+    expect(after.map((message) => message.text)).not.toContain('old-message-to-be-reverted');
+    // Regression guard: the user message count must not have grown.
+    expect(afterUserCount).toBeLessThanOrEqual(beforeUserCount);
 
     await runtime.dispose();
   });
@@ -160,6 +262,147 @@ describe('CE-CHAT session ops', () => {
       (push) => push.type === 'event' && push.event.type === 'tool/start',
     );
     expect(toolStarts).toHaveLength(0);
+    await runtime.dispose();
+  });
+
+  it('auto-names a session after the first completed exchange and retries until success', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-trigger-'));
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message),
+    });
+    const projectPath = join(rootDir, 'proj');
+    await runtime.handleCommand({ type: 'project/open', path: projectPath });
+    await runtime.handleCommand({ type: 'project/trust', path: projectPath });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath, executionMode: 'chat' },
+    });
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    // First exchange: the session must be named (text fallback) after one prompt.
+    const prompt1 = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'Refactor the auth module' },
+    });
+    expect(prompt1.success).toBe(true);
+    if (!prompt1.success) throw new Error(prompt1.error);
+    await waitForTerminal(pushes, sessionId, 0);
+
+    const nameUpdated = pushes.find(
+      (push) => push.type === 'session/name-updated' && push.sessionId === sessionId,
+    );
+    expect(nameUpdated).toBeTruthy();
+    if (nameUpdated && nameUpdated.type === 'session/name-updated') {
+      expect(nameUpdated.nameSource).toBe('auto');
+      expect(nameUpdated.name.length).toBeGreaterThan(0);
+    }
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const record = await getSessionRecord(indexPath, sessionId);
+    expect(record?.nameSource).toBe('auto');
+    expect(record?.name?.length).toBeGreaterThan(0);
+
+    // A user-set name must never be overwritten by a later exchange.
+    const renamed = await runtime.handleCommand({
+      type: 'session/rename',
+      sessionId,
+      name: 'my manual name',
+    });
+    expect(renamed.success).toBe(true);
+    const prompt2 = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'another message' },
+    });
+    expect(prompt2.success).toBe(true);
+    if (!prompt2.success) throw new Error(prompt2.error);
+    await waitForTerminal(pushes, sessionId, pushes.length);
+    const recordAfter = await getSessionRecord(indexPath, sessionId);
+    expect(recordAfter?.name).toBe('my manual name');
+    expect(recordAfter?.nameSource).toBe('user');
+
+    await runtime.dispose();
+  });
+
+  it('passes the assistant reply to the LLM title generator', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-llm-'));
+    const pushes: HostPush[] = [];
+    process.env.PIWIN_TEST_LLM_KEY = 'sk-test';
+    await savePiwinConfig(
+      {
+        hostMode: 'sdk',
+        agentMock: true,
+        providers: [
+          {
+            id: 'llm-title',
+            protocol: 'openai-compatible',
+            name: 'LLM Title',
+            baseUrl: 'https://llm-title.example/v1',
+            apiKeyEnv: 'PIWIN_TEST_LLM_KEY',
+            models: [{ id: 'title-model' }],
+          },
+        ],
+        media: {
+          maxPasteBytes: 10 * 1024 * 1024,
+          allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+        },
+        artifact: { maxBytes: 100 * 1024, htmlUiModeDefault: false },
+      },
+      rootDir,
+    );
+    const requestBodies: unknown[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+        requestBodies.push(init?.body);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ choices: [{ message: { content: 'Model title' } }] }),
+        } as unknown as Response;
+      }),
+    );
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message),
+    });
+    const projectPath = join(rootDir, 'proj');
+    await runtime.handleCommand({ type: 'project/open', path: projectPath });
+    await runtime.handleCommand({ type: 'project/trust', path: projectPath });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath, executionMode: 'chat' },
+    });
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: {
+        text: 'Refactor the auth module',
+        model: {
+          protocol: 'openai-compatible',
+          providerId: 'llm-title',
+          modelId: 'title-model',
+        },
+      },
+    });
+    await waitForTerminal(pushes, sessionId, 0);
+
+    // The host must include the mock assistant reply as context for the title.
+    const lastBody = requestBodies[requestBodies.length - 1];
+    const bodyString = typeof lastBody === 'string' ? lastBody : JSON.stringify(lastBody);
+    expect(bodyString).toContain('Assistant:');
+    expect(bodyString).toContain('piwin mock host reply');
+
     await runtime.dispose();
   });
 });

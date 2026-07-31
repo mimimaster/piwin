@@ -67,6 +67,12 @@ export { buildSessionOutline } from './session-outline.js';
 export { validateSessionPlan } from './validate-plan.js';
 export type { PlanValidationIssue, PlanValidationResult } from './validate-plan.js';
 export { loadSessionPlan, saveSessionPlan, clearSessionPlan } from './plan-store.js';
+export {
+  classifyPlanComplexity,
+  isWithinPlanSizeLimits,
+  LONG_PLAN_INDEPENDENT_THRESHOLD,
+  LONG_PLAN_STEP_THRESHOLD,
+} from './classify-plan.js';
 
 export {
   buildSubagentMergeSummary,

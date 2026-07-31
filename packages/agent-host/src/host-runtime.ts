@@ -198,6 +198,10 @@ export class HostRuntime {
   private readonly sessionLastPromptText = new Map<string, string>();
   /** CE-NAME: ModelRef used for the most recent prompt, for auto-naming. */
   private readonly sessionModels = new Map<string, ModelRef>();
+  /** CE-NAME: latest assistant reply text per session (captured from events). */
+  private readonly sessionLastAssistantReply = new Map<string, string>();
+  /** CE-NAME: in-flight assistant text per messageId (text_delta accumulation). */
+  private readonly assistantTextBuffers = new Map<string, string>();
   /** Runtime-only session override for auto-compaction (not persisted). */
   private readonly sessionAutoCompactionOverrides = new Map<string, boolean>();
   /** Serialize merge-subagent per parent session. */
@@ -302,6 +306,37 @@ export class HostRuntime {
       },
       onLog: (message, level) => {
         this.push({ type: 'host/log', level, message });
+      },
+      onSpawnSubagent: async (spawnInput) => {
+        const result = await this.handleCommand({
+          type: 'session/spawn',
+          parentSessionId: spawnInput.parentSessionId,
+          task: spawnInput.task,
+          ...(spawnInput.mode ? { mode: spawnInput.mode } : {}),
+          ...(spawnInput.sessionName ? { sessionName: spawnInput.sessionName } : {}),
+        });
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        const data = result.data as { sessionId: string };
+        return { childSessionId: data.sessionId };
+      },
+      onMergeSubagent: async (childSessionId) => {
+        const result = await this.handleCommand({
+          type: 'session/merge-subagent',
+          childSessionId,
+        });
+        if (!result.success) {
+          throw new Error(result.error);
+        }
+        const data = result.data as {
+          summaryPreview?: string;
+          alreadyMerged?: boolean;
+        };
+        return {
+          ...(data.summaryPreview ? { summaryPreview: data.summaryPreview } : {}),
+          ...(data.alreadyMerged ? { alreadyMerged: data.alreadyMerged } : {}),
+        };
       },
     };
     if (typeof options.piwinRoot === 'string') {
@@ -1332,7 +1367,9 @@ export class HostRuntime {
     return this.petStateStoreInit;
   }
 
-  private async buildDomainContext(): Promise<import('./commands/domain-command-dispatch.js').DomainDispatchContext> {
+  private async buildDomainContext(): Promise<
+    import('./commands/domain-command-dispatch.js').DomainDispatchContext
+  > {
     const hostContext: HostCommandContext = {
       ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
       push: (message) => this.push(message),
@@ -1347,6 +1384,12 @@ export class HostRuntime {
       pendingExtensionUi: this.pendingExtensionUi,
       rememberProjectPermission: (sessionId, action, detail, scope, projectPath) =>
         this.rememberProjectPermission(sessionId, action, detail, scope, projectPath),
+      planExecution: {
+        spawnSubagent: (input) => this.spawnPlanSubagent(input),
+        mergeSubagent: (childSessionId) => this.mergePlanSubagent(childSessionId),
+        promptSession: (sessionId, text) => this.promptPlanSession(sessionId, text),
+        abortSession: (sessionId) => this.abortPlanSession(sessionId),
+      },
     };
     return {
       ...hostContext,
@@ -1496,6 +1539,9 @@ export class HostRuntime {
       projectPath ?? this.sessionProjects.get(session.id) ?? 'unknown',
     );
 
+    // Capture parent session id for subagent event forwarding (inline stream UX).
+    const parentSessionId = lineage?.parentSessionId;
+
     const unsubscribe = session.subscribe((event: AgentEvent) => {
       const activeRun = this.activeRuns.get(session.id);
       const correlation = this.runEventCorrelator.correlate(
@@ -1531,6 +1577,15 @@ export class HostRuntime {
         return;
       }
       this.push({ type: 'event', sessionId: session.id, event: correlatedEvent });
+      // Forward child session events to parent for inline subagent stream UX.
+      if (parentSessionId) {
+        this.push({
+          type: 'subagent/stream',
+          parentSessionId,
+          childSessionId: session.id,
+          event: correlatedEvent,
+        });
+      }
       void this.ensurePetStateStore().then((store) => store.reduce(correlatedEvent));
       const nextPhase = this.activeRuns.noteAgentEvent(session.id, correlatedEvent);
       if (nextPhase !== null) {
@@ -1560,6 +1615,27 @@ export class HostRuntime {
       // CE-OBS: if mock/host did not emit usage, estimate after assistant message ends.
       if (correlatedEvent.type === 'message/end') {
         void this.maybeEmitUsageOnMessageEnd(session.id, correlatedEvent.messageId);
+      }
+      // CE-NAME: capture the assistant reply from the event stream so
+      // auto-naming can give the LLM title generator exchange context.
+      if (correlatedEvent.type === 'message/start' && correlatedEvent.role === 'assistant') {
+        this.assistantTextBuffers.set(correlatedEvent.messageId, '');
+      } else if (correlatedEvent.type === 'message/text_delta') {
+        const buffer = this.assistantTextBuffers.get(correlatedEvent.messageId);
+        if (buffer !== undefined) {
+          this.assistantTextBuffers.set(correlatedEvent.messageId, buffer + correlatedEvent.delta);
+        }
+      } else if (correlatedEvent.type === 'message/text_snapshot') {
+        const buffer = this.assistantTextBuffers.get(correlatedEvent.messageId);
+        if (buffer !== undefined) {
+          this.assistantTextBuffers.set(correlatedEvent.messageId, correlatedEvent.text);
+        }
+      } else if (correlatedEvent.type === 'message/end') {
+        const reply = this.assistantTextBuffers.get(correlatedEvent.messageId);
+        if (reply !== undefined) {
+          this.assistantTextBuffers.delete(correlatedEvent.messageId);
+          this.sessionLastAssistantReply.set(session.id, reply);
+        }
       }
       // CE-HOOK: arm matching hooks on normalized AgentEvent (best-effort, never fails turn).
       void this.dispatchHooksForAgentEvent(session.id, correlatedEvent).catch((error: unknown) => {
@@ -1618,6 +1694,74 @@ export class HostRuntime {
     }
     const resolved = await this.resolveAutoCompaction(session.id);
     session.setAutoCompactionEnabled(resolved.enabled);
+  }
+
+  /**
+   * Plan execution seam: spawn a child subagent for a single plan step.
+   * Delegates to the existing session/spawn command path so worktree,
+   * lineage, and subagent activity wiring stay consistent.
+   */
+  private async spawnPlanSubagent(input: {
+    parentSessionId: string;
+    task: string;
+    sessionName?: string;
+    mode?: import('@piwin/contracts').SubagentIsolationMode;
+    applyPolicy?: import('@piwin/contracts').SubagentApplyPolicy;
+  }): Promise<{ childSessionId: string }> {
+    const result = await this.handleCommand({
+      type: 'session/spawn',
+      parentSessionId: input.parentSessionId,
+      task: input.task,
+      ...(input.sessionName ? { sessionName: input.sessionName } : {}),
+      ...(input.mode ? { mode: input.mode } : {}),
+      ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
+    });
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+    const data = result.data as { sessionId: string };
+    return { childSessionId: data.sessionId };
+  }
+
+  /**
+   * Plan execution seam: merge a completed child session into its parent.
+   */
+  private async mergePlanSubagent(
+    childSessionId: string,
+  ): Promise<{ ok: boolean; message?: string }> {
+    const result = await this.handleCommand({
+      type: 'session/merge-subagent',
+      childSessionId,
+    });
+    if (!result.success) {
+      return { ok: false, message: result.error };
+    }
+    return { ok: true };
+  }
+
+  /**
+   * Plan execution seam: send a prompt to a session for inline execution
+   * or final verification. Uses the existing session/prompt path.
+   */
+  private async promptPlanSession(sessionId: string, text: string): Promise<void> {
+    const result = await this.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text },
+    });
+    if (!result.success) {
+      throw new Error(result.error);
+    }
+  }
+
+  /**
+   * Plan execution seam: abort a running session (parent or child).
+   */
+  private async abortPlanSession(sessionId: string): Promise<void> {
+    await this.handleCommand({
+      type: 'session/abort',
+      sessionId,
+    });
   }
 
   private async handleMergeSubagent(
@@ -1806,7 +1950,7 @@ export class HostRuntime {
     await upsertSessionRecord(indexPath, record);
   }
 
-  /** CE-NAME: auto-name after first completed exchange (fire-and-forget). */
+  /** CE-NAME: auto-name after each completed exchange until one succeeds. */
   private async maybeTriggerAutoName(sessionId: string): Promise<void> {
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const indexPath = getPiwinSessionIndexPath(rootDir);
@@ -1814,8 +1958,11 @@ export class HostRuntime {
     if (!record) {
       return;
     }
-    // Only auto-name after the first exchange (user + assistant = messageCount >= 2).
-    if (record.messageCount < 2) {
+    // messageCount counts completed runs (touchSession += 1 per run), so a
+    // value >= 1 means at least one exchange is finished. We attempt naming on
+    // every completed exchange; a failure leaves nameSource as 'default', so
+    // the next exchange retries until naming succeeds.
+    if (record.messageCount < 1) {
       return;
     }
     // Never overwrite a user-set name.
@@ -1832,10 +1979,14 @@ export class HostRuntime {
     }
     const config = await loadPiwinConfig(rootDir);
     const modelRef = this.sessionModels.get(sessionId);
+    // Give the LLM title generator the latest assistant reply as context so
+    // the summary reflects the exchange, not just the prompt.
+    const assistantReply = this.sessionLastAssistantReply.get(sessionId) ?? '';
     await maybeAutoNameSession({
       piwinRoot: this.options.piwinRoot ?? rootDir,
       sessionId,
       firstMessage,
+      ...(assistantReply ? { assistantReply } : {}),
       ...(modelRef ? { modelRef } : {}),
       providers: config.providers ?? [],
       secretResolver: createSecretResolver(),
@@ -1942,6 +2093,7 @@ export class HostRuntime {
     this.sessionProjects.delete(sessionId);
     this.sessionExecutionModes.delete(sessionId);
     this.sessionModels.delete(sessionId);
+    this.sessionLastAssistantReply.delete(sessionId);
     const recorder = this.transcriptRecorders.get(sessionId);
     if (recorder) {
       try {

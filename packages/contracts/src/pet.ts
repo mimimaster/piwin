@@ -1,4 +1,5 @@
 /** Codex-compatible pet package contracts. */
+import type { SessionRunPhase } from './host.js';
 
 /** Animation state driven by agent runtime. */
 export type PetAnimationState =
@@ -25,6 +26,12 @@ export const DEFAULT_PET_STATE_ROWS: Record<PetAnimationState, number> = {
   jumping: 5,
   review: 6,
 };
+
+/**
+ * Populated frame counts for the standard Codex 8-column atlas rows.
+ * Trailing cells are intentionally transparent and must not be played as frames.
+ */
+export const CODEX_PET_FRAME_COUNTS_BY_ROW: readonly number[] = [6, 8, 8, 4, 5, 8, 6, 6, 6, 8, 8];
 
 export type PetManifest = {
   id: string;
@@ -61,6 +68,24 @@ export type PetPreference = {
   activePetId: string;
 };
 
+/**
+ * Raw activity info derived from the AgentEvent stream, carried alongside
+ * the animation state so the desktop can render a localized text bubble
+ * ("Running read_file…", "规划下一步", etc.) next to the pet.
+ *
+ * The host does NOT localize — it only forwards raw field values. The
+ * desktop maps these to a human-readable phrase via its activity-string
+ * layer (which already supports zh-CN / en).
+ */
+export type PetActivityInfo = {
+  /** Name of the currently running tool, if any. */
+  toolName?: string;
+  /** Permission action string (e.g. "bash", "write"), if waiting for approval. */
+  permissionAction?: string;
+  /** Current run phase, if a run is active. */
+  phase?: SessionRunPhase;
+};
+
 export type PetRuntimeSnapshot = {
   petId: string;
   displayName: string;
@@ -72,6 +97,8 @@ export type PetRuntimeSnapshot = {
   cols: number;
   rows: number;
   stateRows: Record<PetAnimationState, number>;
+  /** Live activity info for the text bubble; absent when idle. */
+  activity?: PetActivityInfo;
 };
 
 /** Stable identifier for where a pet package came from. */

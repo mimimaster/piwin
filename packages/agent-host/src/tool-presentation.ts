@@ -154,6 +154,17 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     presentation.error = error;
   }
 
+  const { actionVerb, lineRange, countTag } = extractActionDetails(input.toolName, kind, input.args, input.outputText);
+  if (actionVerb) {
+    presentation.actionVerb = actionVerb;
+  }
+  if (lineRange) {
+    presentation.lineRange = lineRange;
+  }
+  if (countTag) {
+    presentation.countTag = countTag;
+  }
+
   if (!presentation.summary) {
     if (presentation.command) {
       presentation.summary = presentation.command;
@@ -233,4 +244,66 @@ function extractTargetPaths(kind: ToolKind, args: unknown): string[] | undefined
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function extractActionDetails(
+  toolName: string,
+  kind: ToolKind,
+  args: unknown,
+  outputText?: string,
+): { actionVerb?: string; lineRange?: string; countTag?: string } {
+  const normName = toolName.toLowerCase();
+  let actionVerb: string | undefined;
+  let lineRange: string | undefined;
+  let countTag: string | undefined;
+
+  const record = args && typeof args === 'object' ? (args as Record<string, unknown>) : {};
+
+  if (normName.includes('grep') || normName.includes('search')) {
+    actionVerb = 'Searched';
+    if (typeof record.Query === 'string') {
+      // Keep query in summary if needed
+    }
+  } else if (normName.includes('view') || normName.includes('read')) {
+    actionVerb = 'Analyzed';
+  } else if (normName.includes('write') || normName.includes('edit') || normName.includes('replace')) {
+    actionVerb = 'Edited';
+  } else if (kind === 'shell' || kind === 'process') {
+    actionVerb = 'Ran command';
+  } else if (kind === 'mcp') {
+    const parts = toolName.replace(/^mcp__?/, '').split('__');
+    actionVerb = parts[0] ? `MCP (${parts[0]})` : 'Called MCP';
+  } else {
+    actionVerb = humanizeToolTitle(toolName, kind);
+  }
+
+  // Line range extraction
+  const start = record.StartLine ?? record.startLine ?? record.start_line;
+  const end = record.EndLine ?? record.endLine ?? record.end_line;
+  if (typeof start === 'number' && typeof end === 'number') {
+    lineRange = `L${start}-${end}`;
+  } else if (typeof start === 'number') {
+    lineRange = `L${start}`;
+  }
+
+  // Count tag / results extraction
+  if (outputText && typeof outputText === 'string') {
+    if (normName.includes('grep') || normName.includes('search')) {
+      try {
+        const parsed = JSON.parse(outputText);
+        if (Array.isArray(parsed)) {
+          countTag = `${parsed.length} results`;
+        } else if (parsed && Array.isArray(parsed.matches)) {
+          countTag = `${parsed.matches.length} results`;
+        }
+      } catch {
+        const lines = outputText.split('\n').filter((l) => l.trim().length > 0);
+        if (lines.length > 0) {
+          countTag = `${lines.length} matches`;
+        }
+      }
+    }
+  }
+
+  return { actionVerb, lineRange, countTag };
 }

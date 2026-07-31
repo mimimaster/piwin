@@ -36,8 +36,7 @@ export function toPiCustomTool(tool: HostToolDefinition): PiCustomToolDefinition
     parameters,
     async execute(toolCallId, params, signal) {
       const text = await tool.execute(params ?? {}, signal);
-      const truncated =
-        text.length > 120_000 ? `${text.slice(0, 120_000)}\n…[truncated]` : text;
+      const truncated = text.length > 120_000 ? `${text.slice(0, 120_000)}\n…[truncated]` : text;
       return {
         content: [{ type: 'text', text: truncated }],
         details: {
@@ -76,6 +75,39 @@ function parametersForHostTool(tool: HostToolDefinition): unknown {
       note: Type.Optional(Type.String({ description: 'Optional short note' })),
     });
   }
+  if (tool.name === 'piwin_plan_create') {
+    return Type.Object({
+      title: Type.String({ description: 'Short plan title' }),
+      goal: Type.String({ description: 'One-sentence goal' }),
+      steps: Type.Array(
+        Type.Object({
+          id: Type.String({ description: 'Stable step id (e.g. "1", "2")' }),
+          title: Type.String({ description: 'Short step title' }),
+          detail: Type.Optional(
+            Type.String({
+              description: 'Affected area, acceptance criteria, and verification command',
+            }),
+          ),
+        }),
+        { description: 'Ordered plan steps' },
+      ),
+      independentSteps: Type.Optional(
+        Type.Array(Type.String(), {
+          description: 'Step ids that can safely run in isolated child sessions',
+        }),
+      ),
+      source: Type.Optional(
+        Type.String({
+          description: "Plan provenance: 'user' | 'assistant' | 'skill' (default 'assistant')",
+        }),
+      ),
+      skillId: Type.Optional(
+        Type.String({
+          description: 'Skill id that produced this plan when source is "skill"',
+        }),
+      ),
+    });
+  }
   if (tool.name === 'process_start') {
     return Type.Object({
       command: Type.String({ description: 'Executable to run (no shell)' }),
@@ -100,6 +132,22 @@ function parametersForHostTool(tool: HostToolDefinition): unknown {
   if (tool.name === 'process_stop') {
     return Type.Object({
       processId: Type.String({ description: 'Managed process id' }),
+    });
+  }
+  if (tool.name === 'piwin_subagent_run') {
+    return Type.Object({
+      task: Type.String({
+        description:
+          'The task to delegate. Must be self-contained — the subagent starts with a fresh context.',
+      }),
+      mode: Type.Optional(
+        Type.String({
+          description: '"readonly" (default) or "worktree"',
+        }),
+      ),
+      sessionName: Type.Optional(
+        Type.String({ description: 'Optional short name for the subagent session' }),
+      ),
     });
   }
   if (tool.name === 'mcp_gateway') {
