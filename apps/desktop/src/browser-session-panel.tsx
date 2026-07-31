@@ -55,6 +55,9 @@ type HighlightBox = {
   height: number;
 };
 
+/** User-facing message for pick failures (mapped — never a raw host error). */
+const PICK_FAILED_MESSAGE = 'Could not resolve element. Please try again.';
+
 export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactElement {
   const { hostClient, onAddWebElement, agentRunning } = props;
   const [frame, setFrame] = useState<FrameState>({
@@ -70,6 +73,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
   const [pickMode, setPickMode] = useState(false);
   const [highlight, setHighlight] = useState<HighlightBox | null>(null);
   const [pickPending, setPickPending] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -92,6 +96,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
         setUrlInput(nextUrl);
       } else if (message.type === 'browser/picked') {
         setPickPending(false);
+        setPickError(null);
         const result = message.result;
         setHighlight({
           x: result.boundingRect.x,
@@ -158,8 +163,23 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       const viewportX = Math.round(displayX / scale);
       const viewportY = Math.round(displayY / scale);
       setPickPending(true);
+      setPickError(null);
       setHighlight(null);
-      await hostClient.browserPickAt(viewportX, viewportY);
+      try {
+        const response = await hostClient.browserPickAt(viewportX, viewportY);
+        // The browser/picked push clears pending and sets the highlight; but if
+        // the host resolves without a push (or the push is dropped) pending must
+        // still clear or the "Resolving…" indicator sticks forever.
+        setPickPending(false);
+        if (!response.success) {
+          setPickError(PICK_FAILED_MESSAGE);
+          console.error('[browser-session] pick-at failed:', response.error);
+        }
+      } catch (error) {
+        setPickPending(false);
+        setPickError(PICK_FAILED_MESSAGE);
+        console.error('[browser-session] pick-at failed:', error);
+      }
     },
     [pickMode, agentRunning, computeScale, hostClient],
   );
@@ -180,6 +200,25 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
   }, [highlight, computeScale]);
 
   const overlay = scaledHighlight();
+
+  // The img is centered in the frame container (flex align/justify center +
+  // max-width/max-height), so when the panel's aspect ratio differs from the
+  // screenshot it is letterboxed and its origin is offset from the container's.
+  // The overlay is positioned relative to the container, so shift it by that
+  // intra-container offset to land on the actual element. Click coordinates use
+  // the same img rect (already correct) — only the overlay origin needs this.
+  let overlayOffsetX = 0;
+  let overlayOffsetY = 0;
+  if (overlay) {
+    const img = imgRef.current;
+    const container = containerRef.current;
+    if (img && container) {
+      const imgRect = img.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      overlayOffsetX = imgRect.left - containerRect.left;
+      overlayOffsetY = imgRect.top - containerRect.top;
+    }
+  }
 
   return (
     <div className="browser-session-panel" data-testid="browser-session-panel">
@@ -240,7 +279,14 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
           {pickMode ? 'Pick mode: ON' : 'Pick element'}
         </button>
         {pickPending ? (
-          <span className="browser-session-pick-pending">Resolving element…</span>
+          <span className="browser-session-pick-pending" data-testid="browser-session-pick-pending">
+            Resolving element…
+          </span>
+        ) : null}
+        {pickError ? (
+          <span className="browser-session-pick-error" data-testid="browser-session-pick-error">
+            {pickError}
+          </span>
         ) : null}
         {highlight ? (
           <button
@@ -282,8 +328,8 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
             data-testid="browser-session-highlight"
             style={{
               position: 'absolute',
-              left: `${overlay.x}px`,
-              top: `${overlay.y}px`,
+              left: `${overlay.x + overlayOffsetX}px`,
+              top: `${overlay.y + overlayOffsetY}px`,
               width: `${overlay.width}px`,
               height: `${overlay.height}px`,
             }}
