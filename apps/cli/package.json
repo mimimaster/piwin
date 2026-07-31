@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@piwin/agent-host": "workspace:*",
+    "@piwin/browser": "workspace:*",
     "@piwin/contracts": "workspace:*",
     "@piwin/doc-rag": "workspace:*",
     "@piwin/flashcards": "workspace:*",
