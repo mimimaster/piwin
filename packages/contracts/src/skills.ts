@@ -9,6 +9,7 @@ export type SkillSummary = {
   source: SkillSource;
   path: string;
   enabled: boolean;
+  hidden?: boolean;
 };
 
 export type SkillsConfig = {

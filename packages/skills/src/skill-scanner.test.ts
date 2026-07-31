@@ -77,3 +77,43 @@ describe('scanSkills', () => {
     expect(content).toContain('Walkthrough');
   });
 });
+
+describe('scanSkills hidden flag', () => {
+  it('marks a skill hidden when frontmatter has hidden: true', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-hidden-true-'));
+    try {
+      const dir = join(rootDir, 'skills', 'imagegen');
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        join(dir, 'SKILL.md'),
+        '---\nname: imagegen\ndescription: Generate images\nhidden: true\n---\n# Imagegen\n',
+        'utf8',
+      );
+      const skills = await scanSkills({ piwinRoot: rootDir });
+      const imagegen = skills.find((s) => s.id === 'imagegen');
+      expect(imagegen?.hidden).toBe(true);
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves hidden undefined when frontmatter omits hidden', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-hidden-absent-'));
+    try {
+      const dir = join(rootDir, 'skills', 'hatch-theme');
+      await mkdir(dir, { recursive: true });
+      await writeFile(
+        join(dir, 'SKILL.md'),
+        '---\nname: hatch-theme\ndescription: Hatch a theme\n---\n# Hatch Theme\n',
+        'utf8',
+      );
+      const skills = await scanSkills({ piwinRoot: rootDir });
+      const theme = skills.find((s) => s.id === 'hatch-theme');
+      expect(theme?.hidden).toBeUndefined();
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+});
