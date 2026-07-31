@@ -1,0 +1,160 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - banner [ref=f4e3]:
+      - button [ref=f4e8] [cursor=pointer]
+      - generic [ref=f4e11]:
+        - text: piwin
+        - generic [ref=f4e14]: /
+        - generic [ref=f4e15]: 重构设置页路由
+      - generic [ref=f4e16]:
+        - button [ref=f4e17] [cursor=pointer]
+        - button [ref=f4e21] [cursor=pointer]
+    - generic [ref=f4e24]:
+      - complementary [ref=f4e25]:
+        - generic [ref=f4e26]:
+          - text: 搜索…
+          - generic [ref=f4e30]: ⌘K
+        - button "新建 Agent" [ref=f4e31] [cursor=pointer]
+        - generic [ref=f4e34]:
+          - generic [ref=f4e35]:
+            - heading "项目" [level=4] [ref=f4e36]
+            - generic [ref=f4e37] [cursor=pointer]:
+              - text: piwin
+              - generic [ref=f4e39]: "12"
+            - generic [ref=f4e40] [cursor=pointer]:
+              - generic [ref=f4e41]: 重构设置页路由 + 键盘导航
+              - generic [ref=f4e42]:
+                - generic [ref=f4e43]: 运行中
+                - generic [ref=f4e45]: 2:41
+            - generic [ref=f4e46] [cursor=pointer]:
+              - generic [ref=f4e47]: Obsidian 主题原型
+              - generic [ref=f4e48]: 昨天
+            - generic [ref=f4e50] [cursor=pointer]:
+              - generic [ref=f4e51]: 修复 transcript 抖动
+              - generic [ref=f4e52]: 周二
+            - generic [ref=f4e54] [cursor=pointer]:
+              - text: openwebui_m
+              - generic [ref=f4e56]: "4"
+            - generic [ref=f4e57] [cursor=pointer]:
+              - text: dotfiles
+              - generic [ref=f4e59]: "2"
+          - generic [ref=f4e60]:
+            - heading "最近" [level=4] [ref=f4e61]
+            - generic [ref=f4e62] [cursor=pointer]:
+              - generic [ref=f4e63]: pet 覆盖层系统级窗口
+              - generic [ref=f4e64]: 3 天前
+            - generic [ref=f4e66] [cursor=pointer]:
+              - generic [ref=f4e67]: MCP 权限策略
+              - generic [ref=f4e68]: 上周
+        - generic [ref=f4e70]:
+          - generic [ref=f4e71] [cursor=pointer]:
+            - generic [ref=f4e72]: YJ
+            - generic [ref=f4e73]: yorick
+          - button [ref=f4e74] [cursor=pointer]
+          - button [ref=f4e77] [cursor=pointer]
+      - main [ref=f4e81]:
+        - generic [ref=f4e82]:
+          - generic [ref=f4e83]:
+            - generic [ref=f4e84]:
+              - text: piwin
+              - generic [ref=f4e87]: /
+              - generic [ref=f4e88]: 重构设置页路由 + 键盘导航
+            - generic [ref=f4e89]: Agent
+            - generic [ref=f4e92]:
+              - generic [ref=f4e93]: feat/ui-shell-redesign
+              - generic [ref=f4e100]: 2 文件已改
+          - generic [ref=f4e101]:
+            - generic [ref=f4e102]:
+              - generic [ref=f4e103]:
+                - time [ref=f4e104]: 14:02
+                - generic [ref=f4e105]: 你
+              - generic [ref=f4e106]: 把设置页从面板拆成独立路由，加上全局键盘导航，顺便把外观设置里主题切换的闪烁修一下。
+            - generic [ref=f4e107]:
+              - generic [ref=f4e108]:
+                - generic [ref=f4e109]: piwin
+                - time [ref=f4e110]: 14:02
+              - generic [ref=f4e111] [cursor=pointer]: 思考了 6 秒 · 已折叠推理过程
+              - generic [ref=f4e116]: 计划 · 3 步（先讲清楚再动手）
+              - generic [ref=f4e124] [cursor=pointer]:
+                - text: 读取
+                - generic [ref=f4e128]: settings-shell.tsx
+                - generic [ref=f4e130]: 412ms
+              - paragraph [ref=f4e133]: 先拆路由。设置壳目前是巨型条件渲染，改成嵌套路由，保留 deep-link：
+              - generic [ref=f4e134]:
+                - generic [ref=f4e135]:
+                  - generic [ref=f4e139]: settings-shell.tsx
+                  - generic [ref=f4e140]: +38 −52
+                  - generic [ref=f4e141]:
+                    - button "拒绝" [ref=f4e142] [cursor=pointer]
+                    - button "接受" [ref=f4e145] [cursor=pointer]
+                - generic [ref=f4e148]:
+                  - generic [ref=f4e149]:
+                    - generic [ref=f4e150]: "41"
+                    - text: "export function SettingsShell() {"
+                  - generic [ref=f4e151]:
+                    - generic [ref=f4e152]: "42"
+                    - text: const [page, setPage] = useState('general')
+                  - generic [ref=f4e153]:
+                    - generic [ref=f4e154]: "42"
+                    - text: return (
+                  - generic [ref=f4e155]:
+                    - generic [ref=f4e156]: "43"
+                    - text: <Routes base="/settings">
+                  - generic [ref=f4e157]:
+                    - generic [ref=f4e158]: "44"
+                    - text: "<Route path=\"general\" element={<General/>} />"
+                  - generic [ref=f4e159]:
+                    - generic [ref=f4e160]: "45"
+                    - text: "<Route path=\"appearance\" element={<Appearance/>} />"
+                  - generic [ref=f4e161]:
+                    - generic [ref=f4e162]: "46"
+                    - text: </Routes>
+              - generic [ref=f4e163]:
+                - generic [ref=f4e164]: 需要审批 · 运行测试套件
+                - generic [ref=f4e168]: $ pnpm --filter @piwin/desktop test
+                - generic [ref=f4e169]:
+                  - button "允许一次" [ref=f4e170] [cursor=pointer]
+                  - button "总是允许" [ref=f4e173] [cursor=pointer]
+                  - button "拒绝" [ref=f4e174] [cursor=pointer]
+                  - generic [ref=f4e175]: "权限: ask · ADR 0019"
+              - paragraph [ref=f4e176]: 路由拆完了
+          - generic [ref=f4e178]:
+            - generic [ref=f4e179]:
+              - 'textbox "继续追问，或 @ 文件 / # 技能…" [ref=f4e180]': 继续，键盘导航用 g 键系列，别和浏览器冲突。
+              - generic [ref=f4e181]:
+                - button [ref=f4e182] [cursor=pointer]
+                - button "Kimi K3" [ref=f4e185] [cursor=pointer]
+                - button "深度思考" [ref=f4e191] [cursor=pointer]
+                - button [ref=f4e198] [cursor=pointer]
+            - generic [ref=f4e201]: ⏎ 发送 · ⇧⏎ 换行 · ⌘K 命令 · Esc 中断
+      - complementary [ref=f4e202]:
+        - generic [ref=f4e203]:
+          - button "更改 3" [ref=f4e204] [cursor=pointer]:
+            - text: 更改
+            - generic [ref=f4e205]: "3"
+          - button "终端" [ref=f4e206] [cursor=pointer]
+          - button "大纲" [ref=f4e207] [cursor=pointer]
+        - generic [ref=f4e209]:
+          - generic [ref=f4e210] [cursor=pointer]:
+            - text: settings-shell.tsx
+            - generic [ref=f4e214]: +38 −52
+          - generic [ref=f4e215] [cursor=pointer]:
+            - text: use-desktop-shortcuts.ts
+            - generic [ref=f4e219]: "+41"
+          - generic [ref=f4e220] [cursor=pointer]:
+            - text: appearance-page.tsx
+            - generic [ref=f4e224]: +9 −4
+    - contentinfo [ref=f4e225]:
+      - generic [ref=f4e226]: agent 运行中 · 步骤 2/3
+      - generic [ref=f4e229]: 86.2k / 128k
+      - generic [ref=f4e230]: 2:41
+      - generic [ref=f4e235]:
+        - generic [ref=f4e236]: RPC · 已连接
+        - generic [ref=f4e240]: 权限 ask
+  - generic [ref=f4e241]:
+    - link "V5 Obsidian" [ref=f4e242] [cursor=pointer]:
+      - /url: ui-prototype-v5.html
+    - link "V6 Noir" [ref=f4e243] [cursor=pointer]:
+      - /url: "#"
+    - link "V7 Paper" [ref=f4e244] [cursor=pointer]:
+      - /url: ui-prototype-v7.html

@@ -28,11 +28,7 @@ html.pet-overlay-window #root {
   background: transparent !important;
 }
 
-/* Reserve classic scrollbar track so overflow appearing/disappearing does
-   not shift the entire shell by ~15px (reads as "everything jittered"). */
-html {
-  scrollbar-gutter: stable;
-}
+
 
 button,
 input,

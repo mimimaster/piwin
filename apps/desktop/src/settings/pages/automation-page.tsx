@@ -23,7 +23,7 @@ export function AutomationPage(): ReactElement {
       />
 
       {requestSubAgent && (
-        <div className="settings-section" data-testid="settings-automation-subagents">
+        <div className="settings-section settings-section-card" style={{ marginTop: 24 }} data-testid="settings-automation-subagents">
           <SubAgentPanel
             parentSessionId={activeSessionId}
             request={requestSubAgent}

@@ -31,13 +31,13 @@ export function AppearancePage(): ReactElement {
 
   return (
     <div className="settings-card">
-      <div className="settings-section">
+      <div className="settings-section settings-section-card">
         <PageTitle
-          title={locale === 'zh-CN' ? '排印与密度' : 'Typography & density'}
+          title={locale === 'zh-CN' ? '字体与排印' : 'Typography'}
           description={
             locale === 'zh-CN'
-              ? '调整助手文本、代码块和工具调用的字体大小与布局。'
-              : 'Adjust font sizes and layout for assistant text, code, and tool calls.'
+              ? '调整助手文本和代码块的字体大小与换行策略。'
+              : 'Adjust font sizes and line wrapping for assistant text and code blocks.'
           }
         />
 
@@ -110,6 +110,45 @@ export function AppearancePage(): ReactElement {
             aria-label={locale === 'zh-CN' ? '代码自动换行' : 'Code wrap'}
           />
         </FieldRow>
+      </div>
+
+      <div className="settings-section settings-section-card">
+        <PageTitle
+          title={locale === 'zh-CN' ? '交互与渲染' : 'Interaction & Rendering'}
+          description={
+            locale === 'zh-CN'
+              ? '自定义工具调用详细度、工作详情展开策略与 Artifact 动态渲染。'
+              : 'Customize tool call details, work section default expansion, and Artifact live rendering.'
+          }
+        />
+
+        {/* Tool call density */}
+        <FieldRow
+          label={locale === 'zh-CN' ? '工具调用密度' : 'Tool call density'}
+          description={
+            locale === 'zh-CN'
+              ? '调整工具调用显示的详细程度。'
+              : 'Adjust how much detail is shown for tool calls.'
+          }
+        >
+          <SegmentedControl
+            value={preferences.toolDensity}
+            onChange={(value) =>
+              updatePreference(
+                preferences,
+                'toolDensity',
+                value as ToolCallDensity,
+                onPreferencesChange,
+              )
+            }
+            data={[
+              { value: 'compact', label: isChinese ? '紧凑' : 'Compact' },
+              { value: 'comfortable', label: isChinese ? '适中' : 'Comfortable' },
+              { value: 'detailed', label: isChinese ? '详细' : 'Detailed' },
+            ]}
+            testId="tool-density-segmented"
+          />
+        </FieldRow>
 
         {/* Work details default */}
         <FieldRow
@@ -138,13 +177,13 @@ export function AppearancePage(): ReactElement {
           />
         </FieldRow>
 
-        {/* Artifact 具现 toggle */}
+        {/* Artifact 动态渲染 toggle */}
         <FieldRow
-          label="artifact具现"
+          label={isChinese ? 'Artifact 动态渲染' : 'Artifact live rendering'}
           description={
             locale === 'zh-CN'
-              ? '开启后代码块将提供「artifact具现」按钮以渲染 HTML/Web 内容。'
-              : 'When enabled, code blocks show a "artifact具现" button to render HTML/Web content.'
+              ? '开启后代码块将提供 Artifact 渲染按钮以实时预览 HTML 与 Web 内容。'
+              : 'When enabled, code blocks display an Artifact button for live HTML/Web preview.'
           }
         >
           <Switch
@@ -152,40 +191,12 @@ export function AppearancePage(): ReactElement {
             onCheckedChange={(checked) => {
               updatePreference(preferences, 'artifactPreviewEnabled', checked, onPreferencesChange);
             }}
-            aria-label="artifact具现"
+            aria-label={isChinese ? 'Artifact 动态渲染' : 'Artifact live rendering'}
             testId="artifact-preview-switch"
           />
         </FieldRow>
 
-        {/* Tool call density (existing, now wired through preferences) */}
-        <FieldRow
-          label={locale === 'zh-CN' ? '工具调用密度' : 'Tool call density'}
-          description={
-            locale === 'zh-CN'
-              ? '调整工具调用显示的详细程度。'
-              : 'Adjust how much detail is shown for tool calls.'
-          }
-        >
-          <SegmentedControl
-            value={preferences.toolDensity}
-            onChange={(value) =>
-              updatePreference(
-                preferences,
-                'toolDensity',
-                value as ToolCallDensity,
-                onPreferencesChange,
-              )
-            }
-            data={[
-              { value: 'compact', label: isChinese ? '紧凑' : 'Compact' },
-              { value: 'comfortable', label: isChinese ? '适中' : 'Comfortable' },
-              { value: 'detailed', label: isChinese ? '详细' : 'Detailed' },
-            ]}
-            testId="tool-density-segmented"
-          />
-        </FieldRow>
-
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
           <Button
             size="compact"
             variant="ghost"
@@ -203,18 +214,18 @@ export function AppearancePage(): ReactElement {
               onPreferencesChange(defaults);
             }}
           >
-            {locale === 'zh-CN' ? '重置为默认值' : 'Reset to defaults'}
+            {locale === 'zh-CN' ? '重置排印默认值' : 'Reset defaults'}
           </Button>
         </div>
       </div>
 
-      <div className="settings-section">
+      <div className="settings-section settings-section-card">
         <PageTitle
-          title={locale === 'zh-CN' ? '主题' : 'Themes'}
+          title={locale === 'zh-CN' ? '界面主题' : 'UI Themes'}
           description={
             locale === 'zh-CN'
-              ? '选择、应用或安装界面主题。'
-              : 'Select, apply, or install UI themes.'
+              ? '选择、应用或安装 piwin 界面外观主题。'
+              : 'Select, apply, or install piwin UI appearance themes.'
           }
         />
         <ThemePanel request={requestTheme} onApplied={onThemeApplied} variant="inline" />

@@ -1,10 +1,8 @@
 /** Inline outline icons for the desktop shell (no asset pipeline). */
 
-import type { ReactElement, SVGProps, ImgHTMLAttributes } from 'react';
+import type { ReactElement, SVGProps } from 'react';
 
 type IconProps = SVGProps<SVGSVGElement>;
-
-type ImageIconProps = ImgHTMLAttributes<HTMLImageElement>;
 
 function IconBase(props: IconProps): ReactElement {
   const { children, ...rest } = props;
@@ -67,17 +65,28 @@ export function IconCanvas(props: IconProps): ReactElement {
 export function IconFolder(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z" />
+      <path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5v-11Z" />
     </IconBase>
   );
 }
 
-/** Folder with a plus badge — Cursor-style open workspace control. */
+/** Open folder vector icon (matching user Image 1 reference) */
+export function IconFolderOpen(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2h8a1.5 1.5 0 0 1 1.5 1.5v1.5" />
+      <path d="M3 19l2.2-8a1.5 1.5 0 0 1 1.45-1h13.7a1.5 1.5 0 0 1 1.45 1.9l-2 7.1A1.5 1.5 0 0 1 18.3 20H4.5A1.5 1.5 0 0 1 3 19Z" />
+    </IconBase>
+  );
+}
+
+/** Folder with plus icon at bottom-right (matching user Image 3 reference) */
 export function IconFolderPlus(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <path d="M4 7h6l2 2h8v10H4V7Z" />
-      <path d="M12 12v5M9.5 14.5h5" />
+      <path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h4l2 2h7A1.5 1.5 0 0 1 20 8.5v3" />
+      <path d="M4 11v6.5A1.5 1.5 0 0 0 5.5 19H12" />
+      <path d="M16 16v5M13.5 18.5h5" />
     </IconBase>
   );
 }
@@ -85,8 +94,8 @@ export function IconFolderPlus(props: IconProps): ReactElement {
 export function IconSpark(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      {/* Agent / product mark — prototype role icon */}
-      <path d="M12 4c.6 3.6 2.4 5.4 6 6-3.6.6-5.4 2.4-6 6-.6-3.6-2.4-5.4-6-6 3.6-.6 5.4-2.4 6-6Z" />
+      <path d="M12 3c.5 3.5 2.5 5.5 6 6-3.5.5-5.5 2.5-6 6-.5-3.5-2.5-5.5-6-6 3.5-.5 5.5-2.5 6-6Z" />
+      <path d="M5 3c.3 1.5 1.2 2.4 2.7 2.7-1.5.3-2.4 1.2-2.7 2.7-.3-1.5-1.2-2.4-2.7-2.7 1.5-.3 2.4-1.2 2.7-2.7Z" />
     </IconBase>
   );
 }
@@ -110,17 +119,24 @@ export function IconExtension(props: IconProps): ReactElement {
   );
 }
 
-/** Raster product icons generated for the desktop shell. These are kept
- * alongside the outline SVG set so existing call sites can swap cleanly. */
-export function IconSkill(props: ImageIconProps): ReactElement {
+/** Skill / capability lightning vector icon */
+export function IconSkill(props: IconProps): ReactElement {
   return (
-    <img src="/ui/skill-icon.png" alt="" {...props} style={{ display: 'block', ...props.style }} />
+    <IconBase {...props}>
+      <path d="M13 2.5L4.5 12.5H11.5L10.5 21.5L19.5 11.5H12.5L13 2.5Z" />
+    </IconBase>
   );
 }
 
-export function IconMcp(props: ImageIconProps): ReactElement {
+/** Model Context Protocol server node network vector icon */
+export function IconMcp(props: IconProps): ReactElement {
   return (
-    <img src="/ui/mcp-icon.png" alt="" {...props} style={{ display: 'block', ...props.style }} />
+    <IconBase {...props}>
+      <rect x="4" y="4" width="5.5" height="5.5" rx="1.5" />
+      <rect x="14.5" y="4" width="5.5" height="5.5" rx="1.5" />
+      <rect x="9.25" y="14.5" width="5.5" height="5.5" rx="1.5" />
+      <path d="M6.75 9.5v2a2 2 0 0 0 2 2h6.5a2 2 0 0 0 2-2V9.5M12 13.5V14.5" />
+    </IconBase>
   );
 }
 
@@ -131,6 +147,15 @@ export function IconSettings(props: IconProps): ReactElement {
       <path d="M4 7.5h16M4 16.5h16" />
       <circle cx="9.5" cy="7.5" r="2.4" fill="var(--canvas, currentColor)" stroke="currentColor" />
       <circle cx="15" cy="16.5" r="2.4" fill="var(--canvas, currentColor)" stroke="currentColor" />
+    </IconBase>
+  );
+}
+
+/** Filter funnel icon (matching user Image 2 reference) */
+export function IconSliders(props: IconProps): ReactElement {
+  return (
+    <IconBase strokeWidth={1.8} {...props}>
+      <path d="M4 6h16M7.5 12h9M10.5 18h3" />
     </IconBase>
   );
 }
@@ -292,8 +317,8 @@ export function IconRefresh(props: IconProps): ReactElement {
 export function IconPanelRight(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <rect x="3.5" y="5" width="17" height="14" rx="2" />
-      <path d="M14.5 5v14" />
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <path d="M15 4v16" />
     </IconBase>
   );
 }
@@ -302,8 +327,8 @@ export function IconPanelRight(props: IconProps): ReactElement {
 export function IconPanelLeft(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <rect x="3.5" y="5" width="17" height="14" rx="2" />
-      <path d="M9.5 5v14" />
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <path d="M9 4v16" />
     </IconBase>
   );
 }
@@ -425,3 +450,15 @@ export function IconWarn(props: IconProps): ReactElement {
     </IconBase>
   );
 }
+
+export function IconExpand(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M15 3h6v6" />
+      <path d="M9 21H3v-6" />
+      <path d="M21 3l-7 7" />
+      <path d="M3 21l7-7" />
+    </IconBase>
+  );
+}
+

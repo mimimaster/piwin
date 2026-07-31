@@ -32,15 +32,15 @@ export function SessionPage(): ReactElement {
 
   return (
     <div className="settings-card">
-      <div className="settings-section">
+      <div className="settings-section settings-section-card">
         <PageTitle
-          title={locale === 'zh-CN' ? '会话与上下文' : 'Sessions & context'}
-          description={locale === 'zh-CN' ? '配置新会话的上下文行为。' : 'Configure context behavior for new sessions.'}
+          title={locale === 'zh-CN' ? '会话与上下文管理' : 'Sessions & Context'}
+          description={locale === 'zh-CN' ? '管理新会话创建时的默认上下文压缩策略与恢复行为。' : 'Configure context compaction strategies and defaults for new sessions.'}
         />
         {config ? (
           <FieldRow
-            label={locale === 'zh-CN' ? '自动上下文压缩' : 'Auto-compaction'}
-            description={locale === 'zh-CN' ? '新会话默认开启上下文压缩以节省 Token。' : 'Enable context compaction by default for new sessions to save tokens.'}
+            label={locale === 'zh-CN' ? '自动上下文压缩默认值' : 'Auto-compaction default'}
+            description={locale === 'zh-CN' ? '新创建的会话默认开启上下文自动压缩，有助于长会话节省 Token 与加速响应。' : 'Enable context compaction by default for newly spawned sessions to optimize token usage.'}
           >
             <Switch
               checked={config.compaction?.autoEnabledDefault !== false}

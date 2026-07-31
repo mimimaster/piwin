@@ -19,7 +19,7 @@ pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         return prepare_pet_overlay_window(&window);
     }
 
-    let window = WebviewWindowBuilder::new(
+    let mut builder = WebviewWindowBuilder::new(
         app,
         PET_OVERLAY_LABEL,
         tauri::WebviewUrl::App("index.html".into()),
@@ -30,12 +30,19 @@ pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     .decorations(false)
     .transparent(true)
     .always_on_top(true)
+    .visible_on_all_workspaces(true)
     .skip_taskbar(true)
     .resizable(false)
     .visible(false)
     .focused(false)
-    .shadow(false)
-    .build()?;
+    .shadow(false);
+
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder.accept_first_mouse(true);
+    }
+
+    let window = builder.build()?;
 
     // Tauri's transparent + always_on_top handles the window level on all
     // platforms. On macOS, transparent + decorations(false) enables

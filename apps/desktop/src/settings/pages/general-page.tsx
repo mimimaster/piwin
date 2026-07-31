@@ -92,12 +92,19 @@ export function GeneralPage(): ReactElement {
 
   return (
     <div className="settings-card">
-      <div className="settings-section">
+      <div className="settings-section settings-section-card">
         <PageTitle
-          title={copy.language}
-          description={copy.languageDescription}
+          title={locale === 'zh-CN' ? '基础与运行' : 'General & Runtime'}
+          description={
+            locale === 'zh-CN'
+              ? '管理 piwin 界面显示语言与 Agent 运行模式。'
+              : 'Manage piwin display language and agent execution mode.'
+          }
         />
-        <FieldRow label={copy.language}>
+        <FieldRow
+          label={copy.language}
+          description={copy.languageDescription}
+        >
           <Select
             value={locale}
             testId="settings-language-select"
@@ -110,13 +117,6 @@ export function GeneralPage(): ReactElement {
             style={{ minWidth: 140 }}
           />
         </FieldRow>
-      </div>
-
-      <div className="settings-section">
-        <PageTitle
-          title={locale === 'zh-CN' ? 'Agent 运行模式' : 'Agent runtime'}
-          description={locale === 'zh-CN' ? '控制新会话是否连接到 Host 与模型。' : 'Choose whether new sessions connect to the host and configured models.'}
-        />
         {config ? (
           <FieldRow
             label={locale === 'zh-CN' ? '在线模式' : 'Online mode'}
@@ -145,7 +145,7 @@ export function GeneralPage(): ReactElement {
       />
 
       {hostStatus ? (
-        <div className="settings-section" data-testid="capability-matrix">
+        <div className="settings-section settings-section-card" data-testid="capability-matrix">
           <button
             type="button"
             className="settings-collapsible-trigger"

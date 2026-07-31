@@ -3,8 +3,9 @@
  * subscribes to pet/state pushes from the host, and supports dragging.
  * No theme provider, no router, no sidebar — just the sprite on transparent bg.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PetRuntimeSnapshot } from '@piwin/contracts';
+import type { Window as TauriWindow } from '@tauri-apps/api/window';
 import { PetSprite } from './components/PetSprite';
 
 export function PetOverlayApp() {
@@ -78,18 +79,35 @@ export function PetOverlayApp() {
   }, []);
 
   // Enable dragging the overlay window by clicking anywhere on the sprite.
+  const tauriWindow = useRef<TauriWindow | null>(null);
+  const dragging = useRef(false);
   useEffect(() => {
-    const handler = async (e: MouseEvent) => {
-      if (e.button !== 0) return;
+    let mounted = true;
+    void (async () => {
       try {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
-        await getCurrentWindow().startDragging();
+        if (!mounted) return;
+        tauriWindow.current = getCurrentWindow();
       } catch {
         // not in Tauri
       }
+    })();
+
+    const handler = (e: MouseEvent) => {
+      if (e.button !== 0 || dragging.current || !tauriWindow.current) return;
+      dragging.current = true;
+      tauriWindow.current
+        .startDragging()
+        .catch(() => {})
+        .finally(() => {
+          dragging.current = false;
+        });
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    return () => {
+      mounted = false;
+      document.removeEventListener('mousedown', handler);
+    };
   }, []);
 
   return (

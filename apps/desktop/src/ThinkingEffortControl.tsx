@@ -6,6 +6,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Popover } from '@piwin/ui-kit';
 import type { ModelRef, ThinkingLevel } from '@piwin/contracts';
+import { IconSpark } from './shell-icons';
 
 type ThinkingEffortControlProps = {
   disabled: boolean;
@@ -80,8 +81,12 @@ export function ThinkingEffortControl({
           </button>
         }
       >
+        {/* Thinking / Reasoning Effort Section */}
         <section className="thinking-effort-section">
-          <header className="thinking-effort-section-title">Thinking</header>
+          <header className="thinking-effort-section-title">
+            <span>Thinking</span>
+            <span className="thinking-effort-active-tag">{effortLabel}</span>
+          </header>
           <div className="thinking-effort-chip-row" role="radiogroup" aria-label="Thinking effort">
             {levels.map((level) => {
               const isActive = level === effectiveValue;
@@ -103,8 +108,11 @@ export function ThinkingEffortControl({
           </div>
         </section>
 
+        {/* Model Selection Section */}
         <section className="thinking-effort-section">
-          <header className="thinking-effort-section-title">Model</header>
+          <header className="thinking-effort-section-title">
+            <span>Model Engine</span>
+          </header>
           {models.length === 0 ? (
             <div className="thinking-effort-model-empty" data-testid="thinking-model-empty">
               {modelLabel || 'No models configured'}
@@ -118,6 +126,7 @@ export function ThinkingEffortControl({
             >
               {models.map((model) => {
                 const isSelected = model.key === selectedModelKey;
+                const { provider, name } = parseModelLabel(model.label);
                 return (
                   <button
                     key={model.key}
@@ -135,7 +144,15 @@ export function ThinkingEffortControl({
                     }}
                     title={model.label}
                   >
-                    <span className="thinking-effort-model-option-label">{model.label}</span>
+                    <span className="thinking-effort-model-icon" aria-hidden>
+                      <IconSpark width={14} height={14} />
+                    </span>
+                    <span className="thinking-effort-model-info">
+                      <span className="thinking-effort-model-option-label">{name}</span>
+                      {provider ? (
+                        <span className="thinking-effort-model-provider-badge">{provider}</span>
+                      ) : null}
+                    </span>
                     {isSelected ? (
                       <span className="thinking-effort-model-check" aria-hidden>
                         ✓
@@ -196,4 +213,19 @@ function shortenModelLabel(label: string): string {
     return lastSegment;
   }
   return `${lastSegment.slice(0, 19)}…`;
+}
+
+function parseModelLabel(label: string): { provider: string | null; name: string } {
+  const trimmed = label.trim();
+  if (!trimmed) {
+    return { provider: null, name: 'Model' };
+  }
+  const slashParts = trimmed.split(/\s*\/\s*/);
+  if (slashParts.length > 1 && slashParts[0]) {
+    return {
+      provider: slashParts[0],
+      name: slashParts.slice(1).join(' / '),
+    };
+  }
+  return { provider: null, name: trimmed };
 }

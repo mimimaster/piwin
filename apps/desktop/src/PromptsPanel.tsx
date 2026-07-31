@@ -70,13 +70,20 @@ export function PromptsPanel(props: PromptsPanelProps) {
   }
 
   return (
-    <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'} data-testid="prompts-panel">
-      <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
+    <div
+      className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}
+      data-testid="prompts-panel"
+    >
+      <div
+        className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}
+      >
         <PageTitle
-          title={isChinese ? '提示词模板' : 'Prompt Templates'}
-          description={isChinese
-            ? 'Markdown 片段位于 ~/.piwin/prompts。在 Pi 交互模式中可通过 /name 展开。'
-            : 'Markdown snippets under ~/.piwin/prompts. Expand via /name in interactive mode.'}
+          title={isChinese ? 'Prompt 模板' : 'Prompt Templates'}
+          description={
+            isChinese
+              ? 'Markdown 片段位于 ~/.piwin/prompts。在 Pi 交互模式中可通过 /name 展开。'
+              : 'Markdown snippets under ~/.piwin/prompts. Expand via /name in interactive mode.'
+          }
         />
 
         <div className="settings-toolbar" style={{ marginBottom: 20 }}>
@@ -84,13 +91,23 @@ export function PromptsPanel(props: PromptsPanelProps) {
             toolbar
             value={filter}
             onChange={(event) => setFilter(event.currentTarget.value)}
-            placeholder={isChinese ? '搜索模板：名称、ID 或描述…' : 'Search templates by name, id, or description…'}
+            placeholder={
+              isChinese
+                ? '搜索模板：名称、ID 或描述…'
+                : 'Search templates by name, id, or description…'
+            }
             aria-label={isChinese ? '搜索模板' : 'Search templates'}
           />
-          <Button size="compact" onClick={() => void loadPrompts()}>{isChinese ? '刷新' : 'Refresh'}</Button>
+          <Button size="compact" onClick={() => void loadPrompts()}>
+            {isChinese ? '刷新' : 'Refresh'}
+          </Button>
         </div>
 
-        {loading && <div style={{ padding: '20px', textAlign: 'center' }}><Spinner /></div>}
+        {loading && (
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <Spinner />
+          </div>
+        )}
         {error ? (
           <div className="ui-feedback-host" aria-live="polite">
             <Notice tone="error">{error}</Notice>
@@ -99,7 +116,9 @@ export function PromptsPanel(props: PromptsPanelProps) {
 
         <ul className="ext-list">
           {visible.length === 0 && !loading ? (
-            <li className="muted" style={{ textAlign: 'center', padding: '40px' }}>{isChinese ? '暂无模板' : 'No templates found'}</li>
+            <li className="muted" style={{ textAlign: 'center', padding: '40px' }}>
+              {isChinese ? '暂无模板' : 'No templates found'}
+            </li>
           ) : (
             visible.map((prompt) => (
               <li key={prompt.id} className="ext-list-item">

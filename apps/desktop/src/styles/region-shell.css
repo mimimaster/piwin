@@ -23,7 +23,7 @@
   overflow: hidden;
   /* Prevent sparse auto tracks from stealing layout height. */
   grid-auto-rows: minmax(0, auto);
-  background: var(--canvas);
+  background: var(--bg-white, #ffffff);
   /* Never animate track sizes — intermediate frames look like a refresh. */
   transition: none;
 }
@@ -138,35 +138,11 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  /* Daybreak ambient: a faint sunrise glow spills from the top of the stage.
-     Pure background layer — no stacking / pointer-events side effects. */
-  background:
-    radial-gradient(
-      960px 380px at 50% -120px,
-      color-mix(in srgb, var(--accent) 13%, transparent),
-      transparent 74%
-    ),
-    radial-gradient(
-      640px 280px at 84% -100px,
-      color-mix(in srgb, var(--accent-2, var(--accent)) 8%, transparent),
-      transparent 72%
-    ),
-    var(--canvas);
+  background: #ffffff;
 }
 
 html[data-theme-mode='light'] .workspace {
-  background:
-    radial-gradient(
-      960px 380px at 50% -120px,
-      color-mix(in srgb, var(--accent) 9%, transparent),
-      transparent 74%
-    ),
-    radial-gradient(
-      640px 280px at 84% -100px,
-      color-mix(in srgb, var(--accent-2, var(--accent)) 6%, transparent),
-      transparent 72%
-    ),
-    var(--canvas);
+  background: #ffffff;
 }
 
 .chat-column {

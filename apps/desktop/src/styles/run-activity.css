@@ -1,44 +1,289 @@
-/* Run activity animation component styles.
-   Used by RunActivitySplash, RunActivityInline, and RunActivitySlot. */
+/* Run activity animation & UI styling.
+   Includes SVG keyframe micro-animations, glassmorphism card layouts,
+   ambient glowing backdrops, status badges, and subagent card enhancements. */
+
+/* ==========================================================================
+   SVG Keyframe Animations
+   ========================================================================== */
+
+@keyframes svg-spin-fast {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes svg-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes svg-spin-gear {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes svg-spin-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes svg-pulse-bg {
+  0%, 100% { opacity: 0.35; transform: scale(0.96); }
+  50% { opacity: 0.85; transform: scale(1.08); }
+}
+
+@keyframes svg-node-pulse {
+  0%, 100% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+@keyframes svg-core-breathe {
+  0%, 100% { transform: scale(0.85); opacity: 0.7; }
+  50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 6px rgba(192, 132, 252, 0.8)); }
+}
+
+@keyframes svg-shield-pulse {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6)); }
+}
+
+@keyframes svg-stop-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes svg-check-draw {
+  0% { stroke-dashoffset: 30; stroke-dasharray: 30; }
+  100% { stroke-dashoffset: 0; stroke-dasharray: 30; }
+}
+
+@keyframes subagent-progress-slide {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(30%); }
+  100% { transform: translateX(100%); }
+}
+
+/* SVG icon transform origin centering */
+.run-activity-svg-icon {
+  transform-origin: center center;
+  overflow: visible;
+}
+
+.run-activity-svg-icon circle,
+.run-activity-svg-icon path,
+.run-activity-svg-icon g,
+.run-activity-svg-icon rect {
+  transform-origin: center center;
+}
+
+.svg-spin-fast {
+  animation: svg-spin-fast 1.4s linear infinite;
+}
+
+.svg-spin-slow {
+  animation: svg-spin-slow 6s linear infinite;
+}
+
+.svg-spin-gear {
+  animation: svg-spin-gear 3s linear infinite;
+}
+
+.svg-spin-reverse {
+  animation: svg-spin-reverse 4s linear infinite;
+}
+
+.svg-pulse-bg {
+  animation: svg-pulse-bg 2s ease-in-out infinite;
+}
+
+.svg-node-pulse {
+  animation: svg-node-pulse 1.8s ease-in-out infinite;
+}
+
+.svg-core-breathe {
+  animation: svg-core-breathe 2s ease-in-out infinite;
+}
+
+.svg-shield-pulse {
+  animation: svg-shield-pulse 1.8s ease-in-out infinite;
+}
+
+.svg-stop-pulse {
+  animation: svg-stop-pulse 1.5s ease-in-out infinite;
+}
+
+.svg-check-draw {
+  animation: svg-check-draw 0.45s ease-out forwards;
+}
+
+/* ==========================================================================
+   RunActivitySplash Component (Glassmorphism & Ambient Glow)
+   ========================================================================== */
 
 .run-activity-splash {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 0;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--bg-surface-glass, rgba(255, 255, 255, 0.05));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.12);
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  margin: 6px 0;
+  overflow: hidden;
+}
+
+.run-activity-splash:hover {
+  border-color: var(--border-hover, rgba(255, 255, 255, 0.16));
+  box-shadow: 0 6px 24px -2px rgba(0, 0, 0, 0.18);
 }
 
 .run-activity-splash-icon-wrap {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
-  color: var(--accent);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.run-activity-splash-glow {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  filter: blur(10px);
+  opacity: 0.5;
+  z-index: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.run-activity-splash[data-kind="connecting-model"] .run-activity-splash-glow {
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.6) 0%, transparent 70%);
+}
+
+.run-activity-splash[data-kind="waiting-first-token"] .run-activity-splash-glow {
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.6) 0%, transparent 70%);
+}
+
+.run-activity-splash[data-kind="planning"] .run-activity-splash-glow {
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.6) 0%, transparent 70%);
+}
+
+.run-activity-splash[data-kind="working"] .run-activity-splash-glow {
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.6) 0%, transparent 70%);
+}
+
+.run-activity-splash[data-kind="waiting-permission"] .run-activity-splash-glow {
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.6) 0%, transparent 70%);
+}
+
+.run-activity-splash[data-kind="compacting"] .run-activity-splash-glow {
+  background: radial-gradient(circle, rgba(236, 72, 153, 0.6) 0%, transparent 70%);
+}
+
+.run-activity-splash[data-kind="complete"] .run-activity-splash-glow {
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.5) 0%, transparent 70%);
+}
+
+.run-activity-splash[data-kind="failed"] .run-activity-splash-glow {
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.6) 0%, transparent 70%);
 }
 
 .run-activity-splash-icon {
-  width: 22px;
-  height: 22px;
+  position: relative;
+  width: 28px;
+  height: 28px;
+  z-index: 1;
 }
 
-.run-activity-splash-icon-wrap[data-kind="connecting-model"] .run-activity-splash-icon,
-.run-activity-splash-icon-wrap[data-kind="waiting-first-token"] .run-activity-splash-icon,
-.run-activity-splash-icon-wrap[data-kind="preparing"] .run-activity-splash-icon {
-  animation: run-activity-breathe 1.6s ease-in-out infinite;
+.run-activity-splash-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
 }
 
-.run-activity-splash-icon-wrap[data-kind="working"] .run-activity-splash-icon {
-  animation: run-activity-spin 2s linear infinite;
+.run-activity-splash-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.run-activity-splash-icon-wrap[data-kind="failed"] .run-activity-splash-icon {
-  color: var(--danger);
+.run-activity-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary, #a1a1aa);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.run-activity-splash-icon-wrap[data-kind="complete"] .run-activity-splash-icon {
-  color: var(--ok);
+.run-activity-badge[data-kind="connecting-model"] {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+.run-activity-badge[data-kind="waiting-first-token"] {
+  color: #c084fc;
+  background: rgba(168, 85, 247, 0.12);
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
+.run-activity-badge[data-kind="planning"] {
+  color: #22d3ee;
+  background: rgba(6, 182, 212, 0.12);
+  border-color: rgba(6, 182, 212, 0.25);
+}
+
+.run-activity-badge[data-kind="working"] {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.run-activity-badge[data-kind="waiting-permission"] {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.run-activity-badge[data-kind="compacting"] {
+  color: #f472b6;
+  background: rgba(236, 72, 153, 0.12);
+  border-color: rgba(236, 72, 153, 0.25);
+}
+
+.run-activity-badge[data-kind="complete"] {
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.run-activity-badge[data-kind="failed"] {
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.14);
+}
+
+.run-activity-timer-pill {
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-tertiary, #71717a);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 
 .run-activity-splash-text {
@@ -53,7 +298,7 @@
   overflow: hidden;
   font-size: 13px;
   font-weight: 500;
-  color: var(--text);
+  color: var(--text, #f4f4f5);
 }
 
 .run-activity-splash-phrase {
@@ -61,37 +306,40 @@
   white-space: nowrap;
 }
 
+/* ==========================================================================
+   RunActivityInline Component
+   ========================================================================== */
+
 .run-activity-inline {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  min-width: 0;
-  color: var(--content-secondary);
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: var(--content-secondary, #a1a1aa);
+  transition: all 0.2s ease;
+}
+
+.run-activity-inline:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 .run-activity-inline-icon-wrap {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
-  color: var(--accent);
 }
 
 .run-activity-inline-icon {
-  width: 14px;
-  height: 14px;
-}
-
-.run-activity-inline-icon-wrap[data-kind="working"] .run-activity-inline-icon {
-  animation: run-activity-spin 2s linear infinite;
-}
-
-.run-activity-inline-icon-wrap[data-kind="connecting-model"] .run-activity-inline-icon,
-.run-activity-inline-icon-wrap[data-kind="waiting-first-token"] .run-activity-inline-icon,
-.run-activity-inline-icon-wrap[data-kind="preparing"] .run-activity-inline-icon {
-  animation: run-activity-breathe 1.6s ease-in-out infinite;
+  width: 16px;
+  height: 16px;
 }
 
 .run-activity-inline-label {
@@ -106,19 +354,88 @@
   white-space: nowrap;
 }
 
-@keyframes run-activity-breathe {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.12); opacity: 0.8; }
+.run-activity-inline-timer {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-tertiary, #71717a);
+  opacity: 0.8;
 }
 
-@keyframes run-activity-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+/* ==========================================================================
+   Subagent Activity Card Improvements
+   ========================================================================== */
+
+.subagent-activity-card {
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+  background: var(--bg-surface-elevated, rgba(24, 24, 27, 0.6));
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
 }
 
+.subagent-activity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subagent-activity-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subagent-status-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.subagent-activity-progress {
+  position: relative;
+  width: 100%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.subagent-activity-progress-bar {
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #3b82f6);
+  border-radius: 2px;
+  animation: subagent-progress-slide 1.8s ease-in-out infinite;
+}
+
+/* ==========================================================================
+   Turn Work Details Active Icon
+   ========================================================================== */
+
+.turn-summary-active-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Reduced Motion Fallbacks */
 @media (prefers-reduced-motion: reduce) {
-  .run-activity-splash-icon,
-  .run-activity-inline-icon {
-    animation: none;
+  .svg-spin-fast,
+  .svg-spin-slow,
+  .svg-spin-gear,
+  .svg-spin-reverse,
+  .svg-pulse-bg,
+  .svg-node-pulse,
+  .svg-core-breathe,
+  .svg-shield-pulse,
+  .svg-stop-pulse,
+  .subagent-activity-progress-bar {
+    animation: none !important;
   }
 }

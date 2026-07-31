@@ -19,7 +19,7 @@ export function SkillsPage(): ReactElement {
     <div className="settings-card" data-testid="settings-skills">
       <SkillsPanel projectPath={projectPath} request={requestSkills} variant="inline" />
 
-      <div className="settings-section" data-testid="settings-rules-merged">
+      <div className="settings-section settings-section-card" style={{ marginTop: 24 }} data-testid="settings-rules-merged">
         <PageTitle
           title={isChinese ? '自定义规则' : 'Custom Rules'}
           description={isChinese
@@ -29,9 +29,11 @@ export function SkillsPage(): ReactElement {
         <div className="settings-empty-rules muted" data-testid="settings-rules-empty">
           {isChinese ? '暂无项目规则' : 'No custom rules yet'}
         </div>
-        <Button size="compact" disabled>
-          {isChinese ? '新建规则' : 'Create rule'}
-        </Button>
+        <div style={{ marginTop: 12 }}>
+          <Button size="compact" disabled>
+            {isChinese ? '新建规则' : 'Create rule'}
+          </Button>
+        </div>
       </div>
     </div>
   );

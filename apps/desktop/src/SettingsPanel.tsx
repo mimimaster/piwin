@@ -67,6 +67,8 @@ type SettingsPanelProps = {
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
   initialSection?: SettingsSectionId;
   hostStatus?: HostStatusData | null;
+  /** Callback to close the modal sub-form. */
+  onClose?: (() => void) | undefined;
 };
 
 export function SettingsPanel({
@@ -90,6 +92,7 @@ export function SettingsPanel({
   onPetActiveChanged,
   initialSection,
   hostStatus = null,
+  onClose,
 }: SettingsPanelProps) {
   const { locale } = useDesktopLocale();
   const [config, setConfig] = useState<PiwinConfig | null>(null);
@@ -304,6 +307,7 @@ export function SettingsPanel({
       activeSection={settingsNav}
       onSelectSection={setSettingsNav}
       contextValue={contextValue}
+      onClose={onClose}
       banners={
         <>
           {error ? (

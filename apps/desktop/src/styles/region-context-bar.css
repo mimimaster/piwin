@@ -5,24 +5,22 @@
 .context-bar {
   display: flex;
   align-items: center;
-  height: 42px;
-  min-height: 42px;
+  height: 38px;
+  min-height: 38px;
   padding: 0 12px;
   gap: 8px;
   border-bottom: 1px solid transparent;
-  /* Transparent so the workspace Daybreak glow flows behind the band. */
   background: transparent;
   flex-shrink: 0;
 }
 
-/* Session identity */
+.context-bar[data-kind='idle'] {
+  display: none;
+}
+
+/* Session identity — title is rendered in top titlebar */
 .context-bar-identity {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  flex-shrink: 1;
-  overflow: hidden;
+  display: none;
 }
 
 .context-bar-title {
@@ -32,7 +30,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 220px;
+  max-width: 360px;
 }
 
 .context-bar-scope-pill {

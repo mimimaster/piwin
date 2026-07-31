@@ -1,7 +1,9 @@
 /**
  * Composer: empty = centered with path header; active session = bottom dock.
  * Context usage ring sits on the toolbar (no project chip — workspace is left sidebar).
- * Slash menu (`/`) surfaces commands, modes, and skills above the textarea.
+ * Slash menu (`/`) surfaces commands, modes, and skills.
+ * At menu (`@`) surfaces workspace files, git diffs, and MCP servers.
+ * History navigation (`ArrowUp`/`ArrowDown`) recalls past sent prompts.
  */
 import {
   useEffect,
@@ -26,7 +28,7 @@ import { MediaPreview } from './MediaPreview';
 import type { PendingComposerAttachment } from './media-utils';
 import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
-import { IconClose, IconCompress, IconPlus, IconSend, IconStop } from './shell-icons';
+import { IconClose, IconExpand, IconPlus, IconSend, IconStop } from './shell-icons';
 import {
   buildSlashCatalog,
   detectActiveSlashToken,
@@ -35,6 +37,15 @@ import {
   SlashMenu,
   type SlashItem,
 } from './slash';
+import {
+  buildAtCatalog,
+  detectActiveAtToken,
+  filterAtItems,
+  replaceActiveAtToken,
+  AtMenu,
+  type AtItem,
+} from './at';
+import { ComposerModalEditor } from './ComposerModalEditor';
 
 export type ComposerModelOption = {
   providerId: string;
@@ -96,8 +107,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const agentModeDefinition = getAgentMode(props.agentMode);
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
-  // Always allow drafting. Workspace/session/trust are Send-time concerns only.
-  // Aborting still accepts text (user may want to queue a follow-up).
   const canComposeText = true;
   const canInteract = canComposeText && !isStreamingRun;
   const canSend =
@@ -114,14 +123,33 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [caretIndex, setCaretIndex] = useState(0);
+
+  // Slash Menu State
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [slashMenuForcedClosed, setSlashMenuForcedClosed] = useState(false);
 
-  // Cold start / empty workspace: caret lands in the box without selecting a folder.
+  // At-Mention Menu State
+  const [atSelectedIndex, setAtSelectedIndex] = useState(0);
+  const [atMenuForcedClosed, setAtMenuForcedClosed] = useState(false);
+
+  // Modal Editor State
+  const [modalEditorOpen, setModalEditorOpen] = useState(false);
+
+  // Prompt History Navigation State
+  const [historyStack, setHistoryStack] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const draftBeforeHistoryRef = useRef<string>('');
+
+  // IME Composition Guard Refs
+  const isComposingRef = useRef(false);
+  const lastCompositionEndRef = useRef(0);
+
+  // Cold start / empty workspace: caret lands in the box.
   useEffect(() => {
     textareaRef.current?.focus();
   }, [props.activeSessionId, props.projectPath]);
 
+  // Catalog: Slash Menu items
   const slashCatalog = useMemo(
     () =>
       buildSlashCatalog({
@@ -173,8 +201,48 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     }
   }, [slashItems.length, slashSelectedIndex]);
 
+  // Catalog: At-Mention items
+  const atCatalog = useMemo(
+    () =>
+      buildAtCatalog({
+        projectPath: props.projectPath,
+        mcpServers: props.menuMcp.map((m) => ({ id: m.id, name: m.name })),
+      }),
+    [props.projectPath, props.menuMcp],
+  );
+
+  const activeAtToken = useMemo(
+    () => detectActiveAtToken(props.composer, caretIndex),
+    [props.composer, caretIndex],
+  );
+
+  const atItems = useMemo(() => {
+    if (!activeAtToken || !canComposeText) {
+      return [];
+    }
+    return filterAtItems(atCatalog, activeAtToken.query);
+  }, [activeAtToken, canComposeText, atCatalog]);
+
+  const atMenuOpen =
+    atItems.length > 0 &&
+    activeAtToken !== null &&
+    canComposeText &&
+    !atMenuForcedClosed &&
+    !slashMenuOpen;
+
+  useEffect(() => {
+    setAtSelectedIndex(0);
+  }, [activeAtToken?.query, atMenuOpen]);
+
+  useEffect(() => {
+    if (atSelectedIndex >= atItems.length && atItems.length > 0) {
+      setAtSelectedIndex(atItems.length - 1);
+    }
+  }, [atItems.length, atSelectedIndex]);
+
   useEffect(() => {
     setSlashMenuForcedClosed(false);
+    setAtMenuForcedClosed(false);
   }, [props.composer]);
 
   function syncCaretFromTextarea(): void {
@@ -215,7 +283,38 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     setSlashMenuForcedClosed(true);
   }
 
+  function applyAtItem(item: AtItem): void {
+    if (!activeAtToken) {
+      return;
+    }
+    const next = replaceActiveAtToken(props.composer, activeAtToken, item.insertValue);
+    props.onComposerChange(next);
+    focusCaret(activeAtToken.startIndex + item.insertValue.length);
+    setAtMenuForcedClosed(true);
+  }
+
+  function triggerSend(): void {
+    const trimmed = props.composer.trim();
+    if (trimmed) {
+      setHistoryStack((prev) => [trimmed, ...prev.filter((i) => i !== trimmed)]);
+    }
+    setHistoryIndex(-1);
+    draftBeforeHistoryRef.current = '';
+    props.onSend();
+  }
+
+  function triggerSteer(): void {
+    const trimmed = props.composer.trim();
+    if (trimmed) {
+      setHistoryStack((prev) => [trimmed, ...prev.filter((i) => i !== trimmed)]);
+    }
+    setHistoryIndex(-1);
+    draftBeforeHistoryRef.current = '';
+    props.onSteer?.();
+  }
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    // 1. Slash Menu Navigation
     if (slashMenuOpen) {
       if (event.key === 'ArrowDown') {
         event.preventDefault();
@@ -253,11 +352,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           [selected.name, ...(selected.aliases ?? [])]
             .map((name) => name.toLowerCase())
             .includes(query);
-        // Exact `/compact` (or alias/mode/skill name): close menu and send so
-        // whole-message intercept runs. Partial query: apply selection first.
         if (exactMatch) {
           setSlashMenuForcedClosed(true);
-          // fall through to send below
         } else if (selected?.available) {
           event.preventDefault();
           applySlashItem(selected);
@@ -266,22 +362,98 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
     }
 
-    if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+    // 2. At-Mention Menu Navigation
+    if (atMenuOpen) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        setAtSelectedIndex((current) =>
+          atItems.length === 0 ? 0 : (current + 1) % atItems.length,
+        );
+        return;
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        setAtSelectedIndex((current) =>
+          atItems.length === 0 ? 0 : (current - 1 + atItems.length) % atItems.length,
+        );
+        return;
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setAtMenuForcedClosed(true);
+        return;
+      }
+      if (event.key === 'Tab' || event.key === 'Enter') {
+        const selected = atItems[atSelectedIndex];
+        if (selected) {
+          event.preventDefault();
+          applyAtItem(selected);
+          return;
+        }
+      }
+    }
+
+    // 3. Prompt History Navigation (ArrowUp / ArrowDown when menus are closed)
+    if (!slashMenuOpen && !atMenuOpen) {
+      if (event.key === 'ArrowUp' && (caretIndex === 0 || props.composer === '')) {
+        if (historyStack.length > 0 && historyIndex < historyStack.length - 1) {
+          event.preventDefault();
+          if (historyIndex === -1) {
+            draftBeforeHistoryRef.current = props.composer;
+          }
+          const nextIndex = historyIndex + 1;
+          setHistoryIndex(nextIndex);
+          const historyText = historyStack[nextIndex] ?? '';
+          props.onComposerChange(historyText);
+          focusCaret(historyText.length);
+          return;
+        }
+      }
+
+      if (event.key === 'ArrowDown' && historyIndex >= 0) {
+        event.preventDefault();
+        const nextIndex = historyIndex - 1;
+        setHistoryIndex(nextIndex);
+        if (nextIndex === -1) {
+          props.onComposerChange(draftBeforeHistoryRef.current);
+          focusCaret(draftBeforeHistoryRef.current.length);
+        } else {
+          const historyText = historyStack[nextIndex] ?? '';
+          props.onComposerChange(historyText);
+          focusCaret(historyText.length);
+        }
+        return;
+      }
+    }
+
+    // 4. Enter Send handling with strict IME protection
+    const now = Date.now();
+    const isRecentlyComposing =
+      isComposingRef.current || now - lastCompositionEndRef.current < 100;
+
+    if (
+      event.key === 'Enter' &&
+      !event.shiftKey &&
+      !isRecentlyComposing &&
+      !event.nativeEvent.isComposing
+    ) {
       event.preventDefault();
       if (isStreamingRun) {
-        props.onSteer?.();
+        triggerSteer();
       } else {
-        props.onSend();
+        triggerSend();
       }
     }
   }
 
-  // Auto-resize textarea
+  // Auto-resize textarea using rAF to avoid sync layout thrashing
   function autoResize(): void {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    requestAnimationFrame(() => {
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+    });
   }
 
   return (
@@ -289,6 +461,15 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       className={`composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}`}
       data-testid="composer-card"
     >
+      {/* Drop Zone Overlay */}
+      {props.dropActive ? (
+        <div className="composer-v2-drop-overlay">
+          <div className="composer-v2-drop-content">
+            <span className="composer-v2-drop-text">Drop files or images here to add context</span>
+          </div>
+        </div>
+      ) : null}
+
       {/* Attachments row */}
       {props.pendingAttachments.length > 0 ? (
         <div className="composer-v2-attachments">
@@ -318,6 +499,14 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           onApply={applySlashItem}
           onClose={() => setSlashMenuForcedClosed(true)}
         />
+        <AtMenu
+          open={atMenuOpen}
+          items={atItems}
+          selectedIndex={atSelectedIndex}
+          onSelectIndex={setAtSelectedIndex}
+          onApply={applyAtItem}
+          onClose={() => setAtMenuForcedClosed(true)}
+        />
         <textarea
           ref={textareaRef}
           className="composer-v2-textarea"
@@ -327,7 +516,15 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             props.onComposerChange(event.target.value);
             setCaretIndex(event.target.selectionStart ?? event.target.value.length);
             setSlashMenuForcedClosed(false);
+            setAtMenuForcedClosed(false);
             autoResize();
+          }}
+          onCompositionStart={() => {
+            isComposingRef.current = true;
+          }}
+          onCompositionEnd={() => {
+            isComposingRef.current = false;
+            lastCompositionEndRef.current = Date.now();
           }}
           onSelect={syncCaretFromTextarea}
           onClick={syncCaretFromTextarea}
@@ -345,10 +542,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         />
       </div>
 
-      {/* Bottom toolbar — Codex/Claude Code style */}
+      {/* Bottom toolbar */}
       <div className="composer-v2-toolbar">
         <div className="composer-v2-toolbar-left">
-          {/* Plus / attach button — the real Radix menu trigger */}
+          {/* Plus / attach button */}
           <div className="plus-anchor">
             <ComposerPlusMenu
               trigger={
@@ -381,6 +578,17 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             />
           </div>
 
+          {/* Expand Modal Editor button */}
+          <IconButton
+            className="composer-v2-icon-btn"
+            data-testid="composer-expand-btn"
+            title="Expand prompt editor"
+            label="Expand prompt editor"
+            onClick={() => setModalEditorOpen(true)}
+          >
+            <IconExpand width={14} height={14} />
+          </IconButton>
+
           {/* Agent mode chip (non-default only) */}
           {props.agentMode !== 'agent' ? (
             <span
@@ -404,7 +612,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         </div>
 
         <div className="composer-v2-toolbar-right">
-          {/* Thinking effort — compact level chip */}
+          {/* Thinking effort control */}
           <ThinkingEffortControl
             disabled={isStreamingRun || !props.onThinkingLevelChange}
             modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? 'Model'}
@@ -417,7 +625,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             onSelectModel={props.onSelectModel}
           />
 
-          {/* Context usage ring — subtle */}
+          {/* Context usage ring */}
           <ContextUsageRing
             usage={props.contextUsage}
             {...(typeof props.modelContextWindow === 'number'
@@ -428,21 +636,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               : {})}
           />
 
-          {/* Compact context button */}
-          <IconButton
-            className="composer-v2-icon-btn"
-            disabled={
-              !props.activeSessionId || props.streaming || props.compacting || !props.projectTrusted
-            }
-            onClick={props.onCompact}
-            title={props.compacting ? 'Compacting…' : 'Compact context'}
-            label="Compact context"
-          >
-            <IconCompress />
-          </IconButton>
-
-          {/* Send / Stop / Steer — both slots stay mounted so Playwright
-                and pointer targets do not detach during stream phase flips. */}
+          {/* Send / Stop / Steer */}
           <div
             className="composer-v2-streaming-actions"
             hidden={!isStreamingRun}
@@ -453,7 +647,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               className="composer-v2-text-btn"
               data-testid="steer-btn"
               disabled={!canIntervene || !props.onSteer}
-              onClick={props.onSteer}
+              onClick={triggerSteer}
               title="Steer the current run"
               tabIndex={isStreamingRun ? 0 : -1}
             >
@@ -477,7 +671,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             className="composer-v2-send-btn"
             data-testid="send-btn"
             disabled={!canSend || isStreamingRun}
-            onClick={props.onSend}
+            onClick={triggerSend}
             aria-label="Send"
             title="Send (Enter)"
             hidden={isStreamingRun}
@@ -488,6 +682,17 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           </button>
         </div>
       </div>
+
+      {/* Expanded Modal Editor */}
+      <ComposerModalEditor
+        open={modalEditorOpen}
+        value={props.composer}
+        onSave={(newValue) => {
+          props.onComposerChange(newValue);
+          autoResize();
+        }}
+        onClose={() => setModalEditorOpen(false)}
+      />
     </div>
   );
 }
@@ -500,7 +705,9 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
       data-layout={props.layoutMode}
     >
       <ComposerCard {...props} />
-      <div className="composer-hint">⏎ 发送 · ⇧⏎ 换行 · ⌘K 命令 · Esc 中断</div>
+      <div className="composer-hint">
+        ⏎ 发送 · ⇧⏎ 换行 · / 命令 · @ 提及 · ↑/↓ 历史记录 · Esc 中断
+      </div>
     </footer>
   );
 }

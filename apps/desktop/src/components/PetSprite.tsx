@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PetAnimationState, PetRuntimeSnapshot } from '@piwin/contracts';
 import { DEFAULT_PET_STATE_ROWS } from '@piwin/contracts';
 import './pet-sprite.css';
@@ -20,6 +20,9 @@ const ACTION_DURATION_MS = 1200;
 
 type TempAction = PetAnimationState | null;
 
+/** Synchronous image cache so re-renders or state changes do not lose image ref. */
+const imageCacheMap = new Map<string, HTMLImageElement>();
+
 export function PetSprite(props: PetSpriteProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
@@ -33,21 +36,41 @@ export function PetSprite(props: PetSpriteProps) {
   const tempActionRef = useRef<TempAction>(null);
   const tempActionUntil = useRef<number>(0);
   const hoverRef = useRef<boolean>(false);
+  const lastStateRef = useRef<PetAnimationState | null>(null);
 
   petRef.current = props.pet;
 
-  // Load spritesheet.
+  // Manage canvas logical size without setting JSX width/height attributes,
+  // preventing browser canvas bitmap clears during component re-renders.
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (canvas.width !== props.pet.cellWidth) {
+      canvas.width = props.pet.cellWidth;
+    }
+    if (canvas.height !== props.pet.cellHeight) {
+      canvas.height = props.pet.cellHeight;
+    }
+  }, [props.pet.cellWidth, props.pet.cellHeight]);
+
+  // Load spritesheet with immediate cache lookup.
   useEffect(() => {
     if (!props.pet.spritesheetAbsolutePath) return;
+    const src = convertFileSrc(props.pet.spritesheetAbsolutePath);
+    const cached = imageCacheMap.get(src);
+    if (cached && (cached.naturalWidth > 0 || cached.complete)) {
+      imageRef.current = cached;
+      return;
+    }
+
     const img = new Image();
-    img.src = convertFileSrc(props.pet.spritesheetAbsolutePath);
+    img.src = src;
     img.onload = () => {
+      imageCacheMap.set(src, img);
       imageRef.current = img;
     };
-    // Keep the prior image available if the replacement cannot be loaded.
     img.onerror = () => {};
     return () => {
-      // Prevent a slow-loading previous sheet from overwriting a newer ref.
       img.onload = null;
       img.onerror = null;
     };
@@ -58,10 +81,18 @@ export function PetSprite(props: PetSpriteProps) {
     let lastFrame = 0;
     let lastIdle = performance.now();
 
-    function tick(now: number): void {
+    function drawFrame(now: number): void {
       const canvas = canvasRef.current;
       const img = imageRef.current;
       const pet = petRef.current;
+
+      const state = effectiveState();
+      if (state !== lastStateRef.current) {
+        lastStateRef.current = state;
+        frameRef.current = 0;
+        lastFrame = now;
+      }
+
       if (canvas && img) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
@@ -70,23 +101,36 @@ export function PetSprite(props: PetSpriteProps) {
             frameRef.current = (frameRef.current + 1) % pet.cols;
             lastFrame = now;
           }
-          const state = effectiveState();
           const row = pet.stateRows[state] ?? DEFAULT_PET_STATE_ROWS[state] ?? 0;
           const col = frameRef.current;
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(
-            img,
-            col * pet.cellWidth,
-            row * pet.cellHeight,
-            pet.cellWidth,
-            pet.cellHeight,
-            0,
-            0,
-            canvas.width,
-            canvas.height,
-          );
+          const srcX = col * pet.cellWidth;
+          const srcY = row * pet.cellHeight;
+
+          const imgWidth = img.naturalWidth || img.width;
+          const imgHeight = img.naturalHeight || img.height;
+
+          if (!imgWidth || !imgHeight || (srcX < imgWidth && srcY < imgHeight)) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(
+              img,
+              srcX,
+              srcY,
+              pet.cellWidth,
+              pet.cellHeight,
+              0,
+              0,
+              canvas.width,
+              canvas.height,
+            );
+          }
         }
       }
+    }
+
+    function tick(now: number): void {
+      const pet = petRef.current;
+      drawFrame(now);
+
       // Random idle action.
       if (
         !tempActionRef.current &&
@@ -188,7 +232,7 @@ export function PetSprite(props: PetSpriteProps) {
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <canvas ref={canvasRef} width={props.pet.cellWidth} height={props.pet.cellHeight} />
+      <canvas ref={canvasRef} />
     </div>
   );
 }

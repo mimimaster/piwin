@@ -58,22 +58,31 @@
 
 .app-shell[data-layout='desktop'] > .workbench-topbar {
   position: relative;
+  overflow: visible;
   min-height: var(--titleband-height);
   height: var(--titleband-height);
   gap: 10px;
-  /* macOS traffic lights sit top-left; reserve their overlay area (76px left
-     padding preserved for Tauri overlay). Right padding gives the action
-     cluster breathing room from the window edge. */
-  padding: 0 14px 0 76px;
-  border-bottom: 1px solid var(--line);
-  /* Unified field: titleband matches sidebar + stage (quiet workbench). */
-  background: var(--bg);
+  /* macOS traffic lights sit top-left (88px left padding for clean breathing room).
+     Right padding (2px) keeps the right tools cluster flush against the edge. */
+  padding: 0 2px 0 88px;
+  border-bottom: none;
+  background: #ffffff;
   box-sizing: border-box;
+}
+
+.app-shell[data-layout='desktop'].nav-open > .workbench-topbar {
+  background: linear-gradient(
+    90deg,
+    var(--sidebar-bg, #f0f1f4) 0px,
+    var(--sidebar-bg, #f0f1f4) var(--sidebar-width),
+    #ffffff var(--sidebar-width),
+    #ffffff 100%
+  );
 }
 
 .app-shell[data-layout='desktop']:not(.nav-open) > .workbench-topbar,
 .app-shell.settings-open[data-layout='desktop'] > .workbench-topbar {
-  background: var(--bg);
+  background: #ffffff;
 }
 
 /* Compact shell topbar uses full product chrome height. */
@@ -88,8 +97,8 @@
 /* ── Controls ─────────────────────────────────────────────────────── */
 
 .app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button {
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
   display: grid;
   place-items: center;
@@ -101,8 +110,8 @@
 }
 
 .app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button svg {
-  width: var(--icon-size-sm, 16px);
-  height: var(--icon-size-sm, 16px);
+  width: 17.5px;
+  height: 17.5px;
   display: block;
   stroke-width: 1.6;
 }
@@ -178,6 +187,100 @@
   opacity: 0.42;
   cursor: default;
   pointer-events: none;
+}
+
+/* Session identity inside titlebar — absolutely centred on desktop */
+.titlebar-session-identity {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 560px;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-app-region: drag;
+}
+
+.titlebar-project-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.titlebar-sep {
+  font-size: 13px;
+  color: var(--faint);
+  margin: 0;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.titlebar-session-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.titlebar-session-title {
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.titlebar-scope-pill {
+  display: none;
+}
+
+.app-shell[data-layout='compact'] .titlebar-scope-pill {
+  display: inline-flex;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--muted);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+/* Mode badge: hidden from centered breadcrumb by default.
+   Only show the bypass warning variant since that's safety-critical. */
+.titlebar-mode-badge {
+  display: none;
+}
+
+.titlebar-mode-badge.is-warning {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  line-height: 1;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  border: 1px solid #fbbf24;
+  background: color-mix(in srgb, #fbbf24 16%, transparent);
+  color: #fbbf24;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  font-weight: 500;
+  pointer-events: auto;
 }
 
 /* Right-side tools cluster — hidden on desktop titleband (More menu lives in

@@ -18,12 +18,19 @@ export function RunActivityInline(props: RunActivityInlineProps): ReactElement |
   return <RunActivityInlineContent {...props} />;
 }
 
+function formatShortElapsed(ms?: number): string | null {
+  if (typeof ms !== 'number' || ms <= 0) return null;
+  const s = Math.floor(ms / 1000);
+  return `${s}s`;
+}
+
 function RunActivityInlineContent(props: RunActivityInlineProps): ReactElement {
   const reduced = useReducedMotion() ?? false;
   const locale = props.locale ?? 'zh-CN';
   const input = runStatusToActivityInput(props.runState, locale);
   const { phrases, currentPhrase } = useRunActivityPhrases(input);
   const iconSource = resolveActivityIcon(input);
+  const durationTag = formatShortElapsed(input.elapsedMs);
 
   return (
     <span className="run-activity-inline" data-kind={input.kind}>
@@ -36,9 +43,9 @@ function RunActivityInlineContent(props: RunActivityInlineProps): ReactElement {
           <motion.span
             key={currentPhrase}
             className="run-activity-inline-phrase"
-            initial={reduced ? false : { y: 10, opacity: 0 }}
+            initial={reduced ? false : { y: 8, opacity: 0 }}
             animate={reduced ? { opacity: 1 } : { y: 0, opacity: 1 }}
-            exit={reduced ? { opacity: 1 } : { y: -10, opacity: 0 }}
+            exit={reduced ? { opacity: 1 } : { y: -8, opacity: 0 }}
             transition={
               reduced
                 ? { duration: 0 }
@@ -49,6 +56,7 @@ function RunActivityInlineContent(props: RunActivityInlineProps): ReactElement {
           </motion.span>
         </AnimatePresence>
       </span>
+      {durationTag ? <span className="run-activity-inline-timer">{durationTag}</span> : null}
     </span>
   );
 }

@@ -25,3 +25,10 @@ apps/desktop/test-results/
 apps/desktop/playwright-report/
 apps/desktop/blob-report/
 apps/desktop/playwright/.cache/
+
+# Local scratch / asset drafts
+icon-preview-2d.html
+pelican-bicycle.html
+pelican-bike.html
+pelican-riding-bicycle.svg
+pelican-riding-bicycle-2.svg
