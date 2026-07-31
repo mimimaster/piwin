@@ -116,4 +116,20 @@ describe('scanSkills hidden flag', () => {
       await rm(rootDir, { recursive: true, force: true });
     }
   });
+
+  it('discovers the bundled imagegen skill as hidden', async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const repoSkillsRoot = resolve(here, '..', '..', '..', 'skills');
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-imagegen-bundled-'));
+    try {
+      const skills = await scanSkills({ piwinRoot: rootDir, bundledRoot: repoSkillsRoot });
+      const imagegen = skills.find((s) => s.id === 'imagegen');
+      expect(imagegen).toBeTruthy();
+      expect(imagegen?.source).toBe('bundled');
+      expect(imagegen?.hidden).toBe(true);
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
 });
