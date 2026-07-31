@@ -66,6 +66,7 @@ export type DesktopTranslator = {
       appearance: string;
       permissions: string;
       models: string;
+      imageGeneration: string;
       sessions: string;
       rules: string;
       skills: string;
@@ -162,6 +163,30 @@ export type DesktopTranslator = {
       selectedModels: (selected: number, newModels: number) => string;
       importSelected: string;
     };
+    imageGeneration: {
+      pageTitle: string;
+      pageDescription: string;
+      provider: string;
+      apiEndpoint: string;
+      apiKey: string;
+      apiKeyStoredKeychain: string;
+      apiKeyStoredEnv: (envName: string) => string;
+      apiKeyUnset: string;
+      requestPath: string;
+      requestPathHint: string;
+      timeout: string;
+      timeoutUnitSeconds: string;
+      modelId: string;
+      modelLabel: string;
+      modelDescription: string;
+      discoverModels: string;
+      discoveringModels: string;
+      setDefault: string;
+      addModel: string;
+      removeModel: string;
+      noModels: string;
+      modelsHeading: string;
+    };
   };
 };
 
@@ -248,6 +273,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         appearance: isChinese ? '外观' : 'Appearance',
         permissions: isChinese ? '权限' : 'Permissions',
         models: isChinese ? '模型' : 'Models',
+        imageGeneration: isChinese ? '图像生成' : 'Image Generation',
         sessions: isChinese ? '会话' : 'Sessions',
         rules: isChinese ? '规则' : 'Rules',
         skills: 'Skills',
@@ -383,6 +409,34 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
             ? `已选 ${selected} 个 · 新增 ${newModels} 个`
             : `${selected} selected · ${newModels} new`,
         importSelected: isChinese ? '导入所选' : 'Import selected',
+      },
+      imageGeneration: {
+        pageTitle: isChinese ? '图像生成' : 'Image Generation',
+        pageDescription: isChinese
+          ? '配置图像生成模型、接口地址与默认图片模型。'
+          : 'Configure image generation models, API endpoints, and the default image model.',
+        provider: isChinese ? '接口通道' : 'Provider',
+        apiEndpoint: isChinese ? 'API 接口地址' : 'API endpoint',
+        apiKey: isChinese ? 'API Key' : 'API key',
+        apiKeyStoredKeychain: '••••••••',
+        apiKeyStoredEnv: (envName) => (isChinese ? `环境变量 ${envName}` : `Env var ${envName}`),
+        apiKeyUnset: isChinese ? '未配置' : 'Not configured',
+        requestPath: isChinese ? '自定义请求路径' : 'Custom request path',
+        requestPathHint: isChinese
+          ? '追加到 provider 基址的请求路径，以 / 开头。'
+          : 'Request path appended to the provider base URL, starting with /.',
+        timeout: isChinese ? '模型超时时间' : 'Model timeout',
+        timeoutUnitSeconds: isChinese ? '秒' : 'sec',
+        modelId: isChinese ? '模型 ID' : 'Model ID',
+        modelLabel: isChinese ? '模型备注' : 'Model label',
+        modelDescription: isChinese ? '模型介绍' : 'Model description',
+        discoverModels: isChinese ? '获取模型' : 'Fetch models',
+        discoveringModels: isChinese ? '获取中…' : 'Fetching…',
+        setDefault: isChinese ? '设为默认图片模型' : 'Set as default image model',
+        addModel: isChinese ? '添加图片模型' : 'Add image model',
+        removeModel: isChinese ? '移除' : 'Remove',
+        noModels: isChinese ? '尚未配置图片生成模型。' : 'No image generation models configured.',
+        modelsHeading: isChinese ? '图片生成模型' : 'Image generation models',
       },
     },
   };
