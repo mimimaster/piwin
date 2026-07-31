@@ -42,23 +42,46 @@ describe('walkthrough config', () => {
     }
   });
 
-  it('rejects empty prompt', () => {
+  it('rejects empty prompt in custom mode', () => {
     const config: WalkthroughConfig = {
       ...createDefaultWalkthroughConfig(),
+      mode: 'custom',
       custom: { model: null, prompt: '   ' },
     };
     const issues = validateWalkthroughConfig(config);
     expect(issues.some((i) => i.path === 'walkthrough.custom.prompt')).toBe(true);
   });
 
-  it('rejects over-limit prompt', () => {
+  it('rejects over-limit prompt in custom mode', () => {
     const over = 'x'.repeat(MAX_WALKTHROUGH_PROMPT_BYTES + 1);
     const config: WalkthroughConfig = {
       ...createDefaultWalkthroughConfig(),
+      mode: 'custom',
       custom: { model: null, prompt: over },
     };
     const issues = validateWalkthroughConfig(config);
     expect(issues.some((i) => i.path === 'walkthrough.custom.prompt')).toBe(true);
+  });
+
+  it('accepts empty prompt in default mode (prompt unused)', () => {
+    const config: WalkthroughConfig = {
+      ...createDefaultWalkthroughConfig(),
+      mode: 'default',
+      custom: { model: null, prompt: '   ' },
+    };
+    const issues = validateWalkthroughConfig(config);
+    expect(issues.some((i) => i.path === 'walkthrough.custom.prompt')).toBe(false);
+  });
+
+  it('accepts over-limit prompt in default mode (prompt unused)', () => {
+    const over = 'x'.repeat(MAX_WALKTHROUGH_PROMPT_BYTES + 1);
+    const config: WalkthroughConfig = {
+      ...createDefaultWalkthroughConfig(),
+      mode: 'default',
+      custom: { model: null, prompt: over },
+    };
+    const issues = validateWalkthroughConfig(config);
+    expect(issues.some((i) => i.path === 'walkthrough.custom.prompt')).toBe(false);
   });
 
   it('rejects invalid mode', () => {

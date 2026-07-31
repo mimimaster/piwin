@@ -89,16 +89,21 @@ export function validateWalkthroughConfig(config: WalkthroughConfig): Walkthroug
     issues.push({ path: 'walkthrough.mode', message: "must be 'default' or 'custom'" });
   }
 
-  const prompt = config.custom?.prompt;
-  if (typeof prompt !== 'string' || prompt.trim() === '') {
-    issues.push({ path: 'walkthrough.custom.prompt', message: 'must be a non-empty string' });
-  } else {
-    const byteLength = new TextEncoder().encode(prompt).length;
-    if (byteLength > MAX_WALKTHROUGH_PROMPT_BYTES) {
-      issues.push({
-        path: 'walkthrough.custom.prompt',
-        message: `exceeds ${MAX_WALKTHROUGH_PROMPT_BYTES} bytes (${byteLength})`,
-      });
+  // Prompt is only used for generation in custom mode; default mode uses the
+  // built-in DEFAULT_WALKTHROUGH_PROMPT and ignores `custom.prompt`, so prompt
+  // issues are only surfaced in custom mode (spec §6.2).
+  if (config.mode === 'custom') {
+    const prompt = config.custom?.prompt;
+    if (typeof prompt !== 'string' || prompt.trim() === '') {
+      issues.push({ path: 'walkthrough.custom.prompt', message: 'must be a non-empty string' });
+    } else {
+      const byteLength = new TextEncoder().encode(prompt).length;
+      if (byteLength > MAX_WALKTHROUGH_PROMPT_BYTES) {
+        issues.push({
+          path: 'walkthrough.custom.prompt',
+          message: `exceeds ${MAX_WALKTHROUGH_PROMPT_BYTES} bytes (${byteLength})`,
+        });
+      }
     }
   }
 
