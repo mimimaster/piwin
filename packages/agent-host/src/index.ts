@@ -135,6 +135,17 @@ export { resolveNotesEmbeddingApiKey } from './notes-embedding-secret.js';
 export { buildFlashcardTools } from './flashcard-tools.js';
 export type { BuildFlashcardToolsOptions } from './flashcard-tools.js';
 
+export {
+  createBrowserToolDefinitions,
+  evaluateBrowserNavigatePermission,
+} from './browser-tools.js';
+export type { CreateBrowserToolsOptions, BrowserToolPermissionGate } from './browser-tools.js';
+export {
+  handleBrowserCommand,
+  isBrowserCommand,
+  wireBrowserSessionPushes,
+} from './commands/browser-commands.js';
+
 export { createDelayedSessionHandle } from './delayed-session-fixture.js';
 export type {
   DelayedSessionDelays,
