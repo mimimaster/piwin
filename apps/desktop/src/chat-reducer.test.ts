@@ -392,7 +392,11 @@ describe('chatUiReducer', () => {
       ],
     });
     expect(state.messages[0]?.attachments).toHaveLength(1);
-    expect(state.messages[0]?.attachments[0]?.path).toContain('a.png');
+    expect(state.messages[0]?.attachments[0]?.kind).toBe('media');
+    const firstAttachment = state.messages[0]?.attachments[0];
+    expect(
+      firstAttachment && firstAttachment.kind === 'media' ? firstAttachment.path : '',
+    ).toContain('a.png');
   });
 
   it('clears the prior project transcript while loading another project', () => {
@@ -484,7 +488,10 @@ describe('chatUiReducer', () => {
     });
     expect(state.activeSessionId).toBe('s1');
     expect(state.messages).toHaveLength(2);
-    expect(state.messages[0]?.attachments[0]?.path).toContain('a.png');
+    const firstAttachment = state.messages[0]?.attachments[0];
+    expect(
+      firstAttachment && firstAttachment.kind === 'media' ? firstAttachment.path : '',
+    ).toContain('a.png');
     expect(state.messages[1]?.text).toBe('seen');
   });
 

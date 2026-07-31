@@ -57,6 +57,8 @@ export class MockHostBackend {
   private mockMcpDocument: import('@piwin/contracts').McpConfigDocument = { mcpServers: {} };
   /** In-flight mock prompt cancellation per session. */
   private mockPromptAborts = new Map<string, AbortController>();
+  /** Mock browser session current URL (null = stopped). */
+  private mockBrowserUrl: string | null = null;
   /** ADR 0015: the run currently owning each session's foreground turn. */
   private mockActiveRunIds = new Map<string, string>();
   /** Guards the exactly-once terminal transition for each mock run. */
@@ -2565,6 +2567,48 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             updatedAt: new Date().toISOString(),
           },
         };
+
+      // --- Browser session commands (ADR 0020 §6) ---------------------------
+      case 'browser/start': {
+        this.mockBrowserUrl = 'about:blank';
+        return { id, type: 'response', command: 'browser/start', success: true, data: null };
+      }
+      case 'browser/navigate': {
+        this.mockBrowserUrl = command.url;
+        this.emitPush({
+          type: 'browser/state',
+          url: command.url,
+          title: command.url,
+          ts: Date.now(),
+        });
+        return { id, type: 'response', command: 'browser/navigate', success: true, data: null };
+      }
+      case 'browser/pick-at': {
+        const result: import('@piwin/contracts').WebElementPickResult = {
+          url: this.mockBrowserUrl ?? 'about:blank',
+          selector: 'div.pick-target',
+          text: 'Picked element text',
+          boundingRect: {
+            x: Math.max(0, command.x - 20),
+            y: Math.max(0, command.y - 10),
+            width: 40,
+            height: 20,
+          },
+        };
+        this.emitPush({ type: 'browser/picked', result });
+        return {
+          id,
+          type: 'response',
+          command: 'browser/pick-at',
+          success: true,
+          data: { result },
+        };
+      }
+      case 'browser/screenshot':
+        return { id, type: 'response', command: 'browser/screenshot', success: true, data: null };
+      case 'browser/stop':
+        this.mockBrowserUrl = null;
+        return { id, type: 'response', command: 'browser/stop', success: true, data: null };
 
       default:
         return {

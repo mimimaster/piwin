@@ -4,10 +4,10 @@
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import type {
   ExecutionMode,
-  MediaAttachmentRef,
   ModelRef,
   PermissionDecision,
   PermissionRememberScope,
+  PromptAttachment,
   SessionSummary,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
@@ -910,7 +910,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         text,
         attachments: message.attachments,
       });
-      const input: { text: string; attachments?: MediaAttachmentRef[] } = {
+      const input: { text: string; attachments?: PromptAttachment[] } = {
         text: promptText,
       };
       if (message.attachments.length > 0) {

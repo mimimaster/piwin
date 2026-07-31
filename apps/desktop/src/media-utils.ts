@@ -1,4 +1,4 @@
-import type { MediaAttachmentRef } from '@piwin/contracts';
+import type { PromptAttachment } from '@piwin/contracts';
 
 const ALLOWED_IMAGE_MIME = new Set([
   'image/png',
@@ -10,7 +10,11 @@ const ALLOWED_IMAGE_MIME = new Set([
 
 export type PendingComposerAttachment = {
   localId: string;
-  attachment: MediaAttachmentRef;
+  attachment: PromptAttachment;
+  /**
+   * Object URL for local image previews. Web-element attachments have no
+   * local blob; this is an empty string for `kind: 'web-element'`.
+   */
   previewUrl: string;
 };
 
