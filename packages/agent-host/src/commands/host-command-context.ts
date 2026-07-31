@@ -15,6 +15,10 @@ import type { ProcessRegistry } from '@piwin/process';
 import type { SessionTodoStore } from '@piwin/automation';
 import type { PtyHost } from '../pty-host.js';
 import type { ExtensionUiKind, ExtensionUiResponse } from '../extension-ui-bridge.js';
+import type {
+  WalkthroughCommandContext,
+  WalkthroughGenerationRegistry,
+} from './walkthrough-commands.js';
 
 /**
  * Optional seam used by plan/execute to drive subagent-driven and inline
@@ -75,4 +79,12 @@ export type HostCommandContext = {
   ) => Promise<void>;
   /** Optional plan execution orchestration seam. */
   planExecution?: PlanExecutionSeam;
+  /**
+   * Optional walkthrough service bag (spec §11.1). Provided by HostRuntime for
+   * both SDK and RPC adapters; mock/test contexts may omit it.
+   */
+  walkthrough?: {
+    context: WalkthroughCommandContext;
+    registry: WalkthroughGenerationRegistry;
+  };
 };
