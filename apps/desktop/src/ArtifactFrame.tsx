@@ -111,6 +111,7 @@ function ArtifactRenderFrame(props: {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
 }): ReactElement {
   const { decision, initPriority, onArtifactAction } = props;
+  const contentLabel = getArtifactContentLabel(decision.descriptor.type);
   const channelId =
     decision.mode === 'stream-preview'
       ? `${decision.descriptor.id}-stream`
@@ -331,7 +332,7 @@ function ArtifactRenderFrame(props: {
         <p className="muted">Waiting for artifact init slot…</p>
       )}
       <details>
-        <summary>Source (raw model HTML)</summary>
+        <summary>Source (raw model {contentLabel})</summary>
         <pre className="md-code">
           <code>{decision.descriptor.source}</code>
         </pre>
