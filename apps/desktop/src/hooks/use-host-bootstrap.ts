@@ -191,6 +191,10 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         // push is not logged as unhandled.
         return;
       }
+      if (message.type === 'walkthrough/updated') {
+        dispatch({ type: 'walkthrough/updated', artifact: message.artifact });
+        return;
+      }
       if (message.type === 'pet/state') {
         setActivePet(message.pet);
         // Forward to the pet overlay window so it can update its sprite

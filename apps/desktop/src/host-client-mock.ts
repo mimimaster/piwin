@@ -6,8 +6,10 @@ import type {
   HostPush,
   HostResponse,
   HostServerMessage,
+  ModelRef,
   SessionSummary,
   SessionTranscriptMessage,
+  WalkthroughArtifact,
 } from '@piwin/contracts';
 
 export type MockEmit = (message: HostPush | HostServerMessage) => void;
@@ -2556,6 +2558,153 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             updatedAt: new Date().toISOString(),
           },
         };
+
+      case 'walkthrough/list': {
+        // Deterministic mock: synthesize a ready artifact for the first
+        // assistant transcript message when one exists, so the doc view and
+        // card have something to render in mock/e2e mode.
+        const session = this.sessions.get(command.sessionId);
+        const artifacts: WalkthroughArtifact[] = [];
+        if (session) {
+          for (const msg of session.transcript) {
+            if (msg.role !== 'assistant') continue;
+            const model: ModelRef = {
+              protocol: 'openai-compatible',
+              providerId: 'mock',
+              modelId: 'mock-walkthrough',
+            };
+            artifacts.push({
+              version: 1,
+              id: `wt-${msg.id}`,
+              sessionId: command.sessionId,
+              messageId: msg.id,
+              mode: 'default',
+              model,
+              sourceHash: 'mock-source-hash',
+              createdAt: msg.createdAt ?? new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              status: 'ready',
+              markdown: `# Walkthrough\n\n## Summary\n\nMock walkthrough for message ${msg.id}.\n`,
+              generatedAt: new Date().toISOString(),
+            });
+            break;
+          }
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'walkthrough/list',
+          success: true,
+          data: { sessionId: command.sessionId, artifacts },
+        };
+      }
+      case 'walkthrough/generate': {
+        // No provider configured → model-unavailable (spec §5.2 error mapping).
+        if (this.mockConfig.providers.length === 0) {
+          return {
+            id,
+            type: 'response',
+            command: 'walkthrough/generate',
+            success: false,
+            error: 'model-unavailable',
+          };
+        }
+        const generationId = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const model: ModelRef = {
+          protocol: this.mockConfig.providers[0]?.protocol ?? 'openai-compatible',
+          providerId: this.mockConfig.providers[0]?.id ?? 'mock',
+          modelId: this.mockConfig.providers[0]?.models[0]?.id ?? 'mock-walkthrough',
+        };
+        // Publish `generating` immediately so the UI shows the loading state.
+        const generatingArtifact: WalkthroughArtifact = {
+          version: 1,
+          id: `wt-${command.messageId}`,
+          sessionId: command.sessionId,
+          messageId: command.messageId,
+          ...(command.runId ? { runId: command.runId } : {}),
+          mode: 'default',
+          model,
+          sourceHash: 'mock-source-hash',
+          createdAt: now,
+          updatedAt: now,
+          status: 'generating',
+          generationId,
+        };
+        this.emitPush({
+          type: 'walkthrough/updated',
+          sessionId: command.sessionId,
+          artifact: generatingArtifact,
+        });
+        // Delayed `ready` push simulates async generation completion.
+        const sessionId = command.sessionId;
+        const messageId = command.messageId;
+        const readyModel = model;
+        const emitPush = this.emitPush;
+        setTimeout(() => {
+          const readyNow = new Date().toISOString();
+          const readyArtifact: WalkthroughArtifact = {
+            version: 1,
+            id: `wt-${messageId}`,
+            sessionId,
+            messageId,
+            mode: 'default',
+            model: readyModel,
+            sourceHash: 'mock-source-hash',
+            createdAt: readyNow,
+            updatedAt: readyNow,
+            status: 'ready',
+            markdown: `# Walkthrough\n\n## Summary\n\nGenerated walkthrough for message ${messageId}.\n`,
+            generatedAt: readyNow,
+          };
+          emitPush({ type: 'walkthrough/updated', sessionId, artifact: readyArtifact });
+        }, 50);
+        return {
+          id,
+          type: 'response',
+          command: 'walkthrough/generate',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            messageId: command.messageId,
+            generationId,
+            status: 'generating',
+          },
+        };
+      }
+      case 'walkthrough/cancel': {
+        const cancelNow = new Date().toISOString();
+        const cancelledArtifact: WalkthroughArtifact = {
+          version: 1,
+          id: `wt-${command.messageId}`,
+          sessionId: command.sessionId,
+          messageId: command.messageId,
+          mode: 'default',
+          sourceHash: 'mock-source-hash',
+          createdAt: cancelNow,
+          updatedAt: cancelNow,
+          status: 'error',
+          error: { code: 'cancelled', message: 'Walkthrough generation was cancelled.' },
+          generatedAt: cancelNow,
+        };
+        this.emitPush({
+          type: 'walkthrough/updated',
+          sessionId: command.sessionId,
+          artifact: cancelledArtifact,
+        });
+        return {
+          id,
+          type: 'response',
+          command: 'walkthrough/cancel',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            messageId: command.messageId,
+            ...(command.generationId !== undefined ? { generationId: command.generationId } : {}),
+            status: 'cancelled',
+          },
+        };
+      }
 
       default:
         return {

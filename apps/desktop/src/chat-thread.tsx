@@ -3,7 +3,7 @@
  */
 import { memo, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
-import type { SessionPlan, ThemeManifest } from '@piwin/contracts';
+import type { SessionPlan, ThemeManifest, WalkthroughArtifact } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type {
   ChatMessageUi,
@@ -24,6 +24,7 @@ import { TurnWorkDetails } from './turn-work-details';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { PlanCard } from './plan-card';
 import { GateCard } from './gate-card';
+import { WalkthroughAction, isWalkthroughEligible } from './walkthrough-action';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
@@ -222,6 +223,16 @@ export type ChatThreadProps = {
   locale?: 'zh-CN' | 'en';
   /** Live subagent streams for inline expand UX (keyed by childSessionId). */
   subagentStreams?: Record<string, SubagentStreamState>;
+  /** Walkthrough artifacts keyed by owning assistant messageId (spec §5.1). */
+  walkthroughsByMessageId?: Record<string, WalkthroughArtifact>;
+  /** Whether the Generate Walkthrough action is enabled (config walkthrough.enabled). */
+  walkthroughEnabled?: boolean;
+  /** Generate a walkthrough for a message; force overwrites an existing artifact. */
+  onGenerateWalkthrough?:
+    ((messageId: string, force?: boolean) => void | Promise<void>) | undefined;
+  /** Cancel an in-flight walkthrough generation. */
+  onCancelWalkthrough?:
+    ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
 };
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
@@ -308,6 +319,25 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           {...(props.locale ? { locale: props.locale } : {})}
           {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
+          {...(props.walkthroughsByMessageId
+            ? { walkthroughsByMessageId: props.walkthroughsByMessageId }
+            : {})}
+          {...(props.walkthroughEnabled !== undefined
+            ? { walkthroughEnabled: props.walkthroughEnabled }
+            : {})}
+          {...(props.onGenerateWalkthrough
+            ? {
+                onGenerateWalkthrough: props.onGenerateWalkthrough,
+                walkthroughEligible: isWalkthroughEligible({
+                  message,
+                  messages: props.messages,
+                  runRecordsById: props.runRecordsById ?? {},
+                  activeRunId: props.activeRunId ?? null,
+                  enabled: props.walkthroughEnabled !== false,
+                }),
+              }
+            : {})}
+          {...(props.onCancelWalkthrough ? { onCancelWalkthrough: props.onCancelWalkthrough } : {})}
         />
       ))}
       {props.streaming &&
@@ -372,6 +402,18 @@ type ChatMessageRowProps = {
   composerCard: ComposerDockProps;
   /** Live subagent streams for inline expand UX. */
   subagentStreams?: Record<string, SubagentStreamState>;
+  /** Walkthrough artifacts keyed by owning assistant messageId. */
+  walkthroughsByMessageId?: Record<string, WalkthroughArtifact>;
+  /** Whether the Generate Walkthrough action is enabled. */
+  walkthroughEnabled?: boolean;
+  /** Pre-computed eligibility for the Generate button (computed by parent). */
+  walkthroughEligible?: boolean;
+  /** Generate a walkthrough for a message; force overwrites an existing artifact. */
+  onGenerateWalkthrough?:
+    ((messageId: string, force?: boolean) => void | Promise<void>) | undefined;
+  /** Cancel an in-flight walkthrough generation. */
+  onCancelWalkthrough?:
+    ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
 };
 
 function formatMessageTime(createdAt?: string): string {
@@ -432,9 +474,7 @@ function UserMessageContent(props: {
 
   const collapsed = isOverflow && isCollapsed;
 
-  const handleToggle = isOverflow
-    ? () => setIsCollapsed((prev) => !prev)
-    : undefined;
+  const handleToggle = isOverflow ? () => setIsCollapsed((prev) => !prev) : undefined;
 
   return (
     <div className="user-message-wrapper">
@@ -597,6 +637,16 @@ const ChatMessageRow = memo(
             onFeedback={props.onFeedback}
           />
         )}
+        {message.role === 'assistant' && props.onGenerateWalkthrough ? (
+          <WalkthroughAction
+            message={message}
+            artifact={props.walkthroughsByMessageId?.[message.id]}
+            eligible={props.walkthroughEligible === true}
+            onGenerate={props.onGenerateWalkthrough}
+            {...(props.onCancelWalkthrough ? { onCancel: props.onCancelWalkthrough } : {})}
+            {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+          />
+        ) : null}
       </article>
     );
   },
@@ -628,6 +678,11 @@ const ChatMessageRow = memo(
       previous.locale === next.locale &&
       previous.onArtifactAction === next.onArtifactAction &&
       previous.onOpenDocument === next.onOpenDocument &&
+      previous.walkthroughsByMessageId === next.walkthroughsByMessageId &&
+      previous.walkthroughEnabled === next.walkthroughEnabled &&
+      previous.walkthroughEligible === next.walkthroughEligible &&
+      previous.onGenerateWalkthrough === next.onGenerateWalkthrough &&
+      previous.onCancelWalkthrough === next.onCancelWalkthrough &&
       callbackPropsAreStable
     );
   },
