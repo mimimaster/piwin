@@ -781,6 +781,10 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return { ...state, walkthroughsByMessageId };
     }
     case 'walkthrough/updated': {
+      // Cross-session guard: a walkthrough generation that completes for
+      // session B must not leak into session A's map after the user has
+      // switched away. Only accept pushes for the active session.
+      if (state.activeSessionId !== action.artifact.sessionId) return state;
       const existing = state.walkthroughsByMessageId[action.artifact.messageId];
       // Only drop a `generating` push when a *different* generation is still
       // in flight — that is a stale late push from an old generation. A

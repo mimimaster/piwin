@@ -392,4 +392,36 @@ describe('WalkthroughAction component', () => {
       root.unmount();
     });
   });
+
+  it('renders zh-CN button label when locale is zh-CN', () => {
+    const { container } = renderAction(
+      <WalkthroughAction
+        message={assistantMessage()}
+        eligible={true}
+        locale="zh-CN"
+        onGenerate={() => undefined}
+      />,
+    );
+    const btn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="walkthrough-generate-btn-a1"]',
+    );
+    expect(btn?.textContent).toContain('生成演练');
+    expect(btn?.getAttribute('aria-label')).toBe('生成演练');
+  });
+
+  it('renders zh-CN generating label when locale is zh-CN and artifact is generating', () => {
+    const { container } = renderAction(
+      <WalkthroughAction
+        message={assistantMessage()}
+        artifact={generatingArtifact()}
+        eligible={true}
+        locale="zh-CN"
+        onGenerate={() => undefined}
+      />,
+    );
+    const btn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="walkthrough-generate-btn-a1"]',
+    );
+    expect(btn?.textContent).toContain('生成中…');
+  });
 });

@@ -10,6 +10,8 @@ import { MarkdownView } from './MarkdownView';
 export type WalkthroughCardProps = {
   artifact: WalkthroughArtifact;
   messageId: string;
+  /** Locale for user-facing strings (defaults to English when omitted). */
+  locale?: 'zh-CN' | 'en';
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
   onRegenerate?: (() => void) | undefined;
   onCancel?: ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
@@ -30,13 +32,25 @@ function modelLabel(artifact: WalkthroughArtifact): string {
 }
 
 export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
-  const { artifact, messageId } = props;
+  const { artifact, messageId, locale } = props;
+  const isZh = locale === 'zh-CN';
   const statusLabel =
     artifact.status === 'generating'
-      ? 'Generating'
+      ? isZh
+        ? '生成中'
+        : 'Generating'
       : artifact.status === 'ready'
-        ? 'Ready'
-        : 'Error';
+        ? isZh
+          ? '就绪'
+          : 'Ready'
+        : isZh
+          ? '错误'
+          : 'Error';
+  const titleLabel = isZh ? '演练' : 'Walkthrough';
+  const loadingLabel = isZh ? '正在生成演练…' : 'Generating walkthrough…';
+  const viewDocLabel = isZh ? '作为文档查看' : 'View as document';
+  const regenerateLabel = isZh ? '重新生成' : 'Regenerate';
+  const retryLabel = isZh ? '重试' : 'Retry';
 
   return (
     <div
@@ -45,7 +59,7 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
       data-status={artifact.status}
     >
       <div className="walkthrough-card-header">
-        <span className="walkthrough-card-title">Walkthrough</span>
+        <span className="walkthrough-card-title">{titleLabel}</span>
         <span className="walkthrough-card-status" data-testid={`walkthrough-status-${messageId}`}>
           {statusLabel}
         </span>
@@ -55,7 +69,7 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
 
       {artifact.status === 'generating' ? (
         <div className="walkthrough-card-loading" data-testid={`walkthrough-loading-${messageId}`}>
-          Generating walkthrough…
+          {loadingLabel}
         </div>
       ) : null}
 
@@ -74,16 +88,16 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
                 className="walkthrough-btn walkthrough-view-btn"
                 onClick={() =>
                   props.onOpenDocument?.({
-                    title: 'Walkthrough',
+                    title: titleLabel,
                     path: `walkthroughs/${messageId}.md`,
                     content: artifact.markdown,
                   })
                 }
-                aria-label="View as document"
-                title="View as document"
+                aria-label={viewDocLabel}
+                title={viewDocLabel}
                 data-testid={`walkthrough-doc-btn-${messageId}`}
               >
-                View as document
+                {viewDocLabel}
               </button>
             ) : null}
             {props.onRegenerate ? (
@@ -91,11 +105,11 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
                 type="button"
                 className="walkthrough-btn walkthrough-regenerate-btn"
                 onClick={() => props.onRegenerate?.()}
-                aria-label="Regenerate Walkthrough"
-                title="Regenerate Walkthrough"
+                aria-label={regenerateLabel}
+                title={regenerateLabel}
                 data-testid={`walkthrough-regenerate-btn-${messageId}`}
               >
-                Regenerate
+                {regenerateLabel}
               </button>
             ) : null}
           </div>
@@ -112,11 +126,11 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
               type="button"
               className="walkthrough-btn walkthrough-retry-btn"
               onClick={() => props.onRegenerate?.()}
-              aria-label="Retry Walkthrough"
-              title="Retry"
+              aria-label={retryLabel}
+              title={retryLabel}
               data-testid={`walkthrough-retry-btn-${messageId}`}
             >
-              Retry
+              {retryLabel}
             </button>
           ) : null}
         </div>

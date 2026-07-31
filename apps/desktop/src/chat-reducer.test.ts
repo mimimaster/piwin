@@ -1063,6 +1063,19 @@ describe('chatUiReducer', () => {
       expect(state.walkthroughsByMessageId['a1']?.status).toBe('ready');
     });
 
+    it('walkthrough/updated ignores an artifact whose sessionId differs from the active session', () => {
+      // Cross-session leak guard: a walkthrough generation that completes for
+      // session B after the user switched to session A must not leak into A.
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'sA' });
+      const staleArtifact = {
+        ...readyArtifact('a1'),
+        sessionId: 'sB',
+      };
+      state = chatUiReducer(state, { type: 'walkthrough/updated', artifact: staleArtifact });
+      expect('a1' in state.walkthroughsByMessageId).toBe(false);
+    });
+
     it('walkthrough/remove deletes an artifact by messageId', () => {
       let state = createInitialChatUiState();
       state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });

@@ -17,6 +17,8 @@ export type WalkthroughActionProps = {
   artifact?: WalkthroughArtifact | undefined;
   /** Whether the Generate button should be shown (pre-computed by parent). */
   eligible: boolean;
+  /** Locale for user-facing strings (defaults to English when omitted). */
+  locale?: 'zh-CN' | 'en';
   onGenerate: (messageId: string, force?: boolean) => void | Promise<void>;
   onCancel?: ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
@@ -68,12 +70,15 @@ function findLastAssistantForRun(messages: ChatMessageUi[], runId: string): stri
 }
 
 export function WalkthroughAction(props: WalkthroughActionProps): ReactElement | null {
-  const { message, artifact, eligible } = props;
+  const { message, artifact, eligible, locale } = props;
+  const isZh = locale === 'zh-CN';
 
   // No button and no artifact → render nothing.
   if (!eligible && !artifact) return null;
 
   const isGenerating = artifact?.status === 'generating';
+  const generateLabel = isZh ? '生成演练' : 'Generate Walkthrough';
+  const generatingLabel = isZh ? '生成中…' : 'Generating…';
 
   // When a ready artifact exists, WalkthroughCard already renders the
   // View + Regenerate buttons (testids walkthrough-doc-btn-* and
@@ -92,11 +97,11 @@ export function WalkthroughAction(props: WalkthroughActionProps): ReactElement |
             className="walkthrough-btn walkthrough-generate-btn"
             onClick={() => void props.onGenerate(message.id, false)}
             disabled={isGenerating}
-            aria-label="Generate Walkthrough"
-            title="Generate Walkthrough"
+            aria-label={generateLabel}
+            title={generateLabel}
             data-testid={`walkthrough-generate-btn-${message.id}`}
           >
-            {isGenerating ? 'Generating…' : 'Generate Walkthrough'}
+            {isGenerating ? generatingLabel : generateLabel}
           </button>
         </div>
       ) : null}
@@ -104,6 +109,7 @@ export function WalkthroughAction(props: WalkthroughActionProps): ReactElement |
         <WalkthroughCard
           artifact={artifact}
           messageId={message.id}
+          {...(locale ? { locale } : {})}
           onOpenDocument={props.onOpenDocument}
           onRegenerate={eligible ? () => void props.onGenerate(message.id, true) : undefined}
           onCancel={props.onCancel}
