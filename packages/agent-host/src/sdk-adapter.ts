@@ -143,6 +143,7 @@ export type PiSdkAdapterOptions = {
     parentSessionId: string;
     task: string;
     mode?: import('@piwin/contracts').SubagentIsolationMode;
+    applyPolicy?: import('@piwin/contracts').SubagentApplyPolicy;
     sessionName?: string;
   }) => Promise<{ childSessionId: string }>;
   onMergeSubagent?: (

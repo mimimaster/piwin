@@ -5,6 +5,7 @@ type SpawnCall = {
   parentSessionId: string;
   task: string;
   mode?: string;
+  applyPolicy?: string;
   sessionName?: string;
 };
 
@@ -82,6 +83,36 @@ describe('createSubagentRunTool', () => {
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
     await tool.execute({ task: 'test' });
     expect(firstSpawnArg(seam).sessionName).toBeUndefined();
+  });
+
+  it('forwards applyPolicy to spawn when provided', async () => {
+    const seam = fakeSeam();
+    const tool = createSubagentRunTool({ sessionId: 'parent-1', seam });
+    await tool.execute({ task: 't', mode: 'worktree', applyPolicy: 'auto' });
+    expect(firstSpawnArg(seam).applyPolicy).toBe('auto');
+  });
+
+  it('forwards explicit applyPolicy with allowed paths intent', async () => {
+    const seam = fakeSeam();
+    const tool = createSubagentRunTool({ sessionId: 'parent-1', seam });
+    await tool.execute({ task: 't', mode: 'worktree', applyPolicy: 'explicit' });
+    expect(firstSpawnArg(seam).applyPolicy).toBe('explicit');
+  });
+
+  it('omits applyPolicy when none or invalid', async () => {
+    const seam = fakeSeam();
+    const tool = createSubagentRunTool({ sessionId: 's1', seam });
+    await tool.execute({ task: 'test' });
+    expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
+    await tool.execute({ task: 'test', applyPolicy: 'bogus' });
+    expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
+  });
+
+  it('declares applyPolicy in the tool schema', () => {
+    const tool = createSubagentRunTool({ sessionId: 's1', seam: fakeSeam() });
+    const properties = tool.parameters.properties as Record<string, { enum?: string[] }>;
+    expect(properties).toHaveProperty('applyPolicy');
+    expect(properties.applyPolicy?.enum).toEqual(['none', 'auto', 'explicit']);
   });
 
   it('rejects empty task', async () => {
