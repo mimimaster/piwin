@@ -316,6 +316,7 @@ export class HostRuntime {
           parentSessionId: spawnInput.parentSessionId,
           task: spawnInput.task,
           ...(spawnInput.mode ? { mode: spawnInput.mode } : {}),
+          ...(spawnInput.applyPolicy ? { applyPolicy: spawnInput.applyPolicy } : {}),
           ...(spawnInput.sessionName ? { sessionName: spawnInput.sessionName } : {}),
         });
         if (!result.success) {
@@ -1822,6 +1823,12 @@ export class HostRuntime {
         });
       }
 
+      // Child events are recorded fire-and-forget at bind time; flush the
+      // recorder so the merge summary is built from a complete transcript.
+      const childRecorder = this.transcriptRecorders.get(childSessionId);
+      if (childRecorder) {
+        await childRecorder.flush();
+      }
       const childMessages = await listTranscriptMessages(
         getPiwinSessionTranscriptPath(rootDir, childSessionId),
       );
@@ -1892,6 +1899,49 @@ export class HostRuntime {
         level: 'info',
         message: `merged subagent ${childSessionId} into parent ${parentSessionId} (${summary.preview.length} preview chars)`,
       });
+
+      // CE-SUB: apply worktree changes when the apply policy requests it.
+      // This is the single chokepoint where child changes reach the parent
+      // branch — the model tool opts in via applyPolicy (default 'none') and
+      // plan execution passes 'explicit'.
+      if (
+        latestChild.subagentMode === 'worktree' &&
+        latestChild.worktreePath &&
+        latestChild.subagentApplyPolicy &&
+        latestChild.subagentApplyPolicy !== 'none'
+      ) {
+        try {
+          const applied = await applyWorktreeToMain({
+            projectPath: latestChild.projectPath,
+            worktreePath: latestChild.worktreePath,
+            ...(latestChild.subagentApplyPolicy === 'explicit' &&
+            latestChild.subagentAllowedOutputPaths
+              ? { allowedOutputPaths: latestChild.subagentAllowedOutputPaths }
+              : {}),
+          });
+          this.push({
+            type: 'host/log',
+            level: 'info',
+            message: `subagent apply ${applied.strategy}: ${
+              applied.appliedPaths.join(', ') || '(none)'
+            }`,
+          });
+          if (latestChild.subagentRetainWorktree !== true) {
+            await removeWorktree({
+              projectPath: latestChild.projectPath,
+              worktreePath: latestChild.worktreePath,
+              force: true,
+            });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `subagent apply/cleanup failed: ${message}`,
+          });
+        }
+      }
 
       return ok(requestId, 'session/merge-subagent', {
         childSessionId,

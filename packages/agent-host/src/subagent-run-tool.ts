@@ -12,7 +12,7 @@
  * Depth max is 1: a readonly/worktree subagent does not receive this tool,
  * preventing nested subagent spawning (consistent with session/spawn guard).
  */
-import type { SubagentIsolationMode } from '@piwin/contracts';
+import type { SubagentApplyPolicy, SubagentIsolationMode } from '@piwin/contracts';
 import type { HostToolDefinition } from '@piwin/tools-web';
 
 export type SubagentRunSeam = {
@@ -21,6 +21,7 @@ export type SubagentRunSeam = {
     parentSessionId: string;
     task: string;
     mode?: SubagentIsolationMode;
+    applyPolicy?: SubagentApplyPolicy;
     sessionName?: string;
   }) => Promise<{ childSessionId: string }>;
   /** Merge a completed child session's summary into its parent. */
@@ -45,7 +46,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       'Use for: codebase exploration that would flood this conversation with search results, ' +
       'parallel implementation of independent pieces, or focused verification passes. ' +
       'The subagent runs in its own context and returns only a summary — intermediate output ' +
-      'does not consume this conversation\'s context. The subagent cannot spawn further subagents. ' +
+      "does not consume this conversation's context. The subagent cannot spawn further subagents. " +
       'By default the subagent is readonly (cannot modify files); set mode to "worktree" for ' +
       'isolated write access in a temporary git worktree.',
     parameters: {
@@ -55,7 +56,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           type: 'string',
           description:
             'The task to delegate. Must be self-contained — the subagent starts with a fresh ' +
-            'context and does not see this conversation\'s history. Include all necessary context ' +
+            "context and does not see this conversation's history. Include all necessary context " +
             'and acceptance criteria in the task text.',
         },
         mode: {
@@ -67,6 +68,14 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
         sessionName: {
           type: 'string',
           description: 'Optional short name for the subagent session (shown in UI)',
+        },
+        applyPolicy: {
+          type: 'string',
+          enum: ['none', 'auto', 'explicit'],
+          description:
+            'Worktree change application policy: "none" (default, changes stay in the worktree) ' +
+            'or "auto"/"explicit" (apply changed files back to the parent branch on merge). ' +
+            'Only relevant when mode is "worktree".',
         },
       },
       required: ['task'],
@@ -84,6 +93,10 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       const sessionNameRaw = String(args.sessionName ?? '').trim();
       const sessionName = sessionNameRaw || undefined;
 
+      const applyPolicyRaw = String(args.applyPolicy ?? 'none').trim();
+      const applyPolicy =
+        applyPolicyRaw === 'auto' || applyPolicyRaw === 'explicit' ? applyPolicyRaw : 'none';
+
       if (signal?.aborted) return 'error: aborted before spawn';
 
       let spawnResult: { childSessionId: string };
@@ -93,6 +106,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           task,
           mode,
           ...(sessionName ? { sessionName } : {}),
+          ...(applyPolicy !== 'none' ? { applyPolicy } : {}),
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
