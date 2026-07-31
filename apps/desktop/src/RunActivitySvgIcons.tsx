@@ -1,15 +1,126 @@
 import { type ReactElement } from 'react';
 import type { RunStatusKind } from './run-status.js';
+import type { ActivityActionCategory } from './run-activity-types.js';
 
 export type ActivitySvgIconProps = {
   kind: RunStatusKind;
+  actionCategory?: ActivityActionCategory | undefined;
   lucideName?: string | undefined;
   className?: string | undefined;
   'data-testid'?: string | undefined;
 };
 
 export function ActivitySvgIcon(props: ActivitySvgIconProps): ReactElement {
-  const { kind, className, 'data-testid': testId } = props;
+  const { kind, actionCategory, className, 'data-testid': testId } = props;
+
+  if (actionCategory === 'terminal') {
+    return (
+      <svg
+        viewBox="0 0 32 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`run-activity-svg-icon kind-terminal action-terminal ${className ?? ''}`}
+        {...(testId !== undefined ? { 'data-testid': testId } : {})}
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="term-grad" x1="0" y1="0" x2="32" y2="32">
+            <stop offset="0%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#d97706" />
+          </linearGradient>
+        </defs>
+        <rect x="4" y="6" width="24" height="20" rx="4" fill="rgba(15, 23, 42, 0.85)" stroke="url(#term-grad)" strokeWidth="1.5" />
+        <path d="M8 12L12 15L8 18" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="14" y1="18" x2="22" y2="18" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" className="svg-stop-pulse" />
+        <circle cx="16" cy="16" r="13" stroke="rgba(245, 158, 11, 0.3)" strokeWidth="1" strokeDasharray="3 3" className="svg-spin-slow" />
+      </svg>
+    );
+  }
+
+  if (actionCategory === 'edit') {
+    return (
+      <svg
+        viewBox="0 0 32 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`run-activity-svg-icon kind-edit action-edit ${className ?? ''}`}
+        {...(testId !== undefined ? { 'data-testid': testId } : {})}
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="edit-grad" x1="0" y1="0" x2="32" y2="32">
+            <stop offset="0%" stopColor="#10b981" />
+            <stop offset="100%" stopColor="#059669" />
+          </linearGradient>
+        </defs>
+        <rect x="6" y="5" width="20" height="22" rx="3" fill="rgba(6, 78, 59, 0.4)" stroke="url(#edit-grad)" strokeWidth="1.5" />
+        <line x1="10" y1="10" x2="22" y2="10" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="10" y1="14" x2="18" y2="14" stroke="#6ee7b7" strokeWidth="1.5" strokeLinecap="round" className="svg-core-breathe" />
+        <line x1="10" y1="18" x2="21" y2="18" stroke="#34d399" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M19 22L24 17L26 19L21 24L19 24Z" fill="#10b981" stroke="#ffffff" strokeWidth="1" className="svg-node-pulse" />
+      </svg>
+    );
+  }
+
+  if (actionCategory === 'search') {
+    return (
+      <svg
+        viewBox="0 0 32 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`run-activity-svg-icon kind-search action-search ${className ?? ''}`}
+        {...(testId !== undefined ? { 'data-testid': testId } : {})}
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id="search-grad" x1="0" y1="0" x2="32" y2="32">
+            <stop offset="0%" stopColor="#06b6d4" />
+            <stop offset="100%" stopColor="#3b82f6" />
+          </linearGradient>
+        </defs>
+        <circle cx="14" cy="14" r="8" stroke="url(#search-grad)" strokeWidth="2" className="svg-pulse-bg" />
+        <line x1="20" y1="20" x2="26" y2="26" stroke="#22d3ee" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1="6" y1="14" x2="22" y2="14" stroke="#67e8f9" strokeWidth="1.5" strokeOpacity="0.8" className="svg-spin-fast" strokeDasharray="6 14" />
+        <circle cx="14" cy="14" r="3" fill="#06b6d4" className="svg-core-breathe" />
+      </svg>
+    );
+  }
+
+  if (actionCategory === 'web') {
+    return (
+      <svg
+        viewBox="0 0 32 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`run-activity-svg-icon kind-web action-web ${className ?? ''}`}
+        {...(testId !== undefined ? { 'data-testid': testId } : {})}
+        aria-hidden="true"
+      >
+        <circle cx="16" cy="16" r="12" stroke="#3b82f6" strokeWidth="1.5" strokeOpacity="0.4" />
+        <ellipse cx="16" cy="16" rx="12" ry="5" stroke="#60a5fa" strokeWidth="1.5" className="svg-spin-slow" />
+        <line x1="4" y1="16" x2="28" y2="16" stroke="#3b82f6" strokeWidth="1.5" />
+        <circle cx="16" cy="16" r="4" fill="#60a5fa" className="svg-node-pulse" />
+      </svg>
+    );
+  }
+
+  if (actionCategory === 'subagent') {
+    return (
+      <svg
+        viewBox="0 0 32 32"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        className={`run-activity-svg-icon kind-subagent action-subagent ${className ?? ''}`}
+        {...(testId !== undefined ? { 'data-testid': testId } : {})}
+        aria-hidden="true"
+      >
+        <circle cx="16" cy="10" r="4" fill="#a855f7" className="svg-core-breathe" />
+        <circle cx="9" cy="22" r="3.5" fill="#8b5cf6" className="svg-node-pulse" />
+        <circle cx="23" cy="22" r="3.5" fill="#c084fc" className="svg-node-pulse" />
+        <path d="M14 13L10.5 19M18 13L21.5 19M12.5 22H19.5" stroke="#c084fc" strokeWidth="1.5" strokeDasharray="3 3" className="svg-spin-slow" />
+      </svg>
+    );
+  }
 
   switch (kind) {
     case 'connecting-model':
@@ -301,9 +412,40 @@ export function ActivitySvgIcon(props: ActivitySvgIconProps): ReactElement {
           {...(testId !== undefined ? { 'data-testid': testId } : {})}
           aria-hidden="true"
         >
-          <circle cx="16" cy="16" r="12" stroke="var(--content-tertiary, #cbd5e1)" strokeWidth="1.5" strokeDasharray="2 2" />
-          <circle cx="16" cy="16" r="4" fill="var(--content-tertiary, #cbd5e1)" />
+          <defs>
+            <radialGradient id="idle-glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.45" />
+              <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+            </radialGradient>
+            <linearGradient id="idle-grad" x1="0" y1="0" x2="32" y2="32">
+              <stop offset="0%" stopColor="#60a5fa" />
+              <stop offset="100%" stopColor="#a855f7" />
+            </linearGradient>
+          </defs>
+          <circle cx="16" cy="16" r="14" fill="url(#idle-glow)" className="svg-pulse-bg" />
+          <circle
+            cx="16"
+            cy="16"
+            r="12"
+            stroke="url(#idle-grad)"
+            strokeWidth="1.5"
+            strokeDasharray="4 4"
+            className="svg-spin-slow"
+          />
+          <circle
+            cx="16"
+            cy="16"
+            r="7"
+            stroke="url(#idle-grad)"
+            strokeWidth="1"
+            strokeOpacity="0.7"
+            strokeDasharray="6 6"
+            className="svg-spin-reverse"
+          />
+          <circle cx="16" cy="16" r="3.5" fill="#60a5fa" className="svg-core-breathe" />
+          <circle cx="16" cy="16" r="1.5" fill="#ffffff" />
         </svg>
       );
   }
 }
+

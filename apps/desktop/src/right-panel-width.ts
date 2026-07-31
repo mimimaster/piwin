@@ -5,7 +5,7 @@
 
 export const RIGHT_PANEL_DEFAULT_WIDTH_PX = 280;
 export const RIGHT_PANEL_MIN_WIDTH_PX = 240;
-export const RIGHT_PANEL_MAX_WIDTH_PX = 640;
+export const RIGHT_PANEL_MAX_WIDTH_PX = 720;
 
 const STORAGE_KEY = 'piwin.desktop.rightPanelWidth';
 

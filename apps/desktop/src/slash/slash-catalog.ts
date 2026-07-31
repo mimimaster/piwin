@@ -38,6 +38,15 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'ask',
 ]);
 
+/**
+ * Skill alias map: alias slash name → canonical skill id. Aliases appear in
+ * the autocomplete menu attached to the canonical skill item and resolve in
+ * parseComposerSlashSubmit. Keep one canonical skill asset per alias.
+ */
+export const SKILL_SLASH_ALIASES: Record<string, string> = {
+  'write-plan': 'writing-plans',
+};
+
 export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[] {
   const compactionSupported = options.compactionSupported !== false;
   const streaming = options.streaming === true;
@@ -165,6 +174,18 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       enabled,
       available,
     };
+    // Attach any aliases registered for this canonical skill id.
+    const aliasNames = Object.entries(SKILL_SLASH_ALIASES)
+      .filter(([, target]) => target.toLowerCase() === skill.id.toLowerCase())
+      .map(([alias]) => alias);
+    if (aliasNames.length > 0) {
+      skillItem.aliases = aliasNames;
+      for (const alias of aliasNames) {
+        if (skillItem.keywords && !skillItem.keywords.includes(alias)) {
+          skillItem.keywords.push(alias);
+        }
+      }
+    }
     if (unavailableReason) {
       skillItem.unavailableReason = unavailableReason;
     }

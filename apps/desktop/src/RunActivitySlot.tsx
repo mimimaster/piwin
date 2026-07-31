@@ -1,13 +1,14 @@
 import { type ReactElement } from 'react';
 import { RunActivitySplash } from './RunActivitySplash.js';
 import { sessionRunPhaseToActivityKind } from './run-activity-mappers.js';
-import { IconAgent } from './shell-icons.js';
 import type { RunRecordUi } from './chat-reducer.js';
 import type { RunActivityInput } from './run-activity-types.js';
 
 export type RunActivitySlotProps = {
   activeRunId: string | null;
   runRecordsById: Record<string, RunRecordUi>;
+  activeToolName?: string;
+  planStep?: string;
   locale?: 'zh-CN' | 'en';
 };
 
@@ -25,23 +26,18 @@ export function RunActivitySlot(props: RunActivitySlotProps): ReactElement | nul
   const input: RunActivityInput = {
     kind,
     locale: props.locale ?? 'zh-CN',
+    ...(props.activeToolName ? { activeToolName: props.activeToolName } : {}),
+    ...(props.planStep ? { planStep: props.planStep } : {}),
     ...(elapsedMs !== undefined ? { elapsedMs } : {}),
   };
 
   return (
-    <article
-      className="bubble role-assistant is-streaming"
+    <div
+      className="chat-run-activity-line"
       data-testid="run-activity-slot"
       {...(props.activeRunId ? { 'data-run-id': props.activeRunId } : {})}
     >
-      <header className="bubble-header">
-        <span className="bubble-agent-icon" aria-hidden>
-          <IconAgent />
-        </span>
-        <strong className="bubble-role">piwin</strong>
-        <span className="stream-dot" aria-label="Streaming" />
-      </header>
       <RunActivitySplash input={input} />
-    </article>
+    </div>
   );
 }

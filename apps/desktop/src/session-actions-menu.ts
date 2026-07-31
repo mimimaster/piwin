@@ -18,6 +18,7 @@ export function sessionActionItems(options: {
     return [
       { action: 'unarchive', label: 'Restore', testId: 'session-menu-unarchive' },
       { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
+      { action: 'copy-id', label: 'Copy ID', testId: 'session-menu-copy-id' },
       { action: 'export', label: 'Export…', testId: 'session-menu-export' },
       {
         action: 'delete',
@@ -34,8 +35,15 @@ export function sessionActionItems(options: {
       testId: 'session-menu-pin',
     },
     { action: 'rename', label: 'Rename', testId: 'session-menu-rename' },
+    { action: 'copy-id', label: 'Copy ID', testId: 'session-menu-copy-id' },
     { action: 'duplicate', label: 'Duplicate', testId: 'session-menu-duplicate' },
     { action: 'export', label: 'Export…', testId: 'session-menu-export' },
     { action: 'archive', label: 'Archive', testId: 'session-menu-archive' },
+    {
+      action: 'delete',
+      label: 'Delete',
+      danger: true,
+      testId: 'session-menu-delete',
+    },
   ];
 }

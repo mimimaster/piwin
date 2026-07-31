@@ -6,7 +6,7 @@
  * zip (no internal nesting); if a top-level folder is present we use it.
  */
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, readdir, rename, rm, stat, unlink } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, rmdir, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type {
@@ -53,6 +53,15 @@ function resolveCtx(ctx: PetSourceProviderContext): RegistryProviderContext {
 async function isInstalled(petsDir: string, petId: string): Promise<boolean> {
   try {
     await stat(join(petsDir, petId, 'pet.json'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
     return true;
   } catch {
     return false;
@@ -141,6 +150,13 @@ export const registryProvider: PetSourceProvider = {
       };
     }
 
+    // entry.id becomes a directory/file name on disk — reject anything that
+    // could escape the staging or target dirs (e.g. `../`). Same rules as the
+    // manifest id validation.
+    if (!/^[a-z0-9][a-z0-9_-]*$/i.test(entry.id)) {
+      throw new Error(`unsafe pet id: ${entry.id}`);
+    }
+
     const staging = join(ctx.piwinRoot, 'pets', '.staging', entry.id);
     await rm(staging, { recursive: true, force: true });
     await mkdir(staging, { recursive: true });
@@ -185,17 +201,34 @@ export const registryProvider: PetSourceProvider = {
     const validated = validatePetManifest(JSON.parse(raw));
     if (!validated.ok) {
       await rm(staging, { recursive: true, force: true });
-      throw new Error(
-        validated.issues.map((i) => `${i.path}: ${i.message}`).join('; '),
-      );
+      throw new Error(validated.issues.map((i) => `${i.path}: ${i.message}`).join('; '));
     }
 
-    // Atomic install: rm target then rename staged dir into place.
+    // Atomic install: swap the staged dir into place. rename() cannot replace
+    // a non-empty directory on POSIX, so move any existing install aside
+    // first; if the swap fails we restore the previous install rather than
+    // leaving a half-installed pet.
     const target = join(ctx.petsDir, validated.manifest.id);
     await mkdir(ctx.petsDir, { recursive: true });
-    await rm(target, { recursive: true, force: true });
-    await rename(petDir, target);
+    const backup = join(ctx.petsDir, `.trash-${validated.manifest.id}-${Date.now()}`);
+    await rm(backup, { recursive: true, force: true });
+    let previous = false;
+    try {
+      if (await pathExists(target)) {
+        await rename(target, backup);
+        previous = true;
+      }
+      await rename(petDir, target);
+    } catch (err) {
+      if (previous) await rename(backup, target).catch(() => undefined);
+      await rm(staging, { recursive: true, force: true });
+      throw err;
+    }
+    // Drop the backup and the (now-empty) staging root; rmdir fails harmlessly
+    // if a concurrent install still has a pet staging under it.
+    await rm(backup, { recursive: true, force: true });
     await rm(staging, { recursive: true, force: true });
+    await rmdir(join(ctx.piwinRoot, 'pets', '.staging')).catch(() => undefined);
     return { petId: validated.manifest.id, source: 'registry', path: target };
   },
 };

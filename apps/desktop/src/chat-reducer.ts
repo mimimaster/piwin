@@ -41,9 +41,32 @@ export type ChatMessageUi = {
   tools: ToolCardUi[];
   attachments: MediaAttachmentRef[];
   status: 'streaming' | 'done' | 'error';
+  createdAt?: string;
   /** Run that produced this assistant message when host provided run identity. */
   runId?: string;
   subagentActivity?: SubagentActivityView;
+};
+
+/** Inline subagent stream state — live child session work shown in parent UI. */
+export type SubagentStreamTool = {
+  toolCallId: string;
+  toolName: string;
+  status: 'running' | 'done' | 'error';
+  output: string;
+};
+
+export type SubagentStreamState = {
+  childSessionId: string;
+  /** Accumulated assistant text deltas from the child session. */
+  text: string;
+  /** Accumulated thinking deltas from the child session. */
+  thinking: string;
+  /** Tool calls observed in the child session. */
+  tools: SubagentStreamTool[];
+  /** Whether the child session is currently streaming. */
+  streaming: boolean;
+  /** Last message id seen from the child (for delta accumulation). */
+  currentMessageId: string | null;
 };
 
 /** C2: per-run historical record for turn-local work presentation. */
@@ -121,7 +144,11 @@ export type ChatUiState = {
   lastCompactionTokensBefore: number | null;
   lastCompactionTokensAfter: number | null;
   lastCompactionDurationMs: number | null;
-  lastCompactionFileOps: { readFiles: string[]; modifiedFiles: string[]; omittedCount?: number } | null;
+  lastCompactionFileOps: {
+    readFiles: string[];
+    modifiedFiles: string[];
+    omittedCount?: number;
+  } | null;
   /** CE-OBS last context/token usage for active session. */
   contextUsage: ContextUsageSnapshot | null;
   /**
@@ -141,6 +168,8 @@ export type ChatUiState = {
    * phase/outcome after a later run starts.
    */
   runRecordsById: Record<string, RunRecordUi>;
+  /** Inline subagent streams keyed by childSessionId for live expand UX. */
+  subagentStreams: Record<string, SubagentStreamState>;
 };
 
 export type ChatUiAction =
@@ -185,7 +214,14 @@ export type ChatUiAction =
     }
   | { type: 'compaction/dismiss' }
   | { type: 'error'; message: string }
-  | { type: 'transcript/append'; sessionId: string; message: SessionTranscriptMessage };
+  | { type: 'transcript/append'; sessionId: string; message: SessionTranscriptMessage }
+  | {
+      type: 'subagent/stream';
+      parentSessionId: string;
+      childSessionId: string;
+      event: AgentEvent;
+    }
+  | { type: 'subagent/clear-stream'; childSessionId: string };
 
 export function createInitialChatUiState(): ChatUiState {
   return {
@@ -220,16 +256,14 @@ export function createInitialChatUiState(): ChatUiState {
     receivedEventIds: [],
     lastAcceptedSequenceByRun: {},
     runRecordsById: {},
+    subagentStreams: {},
   };
 }
 
 export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiState {
   switch (action.type) {
     case 'scope/set':
-      if (
-        action.scope.kind === 'general' &&
-        state.activeScope.kind === 'general'
-      ) {
+      if (action.scope.kind === 'general' && state.activeScope.kind === 'general') {
         return state;
       }
       if (
@@ -340,6 +374,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         })),
         attachments: message.attachments ?? [],
         status: message.status === 'streaming' ? 'done' : message.status,
+        ...(message.createdAt ? { createdAt: message.createdAt } : {}),
         ...(message.runId ? { runId: message.runId } : {}),
         ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
       }));
@@ -473,6 +508,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         })),
         attachments: message.attachments ?? [],
         status: message.status === 'streaming' ? 'done' : message.status,
+        ...(message.createdAt ? { createdAt: message.createdAt } : {}),
       }));
       return {
         ...state,
@@ -495,6 +531,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         tools: [],
         attachments: action.attachments ?? [],
         status: 'done',
+        createdAt: new Date().toISOString(),
       };
       return {
         ...state,
@@ -519,35 +556,29 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         return state;
       }
       {
-        const startedAt = action.acceptedAt
-          ? parseAcceptedAt(action.acceptedAt)
-          : Date.now();
+        const startedAt = action.acceptedAt ? parseAcceptedAt(action.acceptedAt) : Date.now();
         const previous = state.runRecordsById[action.runId];
-      return {
-        ...state,
-        activeRunId: action.runId,
-        activeRunPhase: 'accepted',
-        activeRunStartedAt: startedAt,
-        lastTerminalRunId: null,
-        runPhase: 'streaming',
-        streaming: true,
-        runTerminal: { kind: 'none' },
-        runRecordsById: {
-          ...state.runRecordsById,
-          [action.runId]: {
-            runId: action.runId,
-            phaseHistory: previous?.phaseHistory ?? [
-              { phase: 'accepted', at: startedAt },
-            ],
-            startedAt: previous?.startedAt ?? startedAt,
-            endedAt: previous?.endedAt ?? null,
-            ...(previous?.outcome ? { outcome: previous.outcome } : {}),
-            ...(previous?.terminalMessage
-              ? { terminalMessage: previous.terminalMessage }
-              : {}),
+        return {
+          ...state,
+          activeRunId: action.runId,
+          activeRunPhase: 'accepted',
+          activeRunStartedAt: startedAt,
+          lastTerminalRunId: null,
+          runPhase: 'streaming',
+          streaming: true,
+          runTerminal: { kind: 'none' },
+          runRecordsById: {
+            ...state.runRecordsById,
+            [action.runId]: {
+              runId: action.runId,
+              phaseHistory: previous?.phaseHistory ?? [{ phase: 'accepted', at: startedAt }],
+              startedAt: previous?.startedAt ?? startedAt,
+              endedAt: previous?.endedAt ?? null,
+              ...(previous?.outcome ? { outcome: previous.outcome } : {}),
+              ...(previous?.terminalMessage ? { terminalMessage: previous.terminalMessage } : {}),
+            },
           },
-        },
-      };
+        };
       }
     case 'run/terminal-dismiss':
       return {
@@ -557,10 +588,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
     case 'host/status':
       return { ...state, hostReady: action.ready, hostMock: action.mock };
     case 'permission/show':
-      if (
-        action.prompt.runId !== undefined &&
-        isStaleRunEvent(state, action.prompt.runId)
-      ) {
+      if (action.prompt.runId !== undefined && isStaleRunEvent(state, action.prompt.runId)) {
         return state;
       }
       return { ...state, permissionPrompt: action.prompt };
@@ -655,6 +683,151 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       }
       return currentState;
     }
+    case 'subagent/stream': {
+      if (state.activeSessionId !== action.parentSessionId) {
+        return state;
+      }
+      return applySubagentStreamEvent(state, action.childSessionId, action.event);
+    }
+    case 'subagent/clear-stream': {
+      if (!(action.childSessionId in state.subagentStreams)) {
+        return state;
+      }
+      const nextStreams = { ...state.subagentStreams };
+      delete nextStreams[action.childSessionId];
+      return { ...state, subagentStreams: nextStreams };
+    }
+    default:
+      return state;
+  }
+}
+
+/**
+ * Apply a child session AgentEvent to the inline subagent stream state.
+ * Accumulates text/thinking deltas and tool lifecycle for live expand UX.
+ */
+function applySubagentStreamEvent(
+  state: ChatUiState,
+  childSessionId: string,
+  event: AgentEvent,
+): ChatUiState {
+  const existing = state.subagentStreams[childSessionId] ?? {
+    childSessionId,
+    text: '',
+    thinking: '',
+    tools: [],
+    streaming: false,
+    currentMessageId: null,
+  };
+
+  switch (event.type) {
+    case 'message/start': {
+      if (event.role !== 'assistant') return state;
+      const updated: SubagentStreamState = {
+        ...existing,
+        streaming: true,
+        currentMessageId: event.messageId,
+        text: '',
+        thinking: '',
+      };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'message/text_delta': {
+      const updated: SubagentStreamState = {
+        ...existing,
+        streaming: true,
+        text: existing.text + event.delta,
+      };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'message/text_snapshot': {
+      const updated: SubagentStreamState = {
+        ...existing,
+        streaming: true,
+        text: event.text,
+      };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'message/thinking_delta': {
+      const updated: SubagentStreamState = {
+        ...existing,
+        streaming: true,
+        thinking: existing.thinking + event.delta,
+      };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'message/end': {
+      const updated: SubagentStreamState = {
+        ...existing,
+        streaming: false,
+      };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'tool/start': {
+      const tools = [...existing.tools];
+      const existingIdx = tools.findIndex((t) => t.toolCallId === event.toolCallId);
+      const tool: SubagentStreamTool = {
+        toolCallId: event.toolCallId,
+        toolName: event.toolName,
+        status: 'running',
+        output: '',
+      };
+      if (existingIdx >= 0) {
+        tools[existingIdx] = tool;
+      } else {
+        tools.push(tool);
+      }
+      const updated: SubagentStreamState = { ...existing, tools };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'tool/update': {
+      const tools = existing.tools.map((t) =>
+        t.toolCallId === event.toolCallId ? { ...t, output: t.output + event.delta } : t,
+      );
+      const updated: SubagentStreamState = { ...existing, tools };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'tool/end': {
+      const tools = existing.tools.map((t) =>
+        t.toolCallId === event.toolCallId
+          ? { ...t, status: (event.isError ? 'error' : 'done') as 'done' | 'error' }
+          : t,
+      );
+      const updated: SubagentStreamState = { ...existing, tools };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
+    case 'session/aborted':
+    case 'session/ended': {
+      const updated: SubagentStreamState = { ...existing, streaming: false };
+      return {
+        ...state,
+        subagentStreams: { ...state.subagentStreams, [childSessionId]: updated },
+      };
+    }
     default:
       return state;
   }
@@ -717,7 +890,10 @@ function recordEnvelope(state: ChatUiState, envelope: AgentEventEnvelope): ChatU
  * Extract optional envelope from an event action and check for staleness.
  * Returns true when the event should be dropped.
  */
-function isStaleByEnvelope(state: ChatUiState, action: { event: AgentEvent } & Record<string, unknown>): boolean {
+function isStaleByEnvelope(
+  state: ChatUiState,
+  action: { event: AgentEvent } & Record<string, unknown>,
+): boolean {
   const envelope = action.envelope as AgentEventEnvelope | undefined;
   if (!envelope) {
     return false;
@@ -729,7 +905,10 @@ function isStaleByEnvelope(state: ChatUiState, action: { event: AgentEvent } & R
  * Record the envelope from an event action into dedup state.
  * Returns the updated state (unchanged when no envelope present).
  */
-function recordEventEnvelope(state: ChatUiState, action: { event: AgentEvent } & Record<string, unknown>): ChatUiState {
+function recordEventEnvelope(
+  state: ChatUiState,
+  action: { event: AgentEvent } & Record<string, unknown>,
+): ChatUiState {
   const envelope = action.envelope as AgentEventEnvelope | undefined;
   if (!envelope) {
     return state;
@@ -848,9 +1027,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
-        runTerminal: hasRunningTool
-          ? next.runTerminal
-          : { kind: 'complete', at: Date.now() },
+        runTerminal: hasRunningTool ? next.runTerminal : { kind: 'complete', at: Date.now() },
       };
     }
     case 'session/aborted': {
@@ -860,14 +1037,10 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       const messageId = event.messageId;
       const nextMessages = messageId
         ? state.messages.map((message) =>
-            message.id === messageId
-              ? { ...message, status: 'done' as const }
-              : message,
+            message.id === messageId ? { ...message, status: 'done' as const } : message,
           )
         : state.messages.map((message) =>
-            message.status === 'streaming'
-              ? { ...message, status: 'done' as const }
-              : message,
+            message.status === 'streaming' ? { ...message, status: 'done' as const } : message,
           );
       return {
         ...state,
@@ -930,10 +1103,10 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             ? mergedPresentation.output.text
             : tool.output;
         return {
-        ...tool,
-        status: event.isError ? 'error' : 'done',
-        output: displayOutput,
-        ...(mergedPresentation ? { presentation: mergedPresentation } : {}),
+          ...tool,
+          status: event.isError ? 'error' : 'done',
+          output: displayOutput,
+          ...(mergedPresentation ? { presentation: mergedPresentation } : {}),
         };
       });
     case 'permission/request': {
@@ -982,10 +1155,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
           : event.ok === false
             ? 'Compaction finished with errors'
             : 'Context compacted';
-      const fileOps =
-        'fileOps' in event && event.fileOps
-          ? event.fileOps
-          : null;
+      const fileOps = 'fileOps' in event && event.fileOps ? event.fileOps : null;
       return {
         ...state,
         compacting: false,
@@ -994,10 +1164,8 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
           typeof event.summary === 'string' && event.summary ? event.summary : null,
         lastCompactionTokensBefore:
           typeof event.tokensBefore === 'number' ? event.tokensBefore : null,
-        lastCompactionTokensAfter:
-          typeof event.tokensAfter === 'number' ? event.tokensAfter : null,
-        lastCompactionDurationMs:
-          typeof event.durationMs === 'number' ? event.durationMs : null,
+        lastCompactionTokensAfter: typeof event.tokensAfter === 'number' ? event.tokensAfter : null,
+        lastCompactionDurationMs: typeof event.durationMs === 'number' ? event.durationMs : null,
         lastCompactionFileOps: fileOps,
       };
     }
@@ -1016,15 +1184,15 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             status: tool.status === 'running' ? ('error' as const) : tool.status,
           })),
         }));
-      return {
-        ...state,
-        messages: failedMessages,
-        error: event.message,
-        runPhase: 'idle',
-        streaming: false,
-        compacting: false,
-        runTerminal: { kind: 'failed', message: event.message, at: Date.now() },
-      };
+        return {
+          ...state,
+          messages: failedMessages,
+          error: event.message,
+          runPhase: 'idle',
+          streaming: false,
+          compacting: false,
+          runTerminal: { kind: 'failed', message: event.message, at: Date.now() },
+        };
       }
     case 'run/phase':
       if (isStaleRunEvent(state, event.runId)) {
@@ -1052,42 +1220,42 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             ? { terminalMessage: previousRecord.terminalMessage }
             : {}),
         };
-      if (event.phase === 'cancelling') {
+        if (event.phase === 'cancelling') {
+          return {
+            ...state,
+            activeRunId: event.runId,
+            activeRunPhase: event.phase,
+            runPhase: 'aborting',
+            streaming: true,
+            runRecordsById: {
+              ...state.runRecordsById,
+              [event.runId]: nextRunRecord,
+            },
+          };
+        }
         return {
           ...state,
+          runPhase: 'streaming',
           activeRunId: event.runId,
           activeRunPhase: event.phase,
-          runPhase: 'aborting',
+          activeRunStartedAt:
+            state.activeRunId === event.runId && state.activeRunStartedAt !== null
+              ? state.activeRunStartedAt
+              : parseEventTime(event.at),
+          lastTerminalRunId: null,
           streaming: true,
+          runTerminal: { kind: 'none' },
           runRecordsById: {
             ...state.runRecordsById,
-            [event.runId]: nextRunRecord,
+            [event.runId]: {
+              ...nextRunRecord,
+              startedAt:
+                state.activeRunId === event.runId && state.activeRunStartedAt !== null
+                  ? state.activeRunStartedAt
+                  : nextRunRecord.startedAt,
+            },
           },
         };
-      }
-      return {
-        ...state,
-        runPhase: 'streaming',
-        activeRunId: event.runId,
-        activeRunPhase: event.phase,
-        activeRunStartedAt:
-          state.activeRunId === event.runId && state.activeRunStartedAt !== null
-            ? state.activeRunStartedAt
-            : parseEventTime(event.at),
-        lastTerminalRunId: null,
-        streaming: true,
-        runTerminal: { kind: 'none' },
-        runRecordsById: {
-          ...state.runRecordsById,
-          [event.runId]: {
-            ...nextRunRecord,
-            startedAt:
-              state.activeRunId === event.runId && state.activeRunStartedAt !== null
-                ? state.activeRunStartedAt
-                : nextRunRecord.startedAt,
-          },
-        },
-      };
       }
     case 'run/terminal':
       // Historical / late terminals must never clear a different active run.
@@ -1162,45 +1330,45 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             [event.runId]: terminalRecord,
           },
         };
-      if (event.outcome === 'cancelled') {
+        if (event.outcome === 'cancelled') {
+          return {
+            ...withRecord,
+            activeRunId: null,
+            activeRunPhase: null,
+            activeRunStartedAt: null,
+            lastTerminalRunId: event.runId,
+            runPhase: 'idle',
+            streaming: false,
+            runTerminal: { kind: 'stopped', at: Date.now() },
+          };
+        }
+        if (event.outcome === 'failed') {
+          return {
+            ...withRecord,
+            activeRunId: null,
+            activeRunPhase: null,
+            activeRunStartedAt: null,
+            lastTerminalRunId: event.runId,
+            error: event.message ?? 'Run failed',
+            runPhase: 'idle',
+            streaming: false,
+            runTerminal: {
+              kind: 'failed',
+              message: event.message ?? 'Run failed',
+              at: Date.now(),
+            },
+          };
+        }
         return {
           ...withRecord,
-        activeRunId: null,
-        activeRunPhase: null,
-        activeRunStartedAt: null,
-          lastTerminalRunId: event.runId,
-          runPhase: 'idle',
-          streaming: false,
-          runTerminal: { kind: 'stopped', at: Date.now() },
-        };
-      }
-      if (event.outcome === 'failed') {
-        return {
-          ...withRecord,
-        activeRunId: null,
-        activeRunPhase: null,
-        activeRunStartedAt: null,
-          lastTerminalRunId: event.runId,
-          error: event.message ?? 'Run failed',
-          runPhase: 'idle',
-          streaming: false,
-          runTerminal: {
-            kind: 'failed',
-            message: event.message ?? 'Run failed',
-            at: Date.now(),
-          },
-        };
-      }
-      return {
-        ...withRecord,
-        activeRunId: null,
+          activeRunId: null,
           activeRunPhase: null,
           activeRunStartedAt: null,
           lastTerminalRunId: event.runId,
-        runPhase: 'idle',
-        streaming: false,
-        runTerminal: { kind: 'complete', at: Date.now() },
-      };
+          runPhase: 'idle',
+          streaming: false,
+          runTerminal: { kind: 'complete', at: Date.now() },
+        };
       }
     default:
       return state;
@@ -1252,10 +1420,10 @@ function buildRunRecordsFromTranscriptMessages(
       phaseHistory,
       startedAt: message.startedAt
         ? parseEventTime(message.startedAt)
-        : existingRecord?.startedAt ?? null,
+        : (existingRecord?.startedAt ?? null),
       endedAt: message.endedAt
         ? parseEventTime(message.endedAt)
-        : existingRecord?.endedAt ?? null,
+        : (existingRecord?.endedAt ?? null),
       ...(message.outcome
         ? { outcome: message.outcome }
         : existingRecord?.outcome
@@ -1313,9 +1481,7 @@ function findAssistantMessageForToolStart(
     }
     return undefined;
   }
-  return [...state.messages]
-    .reverse()
-    .find((message) => message.role === 'assistant');
+  return [...state.messages].reverse().find((message) => message.role === 'assistant');
 }
 
 /** Update a tool only on the owning message/run, never the first global match. */
@@ -1356,9 +1522,7 @@ function updateOwnedTool(
     matched = true;
     return {
       ...message,
-      tools: message.tools.map((tool, index) =>
-        index === toolIndex ? updater(tool) : tool,
-      ),
+      tools: message.tools.map((tool, index) => (index === toolIndex ? updater(tool) : tool)),
     };
   });
   if (!matched) {
@@ -1390,9 +1554,7 @@ function mergeToolPresentation(
           },
         }
       : {}),
-    ...(incoming.error || existing.error
-      ? { error: incoming.error ?? existing.error }
-      : {}),
+    ...(incoming.error || existing.error ? { error: incoming.error ?? existing.error } : {}),
   };
   const targetPaths = incoming.targetPaths ?? existing.targetPaths;
   const changedPaths = incoming.changedPaths ?? existing.changedPaths;

@@ -3,7 +3,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useRunActivityPhrases } from './run-activity-hooks.js';
 import { resolveActivityIcon } from './run-activity-icon.js';
 import { RunActivityIcon } from './RunActivityIcon.js';
-import type { RunActivityInput } from './run-activity-types.js';
+import type { RunActivityInput, ActivityActionCategory } from './run-activity-types.js';
 
 export type RunActivitySplashProps = {
   input: RunActivityInput;
@@ -18,7 +18,23 @@ function formatElapsedSeconds(ms?: number): string | null {
   return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
 }
 
-function resolveKindBadge(input: RunActivityInput): string {
+function resolveKindBadge(input: RunActivityInput, category?: ActivityActionCategory): string {
+  if (category === 'terminal') {
+    return input.locale === 'zh-CN' ? '执行 Command' : (input.activeToolName ? input.activeToolName.toUpperCase() : 'TERMINAL');
+  }
+  if (category === 'edit') {
+    return input.locale === 'zh-CN' ? '编辑代码' : (input.activeToolName ? input.activeToolName.toUpperCase() : 'EDIT');
+  }
+  if (category === 'search') {
+    return input.locale === 'zh-CN' ? '检索代码' : (input.activeToolName ? input.activeToolName.toUpperCase() : 'SEARCH');
+  }
+  if (category === 'web') {
+    return input.locale === 'zh-CN' ? '网页搜索' : (input.activeToolName ? input.activeToolName.toUpperCase() : 'WEB');
+  }
+  if (category === 'subagent') {
+    return input.locale === 'zh-CN' ? '子Agent 协作' : 'SUBAGENT';
+  }
+
   switch (input.kind) {
     case 'connecting-model':
       return input.locale === 'zh-CN' ? '连接模型' : 'CONNECTING';
@@ -52,7 +68,7 @@ export function RunActivitySplash(props: RunActivitySplashProps): ReactElement {
   const iconSource = useMemo(() => resolveActivityIcon(props.input), [props.input]);
   const ariaLabel = phrases[0] ?? '';
   const elapsedText = formatElapsedSeconds(props.input.elapsedMs);
-  const badgeLabel = resolveKindBadge(props.input);
+  const badgeLabel = resolveKindBadge(props.input, iconSource.actionCategory);
 
   return (
     <div
@@ -62,15 +78,24 @@ export function RunActivitySplash(props: RunActivitySplashProps): ReactElement {
       aria-atomic="true"
       aria-label={ariaLabel}
       data-kind={props.input.kind}
+      {...(iconSource.actionCategory ? { 'data-action': iconSource.actionCategory } : {})}
     >
       <span className="sr-only">{ariaLabel}</span>
-      <div className="run-activity-splash-icon-wrap" data-kind={props.input.kind}>
+      <div
+        className="run-activity-splash-icon-wrap"
+        data-kind={props.input.kind}
+        {...(iconSource.actionCategory ? { 'data-action': iconSource.actionCategory } : {})}
+      >
         <div className="run-activity-splash-glow" aria-hidden="true" />
         <RunActivityIcon source={iconSource} className="run-activity-splash-icon" />
       </div>
       <div className="run-activity-splash-content">
         <div className="run-activity-splash-meta">
-          <span className="run-activity-badge" data-kind={props.input.kind}>
+          <span
+            className="run-activity-badge"
+            data-kind={props.input.kind}
+            {...(iconSource.actionCategory ? { 'data-action': iconSource.actionCategory } : {})}
+          >
             {badgeLabel}
           </span>
           {elapsedText ? <span className="run-activity-timer-pill">{elapsedText}</span> : null}
@@ -81,21 +106,21 @@ export function RunActivitySplash(props: RunActivitySplashProps): ReactElement {
               <motion.span
                 key={currentPhrase}
                 className="run-activity-splash-phrase"
-                initial={reduced ? false : { y: 12, opacity: 0, filter: 'blur(4px)' }}
+                initial={reduced ? false : { y: 10, opacity: 0, scale: 0.98, filter: 'blur(3px)' }}
                 animate={
                   reduced
                     ? { opacity: 1 }
-                    : { y: 0, opacity: 1, filter: 'blur(0px)' }
+                    : { y: 0, opacity: 1, scale: 1, filter: 'blur(0px)' }
                 }
                 exit={
                   reduced
                     ? { opacity: 1 }
-                    : { y: -12, opacity: 0, filter: 'blur(4px)' }
+                    : { y: -10, opacity: 0, scale: 0.98, filter: 'blur(3px)' }
                 }
                 transition={
                   reduced
                     ? { duration: 0 }
-                    : { duration: 0.3, ease: [0.22, 1, 0.36, 1] }
+                    : { duration: 0.24, ease: [0.22, 1, 0.36, 1] }
                 }
               >
                 {currentPhrase}
@@ -107,3 +132,4 @@ export function RunActivitySplash(props: RunActivitySplashProps): ReactElement {
     </div>
   );
 }
+

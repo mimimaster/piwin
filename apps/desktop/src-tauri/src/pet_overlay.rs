@@ -25,7 +25,11 @@ pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         tauri::WebviewUrl::App("index.html".into()),
     )
     .title("")
-    .inner_size(120.0, 130.0)
+    // Width/height leave room for the speech bubble that floats above the
+    // sprite (96×104) when the agent is active. On macOS the transparent
+    // pixels are click-through; on other platforms the transparent band is
+    // wider, which is an accepted trade-off for showing the activity text.
+    .inner_size(200.0, 176.0)
     .position(100.0, 100.0)
     .decorations(false)
     .transparent(true)

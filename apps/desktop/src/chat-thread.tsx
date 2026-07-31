@@ -1,19 +1,27 @@
 /**
  * Scrollable assistant/user message list with edit/retry actions.
  */
-import { memo, useEffect, useRef, useState, type ReactElement } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+
 import type { SessionPlan, ThemeManifest } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
-import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
-import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
+import type {
+  ChatMessageUi,
+  PermissionPromptUi,
+  RunRecordUi,
+  SubagentStreamState,
+} from './chat-reducer';
+import type {
+  PermissionDecision,
+  PermissionRememberScope,
+  PlanExecutionMode,
+} from '@piwin/contracts';
 import { MarkdownView } from './MarkdownView';
 import { MediaPreview } from './MediaPreview';
-import { MessageActions } from './message-actions';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { SubagentActivityCard } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
 import { RunActivitySlot } from './RunActivitySlot.js';
-import { IconAgent } from './shell-icons';
 import { PlanCard } from './plan-card';
 import { GateCard } from './gate-card';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
@@ -21,6 +29,7 @@ import { ComposerCard, type ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import type { PendingComposerAttachment } from './media-utils';
+import { IconCopy, IconCheck, IconRevert } from './shell-icons';
 
 /**
  * In-place composer for editing a user message. Renders the same ComposerCard
@@ -201,8 +210,16 @@ export type ChatThreadProps = {
   artifactMaxBytes?: number;
   /** Global composer configuration so the in-place edit card matches the bottom dock. */
   composerCard: ComposerDockProps;
+  /** Callback when clicking a markdown document link or plan document chip. */
+  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
+  /** Called when the user selects an execution mode for the session plan. */
+  onPlanExecute?: ((mode: PlanExecutionMode) => void | Promise<void>) | undefined;
+  /** Called when the user aborts a running plan. */
+  onPlanAbort?: (() => void | Promise<void>) | undefined;
   /** Locale used by all run activity components. */
   locale?: 'zh-CN' | 'en';
+  /** Live subagent streams for inline expand UX (keyed by childSessionId). */
+  subagentStreams?: Record<string, SubagentStreamState>;
 };
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
@@ -230,9 +247,27 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     knownIdsRef.current = known;
   }, [props.messages]);
 
+  const activeToolName = useMemo(() => {
+    for (let i = props.messages.length - 1; i >= 0; i--) {
+      const msg = props.messages[i];
+      if (msg?.role === 'assistant') {
+        const runningTool = msg.tools.find((t) => t.status === 'running');
+        if (runningTool) return runningTool.toolName;
+      }
+    }
+    return undefined;
+  }, [props.messages]);
+
   return (
     <div className="chat-thread">
-      {props.plan ? <PlanCard plan={props.plan} /> : null}
+      {props.plan ? (
+        <PlanCard
+          plan={props.plan}
+          {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+          {...(props.onPlanExecute ? { onExecute: props.onPlanExecute } : {})}
+          {...(props.onPlanAbort ? { onAbort: props.onPlanAbort } : {})}
+        />
+      ) : null}
       {props.messages.map((message, messageIndex) => (
         <ChatMessageRow
           key={message.id}
@@ -265,7 +300,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.artifactMaxBytes !== undefined
             ? { artifactMaxBytes: props.artifactMaxBytes }
             : {})}
+          {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           {...(props.locale ? { locale: props.locale } : {})}
+          {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
         />
       ))}
       {props.streaming &&
@@ -275,6 +312,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
         <RunActivitySlot
           activeRunId={props.activeRunId ?? null}
           runRecordsById={props.runRecordsById ?? {}}
+          {...(activeToolName ? { activeToolName } : {})}
           {...(props.locale ? { locale: props.locale } : {})}
         />
       ) : null}
@@ -319,21 +357,151 @@ type ChatMessageRowProps = {
   artifactPreviewEnabled?: boolean;
   /** Security byte cap forwarded to evaluateCodeFence. */
   artifactMaxBytes?: number;
+  /** Callback when clicking a markdown document link or plan document chip. */
+  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
   /** Locale used by all run activity components. */
   locale?: 'zh-CN' | 'en';
   /** Global composer card props so the edit mode matches the bottom composer. */
   composerCard: ComposerDockProps;
+  /** Live subagent streams for inline expand UX. */
+  subagentStreams?: Record<string, SubagentStreamState>;
 };
+
+function formatMessageTime(createdAt?: string): string {
+  if (!createdAt) return '';
+  const date = new Date(createdAt);
+  if (isNaN(date.getTime())) return '';
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
+/** Height (px) above which a user message bubble collapses. */
+const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
+
+function UserMessageContent(props: {
+  message: ChatMessageUi;
+  streaming?: boolean;
+  onRetry: (messageId: string) => void;
+  onFeedback?: ((message: string, level: 'success' | 'error') => void) | undefined;
+}): ReactElement {
+  const { message } = props;
+  const [copied, setCopied] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isOverflow, setIsOverflow] = useState(false);
+  const textRef = useRef<HTMLDivElement | null>(null);
+  const formattedTime = formatMessageTime(message.createdAt);
+
+  // Measure the natural height of the text node to determine if it needs collapsing.
+  useEffect(() => {
+    const node = textRef.current;
+    if (!node) return;
+
+    function measure(): void {
+      if (!node) return;
+      const naturalHeight = node.scrollHeight;
+      setIsOverflow(naturalHeight > USER_MESSAGE_COLLAPSE_THRESHOLD);
+    }
+
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [message.text]);
+
+  async function handleCopy(): Promise<void> {
+    const payload = message.text.trim();
+    if (!payload) return;
+    try {
+      await navigator.clipboard.writeText(payload);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+      props.onFeedback?.('Copied to clipboard', 'success');
+    } catch {
+      props.onFeedback?.('Could not copy to clipboard', 'error');
+    }
+  }
+
+  const collapsed = isOverflow && isCollapsed;
+
+  const handleToggle = isOverflow
+    ? () => setIsCollapsed((prev) => !prev)
+    : undefined;
+
+  return (
+    <div className="user-message-wrapper">
+      <div
+        className={`message-text-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isOverflow ? 'is-clickable' : ''}`}
+        onClick={handleToggle}
+        role={isOverflow ? 'button' : undefined}
+        tabIndex={isOverflow ? 0 : undefined}
+        onKeyDown={
+          isOverflow
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setIsCollapsed((prev) => !prev);
+                }
+              }
+            : undefined
+        }
+      >
+        <div
+          ref={textRef}
+          className="message-text"
+          style={collapsed ? { maxHeight: `${USER_MESSAGE_COLLAPSE_THRESHOLD}px` } : undefined}
+        >
+          {message.text}
+        </div>
+      </div>
+      <div
+        className="user-message-actions"
+        data-testid="user-message-actions"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {formattedTime ? (
+          <span className="user-message-time" data-testid="user-message-time">
+            {formattedTime}
+          </span>
+        ) : null}
+        <button
+          type="button"
+          className="user-msg-btn"
+          onClick={() => void handleCopy()}
+          title="Copy"
+          aria-label="Copy message"
+          data-testid="message-copy-btn"
+        >
+          {copied ? <IconCheck /> : <IconCopy />}
+        </button>
+        <button
+          type="button"
+          className="user-msg-btn"
+          onClick={() => props.onRetry(message.id)}
+          disabled={props.streaming}
+          title="Revert"
+          aria-label="Revert message"
+          data-testid="message-revert-btn"
+        >
+          <IconRevert />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const ChatMessageRow = memo(
   function ChatMessageRow(props: ChatMessageRowProps): ReactElement {
     const { message } = props;
     if (message.subagentActivity) {
+      const stream = props.subagentStreams?.[message.subagentActivity.childSessionId];
       return (
         <div id={`msg-${message.id}`} className="chat-subagent-slot">
           <SubagentActivityCard
             activity={message.subagentActivity}
             {...(props.onOpenSubagentSession ? { onOpenSession: props.onOpenSubagentSession } : {})}
+            {...(stream ? { stream } : {})}
           />
         </div>
       );
@@ -368,17 +536,6 @@ const ChatMessageRow = memo(
         data-role={message.role}
         {...(handleDoubleClick ? { onDoubleClick: handleDoubleClick } : {})}
       >
-        {message.role === 'assistant' ? (
-          <header className="bubble-header">
-            <span className="bubble-agent-icon" aria-hidden>
-              <IconAgent />
-            </span>
-            <strong className="bubble-role">piwin</strong>
-            {message.status === 'streaming' ? (
-              <span className="stream-dot" aria-label="Streaming" />
-            ) : null}
-          </header>
-        ) : null}
         {message.role === 'assistant' ? (
           <TurnWorkDetails
             message={message}
@@ -415,6 +572,7 @@ const ChatMessageRow = memo(
               ? { artifactMaxBytes: props.artifactMaxBytes }
               : {})}
             {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+            {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           />
         ) : isEditingThis ? (
           <MessageEditCard
@@ -425,27 +583,18 @@ const ChatMessageRow = memo(
             onResend={(text) => props.onEditResend(message.id, text)}
           />
         ) : (
-          <div className="message-text">{message.text}</div>
-        )}
-        {message.status !== 'streaming' &&
-        message.text.trim() &&
-        !isEditingThis &&
-        message.role === 'assistant' ? (
-          <MessageActions
-            text={message.text}
-            showRetry={false}
-            showEdit={false}
+          <UserMessageContent
+            message={message}
+            streaming={props.streaming}
+            onRetry={props.onRetry}
             onFeedback={props.onFeedback}
           />
-        ) : null}
+        )}
       </article>
     );
   },
   (previous, next) => {
-    const isActionableUserMessage =
-      previous.message.role === 'user' &&
-      (previous.message.id === previous.lastUserMessageId ||
-        previous.message.id === previous.editingMessageId);
+    const isActionableUserMessage = previous.message.role === 'user';
     const callbackPropsAreStable = isActionableUserMessage
       ? previous.onEdit === next.onEdit &&
         previous.onCancelEdit === next.onCancelEdit &&
@@ -471,6 +620,7 @@ const ChatMessageRow = memo(
       previous.toolDensity === next.toolDensity &&
       previous.locale === next.locale &&
       previous.onArtifactAction === next.onArtifactAction &&
+      previous.onOpenDocument === next.onOpenDocument &&
       callbackPropsAreStable
     );
   },

@@ -3,7 +3,10 @@
 import type { ThemeManifest } from '@piwin/contracts';
 
 const SHARED_FONT =
-  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Segoe UI", system-ui, sans-serif';
+  'Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
+
+const SHARED_MONO =
+  '"JetBrains Mono", "Fira Code", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
 /** Product dark — Noir pure monochrome field with inverted white accent. */
 export const PIWIN_APPEARANCE_DARK: ThemeManifest = {
@@ -386,10 +389,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Product UI font stack (from manifest). */
   root.style.setProperty('--font', tokens.font);
   /** Monospace font stack. */
-  root.style.setProperty(
-    '--mono',
-    '"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-  );
+  root.style.setProperty('--mono', SHARED_MONO);
   root.style.fontFamily = tokens.font;
 
   // Theme identity attributes

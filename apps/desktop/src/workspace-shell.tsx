@@ -25,7 +25,7 @@ export type WorkspaceShellProps = {
   composerDock: ReactNode;
   statusBar: ReactNode;
   rightPanel: ReactNode;
-  /** Optional full-stage overlay panel (e.g. Knowledge Center). */
+  /** Optional full-stage panel (e.g. Knowledge Center). */
   knowledgePanel?: ReactNode | undefined;
   /** Applied as className additions to the .workspace container. */
   workspaceClassName?: string | undefined;
@@ -50,3 +50,4 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
     </>
   );
 }
+

@@ -15,6 +15,7 @@ import { readStoredRightPanelState, writeStoredRightPanelState } from './right-p
 import { sectionLabel, sectionIcon, type RightPanelTab } from './right-panel-sections';
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
+import { RIGHT_PANEL_MAX_WIDTH_PX, RIGHT_PANEL_MIN_WIDTH_PX } from './right-panel-width';
 
 /** @deprecated use presence of open tabs; kept for App attention gating. */
 export type RightPanelView = 'home' | 'detail';
@@ -40,6 +41,7 @@ export type RightPanelProps = {
   browserContent?: ReactNode;
   canvasContent?: ReactNode;
   sideChatContent?: ReactNode;
+  docPreviewContent?: ReactNode;
   changesCount?: number;
   runningProcessCount?: number;
   cardsDueCount?: number;
@@ -69,6 +71,8 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
       return props.canvasContent;
     case 'sideChat':
       return props.sideChatContent;
+    case 'docPreview':
+      return props.docPreviewContent;
     default:
       return undefined;
   }
@@ -203,8 +207,8 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         role="separator"
         aria-label={locale === 'zh-CN' ? '调整工作区面板宽度' : 'Resize workspace panel'}
         aria-orientation="vertical"
-        aria-valuemin={240}
-        aria-valuemax={640}
+        aria-valuemin={RIGHT_PANEL_MIN_WIDTH_PX}
+        aria-valuemax={RIGHT_PANEL_MAX_WIDTH_PX}
         aria-valuenow={props.panelWidthPx}
         title={
           locale === 'zh-CN'

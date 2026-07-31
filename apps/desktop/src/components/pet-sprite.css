@@ -20,11 +20,13 @@
 .pet-sprite-root.hidden {
   display: none;
 }
-/* Overlay mode: center the sprite in the small transparent OS window. */
+/* Overlay mode: center the sprite horizontally, offset slightly down so the
+   speech bubble (which floats at bottom:100%) has room in the transparent
+   OS window instead of being clipped by the top edge. */
 .pet-sprite-root.overlay {
   bottom: auto;
   right: auto;
   left: 50%;
-  top: 50%;
+  top: 54%;
   transform: translate(-50%, -50%);
 }

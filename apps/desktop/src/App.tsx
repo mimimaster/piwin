@@ -37,6 +37,7 @@ import { KnowledgeCenterPanel } from './KnowledgeCenterPanel';
 import { BrowserPanel } from './browser-panel';
 import { CanvasPanel } from './canvas-panel';
 import { SideChatPanel } from './side-chat-panel';
+import { DocPreviewPanel, type SessionDocItem } from './DocPreviewPanel';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
 import { collectSessionTools } from './tool-call-card';
 import { ChangesPanel } from './changes-panel';
@@ -163,6 +164,109 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   /** Quiet workbench: terminal produced output while directory home / panel collapsed. */
   const [terminalAttention, setTerminalAttention] = useState(false);
   const [rightPanelView, setRightPanelView] = useState<'home' | 'detail'>('home');
+  const [activeDocument, setActiveDocument] = useState<{
+    title?: string | undefined;
+    content?: string | undefined;
+    filePath?: string | null | undefined;
+  } | null>(null);
+
+  const handleOpenDocument = useCallback(
+    (doc: { title: string; path?: string; content?: string }) => {
+      const filePath = doc.path ?? doc.title;
+      const cleanPath = (filePath || '').replace(/^file:\/\//, '');
+      const rawName = cleanPath ? cleanPath.split(/[\\/]/).pop() || doc.title : doc.title;
+      const cleanTitle = (rawName || 'Implementation Plan').replace(/\.md$/i, '');
+
+      setActiveDocument({
+        title: cleanTitle,
+        content: doc.content || (filePath ? '加载文档内容中...' : undefined),
+        filePath: cleanPath,
+      });
+      shell.setInspectorTab('docPreview');
+      if (!rightPanelOpen) {
+        shell.openInspector('docPreview');
+      }
+
+      if (!doc.content && cleanPath) {
+        // Search messages for inline tool outputs or message text as fallback
+        const searchInMessages = (): string | null => {
+          for (let i = state.messages.length - 1; i >= 0; i--) {
+            const msg = state.messages[i];
+            if (!msg) continue;
+            if (msg.text && (msg.text.includes(cleanTitle) || msg.text.includes(cleanPath))) {
+              const codeBlockMatch = new RegExp(
+                '```(?:markdown|md)?\\n([\\s\\S]*?)\\n```',
+                'i',
+              ).exec(msg.text);
+              if (codeBlockMatch && codeBlockMatch[1]) {
+                return codeBlockMatch[1];
+              }
+            }
+            for (const tool of msg.tools) {
+              if (
+                tool.output &&
+                (tool.output.includes(cleanTitle) || tool.output.includes(cleanPath))
+              ) {
+                return tool.output;
+              }
+            }
+          }
+          return null;
+        };
+
+        // Determine projectPath & relativePath for host command
+        let projPath = state.projectPath;
+        let relPath = cleanPath;
+
+        if (cleanPath.startsWith('/')) {
+          const lastSlash = cleanPath.lastIndexOf('/');
+          if (lastSlash > 0) {
+            projPath = cleanPath.slice(0, lastSlash);
+            relPath = cleanPath.slice(lastSlash + 1);
+          }
+        } else if (state.projectPath && cleanPath.startsWith(state.projectPath)) {
+          relPath = cleanPath.slice(state.projectPath.length).replace(/^[/\\]+/, '');
+        }
+
+        if (projPath) {
+          void hostClient
+            .request({
+              type: 'project/read-file',
+              projectPath: projPath,
+              relativePath: relPath,
+            })
+            .then((response) => {
+              if (response.success && response.data) {
+                const fileData = response.data as { content?: string };
+                if (typeof fileData.content === 'string') {
+                  setActiveDocument({
+                    title: cleanTitle,
+                    content: fileData.content,
+                    filePath: cleanPath,
+                  });
+                  return;
+                }
+              }
+              const msgFallback = searchInMessages();
+              setActiveDocument({
+                title: cleanTitle,
+                content: msgFallback || `# ${cleanTitle}\n\n*暂未在路径 ${cleanPath} 找到文件内容*`,
+                filePath: cleanPath,
+              });
+            });
+        } else {
+          const msgFallback = searchInMessages();
+          setActiveDocument({
+            title: cleanTitle,
+            content: msgFallback || `# ${cleanTitle}\n\n*暂未在路径 ${cleanPath} 找到文件内容*`,
+            filePath: cleanPath,
+          });
+        }
+      }
+    },
+    [hostClient, rightPanelOpen, shell, state.messages, state.projectPath],
+  );
+
   const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const watchingTerminalRef = useRef(false);
   watchingTerminalRef.current =
@@ -259,7 +363,19 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         return;
       }
       const data = response.data as { projects?: ProjectRecord[] };
-      setRecentProjects(data.projects ?? []);
+      setRecentProjects((prev) => {
+        const fetched = data.projects ?? [];
+        if (prev.length === 0) {
+          return fetched;
+        }
+        // Preserve stable order of existing projects in sidebar so clicking a project doesn't jump it to top
+        const prevMap = new Map(prev.map((p) => [p.path, p]));
+        const newProjects = fetched.filter((p) => !prevMap.has(p.path));
+        const updatedExisting = prev
+          .map((p) => fetched.find((f) => f.path === p.path) ?? p)
+          .filter((p) => fetched.some((f) => f.path === p.path));
+        return [...newProjects, ...updatedExisting];
+      });
     }
     void loadRecentProjects();
     return () => {
@@ -327,6 +443,46 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setSelectedModelKey,
     onThemeResolved: onThemeApplied,
   });
+
+  const sessionDocuments = useMemo<SessionDocItem[]>(() => {
+    const items: SessionDocItem[] = [];
+    const seenPaths = new Set<string>();
+
+    const addDoc = (title: string, path?: string, iconKind?: 'doc' | 'book' | 'plan') => {
+      const cleanTitle = (title || 'Document').replace(/\.md$/i, '');
+      const docPath = path || title;
+      if (seenPaths.has(docPath)) return;
+      seenPaths.add(docPath);
+      items.push({
+        id: docPath,
+        title: cleanTitle,
+        ...(path ? { path } : {}),
+        iconKind: iconKind || (cleanTitle.toLowerCase().includes('walkthrough') ? 'book' : 'doc'),
+      });
+    };
+
+    if (sessionPlan) {
+      addDoc(sessionPlan.title || 'Implementation Plan', 'implementation_plan.md', 'plan');
+    }
+
+    const pathRegex = /(?:file:\/\/|\/|[A-Za-z]:[\\/]|(?:\.\.?\/))+[\w\u4e00-\u9fa5_./-]+\.md\b/g;
+    for (const msg of state.messages) {
+      if (!msg) continue;
+      const mdMatches = msg.text ? msg.text.match(pathRegex) : null;
+      if (mdMatches) {
+        for (const fullPath of mdMatches) {
+          const baseName = fullPath.split(/[\\/]/).pop() || fullPath;
+          addDoc(baseName, fullPath);
+        }
+      }
+    }
+
+    if (activeDocument?.title) {
+      addDoc(activeDocument.title, activeDocument.filePath ?? activeDocument.title);
+    }
+
+    return items;
+  }, [sessionPlan, state.messages, activeDocument]);
 
   // Remount artifact iframes when the active theme changes so sandboxed
   // documents pick up new artifact variables (root owns the manifest itself).
@@ -962,6 +1118,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       ? { modelContextWindow: selectedModelContextWindow }
       : {}),
     onOpenModelSettings: () => openSettingsSection('models'),
+    hostStatus,
+    hostReady: state.hostReady,
+    hostMock: state.hostMock,
+    transportLabel: hostClient.getTransport(),
+    onOpenHostSettings: () => openSettingsSection('general'),
   };
 
   const handleOpenSubagentSession = useCallback(
@@ -1000,9 +1161,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, []);
   const handleRetryMessage = useCallback(
     (messageId: string): void => {
-      void handleRetryFromMessage(messageId);
+      const msg = state.messages.find((m) => m.id === messageId);
+      if (messageId === lastUserMessageId || !msg) {
+        void handleRetryFromMessage(messageId);
+        return;
+      }
+      setPendingRevertEdit({ messageId, text: msg.text });
     },
-    [handleRetryFromMessage],
+    [handleRetryFromMessage, lastUserMessageId, state.messages],
   );
   const handleMessageFeedback = useCallback(
     (message: string, level: 'success' | 'error'): void => {
@@ -1013,6 +1179,42 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
     [dispatchNotification],
   );
+
+  const handlePlanExecute = useCallback(
+    async (mode: import('@piwin/contracts').PlanExecutionMode): Promise<void> => {
+      if (!state.activeSessionId || !sessionPlan) return;
+      const response = await hostClient.request({
+        type: 'plan/execute',
+        request: {
+          sessionId: state.activeSessionId,
+          planId: sessionPlan.id,
+          mode,
+        },
+      });
+      if (!response.success) {
+        dispatchNotification({
+          type: 'notify/push',
+          notification: { level: 'error', message: response.error },
+        });
+      }
+    },
+    [hostClient, state.activeSessionId, sessionPlan, dispatchNotification],
+  );
+
+  const handlePlanAbort = useCallback(async (): Promise<void> => {
+    if (!state.activeSessionId || !sessionPlan) return;
+    const response = await hostClient.request({
+      type: 'plan/abort',
+      sessionId: state.activeSessionId,
+      planId: sessionPlan.id,
+    });
+    if (!response.success) {
+      dispatchNotification({
+        type: 'notify/push',
+        notification: { level: 'error', message: response.error },
+      });
+    }
+  }, [hostClient, state.activeSessionId, sessionPlan, dispatchNotification]);
 
   useEffect(() => {
     document.documentElement.lang = desktopLocale;
@@ -1125,6 +1327,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               }}
               onResumeSession={(sessionId) => void handleResumeSession(sessionId)}
               onOpenSessionMenu={(sessionId, x, y) => setSessionMenu({ sessionId, x, y })}
+              onTogglePin={(sessionId, currentlyPinned) =>
+                void handleSessionMenuAction(sessionId, currentlyPinned ? 'unpin' : 'pin')
+              }
+              onArchiveSession={(sessionId) => void handleSessionMenuAction(sessionId, 'archive')}
+              onUnarchiveSession={(sessionId) =>
+                void handleSessionMenuAction(sessionId, 'unarchive')
+              }
               onOpenSettings={() => openSettingsSection('general')}
               knowledgeOpen={knowledgeOpen}
               onToggleKnowledge={() => setKnowledgeOpen((current) => !current)}
@@ -1281,7 +1490,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     onRetry={handleRetryMessage}
                     onFeedback={handleMessageFeedback}
                     onArtifactAction={handleArtifactAction}
+                    onOpenDocument={handleOpenDocument}
+                    onPlanExecute={handlePlanExecute}
+                    onPlanAbort={handlePlanAbort}
                     composerCard={composerCard}
+                    subagentStreams={state.subagentStreams}
                   />
                 )}
               </TranscriptViewport>
@@ -1412,6 +1625,21 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 browserContent={<BrowserPanel />}
                 canvasContent={<CanvasPanel />}
                 sideChatContent={<SideChatPanel sessionId={state.activeSessionId} />}
+                docPreviewContent={
+                  <DocPreviewPanel
+                    title={activeDocument?.title}
+                    content={activeDocument?.content}
+                    filePath={activeDocument?.filePath}
+                    sessionDocuments={sessionDocuments}
+                    onSelectDocument={(doc) =>
+                      handleOpenDocument({
+                        title: doc.title,
+                        ...(doc.path ? { path: doc.path } : {}),
+                      })
+                    }
+                    locale={desktopLocale}
+                  />
+                }
                 terminalContent={
                   <TerminalDock
                     projectPath={state.projectPath}

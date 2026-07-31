@@ -89,6 +89,24 @@ describe('parseComposerSlashSubmit', () => {
     });
   });
 
+  it('resolves /write-plan alias to writing-plans skill', () => {
+    expect(parseComposerSlashSubmit('/write-plan add auth', skills)).toEqual({
+      kind: 'skill',
+      skillId: 'writing-plans',
+      skillName: 'writing-plans',
+      args: 'add auth',
+    });
+  });
+
+  it('still resolves canonical /writing-plans', () => {
+    expect(parseComposerSlashSubmit('/writing-plans add auth', skills)).toEqual({
+      kind: 'skill',
+      skillId: 'writing-plans',
+      skillName: 'writing-plans',
+      args: 'add auth',
+    });
+  });
+
   it('unknown slash stays unknown (send as text)', () => {
     expect(parseComposerSlashSubmit('/canvas', skills)).toEqual({
       kind: 'unknown',

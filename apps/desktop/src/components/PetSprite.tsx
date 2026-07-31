@@ -1,6 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PetAnimationState, PetRuntimeSnapshot } from '@piwin/contracts';
-import { DEFAULT_PET_STATE_ROWS } from '@piwin/contracts';
+import {
+  CODEX_PET_FRAME_COUNTS_BY_ROW,
+  DEFAULT_PET_STATE_ROWS,
+  PET_CELL_HEIGHT,
+  PET_CELL_WIDTH,
+  PET_SPRITE_COLS,
+  PET_SPRITE_ROWS,
+} from '@piwin/contracts';
+import { PetBubble } from './PetBubble';
 import './pet-sprite.css';
 
 export type PetSpriteProps = {
@@ -22,6 +30,17 @@ type TempAction = PetAnimationState | null;
 
 /** Synchronous image cache so re-renders or state changes do not lose image ref. */
 const imageCacheMap = new Map<string, HTMLImageElement>();
+
+function resolvePetFrameCount(pet: PetRuntimeSnapshot, state: PetAnimationState): number {
+  const row = pet.stateRows[state] ?? DEFAULT_PET_STATE_ROWS[state] ?? 0;
+  const usesCodexAtlasGeometry =
+    pet.cellWidth === PET_CELL_WIDTH &&
+    pet.cellHeight === PET_CELL_HEIGHT &&
+    pet.cols === PET_SPRITE_COLS &&
+    (pet.rows === PET_SPRITE_ROWS || pet.rows === CODEX_PET_FRAME_COUNTS_BY_ROW.length);
+  const configuredCount = usesCodexAtlasGeometry ? CODEX_PET_FRAME_COUNTS_BY_ROW[row] : undefined;
+  return Math.max(1, Math.min(pet.cols, configuredCount ?? pet.cols));
+}
 
 export function PetSprite(props: PetSpriteProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -97,8 +116,12 @@ export function PetSprite(props: PetSpriteProps) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           const frameMs = 1000 / (pet.fps || 6);
+          const frameCount = resolvePetFrameCount(pet, state);
+          if (frameRef.current >= frameCount) {
+            frameRef.current = 0;
+          }
           if (now - lastFrame >= frameMs) {
-            frameRef.current = (frameRef.current + 1) % pet.cols;
+            frameRef.current = (frameRef.current + 1) % frameCount;
             lastFrame = now;
           }
           const row = pet.stateRows[state] ?? DEFAULT_PET_STATE_ROWS[state] ?? 0;
@@ -129,6 +152,9 @@ export function PetSprite(props: PetSpriteProps) {
 
     function tick(now: number): void {
       const pet = petRef.current;
+      if (tempActionRef.current && now >= tempActionUntil.current) {
+        tempActionRef.current = null;
+      }
       drawFrame(now);
 
       // Random idle action.
@@ -144,9 +170,6 @@ export function PetSprite(props: PetSpriteProps) {
         tempActionRef.current = action;
         tempActionUntil.current = now + ACTION_DURATION_MS;
         lastIdle = now;
-      }
-      if (tempActionRef.current && now > tempActionUntil.current) {
-        tempActionRef.current = null;
       }
       rafRef.current = requestAnimationFrame(tick);
     }
@@ -232,6 +255,7 @@ export function PetSprite(props: PetSpriteProps) {
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
+      <PetBubble pet={props.pet} />
       <canvas ref={canvasRef} />
     </div>
   );

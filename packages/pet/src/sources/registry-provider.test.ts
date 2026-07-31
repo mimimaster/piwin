@@ -143,9 +143,10 @@ describe('registryProvider.install', () => {
     expect(result.path).toBe(join(petsDir, 'install-flat'));
 
     // pet.json + spritesheet are in place.
-    const manifest = JSON.parse(
-      await readFile(join(result.path, 'pet.json'), 'utf8'),
-    ) as { id: string; spritesheetPath: string };
+    const manifest = JSON.parse(await readFile(join(result.path, 'pet.json'), 'utf8')) as {
+      id: string;
+      spritesheetPath: string;
+    };
     expect(manifest.id).toBe('install-flat');
     await expect(stat(join(result.path, 'sheet.png'))).resolves.toBeDefined();
 
@@ -233,9 +234,9 @@ describe('registryProvider.install', () => {
       unzip: unzipMock as never,
     };
 
-    await expect(
-      registryProvider.install!(ctx as never, JSON.stringify(entry)),
-    ).rejects.toThrow('unzip exploded');
+    await expect(registryProvider.install!(ctx as never, JSON.stringify(entry))).rejects.toThrow(
+      'unzip exploded',
+    );
 
     // Staging dir is gone.
     await expect(stat(join(root, 'pets', '.staging', 'install-fail'))).rejects.toBeDefined();
@@ -273,11 +274,149 @@ describe('registryProvider.install', () => {
       unzip: unzipMock as never,
     };
 
-    await expect(
-      registryProvider.install!(ctx as never, JSON.stringify(entry)),
-    ).rejects.toThrow('spritesheetPath');
+    await expect(registryProvider.install!(ctx as never, JSON.stringify(entry))).rejects.toThrow(
+      'spritesheetPath',
+    );
     await expect(stat(join(petsDir, 'install-bad'))).rejects.toBeDefined();
     // Clean up root after test.
     await rm(root, { recursive: true, force: true });
+  });
+
+  it('rejects a catalog entry id that escapes the pets dir', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-pet-install-'));
+    const petsDir = join(root, 'pets');
+    const body = fakeZipBody();
+    const sha256 = createHash('sha256').update(body).digest('hex');
+    const entry = {
+      id: '../evil',
+      displayName: 'Evil',
+      url: 'https://reg.test/evil.zip',
+      sha256,
+      sizeBytes: body.length,
+    };
+
+    const unzipMock = vi.fn(async () => {});
+    const fetchMock = vi.fn(async () => makeBodyResponse(body));
+
+    const ctx = {
+      piwinRoot: root,
+      petsDir,
+      codexPetsDir: join(root, 'codex'),
+      fetch: fetchMock as never,
+      unzip: unzipMock as never,
+    };
+
+    await expect(registryProvider.install!(ctx as never, JSON.stringify(entry))).rejects.toThrow(
+      'unsafe pet id',
+    );
+
+    // Nothing was created outside the pets dir.
+    await expect(stat(join(petsDir, '..', 'evil'))).rejects.toBeDefined();
+    await expect(stat(join(root, 'pets', '.staging', '..', 'evil'))).rejects.toBeDefined();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('rejects a manifest id that escapes the pets dir', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-pet-install-'));
+    const petsDir = join(root, 'pets');
+    const body = fakeZipBody();
+    const sha256 = createHash('sha256').update(body).digest('hex');
+    const entry = {
+      id: 'manifest-traversal',
+      displayName: 'Manifest Traversal',
+      url: 'https://reg.test/mt.zip',
+      sha256,
+      sizeBytes: body.length,
+    };
+
+    const unzipMock = vi.fn(async (_zipPath: string, destDir: string) => {
+      await writeFile(
+        join(destDir, 'pet.json'),
+        JSON.stringify({
+          id: '../evil',
+          displayName: 'Evil',
+          spritesheetPath: 'sheet.png',
+        }),
+      );
+      await writeFile(join(destDir, 'sheet.png'), Buffer.from('png-bytes'));
+    });
+    const fetchMock = vi.fn(async () => makeBodyResponse(body));
+
+    const ctx = {
+      piwinRoot: root,
+      petsDir,
+      codexPetsDir: join(root, 'codex'),
+      fetch: fetchMock as never,
+      unzip: unzipMock as never,
+    };
+
+    await expect(registryProvider.install!(ctx as never, JSON.stringify(entry))).rejects.toThrow(
+      'id',
+    );
+
+    // The malicious manifest id never became a real path, and the staging
+    // dir was cleaned up.
+    await expect(stat(join(petsDir, '..', 'evil'))).rejects.toBeDefined();
+    await expect(stat(join(petsDir, 'manifest-traversal'))).rejects.toBeDefined();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('replaces an already-installed pet cleanly', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-pet-install-'));
+    const petsDir = join(root, 'pets');
+    const body = fakeZipBody();
+    const sha256 = createHash('sha256').update(body).digest('hex');
+    const entry = {
+      id: 'reinstall',
+      displayName: 'Reinstall',
+      url: 'https://reg.test/reinstall.zip',
+      sha256,
+      sizeBytes: body.length,
+    };
+
+    const unzipMock = vi.fn(async (_zipPath: string, destDir: string) => {
+      await writeFile(
+        join(destDir, 'pet.json'),
+        JSON.stringify({
+          id: 'reinstall',
+          displayName: 'v1',
+          spritesheetPath: 'sheet.png',
+        }),
+      );
+      await writeFile(join(destDir, 'sheet.png'), Buffer.from('v1-bytes'));
+      await writeFile(join(destDir, 'stale.txt'), 'legacy');
+    });
+    const fetchMock = vi.fn(async () => makeBodyResponse(body));
+
+    const ctx = {
+      piwinRoot: root,
+      petsDir,
+      codexPetsDir: join(root, 'codex'),
+      fetch: fetchMock as never,
+      unzip: unzipMock as never,
+    };
+
+    const first = await registryProvider.install!(ctx as never, JSON.stringify(entry));
+    expect(await readFile(join(first.path, 'sheet.png'), 'utf8')).toBe('v1-bytes');
+
+    // Reinstall with different content; must fully replace the old install.
+    unzipMock.mockImplementation(async (_zipPath: string, destDir: string) => {
+      await writeFile(
+        join(destDir, 'pet.json'),
+        JSON.stringify({
+          id: 'reinstall',
+          displayName: 'v2',
+          spritesheetPath: 'sheet.png',
+        }),
+      );
+      await writeFile(join(destDir, 'sheet.png'), Buffer.from('v2-bytes'));
+    });
+
+    const second = await registryProvider.install!(ctx as never, JSON.stringify(entry));
+    expect(await readFile(join(second.path, 'sheet.png'), 'utf8')).toBe('v2-bytes');
+    // Old content is gone.
+    await expect(stat(join(second.path, 'stale.txt'))).rejects.toBeDefined();
+    // No staging or backup/trash dirs left behind.
+    expect((await readdir(petsDir)).sort()).toEqual(['reinstall']);
   });
 });

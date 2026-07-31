@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactElement,
-  type RefObject,
-} from 'react';
+import { useEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
 import type { ArtifactActionMessage, ArtifactPreviewDecision } from '@piwin/artifact';
 import {
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
@@ -26,8 +20,10 @@ import {
 import { Button } from '@piwin/ui-kit';
 
 export type ArtifactFrameProps = {
-  decision:
-    | Extract<ArtifactPreviewDecision, { kind: 'render' } | { kind: 'blocked' } | { kind: 'preparing' }>;
+  decision: Extract<
+    ArtifactPreviewDecision,
+    { kind: 'render' } | { kind: 'blocked' } | { kind: 'preparing' }
+  >;
   /** Higher = sooner init when many artifacts mount (history). */
   initPriority?: number;
   /**
@@ -35,6 +31,13 @@ export type ArtifactFrameProps = {
    * rating). Absent = actions are ignored (render-only artifact).
    */
   onArtifactAction?: (action: ArtifactActionMessage) => void;
+  /**
+   * Optional extra control rendered at the end of the artifact header row.
+   * Used by MarkdownView's in-place code/render toggle ("Show code") so the
+   * affordance lives inside the rendered frame instead of stacking a second
+   * code block above it.
+   */
+  extraHeaderAction?: ReactElement;
 };
 
 /** User-facing content label for an artifact descriptor type. */
@@ -53,6 +56,7 @@ export function ArtifactFrame({
   decision,
   initPriority = 0,
   onArtifactAction,
+  extraHeaderAction,
 }: ArtifactFrameProps): ReactElement {
   const contentLabel = getArtifactContentLabel(decision.descriptor.type);
   if (decision.kind === 'blocked') {
@@ -61,6 +65,7 @@ export function ArtifactFrame({
         <div className="artifact-frame-header">
           <strong>{decision.descriptor.title}</strong>
           <span className="pill">blocked</span>
+          {extraHeaderAction ?? null}
         </div>
         <p className="muted">
           Cannot preview this {contentLabel}: <code>{decision.reason}</code>
@@ -84,6 +89,7 @@ export function ArtifactFrame({
         <div className="artifact-frame-header">
           <strong>{decision.descriptor.title}</strong>
           <span className="pill">streaming</span>
+          {extraHeaderAction ?? null}
         </div>
         <p className="muted">{decision.message}</p>
         <details>
@@ -101,6 +107,7 @@ export function ArtifactFrame({
       decision={decision}
       initPriority={initPriority}
       {...(onArtifactAction ? { onArtifactAction } : {})}
+      {...(extraHeaderAction ? { extraHeaderAction } : {})}
     />
   );
 }
@@ -109,8 +116,9 @@ function ArtifactRenderFrame(props: {
   decision: Extract<ArtifactPreviewDecision, { kind: 'render' }>;
   initPriority: number;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
+  extraHeaderAction?: ReactElement;
 }): ReactElement {
-  const { decision, initPriority, onArtifactAction } = props;
+  const { decision, initPriority, onArtifactAction, extraHeaderAction } = props;
   const contentLabel = getArtifactContentLabel(decision.descriptor.type);
   const channelId =
     decision.mode === 'stream-preview'
@@ -129,9 +137,7 @@ function ArtifactRenderFrame(props: {
   const phaseRef = useRef<ArtifactHeightPhase>('protected');
   const shrinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shrinkPendingRef = useRef<number | null>(null);
-  const maxHeight = expanded
-    ? MAX_ARTIFACT_EXPANDED_HEIGHT
-    : MAX_ARTIFACT_IFRAME_HEIGHT;
+  const maxHeight = expanded ? MAX_ARTIFACT_EXPANDED_HEIGHT : MAX_ARTIFACT_IFRAME_HEIGHT;
 
   useEffect(() => {
     heightRef.current = height;
@@ -192,9 +198,7 @@ function ArtifactRenderFrame(props: {
         if (
           actionMessage.channelId === channelId &&
           onArtifactAction &&
-          decision.descriptor.source.includes(
-            `data-card-id="${actionMessage.payload.cardId}"`,
-          )
+          decision.descriptor.source.includes(`data-card-id="${actionMessage.payload.cardId}"`)
         ) {
           onArtifactAction(actionMessage);
         }
@@ -290,7 +294,11 @@ function ArtifactRenderFrame(props: {
     <div className="artifact-frame">
       <div className="artifact-frame-header">
         <strong>{decision.descriptor.title}</strong>
-        <span className={statusLabel === 'ready' || decision.mode === 'stream-preview' ? 'pill ok' : 'pill'}>
+        <span
+          className={
+            statusLabel === 'ready' || decision.mode === 'stream-preview' ? 'pill ok' : 'pill'
+          }
+        >
           {modePill}
         </span>
         <span className="muted">{decision.security.byteSize} bytes</span>
@@ -311,6 +319,7 @@ function ArtifactRenderFrame(props: {
         >
           {expanded ? 'Collapse' : 'Expand'}
         </Button>
+        {extraHeaderAction ?? null}
       </div>
       {granted ? (
         <iframe

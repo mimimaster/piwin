@@ -3,7 +3,7 @@
  * MarkdownView artifact preview policy coverage (design §7, §12).
  * Uses the same happy-dom + createRoot + act pattern as settings-shell.test.tsx.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
@@ -13,6 +13,8 @@ import { MarkdownView } from './MarkdownView';
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const ARTIFACT_HTML_FENCE = '```artifact-html\n<div><h1>Hi</h1></div>\n```';
 const PLAIN_HTML_FENCE = '```html\n<div class="card"><p>Hello</p></div>\n```';
@@ -157,5 +159,127 @@ describe('MarkdownView artifact preview policy', () => {
     // artifact-html -> html). The invariant is equality across modes.
     expect(onText).toBe(offText);
     expect(offText.length).toBeGreaterThan(0);
+  });
+
+  it('in-place toggle: clicking Preview replaces source with ArtifactFrame (no stacked code)', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+    );
+    // Closed: source visible, no artifact frame.
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+    // Open preview in-place.
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(toggle?.textContent).toContain('Preview artifact');
+    act(() => {
+      toggle?.click();
+    });
+    // Source code block is gone; rendered frame replaces it in place.
+    expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    // The "Show code" affordance lives inside the frame header.
+    const showCode = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(showCode?.textContent).toContain('Show code');
+    // Switch back to source.
+    act(() => {
+      showCode?.click();
+    });
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+  });
+
+  it('in-place toggle: SVG preview replaces source with ArtifactFrame', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+    );
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="artifact-preview-toggle"]',
+    );
+    expect(toggle?.textContent).toContain('Preview SVG');
+    act(() => {
+      toggle?.click();
+    });
+    // Flush the async artifact init promise that resolves setGranted.
+    act(() => {});
+    expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
+  });
+});
+
+describe('MarkdownView path chips', () => {
+  it('collapses a full .md path to its file name', () => {
+    const fullPath = '/Users/yorickjue/.piwin/workspace/自我介绍.md';
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={`文件完整路径：${fullPath}`}
+        renderingPhase="completed"
+        onOpenDocument={vi.fn()}
+      />,
+    );
+    const chip = container.querySelector<HTMLElement>('.md-doc-chip');
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toBe('自我介绍.md');
+    expect(chip?.getAttribute('title')).toBe(fullPath);
+    expect(chip?.getAttribute('data-full-path')).toBe(fullPath);
+  });
+
+  it('opens the full path when a path chip is clicked', () => {
+    const fullPath = '/Users/yorickjue/.piwin/workspace/自我介绍.md';
+    const onOpenDocument = vi.fn();
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={`文件完整路径：${fullPath}`}
+        renderingPhase="completed"
+        onOpenDocument={onOpenDocument}
+      />,
+    );
+    const chip = container.querySelector<HTMLElement>('.md-doc-chip');
+    act(() => {
+      chip?.click();
+    });
+    expect(onOpenDocument).toHaveBeenCalledWith({
+      title: '自我介绍.md',
+      path: fullPath,
+    });
+  });
+
+  it('collapses an inline code .md path to its file name', () => {
+    const fullPath = '/Users/yorickjue/project/README.md';
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={`Open \`${fullPath}\` now.`}
+        renderingPhase="completed"
+        onOpenDocument={vi.fn()}
+      />,
+    );
+    const chip = container.querySelector<HTMLElement>('.md-doc-chip');
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toBe('README.md');
+    expect(chip?.getAttribute('data-full-path')).toBe(fullPath);
+  });
+
+  it('uses the link title for a .md document link', () => {
+    const fullPath = '/Users/yorickjue/project/notes.md';
+    const onOpenDocument = vi.fn();
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={`[My Notes](${fullPath})`}
+        renderingPhase="completed"
+        onOpenDocument={onOpenDocument}
+      />,
+    );
+    const chip = container.querySelector<HTMLElement>('.md-doc-chip');
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toBe('My Notes');
+    expect(chip?.getAttribute('data-full-path')).toBe(fullPath);
+    act(() => {
+      chip?.click();
+    });
+    expect(onOpenDocument).toHaveBeenCalledWith({ title: 'My Notes', path: fullPath });
   });
 });

@@ -112,7 +112,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       </button>
 
       <div className="turn-work-details-body" hidden={!open}>
-        {presentation.isWaitingForModel ? (
+        {presentation.isWaitingForModel && tools.length === 0 && !thinkingItem ? (
           <div className="turn-waiting-line" data-testid="turn-waiting-line">
             <RunActivitySplash
               input={turnPresentationToActivityInput(presentation, props.message, locale)}

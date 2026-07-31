@@ -3,9 +3,14 @@
  * Ported from docs/proto-shell.css plan-card block. The plan is session-level
  * (not anchored to a message), so ChatThread mounts a single card at the top
  * of the assistant area when `sessionPlan` is present.
+ *
+ * Approval + execution flow (Antigravity-style):
+ *   draft  → [Process] reveals [subagent-driven] [inline]
+ *   approved/executing → progress + [Abort] (when running)
+ *   done/abandoned → final state, no actions
  */
 import { useState, type ReactElement } from 'react';
-import type { PlanStepStatus, SessionPlan } from '@piwin/contracts';
+import type { PlanExecutionMode, PlanStepStatus, SessionPlan } from '@piwin/contracts';
 import { Collapse } from '@piwin/ui-kit';
 
 export type PlanStepVisual = 'done' | 'run' | 'pending' | 'skipped';
@@ -24,14 +29,71 @@ export function planStepVisual(status: PlanStepStatus): PlanStepVisual {
   }
 }
 
+export type PlanCardProps = {
+  plan: SessionPlan;
+  defaultOpen?: boolean;
+  onOpenDocument?: ((doc: { title: string; content?: string }) => void) | undefined;
+  /** Called when the user selects an execution mode for a draft/approved plan. */
+  onExecute?: (mode: PlanExecutionMode) => void | Promise<void>;
+  /** Called when the user aborts a running plan. */
+  onAbort?: () => void | Promise<void>;
+  /** Disable action buttons (e.g. while a host request is in flight). */
+  actionInProgress?: boolean;
+};
+
 export function PlanCard({
   plan,
   defaultOpen = true,
-}: {
-  plan: SessionPlan;
-  defaultOpen?: boolean;
-}): ReactElement {
+  onOpenDocument,
+  onExecute,
+  onAbort,
+  actionInProgress = false,
+}: PlanCardProps): ReactElement {
   const [open, setOpen] = useState(defaultOpen);
+  const [modeRevealed, setModeRevealed] = useState(false);
+  const isLong = plan.complexity === 'long';
+  const execution = plan.execution;
+  const isRunning =
+    execution?.status === 'running' ||
+    execution?.status === 'queued' ||
+    plan.status === 'executing';
+  const isTerminal = plan.status === 'done' || plan.status === 'abandoned';
+  const canProcess =
+    !isTerminal && !isRunning && (plan.status === 'draft' || plan.status === 'approved');
+
+  function handleOpenDoc(event: React.MouseEvent): void {
+    event.stopPropagation();
+    if (!onOpenDocument) return;
+    const markdownContent = [
+      `# Implementation Plan: ${plan.title}`,
+      `**Goal**: ${plan.goal || 'Session Plan Execution'}`,
+      `**Status**: ${plan.status}`,
+      '',
+      '## Plan Steps',
+      ...plan.steps.map((step, idx) => {
+        const isDone = step.status === 'done';
+        const tag = isDone ? '[DONE]' : step.status === 'active' ? '[MODIFY]' : '[PENDING]';
+        return `### ${tag} Step ${idx + 1}: ${step.title}\n- Status: \`${step.status}\`${step.detail ? `\n- Detail: ${step.detail}` : ''}`;
+      }),
+    ].join('\n');
+
+    onOpenDocument({
+      title: plan.title || 'Implementation Plan',
+      content: markdownContent,
+    });
+  }
+
+  async function handleModeSelect(mode: PlanExecutionMode): Promise<void> {
+    if (!onExecute || actionInProgress) return;
+    await onExecute(mode);
+    setModeRevealed(false);
+  }
+
+  async function handleAbort(): Promise<void> {
+    if (!onAbort || actionInProgress) return;
+    await onAbort();
+  }
+
   return (
     <div className={`plan-card${open ? '' : ' closed'}`} data-testid="plan-card">
       <button
@@ -43,6 +105,11 @@ export function PlanCard({
         <span className="plan-title">
           计划 · {plan.steps.length} 步（{plan.title}）
         </span>
+        {onOpenDocument ? (
+          <span className="plan-doc-link" title="在右侧面板中打开增强文档" onClick={handleOpenDoc}>
+            📄 Implementation Plan
+          </span>
+        ) : null}
         <svg className="chev ic" viewBox="0 0 24 24">
           <path d="M6 9l6 6 6-6" />
         </svg>
@@ -59,6 +126,66 @@ export function PlanCard({
             );
           })}
         </div>
+        {canProcess && onExecute ? (
+          <div className="plan-actions" data-testid="plan-actions">
+            {!modeRevealed ? (
+              <button
+                type="button"
+                className="plan-btn plan-btn-primary"
+                data-testid="plan-process"
+                disabled={actionInProgress}
+                onClick={() => setModeRevealed(true)}
+              >
+                Process
+              </button>
+            ) : (
+              <div className="plan-mode-buttons" data-testid="plan-mode-buttons">
+                <button
+                  type="button"
+                  className={`plan-btn${isLong ? ' plan-btn-recommended' : ''}`}
+                  data-testid="plan-mode-subagent"
+                  disabled={actionInProgress}
+                  onClick={() => void handleModeSelect('subagent-driven')}
+                >
+                  {isLong ? '★ ' : ''}Subagent-driven
+                </button>
+                <button
+                  type="button"
+                  className={`plan-btn${!isLong ? ' plan-btn-recommended' : ''}`}
+                  data-testid="plan-mode-inline"
+                  disabled={actionInProgress}
+                  onClick={() => void handleModeSelect('inline')}
+                >
+                  {isLong ? '' : '★ '}Inline
+                </button>
+              </div>
+            )}
+          </div>
+        ) : null}
+        {isRunning && onAbort ? (
+          <div className="plan-actions" data-testid="plan-running-actions">
+            <span className="plan-running-label" data-testid="plan-running-label">
+              {execution?.status === 'queued' ? 'Queued…' : 'Executing…'}
+              {execution?.currentStepId ? ` (step ${execution.currentStepId})` : ''}
+              {execution?.mode ? ` · ${execution.mode}` : ''}
+            </span>
+            <button
+              type="button"
+              className="plan-btn plan-btn-danger"
+              data-testid="plan-abort"
+              disabled={actionInProgress}
+              onClick={() => void handleAbort()}
+            >
+              Abort
+            </button>
+          </div>
+        ) : null}
+        {isTerminal ? (
+          <div className="plan-terminal" data-testid="plan-terminal">
+            {plan.status === 'done' ? '✓ Completed' : '✗ Abandoned'}
+            {execution?.error ? ` — ${execution.error}` : ''}
+          </div>
+        ) : null}
       </Collapse>
     </div>
   );

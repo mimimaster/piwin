@@ -29,6 +29,7 @@ export class MockHostBackend {
       events: AgentEvent[];
       transcript: SessionTranscriptMessage[];
       name?: string;
+      nameSource?: 'default' | 'auto' | 'user';
       isPinned?: boolean;
       pinnedAt?: string;
       isArchived?: boolean;
@@ -953,6 +954,109 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           command: 'plan/approve',
           success: true,
           data: { plan: approved },
+        };
+      }
+      case 'plan/execute': {
+        const plan = this.plans.get(command.request.sessionId);
+        if (!plan) {
+          return {
+            id,
+            type: 'response',
+            command: 'plan/execute',
+            success: false,
+            error: 'No plan for session',
+          };
+        }
+        if (plan.id !== command.request.planId) {
+          return {
+            id,
+            type: 'response',
+            command: 'plan/execute',
+            success: false,
+            error: `plan id mismatch: ${command.request.planId} vs ${plan.id}`,
+          };
+        }
+        if (plan.status !== 'approved' && plan.status !== 'executing') {
+          return {
+            id,
+            type: 'response',
+            command: 'plan/execute',
+            success: false,
+            error: `plan must be approved (current: ${plan.status})`,
+          };
+        }
+        const executionState = {
+          sessionId: command.request.sessionId,
+          planId: plan.id,
+          mode: command.request.mode,
+          status: 'running' as const,
+          childSessionIds: [] as string[],
+        };
+        const executing = {
+          ...plan,
+          status: 'executing' as const,
+          execution: executionState,
+          revision: plan.revision + 1,
+          updatedAt: new Date().toISOString(),
+        };
+        this.plans.set(command.request.sessionId, executing);
+        this.emitPush({
+          type: 'plan/updated',
+          sessionId: command.request.sessionId,
+          plan: executing,
+        });
+        this.emitPush({ type: 'plan/execution-updated', state: executionState });
+        return {
+          id,
+          type: 'response',
+          command: 'plan/execute',
+          success: true,
+          data: {
+            sessionId: command.request.sessionId,
+            planId: plan.id,
+            mode: command.request.mode,
+            status: 'running',
+          },
+        };
+      }
+      case 'plan/abort': {
+        const plan = this.plans.get(command.sessionId);
+        if (!plan) {
+          return {
+            id,
+            type: 'response',
+            command: 'plan/abort',
+            success: false,
+            error: 'No plan for session',
+          };
+        }
+        const abortedState = {
+          ...(plan.execution ?? {
+            sessionId: command.sessionId,
+            planId: plan.id,
+            mode: 'inline' as const,
+            status: 'aborted' as const,
+            childSessionIds: [] as string[],
+          }),
+          status: 'aborted' as const,
+          endedAt: new Date().toISOString(),
+        };
+        const aborted = {
+          ...plan,
+          status: 'abandoned' as const,
+          execution: abortedState,
+          revision: plan.revision + 1,
+          updatedAt: new Date().toISOString(),
+        };
+        this.plans.set(command.sessionId, aborted);
+        this.emitPush({ type: 'plan/updated', sessionId: command.sessionId, plan: aborted });
+        this.emitPush({ type: 'plan/execution-updated', state: abortedState });
+        return {
+          id,
+          type: 'response',
+          command: 'plan/abort',
+          success: true,
+          data: { sessionId: command.sessionId, planId: plan.id, status: 'aborted' },
         };
       }
 
@@ -1974,6 +2078,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           };
         }
         session.name = name.slice(0, 120);
+        session.nameSource = 'user';
         return {
           id,
           type: 'response',
@@ -2595,6 +2700,9 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       }
       this.pushEvent(sessionId, { type: 'message/end', messageId: assistantId, runId });
       this.emitMockTerminal(sessionId, runId, 'completed');
+      // Mirror host auto-naming: name after the first completed exchange unless
+      // the user has manually renamed the session.
+      this.maybeMockAutoName(sessionId);
     } finally {
       if (this.mockPromptAborts.get(sessionId) === controller) {
         this.mockPromptAborts.delete(sessionId);
@@ -2622,6 +2730,30 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       outcome,
       at: new Date().toISOString(),
       ...(code ? { code } : {}),
+    });
+  }
+
+  /**
+   * Mock-only auto-naming so browser e2e sees the same `session/name-updated`
+   * push as the real host. Names only default/auto sessions, never user-set.
+   */
+  private maybeMockAutoName(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (!session || session.nameSource === 'user') {
+      return;
+    }
+    const firstUser = session.transcript.find((message) => message.role === 'user');
+    const name = firstUser?.text?.replace(/\s+/g, ' ').trim().slice(0, 60);
+    if (!name) {
+      return;
+    }
+    session.name = name;
+    session.nameSource = 'auto';
+    this.emitPush({
+      type: 'session/name-updated',
+      sessionId,
+      name,
+      nameSource: 'auto',
     });
   }
 

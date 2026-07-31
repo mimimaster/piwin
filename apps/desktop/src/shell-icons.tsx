@@ -286,6 +286,26 @@ export function IconMore(props: IconProps): ReactElement {
   );
 }
 
+export function IconMoreVertical(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none" />
+    </IconBase>
+  );
+}
+
+export function IconArchive(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" />
+      <path d="M12 10v4.5M9.5 12.5l2.5 2.5 2.5-2.5" />
+    </IconBase>
+  );
+}
+
 export function IconTerminal(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
@@ -300,6 +320,65 @@ export function IconCopy(props: IconProps): ReactElement {
     <IconBase {...props}>
       <rect x="8" y="8" width="10" height="11" rx="1.5" />
       <path d="M16 8V6.5A1.5 1.5 0 0 0 14.5 5h-8A1.5 1.5 0 0 0 5 6.5v8A1.5 1.5 0 0 0 6.5 16H8" />
+    </IconBase>
+  );
+}
+
+export function IconCheck(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M20 6L9 17l-5-5" />
+    </IconBase>
+  );
+}
+
+export function IconRevert(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M9 15L4 10l5-5" />
+      <path d="M4 10h11a4 4 0 1 1 0 8h-4" />
+    </IconBase>
+  );
+}
+
+
+export function IconDocument(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="16" y1="13" x2="8" y2="13" />
+      <line x1="16" y1="17" x2="8" y2="17" />
+      <polyline points="10 9 9 9 8 9" />
+    </IconBase>
+  );
+}
+
+export function IconLink(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </IconBase>
+  );
+}
+
+export function IconDownload(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </IconBase>
+  );
+}
+
+export function IconMenuList(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <line x1="4" y1="6" x2="20" y2="6" />
+      <line x1="4" y1="12" x2="20" y2="12" />
+      <line x1="4" y1="18" x2="20" y2="18" />
     </IconBase>
   );
 }

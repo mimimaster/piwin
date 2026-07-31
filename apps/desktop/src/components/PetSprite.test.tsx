@@ -259,11 +259,9 @@ describe('PetSprite animation loop', () => {
     driveFrame(500);
     expect(lastDrawSourceY()).toBe(pet.stateRows['waving'] * cellHeight);
 
-    // The temp action is expired at the *tail* of the tick (after drawImage), so
-    // the fallback to idle only becomes visible on the following frame.
-    driveFrame(1400); // > 100 + 1200: expires waving after this draw
-    expect(lastDrawSourceY()).toBe(pet.stateRows['waving'] * cellHeight);
-    driveFrame(1401);
+    // Expired actions are cleared before drawing, so the first frame at the
+    // deadline already falls back to idle instead of drawing a trailing blank cell.
+    driveFrame(1400); // >= 100 + 1200: expires waving before this draw
     expect(lastDrawSourceY()).toBe(0);
     // The loop is still alive and scheduling.
     expect(rafCallback).not.toBeNull();
@@ -282,18 +280,41 @@ describe('PetSprite animation loop', () => {
     driveFrame(100);
     expect(lastDrawSourceY()).toBe(pet.stateRows['waving'] * cellHeight);
 
-    // Far past the idle interval but still hovered: waving must persist (no random
-    // idle action can preempt the hover-armed temp action).
+    // Far past the action deadline while still hovered: the expired action must
+    // already have fallen back to idle, and hover must prevent a fresh idle action.
     driveFrame(10_000);
-    expect(lastDrawSourceY()).toBe(pet.stateRows['waving'] * cellHeight);
-
-    // Once the waving action expires (tail of the tick after 100 + 1200), the
-    // loop falls back to idle — it must NOT arm a fresh idle action while hovered,
-    // even though we are far past IDLE_INTERVAL_MS and `Math.random()` is 0.
-    driveFrame(10_001); // expiry runs here after the draw
-    driveFrame(10_002); // next draw reflects the cleared temp action
     expect(lastDrawSourceY()).toBe(0);
+    expect(rafCallback).not.toBeNull();
     expect(rafCancelCount).toBe(0);
+  });
+
+  it('does not draw transparent trailing cells from standard Codex rows', async () => {
+    const pet = createPet({ rows: 11 });
+    const cellHeight = pet.cellHeight;
+    const sprite = mount(pet);
+    await flushImageLoad();
+
+    driveFrame(0);
+    for (let index = 1; index <= 6; index += 1) {
+      driveFrame(index * 200);
+    }
+
+    const idleDraws = drawCalls.filter((draw) => draw[2] === pet.stateRows['idle'] * cellHeight);
+    expect(idleDraws.length).toBeGreaterThan(0);
+    expect(idleDraws.every((draw) => draw[1] < 6 * pet.cellWidth)).toBe(true);
+
+    nowValue = 1500;
+    hoverEnter(sprite);
+    driveFrame(1500);
+    for (let index = 1; index <= 5; index += 1) {
+      driveFrame(1500 + index * 200);
+    }
+
+    const wavingDraws = drawCalls.filter(
+      (draw) => draw[2] === pet.stateRows['waving'] * cellHeight,
+    );
+    expect(wavingDraws.length).toBeGreaterThan(0);
+    expect(wavingDraws.every((draw) => draw[1] < 5 * pet.cellWidth)).toBe(true);
   });
 
   it('resets the animation column to 0 when switching states to avoid mid-animation jumps', async () => {
