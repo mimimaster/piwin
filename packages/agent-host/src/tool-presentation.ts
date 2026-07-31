@@ -2,12 +2,7 @@
  * Pure host-side tool presentation builder.
  * Desktop must not re-classify tools from raw name strings when presentation is present.
  */
-import type {
-  ToolErrorView,
-  ToolKind,
-  ToolOutputView,
-  ToolPresentation,
-} from '@piwin/contracts';
+import type { ToolErrorView, ToolKind, ToolOutputView, ToolPresentation } from '@piwin/contracts';
 
 const MAX_TOOL_OUTPUT_CHARS = 8_000;
 
@@ -154,7 +149,12 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     presentation.error = error;
   }
 
-  const { actionVerb, lineRange, countTag } = extractActionDetails(input.toolName, kind, input.args, input.outputText);
+  const { actionVerb, lineRange, countTag } = extractActionDetails(
+    input.toolName,
+    kind,
+    input.args,
+    input.outputText,
+  );
   if (actionVerb) {
     presentation.actionVerb = actionVerb;
   }
@@ -210,10 +210,7 @@ function extractCommand(kind: ToolKind, args: unknown): string | undefined {
     return undefined;
   }
   const record = args as Record<string, unknown>;
-  const command =
-    readString(record.command) ??
-    readString(record.cmd) ??
-    readString(record.script);
+  const command = readString(record.command) ?? readString(record.cmd) ?? readString(record.script);
   return command ? redactToolText(command).text : undefined;
 }
 
@@ -266,7 +263,11 @@ function extractActionDetails(
     }
   } else if (normName.includes('view') || normName.includes('read')) {
     actionVerb = 'Analyzed';
-  } else if (normName.includes('write') || normName.includes('edit') || normName.includes('replace')) {
+  } else if (
+    normName.includes('write') ||
+    normName.includes('edit') ||
+    normName.includes('replace')
+  ) {
     actionVerb = 'Edited';
   } else if (kind === 'shell' || kind === 'process') {
     actionVerb = 'Ran command';
@@ -305,5 +306,9 @@ function extractActionDetails(
     }
   }
 
-  return { actionVerb, lineRange, countTag };
+  return {
+    ...(actionVerb !== undefined ? { actionVerb } : {}),
+    ...(lineRange !== undefined ? { lineRange } : {}),
+    ...(countTag !== undefined ? { countTag } : {}),
+  };
 }
