@@ -16,3 +16,5 @@ export {
   BrowserSessionClosedError,
 } from './browser-session.js';
 export type { RunExclusive } from './mutex.js';
+export { getBrowserInstallStatus } from './install-status.js';
+export type { BrowserInstallStatus } from './install-status.js';
