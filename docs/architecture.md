@@ -231,7 +231,7 @@ rule editor is a follow-up (ADR 0019 open questions); until then users edit
 | Package | Responsibility |
 |---------|----------------|
 | `@piwin/contracts` | Types, events, config schemas (runtime-light) |
-| `@piwin/agent-host` | Host + SDK/RPC adapters + permission |
+| `@piwin/agent-host` | Host + SDK/RPC adapters + permission, `image_gen` tool (routed by model name, gated on `imagegen` skill) |
 | `@piwin/session` | History index, tree projection, naming |
 | `@piwin/project` | Workspace/project trust, cwd binding |
 | `@piwin/skills` | Discovery, install, defaults, find/create helpers |
@@ -263,7 +263,7 @@ rule editor is a follow-up (ADR 0019 open questions); until then users edit
 Pi native paths remain under `~/.pi/agent/`. piwin maps:
 
 - sessions: prefer Pi session files; maintain index for UI
-- skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs
+- skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs. System skills (e.g. `imagegen`) use frontmatter `hidden: true` to stay out of the Skills panel/CLI while remaining loadable by Pi; the `imagegen` skill is toggled via `config.skills.disabledIds` (enables/disables both the skill and the `image_gen` host tool).
 - extensions: optional Pi extensions under `extensions/` shipped with piwin
 
 `config.json` may retain the Desktop's per-next-turn composer profile (model
