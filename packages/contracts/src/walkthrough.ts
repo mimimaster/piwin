@@ -93,7 +93,7 @@ export function validateWalkthroughConfig(config: WalkthroughConfig): Walkthroug
   if (typeof prompt !== 'string' || prompt.trim() === '') {
     issues.push({ path: 'walkthrough.custom.prompt', message: 'must be a non-empty string' });
   } else {
-    const byteLength = Buffer.byteLength(prompt, 'utf8');
+    const byteLength = new TextEncoder().encode(prompt).length;
     if (byteLength > MAX_WALKTHROUGH_PROMPT_BYTES) {
       issues.push({
         path: 'walkthrough.custom.prompt',

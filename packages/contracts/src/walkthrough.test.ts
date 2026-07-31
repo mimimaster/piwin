@@ -26,7 +26,7 @@ describe('walkthrough config', () => {
 
   it('default prompt is non-empty and within byte limit', () => {
     expect(DEFAULT_WALKTHROUGH_PROMPT.trim()).not.toBe('');
-    expect(Buffer.byteLength(DEFAULT_WALKTHROUGH_PROMPT, 'utf8')).toBeLessThanOrEqual(
+    expect(new TextEncoder().encode(DEFAULT_WALKTHROUGH_PROMPT).length).toBeLessThanOrEqual(
       MAX_WALKTHROUGH_PROMPT_BYTES,
     );
   });

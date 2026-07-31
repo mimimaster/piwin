@@ -274,6 +274,7 @@ describe('ipc types', () => {
           status: 'ready',
           markdown: '# Walkthrough',
           generatedAt: '2026-08-01T00:01:00.000Z',
+          model: { providerId: 'p1', modelId: 'm1', protocol: 'openai-compatible' },
         },
       };
       expect(push.type).toBe('walkthrough/updated');

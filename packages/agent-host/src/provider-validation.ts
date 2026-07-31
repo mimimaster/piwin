@@ -3,6 +3,7 @@
  * Never logs secret values.
  */
 import type { ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
+import { createDefaultWalkthroughConfig, validateWalkthroughConfig } from '@piwin/contracts';
 
 export type ProviderValidationIssue = {
   path: string;
@@ -98,8 +99,15 @@ export function validateProviders(
     }
 
     if (provider.headers !== undefined) {
-      if (typeof provider.headers !== 'object' || provider.headers === null || Array.isArray(provider.headers)) {
-        issues.push({ path: `${base}.headers`, message: 'headers must be an object of string pairs' });
+      if (
+        typeof provider.headers !== 'object' ||
+        provider.headers === null ||
+        Array.isArray(provider.headers)
+      ) {
+        issues.push({
+          path: `${base}.headers`,
+          message: 'headers must be an object of string pairs',
+        });
       } else {
         const entries = Object.entries(provider.headers);
         if (entries.length > 32) {
@@ -170,16 +178,22 @@ export function validateProviders(
 }
 
 export function validatePiwinConfig(config: PiwinConfig): ProviderValidationIssue[] {
-  return validateProviders(config.providers);
+  const issues: ProviderValidationIssue[] = validateProviders(config.providers);
+  const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
+  for (const issue of validateWalkthroughConfig(walkthrough)) {
+    issues.push({ path: issue.path, message: issue.message });
+  }
+  return issues;
 }
 
 /**
  * Strip accidental raw secrets from provider fields before persist.
  * Returns a sanitized copy; never mutates input.
  */
-export function sanitizeProvidersForSave(
-  providers: readonly ModelProviderConfig[],
-): { providers: ModelProviderConfig[]; redactedFields: string[] } {
+export function sanitizeProvidersForSave(providers: readonly ModelProviderConfig[]): {
+  providers: ModelProviderConfig[];
+  redactedFields: string[];
+} {
   const redactedFields: string[] = [];
   const next = providers.map((provider, index) => {
     const copy: ModelProviderConfig = {
