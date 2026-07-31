@@ -113,6 +113,25 @@ export class PiRpcAdapter implements AgentHost {
     throw new Error(`PiRpcAdapter.resumeSession: unknown session ${sessionId}`);
   }
 
+  async dropSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
+    if (session) {
+      try {
+        await session.abort();
+      } catch {
+        // best-effort
+      }
+    }
+    if (this.usesSdkFallback() && this.sdkBackend) {
+      try {
+        await this.sdkBackend.dropSession(sessionId);
+      } catch {
+        // best-effort
+      }
+    }
+  }
+
   async listSessions(scopeOrProjectPath: string | SessionScope): Promise<SessionSummary[]> {
     if (this.usesSdkFallback() && this.sdkBackend) {
       return this.sdkBackend.listSessions(scopeOrProjectPath);

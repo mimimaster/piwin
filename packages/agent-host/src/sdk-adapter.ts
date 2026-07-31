@@ -31,6 +31,8 @@ import {
   getPiwinSessionTranscriptPath,
 } from './paths.js';
 import { createPlanStepTool } from './plan-step-tool.js';
+import { createPlanCreateTool } from './plan-create-tool.js';
+import { createSubagentRunTool } from './subagent-run-tool.js';
 import { buildSessionTools } from './session-tools.js';
 import { toPiCustomTools } from './pi-tool-adapter.js';
 import { createPiResourceLoader } from './pi-resource-loader.js';
@@ -129,6 +131,21 @@ export type PiSdkAdapterOptions = {
    * guard still narrows `bypass` to `auto` for untrusted projects.
    */
   permissionModeOverride?: PermissionMode;
+  /**
+   * Subagent delegation seam for the model-facing piwin_subagent_run tool.
+   * HostRuntime injects these to route spawn/merge through session/* commands
+   * without giving the adapter a back-reference to HostRuntime (no circular dep).
+   * Only used in SDK mode (ADR 0008: RPC cannot register custom tools).
+   */
+  onSpawnSubagent?: (input: {
+    parentSessionId: string;
+    task: string;
+    mode?: import('@piwin/contracts').SubagentIsolationMode;
+    sessionName?: string;
+  }) => Promise<{ childSessionId: string }>;
+  onMergeSubagent?: (
+    childSessionId: string,
+  ) => Promise<{ summaryPreview?: string; alreadyMerged?: boolean }>;
 };
 
 /**
@@ -255,6 +272,28 @@ export class PiSdkAdapter implements AgentHost {
     const shell = createProductShellSession(shellOptions);
     this.sessions.set(sessionId, shell);
     return shell;
+  }
+
+  async dropSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
+    if (!session) {
+      return;
+    }
+    try {
+      await session.abort();
+    } catch {
+      // best-effort: the live Pi handle may already be gone
+    }
+    const cleanup = this.sessionCleanups.get(sessionId);
+    if (cleanup) {
+      this.sessionCleanups.delete(sessionId);
+      try {
+        await cleanup();
+      } catch {
+        // best-effort
+      }
+    }
   }
 
   async listSessions(scopeOrProjectPath: string | SessionScope): Promise<SessionSummary[]> {
@@ -493,8 +532,25 @@ async function createPiSdkSession(
     sessionId,
     planPath: getPiwinSessionPlanPath(rootDir, sessionId),
   });
+  const planCreateTool = createPlanCreateTool({
+    sessionId,
+    projectPath: agentCwd,
+    planPath: getPiwinSessionPlanPath(rootDir, sessionId),
+  });
   const executionMode = input.executionMode ?? 'agent';
   const chatMode = executionMode === 'chat';
+  // Subagent delegation tool: only when host injected spawn/merge seams and
+  // this session is not itself a readonly subagent (depth max 1, no nesting).
+  const subagentRunTool =
+    adapterOptions.onSpawnSubagent && adapterOptions.onMergeSubagent && !readonlySubagent
+      ? createSubagentRunTool({
+          sessionId,
+          seam: {
+            spawn: adapterOptions.onSpawnSubagent,
+            merge: adapterOptions.onMergeSubagent,
+          },
+        })
+      : undefined;
 
   // CE-PROC managed process tools (shared registry with HostRuntime when provided).
   let processRegistry = adapterOptions.processRegistry;
@@ -606,9 +662,11 @@ async function createPiSdkSession(
     ...webTools,
     ...mcpBridge.tools,
     planTool,
+    planCreateTool,
     ...processTools,
     ...notesTools,
     ...(flashcardsInCoding ? flashcardTools : []),
+    ...(subagentRunTool ? [subagentRunTool] : []),
   ];
   const hostTools =
     executionMode === 'chat'

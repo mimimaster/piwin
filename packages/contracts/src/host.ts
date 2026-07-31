@@ -264,6 +264,9 @@ export type ToolPresentation = {
   changedPaths?: string[];
   output?: ToolOutputView;
   error?: ToolErrorView;
+  actionVerb?: string;
+  lineRange?: string;
+  countTag?: string;
 };
 
 export type AgentEvent =
@@ -409,6 +412,13 @@ export interface AgentHost {
    * backward compat. Use `SessionScope` for scope-based filtering.
    */
   listSessions(scopeOrProjectPath: string | SessionScope): Promise<SessionSummary[]>;
+  /**
+   * Invalidate the adapter's cached handle for a session. After a product
+   * transcript truncate the cached Product Shell / live Pi session would still
+   * hold the pre-truncation history, so callers must drop it before the next
+   * prompt so the session is rebuilt from the truncated transcript only.
+   */
+  dropSession(sessionId: string): Promise<void>;
   dispose(): Promise<void>;
 }
 

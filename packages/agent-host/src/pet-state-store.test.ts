@@ -64,4 +64,27 @@ describe('createPetStateStore', () => {
     store.reduce({ type: 'session/started', sessionId: 's1' } as AgentEvent);
     expect(seen).toEqual([]);
   });
+
+  it('includes activity info with tool name in snapshot', () => {
+    const store = createPetStateStore({ basePet });
+    store.reduce({ type: 'tool/start', toolCallId: 't1', toolName: 'read_file' } as AgentEvent);
+    const snap = store.snapshot();
+    expect(snap.pet.state).toBe('running');
+    expect(snap.pet.activity?.toolName).toBe('read_file');
+  });
+
+  it('omits activity when idle', () => {
+    const store = createPetStateStore({ basePet });
+    expect(store.snapshot().pet.activity).toBeUndefined();
+  });
+
+  it('notifies subscribers when tool name changes but state stays running', () => {
+    const store = createPetStateStore({ basePet });
+    const tools: string[] = [];
+    store.subscribe((snap) => tools.push(snap.pet.activity?.toolName ?? ''));
+    store.reduce({ type: 'tool/start', toolCallId: 't1', toolName: 'read_file' } as AgentEvent);
+    store.reduce({ type: 'tool/end', toolCallId: 't1', isError: false } as AgentEvent);
+    store.reduce({ type: 'tool/start', toolCallId: 't2', toolName: 'write_file' } as AgentEvent);
+    expect(tools).toEqual(['read_file', '', 'write_file']);
+  });
 });

@@ -31,6 +31,7 @@ import type {
 } from './git.js';
 import type { ThemeManifest, ThemeSummary } from './theme.js';
 import type { PlanStatus, PlanStepStatus, SessionPlan } from './plan.js';
+import type { PlanExecutionRequest, PlanExecutionState } from './plan-execution.js';
 import type { SubagentSpawnOptions } from './subagent.js';
 import type { PtyOpenInput } from './pty.js';
 import type { CronJob, HookDefinition, SessionTodoList } from './automation.js';
@@ -249,6 +250,8 @@ export type HostCommand =
       detail?: string;
     }
   | { id?: string; type: 'plan/set-status'; sessionId: string; status: PlanStatus }
+  | { id?: string; type: 'plan/execute'; request: PlanExecutionRequest }
+  | { id?: string; type: 'plan/abort'; sessionId: string; planId: string }
   | { id?: string; type: 'config/get' }
   | { id?: string; type: 'config/set'; config: PiwinConfig }
   | {
@@ -434,12 +437,20 @@ export type HostPush =
       nameSource: 'auto' | 'user';
     }
   | { type: 'plan/updated'; sessionId: string; plan: SessionPlan | null }
+  | { type: 'plan/execution-updated'; state: PlanExecutionState }
   | {
       type: 'subagent/updated';
       parentSessionId: string;
       child: SessionSummary;
     }
   | { type: 'subagent/merged'; parentSessionId: string; childSessionId: string; messageId: string }
+  | {
+      type: 'subagent/stream';
+      parentSessionId: string;
+      childSessionId: string;
+      event: AgentEvent;
+      envelope?: AgentEventEnvelope;
+    }
   | {
       type: 'transcript/append';
       sessionId: string;

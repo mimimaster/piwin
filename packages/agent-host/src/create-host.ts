@@ -34,6 +34,9 @@ export type CreateAgentHostOptions = AgentHostFactoryOptions & {
   onLog?: PiSdkAdapterOptions['onLog'];
   /** Session-level permission mode override (ADR 0019 §3). */
   permissionModeOverride?: PermissionMode;
+  /** Subagent delegation seam for piwin_subagent_run tool (SDK mode only). */
+  onSpawnSubagent?: PiSdkAdapterOptions['onSpawnSubagent'];
+  onMergeSubagent?: PiSdkAdapterOptions['onMergeSubagent'];
 };
 
 export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
@@ -97,6 +100,12 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
   }
   if (options.permissionModeOverride) {
     sdkOptions.permissionModeOverride = options.permissionModeOverride;
+  }
+  if (options.onSpawnSubagent) {
+    sdkOptions.onSpawnSubagent = options.onSpawnSubagent;
+  }
+  if (options.onMergeSubagent) {
+    sdkOptions.onMergeSubagent = options.onMergeSubagent;
   }
   return new PiSdkAdapter(sdkOptions);
 }

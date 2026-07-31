@@ -554,6 +554,113 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('rejects plan/execute when no plan exists', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-exec-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    await runtime.handleCommand({ type: 'project/open', path: '/tmp/plan-exec' });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/plan-exec' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const result = await runtime.handleCommand({
+      type: 'plan/execute',
+      request: { sessionId, planId: 'missing', mode: 'inline' },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('No plan');
+    }
+    await runtime.dispose();
+  });
+
+  it('rejects plan/execute when plan is not approved', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-draft-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    await runtime.handleCommand({ type: 'project/open', path: '/tmp/plan-draft' });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/plan-draft' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const now = new Date().toISOString();
+    await runtime.handleCommand({
+      type: 'plan/set',
+      sessionId,
+      plan: {
+        id: 'p1',
+        sessionId,
+        projectPath: '/tmp/plan-draft',
+        status: 'draft',
+        title: 'T',
+        goal: 'G',
+        steps: [{ id: '1', title: 'A', status: 'pending' }],
+        revision: 0,
+        createdAt: now,
+        updatedAt: now,
+        source: 'user',
+      },
+    });
+    const result = await runtime.handleCommand({
+      type: 'plan/execute',
+      request: { sessionId, planId: 'p1', mode: 'inline' },
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toContain('approved');
+    }
+    await runtime.dispose();
+  });
+
+  it('starts inline execution after approval and pushes execution-updated', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-plan-inline-'));
+    const pushes: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message.type),
+    });
+    await runtime.handleCommand({ type: 'project/open', path: '/tmp/plan-inline' });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/plan-inline' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const now = new Date().toISOString();
+    await runtime.handleCommand({
+      type: 'plan/set',
+      sessionId,
+      plan: {
+        id: 'p1',
+        sessionId,
+        projectPath: '/tmp/plan-inline',
+        status: 'draft',
+        title: 'T',
+        goal: 'G',
+        steps: [{ id: '1', title: 'A', status: 'pending' }],
+        revision: 0,
+        createdAt: now,
+        updatedAt: now,
+        source: 'user',
+      },
+    });
+    await runtime.handleCommand({ type: 'plan/approve', sessionId });
+    const result = await runtime.handleCommand({
+      type: 'plan/execute',
+      request: { sessionId, planId: 'p1', mode: 'inline' },
+    });
+    expect(result.success).toBe(true);
+    expect(pushes).toContain('plan/execution-updated');
+    await runtime.dispose();
+  });
+
   it('spawns a depth-1 sub-agent and rejects nesting', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-spawn-'));
     const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });

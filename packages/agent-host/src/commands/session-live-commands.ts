@@ -568,6 +568,14 @@ export async function handleSessionLiveCommand(
         context.transcriptRecorders.delete(command.sessionId);
         context.sessions.delete(command.sessionId);
       }
+      // Invalidate the adapter's cached session handle. The Product Shell /
+      // live Pi session it holds would otherwise keep the pre-truncation
+      // history and be reused by ensureLiveSession on the next prompt.
+      await context.host.dropSession(command.sessionId);
+      // Rebuild a fresh Product Shell from the truncated transcript now so
+      // the next session/prompt passes requireSession and injects the
+      // truncated history (needsProductHistoryInjection) into the rebuild.
+      await context.ensureLiveSession(command.sessionId);
       const remaining = truncated.document?.messages ?? [];
       record.messageCount = remaining.length;
       const last = remaining[remaining.length - 1];
@@ -701,7 +709,9 @@ export async function handleSessionLiveCommand(
             context.emitRunTerminal(command.sessionId, run.runId, 'cancelled', 'cancelled');
             return;
           }
-          context.emitRunTerminal(command.sessionId, run.runId, 'completed');
+          // Touch the index BEFORE the terminal event so the auto-name trigger
+          // (fired from emitRunTerminal) sees messageCount for the run that just
+          // completed. Otherwise naming is delayed until the next exchange.
           try {
             await context.touchSession(command.sessionId, command.input.text);
           } catch (error) {
@@ -712,6 +722,7 @@ export async function handleSessionLiveCommand(
               message: `session index touch failed: ${message}`,
             });
           }
+          context.emitRunTerminal(command.sessionId, run.runId, 'completed');
         } catch (error) {
           if (run.abortController.signal.aborted) {
             context.emitRunTerminal(command.sessionId, run.runId, 'cancelled', 'cancelled');
