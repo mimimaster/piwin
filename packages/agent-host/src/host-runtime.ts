@@ -256,6 +256,12 @@ export class HostRuntime {
   private mcpManager: McpLifecycleManager | null = null;
   private processRegistry: ProcessRegistry | null = null;
   private cardStore: import('@piwin/flashcards').CardStore | null = null;
+  /** Host-owned browser session (ADR 0020); lazily created on first access. */
+  private browserSession: import('@piwin/browser').BrowserSession | null = null;
+  /** Guards first init of `browserSession` so concurrent callers share one. */
+  private browserSessionInit: Promise<import('@piwin/browser').BrowserSession> | null = null;
+  /** Unsubscribe for the browser session push wiring. */
+  private browserSessionUnsubscribe: (() => void) | null = null;
   private folderRag: import('@piwin/doc-rag').FolderRag | null = null;
   private notesServices: {
     store: import('@piwin/notes').NoteStore;
@@ -342,6 +348,7 @@ export class HostRuntime {
           ...(data.alreadyMerged ? { alreadyMerged: data.alreadyMerged } : {}),
         };
       },
+      getBrowserSession: () => this.browserSession ?? undefined,
     };
     if (typeof options.piwinRoot === 'string') {
       createOptions.piwinRoot = options.piwinRoot;
@@ -396,6 +403,19 @@ export class HostRuntime {
     if (this.ptyHost) {
       this.ptyHost.dispose();
       this.ptyHost = null;
+    }
+    if (this.browserSessionUnsubscribe) {
+      this.browserSessionUnsubscribe();
+      this.browserSessionUnsubscribe = null;
+    }
+    if (this.browserSession) {
+      try {
+        await this.browserSession.close();
+      } catch {
+        // best-effort shutdown
+      }
+      this.browserSession = null;
+      this.browserSessionInit = null;
     }
     if (this.processRegistry) {
       try {
@@ -904,6 +924,12 @@ export class HostRuntime {
           }),
         );
       } else {
+        // web-element: validate screenshotPath stays under media root (same
+        // guard as validateMediaAttachment) before injecting. The selector /
+        // text / html are bounded by formatTextModelWebElementInjection.
+        if (attachment.screenshotPath !== undefined) {
+          assertInsideMediaRoot(mediaRoot, attachment.screenshotPath);
+        }
         safeAttachments.push(attachment);
         injections.push(formatTextModelWebElementInjection(attachment));
       }
@@ -1251,6 +1277,26 @@ export class HostRuntime {
     return this.mcpManager;
   }
 
+  /**
+   * Lazily create the host-owned BrowserSession (ADR 0020). The session object
+   * is cheap — Chromium launches on first actual operation. Frame/state events
+   * are forwarded to `this.push` so the desktop panel mirrors the agent's page.
+   * Called before the first Pi session creation so `browser_*` tools register.
+   */
+  async ensureBrowserSession(): Promise<import('@piwin/browser').BrowserSession> {
+    if (this.browserSession) return this.browserSession;
+    if (!this.browserSessionInit) {
+      this.browserSessionInit = (async () => {
+        const { createBrowserSession } = await import('@piwin/browser');
+        const session = createBrowserSession();
+        this.browserSessionUnsubscribe = session.subscribe((event) => this.push(event));
+        this.browserSession = session;
+        return session;
+      })();
+    }
+    return this.browserSessionInit;
+  }
+
   private isRpcSdkFallback(): boolean {
     if (this.options.mock === true || process.env.PIWIN_MOCK === '1') {
       return false;
@@ -1391,6 +1437,7 @@ export class HostRuntime {
       getMcpManager: () => this.getMcpManager(),
       getProcessRegistry: () => this.getProcessRegistry(),
       getPtyHost: () => this.getPtyHost(),
+      getBrowserSession: () => this.browserSession ?? undefined,
       todoStore: this.todoStore,
       petStateStore: await this.ensurePetStateStore(),
       runCronJob: (job) => this.runCronJob(job),
@@ -2148,8 +2195,22 @@ export class HostRuntime {
           toolOutputBytes: 10 * 1024 * 1024,
           toolOutputChunkBytes: 64 * 1024,
         });
-      case undefined:
+      case undefined: {
+        // Ensure the browser session exists before creating the Pi session so
+        // `browser_*` tools register (ADR 0020). Best-effort: a launch failure
+        // here must not block session creation — the tools simply won't appear.
+        try {
+          await this.ensureBrowserSession();
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `browser session init failed: ${detail}`,
+          });
+        }
         return this.host.createSession(input);
+      }
       default:
         throw new Error(`Unsupported host test fixture: ${this.options.testFixture}`);
     }

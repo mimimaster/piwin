@@ -169,6 +169,9 @@ importers:
       '@piwin/automation':
         specifier: workspace:*
         version: link:../automation
+      '@piwin/browser':
+        specifier: workspace:*
+        version: link:../browser
       '@piwin/contracts':
         specifier: workspace:*
         version: link:../contracts
