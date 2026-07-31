@@ -18,6 +18,8 @@ import type {
 } from '@piwin/contracts';
 import { MarkdownView } from './MarkdownView';
 import { MediaPreview } from './MediaPreview';
+import { WebElementChip } from './WebElementChip';
+import { MessageActions } from './message-actions';
 import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { SubagentActivityCard } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
@@ -425,9 +427,7 @@ function UserMessageContent(props: {
 
   const collapsed = isOverflow && isCollapsed;
 
-  const handleToggle = isOverflow
-    ? () => setIsCollapsed((prev) => !prev)
-    : undefined;
+  const handleToggle = isOverflow ? () => setIsCollapsed((prev) => !prev) : undefined;
 
   return (
     <div className="user-message-wrapper">
@@ -551,9 +551,13 @@ const ChatMessageRow = memo(
         ) : null}
         {message.attachments.length > 0 ? (
           <div className="message-attachments">
-            {message.attachments.map((attachment) => (
-              <MediaPreview key={attachment.id} attachment={attachment} />
-            ))}
+            {message.attachments.map((attachment) =>
+              attachment.kind === 'web-element' ? (
+                <WebElementChip key={attachment.id} attachment={attachment} />
+              ) : (
+                <MediaPreview key={attachment.id} attachment={attachment} />
+              ),
+            )}
           </div>
         ) : null}
         {message.role === 'assistant' ? (

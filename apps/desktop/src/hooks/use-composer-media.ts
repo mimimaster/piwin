@@ -9,7 +9,7 @@ import {
   type Dispatch,
   type DragEvent,
 } from 'react';
-import type { MediaAttachmentRef, MediaSaveData } from '@piwin/contracts';
+import type { MediaSaveData, PromptAttachment, WebElementAttachmentRef, WebElementPickResult } from '@piwin/contracts';
 import { toMediaAttachmentRef } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
@@ -235,6 +235,28 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     input.click();
   }, [args, saveImageFile]);
 
+  /**
+   * Add a picked web element (ADR 0020 §6) as a pending composer attachment.
+   * Builds a WebElementAttachmentRef with conditional-spread optional
+   * fields (exactOptionalPropertyTypes: no ref: undefined).
+   */
+  const addWebElement = useCallback((pick: WebElementPickResult): void => {
+    const attachment: WebElementAttachmentRef = {
+      id: crypto.randomUUID(),
+      kind: 'web-element',
+      url: pick.url,
+      selector: pick.selector,
+      text: pick.text,
+      ...(pick.ref !== undefined ? { ref: pick.ref } : {}),
+      ...(pick.html !== undefined ? { html: pick.html } : {}),
+      ...(pick.screenshotPath !== undefined ? { screenshotPath: pick.screenshotPath } : {}),
+    };
+    setPendingAttachments((current) => [
+      ...current,
+      { localId: attachment.id, attachment, previewUrl: '' },
+    ]);
+  }, []);
+
   const resolveTurnModel = useCallback((): import('@piwin/contracts').ModelRef | undefined => {
     const key = args.selectedModelKey?.trim();
     if (!key || !args.modelOptions?.length) {
@@ -402,7 +424,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     clearPendingAttachments();
     const input: {
       text: string;
-      attachments?: MediaAttachmentRef[];
+      attachments?: PromptAttachment[];
       model?: import('@piwin/contracts').ModelRef;
       thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
     } = {
@@ -497,6 +519,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     handleComposerPaste,
     handleComposerDrop,
     handlePickImageFiles,
+    addWebElement,
     handleSend,
     handleSteer,
     handleFollowUp,

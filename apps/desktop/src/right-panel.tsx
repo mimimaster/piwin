@@ -34,6 +34,8 @@ export type RightPanelProps = {
   filesContent: ReactNode;
   /** Terminal panel body (no context-window chrome). */
   terminalContent: ReactNode;
+  /** Browser session panel body (ADR 0020 §6 mirrored frame + pick). */
+  browserContent?: ReactNode;
   reviewContent: ReactNode;
   notesContent?: ReactNode;
   cardsContent?: ReactNode;
@@ -57,6 +59,8 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
       return props.filesContent;
     case 'terminal':
       return props.terminalContent;
+    case 'browser':
+      return props.browserContent;
     case 'review':
       return props.reviewContent;
     case 'notes':
