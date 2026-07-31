@@ -11,6 +11,7 @@ import type { FlashcardsConfig } from './flashcards.js';
 import type { AutomationConfig } from './automation.js';
 import type { MarketplaceConfig } from './marketplace-registry.js';
 import type { PermissionConfig } from './permission.js';
+import type { WalkthroughConfig } from './walkthrough.js';
 import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 
 /** Per-model identity and optional runtime limits. */
@@ -167,6 +168,8 @@ export type PiwinConfig = {
   marketplace?: MarketplaceConfig;
   /** Permission policy mode and rule sets (ADR 0019). */
   permissions?: PermissionConfig;
+  /** Walkthrough generation settings (spec §6.1). */
+  walkthrough?: WalkthroughConfig;
 };
 
 export function createDefaultCompactionConfig(): CompactionConfig {

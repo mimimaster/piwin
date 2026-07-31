@@ -3,6 +3,7 @@
 import type {
   AgentMessageRole,
   MediaAttachmentRef,
+  ModelRef,
   SessionRunOutcome,
   SessionRunPhase,
   ToolPresentation,
@@ -19,12 +20,7 @@ export type SessionToolCardView = {
 
 /** Parent-transcript subagent lifecycle card (PSR D5). */
 export type SubagentActivityState =
-  | 'started'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'merged';
+  'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'merged';
 
 export type SubagentActivityView = {
   childSessionId: string;
@@ -52,6 +48,11 @@ export type SessionTranscriptMessage = {
   attachments?: MediaAttachmentRef[];
   /** When set, UI renders a SubagentActivityCard instead of plain system text. */
   subagentActivity?: SubagentActivityView;
+  /**
+   * Model snapshot used to produce this Assistant message (spec §7.3).
+   * Only set for Assistant messages; legacy transcripts may omit it.
+   */
+  model?: ModelRef;
 };
 
 export type SessionTranscriptDocument = {

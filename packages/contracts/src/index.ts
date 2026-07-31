@@ -29,3 +29,5 @@ export * from './automation.js';
 export * from './marketplace-registry.js';
 export * from './permission.js';
 export * from './capability-matrix.js';
+export * from './walkthrough.js';
+export * from './walkthrough-artifact.js';
