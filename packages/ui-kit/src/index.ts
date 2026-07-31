@@ -61,20 +61,9 @@ export { ListRow } from './list-row.js';
 export type { ListRowProps } from './list-row.js';
 
 export { Tabs, TabsContent, TabsList, TabsTrigger } from './tabs.js';
-export type {
-  TabsContentProps,
-  TabsListProps,
-  TabsProps,
-  TabsTriggerProps,
-} from './tabs.js';
+export type { TabsContentProps, TabsListProps, TabsProps, TabsTriggerProps } from './tabs.js';
 
-export {
-  Field,
-  FieldCheckbox,
-  FieldDescription,
-  FieldError,
-  FieldLabel,
-} from './field.js';
+export { Field, FieldCheckbox, FieldDescription, FieldError, FieldLabel } from './field.js';
 export type { FieldCheckboxProps, FieldProps } from './field.js';
 
 export { Switch } from './switch.js';
@@ -91,6 +80,9 @@ export type { ModalProps } from './modal.js';
 
 export { TextInput, PasswordInput } from './text-input.js';
 export type { TextInputProps, PasswordInputProps } from './text-input.js';
+
+export { TextArea } from './textarea.js';
+export type { TextAreaProps } from './textarea.js';
 
 export { Select } from './select.js';
 export type { SelectProps } from './select.js';
