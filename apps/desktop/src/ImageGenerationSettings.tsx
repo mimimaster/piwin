@@ -108,7 +108,7 @@ function applyEditToModel(model: ModelConfigEntry, draft: ModelEditDraft): Model
 }
 
 export function ImageGenerationSettings(): ReactElement {
-  const { config, saveConfig, discoverProviderModels } = useSettings();
+  const { config, saveConfig, discoverProviderModels, setError } = useSettings();
   const { translator } = useDesktopLocale();
   const copy = translator.settings.imageGeneration;
 
@@ -313,7 +313,7 @@ export function ImageGenerationSettings(): ReactElement {
         setAddModelId((current) => (current.trim() ? current : discovered));
       }
     } catch {
-      // Discovery is best-effort here; the manual add path remains available.
+      setError(copy.discoveryError);
     } finally {
       setDiscovering(false);
     }
