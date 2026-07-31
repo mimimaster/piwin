@@ -22,6 +22,7 @@ import type {
   AgentEvent,
   HostCommand,
   HostMode,
+  HostPush,
   HostServerMessage,
   HostStatusData,
   PermissionMode,
@@ -37,6 +38,12 @@ import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createJsonlWriter } from './host-serve-jsonl-writer.js';
 import { createHostServeStreamBatcher } from './host-serve-stream-batcher.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
+import {
+  runWalkthroughList,
+  runWalkthroughGenerate,
+  runWalkthroughExport,
+  type WalkthroughHostClient,
+} from './walkthrough-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -84,6 +91,9 @@ Usage:
   piwin doccards forget <folder>
   piwin cron list [--mock]
   piwin usage [--project <path> | --global] [--mock]
+  piwin walkthrough list <session-id>
+  piwin walkthrough generate <session-id> <message-id>
+  piwin walkthrough export <session-id> <message-id> [--output <path>]
 
 Host modes: sdk | rpc
 Offline: --mock or PIWIN_MOCK=1
@@ -1930,6 +1940,110 @@ function formatUsageNumber(value: number): string {
   return String(value);
 }
 
+async function commandWalkthrough(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? '';
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+
+  if (sub === 'list') {
+    const sessionId = argv[2];
+    if (!sessionId || sessionId.startsWith('--')) {
+      console.error('Usage: piwin walkthrough list <session-id> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = createWalkthroughHostClient(mode, mock);
+    try {
+      await runWalkthroughList(client, sessionId, console.log);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'generate') {
+    const sessionId = argv[2];
+    const messageId = argv[3];
+    if (!sessionId || !messageId || sessionId.startsWith('--') || messageId.startsWith('--')) {
+      console.error('Usage: piwin walkthrough generate <session-id> <message-id> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = createWalkthroughHostClient(mode, mock);
+    try {
+      await runWalkthroughGenerate(client, sessionId, messageId, console.log);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'export') {
+    const sessionId = argv[2];
+    const messageId = argv[3];
+    if (!sessionId || !messageId || sessionId.startsWith('--') || messageId.startsWith('--')) {
+      console.error(
+        'Usage: piwin walkthrough export <session-id> <message-id> [--output <path>] [--mock]',
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const outputPath = readOption(argv, '--output');
+    const client = createWalkthroughHostClient(mode, mock);
+    try {
+      await runWalkthroughExport(client, sessionId, messageId, console.log, {
+        ...(outputPath ? { outputPath } : {}),
+      });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  console.error(`Unknown walkthrough subcommand: ${sub || '(none)'}`);
+  console.error('Usage: piwin walkthrough list|generate|export');
+  process.exitCode = 1;
+}
+
+/**
+ * Build a {@link WalkthroughHostClient} backed by a real {@link HostRuntime}.
+ * The runtime's `onPush` is bridged into the client's `onPush` registry so
+ * `generate` can wait for `walkthrough/updated` pushes.
+ */
+function createWalkthroughHostClient(mode: HostMode, mock: boolean): WalkthroughHostClient {
+  const pushHandlers = new Set<(message: HostPush) => void>();
+  const runtime = new HostRuntime({
+    mode,
+    mock,
+    onPush: (message) => {
+      for (const handler of pushHandlers) {
+        handler(message);
+      }
+    },
+  });
+  return {
+    handleCommand: (command) => runtime.handleCommand(command),
+    onPush: (handler) => {
+      pushHandlers.add(handler);
+      return () => {
+        pushHandlers.delete(handler);
+      };
+    },
+    dispose: async () => {
+      await runtime.dispose();
+    },
+  };
+}
+
 async function main(argv: string[]): Promise<void> {
   const command = argv[0] ?? 'help';
 
@@ -2003,6 +2117,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'usage') {
     await commandUsage(argv);
+    return;
+  }
+  if (command === 'walkthrough') {
+    await commandWalkthrough(argv);
     return;
   }
 
