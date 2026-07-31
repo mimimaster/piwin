@@ -126,7 +126,7 @@ apps/desktop UI adapter (React/WebView)
 | Default body | Markdown (GFM-ish) |
 | Code fences | Always show source |
 | HTML fence | If UI-like + mode enabled → artifact preview under/beside source |
-| SVG | v1: treat via iframe like openwebui MVP (optional follow-up) |
+| SVG | standard `svg` fences use the existing sandboxed Artifact iframe when Artifact preview is enabled; a light parent-document SVG renderer remains deferred |
 
 ---
 

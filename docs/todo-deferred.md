@@ -92,7 +92,7 @@
 | D-ART-09 | Side panel / fullscreen Artifact workspace (PRD AR-07) | opt-in preview shipped 2026-07-30; workspace is separate UX | later |
 | D-ART-10 | Export single artifact HTML to project file (PRD AR-08) | needs project FS contract + permission policy | later |
 | D-ART-11 | CLI HTML preview | CLI has no iframe host; NG6 in opt-in design | later |
-| D-ART-12 | Light fence registry (svg / html-preview / Cherry-style) | boundary reserved in opt-in design §10; not gated by `artifactPreviewEnabled` | later |
+| D-ART-12 | Light fence registry (native svg / html-preview / Cherry-style) | heavy sandboxed `svg` preview shipped 2026-07-31; parent-document light rendering still needs its own sanitizer and UX | later |
 
 ### 2.4 Git
 

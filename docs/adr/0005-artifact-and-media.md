@@ -51,3 +51,10 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
   reserved for a separate fence registry and are NOT gated by this switch.
 - See `docs/superpowers/specs/2026-07-30-artifact-preview-opt-in-design.md`
   for the full design.
+
+## Amendment (2026-07-31): SVG fences use the heavy Artifact path
+
+- Desktop recognizes valid-root `svg` fences as `SvgArtifactDescriptor` values when `artifactPreviewEnabled` is on.
+- SVG preview reuses the existing sandbox iframe, strict CSP, external-resource classifier, theme contract, height bridge, and init queue; it is not inserted into the parent chat document.
+- Capability-off and streaming behavior remain source-only.
+- A separate light/native SVG renderer with pan/zoom is still deferred and must not share the heavy Artifact switch implicitly.
