@@ -5,6 +5,7 @@ import type { ManagedProcessLogChunk, ManagedProcessRecord } from './process.js'
 import type { ExecutionMode } from './session-ops.js';
 import type { SubagentSpawnOptions } from './subagent.js';
 import type { CompactionFileOps } from './compaction-fileops.js';
+import type { PromptAttachment } from './browser.js';
 
 export type HostMode = 'sdk' | 'rpc';
 
@@ -71,6 +72,7 @@ export type McpToolCallTarget = {
 
 export type MediaAttachmentRef = {
   id: string;
+  kind: 'media';
   path: string;
   mimeType: string;
   byteSize: number;
@@ -81,7 +83,7 @@ export type MediaAttachmentRef = {
 
 export type PromptInput = {
   text: string;
-  attachments?: MediaAttachmentRef[];
+  attachments?: PromptAttachment[];
   /** Per-turn model for this prompt only (not a synthetic chat message). */
   model?: ModelRef;
   /** Per-turn thinking level for this prompt only. */
@@ -176,7 +178,7 @@ export type AgentMessageView = {
   role: AgentMessageRole;
   text: string;
   createdAt?: string;
-  attachments?: MediaAttachmentRef[];
+  attachments?: PromptAttachment[];
 };
 
 export type SessionTreeNode = {

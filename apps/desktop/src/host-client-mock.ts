@@ -6,6 +6,7 @@ import type {
   HostPush,
   HostResponse,
   HostServerMessage,
+  MediaAttachmentRef,
   SessionSummary,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
@@ -562,12 +563,20 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           status: 'done',
         };
         if (command.input.attachments && command.input.attachments.length > 0) {
-          userMessage.attachments = command.input.attachments;
+          const mediaAttachments = command.input.attachments.filter(
+            (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
+          );
+          if (mediaAttachments.length > 0) {
+            userMessage.attachments = mediaAttachments;
+          }
         }
         session.transcript.push(userMessage);
         const attachmentNote =
           command.input.attachments && command.input.attachments.length > 0
-            ? `\n[attachments: ${command.input.attachments.map((item) => item.path).join(', ')}]`
+            ? `\n[attachments: ${command.input.attachments
+                .filter((item): item is MediaAttachmentRef => item.kind === 'media')
+                .map((item) => item.path)
+                .join(', ')}]`
             : '';
         // Stream asynchronously so concurrent session/abort can cancel mid-turn.
         void this.emitMockPrompt(

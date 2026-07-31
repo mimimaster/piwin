@@ -383,6 +383,7 @@ describe('chatUiReducer', () => {
       attachments: [
         {
           id: 'a1',
+          kind: 'media',
           path: '/tmp/media/s/a.png',
           mimeType: 'image/png',
           byteSize: 12,
@@ -464,6 +465,7 @@ describe('chatUiReducer', () => {
           attachments: [
             {
               id: 'a1',
+              kind: 'media',
               path: '/tmp/.piwin/media/s/a.png',
               mimeType: 'image/png',
               byteSize: 10,

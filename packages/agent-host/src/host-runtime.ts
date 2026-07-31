@@ -16,11 +16,15 @@ import type {
   ModelRef,
   PermissionDecision,
   PermissionMode,
+  PromptAttachment,
   PromptInput,
   SessionHandle,
   AgentEventEnvelope,
 } from '@piwin/contracts';
-import { formatTextModelImageInjection } from '@piwin/contracts';
+import {
+  formatTextModelImageInjection,
+  formatTextModelWebElementInjection,
+} from '@piwin/contracts';
 import { assertInsideMediaRoot, createMediaService } from '@piwin/media';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { installSkill, installExtension } from '@piwin/marketplace';
@@ -875,6 +879,8 @@ export class HostRuntime {
   /**
    * Attachments are accepted only from piwin's media root. The UI supplies a
    * structured reference; this boundary creates the text-model path metadata.
+   * Media refs render as path injections; web-element refs render via the
+   * browser injection and pass through for later browser-session rendering.
    */
   private buildModelPromptInput(input: PromptInput): PromptInput {
     if (!input.attachments || input.attachments.length === 0) {
@@ -882,22 +888,30 @@ export class HostRuntime {
     }
 
     const mediaRoot = getPiwinMediaDir(getPiwinRoot(this.options.piwinRoot));
-    const safeAttachments = input.attachments.map((attachment) =>
-      validateMediaAttachment(mediaRoot, attachment),
-    );
-    const imageInjections = safeAttachments.map((attachment) =>
-      formatTextModelImageInjection({
-        absolutePath: attachment.path,
-        mimeType: attachment.mimeType,
-        byteSize: attachment.byteSize,
-        ...(attachment.width !== undefined ? { width: attachment.width } : {}),
-        ...(attachment.height !== undefined ? { height: attachment.height } : {}),
-      }),
-    );
+    const safeAttachments: PromptAttachment[] = [];
+    const injections: string[] = [];
+    for (const attachment of input.attachments) {
+      if (attachment.kind === 'media') {
+        const safe = validateMediaAttachment(mediaRoot, attachment);
+        safeAttachments.push(safe);
+        injections.push(
+          formatTextModelImageInjection({
+            absolutePath: safe.path,
+            mimeType: safe.mimeType,
+            byteSize: safe.byteSize,
+            ...(safe.width !== undefined ? { width: safe.width } : {}),
+            ...(safe.height !== undefined ? { height: safe.height } : {}),
+          }),
+        );
+      } else {
+        safeAttachments.push(attachment);
+        injections.push(formatTextModelWebElementInjection(attachment));
+      }
+    }
 
     return {
       ...input,
-      text: [input.text, ...imageInjections].filter(Boolean).join('\n\n'),
+      text: [input.text, ...injections].filter(Boolean).join('\n\n'),
       attachments: safeAttachments,
     };
   }
@@ -2201,6 +2215,7 @@ function validateMediaAttachment(
   const path = assertInsideMediaRoot(mediaRoot, attachment.path);
   const safeAttachment: MediaAttachmentRef = {
     id: attachment.id,
+    kind: 'media',
     path,
     mimeType: attachment.mimeType,
     byteSize: attachment.byteSize,
