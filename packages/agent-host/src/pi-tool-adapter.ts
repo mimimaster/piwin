@@ -168,6 +168,17 @@ function parametersForHostTool(tool: HostToolDefinition): unknown {
       limit: Type.Optional(Type.Number({ description: 'search result limit' })),
     });
   }
+  if (tool.name === 'image_gen') {
+    return Type.Object({
+      prompt: Type.String({ description: 'Detailed prompt describing the image to generate' }),
+      model: Type.Optional(
+        Type.String({ description: 'Optional image model id (routed by name)' }),
+      ),
+      size: Type.Optional(Type.String({ description: 'Optional size / aspect ratio' })),
+      quality: Type.Optional(Type.String({ description: 'Optional quality (openai only)' })),
+      n: Type.Optional(Type.Number({ description: 'Optional number of images (default 1)' })),
+    });
+  }
   if (tool.name.startsWith('mcp__')) {
     return Type.Unsafe(tool.parameters);
   }

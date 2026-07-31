@@ -29,9 +29,11 @@ import {
   getPiwinSessionIndexPath,
   getPiwinSessionPlanPath,
   getPiwinSessionTranscriptPath,
+  getPiwinMediaDir,
 } from './paths.js';
 import { createPlanStepTool } from './plan-step-tool.js';
 import { createPlanCreateTool } from './plan-create-tool.js';
+import { buildImageGenTool } from './image-gen-tool.js';
 import { createSubagentRunTool } from './subagent-run-tool.js';
 import { buildSessionTools } from './session-tools.js';
 import { toPiCustomTools } from './pi-tool-adapter.js';
@@ -552,6 +554,32 @@ async function createPiSdkSession(
         })
       : undefined;
 
+  // image_gen tool: only when the imagegen skill is enabled (switch = disabledIds).
+  const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
+  const imageGenTool = imagegenDisabled
+    ? null
+    : buildImageGenTool({
+        piwinRoot: rootDir,
+        sessionId,
+        config,
+        mediaConfig: {
+          mediaRoot: getPiwinMediaDir(rootDir),
+          maxPasteBytes: config.media.maxPasteBytes,
+          allowedMimeTypes: config.media.allowedMimeTypes,
+        },
+        secretResolver: createSecretResolver(),
+        ...(mergedRules ? { rules: mergedRules } : {}),
+        ...(permissionHandler
+          ? {
+              requestPermission: wrapPermissionHandler(
+                permissionHandler,
+                sessionId,
+                permissionProjectPath,
+              ),
+            }
+          : {}),
+      });
+
   // CE-PROC managed process tools (shared registry with HostRuntime when provided).
   let processRegistry = adapterOptions.processRegistry;
   if (!processRegistry) {
@@ -667,6 +695,7 @@ async function createPiSdkSession(
     ...notesTools,
     ...(flashcardsInCoding ? flashcardTools : []),
     ...(subagentRunTool ? [subagentRunTool] : []),
+    ...(imageGenTool ? [imageGenTool] : []),
   ];
   const hostTools =
     executionMode === 'chat'
