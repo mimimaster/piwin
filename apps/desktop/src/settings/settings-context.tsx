@@ -23,7 +23,7 @@ import type { DesktopPreferences } from '../ui-preferences';
 import type { SettingsSectionId } from './section-registry';
 import type { DraftWeb } from './web-draft';
 
-/** Config-scope host request surface (config, models, secrets, permissions). */
+/** Config-scope host request surface (config, models, secrets, permissions, usage). */
 export type SettingsConfigRequest = (command: {
   type:
     | 'config/get'
@@ -33,7 +33,8 @@ export type SettingsConfigRequest = (command: {
     | 'secrets/set'
     | 'secrets/get'
     | 'project/permissions-list'
-    | 'project/permissions-revoke';
+    | 'project/permissions-revoke'
+    | 'usage/get-rollup';
   config?: PiwinConfig;
   provider?: ModelProviderConfig;
   apiKey?: string;
@@ -42,6 +43,10 @@ export type SettingsConfigRequest = (command: {
   secret?: string;
   path?: string;
   key?: string;
+  scope?: import('@piwin/contracts').SessionScope;
+  projectPath?: string;
+  window?: { from?: string; to?: string };
+  topSessions?: number;
 }) => Promise<HostResponse>;
 
 export type SettingsContextValue = {

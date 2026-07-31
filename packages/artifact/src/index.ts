@@ -13,6 +13,7 @@ export {
   ARTIFACT_READY_TIMEOUT_MS,
   MAX_CONCURRENT_ARTIFACT_INITS,
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
+  ARTIFACT_FINAL_TRIM_SETTLE_MS,
   ARTIFACT_HEIGHT_MEASURE_LADDER_MS,
   ARTIFACT_BRIDGE_READY_TYPE,
   ARTIFACT_BRIDGE_RESIZE_TYPE,
@@ -42,6 +43,8 @@ export type {
   ArtifactThemeContractIssue,
   ArtifactThemeContractRepair,
   ArtifactThemeContractResult,
+  ArtifactLayoutContractIssueKind,
+  ArtifactLayoutContractRepair,
   StreamablePreviewResult,
   OpenArtifactFence,
   ArtifactBridgeMessageType,
@@ -69,10 +72,7 @@ export {
   classifyArtifactSecurity,
 } from './security.js';
 
-export {
-  tryParseHtmlArtifactFence,
-  splitMarkdownBlocks,
-} from './parser.js';
+export { tryParseHtmlArtifactFence, splitMarkdownBlocks } from './parser.js';
 export type { MarkdownFenceBlock, ParsedMarkdownBlock } from './parser.js';
 
 export {
@@ -109,6 +109,7 @@ export type {
 
 export {
   requestArtifactInit,
+  cancelArtifactInit,
   releaseArtifactInit,
   getActiveArtifactInitCount,
   getQueuedArtifactInitCount,
@@ -126,6 +127,9 @@ export {
 export { buildStreamableArtifactPreview } from './streamable-preview.js';
 
 export { applyArtifactThemeContract } from './theme-contract.js';
+
+export { applyArtifactLayoutContract } from './layout-contract.js';
+export type { ArtifactLayoutContractResult } from './layout-contract.js';
 
 export {
   evaluateCodeFence,

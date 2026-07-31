@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
 import type { ArtifactActionMessage, ArtifactPreviewDecision } from '@piwin/artifact';
 import {
+  ARTIFACT_FINAL_TRIM_SETTLE_MS,
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
   ARTIFACT_READY_TIMEOUT_MS,
   INITIAL_ARTIFACT_IFRAME_HEIGHT,
   MAX_ARTIFACT_EXPANDED_HEIGHT,
   MAX_ARTIFACT_IFRAME_HEIGHT,
   MIN_ARTIFACT_IFRAME_HEIGHT,
+  cancelArtifactInit,
   clampArtifactHeight,
   isArtifactBridgeReadyMessage,
   parseArtifactActionMessage,
@@ -137,7 +139,25 @@ function ArtifactRenderFrame(props: {
   const phaseRef = useRef<ArtifactHeightPhase>('protected');
   const shrinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shrinkPendingRef = useRef<number | null>(null);
+  const slotReleasedRef = useRef(false);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxHeight = expanded ? MAX_ARTIFACT_EXPANDED_HEIGHT : MAX_ARTIFACT_IFRAME_HEIGHT;
+
+  /**
+   * Enter final-trim: allow measured heights to shrink back to the real content
+   * height for a short settle window, then lock to interactive (grow-only).
+   * This is what recovers a tall artifact (Expand / a spiked measurement).
+   */
+  const startFinalTrim = (): void => {
+    if (settleTimerRef.current) {
+      clearTimeout(settleTimerRef.current);
+    }
+    setPhase('final-trim');
+    settleTimerRef.current = setTimeout(() => {
+      settleTimerRef.current = null;
+      setPhase('interactive');
+    }, ARTIFACT_FINAL_TRIM_SETTLE_MS);
+  };
 
   useEffect(() => {
     heightRef.current = height;
@@ -158,10 +178,17 @@ function ArtifactRenderFrame(props: {
     });
     return () => {
       cancelled = true;
+      // If still queued (never granted), drop it so a released slot is not
+      // burned on this unmounted component ("Show code" toggle while waiting).
+      cancelArtifactInit(channelId);
       releaseArtifactInit(channelId);
       if (shrinkTimerRef.current) {
         clearTimeout(shrinkTimerRef.current);
         shrinkTimerRef.current = null;
+      }
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
       }
     };
   }, [channelId, initPriority]);
@@ -246,8 +273,15 @@ function ArtifactRenderFrame(props: {
       applyHeight(immediate);
 
       if (isArtifactBridgeReadyMessage(message) && phaseRef.current === 'protected') {
-        setPhase('interactive');
         setStatusLabel(decision.mode === 'stream-preview' ? 'streaming' : 'ready');
+        // Enter a short settle window: measured heights may shrink back to the
+        // real content height, then lock grow-only. Also frees the init slot so
+        // other artifacts in history can mount.
+        startFinalTrim();
+        if (!slotReleasedRef.current) {
+          slotReleasedRef.current = true;
+          releaseArtifactInit(channelId);
+        }
       }
     };
 
@@ -255,8 +289,12 @@ function ArtifactRenderFrame(props: {
 
     const readyTimeout = window.setTimeout(() => {
       if (phaseRef.current === 'protected') {
-        setPhase('interactive');
         setStatusLabel('timeout');
+        startFinalTrim();
+        if (!slotReleasedRef.current) {
+          slotReleasedRef.current = true;
+          releaseArtifactInit(channelId);
+        }
       }
     }, ARTIFACT_READY_TIMEOUT_MS);
 
@@ -266,12 +304,16 @@ function ArtifactRenderFrame(props: {
     };
   }, [granted, channelId, decision.mode, decision.descriptor.source, maxHeight, onArtifactAction]);
 
-  // When collapsing expand mode, re-clamp height to the default max.
+  // When collapsing expand mode, re-clamp height to the default max and enter a
+  // final-trim window so the iframe shrinks back to the real content height
+  // (previously it stayed at MAX with a large blank area below the content).
   useEffect(() => {
     if (!expanded && height > MAX_ARTIFACT_IFRAME_HEIGHT) {
       setHeight(MAX_ARTIFACT_IFRAME_HEIGHT);
       floorRef.current = Math.min(floorRef.current, MAX_ARTIFACT_IFRAME_HEIGHT);
+      startFinalTrim();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expanded, height]);
 
   // Reset height state when srcdoc identity changes
@@ -281,6 +323,11 @@ function ArtifactRenderFrame(props: {
     setPhase('protected');
     setStatusLabel(decision.mode === 'stream-preview' ? 'streaming' : 'loading');
     setExpanded(false);
+    slotReleasedRef.current = false;
+    if (settleTimerRef.current) {
+      clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
   }, [decision.srcdoc, decision.mode]);
 
   const modePill =
@@ -305,6 +352,11 @@ function ArtifactRenderFrame(props: {
         {decision.themeRepairs.length > 0 ? (
           <span className="pill" title="Hard-coded light surfaces adjusted for theme">
             theme adjusted ({decision.themeRepairs.length})
+          </span>
+        ) : null}
+        {decision.layoutRepairs.length > 0 ? (
+          <span className="pill" title="Viewport-unit heights neutralized for inline layout">
+            layout adjusted ({decision.layoutRepairs.length})
           </span>
         ) : null}
         <Button

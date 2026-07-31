@@ -37,7 +37,8 @@ type SettingsPanelProps = {
       | 'secrets/set'
       | 'secrets/get'
       | 'project/permissions-list'
-      | 'project/permissions-revoke';
+      | 'project/permissions-revoke'
+      | 'usage/get-rollup';
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
     apiKey?: string;
@@ -46,6 +47,10 @@ type SettingsPanelProps = {
     secret?: string;
     path?: string;
     key?: string;
+    scope?: import('@piwin/contracts').SessionScope;
+    projectPath?: string;
+    window?: { from?: string; to?: string };
+    topSessions?: number;
   }) => Promise<HostResponse>;
   onSaved?: (config: PiwinConfig) => void;
   preferences: DesktopPreferences;

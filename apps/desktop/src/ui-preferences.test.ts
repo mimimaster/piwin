@@ -66,7 +66,8 @@ describe('DesktopPreferences loading', () => {
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
-      artifactPreviewEnabled: false,
+      artifactPreviewEnabled: true,
+      artifactCodeFirst: false,
     });
   });
 
@@ -76,7 +77,7 @@ describe('DesktopPreferences loading', () => {
     setLocalStorage('codeWrap', 'true');
     setLocalStorage('toolCallDensity', 'compact');
     setLocalStorage('workDetailsExpanded', 'always');
-    setLocalStorage('artifactPreviewEnabled', 'true');
+    setLocalStorage('artifactCodeFirst', 'true');
 
     const prefs = loadDesktopPreferences();
     expect(prefs).toEqual<DesktopPreferences>({
@@ -86,12 +87,12 @@ describe('DesktopPreferences loading', () => {
       toolDensity: 'compact',
       workDetailsExpanded: 'always',
       artifactPreviewEnabled: true,
+      artifactCodeFirst: true,
     });
   });
 
   it('handles missing keys gracefully (partial localStorage)', () => {
     setLocalStorage('assistantTextSize', 'small');
-    // codeTextSize, codeWrap, toolCallDensity, workDetailsExpanded, artifactPreviewEnabled missing
 
     const prefs = loadDesktopPreferences();
     expect(prefs.assistantTextSize).toBe('small');
@@ -99,7 +100,8 @@ describe('DesktopPreferences loading', () => {
     expect(prefs.codeWrap).toBe(false);
     expect(prefs.toolDensity).toBe('comfortable');
     expect(prefs.workDetailsExpanded).toBe('auto');
-    expect(prefs.artifactPreviewEnabled).toBe(false);
+    expect(prefs.artifactPreviewEnabled).toBe(true);
+    expect(prefs.artifactCodeFirst).toBe(false);
   });
 
   it('backward compat: reads old toolCallDensity key', () => {
@@ -125,7 +127,7 @@ describe('DesktopPreferences loading', () => {
     setLocalStorage('codeWrap', 'maybe');
     setLocalStorage('toolCallDensity', 'super-detailed');
     setLocalStorage('workDetailsExpanded', 'never');
-    setLocalStorage('artifactPreviewEnabled', 'maybe');
+    setLocalStorage('artifactCodeFirst', 'maybe');
 
     const prefs = loadDesktopPreferences();
     expect(prefs.assistantTextSize).toBe('default');
@@ -133,7 +135,8 @@ describe('DesktopPreferences loading', () => {
     expect(prefs.codeWrap).toBe(false);
     expect(prefs.toolDensity).toBe('comfortable');
     expect(prefs.workDetailsExpanded).toBe('auto');
-    expect(prefs.artifactPreviewEnabled).toBe(false);
+    expect(prefs.artifactPreviewEnabled).toBe(true);
+    expect(prefs.artifactCodeFirst).toBe(false);
   });
 
   it('codeWrap only parses true as true', () => {
@@ -161,6 +164,7 @@ describe('DesktopPreferences saving and roundtrip', () => {
       toolDensity: 'compact',
       workDetailsExpanded: 'collapsed',
       artifactPreviewEnabled: true,
+      artifactCodeFirst: true,
     };
     saveDesktopPreferences(input);
 
@@ -175,7 +179,8 @@ describe('DesktopPreferences saving and roundtrip', () => {
       codeWrap: false,
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
-      artifactPreviewEnabled: false,
+      artifactPreviewEnabled: true,
+      artifactCodeFirst: false,
     };
     saveDesktopPreferences(defaults);
 
@@ -184,28 +189,28 @@ describe('DesktopPreferences saving and roundtrip', () => {
   });
 });
 
-describe('artifactPreviewEnabled', () => {
+describe('artifactCodeFirst', () => {
   beforeEach(() => {
     clearLocalStorage();
   });
 
   it('defaults to false when key missing', () => {
-    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(false);
+    expect(loadDesktopPreferences().artifactCodeFirst).toBe(false);
   });
 
   it('reads true from localStorage', () => {
-    setLocalStorage('artifactPreviewEnabled', 'true');
-    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(true);
+    setLocalStorage('artifactCodeFirst', 'true');
+    expect(loadDesktopPreferences().artifactCodeFirst).toBe(true);
   });
 
   it('reads false from localStorage', () => {
-    setLocalStorage('artifactPreviewEnabled', 'false');
-    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(false);
+    setLocalStorage('artifactCodeFirst', 'false');
+    expect(loadDesktopPreferences().artifactCodeFirst).toBe(false);
   });
 
   it('falls back to false on invalid value', () => {
-    setLocalStorage('artifactPreviewEnabled', 'maybe');
-    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(false);
+    setLocalStorage('artifactCodeFirst', 'maybe');
+    expect(loadDesktopPreferences().artifactCodeFirst).toBe(false);
   });
 
   it('roundtrips true through save/load', () => {
@@ -216,7 +221,8 @@ describe('artifactPreviewEnabled', () => {
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
       artifactPreviewEnabled: true,
+      artifactCodeFirst: true,
     });
-    expect(loadDesktopPreferences().artifactPreviewEnabled).toBe(true);
+    expect(loadDesktopPreferences().artifactCodeFirst).toBe(true);
   });
 });

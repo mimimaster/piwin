@@ -340,3 +340,14 @@
     max-height: 180px;
   }
 }
+
+/* Usage page: panel fills the card, scrolls internally within settings. */
+.settings-usage-body {
+  min-height: 0;
+  height: 100%;
+}
+
+.settings-usage-body .usage-panel {
+  height: auto;
+  min-height: 380px;
+}

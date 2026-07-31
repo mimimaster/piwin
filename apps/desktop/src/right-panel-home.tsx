@@ -16,7 +16,7 @@ export function RightPanelHome(props: RightPanelHomeProps): ReactElement {
   return (
     <div className="right-panel-home" data-testid="right-panel-home">
       <div className="right-panel-home-grid" role="list">
-        {SECTION_META.map((tab) => {
+        {SECTION_META.filter((tab) => !tab.hidden).map((tab) => {
           const label = sectionLabel(tab.id, props.locale);
           return (
             <button

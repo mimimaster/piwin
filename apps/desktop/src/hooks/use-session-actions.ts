@@ -142,7 +142,19 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       const visible = includeArchived
         ? sessions.filter((session) => session.isArchived === true)
         : sessions.filter((session) => session.isArchived !== true);
-      dispatch({ type: 'session/hydrate', sessions: visible });
+      // Determine the scope that was actually listed so we can dispatch the
+      // correct hydrate action. General sessions go into generalSessions
+      // (the reducer also mirrors them into sessions when general is the
+      // active scope); project sessions go into sessions only.
+      const listedGeneral =
+        (typeof projectPathOrScope === 'object' && projectPathOrScope.kind === 'general') ||
+        (!projectPathOrScope && state.activeScope.kind === 'general') ||
+        (!projectPathOrScope && !state.projectPath);
+      if (listedGeneral) {
+        dispatch({ type: 'session/hydrate-general', sessions: visible });
+      } else {
+        dispatch({ type: 'session/hydrate', sessions: visible });
+      }
       return (data?.sessions ?? []).filter((session) =>
         includeArchived ? session.isArchived === true : session.isArchived !== true,
       );
@@ -364,6 +376,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       setProjectPickerOpen(false);
       // Hydrate sessions for opened project. Do not force-switch session when simply opening/expanding a folder.
       const sessions = await hydrateSessions(openedPath);
+      // Also hydrate general sessions in the background so the Conversations
+      // sidebar section stays populated while a project is active.
+      void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
       if (resumeSessionId) {
         const sessionToResume = sessions.find((session) => session.id === resumeSessionId);
         if (sessionToResume) {
@@ -384,6 +399,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       hostClient,
       hydrateSessions,
       setProjectPickerOpen,
+      showArchivedSessions,
     ],
   );
 

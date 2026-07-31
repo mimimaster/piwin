@@ -21,18 +21,28 @@ export const CACHE_EXPIRY_ESTIMATE_MS = 5 * 60 * 1000;
  * clock-skewed timestamps are clamped to the full window so the UI never shows
  * more than `5:00`.
  */
-function getCacheExpiryEstimateSeconds(
+function getCacheStatus(
+  updatedAt: string | undefined,
+  now: number,
+): { secondsRemaining: number | undefined; isExpired: boolean } {
+  if (!updatedAt) return { secondsRemaining: undefined, isExpired: false };
+  const updatedMs = Date.parse(updatedAt);
+  if (Number.isNaN(updatedMs)) return { secondsRemaining: undefined, isExpired: false };
+  const remainingMs = updatedMs + CACHE_EXPIRY_ESTIMATE_MS - now;
+  if (remainingMs <= 0) return { secondsRemaining: undefined, isExpired: true };
+  const remainingSeconds = Math.ceil(remainingMs / 1000);
+  const maxSeconds = CACHE_EXPIRY_ESTIMATE_MS / 1000;
+  return {
+    secondsRemaining: Math.min(remainingSeconds, maxSeconds),
+    isExpired: false,
+  };
+}
+
+export function getCacheExpiryEstimateSeconds(
   updatedAt: string | undefined,
   now: number,
 ): number | undefined {
-  if (!updatedAt) return undefined;
-  const updatedMs = Date.parse(updatedAt);
-  if (Number.isNaN(updatedMs)) return undefined;
-  const remainingMs = updatedMs + CACHE_EXPIRY_ESTIMATE_MS - now;
-  if (remainingMs <= 0) return undefined;
-  const remainingSeconds = Math.ceil(remainingMs / 1000);
-  const maxSeconds = CACHE_EXPIRY_ESTIMATE_MS / 1000;
-  return Math.min(remainingSeconds, maxSeconds);
+  return getCacheStatus(updatedAt, now).secondsRemaining;
 }
 
 /**
@@ -65,11 +75,11 @@ function resolveLimit(
   usage: ContextUsageSnapshot | null,
   modelContextWindow: number | undefined,
 ): number {
-  if (typeof usage?.tokensLimit === 'number' && usage.tokensLimit > 0) {
-    return usage.tokensLimit;
-  }
   if (typeof modelContextWindow === 'number' && modelContextWindow > 0) {
     return modelContextWindow;
+  }
+  if (typeof usage?.tokensLimit === 'number' && usage.tokensLimit > 0) {
+    return usage.tokensLimit;
   }
   return DEFAULT_MODEL_CONTEXT_WINDOW;
 }
@@ -89,25 +99,33 @@ function resolveUsed(
 }
 
 function formatTokens(value: number): string {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000_000) {
+    const m = value / 1_000_000;
+    return `${m % 1 === 0 ? m : m.toFixed(1)}M`;
+  }
   if (value >= 10_000) return `${Math.round(value / 1000)}K`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  if (value >= 1000) {
+    const k = value / 1000;
+    return `${k % 1 === 0 ? k : k.toFixed(1)}K`;
+  }
   return value.toLocaleString();
 }
 
 export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
   const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
-  // Recompute the countdown only while the popover is open; close → no ticks.
-  // Also reseed `now` whenever a fresh usage snapshot arrives so the user sees
+  // Recompute the countdown while either the popover is open or trigger is hovered.
+  // Reseed `now` whenever a fresh usage snapshot arrives so the user sees
   // an up-to-date estimate without waiting for the next 1s tick.
   useEffect(() => {
-    if (!open) return;
+    if (!open && !hovered) return;
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, [open, props.usage?.updatedAt]);
+  }, [open, hovered, props.usage?.updatedAt]);
+
   const limit = resolveLimit(props.usage, props.modelContextWindow);
   const used = resolveUsed(props.usage);
   const ratio =
@@ -123,10 +141,9 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
     percent >= 90 ? 'critical' : percent >= 70 ? 'warn' : 'ok';
 
   const breakdown = props.breakdown ?? props.usage?.breakdown;
-  const cacheExpirySeconds = getCacheExpiryEstimateSeconds(
-    props.usage?.updatedAt,
-    now,
-  );
+  const { secondsRemaining: cacheExpirySeconds, isExpired: isCacheExpired } =
+    getCacheStatus(props.usage?.updatedAt, now);
+
   const rows: Array<{ label: string; tokens: number | undefined; color: string }> = [
     {
       label: 'System prompt',
@@ -162,10 +179,12 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
     },
   ];
 
-  // Radix owns the portal, positioning, outside dismissal, Escape, and focus
-  // return; the trigger's aria-expanded/aria-controls come from the primitive.
   return (
-    <div className="context-usage-ring-root">
+    <div
+      className="context-usage-ring-root"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <Popover
         open={open}
         onOpenChange={setOpen}
@@ -179,6 +198,10 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
             type="button"
             className={`context-usage-ring tone-${tone}${open ? ' open' : ''}`}
             data-testid="context-usage-ring"
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onFocus={() => setHovered(true)}
+            onBlur={() => setHovered(false)}
             title={
               typeof used === 'number'
                 ? `Context ${formatTokens(used)} / ${formatTokens(limit)} (${percent}%)`
@@ -252,31 +275,42 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
             </li>
           ))}
         </ul>
-        <footer className="context-usage-popover-footer muted">
-          Limit source:{' '}
-          {typeof props.usage?.tokensLimit === 'number'
-            ? 'host report'
-            : typeof props.modelContextWindow === 'number'
-              ? 'model config'
-              : 'default 128K'}
-          {breakdown?.source ? ` · breakdown: ${breakdown.source}` : null}
-          {props.onOpenModelSettings ? (
-            <>
-              {' · '}
-              <button
-                type="button"
-                className="linkish-btn"
-                onClick={() => {
-                  setOpen(false);
-                  props.onOpenModelSettings?.();
-                }}
-              >
-                Edit context window
-              </button>
-            </>
-          ) : null}
-        </footer>
+        {props.onOpenModelSettings ? (
+          <footer className="context-usage-popover-footer muted">
+            <button
+              type="button"
+              className="linkish-btn"
+              onClick={() => {
+                setOpen(false);
+                props.onOpenModelSettings?.();
+              }}
+            >
+              Edit context window
+            </button>
+          </footer>
+        ) : null}
       </Popover>
+      {hovered && !open ? (
+        <div
+          className="context-usage-hover-tooltip"
+          role="tooltip"
+          data-testid="context-usage-hover-tooltip"
+        >
+          <div className="context-usage-hover-tooltip-used">
+            {percent}% ({formatTokens(used ?? 0)} / {formatTokens(limit)}) context used
+          </div>
+          {cacheExpirySeconds !== undefined ? (
+            <div className="context-usage-hover-tooltip-cache">
+              Prompt cache expires in {formatCountdown(cacheExpirySeconds)}
+            </div>
+          ) : isCacheExpired ? (
+            <div className="context-usage-hover-tooltip-expired">
+              <div>Prompt cache has expired.</div>
+              <div>Higher cost expected.</div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -51,11 +51,14 @@ type MarkdownViewProps = {
   /** Forwarded to ArtifactFrame for whitelisted artifact actions (flashcards). */
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   /**
-   * When false (default), the heavy Artifact iframe path is not offered.
-   * Native html/htm fences render as ordinary code; flashcard fences get a
-   * one-click Preview card (design §6). Mermaid/math are unaffected.
+   * When true (default), HTML Artifact capability is enabled.
    */
   artifactPreviewEnabled?: boolean;
+  /**
+   * When true, artifact blocks display source code first with a preview toggle.
+   * When false (default), artifact blocks immediately render dynamic UI.
+   */
+  artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to evaluateCodeFence when heavy path runs. */
   artifactMaxBytes?: number;
   /** Callback when user clicks a markdown document link or plan document chip. */
@@ -76,7 +79,8 @@ export function MarkdownView({
   initPriorityBase = 0,
   artifactThemeKey = 'default',
   onArtifactAction,
-  artifactPreviewEnabled = false,
+  artifactPreviewEnabled = true,
+  artifactCodeFirst = false,
   artifactMaxBytes,
   onOpenDocument,
 }: MarkdownViewProps): ReactElement {
@@ -104,6 +108,7 @@ export function MarkdownView({
             artifactTheme?: ArtifactThemeVariables;
             onArtifactAction?: (action: ArtifactActionMessage) => void;
             artifactPreviewEnabled: boolean;
+            artifactCodeFirst?: boolean;
             artifactMaxBytes?: number;
           } = {
             language: block.language,
@@ -114,6 +119,7 @@ export function MarkdownView({
             initPriority: initPriorityBase + index,
             artifactThemeKey,
             artifactPreviewEnabled,
+            artifactCodeFirst,
           };
           if (artifactTheme) {
             fenceProps.artifactTheme = artifactTheme;
@@ -166,11 +172,13 @@ function CodeFenceView(props: {
   artifactThemeKey?: string;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   artifactPreviewEnabled: boolean;
+  artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
 }): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
+  const artifactCodeFirst = props.artifactCodeFirst ?? false;
   const [artifactPreviewOpen, setArtifactPreviewOpen] = useState(
-    props.renderingPhase === 'explicit-artifact-review',
+    props.renderingPhase === 'explicit-artifact-review' || !artifactCodeFirst,
   );
 
   if (isMermaidFenceLanguage(props.language)) {
@@ -189,8 +197,24 @@ function CodeFenceView(props: {
     return <MathView tex={props.source} display />;
   }
 
-  // Streaming: always show source for code fences — never mount ArtifactFrame.
-  if (streamMode) {
+  const evaluateOptions: Parameters<typeof evaluateCodeFence>[0] = {
+    language: props.language,
+    source: props.source,
+    id: `fence-${props.fenceIndex}`,
+    htmlUiModeEnabled: props.htmlUiModeEnabled,
+    mode: streamMode ? 'stream-preview' : 'interactive',
+  };
+  if (props.artifactMaxBytes !== undefined) {
+    evaluateOptions.maxBytes = props.artifactMaxBytes;
+  }
+  if (props.artifactTheme) {
+    evaluateOptions.theme = props.artifactTheme;
+  }
+
+  const decision: ArtifactPreviewDecision = evaluateCodeFence(evaluateOptions);
+  const isFlashcard = isFlashcardArtifactSource(props.source);
+
+  if (streamMode && decision.kind === 'code') {
     return (
       <div className="md-code-block" data-testid="code-fence-streaming">
         <div className="md-code-header">
@@ -202,23 +226,6 @@ function CodeFenceView(props: {
       </div>
     );
   }
-
-  const evaluateOptions: Parameters<typeof evaluateCodeFence>[0] = {
-    language: props.language,
-    source: props.source,
-    id: `fence-${props.fenceIndex}`,
-    htmlUiModeEnabled: props.htmlUiModeEnabled,
-    mode: 'interactive',
-  };
-  if (props.artifactMaxBytes !== undefined) {
-    evaluateOptions.maxBytes = props.artifactMaxBytes;
-  }
-  if (props.artifactTheme) {
-    evaluateOptions.theme = props.artifactTheme;
-  }
-
-  const decision: ArtifactPreviewDecision = evaluateCodeFence(evaluateOptions);
-  const isFlashcard = isFlashcardArtifactSource(props.source);
 
   // Flashcard exception (design §6): when capability is off but the source
   // carries a data-card-id, offer a one-click Preview card that temporarily
@@ -271,7 +278,7 @@ function CodeFenceView(props: {
         </div>
       );
     }
-    const previewLabel = decision.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview artifact';
+    const previewLabel = decision.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview';
 
     // Blocked: no render to show — display source + blocked strip, no toggle.
     if (decision.kind === 'blocked') {

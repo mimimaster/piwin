@@ -206,6 +206,8 @@ export type ChatThreadProps = {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   /** When false (default), MarkdownView hides the heavy Artifact path. */
   artifactPreviewEnabled?: boolean;
+  /** When true, MarkdownView displays source code first for artifact blocks. */
+  artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to evaluateCodeFence. */
   artifactMaxBytes?: number;
   /** Global composer configuration so the in-place edit card matches the bottom dock. */
@@ -297,6 +299,9 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           composerCard={props.composerCard}
           {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
           {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+          {...(props.artifactCodeFirst !== undefined
+            ? { artifactCodeFirst: props.artifactCodeFirst }
+            : {})}
           {...(props.artifactMaxBytes !== undefined
             ? { artifactMaxBytes: props.artifactMaxBytes }
             : {})}
@@ -355,6 +360,8 @@ type ChatMessageRowProps = {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   /** When false (default), MarkdownView hides the heavy Artifact path. */
   artifactPreviewEnabled?: boolean;
+  /** When true, MarkdownView displays source code first for artifact blocks. */
+  artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to evaluateCodeFence. */
   artifactMaxBytes?: number;
   /** Callback when clicking a markdown document link or plan document chip. */

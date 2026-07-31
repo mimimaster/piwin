@@ -45,9 +45,9 @@ describe('MarkdownView artifact preview policy', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  it('capability off (default): artifact-html fence shows no Preview toggle', () => {
+  it('capability off: artifact-html fence stays ordinary source code when artifactPreviewEnabled is false', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
@@ -55,67 +55,67 @@ describe('MarkdownView artifact preview policy', () => {
 
   it('capability off: plain html fence renders as ordinary code, no Preview', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={PLAIN_HTML_FENCE} renderingPhase="completed" />,
+      <MarkdownView text={PLAIN_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
   });
 
-  it('capability on: artifact-html fence shows Preview toggle', () => {
+  it('default mode (artifactCodeFirst=false): artifact-html fence directly renders ArtifactFrame', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
     );
-    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
   });
 
-  it('capability on: plain html fence shows Preview toggle (promoted by parser)', () => {
+  it('code-first mode (artifactCodeFirst=true): artifact-html fence shows Preview button first', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={PLAIN_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactCodeFirst />,
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
   });
 
-  it('streaming: never mounts Artifact toggle even when capability on', () => {
+  it('streaming mode (artifactCodeFirst=false): renders live ArtifactFrame in stream-preview', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" artifactPreviewEnabled />,
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" />,
     );
-    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
-    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
   });
 
   it('capability off + flashcard source: shows Preview card affordance', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={FLASHCARD_FENCE} renderingPhase="completed" />,
+      <MarkdownView text={FLASHCARD_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
     );
     expect(container.querySelector('[data-testid="flashcard-preview-card"]')).not.toBeNull();
   });
 
-  it('capability on + flashcard source: shows standard Preview toggle', () => {
+  it('capability on + flashcard source: directly renders ArtifactFrame by default', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={FLASHCARD_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+      <MarkdownView text={FLASHCARD_FENCE} renderingPhase="completed" />,
     );
-    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
   });
 
   it('mermaid still renders (mounts MermaidBlock) when capability off', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={MERMAID_FENCE} renderingPhase="completed" />,
+      <MarkdownView text={MERMAID_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
     );
     // MermaidBlock is mounted (not the streaming source fallback).
     expect(container.querySelector('[data-testid="mermaid-stream-source"]')).toBeNull();
   });
 
-  it('capability off: svg fence stays ordinary source code', () => {
+  it('capability off: svg fence stays ordinary source code when artifactPreviewEnabled is false', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={SVG_FENCE} renderingPhase="completed" />,
+      <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
   });
 
-  it('capability on: svg fence shows a Preview SVG toggle', () => {
+  it('code-first mode: svg fence shows a Preview SVG toggle', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+      <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactCodeFirst />,
     );
     const toggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-preview-toggle"]',
@@ -124,18 +124,17 @@ describe('MarkdownView artifact preview policy', () => {
     expect(toggle?.textContent).toContain('Preview SVG');
   });
 
-  it('streaming: svg never mounts an Artifact toggle', () => {
+  it('streaming mode (artifactCodeFirst=true): svg fence shows source code first', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={SVG_FENCE} renderingPhase="streaming" artifactPreviewEnabled />,
+      <MarkdownView text={SVG_FENCE} renderingPhase="streaming" artifactCodeFirst />,
     );
-    expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
-    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
   });
 
   it('byte-stability: artifact-html language label identical in both modes', () => {
     // Capability off: renders code-fence-source with normalized language.
     const off = renderMarkdown(
-      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
     );
     const offLang = off.container.querySelector('[data-testid="code-fence-source"] .md-code-lang');
     const offText = offLang?.textContent ?? '';
@@ -144,9 +143,9 @@ describe('MarkdownView artifact preview policy', () => {
     });
     off.container.remove();
 
-    // Capability on: renders artifact-with-source with the same normalized label.
+    // Code-first mode: renders artifact-with-source with the same normalized label.
     const on = renderMarkdown(
-      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactCodeFirst />,
     );
     const onLang = on.container.querySelector('.artifact-with-source .md-code-lang');
     const onText = onLang?.textContent ?? '';
@@ -161,9 +160,9 @@ describe('MarkdownView artifact preview policy', () => {
     expect(offText.length).toBeGreaterThan(0);
   });
 
-  it('in-place toggle: clicking Preview replaces source with ArtifactFrame (no stacked code)', () => {
+  it('in-place toggle (artifactCodeFirst=true): clicking Preview replaces source with ArtifactFrame', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactCodeFirst />,
     );
     // Closed: source visible, no artifact frame.
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
@@ -172,7 +171,7 @@ describe('MarkdownView artifact preview policy', () => {
     const toggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-preview-toggle"]',
     );
-    expect(toggle?.textContent).toContain('Preview artifact');
+    expect(toggle?.textContent).toContain('Preview');
     act(() => {
       toggle?.click();
     });
@@ -194,7 +193,7 @@ describe('MarkdownView artifact preview policy', () => {
 
   it('in-place toggle: SVG preview replaces source with ArtifactFrame', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactPreviewEnabled />,
+      <MarkdownView text={SVG_FENCE} renderingPhase="completed" artifactCodeFirst />,
     );
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     const toggle = container.querySelector<HTMLButtonElement>(

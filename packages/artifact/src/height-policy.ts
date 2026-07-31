@@ -3,10 +3,7 @@
  * Ported from openwebui_m artifactHeightPolicy — no DOM.
  */
 import { ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS } from './constants.js';
-import type {
-  ArtifactHeightMeasurementMode,
-  ArtifactHeightPhase,
-} from './types.js';
+import type { ArtifactHeightMeasurementMode, ArtifactHeightPhase } from './types.js';
 
 export { ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS };
 
@@ -53,23 +50,23 @@ export function clampArtifactHeight(
   return Math.min(maxHeight, normalized);
 }
 
-export function resolveImmediateArtifactHeight(
-  input: ResolveImmediateArtifactHeightInput,
-): number {
-  const nextHeight = normalizeArtifactHeight(
-    input.height,
-    input.minHeight,
-    input.initialHeight,
-  );
+export function resolveImmediateArtifactHeight(input: ResolveImmediateArtifactHeightInput): number {
+  const nextHeight = normalizeArtifactHeight(input.height, input.minHeight, input.initialHeight);
 
+  // Protected (streaming/initial): only grow from the floor, avoid jitter.
   if (input.phase === 'protected') {
     return Math.max(input.floor, nextHeight);
   }
 
+  // Settled interactive + normal measure: only grow to avoid flapping. This is
+  // the "locked" state reached after the final-trim settle window.
   if (input.phase === 'interactive' && input.mode === 'normal') {
     return Math.max(input.currentHeight, nextHeight);
   }
 
+  // final-trim (and interaction/trim modes): allow the measured height to
+  // shrink back to the real content height — this is what recovers from a
+  // tall artifact (Expand, a spiked measurement, etc.).
   return nextHeight;
 }
 

@@ -72,3 +72,8 @@ export function getPiwinSessionTranscriptPath(rootDir: string, sessionId: string
 export function getPiwinSessionPlanPath(rootDir: string, sessionId: string): string {
   return join(getPiwinSessionDir(rootDir, sessionId), 'plan.json');
 }
+
+/** CE-OBS: append-only usage ledger (JSONL) under the product root. */
+export function getPiwinUsageLedgerPath(rootDir: string): string {
+  return join(rootDir, 'usage', 'ledger.jsonl');
+}

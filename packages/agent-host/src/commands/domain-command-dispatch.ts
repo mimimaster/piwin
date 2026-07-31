@@ -13,6 +13,7 @@ import { handleAutomationCommand } from './automation-commands.js';
 import { handleResolveCommand } from './resolve-commands.js';
 import { handleProjectCommand } from './project-commands.js';
 import { handleSessionProductCommand } from './session-product-commands.js';
+import { handleUsageCommand } from './usage-commands.js';
 import type { SessionProductCommandContext } from './session-product-commands.js';
 
 export type DomainDispatchContext = HostCommandContext & {
@@ -29,6 +30,9 @@ export async function dispatchDomainCommands(
 
   const project = await handleProjectCommand(command, requestId, context.piwinRoot);
   if (project) return project;
+
+  const usage = await handleUsageCommand(command, requestId, context);
+  if (usage) return usage;
 
   for (const handler of [
     handleCatalogCommand,

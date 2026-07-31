@@ -38,11 +38,11 @@ export function ContextWindowPanel(props: ContextWindowPanelProps): ReactElement
   const locale = props.locale ?? 'zh-CN';
 
   const limit = useMemo(() => {
-    if (typeof props.usage?.tokensLimit === 'number' && props.usage.tokensLimit > 0) {
-      return props.usage.tokensLimit;
-    }
     if (typeof props.modelContextWindow === 'number' && props.modelContextWindow > 0) {
       return props.modelContextWindow;
+    }
+    if (typeof props.usage?.tokensLimit === 'number' && props.usage.tokensLimit > 0) {
+      return props.usage.tokensLimit;
     }
     return DEFAULT_MODEL_CONTEXT_WINDOW;
   }, [props.usage?.tokensLimit, props.modelContextWindow]);

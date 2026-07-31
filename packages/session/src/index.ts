@@ -46,6 +46,14 @@ export {
 } from './message-store.js';
 
 export {
+  appendUsageRecord,
+  loadUsageRecords,
+  readUsageRollup,
+  computeUsageRollup,
+} from './usage-ledger-store.js';
+export type { UsageRollupOptions } from './usage-ledger-store.js';
+
+export {
   exportTranscript,
   suggestSessionExportBasename,
   TOOL_OUTPUT_REDACTED_PLACEHOLDER,

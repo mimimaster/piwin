@@ -648,6 +648,117 @@ describe('chatUiReducer', () => {
     expect(state.messages).toEqual([]);
   });
 
+  describe('generalSessions (Conversations sidebar section)', () => {
+    it('session/hydrate-general populates generalSessions without clearing project sessions', () => {
+      let state = createInitialChatUiState();
+      // Simulate opening a project: project/set clears sessions, then hydrate
+      // loads project sessions.
+      state = chatUiReducer(state, {
+        type: 'project/set',
+        path: '/proj',
+        trusted: true,
+      });
+      state = chatUiReducer(state, {
+        type: 'session/hydrate',
+        sessions: [{ id: 'p1', name: 'Project Session' }],
+      });
+      // Background hydrate of general sessions should not wipe project sessions.
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [
+          { id: 'g1', name: 'General 1' },
+          { id: 'g2', name: 'General 2' },
+        ],
+      });
+      expect(state.sessions.map((item) => item.id)).toEqual(['p1']);
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g1', 'g2']);
+      expect(state.activeSessionId).toBeNull();
+    });
+
+    it('session/hydrate-general mirrors into sessions when general is active scope', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [
+          { id: 'g1', name: 'General 1' },
+          { id: 'g2', name: 'General 2' },
+        ],
+      });
+      // activeScope is general by default → sessions should mirror generalSessions.
+      expect(state.sessions.map((item) => item.id)).toEqual(['g1', 'g2']);
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g1', 'g2']);
+    });
+
+    it('session/add prepends to generalSessions when active scope is general', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [{ id: 'g1', name: 'General 1' }],
+      });
+      state = chatUiReducer(state, {
+        type: 'session/add',
+        sessionId: 'g2',
+        name: 'New General',
+      });
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g2', 'g1']);
+      expect(state.sessions.map((item) => item.id)).toEqual(['g2', 'g1']);
+    });
+
+    it('session/add does NOT touch generalSessions when active scope is project', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [{ id: 'g1', name: 'General 1' }],
+      });
+      state = chatUiReducer(state, {
+        type: 'project/set',
+        path: '/proj',
+        trusted: true,
+      });
+      state = chatUiReducer(state, {
+        type: 'session/add',
+        sessionId: 'p1',
+        name: 'New Project',
+      });
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g1']);
+      expect(state.sessions.map((item) => item.id)).toEqual(['p1']);
+    });
+
+    it('session/remove drops from both sessions and generalSessions', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [
+          { id: 'g1', name: 'G1' },
+          { id: 'g2', name: 'G2' },
+        ],
+      });
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'g1' });
+      state = chatUiReducer(state, { type: 'session/remove', sessionId: 'g1' });
+      expect(state.sessions.map((item) => item.id)).toEqual(['g2']);
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g2']);
+    });
+
+    it('project/set and project/clear preserve generalSessions', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [{ id: 'g1', name: 'G1' }],
+      });
+      state = chatUiReducer(state, {
+        type: 'project/set',
+        path: '/proj',
+        trusted: true,
+      });
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g1']);
+      expect(state.sessions).toEqual([]);
+
+      state = chatUiReducer(state, { type: 'project/clear' });
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g1']);
+      expect(state.sessions).toEqual([]);
+    });
+  });
+
   describe('C1: envelope-based dedup', () => {
     const makeEnvelope = (eventId: string, sequence: number, runId?: string) => ({
       eventId,

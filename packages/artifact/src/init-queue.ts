@@ -51,6 +51,18 @@ export function requestArtifactInit(
   });
 }
 
+/**
+ * Drop a queued-but-not-yet-granted request. Prevents a released slot from
+ * being burned on a component that unmounted while waiting ("Show code" toggle).
+ * No-op if the id is already active or not queued.
+ */
+export function cancelArtifactInit(id: string): void {
+  const index = queue.findIndex((item) => item.id === id);
+  if (index >= 0) {
+    queue.splice(index, 1);
+  }
+}
+
 export function releaseArtifactInit(id: string): void {
   activeIds.delete(id);
 

@@ -129,7 +129,6 @@ describe('ContextUsageRing', () => {
     expect(popover?.getAttribute('aria-label')).toBe('Context usage');
     expect(popover?.textContent).toContain('20% Full');
     expect(popover?.textContent).toContain('40K / 200K Tokens');
-    expect(popover?.textContent).toContain('host report');
   });
 
   it('lists every breakdown category, falling back to an em dash', () => {
@@ -146,10 +145,9 @@ describe('ContextUsageRing', () => {
     expect(rows[0]?.textContent).toContain('System prompt');
     expect(rows[0]?.textContent).toContain('1.2K');
     expect(rows[1]?.textContent).toContain('—');
-    expect(queryPopover()?.textContent).toContain('breakdown: host-estimate');
   });
 
-  it('reports a critical tone and the model-config limit source', () => {
+  it('reports a critical tone', () => {
     render(
       createBaseProps({
         usage: {
@@ -166,7 +164,6 @@ describe('ContextUsageRing', () => {
 
     activateTrigger();
     expect(queryPopover()?.textContent).toContain('95% Full');
-    expect(queryPopover()?.textContent).toContain('model config');
   });
 
   it('invokes the model-settings callback and closes the popover', () => {
@@ -300,6 +297,54 @@ describe('ContextUsageRing', () => {
     // first render after open recomputes from Date.now() and shows expired/none.
     const popover = queryPopover();
     expect(popover?.textContent).not.toContain('Cache estimate');
+  });
+
+  it('shows hover tooltip with usage and active cache expiry countdown on focus/hover', () => {
+    render(
+      createBaseProps({
+        usage: {
+          sessionId: 'session-test',
+          tokensUsed: 270_000,
+          tokensLimit: 1_000_000,
+          updatedAt: '2026-07-26T00:00:00.000Z',
+        },
+      }),
+      root,
+    );
+
+    act(() => {
+      queryTrigger().focus();
+    });
+
+    const tooltip = document.querySelector('[data-testid="context-usage-hover-tooltip"]');
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.textContent).toContain('27% (270K / 1M) context used');
+    expect(tooltip?.textContent).toContain('Prompt cache expires in 5:00');
+  });
+
+  it('shows expired prompt cache warning in hover tooltip when cache window has passed', () => {
+    vi.setSystemTime(new Date('2026-07-26T00:06:00.000Z'));
+    render(
+      createBaseProps({
+        usage: {
+          sessionId: 'session-test',
+          tokensUsed: 618_000,
+          tokensLimit: 1_000_000,
+          updatedAt: '2026-07-26T00:00:00.000Z',
+        },
+      }),
+      root,
+    );
+
+    act(() => {
+      queryTrigger().focus();
+    });
+
+    const tooltip = document.querySelector('[data-testid="context-usage-hover-tooltip"]');
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.textContent).toContain('62% (618K / 1M) context used');
+    expect(tooltip?.textContent).toContain('Prompt cache has expired.');
+    expect(tooltip?.textContent).toContain('Higher cost expected.');
   });
 });
 

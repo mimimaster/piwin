@@ -117,6 +117,9 @@ export type ChatUiState = {
   projectTrusted: boolean;
   trustDialogOpen: boolean;
   sessions: SessionListItemUi[];
+  /** General-scope sessions, maintained independently so the Conversations
+   *  sidebar section stays populated even when a project is active. */
+  generalSessions: SessionListItemUi[];
   activeSessionId: string | null;
   messages: ChatMessageUi[];
   outline: SessionOutlineNode[];
@@ -181,6 +184,7 @@ export type ChatUiAction =
   | { type: 'session/set'; sessionId: string }
   | { type: 'session/add'; sessionId: string; name: string }
   | { type: 'session/hydrate'; sessions: SessionListItemUi[] }
+  | { type: 'session/hydrate-general'; sessions: SessionListItemUi[] }
   | {
       type: 'session/load-messages';
       sessionId: string;
@@ -230,6 +234,7 @@ export function createInitialChatUiState(): ChatUiState {
     projectTrusted: false,
     trustDialogOpen: false,
     sessions: [],
+    generalSessions: [],
     activeSessionId: null,
     messages: [],
     outline: [],
@@ -402,6 +407,15 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
           { id: action.sessionId, name: action.name },
           ...state.sessions.filter((item) => item.id !== action.sessionId),
         ],
+        // If the new session is general-scope (inferred from activeScope), also
+        // prepend it to generalSessions so the Conversations section stays current.
+        generalSessions:
+          state.activeScope.kind === 'general'
+            ? [
+                { id: action.sessionId, name: action.name },
+                ...state.generalSessions.filter((item) => item.id !== action.sessionId),
+              ]
+            : state.generalSessions,
         activeSessionId: action.sessionId,
         messages: [],
         runPhase: 'idle',
@@ -418,36 +432,74 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return {
         ...state,
         sessions: action.sessions,
+        // Keep generalSessions in sync when general is the active scope.
+        generalSessions:
+          state.activeScope.kind === 'general' ? action.sessions : state.generalSessions,
         activeSessionId: action.sessions.some((session) => session.id === state.activeSessionId)
           ? state.activeSessionId
           : null,
       };
+    case 'session/hydrate-general':
+      return {
+        ...state,
+        generalSessions: action.sessions,
+        // If general is the active scope, also mirror into sessions so the
+        // active session list and activeSessionId stay in sync. The reducer
+        // always sees up-to-date state (actions processed in order), even
+        // when the dispatching closure had stale activeScope.
+        ...(state.activeScope.kind === 'general'
+          ? {
+              sessions: action.sessions,
+              activeSessionId: action.sessions.some(
+                (session) => session.id === state.activeSessionId,
+              )
+                ? state.activeSessionId
+                : null,
+            }
+          : {}),
+      };
     case 'session/update': {
+      const sortPinnedThenUpdated = (list: SessionListItemUi[]): SessionListItemUi[] => {
+        list.sort((left, right) => {
+          const leftPinned = left.isPinned === true;
+          const rightPinned = right.isPinned === true;
+          if (leftPinned !== rightPinned) {
+            return leftPinned ? -1 : 1;
+          }
+          const leftTime = left.updatedAt ?? '';
+          const rightTime = right.updatedAt ?? '';
+          return rightTime.localeCompare(leftTime);
+        });
+        return list;
+      };
       const nextSessions = state.sessions.map((session) =>
         session.id === action.session.id ? { ...session, ...action.session } : session,
       );
       if (!nextSessions.some((session) => session.id === action.session.id)) {
         nextSessions.unshift(action.session);
       }
-      // Keep pinned sessions first client-side.
-      nextSessions.sort((left, right) => {
-        const leftPinned = left.isPinned === true;
-        const rightPinned = right.isPinned === true;
-        if (leftPinned !== rightPinned) {
-          return leftPinned ? -1 : 1;
-        }
-        const leftTime = left.updatedAt ?? '';
-        const rightTime = right.updatedAt ?? '';
-        return rightTime.localeCompare(leftTime);
-      });
-      return { ...state, sessions: nextSessions };
+      sortPinnedThenUpdated(nextSessions);
+      // Mirror the update into generalSessions if the session is present there.
+      const nextGeneral = state.generalSessions.some((session) => session.id === action.session.id)
+        ? (() => {
+            const list = state.generalSessions.map((session) =>
+              session.id === action.session.id ? { ...session, ...action.session } : session,
+            );
+            return sortPinnedThenUpdated(list);
+          })()
+        : state.generalSessions;
+      return { ...state, sessions: nextSessions, generalSessions: nextGeneral };
     }
     case 'session/remove': {
       const nextSessions = state.sessions.filter((session) => session.id !== action.sessionId);
+      const nextGeneralSessions = state.generalSessions.filter(
+        (session) => session.id !== action.sessionId,
+      );
       const activeRemoved = state.activeSessionId === action.sessionId;
       return {
         ...state,
         sessions: nextSessions,
+        generalSessions: nextGeneralSessions,
         // Do not auto-select another session when the active one is removed.
         activeSessionId: activeRemoved ? null : state.activeSessionId,
         messages: activeRemoved ? [] : state.messages,
@@ -468,10 +520,14 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       };
     case 'session/hide-from-list': {
       const nextSessions = state.sessions.filter((session) => session.id !== action.sessionId);
+      const nextGeneralSessions = state.generalSessions.filter(
+        (session) => session.id !== action.sessionId,
+      );
       const isActive = state.activeSessionId === action.sessionId;
       return {
         ...state,
         sessions: nextSessions,
+        generalSessions: nextGeneralSessions,
         // Keep activeSessionId/messages so the archived transcript remains visible.
         activeSessionArchived: isActive ? true : state.activeSessionArchived,
       };

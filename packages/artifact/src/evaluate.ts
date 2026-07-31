@@ -4,6 +4,7 @@
  */
 import { DEFAULT_MAX_ARTIFACT_BYTES } from './constants.js';
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
+import { applyArtifactLayoutContract } from './layout-contract.js';
 import { tryParseHtmlArtifactFence } from './parser.js';
 import { classifyArtifactSecurity } from './security.js';
 import { buildHtmlArtifactSrcdoc } from './srcdoc.js';
@@ -136,9 +137,14 @@ export function evaluateArtifactDescriptor(
     }
   }
 
+  // Neutralize viewport-unit heights (100vh feedback loop) before measuring.
+  const layout = applyArtifactLayoutContract(bodySource);
+  if (layout.changed) {
+    bodySource = layout.source;
+  }
+
   const theme = options.theme ?? createDefaultArtifactTheme('dark');
-  const channelId =
-    mode === 'stream-preview' ? `${descriptor.id}-stream` : descriptor.id;
+  const channelId = mode === 'stream-preview' ? `${descriptor.id}-stream` : descriptor.id;
   const { srcdoc, csp } = buildHtmlArtifactSrcdoc({
     source: bodySource,
     channelId,
@@ -155,6 +161,7 @@ export function evaluateArtifactDescriptor(
     srcdoc,
     csp,
     themeRepairs,
+    layoutRepairs: layout.repairs,
   };
 }
 
