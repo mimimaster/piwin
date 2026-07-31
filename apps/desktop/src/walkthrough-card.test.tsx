@@ -177,4 +177,35 @@ describe('WalkthroughCard', () => {
     // The source-only path renders a code-fence-source block instead.
     expect(container.querySelector('[data-testid="code-fence-source"]')).toBeTruthy();
   });
+
+  it('renders zh-CN strings when locale is zh-CN', () => {
+    const { container } = renderCard(
+      <WalkthroughCard
+        artifact={readyArtifact()}
+        messageId="a1"
+        locale="zh-CN"
+        onOpenDocument={() => undefined}
+      />,
+    );
+    expect(container.querySelector('[data-testid="walkthrough-status-a1"]')?.textContent).toBe(
+      '就绪',
+    );
+    expect(container.querySelector('.walkthrough-card-title')?.textContent).toBe('演练');
+    const docBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="walkthrough-doc-btn-a1"]',
+    );
+    expect(docBtn?.textContent).toContain('作为文档查看');
+  });
+
+  it('renders zh-CN generating status and loading text', () => {
+    const { container } = renderCard(
+      <WalkthroughCard artifact={generatingArtifact()} messageId="a1" locale="zh-CN" />,
+    );
+    expect(container.querySelector('[data-testid="walkthrough-status-a1"]')?.textContent).toBe(
+      '生成中',
+    );
+    expect(container.querySelector('[data-testid="walkthrough-loading-a1"]')?.textContent).toBe(
+      '正在生成演练…',
+    );
+  });
 });

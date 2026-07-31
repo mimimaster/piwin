@@ -644,6 +644,7 @@ const ChatMessageRow = memo(
             artifact={props.walkthroughsByMessageId?.[message.id]}
             eligible={props.walkthroughEligible === true}
             onGenerate={props.onGenerateWalkthrough}
+            {...(props.locale ? { locale: props.locale } : {})}
             {...(props.onCancelWalkthrough ? { onCancel: props.onCancelWalkthrough } : {})}
             {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           />
