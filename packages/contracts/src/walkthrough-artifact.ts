@@ -58,6 +58,10 @@ export type WalkthroughArtifact =
       markdown: string;
       truncated?: boolean;
       generatedAt: string;
+      // `model` is required on `ready` artifacts (spec §7.1). The base declares
+      // `model?: ModelRef`; intersecting with `model: ModelRef` narrows it to
+      // required for this variant only.
+      model: ModelRef;
     })
   | (WalkthroughArtifactBase & {
       status: 'error';

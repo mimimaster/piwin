@@ -39,7 +39,7 @@ describe('WalkthroughArtifact status variants', () => {
     }
   });
 
-  it('ready variant requires markdown and generatedAt; model is optional on base', () => {
+  it('ready variant requires markdown, generatedAt, and model', () => {
     const artifact: WalkthroughArtifact = {
       ...BASE_FIELDS,
       model: MODEL,
@@ -91,6 +91,7 @@ describe('WalkthroughArtifact status variants', () => {
     };
     const ready: WalkthroughArtifact = {
       ...BASE_FIELDS,
+      model: MODEL,
       status: 'ready',
       markdown: 'm',
       generatedAt: 't',
@@ -147,7 +148,7 @@ describe('walkthrough IPC response data shapes', () => {
     const data: WalkthroughListData = {
       sessionId: 's1',
       artifacts: [
-        { ...BASE_FIELDS, status: 'ready', markdown: 'm', generatedAt: 't' },
+        { ...BASE_FIELDS, model: MODEL, status: 'ready', markdown: 'm', generatedAt: 't' },
       ],
     };
     expect(data.artifacts).toHaveLength(1);
@@ -170,7 +171,7 @@ describe('walkthrough IPC response data shapes', () => {
       sessionId: 's1',
       messageId: 'm1',
       status: 'ready',
-      artifact: { ...BASE_FIELDS, status: 'ready', markdown: 'm', generatedAt: 't' },
+      artifact: { ...BASE_FIELDS, model: MODEL, status: 'ready', markdown: 'm', generatedAt: 't' },
     };
     if (data.status === 'ready') {
       expect(data.artifact.status).toBe('ready');
