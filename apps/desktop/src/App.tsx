@@ -362,6 +362,62 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const hasRestoredDesktopSession = useRef(false);
   const configSaveQueue = useRef(Promise.resolve());
 
+  // Initialize terminal CWD from home directory when no project/preference is set.
+  useEffect(() => {
+    if (terminalCwd) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { homeDir } = await import('@tauri-apps/api/path');
+        const home = await homeDir();
+        if (!cancelled && home) {
+          setTerminalCwd(home);
+        }
+      } catch {
+        // Tauri API not available (browser mock) — use '/' as fallback.
+        if (!cancelled) {
+          setTerminalCwd('/');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [terminalCwd]);
+
+  // Sync terminal CWD with the project path when a project is opened.
+  useEffect(() => {
+    if (state.projectPath && !preferences.terminalLastCwd) {
+      setTerminalCwd(state.projectPath);
+    }
+  }, [state.projectPath, preferences.terminalLastCwd]);
+
+  const handleTerminalCwdChange = useCallback(
+    (cwd: string) => {
+      const resolved = cwd || state.projectPath || '';
+      setTerminalCwd(resolved);
+
+      // Update recent directories.
+      setTerminalRecentDirs((prev) => {
+        const filtered = prev.filter((d) => d !== resolved);
+        return [resolved, ...filtered].slice(0, 5);
+      });
+
+      // Persist to preferences immediately.
+      setPreferences((prev) => {
+        const filtered = (prev.terminalRecentDirs ?? []).filter((d) => d !== resolved);
+        const next: DesktopPreferences = {
+          ...prev,
+          terminalLastCwd: resolved,
+          terminalRecentDirs: [resolved, ...filtered].slice(0, 5),
+        };
+        saveDesktopPreferences(next);
+        return next;
+      });
+    },
+    [state.projectPath],
+  );
+
   useEffect(() => {
     if (state.activeRunStartedAt === null) {
       return;
@@ -1840,6 +1896,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     projectTrusted={state.projectTrusted}
                     ptyOutput={ptyOutput}
                     onClearPtyOutput={() => setPtyOutput([])}
+                    currentCwd={terminalCwd}
+                    onCwdChange={handleTerminalCwdChange}
+                    recentDirs={terminalRecentDirs}
                     request={requestPty}
                   />
                 }

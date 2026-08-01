@@ -1,5 +1,6 @@
 /**
  * Multi-session state for the Tauri interactive terminal dock.
+ * Now supports general-scope terminals (no project required).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -9,6 +10,9 @@ import type { PtyStatus } from './xterm-surface';
 export type TerminalSession = {
   id: string;
   name: string;
+  /** Actual working directory for this terminal session. */
+  cwd: string;
+  /** Project root for authorization (empty = general-scope terminal). */
   projectPath: string;
   status: PtyStatus;
   error: string | null;
@@ -20,7 +24,7 @@ export type TerminalSessionsApi = {
   sessions: TerminalSession[];
   activeSessionId: string | null;
   setActiveSessionId: (id: string | null) => void;
-  addSession: () => TerminalSession | null;
+  addSession: (cwd?: string) => TerminalSession | null;
   closeSession: (id: string) => void;
   restartSession: (id: string) => void;
   onSessionStatus: (id: string, status: PtyStatus, ptyId: string | null, message?: string) => void;
@@ -28,13 +32,19 @@ export type TerminalSessionsApi = {
 
 export function useTerminalSessions(
   projectPath: string | null,
-  projectTrusted: boolean,
+  _projectTrusted: boolean,
   enabled: boolean,
+  defaultCwd: string,
 ): TerminalSessionsApi {
   const [sessions, setSessions] = useState<TerminalSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const counterRef = useRef(1);
-  const previousKeyRef = useRef<string | null>(null);
+  const enabledRef = useRef(enabled);
+
+  // Keep enabledRef in sync for the cleanup effect.
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
 
   const reset = useCallback(() => {
     setSessions([]);
@@ -43,12 +53,14 @@ export function useTerminalSessions(
   }, []);
 
   const createSession = useCallback(
-    (name?: string): TerminalSession => {
+    (cwd?: string, name?: string): TerminalSession => {
       const index = counterRef.current;
       counterRef.current += 1;
+      const sessionCwd = cwd?.trim() || defaultCwd;
       return {
         id: `terminal-${index}`,
         name: name ?? `zsh ${index}`,
+        cwd: sessionCwd,
         projectPath: projectPath ?? '',
         status: 'idle',
         error: null,
@@ -56,16 +68,20 @@ export function useTerminalSessions(
         ptyId: null,
       };
     },
-    [projectPath],
+    [defaultCwd, projectPath],
   );
 
-  const addSession = useCallback((): TerminalSession | null => {
-    if (!projectPath || !projectTrusted || !enabled) return null;
-    const session = createSession();
-    setSessions((current) => [...current, session]);
-    setActiveSessionId(session.id);
-    return session;
-  }, [createSession, projectPath, projectTrusted, enabled]);
+  const addSession = useCallback(
+    (cwd?: string): TerminalSession | null => {
+      if (!enabled) return null;
+      // General-scope: allow terminal even without project or trust.
+      const session = createSession(cwd);
+      setSessions((current) => [...current, session]);
+      setActiveSessionId(session.id);
+      return session;
+    },
+    [createSession, enabled],
+  );
 
   const closeSession = useCallback(
     (id: string) => {
@@ -121,32 +137,35 @@ export function useTerminalSessions(
     [],
   );
 
-  // Initialize or reset when project/trust/mode changes.
-  const sessionKey = enabled && projectPath && projectTrusted ? `${projectPath}:${projectTrusted}` : null;
+  // Initialize with a default session when enabled.
   useEffect(() => {
-    if (sessionKey === null) {
+    if (!enabled) {
       if (sessions.length > 0) {
         void tauriPtyCloseAll().catch(() => {
           /* ignore if not in Tauri */
         });
       }
       reset();
-      previousKeyRef.current = null;
       return;
     }
-    if (previousKeyRef.current === sessionKey) return;
-    previousKeyRef.current = sessionKey;
-    if (sessions.length > 0) {
-      void tauriPtyCloseAll().catch(() => {
-        /* ignore if not in Tauri */
-      });
-    }
-    reset();
-    counterRef.current = 1;
+
+    // If sessions already exist, don't re-initialize.
+    if (sessions.length > 0) return;
+
     const first = createSession();
     setSessions([first]);
     setActiveSessionId(first.id);
-  }, [sessionKey, createSession, reset]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
+  // Cleanup on unmount.
+  useEffect(() => {
+    return () => {
+      void tauriPtyCloseAll().catch(() => {
+        /* ignore if not in Tauri */
+      });
+    };
+  }, []);
 
   return {
     sessions,

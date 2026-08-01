@@ -23,7 +23,10 @@ import {
 export type PtyStatus = 'idle' | 'starting' | 'open' | 'error' | 'exited';
 
 export type XtermSurfaceProps = {
-  projectPath: string;
+  /** Actual working directory for the terminal. */
+  cwd: string;
+  /** Project root for authorization (empty = general-scope terminal). */
+  projectPath?: string;
   onStatus: (status: PtyStatus, ptyId: string | null, message?: string) => void;
 };
 
@@ -153,8 +156,8 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
 
       try {
         const opened = await tauriPtyOpen({
-          cwd: props.projectPath,
-          projectPath: props.projectPath,
+          cwd: props.cwd,
+          ...(props.projectPath ? { projectPath: props.projectPath } : {}),
           cols: terminal.cols,
           rows: terminal.rows,
         });
@@ -178,7 +181,10 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
         return;
       }
       const last = entries[entries.length - 1];
-      const hasSize = last && last.contentRect.width >= MIN_OPEN_WIDTH && last.contentRect.height >= MIN_OPEN_HEIGHT;
+      const hasSize =
+        last &&
+        last.contentRect.width >= MIN_OPEN_WIDTH &&
+        last.contentRect.height >= MIN_OPEN_HEIGHT;
 
       if (!terminalRef.current) {
         // First positive layout: open the terminal surface.
@@ -212,7 +218,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [props.projectPath]);
+  }, [props.cwd, props.projectPath]);
 
   return (
     <div

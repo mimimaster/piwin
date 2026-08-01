@@ -4,6 +4,7 @@
  * - Browser mock / non-Tauri: host pty/* line-oriented Shell preview
  *
  * The Tauri path now supports multiple zsh sessions inside the Terminal side tool.
+ * General-scope terminals (no project) open in $HOME by default.
  */
 
 import { useEffect, useRef, useState, type ReactElement } from 'react';
@@ -11,7 +12,7 @@ import type { HostResponse } from '@piwin/contracts';
 import { Button, Notice } from '@piwin/ui-kit';
 import { isTauriPtyAvailable } from './tauri-pty';
 import { XtermSurface } from './xterm-surface';
-import { IconClose, IconPlus, IconRefresh } from './shell-icons';
+import { IconClose, IconPlus, IconRefresh, IconFolder } from './shell-icons';
 import { useTerminalSessions, type TerminalSession } from './use-terminal-sessions';
 
 export type PtyOutputLine = {
@@ -25,6 +26,12 @@ export type TerminalDockProps = {
   projectTrusted: boolean;
   ptyOutput: PtyOutputLine[];
   onClearPtyOutput: () => void;
+  /** Current terminal working directory (persisted to preferences). */
+  currentCwd: string;
+  /** Called when the user changes the terminal directory. */
+  onCwdChange: (cwd: string) => void;
+  /** Recent directories for quick access dropdown. */
+  recentDirs: string[];
   request: (command: {
     type: 'pty/open' | 'pty/write' | 'pty/resize' | 'pty/close' | 'pty/list';
     input?: { projectPath: string; cwd?: string; cols?: number; rows?: number };
@@ -36,6 +43,19 @@ export type TerminalDockProps = {
   }) => Promise<HostResponse>;
 };
 
+/** Truncate a path to fit in the header, keeping the tail visible. */
+function truncatePath(path: string, maxLen: number = 30): string {
+  if (path.length <= maxLen) return path;
+  const parts = path.replace(/\/$/, '').split('/');
+  if (parts.length <= 2) return `…${path.slice(-(maxLen - 1))}`;
+  // Keep the last 2 segments: ~/…/last/two
+  const tail = parts.slice(-2).join('/');
+  const head = parts[0] === '' ? '/' : (parts[0] ?? '');
+  const available = maxLen - tail.length - 3; // 3 for "…/"
+  if (available <= 0) return `…/${tail}`;
+  return `${head.slice(0, Math.max(1, available))}…/${tail}`;
+}
+
 export function TerminalDock(props: TerminalDockProps): ReactElement {
   const useInteractivePty = isTauriPtyAvailable();
   const [inputLine, setInputLine] = useState('');
@@ -43,6 +63,11 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
   const [ptyStatus, setPtyStatus] = useState<TerminalSession['status']>('idle');
   const [ptyError, setPtyError] = useState<string | null>(null);
   const ptyEndRef = useRef<HTMLDivElement | null>(null);
+
+  // Directory switcher state.
+  const [dirDropdownOpen, setDirDropdownOpen] = useState(false);
+  const [dirInput, setDirInput] = useState('');
+  const dirDropdownRef = useRef<HTMLDivElement | null>(null);
 
   const {
     sessions,
@@ -52,9 +77,26 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
     closeSession,
     restartSession,
     onSessionStatus,
-  } = useTerminalSessions(props.projectPath, props.projectTrusted, useInteractivePty);
+  } = useTerminalSessions(
+    props.projectPath,
+    props.projectTrusted,
+    useInteractivePty,
+    props.currentCwd,
+  );
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
+
+  // Close directory dropdown on outside click.
+  useEffect(() => {
+    if (!dirDropdownOpen) return;
+    function handleClick(event: MouseEvent) {
+      if (dirDropdownRef.current && !dirDropdownRef.current.contains(event.target as Node)) {
+        setDirDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [dirDropdownOpen]);
 
   // Keep the single-host (browser preview) pty scroll pinned to the bottom.
   useEffect(() => {
@@ -66,12 +108,11 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
   // Single-host (browser mock) helpers.
   async function ensureHostPtyOpen(): Promise<string | null> {
     if (ptyId) return ptyId;
-    if (!props.projectPath || !props.projectTrusted) return null;
     setPtyStatus('starting');
     setPtyError(null);
     const response = await props.request({
       type: 'pty/open',
-      input: { projectPath: props.projectPath },
+      input: { projectPath: props.projectPath ?? '', cwd: props.currentCwd },
     });
     if (!response.success) {
       setPtyStatus('error');
@@ -111,6 +152,35 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
     await props.request({ type: 'pty/write', ptyId: id, data: `${text}\n` });
   }
 
+  function handleSelectDir(dir: string) {
+    setDirDropdownOpen(false);
+    setDirInput('');
+    props.onCwdChange(dir);
+  }
+
+  function handleDirInputSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    const trimmed = dirInput.trim();
+    if (!trimmed) return;
+    handleSelectDir(trimmed);
+  }
+
+  // Collect quick directory options.
+  const dirOptions: Array<{ label: string; path: string }> = [];
+  if (props.projectPath) {
+    dirOptions.push({ label: 'Project root', path: props.projectPath });
+  }
+  dirOptions.push({ label: 'Home (~)', path: '' });
+  // Add recent dirs (excluding duplicates with current project/home).
+  const seen = new Set([props.projectPath, ''].filter(Boolean));
+  for (const dir of props.recentDirs) {
+    if (!seen.has(dir)) {
+      seen.add(dir);
+      const shortLabel = dir.length > 40 ? `…${dir.slice(-37)}` : dir;
+      dirOptions.push({ label: shortLabel, path: dir });
+    }
+  }
+
   const liveBadge =
     useInteractivePty && activeSession?.status === 'open'
       ? 'live'
@@ -138,6 +208,56 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
             </span>
           ) : null}
         </div>
+
+        {/* Directory switcher */}
+        {useInteractivePty ? (
+          <div className="terminal-dir-switcher" ref={dirDropdownRef}>
+            <button
+              type="button"
+              className="terminal-dir-btn"
+              data-testid="terminal-dir-btn"
+              title={props.currentCwd}
+              aria-label={`Current directory: ${props.currentCwd}`}
+              aria-expanded={dirDropdownOpen}
+              onClick={() => setDirDropdownOpen((prev) => !prev)}
+            >
+              <IconFolder width={12} height={12} />
+              <span className="terminal-dir-path">{truncatePath(props.currentCwd)}</span>
+            </button>
+            {dirDropdownOpen ? (
+              <div className="terminal-dir-dropdown" data-testid="terminal-dir-dropdown">
+                <div className="terminal-dir-dropdown-header">Quick directories</div>
+                {dirOptions.map((option) => (
+                  <button
+                    key={option.path}
+                    type="button"
+                    className="terminal-dir-option"
+                    data-testid={`terminal-dir-option-${option.path || 'home'}`}
+                    onClick={() => handleSelectDir(option.path || '')}
+                  >
+                    <span className="terminal-dir-option-label">{option.label}</span>
+                    <span className="terminal-dir-option-path">{option.path || '~'}</span>
+                  </button>
+                ))}
+                <form className="terminal-dir-input-row" onSubmit={handleDirInputSubmit}>
+                  <input
+                    className="terminal-dir-input"
+                    type="text"
+                    value={dirInput}
+                    onChange={(event) => setDirInput(event.target.value)}
+                    placeholder="Type a path…"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <Button type="submit" size="compact" disabled={!dirInput.trim()}>
+                    Go
+                  </Button>
+                </form>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="terminal-dock-actions">
           {useInteractivePty ? (
             <button
@@ -173,9 +293,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
 
       <div className="terminal-dock-body">
         <div className="pty-panel" data-testid="pty-panel">
-          {!props.projectPath ? (
-            <div className="muted terminal-empty">Open a project to use the terminal.</div>
-          ) : !props.projectTrusted ? (
+          {!props.projectTrusted && props.projectPath ? (
             <div className="muted terminal-empty" data-testid="pty-untrusted">
               Trust this project to open a shell (PTY requires trusted cwd).
             </div>
@@ -183,13 +301,19 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
             <div className="pty-xterm-wrap" data-testid="pty-xterm-wrap">
               {sessions.length > 0 ? (
                 <>
-                  <div className="terminal-dock-session-strip" role="tablist" aria-label="Terminal sessions">
+                  <div
+                    className="terminal-dock-session-strip"
+                    role="tablist"
+                    aria-label="Terminal sessions"
+                  >
                     {sessions.map((session) => {
                       const isActive = session.id === activeSessionId;
                       return (
                         <div
                           key={session.id}
-                          className={isActive ? 'terminal-dock-session active' : 'terminal-dock-session'}
+                          className={
+                            isActive ? 'terminal-dock-session active' : 'terminal-dock-session'
+                          }
                           role="tab"
                           aria-selected={isActive}
                           data-testid={`terminal-session-tab-${session.id}`}
@@ -251,7 +375,8 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                         ) : null}
                         <XtermSurface
                           key={`${session.id}:${session.generation}`}
-                          projectPath={session.projectPath}
+                          cwd={session.cwd}
+                          {...(session.projectPath ? { projectPath: session.projectPath } : {})}
                           onStatus={(status, ptyId, message) => {
                             onSessionStatus(session.id, status, ptyId, message);
                           }}
@@ -271,13 +396,11 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                 {ptyError ? <Notice tone="error">{ptyError}</Notice> : null}
                 {props.ptyOutput.length === 0 && ptyStatus === 'open' ? (
                   <div className="muted terminal-empty">
-                    Line-oriented shell preview — interactive/TUI programs are unsupported.
-                    Desktop (Tauri) uses a real PTY + xterm.
+                    Line-oriented shell preview — interactive/TUI programs are unsupported. Desktop
+                    (Tauri) uses a real PTY + xterm.
                   </div>
                 ) : null}
-                <pre className="pty-pre">
-                  {props.ptyOutput.map((line) => line.data).join('')}
-                </pre>
+                <pre className="pty-pre">{props.ptyOutput.map((line) => line.data).join('')}</pre>
                 <div ref={ptyEndRef} />
               </div>
               <form
@@ -292,7 +415,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                   className="pty-input"
                   data-testid="pty-input"
                   value={inputLine}
-                  disabled={ptyStatus === 'starting' || !props.projectTrusted}
+                  disabled={ptyStatus === 'starting'}
                   onChange={(event) => setInputLine(event.target.value)}
                   placeholder="command + Enter"
                   autoComplete="off"
@@ -301,7 +424,7 @@ export function TerminalDock(props: TerminalDockProps): ReactElement {
                 <Button
                   type="submit"
                   data-testid="pty-send-btn"
-                  disabled={ptyStatus === 'starting' || !props.projectTrusted}
+                  disabled={ptyStatus === 'starting'}
                 >
                   Send
                 </Button>

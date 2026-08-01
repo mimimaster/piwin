@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 /**
  * Multi-session terminal state (pure state, no PTY I/O in vitest).
+ * Now supports general-scope terminals (no project required).
  */
 
 import { describe, expect, it, afterEach } from 'vitest';
@@ -20,8 +21,14 @@ function TestHarness(props: {
   projectPath: string | null;
   projectTrusted: boolean;
   enabled: boolean;
+  defaultCwd: string;
 }): null {
-  const api = useTerminalSessions(props.projectPath, props.projectTrusted, props.enabled);
+  const api = useTerminalSessions(
+    props.projectPath,
+    props.projectTrusted,
+    props.enabled,
+    props.defaultCwd,
+  );
   lastApi = api;
   return null;
 }
@@ -30,6 +37,7 @@ function renderHarness(props: {
   projectPath: string | null;
   projectTrusted: boolean;
   enabled: boolean;
+  defaultCwd: string;
 }): { root: Root; container: HTMLDivElement } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -56,18 +64,44 @@ describe('useTerminalSessions', () => {
     lastApi = null;
   });
 
-  it('creates an initial session when project is trusted and enabled', () => {
-    const rendered = renderHarness({ projectPath: '/project', projectTrusted: true, enabled: true });
+  it('creates an initial session when enabled', () => {
+    const rendered = renderHarness({
+      projectPath: '/project',
+      projectTrusted: true,
+      enabled: true,
+      defaultCwd: '/home',
+    });
     root = rendered.root;
     container = rendered.container;
 
     expect(lastApi?.sessions.length).toBe(1);
     expect(lastApi?.activeSessionId).toBe(lastApi?.sessions[0]?.id ?? null);
     expect(lastApi?.sessions[0]?.name).toMatch(/^zsh \d/);
+    expect(lastApi?.sessions[0]?.cwd).toBe('/home');
   });
 
-  it('stays empty when not trusted or disabled', () => {
-    const rendered = renderHarness({ projectPath: '/project', projectTrusted: false, enabled: true });
+  it('creates initial session even without project or trust', () => {
+    const rendered = renderHarness({
+      projectPath: null,
+      projectTrusted: false,
+      enabled: true,
+      defaultCwd: '/tmp',
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(lastApi?.sessions.length).toBe(1);
+    expect(lastApi?.sessions[0]?.cwd).toBe('/tmp');
+    expect(lastApi?.sessions[0]?.projectPath).toBe('');
+  });
+
+  it('stays empty when disabled', () => {
+    const rendered = renderHarness({
+      projectPath: '/project',
+      projectTrusted: true,
+      enabled: false,
+      defaultCwd: '/home',
+    });
     root = rendered.root;
     container = rendered.container;
 
@@ -76,7 +110,12 @@ describe('useTerminalSessions', () => {
   });
 
   it('adds and activates new sessions', () => {
-    const rendered = renderHarness({ projectPath: '/project', projectTrusted: true, enabled: true });
+    const rendered = renderHarness({
+      projectPath: '/project',
+      projectTrusted: true,
+      enabled: true,
+      defaultCwd: '/home',
+    });
     root = rendered.root;
     container = rendered.container;
 
@@ -91,8 +130,31 @@ describe('useTerminalSessions', () => {
     expect(lastApi?.sessions[1]?.name).toMatch(/^zsh \d/);
   });
 
+  it('adds a session with a custom cwd', () => {
+    const rendered = renderHarness({
+      projectPath: '/project',
+      projectTrusted: true,
+      enabled: true,
+      defaultCwd: '/home',
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    act(() => {
+      lastApi?.addSession('/custom/path');
+    });
+
+    const added = lastApi?.sessions[1];
+    expect(added?.cwd).toBe('/custom/path');
+  });
+
   it('closes the active session and falls back to the previous one', () => {
-    const rendered = renderHarness({ projectPath: '/project', projectTrusted: true, enabled: true });
+    const rendered = renderHarness({
+      projectPath: '/project',
+      projectTrusted: true,
+      enabled: true,
+      defaultCwd: '/home',
+    });
     root = rendered.root;
     container = rendered.container;
 
@@ -114,7 +176,12 @@ describe('useTerminalSessions', () => {
   });
 
   it('updates session status and ptyId', () => {
-    const rendered = renderHarness({ projectPath: '/project', projectTrusted: true, enabled: true });
+    const rendered = renderHarness({
+      projectPath: '/project',
+      projectTrusted: true,
+      enabled: true,
+      defaultCwd: '/home',
+    });
     root = rendered.root;
     container = rendered.container;
 
@@ -137,24 +204,5 @@ describe('useTerminalSessions', () => {
     });
     expect(lastApi?.sessions[0]?.status).toBe('error');
     expect(lastApi?.sessions[0]?.error).toBe('boom');
-  });
-
-  it('resets sessions when the project changes', () => {
-    const rendered = renderHarness({ projectPath: '/project', projectTrusted: true, enabled: true });
-    root = rendered.root;
-    container = rendered.container;
-
-    act(() => {
-      lastApi?.addSession();
-    });
-    expect(lastApi?.sessions.length).toBe(2);
-
-    act(() => {
-      root?.render(<TestHarness projectPath="/other" projectTrusted={true} enabled={true} />);
-    });
-
-    expect(lastApi?.sessions.length).toBe(1);
-    expect(lastApi?.sessions[0]?.projectPath).toBe('/other');
-    expect(lastApi?.activeSessionId).toBe(lastApi?.sessions[0]?.id ?? null);
   });
 });
