@@ -1632,6 +1632,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     permissionPrompt={state.permissionPrompt}
                     projectPath={state.projectPath}
                     toolDiffRequest={requestGit as never}
+                    filesChangedRequest={requestGit as never}
+                    onReviewChanges={() => openRightTab('review')}
                     onPermission={(decision, scope) => {
                       void handlePermission(decision, scope);
                     }}
