@@ -13,6 +13,17 @@ import type { MarketplaceConfig } from './marketplace-registry.js';
 import type { PermissionConfig } from './permission.js';
 import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 
+/** Model capability tags. Drives tool routing and settings UI grouping. */
+export type ModelCapability = 'chat' | 'image-generation';
+
+/** Per-capability route override (request path + timeout). */
+export type ModelRouteConfig = {
+  /** Custom request path appended to provider baseUrl (e.g. '/images/generations'). */
+  path?: string;
+  /** Request timeout in milliseconds. */
+  timeoutMs?: number;
+};
+
 /** Per-model identity and optional runtime limits. */
 export type ModelConfigEntry = {
   id: string;
@@ -27,6 +38,10 @@ export type ModelConfigEntry = {
   maxOutputTokens?: number;
   /** Optional Markdown shown when the model is hovered in a picker. */
   tooltipMarkdown?: string;
+  /** Capabilities this model supports. Omit = ['chat'] for backward compat. */
+  capabilities?: ModelCapability[];
+  /** Per-capability route overrides (path, timeout). */
+  routes?: Partial<Record<ModelCapability, ModelRouteConfig>>;
 };
 
 /** Default context window when a model omits `contextWindow`. */
@@ -130,6 +145,11 @@ export function createDefaultSessionConfig(): SessionConfig {
   return { autoName: true };
 }
 
+export type ImageGenerationConfig = {
+  /** Default model for image generation (independent from chat default). */
+  defaultModel?: ModelRef;
+};
+
 export type PiwinConfig = {
   hostMode: 'sdk' | 'rpc';
   agentMock?: boolean;
@@ -165,6 +185,8 @@ export type PiwinConfig = {
   automation?: AutomationConfig;
   /** CE-HUB registry source toggles. */
   marketplace?: MarketplaceConfig;
+  /** Image generation config (default model, future options). */
+  imageGeneration?: ImageGenerationConfig;
   /** Permission policy mode and rule sets (ADR 0019). */
   permissions?: PermissionConfig;
 };
