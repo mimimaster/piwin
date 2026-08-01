@@ -35,6 +35,7 @@ import { loadMcpConfig, saveMcpConfig, tryValidateMcpConfig, listEnabledServers 
 import { installSkill, installExtension, RECOMMENDED_SKILLS } from '@piwin/marketplace';
 import { createMediaService } from '@piwin/media';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
+import { createCliExtensionUiRequestHandler } from './extension-ui-cli.js';
 import { createJsonlWriter } from './host-serve-jsonl-writer.js';
 import { createHostServeStreamBatcher } from './host-serve-stream-batcher.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
@@ -670,6 +671,7 @@ async function commandChat(argv: string[]): Promise<void> {
   const host = createAgentHost({
     mode,
     mock,
+    onExtensionUiRequest: createCliExtensionUiRequestHandler(),
     ...(permissionModeOverride !== undefined ? { permissionModeOverride } : {}),
   });
   const session = await host.createSession(
