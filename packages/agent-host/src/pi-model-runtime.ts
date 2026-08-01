@@ -1,10 +1,7 @@
 import type { ModelProviderConfig } from '@piwin/contracts';
 import { DEFAULT_MODEL_CONTEXT_WINDOW } from '@piwin/contracts';
 
-export type PiProviderApi =
-  | 'openai-completions'
-  | 'anthropic-messages'
-  | 'google-generative-ai';
+export type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai';
 
 export type PiModelRegistration = {
   id: string;
@@ -40,9 +37,7 @@ export type PiModelRuntime = {
   refresh: (options: { allowNetwork: boolean }) => Promise<unknown>;
 };
 
-export function resolvePiApiForProvider(
-  protocol: ModelProviderConfig['protocol'],
-): PiProviderApi {
+export function resolvePiApiForProvider(protocol: ModelProviderConfig['protocol']): PiProviderApi {
   switch (protocol) {
     case 'anthropic-compatible':
       return 'anthropic-messages';
@@ -62,16 +57,16 @@ export function buildPiProviderRegistration(
     name: provider.name,
     baseUrl: provider.baseUrl,
     api,
-    authHeader: Boolean(
-      apiKey || provider.apiKeyEnv?.trim() || provider.apiKeyRef?.trim(),
-    ),
+    authHeader: Boolean(apiKey || provider.apiKeyEnv?.trim() || provider.apiKeyRef?.trim()),
     models: provider.models.map((model) => ({
       id: model.id,
       name: model.label?.trim() || model.id,
       api,
       baseUrl: provider.baseUrl,
-      reasoning: true,
-      input: ['text'],
+      // Omit → true: preserve legacy "all models reasoning-capable" registration.
+      reasoning: model.reasoning ?? true,
+      // Omit → ['text']: safe default; do not claim vision without config.
+      input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
       cost: {
         input: 0,
         output: 0,

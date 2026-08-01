@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ModelProviderConfig } from '@piwin/contracts';
 import { discoverProviderModels } from './provider-model-discovery.js';
 
-function createProvider(
-  overrides: Partial<ModelProviderConfig> = {},
-): ModelProviderConfig {
+function createProvider(overrides: Partial<ModelProviderConfig> = {}): ModelProviderConfig {
   return {
     id: 'custom-provider',
     name: 'Custom provider',
@@ -58,7 +56,7 @@ describe('discoverProviderModels', () => {
     );
 
     expect(apiVersion).toBe('2023-06-01');
-    expect(result.models).toEqual([{ id: 'claude-sonnet' }]);
+    expect(result.models).toEqual([expect.objectContaining({ id: 'claude-sonnet' })]);
   });
 
   it('normalizes Google Gemini model resource names', async () => {
@@ -81,21 +79,21 @@ describe('discoverProviderModels', () => {
     );
 
     expect(apiKey).toBe('gemini-secret');
-    expect(result.models).toEqual([{ id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' }]);
+    // Catalog enrich may attach input/reasoning/limits when the id is known.
+    expect(result.models).toEqual([
+      expect.objectContaining({ id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' }),
+    ]);
   });
 
   it('allows an unauthenticated local OpenAI-compatible endpoint', async () => {
     let authorization: string | null = null;
-    await discoverProviderModels(
-      createProvider({ baseUrl: 'http://127.0.0.1:11434/v1' }),
-      {
-        resolveSecret: async () => null,
-        fetch: async (_input, init) => {
-          authorization = new Headers(init?.headers).get('authorization');
-          return createJsonResponse({ data: [{ id: 'llama3.2' }] });
-        },
+    await discoverProviderModels(createProvider({ baseUrl: 'http://127.0.0.1:11434/v1' }), {
+      resolveSecret: async () => null,
+      fetch: async (_input, init) => {
+        authorization = new Headers(init?.headers).get('authorization');
+        return createJsonResponse({ data: [{ id: 'llama3.2' }] });
       },
-    );
+    });
 
     expect(authorization).toBeNull();
   });

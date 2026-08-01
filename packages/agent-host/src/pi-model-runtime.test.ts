@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelProviderConfig } from '@piwin/contracts';
-import {
-  buildPiProviderRegistration,
-  resolvePiApiForProvider,
-} from './pi-model-runtime.js';
+import { buildPiProviderRegistration, resolvePiApiForProvider } from './pi-model-runtime.js';
 
 describe('pi-model-runtime', () => {
   it('maps product protocols to Pi provider APIs', () => {
@@ -51,5 +48,40 @@ describe('pi-model-runtime', () => {
         maxTokens: 8_192,
       }),
     ]);
+  });
+
+  it('passes through model input and reasoning from config', () => {
+    const provider: ModelProviderConfig = {
+      id: 'vision-proxy',
+      protocol: 'anthropic-compatible',
+      name: 'Vision proxy',
+      baseUrl: 'https://api.example.test',
+      models: [
+        {
+          id: 'claude-vision',
+          input: ['text', 'image'],
+          reasoning: false,
+        },
+      ],
+    };
+    const registration = buildPiProviderRegistration(provider);
+    expect(registration.models[0]).toMatchObject({
+      id: 'claude-vision',
+      input: ['text', 'image'],
+      reasoning: false,
+    });
+  });
+
+  it('defaults omitted input to text-only and reasoning to true', () => {
+    const provider: ModelProviderConfig = {
+      id: 'plain',
+      protocol: 'openai-compatible',
+      name: 'Plain',
+      baseUrl: 'https://api.example.test/v1',
+      models: [{ id: 'text-only-model' }],
+    };
+    const registration = buildPiProviderRegistration(provider);
+    expect(registration.models[0]?.input).toEqual(['text']);
+    expect(registration.models[0]?.reasoning).toBe(true);
   });
 });
