@@ -30,7 +30,7 @@ Read first:
 3. **Contracts first**: new cross-cutting capability starts in `packages/contracts`.
 4. **Adapters over forks**: do not fork Pi core to add product features.
 5. **Artifact**: port pure TS from `openwebui_m`; never paste Svelte components into packages.
-6. **Images for text models**: paste → save local path → inject path string; no base64 context dumps by default.
+6. **Images for models**: paste/drop → save under `~/.piwin/media/` → pass as native image content (`ImageContent`) into Pi `prompt(text, { images })`. Do **not** inject path strings into prompt text by default. Do **not** dump base64 into the *text* prompt. Path-string injection is a fallback only (e.g. text-only models without vision delegation / extension), not the default.
 7. **One config root**: product state under `~/.piwin`; Pi native under `~/.pi/agent`.
 8. **Dual host modes stay real**: `PiSdkAdapter` + `PiRpcAdapter` implement the same contracts.
 9. **No circular package deps**. Dependency direction is one-way downward (see §2).
@@ -192,7 +192,7 @@ Do not merge "logic changes" with zero tests when the package already has a test
 | MCP JSON / servers | `mcp` |
 | web_search / web_fetch | `tools-web` |
 | HTML artifact policy | `artifact` (+ research doc) |
-| Paste image / path inject | `media` |
+| Paste image / media store | `media` (+ `agent-host` loads native images for Pi) |
 | Pi session run | `agent-host` |
 | Shared types | `contracts` |
 | Desktop chrome | `apps/desktop` + `ui-kit` |
@@ -205,7 +205,7 @@ Do not merge "logic changes" with zero tests when the package already has a test
 - God modules: `helpers.ts`, `misc.ts`, `manager.ts` with mixed domains
 - Copy-paste of openwebui Svelte into packages
 - UI importing Pi or spawning `pi` directly (must go through host)
-- Base64 images stuffed into prompts for text models
+- Base64 image data stuffed into **text** prompts (native `ImageContent` parts via Pi `prompt(..., { images })` are the correct path)
 - Silent `catch (e) {}`
 - Adding Electron "just for now" when Tauri is decided
 - Putting product config only in `~/.pi` and skipping `~/.piwin`
@@ -242,3 +242,12 @@ When implementing in this repo:
 3. Do not create new top-level folders without updating architecture docs.
 4. After scaffolding, keep stubs compiling; prefer `throw new Error('not implemented yet')` over fake success.
 5. Record architectural decisions in `docs/adr/` when changing dual-mode host, config root, protocols, or artifact/media model.
+
+---
+
+## 8. Terminology & Domain Disambiguation
+
+- **`WalkthroughArtifact` (Walkthrough)**: User-facing, evidence-driven delivery report (`sessionId + messageId` bound). Generated asynchronously by Host via non-streaming provider completion. Displayed as Markdown card under assistant message.
+- **`PlanExecutionSummary` (Plan Summary)**: Internal structured data object tracking plan step status (`completedStepIds`, `failedStepIds`, `mergedChildSessionIds`, etc.). Used internally by Host during plan execution orchestration; not a user-facing document.
+- **`SessionPlan`**: Structural plan representation in the plan domain (`id`, `title`, `steps`, `status`).
+

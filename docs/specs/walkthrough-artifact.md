@@ -64,13 +64,13 @@ Google 通常在任务结束后自动生成 Walkthrough；piwin 本版本采用�
 - 用用户主动点击控制成本和延迟；
 - 未来可以在同一 contracts 上增加 `autoGenerate`，不需要重做 Artifact 模型。
 
-### 2.3 与现有 Plan Walkthrough 的关系
+### 2.3 与现有 Plan Summary 的关系
 
-当前 piwin 已有 `PlanExecutionWalkthrough`，用于描述一个 `SessionPlan` 的执行步骤、合并子会话、验证结果和未解决项。它是计划执行域的结构化摘要，不应被改造成任意聊天消息的 Markdown Artifact。
+当前 piwin 已有 `PlanExecutionSummary`（原 `PlanExecutionWalkthrough`），用于描述一个 `SessionPlan` 的执行步骤、合并子会话、验证结果和未解决项。它是计划执行域的结构化摘要，不应被改造成任意聊天消息的 Markdown Artifact。
 
 本功能新增通用 `WalkthroughArtifact`，其中可以引用 `planId` 和计划证据，但两者保持分工：
 
-- `PlanExecutionWalkthrough`：计划执行状态和步骤结果。
+- `PlanExecutionSummary`：计划执行状态和步骤结果（内部数据结构）。
 - `WalkthroughArtifact`：面向用户阅读的、与具体回答关联的生成文档。
 
 ## 3. 现有基础与接入点
