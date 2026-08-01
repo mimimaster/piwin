@@ -3,49 +3,76 @@
 | Field | Value |
 |-------|-------|
 | Status | Living document |
-| Related | [ADR 0019](../adr/0019-permission-rule-engine.md), [Architecture §3.4](../architecture.md#34-permission-system) |
+| Related | [ADR 0019](../adr/0019-permission-rule-engine.md), [ADR 0024](../adr/0024-run-modes-and-sandbox.md), [Architecture §3.4](../architecture.md#34-permission-system) |
 
 piwin gates the tools an agent can run — bash commands, file writes, network
-fetches, and MCP tool calls — through a host-owned permission system. This
-guide explains how to configure it.
+fetches, and MCP tool calls — through a host-owned permission system built on
+two orthogonal axes:
 
-> **Honesty note:** the permission system is an **approval layer**, not an OS
-> sandbox. It prompts and blocks; it does not isolate the agent process. For
-> sensitive machines, prefer `ask-all` mode. A future ADR may add OS-level
-> sandboxing (Seatbelt/Landlock).
+1. **Run Mode** (ADR 0024) — a user-facing preset that collapses the sandbox
+   boundary and the approval friction into one three-state switch.
+2. **Rule engine** (ADR 0019) — layered `deny`/`ask`/`allow` rules that refine
+   what each mode actually permits.
+
+This guide explains both.
+
+> **Sandbox note (ADR 0024):** `auto` and `ask` modes run the agent inside an
+> OS-level sandbox (Seatbelt on macOS, Landlock on Linux). `yolo` disables the
+> sandbox. The rule engine still applies in all modes — it is the approval
+> layer on top of the sandbox boundary.
 
 ---
 
-## Permission modes
+## Run Modes
 
-The mode controls how often the agent asks before running tools. Set it in
-Settings → Permissions, or via the CLI flag `--permission-mode`.
+The Run Mode controls the sandbox boundary and how often the agent asks before
+running tools. Set it from the composer toolbar pill (Desktop), Settings →
+Permissions, or via CLI flags.
 
-| Mode | Behavior |
-|------|----------|
-| `auto` (default) | Low-friction. Safe commands and in-project writes run without prompts; out-of-project writes, public network, and unmatched bash (after deny + ask rules) ask. |
-| `ask-all` | Prompts on every unmatched bash command and every file write (even in-project). Use on machines with sensitive material. |
-| `bypass` | Allows all unmatched actions. **Deny rules are still enforced.** Refused for untrusted projects (downgraded to `auto`). General scope (no project) may use bypass. |
+| Mode | Sandbox | Behavior |
+|------|---------|----------|
+| `auto` (default) | On | Low-friction inside the sandbox. Safe commands and in-project writes run without prompts; leaving the workspace or opening network asks. |
+| `ask` | On | Prompts on almost every tool call (still sandboxed). Use when you want to watch every step. |
+| `yolo` | Off | No sandbox, no routine prompts. **Circuit breakers still fire** (see below). Refused for untrusted projects (downgraded to `auto`). |
 
-**Bypass guard:** a freshly-cloned, untrusted project cannot disable prompts by
-editing its own `permissions.json` — `bypass` is refused and downgraded to
-`auto` with a warning. Trust the project first (Settings → Projects) if you
-want bypass to apply.
+### Circuit breakers (apply in all modes, including `yolo`)
+
+Even in `yolo`, these actions always prompt (or are denied non-interactively):
+
+- `rm -rf /` and equivalent root-deletion patterns.
+- Writes to secret paths (`~/.ssh/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …).
+- Force-push to `main` / `master`.
+- Any `deny` rule that matches.
+
+Circuit breakers cannot be allowed away by project rules or `yolo` mode.
+
+### YOLO guard
+
+A freshly-cloned, untrusted project cannot disable the sandbox by editing its
+own config — `yolo` is refused and downgraded to `auto` with a warning. Trust
+the project first (Settings → Projects) if you want `yolo` to apply. General
+scope (no project open) may use `yolo` (your machine, your choice).
 
 ### CLI flags
 
 ```bash
-# Override the configured mode for one session
+# Override the configured Run Mode for one session
+piwin chat "fix the tests" --permission-mode ask
+piwin chat "go wild" --yolo
+
+# Legacy mode values still accepted (backward compat)
 piwin chat "fix the tests" --permission-mode ask-all
 piwin host serve --permission-mode auto
 
-# Dangerous alias for --permission-mode bypass (prints a stderr warning)
+# Dangerous alias for yolo (prints a stderr warning)
 piwin chat "go wild" --dangerously-bypass-permissions
 ```
 
-`--permission-mode` takes precedence over `config.permissions.mode`. An invalid
-value (not `auto`/`ask-all`/`bypass`) exits with a usage error. When neither
-flag is present, the configured mode from `~/.piwin/config.json` applies.
+`--permission-mode` accepts both new preset values (`ask`/`auto`/`yolo`) and
+legacy mode values (`auto`/`ask-all`/`bypass`). `--yolo` is a shorthand for
+`--permission-mode yolo`. The flag takes precedence over
+`config.permissions.preset`. When no flag is present, the configured preset
+from `~/.piwin/config.json` applies.
 
 ---
 
@@ -133,7 +160,7 @@ host, or MCP selector) and evaluates it against the merged rule set:
 2. **Ask tier** — if any ask rule matches, the action prompts (or is denied
    non-interactively in the CLI).
 3. **Allow tier** — if any allow rule matches, the action runs.
-4. **No match** — the domain default applies, modified by the permission mode
+4. **No match** — the domain default applies, modified by the Run Mode
    (see the modes table above).
 
 Because tiers are ordered (not specificity-ranked), a broader bundled `ask`
@@ -149,9 +176,9 @@ Every `write` and `edit` tool call is gated:
 
 - **Denied** (no prompt): secret paths — `~/.ssh/**`, `~/.piwin/**`, `**/.env`,
   `**/*.pem`, `**/id_rsa`, `**/credentials.json`, `**/secrets.*`, etc.
-- **Ask**: paths outside the project root (in `auto` and `ask-all`), and
+- **Ask**: paths outside the project root (in `auto` and `ask`), and
   `~/.config/**` (sensitive but sometimes legitimate).
-- **Allow**: paths inside the project root in `auto`; in `ask-all` project
+- **Allow**: paths inside the project root in `auto`; in `ask` project
   writes still ask unless an `allow` rule matches.
 
 The gate resolves symlinks (`realpath`) before checking, so a symlink that
@@ -179,24 +206,34 @@ or by opening it and confirming trust).
 
 | Concern | Untrusted project | Trusted project |
 |---------|-------------------|-----------------|
-| `bypass` mode | Refused → downgraded to `auto` + warning | Applies as configured |
+| `yolo` mode | Refused → downgraded to `auto` + warning | Applies as configured |
 | Project-layer `allow` rules | **Dropped** at load time | Loaded |
 | Project `deny`/`ask` rules | Always apply | Always apply |
 | Out-of-project writes / public network in `auto` | ask | ask |
 
 Untrusted is **not** a full read-only sandbox — the agent can still run safe
-bash and write inside the project. It blocks bypass and untrusted project allow
+bash and write inside the project. It blocks `yolo` and untrusted project allow
 rules so a cloned repo cannot weaken the agent's guardrails.
 
 ---
 
-## Remembered permissions ("Allow for project")
+## Remembered permissions ("Allow for session / project")
 
 When a prompt appears in the Desktop UI, you can choose:
 
+- **Allow for session** (default) — remembers the approval for the current
+  session only (in-memory, cleared on close). Lowest commitment.
 - **Allow once** — runs this one action, no persistence.
-- **Allow for project** — remembers the approval for the current project
-  (available for bash and file-write subjects).
+- **Allow for project** — remembers the approval persistently for the current
+  project (available for bash and file-write subjects).
+
+### Approval scopes (ADR 0024)
+
+| Scope | Lifetime | Storage |
+|-------|----------|---------|
+| `once` | Single action | None |
+| `session` | Current session | In-memory (host process) |
+| `project` | Persistent | `~/.piwin/projects.json` |
 
 Remembered entries are stored in `~/.piwin/projects.json`:
 
@@ -216,13 +253,16 @@ via `project/permissions-revoke`. MCP has no remember (server-gated).
 
 | Setting | Location |
 |---------|----------|
-| Permission mode | `~/.piwin/config.json` → `permissions.mode` |
+| Run Mode preset | `~/.piwin/config.json` → `permissions.preset` |
+| Legacy mode (backward compat) | `~/.piwin/config.json` → `permissions.mode` |
 | User-global rules | `~/.piwin/permissions.json` |
 | Project shared rules | `<project>/.piwin/permissions.json` |
 | Project local rules | `<project>/.piwin/permissions.local.json` |
-| Remembered allows | `~/.piwin/projects.json` (per-project `bashAllowlist` / `fileWriteAllowlist`) |
+| Remembered allows (project scope) | `~/.piwin/projects.json` (per-project `bashAllowlist` / `fileWriteAllowlist`) |
+| Remembered allows (session scope) | In-memory only (host process) |
 | MCP servers | `~/.piwin/mcp.json` |
 
-Rule files and mode both take effect on the **next session** (no hot-reload).
-Edit rules, then start a new session (or restart `piwin host serve`) for them
-to apply.
+Rule files and Run Mode both take effect on the **next session** (no
+hot-reload). Edit rules, then start a new session (or restart
+`piwin host serve`) for them to apply. Session-scoped approvals are cleared
+when the session closes.
