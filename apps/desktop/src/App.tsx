@@ -8,12 +8,14 @@ import {
   type SetStateAction,
 } from 'react';
 import type {
+  PermissionPreset,
   PiwinConfig,
   ProjectRecord,
   SessionSearchHit,
   ThemeManifest,
   WalkthroughArtifact,
 } from '@piwin/contracts';
+import { modeToPreset, resolvePreset } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, type SessionListItemUi } from './chat-reducer';
 import { HostClient } from './host-client';
 import { useHostRequestAdapters } from './host-request-adapters';
@@ -24,6 +26,7 @@ import { ProjectSessionSidebar } from './project-session-sidebar';
 import { projectDisplayName } from './project-display-name';
 import { ChatThread } from './chat-thread';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
+import { PermissionBar } from './permission-bar';
 import { FileTreePanel } from './file-tree-panel';
 import { ReviewPanel } from './review-panel';
 import { AppDialogs } from './app-dialogs';
@@ -860,6 +863,33 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [persistComposerProfile, selectedModelKey],
   );
 
+  // ADR 0024: Run Mode preset. Session-level override (in memory); "Set as
+  // default" persists to config.permissions.preset. Derived from config when
+  // no session override is set.
+  const [runModeOverride, setRunModeOverride] = useState<PermissionPreset | null>(null);
+  const configPreset: PermissionPreset =
+    config?.permissions?.preset ??
+    (config?.permissions?.mode ? modeToPreset(config.permissions.mode) : 'auto');
+  const effectiveRunMode: PermissionPreset = runModeOverride ?? configPreset;
+
+  const handleRunModeChange = useCallback((nextPreset: PermissionPreset): void => {
+    setRunModeOverride(nextPreset);
+  }, []);
+
+  const handleRunModeSetDefault = useCallback(
+    (nextPreset: PermissionPreset): void => {
+      if (!config) return;
+      const resolved = resolvePreset(nextPreset);
+      const nextConfig: PiwinConfig = {
+        ...config,
+        permissions: { mode: resolved.mode, preset: nextPreset },
+      };
+      setConfig(nextConfig);
+      saveConfigInOrder(nextConfig);
+    },
+    [config, saveConfigInOrder, setConfig],
+  );
+
   useEffect(() => {
     if (!config || !state.activeSessionId) {
       return;
@@ -1246,6 +1276,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     hostMock: state.hostMock,
     transportLabel: hostClient.getTransport(),
     onOpenHostSettings: () => openSettingsSection('general'),
+    runModePreset: effectiveRunMode,
+    onRunModeChange: handleRunModeChange,
+    onRunModeSetDefault: handleRunModeSetDefault,
+    onOpenPermissionsSettings: () => openSettingsSection('permissions'),
+    runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted,
   };
 
   const handleOpenSubagentSession = useCallback(
@@ -1398,7 +1433,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 ? '项目'
                 : 'Project'
           }
-          permissionMode={config?.permissions?.mode ?? null}
+          permissionMode={config?.permissions?.preset ?? configPreset}
           onOpenPermissions={() => openSettingsSection('permissions')}
         />
 
@@ -1506,7 +1541,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     },
                   }
                 : {})}
-              permissionMode={config?.permissions?.mode ?? null}
+              permissionMode={config?.permissions?.preset ?? configPreset}
               onOpenPermissions={() => openSettingsSection('permissions')}
               locale={desktopLocale}
             />
@@ -1685,6 +1720,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 </Notice>
               ) : null}
             </>
+          }
+          permissionBar={
+            state.permissionPrompt ? (
+              <PermissionBar
+                prompt={state.permissionPrompt}
+                projectPath={state.projectPath}
+                onPermission={(decision, scope) => {
+                  void handlePermission(decision, scope);
+                }}
+              />
+            ) : null
           }
           composerDock={<ComposerDock {...composerCard} />}
           statusBar={
