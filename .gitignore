@@ -26,6 +26,9 @@ apps/desktop/playwright-report/
 apps/desktop/blob-report/
 apps/desktop/playwright/.cache/
 
+# Playwright MCP scratch captures
+.playwright-mcp/
+
 # Local scratch / asset drafts
 icon-preview-2d.html
 pelican-bicycle.html
