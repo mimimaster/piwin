@@ -226,7 +226,7 @@ function resolveProviderForModel(
  * §4.3 (default) and §4.4 (custom) validation. Returns either the resolved
  * inputs or a WalkthroughError.
  */
-function resolveGenerationModel(
+export function resolveGenerationModel(
   command: Extract<HostCommand, { type: 'walkthrough/generate' }>,
   targetMessage: SessionTranscriptMessage,
   context: WalkthroughCommandContext,
@@ -435,9 +435,60 @@ export async function handleWalkthroughGenerate(
     );
   }
 
+  // Start a new generation via the shared internal trigger.
+  const generationId = await startWalkthroughGeneration(
+    sessionId,
+    messageId,
+    model,
+    provider,
+    mode,
+    walkthrough,
+    targetMessage,
+    messages,
+    context,
+    registry,
+    completionDependencies,
+  );
+
+  return ok(requestId, 'walkthrough/generate', {
+    sessionId,
+    messageId,
+    generationId,
+    status: 'generating' as const,
+  });
+}
+
+/* ------------------------------------------------------------------ */
+/* §11.1 Internal generation trigger                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Internal generation trigger used by both the IPC handler and the
+ * auto-walkthrough path. Caller is responsible for validation (enabled,
+ * eligibility, concurrency, existing artifact, model resolution).
+ *
+ * Registers the generation, persists the generating state, pushes the
+ * `walkthrough/updated` event, and fires the async completion pipeline.
+ * Returns the generationId.
+ */
+export async function startWalkthroughGeneration(
+  sessionId: string,
+  messageId: string,
+  model: ModelRef,
+  provider: ModelProviderConfig,
+  mode: WalkthroughMode,
+  walkthrough: WalkthroughConfig,
+  targetMessage: SessionTranscriptMessage,
+  messages: readonly SessionTranscriptMessage[],
+  context: WalkthroughCommandContext,
+  registry: WalkthroughGenerationRegistry,
+  completionDependencies?: WalkthroughCompletionDependencies,
+): Promise<string> {
+  const rootDir = getPiwinRoot(context.piwinRoot);
+
   // Start a new generation: register, publish generating, accept immediately.
   const generationId = randomUUID();
-  const abortController = registry.register(sessionId, messageId, generationId);
+  registry.register(sessionId, messageId, generationId);
 
   const now = new Date().toISOString();
   const generatingArtifact: WalkthroughArtifact = {
@@ -453,9 +504,7 @@ export async function handleWalkthroughGenerate(
     status: 'generating',
     generationId,
   };
-  if (command.runId) {
-    generatingArtifact.runId = command.runId;
-  } else if (targetMessage.runId) {
+  if (targetMessage.runId) {
     generatingArtifact.runId = targetMessage.runId;
   }
 
@@ -489,12 +538,7 @@ export async function handleWalkthroughGenerate(
     });
   });
 
-  return ok(requestId, 'walkthrough/generate', {
-    sessionId,
-    messageId,
-    generationId,
-    status: 'generating' as const,
-  });
+  return generationId;
 }
 
 /* ------------------------------------------------------------------ */

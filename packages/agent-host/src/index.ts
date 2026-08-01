@@ -72,6 +72,7 @@ export {
   getPiwinSessionTranscriptPath,
   getPiwinSessionWalkthroughDir,
   getPiwinSessionWalkthroughPath,
+  getPiwinSessionWalkthroughMdPath,
 } from './paths.js';
 export {
   listWalkthroughs,
@@ -185,6 +186,7 @@ export {
   EVIDENCE_DELIMITER_OPEN,
   isMediaPathUnderMediaRoot,
   isWalkthroughEligibleMessage,
+  isAutoWalkthroughEligible,
   redactAndBoundEvidence,
   WALKTHROUGH_SYSTEM_PROMPT,
 } from './walkthrough-source.js';

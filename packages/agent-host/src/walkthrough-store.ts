@@ -13,6 +13,7 @@ import type { SessionTranscriptDocument, WalkthroughArtifact } from '@piwin/cont
 import {
   getPiwinSessionTranscriptPath,
   getPiwinSessionWalkthroughDir,
+  getPiwinSessionWalkthroughMdPath,
   getPiwinSessionWalkthroughPath,
 } from './paths.js';
 
@@ -241,6 +242,15 @@ export async function saveWalkthrough(
   const dir = getPiwinSessionWalkthroughDir(rootDir, sessionId);
   await mkdir(dir, { recursive: true });
   await writeJsonAtomic(filePath, artifact);
+
+  // Write a companion `.md` file for ready artifacts so users and external
+  // tools can read the walkthrough as plain Markdown (aligning with Google
+  // Antigravity's walkthrough.md Artifact pattern). Non-ready artifacts
+  // (generating/error) have no markdown content to write.
+  if (artifact.status === 'ready') {
+    const mdPath = getPiwinSessionWalkthroughMdPath(rootDir, sessionId, artifact.messageId);
+    await writeFile(mdPath, artifact.markdown, 'utf8');
+  }
 }
 
 /**
@@ -253,13 +263,15 @@ export async function deleteWalkthrough(
   messageId: string,
 ): Promise<void> {
   const filePath = getPiwinSessionWalkthroughPath(rootDir, sessionId, messageId);
-  try {
-    await rm(filePath, { force: true });
-  } catch (error) {
-    if (!isNotFound(error)) {
-      throw error;
-    }
-  }
+  const mdPath = getPiwinSessionWalkthroughMdPath(rootDir, sessionId, messageId);
+  await Promise.all([
+    rm(filePath, { force: true }).catch((error: unknown) => {
+      if (!isNotFound(error)) throw error;
+    }),
+    rm(mdPath, { force: true }).catch((error: unknown) => {
+      if (!isNotFound(error)) throw error;
+    }),
+  ]);
 }
 
 /**
