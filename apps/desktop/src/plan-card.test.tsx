@@ -167,4 +167,21 @@ describe('PlanCard execution flow', () => {
     const { container } = renderPlan(<PlanCard plan={draftPlan()} />);
     expect(container.querySelector('[data-testid="plan-process"]')).toBeNull();
   });
+
+  it('renders progress header count and step SVG icons correctly', () => {
+    const plan = draftPlan({
+      steps: [
+        { id: '1', title: 'Task 1', status: 'done' },
+        { id: '2', title: 'Task 2', status: 'active' },
+        { id: '3', title: 'Task 3', status: 'pending' },
+      ],
+    });
+    const { container } = renderPlan(<PlanCard plan={plan} />);
+    const titleText = container.querySelector('.plan-title')?.textContent;
+    expect(titleText).toContain('1 / 3 tasks done');
+
+    expect(container.querySelector('.step-icon-done')).toBeTruthy();
+    expect(container.querySelector('.step-icon-run')).toBeTruthy();
+    expect(container.querySelector('.step-icon-pending')).toBeTruthy();
+  });
 });
