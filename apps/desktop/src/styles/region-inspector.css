@@ -3018,6 +3018,9 @@
 }
 
 .doc-comment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-size: 12px;
   font-weight: 500;
   color: var(--accent, #38bdf8);

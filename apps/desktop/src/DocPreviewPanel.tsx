@@ -1,7 +1,17 @@
 import { useState, type ReactElement } from 'react';
 import { DropdownMenu, DropdownMenuItem, IconButton } from '@piwin/ui-kit';
-import { IconBook, IconCopy, IconDocument, IconDownload, IconLink, IconMenuList, IconMore } from './shell-icons';
-import { EnhancedMarkdownView } from './EnhancedMarkdownView';
+import {
+  IconBook,
+  IconChat,
+  IconCopy,
+  IconDocument,
+  IconDownload,
+  IconLink,
+  IconMenuList,
+  IconMore,
+} from './shell-icons';
+import { FileTypeIcon } from './file-type-icon';
+import { EnhancedMarkdownView, type LineCommentItem } from './EnhancedMarkdownView';
 import type { DesktopLocale } from './desktop-locale';
 
 export type SessionDocItem = {
@@ -19,6 +29,12 @@ export type DocPreviewPanelProps = {
   onSelectDocument?: ((doc: { title: string; path?: string }) => void) | undefined;
   onClose?: (() => void) | undefined;
   onOpenFile?: ((filePath: string) => void) | undefined;
+  comments?: LineCommentItem[] | undefined;
+  onAddComment?:
+    ((comment: { lineId: string; lineText: string; commentText: string }) => void) | undefined;
+  onEditComment?: ((id: string, commentText: string) => void) | undefined;
+  onDeleteComment?: ((id: string) => void) | undefined;
+  onCommentLine?: ((lineContent: string) => void) | undefined;
   locale?: DesktopLocale | undefined;
 };
 
@@ -30,16 +46,24 @@ export function DocPreviewPanel({
   onSelectDocument,
   onClose: _onClose,
   onOpenFile,
+  comments = [],
+  onAddComment,
+  onEditComment,
+  onDeleteComment,
+  onCommentLine,
   locale = 'zh-CN',
 }: DocPreviewPanelProps): ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Strip file path and extension from display title e.g. "/path/to/自我介绍.md" -> "自我介绍"
   const rawTitle = title || 'Implementation Plan';
   const cleanName = rawTitle.split(/[\\/]/).pop() || rawTitle;
   const displayTitle = cleanName.replace(/\.md$/i, '');
   const defaultContent =
-    content || `# ${displayTitle}\n\n*${locale === 'zh-CN' ? '暂无文档内容' : 'No document content available'}*`;
+    content ||
+    `# ${displayTitle}\n\n*${locale === 'zh-CN' ? '暂无文档内容' : 'No document content available'}*`;
+
+  const targetPath = filePath || (title && title.includes('.') ? title : `${displayTitle}.md`);
+  const commentCount = comments.length;
 
   function handleCopy(): void {
     if (!content) return;
@@ -84,7 +108,14 @@ export function DocPreviewPanel({
     <div className="doc-preview-panel" data-testid="doc-preview-panel">
       <header className="doc-preview-header">
         <div className="doc-preview-title-group">
+          <FileTypeIcon filePathOrExt={targetPath} />
           <h2 className="doc-preview-title">{displayTitle}</h2>
+          {commentCount > 0 ? (
+            <span className="doc-comment-badge">
+              · {commentCount}
+              <IconChat width={12} height={12} />
+            </span>
+          ) : null}
         </div>
         <div className="doc-preview-actions">
           <DropdownMenu
@@ -133,6 +164,7 @@ export function DocPreviewPanel({
                 const isActive =
                   docItem.title.toLowerCase() === displayTitle.toLowerCase() ||
                   (docItem.path && filePath && docItem.path.includes(filePath));
+                const itemPath = docItem.path || docItem.title;
                 return (
                   <li key={docItem.id}>
                     <button
@@ -148,8 +180,10 @@ export function DocPreviewPanel({
                       <span className="doc-sidebar-icon">
                         {docItem.iconKind === 'book' ? (
                           <IconBook width={14} height={14} />
-                        ) : (
+                        ) : docItem.iconKind === 'plan' ? (
                           <IconDocument width={14} height={14} />
+                        ) : (
+                          <FileTypeIcon filePathOrExt={itemPath} />
                         )}
                       </span>
                       <span className="doc-sidebar-title">{docItem.title}</span>
@@ -162,7 +196,17 @@ export function DocPreviewPanel({
         ) : null}
 
         <div className="doc-preview-body">
-          <EnhancedMarkdownView text={defaultContent} onOpenFile={onOpenFile} />
+          <EnhancedMarkdownView
+            text={defaultContent}
+            docTitle={displayTitle}
+            filePath={targetPath}
+            onOpenFile={onOpenFile}
+            comments={comments}
+            onAddComment={onAddComment}
+            onEditComment={onEditComment}
+            onDeleteComment={onDeleteComment}
+            onCommentLine={onCommentLine}
+          />
         </div>
       </div>
     </div>

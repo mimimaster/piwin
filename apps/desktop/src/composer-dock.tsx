@@ -31,7 +31,15 @@ import type { PendingComposerAttachment } from './media-utils';
 import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
 import { RunModeControl } from './RunModeControl';
-import { IconClose, IconPlus, IconSend, IconStop } from './shell-icons';
+import {
+  IconBook,
+  IconChat,
+  IconClose,
+  IconDocument,
+  IconPlus,
+  IconSend,
+  IconStop,
+} from './shell-icons';
 import {
   buildSlashCatalog,
   detectActiveSlashToken,
@@ -75,6 +83,8 @@ export type ComposerDockProps = {
   onAgentModeChange: (mode: AgentModeId) => void;
   pendingAttachments: PendingComposerAttachment[];
   onRemoveAttachment: (localId: string) => void;
+  docCommentsAttachment?: { docTitle: string; commentCount: number } | null | undefined;
+  onRemoveDocComments?: (() => void) | undefined;
   dropActive: boolean;
   onDropActiveChange: (active: boolean) => void;
   plusMenuOpen: boolean;
@@ -506,8 +516,40 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       ) : null}
 
       {/* Attachments row */}
-      {props.pendingAttachments.length > 0 ? (
+      {props.docCommentsAttachment || props.pendingAttachments.length > 0 ? (
         <div className="composer-v2-attachments">
+          {props.docCommentsAttachment ? (
+            <div
+              className="composer-v2-attachment-chip composer-v2-doc-comment-chip"
+              data-testid="doc-comment-chip"
+            >
+              <span className="doc-comment-chip-icon" aria-hidden>
+                {/walkthrough/i.test(props.docCommentsAttachment.docTitle) ? (
+                  <IconBook width={14} height={14} />
+                ) : (
+                  <IconDocument width={14} height={14} />
+                )}
+              </span>
+              <span className="doc-comment-chip-title">{props.docCommentsAttachment.docTitle}</span>
+              <span className="doc-comment-chip-dot" aria-hidden>
+                ·
+              </span>
+              <span className="doc-comment-chip-count">
+                {props.docCommentsAttachment.commentCount}
+                <IconChat width={12} height={12} className="doc-comment-chip-count-icon" />
+              </span>
+              {props.onRemoveDocComments ? (
+                <button
+                  type="button"
+                  className="composer-v2-chip-remove doc-comment-chip-remove"
+                  onClick={props.onRemoveDocComments}
+                  aria-label="Remove comment attachment"
+                >
+                  <IconClose width={12} height={12} />
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {props.pendingAttachments.map((item) => (
             <div key={item.localId} className="composer-v2-attachment-chip">
               {item.attachment.kind === 'web-element' ? (
