@@ -219,3 +219,21 @@ Update this file when:
 - a milestone completes (check boxes)
 - ADR changes order/priority
 - a task is explicitly deferred with reason
+
+---
+
+## 9. Implemented slices (post-M2)
+
+### CLI structured model-selection (2026-08-01) ✅
+
+The model-facing `questionnaire` tool is implemented as a bundled Pi Extension
+using Pi-native `ctx.ui.select` / `ctx.ui.input` (ADR 0023). Desktop and CLI
+share one host Extension UI bridge — no new IPC or question contract:
+
+- Desktop reuses the existing `extension-ui-dialog`.
+- `piwin chat` wires `createCliExtensionUiRequestHandler` into
+  `createAgentHost({ onExtensionUiRequest })`; prompts render to stderr and
+  stdout stays clean. Non-TTY sessions cancel/unavailable instead of hanging.
+
+Slices shipped: bundled `questionnaire` extension, CLI TTY handler, `piwin chat`
+wiring, docs (ADR 0023 + architecture §3.5).
