@@ -9,7 +9,7 @@
 import type {
   PlanExecutionMode,
   PlanExecutionState,
-  PlanExecutionWalkthrough,
+  PlanExecutionSummary,
   SessionPlan,
 } from '@piwin/contracts';
 import { MAX_PLAN_EXECUTION_ERROR_CHARS, MAX_PLAN_WALKTHROUGH_UNRESOLVED } from '@piwin/contracts';
@@ -153,7 +153,7 @@ export type WalkthroughInput = {
   unresolvedItems?: string[];
 };
 
-export function buildWalkthrough(input: WalkthroughInput): PlanExecutionWalkthrough {
+export function buildPlanSummary(input: WalkthroughInput): PlanExecutionSummary {
   const completed: string[] = [];
   const failed: string[] = [];
   const skipped: string[] = [];

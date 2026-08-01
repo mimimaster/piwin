@@ -3,9 +3,9 @@ import type { SessionPlan } from '@piwin/contracts';
 import {
   abortExecutionState,
   buildInlineDirective,
+  buildPlanSummary,
   buildSubagentTaskDirective,
   buildSubagentVerificationDirective,
-  buildWalkthrough,
   completeExecutionState,
   createExecutionState,
   failExecutionState,
@@ -96,9 +96,9 @@ describe('execution state helpers', () => {
   });
 });
 
-describe('buildWalkthrough', () => {
+describe('buildPlanSummary', () => {
   it('partitions steps by status and includes merged children', () => {
-    const walkthrough = buildWalkthrough({
+    const summary = buildPlanSummary({
       plan: plan({
         steps: [
           { id: '1', title: 'Design', status: 'done' },
@@ -112,12 +112,12 @@ describe('buildWalkthrough', () => {
       verificationResult: 'all green',
       unresolvedItems: ['needs docs review'],
     });
-    expect(walkthrough.completedStepIds).toEqual(['1', '2']);
-    expect(walkthrough.skippedStepIds).toEqual(['3']);
-    expect(walkthrough.failedStepIds).toEqual(['4']);
-    expect(walkthrough.mergedChildSessionIds).toEqual(['c1', 'c2']);
-    expect(walkthrough.verificationResult).toBe('all green');
-    expect(walkthrough.unresolvedItems).toEqual(['needs docs review']);
+    expect(summary.completedStepIds).toEqual(['1', '2']);
+    expect(summary.skippedStepIds).toEqual(['3']);
+    expect(summary.failedStepIds).toEqual(['4']);
+    expect(summary.mergedChildSessionIds).toEqual(['c1', 'c2']);
+    expect(summary.verificationResult).toBe('all green');
+    expect(summary.unresolvedItems).toEqual(['needs docs review']);
   });
 });
 
