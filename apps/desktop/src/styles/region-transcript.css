@@ -784,14 +784,12 @@
 
 .walkthrough-action-buttons {
   opacity: 0;
-  pointer-events: none;
   transition: opacity 0.15s ease;
 }
 
 .chat-message-row:hover .walkthrough-action-buttons,
 .chat-message-row:focus-within .walkthrough-action-buttons {
   opacity: 1;
-  pointer-events: auto;
 }
 
 .msg-action-btn {

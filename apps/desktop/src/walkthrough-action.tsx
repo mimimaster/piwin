@@ -52,8 +52,11 @@ export function isWalkthroughEligible(params: {
     // Must be the final assistant message of this run.
     const lastAssistantForRun = findLastAssistantForRun(messages, runId);
     if (lastAssistantForRun !== message.id) return false;
-    // Legacy compat: runId present but no outcome — only if endedAt exists.
-    if (!record?.outcome && record?.endedAt === null) return false;
+    // If we have a run record, it must show signs of having ended. A record
+    // with an explicit failed/cancelled outcome was already rejected above.
+    // A record with no outcome and no endedAt likely means the terminal
+    // events haven't been processed — but the message status is 'done', so
+    // we allow it rather than blocking the user from generating a walkthrough.
   }
   // No runId (legacy) — allowed when done + non-empty (already checked).
   return true;
