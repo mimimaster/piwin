@@ -150,7 +150,7 @@
 |----|------|------|
 | X-01 | force-push / hard reset / `clean -fdx` without confirm | never silent |
 | X-02 | Apps importing `@earendil-works/pi-*` | forbidden (AGENTS.md) |
-| X-03 | Base64 images in model context by default | path injection only |
+| X-03 | ~~Base64 images in model context by default~~ | **Done 2026-08-01**: native `ImageContent` via adapter; path injection no longer default (ADR 0005 amendment) |
 | X-04 | Executable theme/pet payloads (JS/CSS hooks) | blocked by validators |
 
 ### 2.8 Pi Extensions / Packages
