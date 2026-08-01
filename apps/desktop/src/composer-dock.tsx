@@ -115,10 +115,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
   const canComposeText = true;
-  const canInteract = canComposeText && !isStreamingRun;
-  const canSend =
-    canInteract && (props.composer.trim().length > 0 || props.pendingAttachments.length > 0);
-  const canIntervene = canComposeText && isStreamingRun && props.composer.trim().length > 0;
+  const hasContent = props.composer.trim().length > 0 || props.pendingAttachments.length > 0;
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
@@ -444,10 +441,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
-      if (isStreamingRun) {
-        triggerSteer();
-      } else {
-        triggerSend();
+      if (hasContent) {
+        if (isStreamingRun) {
+          triggerSteer();
+        } else {
+          triggerSend();
+        }
       }
     }
   }
@@ -652,50 +651,46 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               : {})}
           />
 
-          {/* Send / Stop / Steer */}
-          <div
-            className="composer-v2-streaming-actions"
-            hidden={!isStreamingRun}
-            aria-hidden={!isStreamingRun}
-          >
+          {/* Send / Stop Action Button */}
+          {isStreamingRun ? (
+            hasContent ? (
+              <button
+                type="button"
+                className="composer-v2-send-btn is-steer"
+                data-testid="send-btn"
+                disabled={!props.onSteer}
+                onClick={triggerSteer}
+                aria-label="Send steer message"
+                title="发送 (进入队列/Steer)"
+              >
+                <IconSend />
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="composer-v2-stop-btn is-running"
+                data-testid="stop-btn"
+                disabled={!props.activeSessionId || props.runPhase === 'aborting'}
+                onClick={props.onAbort}
+                aria-label={props.runPhase === 'aborting' ? 'Stopping' : 'Stop'}
+                title={props.runPhase === 'aborting' ? 'Stopping…' : 'Stop'}
+              >
+                <IconStop />
+              </button>
+            )
+          ) : (
             <button
               type="button"
-              className="composer-v2-text-btn"
-              data-testid="steer-btn"
-              disabled={!canIntervene || !props.onSteer}
-              onClick={triggerSteer}
-              title="Steer the current run"
-              tabIndex={isStreamingRun ? 0 : -1}
+              className="composer-v2-send-btn"
+              data-testid="send-btn"
+              disabled={!hasContent}
+              onClick={triggerSend}
+              aria-label="Send"
+              title="Send (Enter)"
             >
-              Steer
+              <IconSend />
             </button>
-            <button
-              type="button"
-              className="composer-v2-stop-btn"
-              data-testid="stop-btn"
-              disabled={!props.activeSessionId || props.runPhase === 'aborting'}
-              onClick={props.onAbort}
-              title={props.runPhase === 'aborting' ? 'Stopping…' : 'Stop'}
-              aria-label={props.runPhase === 'aborting' ? 'Stopping' : 'Stop'}
-              tabIndex={isStreamingRun ? 0 : -1}
-            >
-              <IconStop />
-            </button>
-          </div>
-          <button
-            type="button"
-            className="composer-v2-send-btn"
-            data-testid="send-btn"
-            disabled={!canSend || isStreamingRun}
-            onClick={triggerSend}
-            aria-label="Send"
-            title="Send (Enter)"
-            hidden={isStreamingRun}
-            aria-hidden={isStreamingRun}
-            tabIndex={isStreamingRun ? -1 : 0}
-          >
-            <IconSend />
-          </button>
+          )}
         </div>
       </div>
 

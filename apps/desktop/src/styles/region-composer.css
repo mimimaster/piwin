@@ -384,11 +384,11 @@
 .composer-v2-stop-btn {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
-  border-radius: 10px;
+  border-radius: 7px;
   background: color-mix(in srgb, var(--danger) 12%, transparent);
   color: var(--danger);
   cursor: pointer;
@@ -396,7 +396,8 @@
     background var(--motion-quick, 120ms) ease,
     border-color var(--motion-quick, 120ms) ease,
     color var(--motion-quick, 120ms) ease,
-    box-shadow var(--motion-quick, 120ms) ease;
+    box-shadow var(--motion-quick, 120ms) ease,
+    transform 0.14s ease;
   flex-shrink: 0;
 }
 
@@ -406,8 +407,9 @@
 }
 
 .composer-v2-stop-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--danger) 20%, transparent);
+  background: color-mix(in srgb, var(--danger) 22%, transparent);
   border-color: color-mix(in srgb, var(--danger) 60%, transparent);
+  transform: translateY(-0.5px);
 }
 
 .composer-v2-stop-btn:disabled {
