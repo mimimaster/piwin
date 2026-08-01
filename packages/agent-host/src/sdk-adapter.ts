@@ -55,6 +55,7 @@ import {
   type PiModelRuntime,
   type PiModelRegistration,
 } from './pi-model-runtime.js';
+import { loadPromptImages } from './prompt-images.js';
 import { listProjects } from '@piwin/project';
 import { loadMergedPermissionRules } from './permission-rule-loader.js';
 import { createBundledRuleSet } from './permission-defaults.js';
@@ -1009,6 +1010,18 @@ function wrapPiSession(
       } else if (promptInput.model && !piSession.setModel) {
         // Product history is re-injected by session-live-commands; continue without silent drop.
         // Callers that require a hard switch must rebuild the live handle (ensureLiveSession).
+      }
+      // ADR 0005 (2026-08-01): media attachments → native ImageContent, not path text.
+      const images = await loadPromptImages(promptInput.attachments);
+      if (images.length > 0) {
+        const options: { images: typeof images; streamingBehavior?: 'steer' | 'followUp' } = {
+          images,
+        };
+        if (promptInput.streamingBehavior) {
+          options.streamingBehavior = promptInput.streamingBehavior;
+        }
+        await piSession.prompt(promptInput.text, options);
+        return;
       }
       await piSession.prompt(promptInput.text);
     },

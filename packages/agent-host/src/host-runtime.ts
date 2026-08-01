@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import type {
   AgentEvent,
@@ -21,11 +21,20 @@ import type {
   SessionHandle,
   AgentEventEnvelope,
 } from '@piwin/contracts';
-import {
-  formatTextModelImageInjection,
-  formatTextModelWebElementInjection,
-} from '@piwin/contracts';
+import { formatTextModelWebElementInjection } from '@piwin/contracts';
 import { assertInsideMediaRoot, createMediaService } from '@piwin/media';
+import {
+  formatVisionDescriptionInjection,
+  pathInjectMediaAttachment,
+  primaryModelSupportsImage,
+  resolvePrimaryModelInput,
+  shouldDelegateVision,
+  splitAttachments,
+  VisionDelegationCache,
+  sharedVisionDelegationCache,
+  delegateImageToVisionModel,
+  DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
+} from './vision-delegation.js';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { installSkill, installExtension } from '@piwin/marketplace';
 import { scanExtensions } from './extension-scanner.js';
@@ -920,49 +929,189 @@ export class HostRuntime {
   }
 
   /**
-   * Attachments are accepted only from piwin's media root. The UI supplies a
-   * structured reference; this boundary creates the text-model path metadata.
-   * Media refs render as path injections; web-element refs render via the
-   * browser injection and pass through for later browser-session rendering.
+   * Sync path validation only (used before accepting a run).
+   * Full model-facing rewrite is async — see {@link buildModelPromptInput}.
    */
-  private buildModelPromptInput(input: PromptInput): PromptInput {
+  private validatePromptAttachments(input: PromptInput): void {
+    if (!input.attachments || input.attachments.length === 0) {
+      return;
+    }
+    const mediaRoot = getPiwinMediaDir(getPiwinRoot(this.options.piwinRoot));
+    for (const attachment of input.attachments) {
+      if (attachment.kind === 'media') {
+        validateMediaAttachment(mediaRoot, attachment);
+      } else if (attachment.screenshotPath !== undefined) {
+        assertInsideMediaRoot(mediaRoot, attachment.screenshotPath);
+      }
+    }
+  }
+
+  /**
+   * Attachments are accepted only from piwin's media root.
+   *
+   * Media branching (vision-delegation rev3):
+   * - multimodal primary → keep media attachments → adapter loads ImageContent
+   * - text-only + D1 on → vision description inject; strip media attachments
+   * - text-only + D1 off → path inject; strip media attachments
+   * Web-element: structured text injection always.
+   */
+  private async buildModelPromptInput(
+    input: PromptInput,
+    signal?: AbortSignal,
+  ): Promise<PromptInput> {
     if (!input.attachments || input.attachments.length === 0) {
       return input;
     }
 
     const mediaRoot = getPiwinMediaDir(getPiwinRoot(this.options.piwinRoot));
     const safeAttachments: PromptAttachment[] = [];
-    const injections: string[] = [];
+    const webInjections: string[] = [];
     for (const attachment of input.attachments) {
       if (attachment.kind === 'media') {
-        const safe = validateMediaAttachment(mediaRoot, attachment);
-        safeAttachments.push(safe);
-        injections.push(
-          formatTextModelImageInjection({
-            absolutePath: safe.path,
-            mimeType: safe.mimeType,
-            byteSize: safe.byteSize,
-            ...(safe.width !== undefined ? { width: safe.width } : {}),
-            ...(safe.height !== undefined ? { height: safe.height } : {}),
-          }),
-        );
+        safeAttachments.push(validateMediaAttachment(mediaRoot, attachment));
       } else {
-        // web-element: validate screenshotPath stays under media root (same
-        // guard as validateMediaAttachment) before injecting. The selector /
-        // text / html are bounded by formatTextModelWebElementInjection.
         if (attachment.screenshotPath !== undefined) {
           assertInsideMediaRoot(mediaRoot, attachment.screenshotPath);
         }
         safeAttachments.push(attachment);
-        injections.push(formatTextModelWebElementInjection(attachment));
+        webInjections.push(formatTextModelWebElementInjection(attachment));
       }
     }
 
-    return {
-      ...input,
-      text: [input.text, ...injections].filter(Boolean).join('\n\n'),
-      attachments: safeAttachments,
-    };
+    const { media, other } = splitAttachments(safeAttachments);
+    const config = await loadPiwinConfig(this.options.piwinRoot);
+    const primaryInput = resolvePrimaryModelInput(input, config);
+    const supportsImage = primaryModelSupportsImage(primaryInput);
+
+    if (media.length === 0) {
+      return {
+        ...input,
+        text: [input.text, ...webInjections].filter(Boolean).join('\n\n'),
+        attachments: safeAttachments,
+      };
+    }
+
+    if (supportsImage) {
+      // D2: native images via adapter loadPromptImages
+      return {
+        ...input,
+        text: [input.text, ...webInjections].filter(Boolean).join('\n\n'),
+        attachments: safeAttachments,
+      };
+    }
+
+    // Text-only: never pass ImageContent to the primary model.
+    const mediaInjections: string[] = [];
+    const delegate =
+      shouldDelegateVision({
+        primaryModelInput: primaryInput,
+        hasMediaAttachments: true,
+        config: config.visionDelegation,
+      }) && config.visionDelegation?.model
+        ? config.visionDelegation
+        : undefined;
+
+    if (delegate?.model) {
+      const visionRef = delegate.model;
+      const visionProvider = config.providers.find((item) => item.id === visionRef.providerId);
+      if (!visionProvider) {
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `vision delegation: provider not found (${visionRef.providerId}); falling back to path injection`,
+        });
+      } else {
+        let apiKey: string | null = null;
+        try {
+          apiKey = await createSecretResolver().resolveProviderSecret(visionProvider);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `vision delegation: secret resolve failed (${message}); path fallback`,
+          });
+        }
+        if (apiKey) {
+          const systemPrompt =
+            delegate.systemPrompt?.trim() || DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
+          for (const mediaAttachment of media) {
+            if (signal?.aborted) {
+              throw new Error('prompt preparation aborted');
+            }
+            try {
+              let description: string | undefined;
+              const fileBytes = await readFile(mediaAttachment.path);
+              const cacheKey =
+                delegate.cacheEnabled === false
+                  ? null
+                  : VisionDelegationCache.buildKey({
+                      fileBytes,
+                      mimeType: mediaAttachment.mimeType,
+                      providerId: visionRef.providerId,
+                      modelId: visionRef.modelId,
+                      systemPrompt,
+                    });
+              if (cacheKey) {
+                description = sharedVisionDelegationCache.get(cacheKey);
+              }
+              if (!description) {
+                this.push({
+                  type: 'host/log',
+                  level: 'info',
+                  message: `Describing image with ${visionRef.providerId}/${visionRef.modelId}…`,
+                });
+                description = await delegateImageToVisionModel({
+                  imagePath: mediaAttachment.path,
+                  mimeType: mediaAttachment.mimeType,
+                  provider: visionProvider,
+                  modelId: visionRef.modelId,
+                  apiKey,
+                  systemPrompt,
+                  ...(delegate.timeoutMs !== undefined ? { timeoutMs: delegate.timeoutMs } : {}),
+                  ...(signal ? { signal } : {}),
+                });
+                if (cacheKey) {
+                  sharedVisionDelegationCache.set(cacheKey, description);
+                }
+              }
+              mediaInjections.push(
+                formatVisionDescriptionInjection({
+                  absolutePath: mediaAttachment.path,
+                  mimeType: mediaAttachment.mimeType,
+                  model: visionRef,
+                  description,
+                }),
+              );
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              this.push({
+                type: 'host/log',
+                level: 'warn',
+                message: `vision delegation failed for ${mediaAttachment.path}: ${message}; path fallback`,
+              });
+              mediaInjections.push(pathInjectMediaAttachment(mediaAttachment));
+            }
+          }
+          // Strip media so adapter does not load ImageContent for text-only primary.
+          return stripMediaAttachments(
+            input,
+            [input.text, ...webInjections, ...mediaInjections].filter(Boolean).join('\n\n'),
+            other,
+          );
+        }
+      }
+    }
+
+    // Path fallback (D1 off or vision provider/secret unavailable).
+    for (const mediaAttachment of media) {
+      mediaInjections.push(pathInjectMediaAttachment(mediaAttachment));
+    }
+    return stripMediaAttachments(
+      input,
+      [input.text, ...webInjections, ...mediaInjections].filter(Boolean).join('\n\n'),
+      other,
+    );
   }
 
   private async getNotesServices(): Promise<{
@@ -1361,7 +1510,9 @@ export class HostRuntime {
       resolveAutoCompaction: (sessionId) => this.resolveAutoCompaction(sessionId),
       handleMergeSubagent: (requestId, childSessionId, force) =>
         this.handleMergeSubagent(requestId, childSessionId, force),
-      buildModelPromptInput: (input) => this.buildModelPromptInput(input),
+      buildModelPromptInput: (input, signal) => this.buildModelPromptInput(input, signal),
+      validatePromptAttachments: (input) => this.validatePromptAttachments(input),
+      loadConfig: () => loadPiwinConfig(this.options.piwinRoot),
       runWithContext: (runId, operation) => {
         void this.runExecutionContext.run(runId, operation);
       },
@@ -2401,6 +2552,19 @@ function readEventRunId(event: AgentEvent): string | undefined {
 
 function hasExplicitRunId(event: AgentEvent): boolean {
   return 'runId' in event && typeof event.runId === 'string';
+}
+
+/** Drop media attachments from the model-facing prompt (keep web-element if any). */
+function stripMediaAttachments(
+  input: PromptInput,
+  text: string,
+  other: PromptAttachment[],
+): PromptInput {
+  const { attachments: _removed, ...rest } = input;
+  if (other.length > 0) {
+    return { ...rest, text, attachments: other };
+  }
+  return { ...rest, text };
 }
 
 function validateMediaAttachment(
