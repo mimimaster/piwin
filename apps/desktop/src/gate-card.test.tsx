@@ -54,9 +54,7 @@ describe('GateCard', () => {
 
   it('renders the gate with action label and default-decision hint', () => {
     act(() =>
-      root.render(
-        <Harness prompt={basePrompt} projectPath="/repo" onPermission={vi.fn()} />,
-      ),
+      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={vi.fn()} />),
     );
     const gate = container.querySelector('[data-testid="permission-gate"]');
     expect(gate).not.toBeNull();
@@ -75,6 +73,19 @@ describe('GateCard', () => {
       btn?.click();
     });
     expect(onPermission).toHaveBeenCalledWith('allow', 'once');
+  });
+
+  it('fires allow-session with rememberScope "session" (ADR 0024)', () => {
+    const onPermission = vi.fn();
+    act(() =>
+      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />),
+    );
+    const btn = container.querySelector<HTMLButtonElement>('[data-testid="gate-allow-session"]');
+    expect(btn).not.toBeNull();
+    act(() => {
+      btn?.click();
+    });
+    expect(onPermission).toHaveBeenCalledWith('allow', 'session');
   });
 
   it('fires deny with no remember scope', () => {
@@ -107,7 +118,11 @@ describe('GateCard', () => {
     );
     expect(container.querySelector('[data-testid="gate-allow-remember"]')).not.toBeNull();
 
-    act(() => root.render(<Harness prompt={commandPrompt} projectPath={null} onPermission={onPermission} />));
+    act(() =>
+      root.render(
+        <Harness prompt={commandPrompt} projectPath={null} onPermission={onPermission} />,
+      ),
+    );
     expect(container.querySelector('[data-testid="gate-allow-remember"]')).toBeNull();
   });
 

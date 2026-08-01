@@ -1,10 +1,10 @@
 /**
  * Agent collaboration modes — interaction model aligned with Cursor Agent
- * (Plan / Debug / Ask from composer + menu) and Codex plan.md constraints
+ * (Plan / Ask from composer + menu) and Codex plan.md constraints
  * for the Plan mode body. Not a side panel form.
  */
 
-export type AgentModeId = 'agent' | 'plan' | 'debug' | 'ask';
+export type AgentModeId = 'agent' | 'plan' | 'ask';
 
 export type AgentModeDefinition = {
   id: AgentModeId;
@@ -39,18 +39,6 @@ export const AGENT_MODES: readonly AgentModeDefinition[] = [
       'End with a concrete proposed plan: goal, steps, files, risks, acceptance criteria.',
     ].join(' '),
     placeholder: 'Describe what you want planned…',
-  },
-  {
-    id: 'debug',
-    label: 'Debug',
-    title: 'Debug Mode',
-    description: 'Pinpoint the root cause of an issue',
-    systemPreamble: [
-      'You are in Debug Mode. Focus on root-cause analysis.',
-      'Reproduce from symptoms → gather evidence → isolate cause → propose a minimal fix.',
-      'Do not refactor unrelated code. Prefer targeted instrumentation and verification.',
-    ].join(' '),
-    placeholder: 'Describe the bug or unexpected behavior…',
   },
   {
     id: 'ask',

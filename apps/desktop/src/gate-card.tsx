@@ -52,6 +52,14 @@ export function GateCard(props: GateCardProps): ReactElement {
       <div className="gate-actions">
         <Button
           variant="primary"
+          className="gate-btn-allow-session"
+          data-testid="gate-allow-session"
+          onClick={() => props.onPermission('allow', 'session')}
+        >
+          本次允许
+        </Button>
+        <Button
+          variant="secondary"
           className="gate-btn-allow-once"
           data-testid="gate-allow-once"
           onClick={() => props.onPermission('allow', 'once')}

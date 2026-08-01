@@ -13,8 +13,4 @@ describe('agent-mode', () => {
     expect(out).toContain('build auth');
     expect(getAgentMode('plan').description).toMatch(/implementation plan/i);
   });
-
-  it('debug mode mentions root-cause', () => {
-    expect(applyAgentModeToPrompt('debug', 'crash')).toMatch(/root-cause/i);
-  });
 });
