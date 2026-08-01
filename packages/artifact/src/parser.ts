@@ -32,10 +32,20 @@ export type MarkdownFenceBlock = {
   source: string;
 };
 
+export type TableAlignment = 'left' | 'center' | 'right' | 'default';
+
 export type ParsedMarkdownBlock =
   | { type: 'paragraph'; value: string }
-  | { type: 'list'; items: string[] }
-  | { type: 'code'; language: string; source: string };
+  | { type: 'heading'; level: number; text: string }
+  | { type: 'blockquote'; text: string; kind?: 'note' | 'tip' | 'important' | 'warning' | 'caution' }
+  | { type: 'list'; items: string[]; ordered?: boolean }
+  | { type: 'code'; language: string; source: string }
+  | {
+      type: 'table';
+      headers: string[];
+      alignments: TableAlignment[];
+      rows: string[][];
+    };
 
 function stripFenceInfo(language: string): string {
   return language.trim();
@@ -201,8 +211,31 @@ export function tryParseHtmlArtifactFence(input: {
   return tryParseArtifactFence(input);
 }
 
+function parseTableRow(line: string): string[] {
+  let content = line.trim();
+  if (content.startsWith('|')) content = content.slice(1);
+  if (content.endsWith('|')) content = content.slice(0, -1);
+  return content.split('|').map((cell) => cell.trim());
+}
+
+function parseTableAlignment(delimiterCell: string): TableAlignment {
+  const cell = delimiterCell.trim();
+  const starts = cell.startsWith(':');
+  const ends = cell.endsWith(':');
+  if (starts && ends) return 'center';
+  if (ends) return 'right';
+  if (starts) return 'left';
+  return 'default';
+}
+
+function isTableDelimiterLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed.includes('-')) return false;
+  return /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(trimmed);
+}
+
 /**
- * Split markdown into paragraphs, lists, and fenced code blocks.
+ * Split markdown into paragraphs, lists, tables, headings, callouts, and fenced code blocks.
  * Kept simple and deterministic for chat rendering.
  */
 export function splitMarkdownBlocks(text: string): ParsedMarkdownBlock[] {
@@ -212,8 +245,16 @@ export function splitMarkdownBlocks(text: string): ParsedMarkdownBlock[] {
 
   while (index < lines.length) {
     const line = lines[index] ?? '';
-    if (line.trim().startsWith('```')) {
-      const language = line.trim().slice(3).trim();
+    const trimmed = line.trim();
+
+    if (trimmed === '') {
+      index += 1;
+      continue;
+    }
+
+    // Fenced code blocks
+    if (trimmed.startsWith('```')) {
+      const language = trimmed.slice(3).trim();
       index += 1;
       const codeLines: string[] = [];
       while (index < lines.length && !(lines[index] ?? '').trim().startsWith('```')) {
@@ -227,28 +268,108 @@ export function splitMarkdownBlocks(text: string): ParsedMarkdownBlock[] {
       continue;
     }
 
+    // Tables: must have current line with '|' and next line as table delimiter
+    if (
+      trimmed.includes('|') &&
+      index + 1 < lines.length &&
+      isTableDelimiterLine(lines[index + 1] ?? '')
+    ) {
+      const headers = parseTableRow(line);
+      const delimiterCells = parseTableRow(lines[index + 1] ?? '');
+      const alignments = delimiterCells.map(parseTableAlignment);
+      index += 2;
+
+      const rows: string[][] = [];
+      while (
+        index < lines.length &&
+        (lines[index] ?? '').trim() !== '' &&
+        !(lines[index] ?? '').trim().startsWith('```') &&
+        (lines[index] ?? '').includes('|')
+      ) {
+        rows.push(parseTableRow(lines[index] ?? ''));
+        index += 1;
+      }
+      blocks.push({ type: 'table', headers, alignments, rows });
+      continue;
+    }
+
+    // Headings (# Heading)
+    const headingMatch = /^(#{1,6})\s+(.+)$/.exec(trimmed);
+    if (headingMatch && headingMatch[1] && headingMatch[2]) {
+      blocks.push({
+        type: 'heading',
+        level: headingMatch[1].length,
+        text: headingMatch[2].trim(),
+      });
+      index += 1;
+      continue;
+    }
+
+    // Callouts & Blockquotes (> text or > [!NOTE])
+    if (trimmed.startsWith('>')) {
+      const calloutMatch = /^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.exec(trimmed);
+      let kind: 'note' | 'tip' | 'important' | 'warning' | 'caution' | undefined;
+      const quoteLines: string[] = [];
+
+      if (calloutMatch && calloutMatch[1]) {
+        kind = calloutMatch[1].toLowerCase() as 'note' | 'tip' | 'important' | 'warning' | 'caution';
+        const restOfFirstLine = trimmed.replace(/^>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i, '').trim();
+        if (restOfFirstLine) {
+          quoteLines.push(restOfFirstLine);
+        }
+        index += 1;
+      } else {
+        quoteLines.push(trimmed.replace(/^>\s?/, ''));
+        index += 1;
+      }
+
+      while (index < lines.length && (lines[index] ?? '').trim().startsWith('>')) {
+        quoteLines.push((lines[index] ?? '').trim().replace(/^>\s?/, ''));
+        index += 1;
+      }
+
+      blocks.push({
+        type: 'blockquote',
+        text: quoteLines.join('\n'),
+        ...(kind ? { kind } : {}),
+      });
+      continue;
+    }
+
+    // Bullet lists (- or *)
     if (/^\s*[-*]\s+/.test(line)) {
       const items: string[] = [];
       while (index < lines.length && /^\s*[-*]\s+/.test(lines[index] ?? '')) {
         items.push((lines[index] ?? '').replace(/^\s*[-*]\s+/, ''));
         index += 1;
       }
-      blocks.push({ type: 'list', items });
+      blocks.push({ type: 'list', items, ordered: false });
       continue;
     }
 
-    if (line.trim() === '') {
-      index += 1;
+    // Ordered lists (1. 2.)
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items: string[] = [];
+      while (index < lines.length && /^\s*\d+\.\s+/.test(lines[index] ?? '')) {
+        items.push((lines[index] ?? '').replace(/^\s*\d+\.\s+/, ''));
+        index += 1;
+      }
+      blocks.push({ type: 'list', items, ordered: true });
       continue;
     }
 
+    // Paragraph
     const paragraphLines = [line];
     index += 1;
     while (
       index < lines.length &&
       (lines[index] ?? '').trim() !== '' &&
       !(lines[index] ?? '').trim().startsWith('```') &&
-      !/^\s*[-*]\s+/.test(lines[index] ?? '')
+      !/^\s*[-*]\s+/.test(lines[index] ?? '') &&
+      !/^\s*\d+\.\s+/.test(lines[index] ?? '') &&
+      !/^(#{1,6})\s+/.test((lines[index] ?? '').trim()) &&
+      !(lines[index] ?? '').trim().startsWith('>') &&
+      !((lines[index] ?? '').includes('|') && index + 1 < lines.length && isTableDelimiterLine(lines[index + 1] ?? ''))
     ) {
       paragraphLines.push(lines[index] ?? '');
       index += 1;

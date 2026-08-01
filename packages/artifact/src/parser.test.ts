@@ -88,4 +88,51 @@ describe('splitMarkdownBlocks', () => {
     const code = blocks.find((block) => block.type === 'code');
     expect(code).toMatchObject({ type: 'code', language: 'html' });
   });
+
+  it('parses markdown tables with headers, alignments, and rows', () => {
+    const tableMd = `
+| Command | Mode | Timeout |
+| :--- | :---: | ---: |
+| pnpm dev | auto | 5000 |
+| pnpm test | manual | 10000 |
+`;
+    const blocks = splitMarkdownBlocks(tableMd);
+    const table = blocks.find((b) => b.type === 'table');
+    expect(table).toBeDefined();
+    if (table && table.type === 'table') {
+      expect(table.headers).toEqual(['Command', 'Mode', 'Timeout']);
+      expect(table.alignments).toEqual(['left', 'center', 'right']);
+      expect(table.rows).toEqual([
+        ['pnpm dev', 'auto', '5000'],
+        ['pnpm test', 'manual', '10000'],
+      ]);
+    }
+  });
+
+  it('parses headings, callouts, and ordered lists', () => {
+    const md = `
+# Title
+> [!NOTE]
+> Important note text
+
+1. Step one
+2. Step two
+`;
+    const blocks = splitMarkdownBlocks(md);
+    expect(blocks.find((b) => b.type === 'heading')).toEqual({
+      type: 'heading',
+      level: 1,
+      text: 'Title',
+    });
+    expect(blocks.find((b) => b.type === 'blockquote')).toEqual({
+      type: 'blockquote',
+      text: 'Important note text',
+      kind: 'note',
+    });
+    expect(blocks.find((b) => b.type === 'list')).toEqual({
+      type: 'list',
+      items: ['Step one', 'Step two'],
+      ordered: true,
+    });
+  });
 });

@@ -73,7 +73,7 @@ export {
 } from './security.js';
 
 export { tryParseHtmlArtifactFence, splitMarkdownBlocks } from './parser.js';
-export type { MarkdownFenceBlock, ParsedMarkdownBlock } from './parser.js';
+export type { MarkdownFenceBlock, ParsedMarkdownBlock, TableAlignment } from './parser.js';
 
 export {
   isFullHtmlDocument,
