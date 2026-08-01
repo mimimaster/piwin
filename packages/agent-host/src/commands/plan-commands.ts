@@ -24,6 +24,10 @@ import {
   failExecutionState,
   selectSubagentSteps,
 } from '../plan-execution-coordinator.js';
+import { resolveGenerationModel, startWalkthroughGeneration } from './walkthrough-commands.js';
+import { createDefaultWalkthroughConfig } from '@piwin/contracts';
+import { isWalkthroughEligibleMessage } from '../walkthrough-source.js';
+import { loadWalkthrough } from '../walkthrough-store.js';
 
 const TYPES = new Set<HostCommand['type']>([
   'plan/get',
@@ -292,6 +296,18 @@ async function runPlanExecution(
     await saveSessionPlan(planPath, finalPlan);
     context.push({ type: 'plan/updated', sessionId, plan: finalPlan });
     context.push({ type: 'plan/execution-updated', state });
+
+    // After plan completion, trigger a walkthrough artifact generation so
+    // the user gets a concise summary in chat + a detailed walkthrough doc.
+    // This is fire-and-forget: errors are logged, not propagated.
+    void triggerPlanWalkthrough(sessionId, context).catch((error: unknown) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `plan walkthrough generation failed: ${detail}`,
+      });
+    });
   };
 
   try {
@@ -427,4 +443,65 @@ async function handlePlanAbort(
     planId: plan.id,
     status: 'aborted',
   });
+}
+
+/**
+ * Trigger a walkthrough artifact generation after plan completion.
+ * Uses the walkthrough seam from HostCommandContext to generate a detailed
+ * walkthrough document for the final assistant message in the session.
+ * Fire-and-forget by the caller; errors are caught and logged.
+ */
+async function triggerPlanWalkthrough(
+  sessionId: string,
+  context: HostCommandContext,
+): Promise<void> {
+  const walkthroughSeam = context.walkthrough;
+  if (!walkthroughSeam) return;
+
+  const wtContext = walkthroughSeam.context;
+  if (!wtContext.piwinRoot) return;
+
+  const rootDir = getPiwinRoot(wtContext.piwinRoot);
+  const config = await wtContext.loadConfig();
+  const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
+  if (!walkthrough.enabled) return;
+
+  const messages = await wtContext.loadTranscriptMessages(sessionId);
+  const assistantMessages = messages.filter((m) => m.role === 'assistant');
+  if (assistantMessages.length === 0) return;
+
+  const finalAssistant = assistantMessages[assistantMessages.length - 1]!;
+  if (!isWalkthroughEligibleMessage(finalAssistant, messages)) return;
+
+  // Skip if a ready artifact already exists for this message.
+  const existing = await loadWalkthrough(rootDir, sessionId, finalAssistant.id);
+  if (existing?.status === 'ready') return;
+
+  const resolved = resolveGenerationModel(
+    { type: 'walkthrough/generate', sessionId, messageId: finalAssistant.id },
+    finalAssistant,
+    wtContext,
+    config,
+  );
+  if (resolved.error || !resolved.model || !resolved.provider) {
+    context.push({
+      type: 'host/log',
+      level: 'warn',
+      message: `plan walkthrough: model resolution failed — ${resolved.error?.code ?? 'model-unavailable'}`,
+    });
+    return;
+  }
+
+  await startWalkthroughGeneration(
+    sessionId,
+    finalAssistant.id,
+    resolved.model,
+    resolved.provider,
+    resolved.mode,
+    walkthrough,
+    finalAssistant,
+    messages,
+    wtContext,
+    walkthroughSeam.registry,
+  );
 }
