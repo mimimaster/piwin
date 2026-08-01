@@ -77,6 +77,7 @@ function createContextValue(
       toolDensity: 'comfortable',
       workDetailsExpanded: 'auto',
       artifactPreviewEnabled: false,
+      artifactCodeFirst: false,
     },
     onPreferencesChange: vi.fn(),
     projectPath: null,
