@@ -174,6 +174,17 @@ function addToBucket(bucket: UsageBucket, record: UsageRecord): void {
   bucket.completionTokens += record.completionTokens ?? 0;
   bucket.totalTokens += record.totalTokens;
   bucket.entryCount += 1;
+  if (typeof record.durationMs === 'number' && Number.isFinite(record.durationMs)) {
+    bucket.durationMs = (bucket.durationMs ?? 0) + record.durationMs;
+  }
+  if (typeof record.firstTokenMs === 'number' && Number.isFinite(record.firstTokenMs)) {
+    const prevCount = bucket.firstTokenMs !== undefined ? bucket.entryCount - 1 : 0;
+    const prevSum = (bucket.firstTokenMs ?? 0) * prevCount;
+    bucket.firstTokenMs = (prevSum + record.firstTokenMs) / bucket.entryCount;
+  }
+  if (record.success !== false) {
+    bucket.successCount = (bucket.successCount ?? 0) + 1;
+  }
 }
 
 function firstOf(records: UsageRecord[]): UsageRecord {
