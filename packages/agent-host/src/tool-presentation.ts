@@ -121,6 +121,18 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     presentation.targetPaths = targetPaths;
   }
 
+  // Write/edit tools: surface target paths as changedPaths so Desktop can
+  // aggregate a turn-level "files changed" bar and DiffCard without re-inferring.
+  // Never invent paths for read-only tools; never claim changes on error.
+  if (
+    !input.isError &&
+    targetPaths &&
+    targetPaths.length > 0 &&
+    isWriteLikeTool(input.toolName, kind)
+  ) {
+    presentation.changedPaths = targetPaths;
+  }
+
   if (input.startedAt) {
     presentation.startedAt = input.startedAt;
   }
@@ -237,6 +249,25 @@ function extractTargetPaths(kind: ToolKind, args: unknown): string[] | undefined
     }
   }
   return paths.length > 0 ? paths : undefined;
+}
+
+/** True for tools that mutate file contents (not read/search). */
+export function isWriteLikeTool(toolName: string, kind: ToolKind): boolean {
+  if (kind !== 'filesystem') {
+    return false;
+  }
+  const normalized = toolName.trim().toLowerCase();
+  return (
+    normalized === 'write' ||
+    normalized === 'edit' ||
+    normalized === 'apply_patch' ||
+    normalized === 'write_file' ||
+    normalized === 'str_replace' ||
+    normalized.includes('write') ||
+    normalized.includes('edit') ||
+    normalized.includes('replace') ||
+    normalized.includes('patch')
+  );
 }
 
 function readString(value: unknown): string | undefined {

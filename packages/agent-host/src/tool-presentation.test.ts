@@ -40,6 +40,34 @@ describe('buildToolPresentation', () => {
     });
     expect(presentation.kind).toBe('filesystem');
     expect(presentation.targetPaths).toEqual(['src/App.tsx']);
+    expect(presentation.changedPaths).toBeUndefined();
+  });
+
+  it('sets changedPaths for successful write/edit tools', () => {
+    const write = buildToolPresentation({
+      toolName: 'write',
+      args: { path: 'src/foo.ts' },
+      outputText: 'ok',
+    });
+    expect(write.changedPaths).toEqual(['src/foo.ts']);
+    expect(write.targetPaths).toEqual(['src/foo.ts']);
+
+    const edit = buildToolPresentation({
+      toolName: 'edit',
+      args: { file_path: 'packages/bar.ts' },
+    });
+    expect(edit.changedPaths).toEqual(['packages/bar.ts']);
+  });
+
+  it('does not set changedPaths on write errors', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'write',
+      args: { path: 'src/foo.ts' },
+      isError: true,
+      outputText: 'permission denied',
+    });
+    expect(presentation.targetPaths).toEqual(['src/foo.ts']);
+    expect(presentation.changedPaths).toBeUndefined();
   });
 
   it('redacts secrets in output', () => {
@@ -66,7 +94,10 @@ describe('buildToolPresentation', () => {
     const presentation = buildToolPresentation({
       toolName: 'grep_search',
       args: { Query: 'TurnToolGroup', StartLine: 1, EndLine: 90 },
-      outputText: JSON.stringify([{ file: 'turn-tool-group.tsx' }, { file: 'turn-work-details.tsx' }]),
+      outputText: JSON.stringify([
+        { file: 'turn-tool-group.tsx' },
+        { file: 'turn-work-details.tsx' },
+      ]),
     });
     expect(presentation.actionVerb).toBe('Searched');
     expect(presentation.lineRange).toBe('L1-90');
