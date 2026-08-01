@@ -25,14 +25,14 @@ export function ActivitySvgIcon(props: ActivitySvgIconProps): ReactElement {
       >
         <defs>
           <linearGradient id="term-grad" x1="0" y1="0" x2="32" y2="32">
-            <stop offset="0%" stopColor="#f59e0b" />
-            <stop offset="100%" stopColor="#d97706" />
+            <stop offset="0%" stopColor="#10b981" />
+            <stop offset="100%" stopColor="#059669" />
           </linearGradient>
         </defs>
-        <rect x="4" y="6" width="24" height="20" rx="4" fill="rgba(15, 23, 42, 0.85)" stroke="url(#term-grad)" strokeWidth="1.5" />
-        <path d="M8 12L12 15L8 18" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        <line x1="14" y1="18" x2="22" y2="18" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" className="svg-stop-pulse" />
-        <circle cx="16" cy="16" r="13" stroke="rgba(245, 158, 11, 0.3)" strokeWidth="1" strokeDasharray="3 3" className="svg-spin-slow" />
+        <rect x="4" y="6" width="24" height="20" rx="4" fill="rgba(6, 78, 59, 0.4)" stroke="url(#term-grad)" strokeWidth="1.5" />
+        <path d="M8 12L12 15L8 18" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <line x1="14" y1="18" x2="22" y2="18" stroke="#6ee7b7" strokeWidth="2" strokeLinecap="round" className="svg-stop-pulse" />
+        <circle cx="16" cy="16" r="13" stroke="rgba(16, 185, 129, 0.3)" strokeWidth="1" strokeDasharray="3 3" className="svg-spin-slow" />
       </svg>
     );
   }
