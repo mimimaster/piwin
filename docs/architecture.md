@@ -226,6 +226,26 @@ bash/file-write subjects (persisted via the remember keys above). A full visual
 rule editor is a follow-up (ADR 0019 open questions); until then users edit
 `permissions.json` by hand.
 
+### 3.5 Extension UI bridge (model questionnaire)
+
+The model-facing `questionnaire` tool is a **bundled Pi Extension** (ADR 0010
+ResourceLoader path; ADR 0023). It calls only Pi-native `ctx.ui.select` /
+`ctx.ui.input`, so piwin adds **no new IPC or question contract**:
+
+- **Desktop** reuses the existing `extension-ui-dialog` component, which already
+  handles `extension/ui_request` → `extension/ui_resolve` for
+  `confirm` / `select` / `input`. No new dialog or component is introduced.
+- **CLI** wires `createCliExtensionUiRequestHandler` into the existing
+  `onExtensionUiRequest` seam on `createAgentHost`. It renders numbered
+  prompts to `process.stderr` via `readline/promises`; **stdout remains the
+  clean model/output protocol**. Non-TTY sessions resolve as cancelled /
+  unavailable rather than blocking.
+- **Boundary:** `apps/cli` and `apps/desktop` consume only
+  `@piwin/agent-host` public exports (`ExtensionUiRequest` /
+  `ExtensionUiResponse`, the handler factory). No `@earendil-works/pi-*` import
+  crosses the app boundary (AGENTS.md §1). SDK and RPC→SDK-fallback share one
+  interaction path; the surfaces differ only in renderer.
+
 ## 4. Package map
 
 | Package | Responsibility |
