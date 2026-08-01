@@ -12,7 +12,7 @@
  */
 import type { ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
-import type { PermissionMode } from '@piwin/contracts';
+import type { PermissionPreset } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
 import { RunActivityInline } from './RunActivityInline.js';
 
@@ -30,20 +30,20 @@ export type ContextBarProps = {
   onViewPlan: () => void;
   onCancelCompact: () => void;
   onRetry?: (() => void) | undefined;
-  /** ADR 0019 §3 — permission mode badge; click opens Settings → Permissions. */
-  permissionMode?: PermissionMode | null;
+  /** ADR 0024 — Run Mode badge; click opens Settings → Permissions. */
+  permissionMode?: PermissionPreset | null;
   onOpenPermissions?: (() => void) | undefined;
   locale?: 'zh-CN' | 'en';
 };
 
-function modeBadgeLabel(mode: PermissionMode): string {
-  switch (mode) {
+function modeBadgeLabel(preset: PermissionPreset): string {
+  switch (preset) {
     case 'auto':
       return 'Auto';
-    case 'ask-all':
-      return 'Ask all';
-    case 'bypass':
-      return 'Bypass';
+    case 'ask':
+      return 'Ask';
+    case 'yolo':
+      return 'YOLO';
   }
 }
 
@@ -97,14 +97,14 @@ export function ContextBar(props: ContextBarProps): ReactElement {
           <button
             type="button"
             className={
-              mode === 'bypass' ? 'context-bar-mode-badge is-warning' : 'context-bar-mode-badge'
+              mode === 'yolo' ? 'context-bar-mode-badge is-warning' : 'context-bar-mode-badge'
             }
             data-testid="context-bar-mode-badge"
             data-mode={mode}
             title={
               isChinese
-                ? '权限模式 — 点击打开权限设置'
-                : 'Permission mode — click to open Permissions settings'
+                ? '运行模式 — 点击打开权限设置'
+                : 'Run mode — click to open Permissions settings'
             }
             onClick={props.onOpenPermissions}
           >

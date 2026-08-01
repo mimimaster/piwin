@@ -15,7 +15,7 @@ const COMMAND_ALIASES: Record<string, 'compact' | 'stop'> = {
   abort: 'stop',
 };
 
-const MODE_NAMES: ReadonlySet<string> = new Set(['agent', 'plan', 'debug', 'ask']);
+const MODE_NAMES: ReadonlySet<string> = new Set(['agent', 'plan', 'ask']);
 
 /**
  * Slash aliases that resolve to a bundled skill id. The alias is the slash

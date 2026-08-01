@@ -34,7 +34,6 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'abort',
   'agent',
   'plan',
-  'debug',
   'ask',
 ]);
 

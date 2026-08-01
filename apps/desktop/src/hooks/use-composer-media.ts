@@ -3,21 +3,23 @@
  */
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type ClipboardEvent,
   type Dispatch,
   type DragEvent,
 } from 'react';
-import type { MediaSaveData, PromptAttachment, WebElementAttachmentRef, WebElementPickResult } from '@piwin/contracts';
+import type {
+  MediaSaveData,
+  PromptAttachment,
+  WebElementAttachmentRef,
+  WebElementPickResult,
+} from '@piwin/contracts';
 import { toMediaAttachmentRef } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import {
-  fileToBase64,
-  isAllowedImageFile,
-  type PendingComposerAttachment,
-} from '../media-utils';
+import { fileToBase64, isAllowedImageFile, type PendingComposerAttachment } from '../media-utils';
 import { applyAgentModeToPrompt, type AgentModeId } from '../agent-mode';
 import {
   applySkillToPrompt,
@@ -50,8 +52,16 @@ export type UseComposerMediaArgs = {
     protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
     providerId: string;
     modelId: string;
+    supportsImage?: boolean;
   }>;
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+  /**
+   * When true, text-only + media is allowed (host will describe or path-inject).
+   * When false/undefined and selected model lacks vision, confirm before send.
+   */
+  visionDelegationEnabled?: boolean;
+  /** Optional confirm dialog for text-only + media without delegation. */
+  confirmTextOnlyImageSend?: (message: string) => Promise<boolean>;
 };
 
 export function useComposerMedia(args: UseComposerMediaArgs) {
@@ -61,6 +71,47 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   // State updates are asynchronous. This ref rejects a double click or an
   // Enter+click before the streaming state has reached the next render.
   const promptSubmissionInProgress = useRef(false);
+
+  // ── Draft text for unnamed (draft) sessions ────────────────────────────
+  // When the user clicks "+" (New session), we enter draft mode
+  // (activeSessionId = null) without creating a host session. Text typed in
+  // draft mode is preserved across session switches so the user can resume
+  // their thought after briefly checking another conversation.
+  const draftTextRef = useRef('');
+  // When a session is created on first send, activeSessionId transitions from
+  // null → new id. The effect below would normally save the composer text as
+  // draft, but the text is being sent — this flag tells the effect to skip.
+  const skipDraftSaveRef = useRef(false);
+  const prevActiveSessionIdRef = useRef<string | null>(args.state.activeSessionId);
+
+  useEffect(() => {
+    const prevId = prevActiveSessionIdRef.current;
+    const currentId = args.state.activeSessionId;
+    if (prevId === currentId) return;
+    prevActiveSessionIdRef.current = currentId;
+
+    const leavingDraft = prevId === null && currentId !== null;
+    const enteringDraft = prevId !== null && currentId === null;
+
+    if (leavingDraft) {
+      if (skipDraftSaveRef.current) {
+        // Session created on send — handleSend already cleared composer and draft.
+        skipDraftSaveRef.current = false;
+      } else {
+        // User switched to an existing session — save draft, clear composer
+        // so the draft text does not leak into the resumed session.
+        draftTextRef.current = composer;
+        setComposer('');
+      }
+    } else if (enteringDraft) {
+      // User entered draft mode (clicked "+" or switched scope) — restore draft.
+      setComposer(draftTextRef.current);
+    }
+    // else: switching between two existing sessions — no draft management.
+    // composer intentionally omitted from deps; reading it here captures the
+    // value at the time activeSessionId changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [args.state.activeSessionId]);
 
   const revokePending = useCallback((localId: string): void => {
     setPendingAttachments((current) => {
@@ -85,8 +136,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     if (args.state.activeSessionId) {
       return args.state.activeSessionId;
     }
-    const isGeneral =
-      args.state.activeScope.kind === 'general' || !args.state.projectPath;
+    const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
     if (!isGeneral && !args.state.projectTrusted) {
       args.dispatch({ type: 'project/trust-dialog', open: true });
       return null;
@@ -186,7 +236,9 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           const absolutePath = parsed.absolutePath?.trim();
           if (absolutePath) {
             setComposer((current) =>
-              current.trim().length > 0 ? `${current.replace(/\s+$/, '')}\n${absolutePath}` : absolutePath,
+              current.trim().length > 0
+                ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
+                : absolutePath,
             );
             return;
           }
@@ -214,8 +266,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
 
   const handlePickImageFiles = useCallback((): void => {
     // Session is created lazily inside saveImageFile when needed.
-    const isGeneral =
-      args.state.activeScope.kind === 'general' || !args.state.projectPath;
+    const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
     if (!isGeneral && !args.state.projectTrusted && !args.state.activeSessionId) {
       args.dispatch({ type: 'project/trust-dialog', open: true });
       return;
@@ -262,9 +313,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     if (!key || !args.modelOptions?.length) {
       return undefined;
     }
-    const option = args.modelOptions.find(
-      (item) => `${item.providerId}::${item.modelId}` === key,
-    );
+    const option = args.modelOptions.find((item) => `${item.providerId}::${item.modelId}` === key);
     if (!option) {
       return undefined;
     }
@@ -285,178 +334,216 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     ) {
       return;
     }
+
+    const hasMedia = attachments.some((item) => item.kind === 'media');
+    if (hasMedia) {
+      const selected = args.modelOptions?.find(
+        (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
+      );
+      const supportsImage = selected?.supportsImage === true;
+      if (!supportsImage && !args.visionDelegationEnabled) {
+        const message =
+          'Current model is text-only. Images will be path-injected (not native vision). Continue?';
+        if (args.confirmTextOnlyImageSend) {
+          const ok = await args.confirmTextOnlyImageSend(message);
+          if (!ok) {
+            return;
+          }
+        }
+      }
+    }
+
     promptSubmissionInProgress.current = true;
     try {
-    // General scope: send without project. Project scope: trust required.
-    const isGeneral =
-      args.state.activeScope.kind === 'general' || !args.state.projectPath;
-    if (!isGeneral) {
-      if (!args.state.projectPath) {
-        await args.onNeedWorkspace?.();
-        return;
-      }
-      if (!args.state.projectTrusted) {
-        args.dispatch({ type: 'project/trust-dialog', open: true });
-        return;
-      }
-    }
-
-    // First send without an active session creates one automatically.
-    const sessionId = await resolveSessionIdForComposer();
-    if (!sessionId) {
-      return;
-    }
-
-    // Whole-message slash intercept (commands / modes / skills).
-    if (text.startsWith('/') && attachments.length === 0) {
-      const skills = (args.menuSkills ?? []).map((skill) => ({
-        id: skill.id,
-        name: skill.name,
-        enabled: skill.enabled,
-      }));
-      const parsed = parseComposerSlashSubmit(text, skills);
-
-      if (parsed.kind === 'command' && parsed.commandId === 'compact') {
-        setComposer('');
-        clearPendingAttachments();
-        const instructions = normalizeCompactCustomInstructions(parsed.args);
-        await args.onCompact?.(instructions);
-        return;
-      }
-      if (parsed.kind === 'command' && parsed.commandId === 'stop') {
-        setComposer('');
-        clearPendingAttachments();
-        await args.onAbort?.();
-        return;
-      }
-      if (parsed.kind === 'mode') {
-        args.onAgentModeChange?.(parsed.modeId);
-        setComposer('');
-        clearPendingAttachments();
-        if (!parsed.args) {
+      // General scope: send without project. Project scope: trust required.
+      const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
+      if (!isGeneral) {
+        if (!args.state.projectPath) {
+          await args.onNeedWorkspace?.();
           return;
         }
-        const modePrompt = applyAgentModeToPrompt(parsed.modeId, parsed.args);
-        args.dispatch({ type: 'user/send', text: parsed.args, attachments: [] });
-        const modeInput: {
-          text: string;
-          model?: import('@piwin/contracts').ModelRef;
-          thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-        } = { text: modePrompt };
-        const modeModel = resolveTurnModel();
-        if (modeModel) {
-          modeInput.model = modeModel;
+        if (!args.state.projectTrusted) {
+          args.dispatch({ type: 'project/trust-dialog', open: true });
+          return;
         }
-        if (args.thinkingLevel) {
-          modeInput.thinkingLevel = args.thinkingLevel;
-        }
-        const modeResponse = await args.hostClient.request({
-          type: 'session/prompt',
-          sessionId,
-          input: modeInput,
-        });
-        if (!modeResponse.success) {
-          args.dispatch({ type: 'error', message: modeResponse.error });
-        } else {
-          const accepted = modeResponse.data as { runId?: string; acceptedAt?: string };
-          if (typeof accepted.runId === 'string') {
-            args.dispatch({
-              type: 'run/accepted',
-              runId: accepted.runId,
-              ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
-            });
-          }
+      }
+
+      // First send without an active session creates one automatically.
+      // In draft mode (no active session), mark to skip the draft-save effect
+      // so it does not save the text being sent as the next draft.
+      const wasInDraftMode = !args.state.activeSessionId;
+      if (wasInDraftMode) {
+        skipDraftSaveRef.current = true;
+      }
+      const sessionId = await resolveSessionIdForComposer();
+      if (!sessionId) {
+        // Session creation failed — reset flag so the effect can still save
+        // the draft if the user later switches to an existing session.
+        if (wasInDraftMode) {
+          skipDraftSaveRef.current = false;
         }
         return;
       }
-      if (parsed.kind === 'skill') {
-        const skillEnabled =
-          skills.find((skill) => skill.id === parsed.skillId)?.enabled !== false;
-        if (!skillEnabled) {
-          args.dispatch({
-            type: 'error',
-            message: `Skill "${parsed.skillName}" is disabled — enable it in Settings → Skills`,
+      // Session created successfully — clear the draft buffer since the text
+      // is being sent, not saved for later.
+      if (wasInDraftMode) {
+        draftTextRef.current = '';
+      }
+
+      // Whole-message slash intercept (commands / modes / skills).
+      if (text.startsWith('/') && attachments.length === 0) {
+        const skills = (args.menuSkills ?? []).map((skill) => ({
+          id: skill.id,
+          name: skill.name,
+          enabled: skill.enabled,
+        }));
+        const parsed = parseComposerSlashSubmit(text, skills);
+
+        if (parsed.kind === 'command' && parsed.commandId === 'compact') {
+          setComposer('');
+          clearPendingAttachments();
+          const instructions = normalizeCompactCustomInstructions(parsed.args);
+          await args.onCompact?.(instructions);
+          return;
+        }
+        if (parsed.kind === 'command' && parsed.commandId === 'stop') {
+          setComposer('');
+          clearPendingAttachments();
+          await args.onAbort?.();
+          return;
+        }
+        if (parsed.kind === 'mode') {
+          args.onAgentModeChange?.(parsed.modeId);
+          setComposer('');
+          clearPendingAttachments();
+          if (!parsed.args) {
+            return;
+          }
+          const modePrompt = applyAgentModeToPrompt(parsed.modeId, parsed.args);
+          args.dispatch({ type: 'user/send', text: parsed.args, attachments: [] });
+          const modeInput: {
+            text: string;
+            model?: import('@piwin/contracts').ModelRef;
+            thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+            agentMode?: import('@piwin/contracts').AgentModeId;
+          } = { text: modePrompt, agentMode: parsed.modeId };
+          const modeModel = resolveTurnModel();
+          if (modeModel) {
+            modeInput.model = modeModel;
+          }
+          if (args.thinkingLevel) {
+            modeInput.thinkingLevel = args.thinkingLevel;
+          }
+          const modeResponse = await args.hostClient.request({
+            type: 'session/prompt',
+            sessionId,
+            input: modeInput,
           });
+          if (!modeResponse.success) {
+            args.dispatch({ type: 'error', message: modeResponse.error });
+          } else {
+            const accepted = modeResponse.data as { runId?: string; acceptedAt?: string };
+            if (typeof accepted.runId === 'string') {
+              args.dispatch({
+                type: 'run/accepted',
+                runId: accepted.runId,
+                ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+              });
+            }
+          }
           return;
         }
-        const hostText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
-        const skillPrompt = applyAgentModeToPrompt(args.agentMode, hostText);
-        args.dispatch({ type: 'user/send', text, attachments: [] });
-        setComposer('');
-        clearPendingAttachments();
-        const skillInput: {
-          text: string;
-          model?: import('@piwin/contracts').ModelRef;
-          thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-        } = { text: skillPrompt };
-        const skillModel = resolveTurnModel();
-        if (skillModel) {
-          skillInput.model = skillModel;
-        }
-        if (args.thinkingLevel) {
-          skillInput.thinkingLevel = args.thinkingLevel;
-        }
-        const skillResponse = await args.hostClient.request({
-          type: 'session/prompt',
-          sessionId,
-          input: skillInput,
-        });
-        if (!skillResponse.success) {
-          args.dispatch({ type: 'error', message: skillResponse.error });
-        } else {
-          const accepted = skillResponse.data as { runId?: string; acceptedAt?: string };
-          if (typeof accepted.runId === 'string') {
+        if (parsed.kind === 'skill') {
+          const skillEnabled =
+            skills.find((skill) => skill.id === parsed.skillId)?.enabled !== false;
+          if (!skillEnabled) {
             args.dispatch({
-              type: 'run/accepted',
-              runId: accepted.runId,
-              ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+              type: 'error',
+              message: `Skill "${parsed.skillName}" is disabled — enable it in Settings → Skills`,
             });
+            return;
           }
+          const hostText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
+          const skillPrompt = applyAgentModeToPrompt(args.agentMode, hostText);
+          args.dispatch({ type: 'user/send', text, attachments: [] });
+          setComposer('');
+          clearPendingAttachments();
+          const skillInput: {
+            text: string;
+            model?: import('@piwin/contracts').ModelRef;
+            thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+            agentMode?: import('@piwin/contracts').AgentModeId;
+          } = { text: skillPrompt, agentMode: args.agentMode };
+          const skillModel = resolveTurnModel();
+          if (skillModel) {
+            skillInput.model = skillModel;
+          }
+          if (args.thinkingLevel) {
+            skillInput.thinkingLevel = args.thinkingLevel;
+          }
+          const skillResponse = await args.hostClient.request({
+            type: 'session/prompt',
+            sessionId,
+            input: skillInput,
+          });
+          if (!skillResponse.success) {
+            args.dispatch({ type: 'error', message: skillResponse.error });
+          } else {
+            const accepted = skillResponse.data as { runId?: string; acceptedAt?: string };
+            if (typeof accepted.runId === 'string') {
+              args.dispatch({
+                type: 'run/accepted',
+                runId: accepted.runId,
+                ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+              });
+            }
+          }
+          return;
         }
-        return;
+        // unknown → fall through as normal text
       }
-      // unknown → fall through as normal text
-    }
 
-    const promptText = applyAgentModeToPrompt(args.agentMode, text);
-    args.dispatch({ type: 'user/send', text, attachments });
-    setComposer('');
-    clearPendingAttachments();
-    const input: {
-      text: string;
-      attachments?: PromptAttachment[];
-      model?: import('@piwin/contracts').ModelRef;
-      thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-    } = {
-      text: promptText,
-    };
-    if (attachments.length > 0) {
-      input.attachments = attachments;
-    }
-    const model = resolveTurnModel();
-    if (model) {
-      input.model = model;
-    }
-    if (args.thinkingLevel) {
-      input.thinkingLevel = args.thinkingLevel;
-    }
-    const response = await args.hostClient.request({
-      type: 'session/prompt',
-      sessionId,
-      input,
-    });
-    if (!response.success) {
-      args.dispatch({ type: 'error', message: response.error });
-    } else {
-      const accepted = response.data as { runId?: string; acceptedAt?: string };
-      if (typeof accepted.runId === 'string') {
-        args.dispatch({
-          type: 'run/accepted',
-          runId: accepted.runId,
-          ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
-        });
+      const promptText = applyAgentModeToPrompt(args.agentMode, text);
+      args.dispatch({ type: 'user/send', text, attachments });
+      setComposer('');
+      clearPendingAttachments();
+      const input: {
+        text: string;
+        attachments?: PromptAttachment[];
+        model?: import('@piwin/contracts').ModelRef;
+        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+        agentMode?: import('@piwin/contracts').AgentModeId;
+      } = {
+        text: promptText,
+        agentMode: args.agentMode,
+      };
+      if (attachments.length > 0) {
+        input.attachments = attachments;
       }
-    }
+      const model = resolveTurnModel();
+      if (model) {
+        input.model = model;
+      }
+      if (args.thinkingLevel) {
+        input.thinkingLevel = args.thinkingLevel;
+      }
+      const response = await args.hostClient.request({
+        type: 'session/prompt',
+        sessionId,
+        input,
+      });
+      if (!response.success) {
+        args.dispatch({ type: 'error', message: response.error });
+      } else {
+        const accepted = response.data as { runId?: string; acceptedAt?: string };
+        if (typeof accepted.runId === 'string') {
+          args.dispatch({
+            type: 'run/accepted',
+            runId: accepted.runId,
+            ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+          });
+        }
+      }
     } finally {
       promptSubmissionInProgress.current = false;
     }

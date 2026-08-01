@@ -77,7 +77,9 @@
   border: none;
   border-radius: 4px;
   background: transparent;
-  transition: color 150ms ease, background-color 150ms ease;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
   justify-self: start;
   font-family: inherit;
 }
@@ -106,8 +108,13 @@
 }
 
 @keyframes host-status-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
 }
 
 .composer-hint {
@@ -120,36 +127,190 @@
   white-space: nowrap;
 }
 
+/* ─── Permission bar (docked above composer, ADR 0024) ──────────────── */
+
+.permission-bar {
+  width: 100%;
+  margin: 0 auto 6px;
+  border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 40%, var(--line));
+  border-radius: 10px 10px 0 0;
+  background: color-mix(in srgb, var(--warn, #f59e0b) 6%, var(--card, #fff));
+  box-shadow: 0 -1px 8px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+  animation: permission-bar-slide-in 180ms ease-out;
+}
+
+.permission-bar.is-danger {
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 50%, var(--line));
+  background: color-mix(in srgb, var(--danger, #ef4444) 8%, var(--card, #fff));
+}
+
+@keyframes permission-bar-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.permission-bar-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 100ms ease;
+}
+
+.permission-bar-head:hover {
+  background: color-mix(in srgb, var(--warn, #f59e0b) 8%, transparent);
+}
+
+.permission-bar.is-danger .permission-bar-head:hover {
+  background: color-mix(in srgb, var(--danger, #ef4444) 8%, transparent);
+}
+
+.permission-bar-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--warn, #f59e0b);
+}
+
+.permission-bar.is-danger .permission-bar-icon {
+  color: var(--danger, #ef4444);
+}
+
+.permission-bar-action {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.permission-bar-toggle {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 100ms ease,
+    color 100ms ease;
+}
+
+.permission-bar-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.permission-bar-chevron {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  transition: transform 160ms ease;
+}
+
+.permission-bar-chevron.is-expanded {
+  transform: rotate(180deg);
+}
+
+.permission-bar-detail {
+  padding: 0 12px 8px;
+  border-top: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+  margin-top: 2px;
+  padding-top: 8px;
+}
+
+.permission-bar-detail .permission-facts {
+  margin: 0;
+}
+
+.permission-bar-detail .permission-detail {
+  font-size: 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.permission-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 8px;
+}
+
+.permission-bar-actions button {
+  font-size: 12px;
+  height: 28px;
+  padding: 0 12px;
+}
+
+.permission-bar-btn-allow-session {
+  font-weight: 600;
+}
+
 .composer-card-v2 {
   display: flex;
   flex-direction: column;
   width: 100%;
   margin: 0 auto;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--card, #ffffff);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.03);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: 16px;
+  /* Background color harmonized with main theme canvas, zero drop-shadow */
+  background: color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 92%, var(--panel, #ffffff));
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  box-shadow: none;
   transition:
-    border-color 200ms ease,
-    box-shadow 200ms ease;
+    background-color 200ms ease,
+    border-color 200ms ease;
   /* Popovers (slash menu, thinking effort) open upward past the card edge. */
   overflow: visible;
 }
 
+[data-theme='dark'] .composer-card-v2 {
+  background: color-mix(in srgb, var(--canvas, var(--bg, #121214)) 92%, var(--panel, #1c1c1e));
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+  box-shadow: none;
+}
+
 .composer-card-v2:focus-within,
 .composer-card-v2.drop-active {
-  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+  background: color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 96%, var(--panel, #ffffff));
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: none;
+}
+
+[data-theme='dark'] .composer-card-v2:focus-within,
+[data-theme='dark'] .composer-card-v2.drop-active {
+  background: color-mix(in srgb, var(--canvas, var(--bg, #121214)) 96%, var(--panel, #1c1c1e));
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: none;
 }
 
 .composer-card-v2.is-streaming {
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: none;
 }
 
 /* Centered empty-state card matches conversation width cleanly. */
 .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
   width: 100%;
-  border-radius: 12px;
+  border-radius: 16px;
 }
 
 .chat-column-empty .composer-dock.layout-centered .composer-v2-input-area {
@@ -232,14 +393,16 @@
   opacity: 0.5;
 }
 
-/* ─── Toolbar ───────────────────────────────────────────────────────── */
+/* ─── Toolbar (Separated by background color difference, NO top line) ── */
 
 .composer-v2-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 10px 10px;
+  padding: 8px 12px 8px 12px;
+  border-radius: 0 0 16px 16px;
+  background: color-mix(in srgb, var(--fg) 3.5%, transparent);
   overflow: visible;
 }
 
@@ -259,19 +422,18 @@
 .composer-v2-icon-btn {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
-  border-radius: 6px;
-  background: transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fg) 5%, transparent);
   color: var(--muted);
   cursor: pointer;
   transition:
-    background var(--motion-quick, 120ms) ease,
-    border-color var(--motion-quick, 120ms) ease,
-    color var(--motion-quick, 120ms) ease,
-    box-shadow var(--motion-quick, 120ms) ease;
+    background 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
   flex-shrink: 0;
 }
 
@@ -282,12 +444,13 @@
 
 .composer-v2-icon-btn:hover:not(:disabled) {
   color: var(--text);
-  background: var(--hover);
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  transform: scale(1.04);
 }
 
 .composer-v2-icon-btn.active {
   color: var(--accent);
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .composer-v2-icon-btn:disabled {
@@ -302,10 +465,11 @@
   gap: 4px;
   height: 22px;
   padding: 0 8px;
-  border-radius: 6px;
+  border: none;
+  border-radius: 100px;
   font-size: 11px;
   font-weight: 650;
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
   color: var(--accent);
 }
 
@@ -315,13 +479,13 @@
   width: 14px;
   height: 14px;
   border: none;
-  border-radius: 3px;
+  border-radius: 50%;
   background: transparent;
   color: inherit;
   font-size: 12px;
   cursor: pointer;
   line-height: 1;
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
 .composer-v2-mode-dismiss:hover {
@@ -341,80 +505,112 @@
 .composer-v2-send-btn {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   border: none;
-  border-radius: 7px;
+  border-radius: 50%;
   background: var(--accent);
-  color: var(--accent-fg);
+  color: var(--accent-fg, #ffffff);
   cursor: pointer;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
   transition:
-    transform 0.14s ease,
-    opacity 0.14s ease,
-    filter 0.14s ease,
-    box-shadow 0.14s ease;
+    transform 0.16s ease,
+    opacity 0.16s ease,
+    filter 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
   flex-shrink: 0;
 }
 
 .composer-v2-send-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 .composer-v2-send-btn:hover:not(:disabled) {
   filter: brightness(1.08);
-  transform: translateY(-0.5px);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 32%, transparent);
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .composer-v2-send-btn:active:not(:disabled) {
-  transform: scale(0.94);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 15%, transparent);
+  transform: scale(0.92);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
 .composer-v2-send-btn:disabled {
-  opacity: 0.3;
+  opacity: 0.35;
   cursor: default;
-  background: var(--faint);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  color: color-mix(in srgb, var(--fg) 40%, transparent);
   box-shadow: none;
 }
 
 .composer-v2-stop-btn {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-  color: var(--danger);
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--danger, #ef4444) 14%, transparent);
+  color: var(--danger, #ef4444);
   cursor: pointer;
   transition:
-    background var(--motion-quick, 120ms) ease,
-    border-color var(--motion-quick, 120ms) ease,
-    color var(--motion-quick, 120ms) ease,
-    box-shadow var(--motion-quick, 120ms) ease,
-    transform 0.14s ease;
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
   flex-shrink: 0;
 }
 
+.composer-v2-stop-btn .stop-btn-pulse {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--danger, #ef4444) 25%, transparent);
+  animation: stop-btn-pulse-wave 2s infinite ease-in-out;
+  pointer-events: none;
+}
+
+@keyframes stop-btn-pulse-wave {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+}
+
 .composer-v2-stop-btn svg {
-  width: 14px;
-  height: 14px;
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
 }
 
 .composer-v2-stop-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--danger) 22%, transparent);
-  border-color: color-mix(in srgb, var(--danger) 60%, transparent);
-  transform: translateY(-0.5px);
+  background: var(--danger, #ef4444);
+  color: #ffffff;
+  transform: scale(1.06);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--danger, #ef4444) 40%, transparent);
 }
 
-.composer-v2-stop-btn:disabled {
-  opacity: 0.4;
-  cursor: default;
+.composer-v2-stop-btn:hover:not(:disabled) .stop-btn-pulse {
+  opacity: 0;
+}
+
+.composer-v2-stop-btn:active:not(:disabled) {
+  transform: scale(0.92);
 }
 
 .composer-v2-streaming-actions {
@@ -1389,3 +1585,156 @@
   gap: 8px;
 }
 
+/* ─── Run Mode pill (ADR 0024) ─────────────────────────────────────── */
+
+.run-mode-control {
+  position: relative;
+  overflow: visible;
+  z-index: 3;
+}
+
+.run-mode-control.is-warning .run-mode-trigger {
+  color: var(--warning, #f59e0b);
+}
+
+.run-mode-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1.4;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.run-mode-trigger:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.run-mode-trigger:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.run-mode-value {
+  font-weight: 600;
+}
+
+.run-mode-chevron {
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-top: 4px solid currentColor;
+  opacity: 0.6;
+}
+
+.ui-popover-content.run-mode-popover {
+  min-width: 260px;
+  padding: 8px;
+}
+
+.run-mode-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.run-mode-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 4px 8px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.run-mode-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  text-align: left;
+  transition: background 100ms ease;
+}
+
+.run-mode-option:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.run-mode-option:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.run-mode-option.is-selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.run-mode-option-label {
+  font-weight: 600;
+  min-width: 48px;
+}
+
+.run-mode-option-desc {
+  flex: 1;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.run-mode-option-warning {
+  color: var(--warning, #f59e0b);
+  font-size: 13px;
+}
+
+.run-mode-option-locked {
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+.run-mode-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px 2px;
+  border-top: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  margin-top: 4px;
+}
+
+.run-mode-footer-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition:
+    color 100ms ease,
+    background 100ms ease;
+}
+
+.run-mode-footer-btn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
