@@ -64,10 +64,14 @@ export function createPetStateStore(options: PetStateStoreOptions): PetStateStor
     };
   }
 
-  function notifyIfChanged(prevSig: string): void {
-    if (activitySignature(context) === prevSig) return;
+  function notify(): void {
     const snap = snapshot();
     for (const listener of listeners) listener(snap);
+  }
+
+  function notifyIfChanged(prevSig: string): void {
+    if (activitySignature(context) === prevSig) return;
+    notify();
   }
 
   return {
@@ -78,7 +82,14 @@ export function createPetStateStore(options: PetStateStoreOptions): PetStateStor
     },
     snapshot,
     setBase(pet: PetRuntimeSnapshot): void {
+      const changed =
+        basePet.petId !== pet.petId ||
+        basePet.spritesheetAbsolutePath !== pet.spritesheetAbsolutePath;
       basePet = pet;
+      // The animation state is unchanged by a base swap, so activitySignature()
+      // would suppress the push. Notify explicitly, otherwise subscribers (the
+      // desktop pet overlay) keep rendering the previous pet's spritesheet.
+      if (changed) notify();
     },
     subscribe(listener: (snapshot: PetStateSnapshot) => void): () => void {
       listeners.add(listener);

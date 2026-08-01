@@ -78,6 +78,32 @@ describe('createPetStateStore', () => {
     expect(store.snapshot().pet.activity).toBeUndefined();
   });
 
+  it('notifies subscribers when the base pet is swapped (pet/set-active)', () => {
+    const store = createPetStateStore({ basePet });
+    const seen: string[] = [];
+    store.subscribe((snap) => seen.push(snap.pet.petId));
+    store.setBase({ ...basePet, petId: 'other-pet', spritesheetAbsolutePath: '/y/sheet.png' });
+    expect(seen).toEqual(['other-pet']);
+    expect(store.snapshot().pet.spritesheetAbsolutePath).toBe('/y/sheet.png');
+  });
+
+  it('preserves the live animation state when the base pet is swapped', () => {
+    const store = createPetStateStore({ basePet });
+    store.reduce({ type: 'message/start', messageId: 'm1', role: 'assistant' } as AgentEvent);
+    const seen: string[] = [];
+    store.subscribe((snap) => seen.push(snap.pet.state));
+    store.setBase({ ...basePet, petId: 'other-pet' });
+    expect(seen).toEqual(['running']);
+  });
+
+  it('does not notify when setBase is called with the same pet', () => {
+    const store = createPetStateStore({ basePet });
+    const seen: string[] = [];
+    store.subscribe((snap) => seen.push(snap.pet.petId));
+    store.setBase({ ...basePet });
+    expect(seen).toEqual([]);
+  });
+
   it('notifies subscribers when tool name changes but state stays running', () => {
     const store = createPetStateStore({ basePet });
     const tools: string[] = [];
