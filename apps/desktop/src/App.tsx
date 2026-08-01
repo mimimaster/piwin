@@ -910,6 +910,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     selectedModelKey,
     modelOptions,
     thinkingLevel,
+    visionDelegationEnabled: config?.visionDelegation?.enabled === true,
+    confirmTextOnlyImageSend: async (message) => {
+      // Lightweight confirm; host still path-injects if user continues.
+      return window.confirm(message);
+    },
   });
 
   async function handleExtensionUiResolve(payload: {

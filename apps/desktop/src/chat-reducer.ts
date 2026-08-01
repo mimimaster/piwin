@@ -134,6 +134,8 @@ export type ChatUiState = {
   runPhase: 'idle' | 'streaming' | 'aborting';
   activeRunId: string | null;
   activeRunPhase: SessionRunPhase | null;
+  /** Optional detail from latest run/phase (e.g. "Describing image…"). */
+  activeRunPhaseDetail: string | null;
   activeRunStartedAt: number | null;
   lastTerminalRunId: string | null;
   streaming: boolean;
@@ -255,6 +257,7 @@ export function createInitialChatUiState(): ChatUiState {
     runPhase: 'idle',
     activeRunId: null,
     activeRunPhase: null,
+    activeRunPhaseDetail: null,
     activeRunStartedAt: null,
     lastTerminalRunId: null,
     streaming: false,
@@ -305,6 +308,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -329,6 +333,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -351,6 +356,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -370,6 +376,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -409,6 +416,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -445,6 +453,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -566,6 +575,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -597,6 +607,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -620,6 +631,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'streaming',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         streaming: true,
         runTerminal: { kind: 'none' },
@@ -686,6 +698,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -1153,6 +1166,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
@@ -1177,6 +1191,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
+        activeRunPhaseDetail: null,
         activeRunStartedAt: null,
         lastTerminalRunId: event.runId ?? null,
         streaming: false,
@@ -1354,6 +1369,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             ...state,
             activeRunId: event.runId,
             activeRunPhase: event.phase,
+            activeRunPhaseDetail: event.detail ?? null,
             runPhase: 'aborting',
             streaming: true,
             runRecordsById: {
@@ -1367,6 +1383,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
           runPhase: 'streaming',
           activeRunId: event.runId,
           activeRunPhase: event.phase,
+          activeRunPhaseDetail: event.detail ?? null,
           activeRunStartedAt:
             state.activeRunId === event.runId && state.activeRunStartedAt !== null
               ? state.activeRunStartedAt
@@ -1464,6 +1481,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             ...withRecord,
             activeRunId: null,
             activeRunPhase: null,
+            activeRunPhaseDetail: null,
             activeRunStartedAt: null,
             lastTerminalRunId: event.runId,
             runPhase: 'idle',
@@ -1476,6 +1494,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             ...withRecord,
             activeRunId: null,
             activeRunPhase: null,
+            activeRunPhaseDetail: null,
             activeRunStartedAt: null,
             lastTerminalRunId: event.runId,
             error: event.message ?? 'Run failed',
@@ -1492,6 +1511,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
           ...withRecord,
           activeRunId: null,
           activeRunPhase: null,
+          activeRunPhaseDetail: null,
           activeRunStartedAt: null,
           lastTerminalRunId: event.runId,
           runPhase: 'idle',
