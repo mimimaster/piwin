@@ -166,9 +166,14 @@ import {
 import type { HostCommandContext } from './commands/host-command-context.js';
 import {
   handleWalkthroughCancel,
+  startWalkthroughGeneration,
+  resolveGenerationModel,
   WalkthroughGenerationRegistry,
   type WalkthroughCommandContext,
 } from './commands/walkthrough-commands.js';
+import { isWalkthroughEligibleMessage, isAutoWalkthroughEligible } from './walkthrough-source.js';
+import { loadWalkthrough } from './walkthrough-store.js';
+import { createDefaultWalkthroughConfig } from '@piwin/contracts';
 import { RunEventCorrelator } from './run-event-correlator.js';
 import { createEventEnvelopeGenerator } from './event-map.js';
 
@@ -1614,6 +1619,15 @@ export class HostRuntime {
             const detail = error instanceof Error ? error.message : String(error);
             this.push({ type: 'host/log', level: 'warn', message: `auto-name failed: ${detail}` });
           });
+          // CE-WALK: auto-walkthrough after completed run (fire-and-forget).
+          void this.maybeTriggerAutoWalkthrough(sessionId, runId).catch((error: unknown) => {
+            const detail = error instanceof Error ? error.message : String(error);
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `auto-walkthrough failed: ${detail}`,
+            });
+          });
         }
         const recorder = this.transcriptRecorders.get(sessionId);
         if (recorder) {
@@ -2376,6 +2390,80 @@ export class HostRuntime {
       secretResolver: createSecretResolver(),
       push: (message) => this.push(message),
     });
+  }
+
+  /**
+   * Auto-generate a walkthrough after a completed run (spec §4.3).
+   *
+   * Fire-and-forget: errors are logged to the host log, not propagated.
+   * Only triggers when:
+   * - walkthrough is enabled AND autoGenerate is true
+   * - the run's final assistant message is eligible
+   * - the run used at least one tool (coding task, not pure Q&A)
+   * - no ready walkthrough artifact already exists for this message
+   */
+  private async maybeTriggerAutoWalkthrough(sessionId: string, runId: string): Promise<void> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const config = await loadPiwinConfig(rootDir);
+    const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
+    if (!walkthrough.enabled || !walkthrough.autoGenerate) {
+      return;
+    }
+
+    // Load transcript and find the final assistant message for this run.
+    const messages = await this.loadTranscriptMessages(sessionId);
+    const runMessages = messages.filter((m) => m.runId === runId && m.role === 'assistant');
+    if (runMessages.length === 0) {
+      return;
+    }
+    const finalAssistant = runMessages[runMessages.length - 1]!;
+
+    // Check basic eligibility.
+    if (!isWalkthroughEligibleMessage(finalAssistant, messages)) {
+      return;
+    }
+
+    // Check auto-eligibility: must have used at least one tool.
+    if (!isAutoWalkthroughEligible(messages, runId)) {
+      return;
+    }
+
+    // Check if a ready artifact already exists for this message.
+    const existing = await loadWalkthrough(rootDir, sessionId, finalAssistant.id);
+    if (existing?.status === 'ready') {
+      return;
+    }
+
+    // Resolve model, provider, and mode.
+    const context = this.buildWalkthroughContext();
+    const resolved = resolveGenerationModel(
+      { type: 'walkthrough/generate', sessionId, messageId: finalAssistant.id },
+      finalAssistant,
+      context,
+      config,
+    );
+    if (resolved.error || !resolved.model || !resolved.provider) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `auto-walkthrough: model resolution failed for ${sessionId}:${runId} — ${resolved.error?.code ?? 'model-unavailable'}`,
+      });
+      return;
+    }
+
+    // Start the generation.
+    await startWalkthroughGeneration(
+      sessionId,
+      finalAssistant.id,
+      resolved.model,
+      resolved.provider,
+      resolved.mode,
+      walkthrough,
+      finalAssistant,
+      messages,
+      context,
+      this.walkthroughRegistry,
+    );
   }
 
   private async ensureLiveSession(sessionId: string): Promise<SessionHandle> {

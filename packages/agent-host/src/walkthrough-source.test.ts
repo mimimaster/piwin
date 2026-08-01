@@ -1014,7 +1014,7 @@ describe('isWalkthroughEligibleMessage', () => {
     expect(isWalkthroughEligibleMessage(messages[4]!, messages)).toBe(true);
   });
 
-  it('message with runId but no outcome and no endedAt returns false', () => {
+  it('message with runId but no outcome and no endedAt is eligible (status done is sufficient)', () => {
     const messages: SessionTranscriptMessage[] = [
       makeMessage({ id: 'user-1', role: 'user', text: 'Fix bug', status: 'done' }),
       makeMessage({
@@ -1023,10 +1023,12 @@ describe('isWalkthroughEligibleMessage', () => {
         text: 'Done.',
         runId: 'run-1',
         status: 'done',
-        // No outcome, no endedAt — not eligible per spec §5.1
+        // No outcome, no endedAt — many hosts don't write terminal metadata
+        // into the transcript. status 'done' is sufficient evidence the run
+        // completed, so the message is eligible.
       }),
     ];
-    expect(isWalkthroughEligibleMessage(messages[1]!, messages)).toBe(false);
+    expect(isWalkthroughEligibleMessage(messages[1]!, messages)).toBe(true);
   });
 
   it('message with runId but no outcome but with endedAt returns true', () => {

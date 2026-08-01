@@ -133,6 +133,26 @@ export function getPiwinSessionWalkthroughPath(
   );
 }
 
+/**
+ * Path to a Walkthrough Markdown file that mirrors the JSON artifact content.
+ * Written alongside the JSON when the artifact reaches `ready` status so users
+ * and external tools can read the walkthrough as a plain `.md` file (aligning
+ * with Google Antigravity's `walkthrough.md` Artifact pattern). Both `sessionId`
+ * and `messageId` are validated against path traversal.
+ */
+export function getPiwinSessionWalkthroughMdPath(
+  rootDir: string,
+  sessionId: string,
+  messageId: string,
+): string {
+  assertSafePathSegment(sessionId, 'sessionId');
+  assertSafePathSegment(messageId, 'messageId');
+  return join(
+    getPiwinSessionWalkthroughDir(rootDir, sessionId),
+    `${encodeMessageIdForFilename(messageId)}.md`,
+  );
+}
+
 /** CE-OBS: append-only usage ledger (JSONL) under the product root. */
 export function getPiwinUsageLedgerPath(rootDir: string): string {
   return join(rootDir, 'usage', 'ledger.jsonl');

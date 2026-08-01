@@ -10,7 +10,11 @@ import {
   loadWalkthrough,
   saveWalkthrough,
 } from './walkthrough-store.js';
-import { getPiwinSessionWalkthroughDir, getPiwinSessionWalkthroughPath } from './paths.js';
+import {
+  getPiwinSessionWalkthroughDir,
+  getPiwinSessionWalkthroughMdPath,
+  getPiwinSessionWalkthroughPath,
+} from './paths.js';
 
 const MODEL = {
   protocol: 'openai-compatible' as const,
@@ -106,8 +110,48 @@ describe('walkthrough-store', () => {
 
     const dir = getPiwinSessionWalkthroughDir(rootDir, sessionId);
     const entries = await readdir(dir);
-    expect(entries).toHaveLength(1);
-    expect(entries[0]?.endsWith('.json')).toBe(true);
+    expect(entries).toHaveLength(2);
+    expect(entries.some((e) => e.endsWith('.json'))).toBe(true);
+    expect(entries.some((e) => e.endsWith('.md'))).toBe(true);
+  });
+
+  it('saveWalkthrough writes companion .md file for ready artifacts', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
+    const sessionId = 'sess-1';
+    const messageId = 'msg-1';
+    const artifact = makeReadyArtifact(sessionId, messageId);
+
+    await saveWalkthrough(rootDir, sessionId, artifact);
+
+    const mdPath = getPiwinSessionWalkthroughMdPath(rootDir, sessionId, messageId);
+    const md = await readFile(mdPath, 'utf8');
+    expect(md).toBe(artifact.markdown);
+  });
+
+  it('saveWalkthrough does not write .md for generating artifacts', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
+    const sessionId = 'sess-1';
+    const messageId = 'msg-gen';
+    const artifact = makeGeneratingArtifact(sessionId, messageId);
+
+    await saveWalkthrough(rootDir, sessionId, artifact);
+
+    const dir = getPiwinSessionWalkthroughDir(rootDir, sessionId);
+    const entries = await readdir(dir);
+    expect(entries.filter((e) => e.endsWith('.md'))).toHaveLength(0);
+  });
+
+  it('saveWalkthrough does not write .md for error artifacts', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
+    const sessionId = 'sess-1';
+    const messageId = 'msg-err';
+    const artifact = makeErrorArtifact(sessionId, messageId);
+
+    await saveWalkthrough(rootDir, sessionId, artifact);
+
+    const dir = getPiwinSessionWalkthroughDir(rootDir, sessionId);
+    const entries = await readdir(dir);
+    expect(entries.filter((e) => e.endsWith('.md'))).toHaveLength(0);
   });
 
   it('round-trips an artifact via save then load', async () => {
@@ -203,6 +247,25 @@ describe('walkthrough-store', () => {
     expect(raw).not.toContain('rawEvidence');
     expect(raw).not.toContain('toolOutput');
     expect(raw).toContain('markdown');
+  });
+
+  it('deleteWalkthrough removes both JSON and .md files', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
+    const sessionId = 'sess-1';
+    const messageId = 'msg-1';
+    await saveWalkthrough(rootDir, sessionId, makeReadyArtifact(sessionId, messageId));
+
+    // Verify both files exist.
+    const dir = getPiwinSessionWalkthroughDir(rootDir, sessionId);
+    const before = await readdir(dir);
+    expect(before.filter((e) => e.endsWith('.json'))).toHaveLength(1);
+    expect(before.filter((e) => e.endsWith('.md'))).toHaveLength(1);
+
+    await deleteWalkthrough(rootDir, sessionId, messageId);
+
+    const after = await readdir(dir);
+    expect(after.filter((e) => e.endsWith('.json'))).toHaveLength(0);
+    expect(after.filter((e) => e.endsWith('.md'))).toHaveLength(0);
   });
 
   it('deleteWalkthrough removes the artifact file', async () => {
