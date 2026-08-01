@@ -1660,6 +1660,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     subagentStreams={state.subagentStreams}
                     walkthroughsByMessageId={state.walkthroughsByMessageId}
                     walkthroughEnabled={config?.walkthrough?.enabled !== false}
+                    walkthroughAutoGenerate={config?.walkthrough?.autoGenerate === true}
                     onGenerateWalkthrough={handleGenerateWalkthrough}
                     onCancelWalkthrough={handleCancelWalkthrough}
                   />

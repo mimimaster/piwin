@@ -5,6 +5,8 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
   createDefaultWalkthroughConfig,
+  DEFAULT_CONCISE_PROMPT,
+  DEFAULT_CONCISE_PROMPT_ZH,
   MAX_WALKTHROUGH_PROMPT_BYTES,
   validateWalkthroughConfig,
   type ModelRef,
@@ -57,6 +59,8 @@ export function SessionPage(): ReactElement {
   // Draft state mirrors the persisted walkthrough block; edits stay local
   // until the user presses Save so switching modes never loses a prompt draft.
   const [enabled, setEnabled] = useState<boolean>(walkthrough.enabled);
+  const [autoGenerate, setAutoGenerate] = useState<boolean>(walkthrough.autoGenerate);
+  const [concisePrompt, setConcisePrompt] = useState<string>(walkthrough.concisePrompt);
   const [mode, setMode] = useState<WalkthroughMode>(walkthrough.mode);
   const [modelValue, setModelValue] = useState<string>(
     walkthrough.custom.model ? JSON.stringify(walkthrough.custom.model) : '',
@@ -66,6 +70,8 @@ export function SessionPage(): ReactElement {
   // Re-sync draft when the persisted config changes (e.g. external save).
   useEffect(() => {
     setEnabled(walkthrough.enabled);
+    setAutoGenerate(walkthrough.autoGenerate);
+    setConcisePrompt(walkthrough.concisePrompt);
     setMode(walkthrough.mode);
     setModelValue(walkthrough.custom.model ? JSON.stringify(walkthrough.custom.model) : '');
     setPrompt(walkthrough.custom.prompt);
@@ -77,13 +83,15 @@ export function SessionPage(): ReactElement {
     const selected = modelOptions.find((option) => option.value === modelValue);
     return {
       enabled,
+      autoGenerate,
+      concisePrompt,
       mode,
       custom: {
         model: selected ? selected.ref : null,
         prompt,
       },
     };
-  }, [enabled, mode, modelValue, prompt, modelOptions]);
+  }, [enabled, autoGenerate, concisePrompt, mode, modelValue, prompt, modelOptions]);
 
   const issues = useMemo(() => validateWalkthroughConfig(draft), [draft]);
   const promptIssue = issueFor(issues, 'walkthrough.custom.prompt');
@@ -111,13 +119,26 @@ export function SessionPage(): ReactElement {
 
   async function handleSaveWalkthrough(): Promise<void> {
     if (!config) return;
-    if (issues.length > 0) return;
+    if (issues.length > 0) {
+      setInfo(
+        locale === 'zh-CN'
+          ? '保存失败：请检查提示词或模型配置项是否填全且合法。'
+          : 'Save failed: Please check validation issues in model or prompt fields.',
+      );
+      return;
+    }
     const next: PiwinConfig = {
       ...config,
       walkthrough: draft,
     };
     if (await saveConfig(next)) {
       setInfo(locale === 'zh-CN' ? '已保存 Walkthrough 设置。' : 'Walkthrough settings saved.');
+    } else {
+      setInfo(
+        locale === 'zh-CN'
+          ? '保存失败：无法写入配置文件。'
+          : 'Save failed: Failed to write configuration file.',
+      );
     }
   }
 
@@ -182,6 +203,51 @@ export function SessionPage(): ReactElement {
                 testId="walkthrough-enabled-switch"
               />
             </FieldRow>
+
+            <FieldRow
+              label={locale === 'zh-CN' ? '自动生成' : 'Auto-generate'}
+              description={
+                locale === 'zh-CN'
+                  ? '开启后，当一轮对话使用了工具并结束时，自动生成简洁的 Walkthrough 摘要，无需手动点击。'
+                  : 'When on, a concise Walkthrough summary is generated automatically after a turn that used tools ends — no manual button press needed.'
+              }
+              testId="walkthrough-auto-generate-row"
+            >
+              <Switch
+                checked={autoGenerate}
+                onCheckedChange={(checked) => setAutoGenerate(checked)}
+                aria-label={locale === 'zh-CN' ? '自动生成' : 'Auto-generate'}
+                testId="walkthrough-auto-generate-switch"
+              />
+            </FieldRow>
+
+            <Collapse expanded={autoGenerate} testId="walkthrough-concise-collapse">
+              <div className="walkthrough-custom-body">
+                <div data-testid="walkthrough-concise-prompt-field">
+                  <TextArea
+                    label={locale === 'zh-CN' ? '简洁提示词' : 'Concise prompt'}
+                    description={
+                      locale === 'zh-CN'
+                        ? '当自动生成开启且正在执行计划时，注入到模型上下文中的提示词，引导模型生成简洁的聊天内摘要。'
+                        : 'Injected into the model context when auto-generate is on and a plan is active, guiding the model to produce a brief in-chat summary.'
+                    }
+                    testId="walkthrough-concise-prompt-textarea"
+                    value={concisePrompt}
+                    onChange={(value) => setConcisePrompt(value)}
+                    rows={6}
+                  />
+                </div>
+                <div className="ui-field-row-control" style={{ justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="ghost"
+                    data-testid="walkthrough-concise-reset-button"
+                    onClick={() => setConcisePrompt(locale === 'zh-CN' ? DEFAULT_CONCISE_PROMPT_ZH : DEFAULT_CONCISE_PROMPT)}
+                  >
+                    {locale === 'zh-CN' ? '恢复默认' : 'Reset to default'}
+                  </Button>
+                </div>
+              </div>
+            </Collapse>
 
             <FieldRow
               label={locale === 'zh-CN' ? '生成模式' : 'Generation mode'}

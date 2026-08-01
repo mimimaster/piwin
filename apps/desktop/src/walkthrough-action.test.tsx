@@ -424,4 +424,37 @@ describe('WalkthroughAction component', () => {
     );
     expect(btn?.textContent).toContain('生成中…');
   });
+
+  it('hides the Generate button when autoGenerate is true but still shows artifact card', () => {
+    const { container } = renderAction(
+      <WalkthroughAction
+        message={assistantMessage()}
+        artifact={readyArtifact()}
+        eligible={true}
+        autoGenerate={true}
+        onGenerate={() => undefined}
+        onOpenDocument={() => undefined}
+      />,
+    );
+    // Manual Generate button is hidden when autoGenerate is active.
+    expect(container.querySelector('[data-testid="walkthrough-generate-btn-a1"]')).toBeNull();
+    // But the artifact card (with View + Regenerate) is still rendered.
+    expect(container.querySelector('[data-testid="walkthrough-doc-btn-a1"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="walkthrough-regenerate-btn-a1"]')).toBeTruthy();
+  });
+
+  it('hides the Generate button when autoGenerate is true and no artifact exists', () => {
+    const { container } = renderAction(
+      <WalkthroughAction
+        message={assistantMessage()}
+        eligible={true}
+        autoGenerate={true}
+        onGenerate={() => undefined}
+      />,
+    );
+    // No Generate button.
+    expect(container.querySelector('[data-testid="walkthrough-generate-btn-a1"]')).toBeNull();
+    // The action container still renders (so auto-generated artifacts can mount later).
+    expect(container.querySelector('[data-testid="walkthrough-action-a1"]')).toBeTruthy();
+  });
 });

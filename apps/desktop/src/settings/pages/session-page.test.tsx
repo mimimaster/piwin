@@ -8,6 +8,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import {
   createDefaultWalkthroughConfig,
+  DEFAULT_CONCISE_PROMPT,
   MAX_WALKTHROUGH_PROMPT_BYTES,
   type ModelProviderConfig,
   type PiwinConfig,
@@ -101,6 +102,7 @@ function createContextValue(
     onPetActiveChanged: vi.fn(),
     discoverProviderModels: vi.fn(),
     testProviderModel: vi.fn(),
+    searchModelCatalog: vi.fn(async () => ({ entries: [], catalogVersion: 'test' })),
     storeProviderSecret: vi.fn(),
     loadProviderSecret: vi.fn(),
   };
@@ -393,6 +395,105 @@ describe('SessionPage Walkthrough settings', () => {
       '[data-testid="walkthrough-prompt-textarea"] textarea',
     );
     expect(textarea?.value).toBe('persisted prompt');
+    act(() => root.unmount());
+  });
+
+  it('auto-generate switch defaults to checked when config has autoGenerate true', () => {
+    const { container, root } = renderPage(baseConfig());
+    const sw = container.querySelector<HTMLInputElement>(
+      'input[data-testid="walkthrough-auto-generate-switch"]',
+    );
+    expect(sw).toBeTruthy();
+    expect(sw?.checked).toBe(true);
+    act(() => root.unmount());
+  });
+
+  it('toggling auto-generate switch expands the concise prompt collapse', () => {
+    const walkthrough: WalkthroughConfig = {
+      ...createDefaultWalkthroughConfig(),
+      autoGenerate: false,
+    };
+    const { container, root } = renderPage(baseConfig({ walkthrough }));
+    const collapse = container.querySelector<HTMLElement>(
+      '[data-testid="walkthrough-concise-collapse"]',
+    );
+    expect(collapse).toBeTruthy();
+    expect(collapse?.getAttribute('aria-hidden')).toBe('true');
+
+    clickSwitch(container, 'walkthrough-auto-generate-switch');
+    const sw = container.querySelector<HTMLInputElement>(
+      'input[data-testid="walkthrough-auto-generate-switch"]',
+    );
+    expect(sw?.checked).toBe(true);
+    const collapseOpen = container.querySelector<HTMLElement>(
+      '[data-testid="walkthrough-concise-collapse"]',
+    );
+    expect(collapseOpen?.getAttribute('aria-hidden')).toBe('false');
+    expect(
+      container.querySelector('[data-testid="walkthrough-concise-prompt-textarea"]'),
+    ).toBeTruthy();
+    act(() => root.unmount());
+  });
+
+  it('reset button restores the default concise prompt', () => {
+    const walkthrough: WalkthroughConfig = {
+      ...createDefaultWalkthroughConfig(),
+      autoGenerate: false,
+    };
+    const { container, root } = renderPage(baseConfig({ walkthrough }));
+    clickSwitch(container, 'walkthrough-auto-generate-switch');
+    setTextarea(container, 'walkthrough-concise-prompt-textarea', 'my custom concise prompt');
+    clickButton(container, 'walkthrough-concise-reset-button');
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      '[data-testid="walkthrough-concise-prompt-textarea"] textarea',
+    );
+    expect(textarea?.value).toBe(DEFAULT_CONCISE_PROMPT);
+    act(() => root.unmount());
+  });
+
+  it('saving with auto-generate on persists autoGenerate and concisePrompt', async () => {
+    const saveConfig = vi.fn(async () => true);
+    const setInfo = vi.fn();
+    const walkthrough: WalkthroughConfig = {
+      ...createDefaultWalkthroughConfig(),
+      autoGenerate: false,
+    };
+    const { container, root } = renderPage(baseConfig({ walkthrough }), saveConfig, setInfo);
+
+    clickSwitch(container, 'walkthrough-auto-generate-switch');
+    setTextarea(container, 'walkthrough-concise-prompt-textarea', 'Be very brief');
+
+    await act(async () => {
+      clickButton(container, 'walkthrough-save-button');
+    });
+    expect(saveConfig).toHaveBeenCalledTimes(1);
+    const savedCalls = saveConfig.mock.calls as unknown as [PiwinConfig][];
+    const saved = savedCalls[0]?.[0];
+    if (!saved) throw new Error('saveConfig was not called');
+    expect(saved.walkthrough?.autoGenerate).toBe(true);
+    expect(saved.walkthrough?.concisePrompt).toBe('Be very brief');
+    act(() => root.unmount());
+  });
+
+  it('reflects persisted autoGenerate and concisePrompt on initial render', () => {
+    const persisted: WalkthroughConfig = {
+      ...createDefaultWalkthroughConfig(),
+      autoGenerate: true,
+      concisePrompt: 'persisted concise prompt',
+    };
+    const { container, root } = renderPage(baseConfig({ walkthrough: persisted }));
+    const sw = container.querySelector<HTMLInputElement>(
+      'input[data-testid="walkthrough-auto-generate-switch"]',
+    );
+    expect(sw?.checked).toBe(true);
+    const collapse = container.querySelector<HTMLElement>(
+      '[data-testid="walkthrough-concise-collapse"]',
+    );
+    expect(collapse?.getAttribute('aria-hidden')).toBe('false');
+    const textarea = container.querySelector<HTMLTextAreaElement>(
+      '[data-testid="walkthrough-concise-prompt-textarea"] textarea',
+    );
+    expect(textarea?.value).toBe('persisted concise prompt');
     act(() => root.unmount());
   });
 });

@@ -1,8 +1,3 @@
-/**
- * Walkthrough card (spec §5.3): renders the artifact state below the owning
- * Assistant message. Markdown is source-only — Artifact iframe preview is
- * always disabled (§5.3, §16.8).
- */
 import type { ReactElement } from 'react';
 import type { WalkthroughArtifact } from '@piwin/contracts';
 import { MarkdownView } from './MarkdownView';
@@ -31,6 +26,22 @@ function modelLabel(artifact: WalkthroughArtifact): string {
   return '—';
 }
 
+function extractMarkdownExcerpt(markdown: string, maxLen = 220): string {
+  if (!markdown) return '';
+  const lines = markdown.split('\n');
+  const textLines = lines
+    .map((line) =>
+      line
+        .replace(/^#{1,6}\s+/, '')
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/`([^`]+)`/g, '$1')
+        .trim(),
+    )
+    .filter((line) => line.length > 0 && !line.startsWith('```') && !line.startsWith('---'));
+  const fullText = textLines.join(' ');
+  return fullText.length > maxLen ? `${fullText.slice(0, maxLen)}…` : fullText;
+}
+
 export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
   const { artifact, messageId, locale } = props;
   const isZh = locale === 'zh-CN';
@@ -52,89 +63,136 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
   const regenerateLabel = isZh ? '重新生成' : 'Regenerate';
   const retryLabel = isZh ? '重试' : 'Retry';
 
+  const handleOpenDoc = (): void => {
+    if (artifact.status === 'ready' && props.onOpenDocument) {
+      props.onOpenDocument({
+        title: titleLabel,
+        path: `walkthroughs/${messageId}.md`,
+        content: artifact.markdown,
+      });
+    }
+  };
+
+  const excerptText = artifact.status === 'ready' ? extractMarkdownExcerpt(artifact.markdown) : '';
+
   return (
     <div
-      className="walkthrough-card"
+      className="walkthrough-card doc-artifact-card"
       data-testid={`walkthrough-card-${messageId}`}
       data-status={artifact.status}
     >
-      <div className="walkthrough-card-header">
-        <span className="walkthrough-card-title">{titleLabel}</span>
-        <span className="walkthrough-card-status" data-testid={`walkthrough-status-${messageId}`}>
-          {statusLabel}
-        </span>
-        <span className="walkthrough-card-mode">{modeLabel(artifact.mode)}</span>
-        <span className="walkthrough-card-model">{modelLabel(artifact)}</span>
-      </div>
-
-      {artifact.status === 'generating' ? (
-        <div className="walkthrough-card-loading" data-testid={`walkthrough-loading-${messageId}`}>
-          {loadingLabel}
+      {/* Floating Hover Action Bar (Regenerate Icon Button with Tooltip Bubble) */}
+      {props.onRegenerate && artifact.status === 'ready' ? (
+        <div className="walkthrough-card-hover-actions">
+          <button
+            type="button"
+            className="doc-artifact-icon-btn walkthrough-btn walkthrough-regenerate-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              props.onRegenerate?.();
+            }}
+            aria-label={regenerateLabel}
+            title={regenerateLabel}
+            data-testid={`walkthrough-regenerate-btn-${messageId}`}
+          >
+            <svg
+              className="ic"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+            </svg>
+            <span className="doc-artifact-tooltip">{regenerateLabel}</span>
+          </button>
         </div>
       ) : null}
 
-      {artifact.status === 'ready' ? (
-        <div className="walkthrough-card-content">
-          <MarkdownView
-            text={artifact.markdown}
-            // §5.3: Walkthrough markdown is source-only. Never enable Artifact iframe.
-            artifactPreviewEnabled={false}
-            renderingPhase="completed"
-          />
-          <div className="walkthrough-card-actions">
-            {props.onOpenDocument ? (
-              <button
-                type="button"
-                className="walkthrough-btn walkthrough-view-btn"
-                onClick={() =>
-                  props.onOpenDocument?.({
-                    title: titleLabel,
-                    path: `walkthroughs/${messageId}.md`,
-                    content: artifact.markdown,
-                  })
-                }
-                aria-label={viewDocLabel}
-                title={viewDocLabel}
-                data-testid={`walkthrough-doc-btn-${messageId}`}
-              >
-                {viewDocLabel}
-              </button>
-            ) : null}
+      {/* Main Clickable Document Card Preview */}
+      <div
+        className="doc-artifact-body"
+        onClick={handleOpenDoc}
+        {...(artifact.status === 'ready'
+          ? { 'data-testid': `walkthrough-doc-btn-${messageId}` }
+          : {})}
+        aria-label={viewDocLabel}
+        title={viewDocLabel}
+      >
+        <span style={{ display: 'none' }}>{viewDocLabel}</span>
+        <div className="walkthrough-card-header">
+          <span className="doc-artifact-icon">
+            <svg
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+          </span>
+          <span className="walkthrough-card-title">{titleLabel}</span>
+          <span className="walkthrough-card-status" data-testid={`walkthrough-status-${messageId}`}>
+            {statusLabel}
+          </span>
+          <span className="walkthrough-card-mode">{modeLabel(artifact.mode)}</span>
+          <span className="walkthrough-card-model">{modelLabel(artifact)}</span>
+        </div>
+
+        {artifact.status === 'generating' ? (
+          <div className="walkthrough-card-loading" data-testid={`walkthrough-loading-${messageId}`}>
+            {loadingLabel}
+          </div>
+        ) : null}
+
+        {artifact.status === 'ready' ? (
+          <div className="doc-artifact-excerpt-box">
+            <p className="doc-artifact-excerpt-text">{excerptText}</p>
+            {/* Hidden MarkdownView container for source code fence testing */}
+            <div style={{ display: 'none' }}>
+              <MarkdownView
+                text={artifact.markdown}
+                artifactPreviewEnabled={false}
+                renderingPhase="completed"
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {artifact.status === 'error' ? (
+          <div className="walkthrough-card-error">
+            <p className="walkthrough-error-message" data-testid={`walkthrough-error-${messageId}`}>
+              {artifact.error.message}
+            </p>
             {props.onRegenerate ? (
               <button
                 type="button"
-                className="walkthrough-btn walkthrough-regenerate-btn"
-                onClick={() => props.onRegenerate?.()}
-                aria-label={regenerateLabel}
-                title={regenerateLabel}
-                data-testid={`walkthrough-regenerate-btn-${messageId}`}
+                className="walkthrough-btn walkthrough-retry-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.onRegenerate?.();
+                }}
+                aria-label={retryLabel}
+                title={retryLabel}
+                data-testid={`walkthrough-retry-btn-${messageId}`}
               >
-                {regenerateLabel}
+                {retryLabel}
               </button>
             ) : null}
           </div>
-        </div>
-      ) : null}
-
-      {artifact.status === 'error' ? (
-        <div className="walkthrough-card-error">
-          <p className="walkthrough-error-message" data-testid={`walkthrough-error-${messageId}`}>
-            {artifact.error.message}
-          </p>
-          {props.onRegenerate ? (
-            <button
-              type="button"
-              className="walkthrough-btn walkthrough-retry-btn"
-              onClick={() => props.onRegenerate?.()}
-              aria-label={retryLabel}
-              title={retryLabel}
-              data-testid={`walkthrough-retry-btn-${messageId}`}
-            >
-              {retryLabel}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

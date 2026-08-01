@@ -235,6 +235,8 @@ export type ChatThreadProps = {
   walkthroughsByMessageId?: Record<string, WalkthroughArtifact>;
   /** Whether the Generate Walkthrough action is enabled (config walkthrough.enabled). */
   walkthroughEnabled?: boolean;
+  /** Whether auto-generation is active (config walkthrough.autoGenerate). */
+  walkthroughAutoGenerate?: boolean;
   /** Generate a walkthrough for a message; force overwrites an existing artifact. */
   onGenerateWalkthrough?:
     ((messageId: string, force?: boolean) => void | Promise<void>) | undefined;
