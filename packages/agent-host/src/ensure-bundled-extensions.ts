@@ -29,7 +29,7 @@ export async function ensureBundledExtensionsInstalled(
 
   const installed: string[] = [];
   for (const entryName of entries) {
-    if (!entryName.endsWith('.ts')) {
+    if (!entryName.endsWith('.ts') || entryName.endsWith('.test.ts')) {
       continue;
     }
     const fromPath = join(sourceRoot, entryName);

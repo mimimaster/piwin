@@ -58,6 +58,7 @@ describe('extension-scanner', () => {
     const installed = await ensureBundledExtensionsInstalled(rootDir);
     expect(installed).toContain('path-guard');
     expect(installed).toContain('questionnaire');
+    expect(installed).not.toContain('questionnaire.test');
     const again = await ensureBundledExtensionsInstalled(rootDir);
     expect(again).toEqual([]);
 
@@ -71,6 +72,7 @@ describe('extension-scanner', () => {
     expect(questionnaire).toBeDefined();
     expect(questionnaire?.source).toBe('bundled');
     expect(questionnaire?.description.toLowerCase()).toContain('question');
+    expect(listed.find((item) => item.name === 'questionnaire.test')).toBeUndefined();
   });
 });
 
