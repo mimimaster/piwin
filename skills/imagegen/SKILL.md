@@ -32,8 +32,9 @@ Do **not** use it for:
 Call the host tool `image_gen` with a detailed `prompt`. The tool:
 
 1. Routes by `model` name (optional) to the configured provider; without it,
-   uses the configured default model. Only models added under Settings →
-   Providers are usable.
+   uses the configured default model. Image-capable models are managed under
+   Settings → Image Generation; per-model image request paths and timeouts can
+   be configured there, with protocol defaults used when they are unset.
 2. Saves the generated image under the piwin media store and returns an
    **absolute path** — never a base64 blob.
 3. Returns `{ "paths": [ ... ], "mimeType", "byteSize" }`.
@@ -51,7 +52,7 @@ Call the host tool `image_gen` with a detailed `prompt`. The tool:
 If `image_gen` is missing or errors with "no default image model configured":
 
 - Tell the user: image generation is enabled but no image-capable model is
-  configured. They should add an image model under Settings → Providers
+  configured. They should add an image model in Settings → Image Generation
   (e.g. an OpenAI-compatible provider with a `gpt-image-*` model, or Google
   Gemini with an `imagen-*` model).
 - Do not fall back to ad-hoc curl scripts or base64-in-context workarounds.

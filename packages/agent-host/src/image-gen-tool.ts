@@ -1,5 +1,8 @@
 import type {
+  ModelCapability,
+  ModelConfigEntry,
   ModelProviderConfig,
+  ModelRouteConfig,
   PiwinConfig,
   PermissionDecision,
   PermissionRuleSet,
@@ -23,37 +26,92 @@ export type ResolvedImageProvider = {
 
 /** Resolve the provider + model for image generation by model name (or default). */
 export function resolveImageProvider(
-  config: Pick<PiwinConfig, 'providers' | 'defaultProviderId' | 'defaultModelId'>,
+  config: Pick<
+    PiwinConfig,
+    'providers' | 'defaultProviderId' | 'defaultModelId' | 'imageGeneration'
+  >,
   modelId?: string,
 ): ResolvedImageProvider {
-  const requested = modelId?.trim();
   const providers = config.providers ?? [];
+  const requested = modelId?.trim();
+
+  // 1. Explicit model name
   if (requested) {
     for (const provider of providers) {
       const match = (provider.models ?? []).find((m) => m.id === requested);
       if (match) return { provider, model: match };
     }
     throw new ImageGenConfigError(
-      `image_gen: no configured provider exposes image model "${requested}". Add it under Settings → Providers.`,
+      `image_gen: no configured provider exposes image model "${requested}". Add it under Settings → Image Generation.`,
     );
   }
+
+  // 2. Image-generation default model
+  const imageGenDefault = config.imageGeneration?.defaultModel;
+  if (imageGenDefault) {
+    const provider = providers.find((p) => p.id === imageGenDefault.providerId);
+    const model = provider?.models?.find((m) => m.id === imageGenDefault.modelId);
+    if (provider && model) {
+      return { provider, model };
+    }
+    // Fall through to chat default if image-gen default is misconfigured.
+  }
+
+  // 3. Chat default (backward compat)
   const defaultProvider = providers.find((p) => p.id === config.defaultProviderId);
   const defaultModel = defaultProvider?.models?.find((m) => m.id === config.defaultModelId);
-  if (!defaultProvider || !defaultModel) {
-    throw new ImageGenConfigError(
-      'image_gen: no default image model configured. Enable image generation and add an image-capable model under Settings → Providers.',
-    );
+  if (defaultProvider && defaultModel) {
+    return { provider: defaultProvider, model: defaultModel };
   }
-  return { provider: defaultProvider, model: defaultModel };
+
+  throw new ImageGenConfigError(
+    'image_gen: no image model configured. Set a default image model under Settings → Image Generation.',
+  );
 }
 
-const OPENAI_IMAGE_PROTOCOLS = new Set(['openai-compatible']);
-const GEMINI_PROTOCOLS = new Set(['google-gemini']);
+const DEFAULT_IMAGE_TIMEOUT_MS = 120_000;
+
+/** Normalize a custom route path to a leading-slash relative path, rejecting host overrides. */
+function normalizeCustomImagePath(routePath: string): string {
+  if (/^https?:\/\//i.test(routePath)) {
+    throw new ImageGenConfigError(
+      'image_gen: image route "path" must be a relative path (e.g. "/images/generations"), not an absolute URL.',
+    );
+  }
+  return routePath.startsWith('/') ? routePath : `/${routePath}`;
+}
+
+function resolveImagePath(
+  provider: ModelProviderConfig,
+  model: { id: string; routes?: Partial<Record<ModelCapability, ModelRouteConfig>> },
+): string {
+  const route = model.routes?.['image-generation'];
+  if (route?.path) {
+    const base = provider.baseUrl.replace(/\/+$/, '');
+    return `${base}${normalizeCustomImagePath(route.path)}`;
+  }
+  // Protocol defaults
+  if (provider.protocol === 'openai-compatible') {
+    return `${provider.baseUrl.replace(/\/+$/, '')}/images/generations`;
+  }
+  if (provider.protocol === 'google-gemini') {
+    return `${provider.baseUrl.replace(/\/+$/, '')}/models/${model.id}:predict`;
+  }
+  throw new ImageGenConfigError(
+    `image_gen: protocol "${provider.protocol}" does not support image generation.`,
+  );
+}
+
+function resolveImageTimeout(model: {
+  routes?: Partial<Record<ModelCapability, ModelRouteConfig>>;
+}): number {
+  return model.routes?.['image-generation']?.timeoutMs ?? DEFAULT_IMAGE_TIMEOUT_MS;
+}
 
 /** Call the provider's image endpoint and return raw image bytes. */
 export async function callImageEndpoint(
   provider: ModelProviderConfig,
-  model: { id: string },
+  model: ModelConfigEntry,
   args: { prompt: string; editPath?: string; size?: string; quality?: string; n?: number },
   apiKey: string,
   signal?: AbortSignal,
@@ -62,8 +120,14 @@ export async function callImageEndpoint(
   const prompt = args.prompt.trim();
   if (!prompt) throw new ImageGenConfigError('image_gen: prompt is required');
 
+  const endpoint = resolveImagePath(provider, model);
+  const timeoutMs = resolveImageTimeout(model);
+  const requestSignal = signal
+    ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+    : AbortSignal.timeout(timeoutMs);
+
   const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (OPENAI_IMAGE_PROTOCOLS.has(provider.protocol)) {
+  if (provider.protocol === 'openai-compatible') {
     // Image editing (/images/edits) requires multipart image upload and is not
     // wired in this plan — fail loudly rather than send a malformed JSON body.
     if (args.editPath) {
@@ -72,7 +136,6 @@ export async function callImageEndpoint(
       );
     }
     headers.authorization = `Bearer ${apiKey}`;
-    const endpoint = `${provider.baseUrl.replace(/\/+$/, '')}/images/generations`;
     const body: Record<string, unknown> = { model: model.id, prompt, n: args.n ?? 1 };
     if (args.size) body.size = args.size;
     if (args.quality) body.quality = args.quality;
@@ -80,7 +143,7 @@ export async function callImageEndpoint(
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      ...(signal ? { signal } : {}),
+      signal: requestSignal,
     });
     if (!response.ok) {
       throw new ImageGenConfigError(
@@ -93,7 +156,7 @@ export async function callImageEndpoint(
     if (b64) return base64ToBytes(b64);
     const url = item?.url;
     if (url) {
-      const imageResp = await fetchImpl(url, signal ? { signal } : {});
+      const imageResp = await fetchImpl(url, { signal: requestSignal });
       if (!imageResp.ok)
         throw new ImageGenConfigError(`image_gen: failed to download image from ${url}`);
       return new Uint8Array(await imageResp.arrayBuffer());
@@ -101,9 +164,7 @@ export async function callImageEndpoint(
     throw new ImageGenConfigError('image_gen: provider returned no image data');
   }
 
-  if (GEMINI_PROTOCOLS.has(provider.protocol)) {
-    const base = provider.baseUrl.replace(/\/+$/, '');
-    const endpoint = `${base}/models/${model.id}:predict`;
+  if (provider.protocol === 'google-gemini') {
     const body = {
       instances: [{ prompt }],
       parameters: {
@@ -115,7 +176,7 @@ export async function callImageEndpoint(
       method: 'POST',
       headers: { ...headers, 'x-goog-api-key': apiKey },
       body: JSON.stringify(body),
-      ...(signal ? { signal } : {}),
+      signal: requestSignal,
     });
     if (!response.ok) {
       throw new ImageGenConfigError(
