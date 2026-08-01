@@ -17,6 +17,7 @@ export type ShellSettingsSection =
   | 'tools'
   | 'web'
   | 'models'
+  | 'image-generation'
   | 'pets'
   | 'automation'
   | 'session'
