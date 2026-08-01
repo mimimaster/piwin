@@ -40,6 +40,8 @@ import { KnowledgeCenterPanel } from './KnowledgeCenterPanel';
 import { CanvasPanel } from './canvas-panel';
 import { SideChatPanel } from './side-chat-panel';
 import { DocPreviewPanel, type SessionDocItem } from './DocPreviewPanel';
+import type { LineCommentItem } from './EnhancedMarkdownView';
+import { mergeComposerWithDocComments } from './doc-comments';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
 import { BrowserSessionPanel } from './browser-session-panel';
 import { collectSessionTools } from './tool-call-card';
@@ -1012,6 +1014,81 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
   });
 
+  const handleCommentLine = useCallback((_lineContent: string) => {
+    // Chip is the attachment; do not inject quote text into the textarea.
+    setTimeout(() => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        '[data-testid="composer-input"]',
+      );
+      textarea?.focus();
+    }, 50);
+  }, []);
+
+  const [docComments, setDocComments] = useState<Record<string, LineCommentItem[]>>({});
+
+  const activeDocKey = activeDocument?.filePath || activeDocument?.title || 'default';
+  const activeComments = docComments[activeDocKey] || [];
+
+  const handleAddDocComment = useCallback(
+    (comment: { lineId: string; lineText: string; commentText: string }) => {
+      const newCommentItem: LineCommentItem = {
+        id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        lineId: comment.lineId,
+        lineText: comment.lineText,
+        commentText: comment.commentText,
+      };
+
+      setDocComments((prev) => ({
+        ...prev,
+        [activeDocKey]: [...(prev[activeDocKey] || []), newCommentItem],
+      }));
+
+      // Automatically focus composer after creating a comment
+      setTimeout(() => {
+        const textarea = document.querySelector<HTMLTextAreaElement>(
+          '[data-testid="composer-input"]',
+        );
+        if (textarea) {
+          textarea.focus();
+        }
+      }, 50);
+    },
+    [activeDocKey],
+  );
+
+  const handleEditDocComment = useCallback(
+    (id: string, newText: string) => {
+      setDocComments((prev) => ({
+        ...prev,
+        [activeDocKey]: (prev[activeDocKey] || []).map((c) =>
+          c.id === id ? { ...c, commentText: newText } : c,
+        ),
+      }));
+    },
+    [activeDocKey],
+  );
+
+  const handleDeleteDocComment = useCallback(
+    (id: string) => {
+      setDocComments((prev) => ({
+        ...prev,
+        [activeDocKey]: (prev[activeDocKey] || []).filter((c) => c.id !== id),
+      }));
+    },
+    [activeDocKey],
+  );
+
+  const handleSendWithComments = useCallback(async () => {
+    const docTitle = activeDocument?.title || 'Document';
+    const comments = activeComments;
+    const text =
+      comments.length > 0 ? mergeComposerWithDocComments(composer, docTitle, comments) : composer;
+    if (comments.length > 0) {
+      setDocComments((prev) => ({ ...prev, [activeDocKey]: [] }));
+    }
+    await handleSend(text);
+  }, [activeDocument?.title, activeComments, composer, activeDocKey, handleSend]);
+
   async function handleExtensionUiResolve(payload: {
     confirmed?: boolean;
     value?: string;
@@ -1326,6 +1403,19 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onAgentModeChange: setAgentMode,
     pendingAttachments,
     onRemoveAttachment: revokePending,
+    docCommentsAttachment:
+      activeComments.length > 0
+        ? {
+            docTitle: activeDocument?.title || 'Document',
+            commentCount: activeComments.length,
+          }
+        : null,
+    onRemoveDocComments: () => {
+      setDocComments((prev) => ({
+        ...prev,
+        [activeDocKey]: [],
+      }));
+    },
     dropActive,
     onDropActiveChange: setDropActive,
     plusMenuOpen,
@@ -1346,7 +1436,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onAttachImage: () => void handlePickImageFiles(),
     onPaste: (event) => void handleComposerPaste(event),
     onDrop: (event) => void handleComposerDrop(event),
-    onSend: () => void handleSend(),
+    onSend: () => void handleSendWithComments(),
     onSteer: () => void handleSteer(),
     onFollowUp: () => void handleFollowUp(),
     thinkingLevel,
@@ -1891,6 +1981,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     content={activeDocument?.content}
                     filePath={activeDocument?.filePath}
                     sessionDocuments={sessionDocuments}
+                    onOpenFile={(filePath) => {
+                      handleOpenDocument({
+                        title: filePath.split(/[\\/]/).pop() || filePath,
+                        path: filePath,
+                      });
+                    }}
+                    onCommentLine={handleCommentLine}
+                    comments={activeComments}
+                    onAddComment={handleAddDocComment}
+                    onEditComment={handleEditDocComment}
+                    onDeleteComment={handleDeleteDocComment}
                     onSelectDocument={(doc) => {
                       // Walkthrough virtual docs: resolve markdown content from the
                       // in-memory artifact map (path: walkthroughs/<message-id>.md).

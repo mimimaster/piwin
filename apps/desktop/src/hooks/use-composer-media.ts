@@ -324,237 +324,240 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     };
   }, [args.modelOptions, args.selectedModelKey]);
 
-  const handleSend = useCallback(async (): Promise<void> => {
-    const text = composer.trim();
-    const attachments = pendingAttachments.map((item) => item.attachment);
-    if (
-      (!text && attachments.length === 0) ||
-      args.state.streaming ||
-      promptSubmissionInProgress.current
-    ) {
-      return;
-    }
-
-    const hasMedia = attachments.some((item) => item.kind === 'media');
-    if (hasMedia) {
-      const selected = args.modelOptions?.find(
-        (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
-      );
-      const supportsImage = selected?.supportsImage === true;
-      if (!supportsImage && !args.visionDelegationEnabled) {
-        const message =
-          'Current model is text-only. Images will be path-injected (not native vision). Continue?';
-        if (args.confirmTextOnlyImageSend) {
-          const ok = await args.confirmTextOnlyImageSend(message);
-          if (!ok) {
-            return;
-          }
-        }
-      }
-    }
-
-    promptSubmissionInProgress.current = true;
-    try {
-      // General scope: send without project. Project scope: trust required.
-      const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
-      if (!isGeneral) {
-        if (!args.state.projectPath) {
-          await args.onNeedWorkspace?.();
-          return;
-        }
-        if (!args.state.projectTrusted) {
-          args.dispatch({ type: 'project/trust-dialog', open: true });
-          return;
-        }
-      }
-
-      // First send without an active session creates one automatically.
-      // In draft mode (no active session), mark to skip the draft-save effect
-      // so it does not save the text being sent as the next draft.
-      const wasInDraftMode = !args.state.activeSessionId;
-      if (wasInDraftMode) {
-        skipDraftSaveRef.current = true;
-      }
-      const sessionId = await resolveSessionIdForComposer();
-      if (!sessionId) {
-        // Session creation failed — reset flag so the effect can still save
-        // the draft if the user later switches to an existing session.
-        if (wasInDraftMode) {
-          skipDraftSaveRef.current = false;
-        }
+  const handleSend = useCallback(
+    async (overrideText?: string): Promise<void> => {
+      const text = (overrideText ?? composer).trim();
+      const attachments = pendingAttachments.map((item) => item.attachment);
+      if (
+        (!text && attachments.length === 0) ||
+        args.state.streaming ||
+        promptSubmissionInProgress.current
+      ) {
         return;
       }
-      // Session created successfully — clear the draft buffer since the text
-      // is being sent, not saved for later.
-      if (wasInDraftMode) {
-        draftTextRef.current = '';
-      }
 
-      // Whole-message slash intercept (commands / modes / skills).
-      if (text.startsWith('/') && attachments.length === 0) {
-        const skills = (args.menuSkills ?? []).map((skill) => ({
-          id: skill.id,
-          name: skill.name,
-          enabled: skill.enabled,
-        }));
-        const parsed = parseComposerSlashSubmit(text, skills);
-
-        if (parsed.kind === 'command' && parsed.commandId === 'compact') {
-          setComposer('');
-          clearPendingAttachments();
-          const instructions = normalizeCompactCustomInstructions(parsed.args);
-          await args.onCompact?.(instructions);
-          return;
-        }
-        if (parsed.kind === 'command' && parsed.commandId === 'stop') {
-          setComposer('');
-          clearPendingAttachments();
-          await args.onAbort?.();
-          return;
-        }
-        if (parsed.kind === 'mode') {
-          args.onAgentModeChange?.(parsed.modeId);
-          setComposer('');
-          clearPendingAttachments();
-          if (!parsed.args) {
-            return;
-          }
-          const modePrompt = applyAgentModeToPrompt(parsed.modeId, parsed.args);
-          args.dispatch({ type: 'user/send', text: parsed.args, attachments: [] });
-          const modeInput: {
-            text: string;
-            model?: import('@piwin/contracts').ModelRef;
-            thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-            agentMode?: import('@piwin/contracts').AgentModeId;
-          } = { text: modePrompt, agentMode: parsed.modeId };
-          const modeModel = resolveTurnModel();
-          if (modeModel) {
-            modeInput.model = modeModel;
-          }
-          if (args.thinkingLevel) {
-            modeInput.thinkingLevel = args.thinkingLevel;
-          }
-          const modeResponse = await args.hostClient.request({
-            type: 'session/prompt',
-            sessionId,
-            input: modeInput,
-          });
-          if (!modeResponse.success) {
-            args.dispatch({ type: 'error', message: modeResponse.error });
-          } else {
-            const accepted = modeResponse.data as { runId?: string; acceptedAt?: string };
-            if (typeof accepted.runId === 'string') {
-              args.dispatch({
-                type: 'run/accepted',
-                runId: accepted.runId,
-                ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
-              });
+      const hasMedia = attachments.some((item) => item.kind === 'media');
+      if (hasMedia) {
+        const selected = args.modelOptions?.find(
+          (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
+        );
+        const supportsImage = selected?.supportsImage === true;
+        if (!supportsImage && !args.visionDelegationEnabled) {
+          const message =
+            'Current model is text-only. Images will be path-injected (not native vision). Continue?';
+          if (args.confirmTextOnlyImageSend) {
+            const ok = await args.confirmTextOnlyImageSend(message);
+            if (!ok) {
+              return;
             }
           }
+        }
+      }
+
+      promptSubmissionInProgress.current = true;
+      try {
+        // General scope: send without project. Project scope: trust required.
+        const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
+        if (!isGeneral) {
+          if (!args.state.projectPath) {
+            await args.onNeedWorkspace?.();
+            return;
+          }
+          if (!args.state.projectTrusted) {
+            args.dispatch({ type: 'project/trust-dialog', open: true });
+            return;
+          }
+        }
+
+        // First send without an active session creates one automatically.
+        // In draft mode (no active session), mark to skip the draft-save effect
+        // so it does not save the text being sent as the next draft.
+        const wasInDraftMode = !args.state.activeSessionId;
+        if (wasInDraftMode) {
+          skipDraftSaveRef.current = true;
+        }
+        const sessionId = await resolveSessionIdForComposer();
+        if (!sessionId) {
+          // Session creation failed — reset flag so the effect can still save
+          // the draft if the user later switches to an existing session.
+          if (wasInDraftMode) {
+            skipDraftSaveRef.current = false;
+          }
           return;
         }
-        if (parsed.kind === 'skill') {
-          const skillEnabled =
-            skills.find((skill) => skill.id === parsed.skillId)?.enabled !== false;
-          if (!skillEnabled) {
-            args.dispatch({
-              type: 'error',
-              message: `Skill "${parsed.skillName}" is disabled — enable it in Settings → Skills`,
+        // Session created successfully — clear the draft buffer since the text
+        // is being sent, not saved for later.
+        if (wasInDraftMode) {
+          draftTextRef.current = '';
+        }
+
+        // Whole-message slash intercept (commands / modes / skills).
+        if (text.startsWith('/') && attachments.length === 0) {
+          const skills = (args.menuSkills ?? []).map((skill) => ({
+            id: skill.id,
+            name: skill.name,
+            enabled: skill.enabled,
+          }));
+          const parsed = parseComposerSlashSubmit(text, skills);
+
+          if (parsed.kind === 'command' && parsed.commandId === 'compact') {
+            setComposer('');
+            clearPendingAttachments();
+            const instructions = normalizeCompactCustomInstructions(parsed.args);
+            await args.onCompact?.(instructions);
+            return;
+          }
+          if (parsed.kind === 'command' && parsed.commandId === 'stop') {
+            setComposer('');
+            clearPendingAttachments();
+            await args.onAbort?.();
+            return;
+          }
+          if (parsed.kind === 'mode') {
+            args.onAgentModeChange?.(parsed.modeId);
+            setComposer('');
+            clearPendingAttachments();
+            if (!parsed.args) {
+              return;
+            }
+            const modePrompt = applyAgentModeToPrompt(parsed.modeId, parsed.args);
+            args.dispatch({ type: 'user/send', text: parsed.args, attachments: [] });
+            const modeInput: {
+              text: string;
+              model?: import('@piwin/contracts').ModelRef;
+              thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+              agentMode?: import('@piwin/contracts').AgentModeId;
+            } = { text: modePrompt, agentMode: parsed.modeId };
+            const modeModel = resolveTurnModel();
+            if (modeModel) {
+              modeInput.model = modeModel;
+            }
+            if (args.thinkingLevel) {
+              modeInput.thinkingLevel = args.thinkingLevel;
+            }
+            const modeResponse = await args.hostClient.request({
+              type: 'session/prompt',
+              sessionId,
+              input: modeInput,
             });
+            if (!modeResponse.success) {
+              args.dispatch({ type: 'error', message: modeResponse.error });
+            } else {
+              const accepted = modeResponse.data as { runId?: string; acceptedAt?: string };
+              if (typeof accepted.runId === 'string') {
+                args.dispatch({
+                  type: 'run/accepted',
+                  runId: accepted.runId,
+                  ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+                });
+              }
+            }
             return;
           }
-          const hostText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
-          const skillPrompt = applyAgentModeToPrompt(args.agentMode, hostText);
-          args.dispatch({ type: 'user/send', text, attachments: [] });
-          setComposer('');
-          clearPendingAttachments();
-          const skillInput: {
-            text: string;
-            model?: import('@piwin/contracts').ModelRef;
-            thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-            agentMode?: import('@piwin/contracts').AgentModeId;
-          } = { text: skillPrompt, agentMode: args.agentMode };
-          const skillModel = resolveTurnModel();
-          if (skillModel) {
-            skillInput.model = skillModel;
-          }
-          if (args.thinkingLevel) {
-            skillInput.thinkingLevel = args.thinkingLevel;
-          }
-          const skillResponse = await args.hostClient.request({
-            type: 'session/prompt',
-            sessionId,
-            input: skillInput,
-          });
-          if (!skillResponse.success) {
-            args.dispatch({ type: 'error', message: skillResponse.error });
-          } else {
-            const accepted = skillResponse.data as { runId?: string; acceptedAt?: string };
-            if (typeof accepted.runId === 'string') {
+          if (parsed.kind === 'skill') {
+            const skillEnabled =
+              skills.find((skill) => skill.id === parsed.skillId)?.enabled !== false;
+            if (!skillEnabled) {
               args.dispatch({
-                type: 'run/accepted',
-                runId: accepted.runId,
-                ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+                type: 'error',
+                message: `Skill "${parsed.skillName}" is disabled — enable it in Settings → Skills`,
               });
+              return;
             }
+            const hostText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
+            const skillPrompt = applyAgentModeToPrompt(args.agentMode, hostText);
+            args.dispatch({ type: 'user/send', text, attachments: [] });
+            setComposer('');
+            clearPendingAttachments();
+            const skillInput: {
+              text: string;
+              model?: import('@piwin/contracts').ModelRef;
+              thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+              agentMode?: import('@piwin/contracts').AgentModeId;
+            } = { text: skillPrompt, agentMode: args.agentMode };
+            const skillModel = resolveTurnModel();
+            if (skillModel) {
+              skillInput.model = skillModel;
+            }
+            if (args.thinkingLevel) {
+              skillInput.thinkingLevel = args.thinkingLevel;
+            }
+            const skillResponse = await args.hostClient.request({
+              type: 'session/prompt',
+              sessionId,
+              input: skillInput,
+            });
+            if (!skillResponse.success) {
+              args.dispatch({ type: 'error', message: skillResponse.error });
+            } else {
+              const accepted = skillResponse.data as { runId?: string; acceptedAt?: string };
+              if (typeof accepted.runId === 'string') {
+                args.dispatch({
+                  type: 'run/accepted',
+                  runId: accepted.runId,
+                  ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+                });
+              }
+            }
+            return;
           }
-          return;
+          // unknown → fall through as normal text
         }
-        // unknown → fall through as normal text
-      }
 
-      const promptText = applyAgentModeToPrompt(args.agentMode, text);
-      args.dispatch({ type: 'user/send', text, attachments });
-      setComposer('');
-      clearPendingAttachments();
-      const input: {
-        text: string;
-        attachments?: PromptAttachment[];
-        model?: import('@piwin/contracts').ModelRef;
-        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-        agentMode?: import('@piwin/contracts').AgentModeId;
-      } = {
-        text: promptText,
-        agentMode: args.agentMode,
-      };
-      if (attachments.length > 0) {
-        input.attachments = attachments;
-      }
-      const model = resolveTurnModel();
-      if (model) {
-        input.model = model;
-      }
-      if (args.thinkingLevel) {
-        input.thinkingLevel = args.thinkingLevel;
-      }
-      const response = await args.hostClient.request({
-        type: 'session/prompt',
-        sessionId,
-        input,
-      });
-      if (!response.success) {
-        args.dispatch({ type: 'error', message: response.error });
-      } else {
-        const accepted = response.data as { runId?: string; acceptedAt?: string };
-        if (typeof accepted.runId === 'string') {
-          args.dispatch({
-            type: 'run/accepted',
-            runId: accepted.runId,
-            ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
-          });
+        const promptText = applyAgentModeToPrompt(args.agentMode, text);
+        args.dispatch({ type: 'user/send', text, attachments });
+        setComposer('');
+        clearPendingAttachments();
+        const input: {
+          text: string;
+          attachments?: PromptAttachment[];
+          model?: import('@piwin/contracts').ModelRef;
+          thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+          agentMode?: import('@piwin/contracts').AgentModeId;
+        } = {
+          text: promptText,
+          agentMode: args.agentMode,
+        };
+        if (attachments.length > 0) {
+          input.attachments = attachments;
         }
+        const model = resolveTurnModel();
+        if (model) {
+          input.model = model;
+        }
+        if (args.thinkingLevel) {
+          input.thinkingLevel = args.thinkingLevel;
+        }
+        const response = await args.hostClient.request({
+          type: 'session/prompt',
+          sessionId,
+          input,
+        });
+        if (!response.success) {
+          args.dispatch({ type: 'error', message: response.error });
+        } else {
+          const accepted = response.data as { runId?: string; acceptedAt?: string };
+          if (typeof accepted.runId === 'string') {
+            args.dispatch({
+              type: 'run/accepted',
+              runId: accepted.runId,
+              ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
+            });
+          }
+        }
+      } finally {
+        promptSubmissionInProgress.current = false;
       }
-    } finally {
-      promptSubmissionInProgress.current = false;
-    }
-  }, [
-    args,
-    composer,
-    pendingAttachments,
-    clearPendingAttachments,
-    resolveSessionIdForComposer,
-    resolveTurnModel,
-  ]);
+    },
+    [
+      args,
+      composer,
+      pendingAttachments,
+      clearPendingAttachments,
+      resolveSessionIdForComposer,
+      resolveTurnModel,
+    ],
+  );
 
   const handleSteer = useCallback(async (): Promise<void> => {
     const text = composer.trim();
