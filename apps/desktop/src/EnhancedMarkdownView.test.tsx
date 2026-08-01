@@ -93,4 +93,16 @@ describe('EnhancedMarkdownView', () => {
     expect(elem.querySelector('.diff-line-add')).not.toBeNull();
     expect(elem.querySelector('.diff-line-delete')).not.toBeNull();
   });
+
+  it('parses ordered lists as ordered-list blocks', () => {
+    const elem = renderView('1. First\n2. Second\n');
+    expect(elem.textContent).toContain('First');
+    expect(elem.querySelector('ol.enhanced-ordered-list')).not.toBeNull();
+  });
+
+  it('parses plain blockquotes', () => {
+    const elem = renderView('> quoted evidence\n');
+    expect(elem.querySelector('.enhanced-blockquote')).not.toBeNull();
+    expect(elem.querySelector('blockquote')?.textContent).toContain('quoted evidence');
+  });
 });
