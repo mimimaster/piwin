@@ -5,6 +5,7 @@ import type { ManagedProcessLogChunk, ManagedProcessRecord } from './process.js'
 import type { SubagentSpawnOptions } from './subagent.js';
 import type { CompactionFileOps } from './compaction-fileops.js';
 import type { PromptAttachment } from './browser.js';
+import type { AgentModeId } from './permission.js';
 
 export type HostMode = 'sdk' | 'rpc';
 
@@ -21,8 +22,14 @@ export type ThinkingLevel =
 
 export type PermissionDecision = 'allow' | 'deny' | 'ask';
 
-/** Scope for an allow decision on a project-scoped network permission. */
-export type PermissionRememberScope = 'once' | 'project';
+/**
+ * Scope for an allow decision (ADR 0024 §4).
+ *
+ * - `once`    — this action only
+ * - `session` — in-memory for this session only (ADR 0024)
+ * - `project` — persisted to `~/.piwin/projects.json`
+ */
+export type PermissionRememberScope = 'once' | 'session' | 'project';
 
 /**
  * Every session has one explicit scope. General sessions do not require a
@@ -88,6 +95,12 @@ export type PromptInput = {
   /** Per-turn thinking level for this prompt only. */
   thinkingLevel?: ThinkingLevel;
   streamingBehavior?: 'steer' | 'followUp';
+  /**
+   * Agent collaboration mode for this prompt. When set to 'plan' or 'ask',
+   * the host raises the permission floor to read-only (ask-all + read-only
+   * sandbox) regardless of the session's configured preset.
+   */
+  agentMode?: AgentModeId;
 };
 
 /** Structured failure for unavailable/over-limit turn profiles (HostResponse data). */
