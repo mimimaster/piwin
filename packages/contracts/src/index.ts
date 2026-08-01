@@ -1,6 +1,7 @@
 export * from './host.js';
 export * from './browser.js';
 export * from './config.js';
+export * from './model-catalog.js';
 export * from './media.js';
 export * from './artifact.js';
 export * from './ipc.js';
