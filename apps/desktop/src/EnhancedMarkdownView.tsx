@@ -3,22 +3,57 @@ import { Button } from '@piwin/ui-kit';
 import { PathChip } from './path-chip';
 import { MermaidBlock } from './MermaidBlock';
 import { renderKatex, isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
+import { IconCommentAction } from './shell-icons';
+
+export type LineCommentItem = {
+  id: string;
+  lineId: string;
+  lineText: string;
+  commentText: string;
+};
 
 export type EnhancedMarkdownViewProps = {
   text: string;
+  docTitle?: string | undefined;
+  filePath?: string | undefined;
   onOpenFile?: ((filePath: string) => void) | undefined;
+  comments?: LineCommentItem[] | undefined;
+  onAddComment?:
+    ((comment: { lineId: string; lineText: string; commentText: string }) => void) | undefined;
+  onEditComment?: ((id: string, commentText: string) => void) | undefined;
+  onDeleteComment?: ((id: string) => void) | undefined;
+  onCommentLine?: ((lineContent: string) => void) | undefined;
 };
 
 export function EnhancedMarkdownView({
   text,
+  docTitle,
+  filePath,
   onOpenFile,
+  comments = [],
+  onAddComment,
+  onEditComment,
+  onDeleteComment,
+  onCommentLine,
 }: EnhancedMarkdownViewProps): ReactElement {
   const blocks = parseEnhancedMarkdownBlocks(text);
 
   return (
     <div className="enhanced-markdown-root" data-testid="enhanced-markdown">
       {blocks.map((block, index) => (
-        <EnhancedBlockView key={index} block={block} onOpenFile={onOpenFile} />
+        <EnhancedBlockView
+          key={index}
+          blockIndex={index}
+          block={block}
+          docTitle={docTitle}
+          filePath={filePath}
+          onOpenFile={onOpenFile}
+          comments={comments}
+          onAddComment={onAddComment}
+          onEditComment={onEditComment}
+          onDeleteComment={onDeleteComment}
+          onCommentLine={onCommentLine}
+        />
       ))}
     </div>
   );
@@ -47,6 +82,7 @@ type EnhancedBlock =
   | { type: 'code'; language: string; source: string }
   | { type: 'details'; summary: string; content: string }
   | { type: 'callout'; kind: 'note' | 'tip' | 'important' | 'warning' | 'caution'; text: string }
+  | { type: 'hr' }
   | {
       type: 'table';
       headers: string[];
@@ -92,7 +128,9 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
     const line = lines[i] ?? '';
     const trimmed = line.trim();
 
-    if (!trimmed) {
+    // Horizontal Rule dividers (---, ***, ___, -----, etc.)
+    if (/^(?:-{3,}|\*{3,}|_{3,})$/.test(trimmed)) {
+      blocks.push({ type: 'hr' });
       i++;
       continue;
     }
@@ -106,7 +144,7 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
         codeLines.push(lines[i] ?? '');
         i++;
       }
-      if (i < lines.length) i++; // consume closing fence
+      if (i < lines.length) i++;
       blocks.push({
         type: 'code',
         language,
@@ -151,11 +189,7 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
     }
 
     // Tables
-    if (
-      trimmed.includes('|') &&
-      i + 1 < lines.length &&
-      isTableDelimiterLine(lines[i + 1] ?? '')
-    ) {
+    if (trimmed.includes('|') && i + 1 < lines.length && isTableDelimiterLine(lines[i + 1] ?? '')) {
       const headers = parseTableRow(line);
       const delimiterCells = parseTableRow(lines[i + 1] ?? '');
       const alignments = delimiterCells.map(parseTableAlignment);
@@ -202,7 +236,6 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
         const level = headingMatch[1].length;
         const rawContent = headingMatch[2].trim();
 
-        // Check if heading has [MODIFY], [NEW], [DELETE]
         const diffMatch =
           /^\[(MODIFY|NEW|DELETE|RENAME)\]\s*(?:(?:`?([A-Za-z0-9_-]+)`?|\[([A-Za-z0-9_-]+)\])\s+)?(.*)$/i.exec(
             rawContent,
@@ -212,7 +245,6 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
           let ext = diffMatch[2] || diffMatch[3] || '';
           let path = diffMatch[4] || '';
 
-          // Clean markdown links from path if present: [file basename](url) -> file basename
           const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(path);
           if (linkMatch && linkMatch[1]) {
             path = linkMatch[1];
@@ -245,7 +277,7 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
       }
     }
 
-    // Standard or Diff items ([MODIFY] TS path/to/file.ts without heading)
+    // Standalone Diff items
     const standaloneDiffMatch =
       /^\[(MODIFY|NEW|DELETE|RENAME)\]\s*(?:(?:`?([A-Za-z0-9_-]+)`?|\[([A-Za-z0-9_-]+)\])\s+)?(.*)$/i.exec(
         trimmed,
@@ -284,7 +316,6 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
         const currentLine = lines[i] ?? '';
         const currentTrimmed = currentLine.trim();
 
-        // Top level bullet
         const itemMatch = /^[-*]\s+(.*)$/.exec(currentTrimmed);
         if (itemMatch && itemMatch[1]) {
           const itemText = itemMatch[1];
@@ -299,7 +330,6 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
           const subItems: string[] = [];
           i++;
 
-          // Collect indented sub-bullets
           while (i < lines.length) {
             const nextLine = lines[i] ?? '';
             const nextTrimmed = nextLine.trim();
@@ -363,12 +393,201 @@ function HeadingElement({
   }
 }
 
+/**
+ * Line Comment Row Container with Hover Icon & Inline Popover (Matching Antigravity Reference)
+ */
+function LineCommentWrapper({
+  lineId,
+  lineText,
+  comments = [],
+  onAddComment,
+  onEditComment,
+  onDeleteComment,
+  onCommentLine,
+  children,
+  className = '',
+}: {
+  lineId: string;
+  lineText?: string | null | undefined;
+  comments?: LineCommentItem[] | undefined;
+  onAddComment?:
+    ((comment: { lineId: string; lineText: string; commentText: string }) => void) | undefined;
+  onEditComment?: ((id: string, commentText: string) => void) | undefined;
+  onDeleteComment?: ((id: string) => void) | undefined;
+  onCommentLine?: ((lineContent: string) => void) | undefined;
+  children: ReactNode;
+  className?: string | undefined;
+}): ReactElement {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [popoverMode, setPopoverMode] = useState<'create' | 'view' | 'edit'>('create');
+  const [inputText, setInputText] = useState('');
+  const [editText, setEditText] = useState('');
+
+  const validText = typeof lineText === 'string' ? lineText.trim() : '';
+  const existingComment = comments.find((c) => c.lineId === lineId);
+  const hasComment = Boolean(existingComment);
+
+  function handleTogglePopover(): void {
+    if (popoverOpen) {
+      setPopoverOpen(false);
+      return;
+    }
+    if (hasComment) {
+      setPopoverMode('view');
+    } else {
+      setPopoverMode('create');
+      setInputText('');
+    }
+    setPopoverOpen(true);
+  }
+
+  function handleCreateSubmit(): void {
+    const textToSave = inputText.trim();
+    if (!textToSave || !validText) return;
+
+    onAddComment?.({
+      lineId,
+      lineText: validText,
+      commentText: textToSave,
+    });
+    onCommentLine?.(`[${validText}] "${textToSave}"`);
+    setPopoverOpen(false);
+    setInputText('');
+  }
+
+  function handleEditSubmit(): void {
+    const textToSave = editText.trim();
+    if (!textToSave || !existingComment) return;
+
+    onEditComment?.(existingComment.id, textToSave);
+    setPopoverMode('view');
+  }
+
+  function handleDelete(): void {
+    if (!existingComment) return;
+    onDeleteComment?.(existingComment.id);
+    setPopoverOpen(false);
+  }
+
+  return (
+    <div
+      className={`enhanced-line-wrapper has-hover-highlight ${popoverOpen ? 'popover-open' : ''} ${className}`}
+    >
+      <div className="line-main-content">{children}</div>
+
+      <button
+        type="button"
+        className={`line-comment-btn ${hasComment ? 'has-comment' : ''}`}
+        title={hasComment ? 'View comment' : 'Add comment'}
+        aria-label={hasComment ? 'View comment' : 'Add comment'}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleTogglePopover();
+        }}
+      >
+        <IconCommentAction width={14} height={14} />
+      </button>
+
+      {popoverOpen ? (
+        <div className="line-comment-popover-anchor">
+          <div className="line-comment-popover">
+            {popoverMode === 'create' ? (
+              <>
+                <textarea
+                  className="line-comment-input"
+                  placeholder="Leave a comment"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  autoFocus
+                />
+                <div className="line-comment-popover-actions">
+                  <button
+                    type="button"
+                    className="popover-btn-cancel"
+                    onClick={() => setPopoverOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="popover-btn-submit"
+                    disabled={!inputText.trim()}
+                    onClick={handleCreateSubmit}
+                  >
+                    Add Comment
+                  </button>
+                </div>
+              </>
+            ) : popoverMode === 'edit' ? (
+              <>
+                <textarea
+                  className="line-comment-input"
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  autoFocus
+                />
+                <div className="line-comment-popover-actions">
+                  <button
+                    type="button"
+                    className="popover-btn-cancel"
+                    onClick={() => setPopoverMode('view')}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="popover-btn-submit"
+                    disabled={!editText.trim()}
+                    onClick={handleEditSubmit}
+                  >
+                    Save
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="line-comment-body">{existingComment?.commentText}</div>
+                <div className="line-comment-popover-actions">
+                  <button type="button" className="popover-btn-delete" onClick={handleDelete}>
+                    Delete
+                  </button>
+                  <button
+                    type="button"
+                    className="popover-btn-edit"
+                    onClick={() => {
+                      setEditText(existingComment?.commentText || '');
+                      setPopoverMode('edit');
+                    }}
+                  >
+                    Edit Comment
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function CodeBlockView({
   language,
   source,
+  comments,
+  onAddComment,
+  onEditComment,
+  onDeleteComment,
+  onCommentLine,
 }: {
   language: string;
   source: string;
+  comments?: LineCommentItem[] | undefined;
+  onAddComment?:
+    ((comment: { lineId: string; lineText: string; commentText: string }) => void) | undefined;
+  onEditComment?: ((id: string, commentText: string) => void) | undefined;
+  onDeleteComment?: ((id: string) => void) | undefined;
+  onCommentLine?: ((lineContent: string) => void) | undefined;
 }): ReactElement {
   const [expanded, setExpanded] = useState(false);
   const lines = source.split('\n');
@@ -385,11 +604,7 @@ function CodeBlockView({
         <span className="code-lang">{language || (isDiff ? 'diff' : 'code')}</span>
         <div className="code-header-actions">
           {isLong ? (
-            <Button
-              variant="ghost"
-              size="compact"
-              onClick={() => setExpanded((prev) => !prev)}
-            >
+            <Button variant="ghost" size="compact" onClick={() => setExpanded((prev) => !prev)}>
               {expanded ? 'Collapse' : `Expand (${lines.length} lines)`}
             </Button>
           ) : null}
@@ -400,21 +615,30 @@ function CodeBlockView({
         <pre className="enhanced-code">
           <code>
             {visibleLines.map((line, idx) => {
-              if (isDiff) {
-                const isAdd = line.startsWith('+');
-                const isDel = line.startsWith('-');
-                const lineClass = isAdd
-                  ? 'diff-line-add'
-                  : isDel
-                    ? 'diff-line-delete'
-                    : 'diff-line-context';
-                return (
-                  <div key={idx} className={`diff-line ${lineClass}`}>
-                    {line}
-                  </div>
-                );
-              }
-              return <div key={idx}>{line}</div>;
+              const lineId = `code-line-${idx}-${line.slice(0, 30)}`;
+              const isAdd = line.startsWith('+');
+              const isDel = line.startsWith('-');
+              const lineClass = isAdd
+                ? 'diff-line-add'
+                : isDel
+                  ? 'diff-line-delete'
+                  : 'diff-line-context';
+
+              return (
+                <LineCommentWrapper
+                  key={idx}
+                  lineId={lineId}
+                  lineText={line}
+                  comments={comments}
+                  onAddComment={onAddComment}
+                  onEditComment={onEditComment}
+                  onDeleteComment={onDeleteComment}
+                  onCommentLine={onCommentLine}
+                  className={`diff-line ${lineClass}`}
+                >
+                  <span className="code-line-text">{line}</span>
+                </LineCommentWrapper>
+              );
             })}
           </code>
         </pre>
@@ -425,58 +649,117 @@ function CodeBlockView({
 }
 
 function EnhancedBlockView({
+  blockIndex,
   block,
+  docTitle,
+  filePath,
   onOpenFile,
+  comments,
+  onAddComment,
+  onEditComment,
+  onDeleteComment,
+  onCommentLine,
 }: {
+  blockIndex: number;
   block: EnhancedBlock;
+  docTitle?: string | undefined;
+  filePath?: string | undefined;
   onOpenFile?: ((filePath: string) => void) | undefined;
+  comments?: LineCommentItem[] | undefined;
+  onAddComment?:
+    ((comment: { lineId: string; lineText: string; commentText: string }) => void) | undefined;
+  onEditComment?: ((id: string, commentText: string) => void) | undefined;
+  onDeleteComment?: ((id: string) => void) | undefined;
+  onCommentLine?: ((lineContent: string) => void) | undefined;
 }): ReactElement {
+  const blockLineId = `block-${blockIndex}-${block.type}`;
+
   if (block.type === 'heading') {
+    const headingText = block.path || block.text;
+    const headingLineId = `heading-${blockIndex}-${headingText.slice(0, 30)}`;
+
     if (block.action && block.path) {
       return (
-        <div className={`enhanced-heading-diff level-${block.level}`}>
-          <DiffBadge action={block.action} />
-          {block.ext ? <span className="ext-badge">{block.ext}</span> : null}
-          <PathChip
-            fullPath={block.path}
-            className="diff-path"
-            showIcon={false}
-            onOpen={() => onOpenFile?.(block.path!)}
-          />
-        </div>
+        <LineCommentWrapper
+          lineId={headingLineId}
+          lineText={headingText}
+          comments={comments}
+          onAddComment={onAddComment}
+          onEditComment={onEditComment}
+          onDeleteComment={onDeleteComment}
+          onCommentLine={onCommentLine}
+        >
+          <div className={`enhanced-heading-diff level-${block.level}`}>
+            <DiffBadge action={block.action} />
+            <PathChip
+              fullPath={block.path}
+              className="diff-path"
+              showIcon={true}
+              onOpen={() => onOpenFile?.(block.path!)}
+            />
+          </div>
+        </LineCommentWrapper>
       );
     }
 
-    // Format heading with potential scope parens e.g. Desktop App (apps/desktop)
     const scopeMatch = /^(.*?)\s*\(([^)]+)\)$/.exec(block.text);
     if (scopeMatch && scopeMatch[1] && scopeMatch[2]) {
       return (
-        <HeadingElement level={block.level} className={`enhanced-heading level-${block.level}`}>
-          <span>{renderFormattedText(scopeMatch[1])}</span>
-          <span className="heading-scope">({scopeMatch[2]})</span>
-        </HeadingElement>
+        <LineCommentWrapper
+          lineId={headingLineId}
+          lineText={headingText}
+          comments={comments}
+          onAddComment={onAddComment}
+          onEditComment={onEditComment}
+          onDeleteComment={onDeleteComment}
+          onCommentLine={onCommentLine}
+        >
+          <HeadingElement level={block.level} className={`enhanced-heading level-${block.level}`}>
+            <span>{renderFormattedText(scopeMatch[1], onOpenFile)}</span>
+            <span className="heading-scope">({scopeMatch[2]})</span>
+          </HeadingElement>
+        </LineCommentWrapper>
       );
     }
 
     return (
-      <HeadingElement level={block.level} className={`enhanced-heading level-${block.level}`}>
-        {renderFormattedText(block.text)}
-      </HeadingElement>
+      <LineCommentWrapper
+        lineId={headingLineId}
+        lineText={headingText}
+        comments={comments}
+        onAddComment={onAddComment}
+        onEditComment={onEditComment}
+        onDeleteComment={onDeleteComment}
+        onCommentLine={onCommentLine}
+      >
+        <HeadingElement level={block.level} className={`enhanced-heading level-${block.level}`}>
+          {renderFormattedText(block.text, onOpenFile)}
+        </HeadingElement>
+      </LineCommentWrapper>
     );
   }
 
   if (block.type === 'diff-header') {
+    const diffLineId = `diff-${blockIndex}-${block.path}`;
     return (
-      <div className="enhanced-diff-header">
+      <LineCommentWrapper
+        lineId={diffLineId}
+        lineText={block.path}
+        comments={comments}
+        onAddComment={onAddComment}
+        onEditComment={onEditComment}
+        onDeleteComment={onDeleteComment}
+        onCommentLine={onCommentLine}
+        className="enhanced-diff-header"
+      >
         <DiffBadge action={block.action} />
-        {block.ext ? <span className="ext-badge">{block.ext}</span> : null}
         <PathChip
           fullPath={block.path}
           className="diff-path"
-          showIcon={false}
+          showIcon={true}
           onOpen={() => onOpenFile?.(block.path)}
         />
-      </div>
+      </LineCommentWrapper>
     );
   }
 
@@ -485,7 +768,17 @@ function EnhancedBlockView({
       <details className="enhanced-details">
         <summary className="enhanced-summary">{block.summary}</summary>
         <div className="enhanced-details-content">
-          <EnhancedMarkdownView text={block.content} onOpenFile={onOpenFile} />
+          <EnhancedMarkdownView
+            text={block.content}
+            docTitle={docTitle}
+            filePath={filePath}
+            onOpenFile={onOpenFile}
+            comments={comments}
+            onAddComment={onAddComment}
+            onEditComment={onEditComment}
+            onDeleteComment={onDeleteComment}
+            onCommentLine={onCommentLine}
+          />
         </div>
       </details>
     );
@@ -506,53 +799,91 @@ function EnhancedBlockView({
         );
       }
     }
-    return <CodeBlockView language={block.language} source={block.source} />;
+    return (
+      <CodeBlockView
+        language={block.language}
+        source={block.source}
+        comments={comments}
+        onAddComment={onAddComment}
+        onEditComment={onEditComment}
+        onDeleteComment={onDeleteComment}
+        onCommentLine={onCommentLine}
+      />
+    );
   }
 
   if (block.type === 'callout') {
     return (
-      <div className={`enhanced-callout callout-${block.kind}`}>
+      <LineCommentWrapper
+        lineId={`callout-${blockIndex}`}
+        lineText={block.text}
+        comments={comments}
+        onAddComment={onAddComment}
+        onEditComment={onEditComment}
+        onDeleteComment={onDeleteComment}
+        onCommentLine={onCommentLine}
+        className={`enhanced-callout callout-${block.kind}`}
+      >
         <div className="callout-title">{block.kind.toUpperCase()}</div>
-        <div className="callout-content">{renderFormattedText(block.text)}</div>
-      </div>
+        <div className="callout-content">{renderFormattedText(block.text, onOpenFile)}</div>
+      </LineCommentWrapper>
     );
   }
 
   if (block.type === 'list') {
     return (
       <ul className="enhanced-list">
-        {block.items.map((item, index) => (
-          <li key={index} className="enhanced-list-item">
-            <div className="item-text">
-              {item.checked !== undefined ? (
-                <input
-                  type="checkbox"
-                  checked={item.checked}
-                  readOnly
-                  className="enhanced-checkbox"
-                />
+        {block.items.map((item, index) => {
+          const listLineId = `list-${blockIndex}-${index}-${item.text.slice(0, 30)}`;
+          return (
+            <LineCommentWrapper
+              key={index}
+              lineId={listLineId}
+              lineText={item.text}
+              comments={comments}
+              onAddComment={onAddComment}
+              onEditComment={onEditComment}
+              onDeleteComment={onDeleteComment}
+              onCommentLine={onCommentLine}
+              className="enhanced-list-item"
+            >
+              <div className="item-text">
+                {item.checked !== undefined ? (
+                  <input
+                    type="checkbox"
+                    checked={item.checked}
+                    readOnly
+                    className="enhanced-checkbox"
+                  />
+                ) : null}
+                <span>{renderFormattedText(item.text, onOpenFile)}</span>
+              </div>
+              {item.subItems && item.subItems.length > 0 ? (
+                <ul className="enhanced-sub-list">
+                  {item.subItems.map((sub, subIndex) => (
+                    <li key={subIndex} className="enhanced-sub-item">
+                      <span>{renderFormattedText(sub, onOpenFile)}</span>
+                    </li>
+                  ))}
+                </ul>
               ) : null}
-              <span>{renderFormattedText(item.text)}</span>
-            </div>
-            {item.subItems && item.subItems.length > 0 ? (
-              <ul className="enhanced-sub-list">
-                {item.subItems.map((sub, subIndex) => (
-                  <li key={subIndex} className="enhanced-sub-item">
-                    {renderFormattedText(sub)}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </li>
-        ))}
+            </LineCommentWrapper>
+          );
+        })}
       </ul>
     );
   }
 
-function getTextAlign(alignment?: 'left' | 'center' | 'right' | 'default'): 'left' | 'center' | 'right' | undefined {
-  if (!alignment || alignment === 'default') return undefined;
-  return alignment;
-}
+  function getTextAlign(
+    alignment?: 'left' | 'center' | 'right' | 'default',
+  ): 'left' | 'center' | 'right' | undefined {
+    if (!alignment || alignment === 'default') return undefined;
+    return alignment;
+  }
+
+  if (block.type === 'hr') {
+    return <hr className="enhanced-hr" />;
+  }
 
   if (block.type === 'table') {
     return (
@@ -562,7 +893,7 @@ function getTextAlign(alignment?: 'left' | 'center' | 'right' | 'default'): 'lef
             <tr>
               {block.headers.map((header, hIdx) => (
                 <th key={hIdx} style={{ textAlign: getTextAlign(block.alignments[hIdx]) }}>
-                  {renderFormattedText(header)}
+                  {renderFormattedText(header, onOpenFile)}
                 </th>
               ))}
             </tr>
@@ -572,7 +903,7 @@ function getTextAlign(alignment?: 'left' | 'center' | 'right' | 'default'): 'lef
               <tr key={rIdx}>
                 {row.map((cell, cIdx) => (
                   <td key={cIdx} style={{ textAlign: getTextAlign(block.alignments[cIdx]) }}>
-                    {renderFormattedText(cell)}
+                    {renderFormattedText(cell, onOpenFile)}
                   </td>
                 ))}
               </tr>
@@ -583,7 +914,20 @@ function getTextAlign(alignment?: 'left' | 'center' | 'right' | 'default'): 'lef
     );
   }
 
-  return <p className="enhanced-paragraph">{renderFormattedText(block.text)}</p>;
+  return (
+    <LineCommentWrapper
+      lineId={blockLineId}
+      lineText={block.text}
+      comments={comments}
+      onAddComment={onAddComment}
+      onEditComment={onEditComment}
+      onDeleteComment={onDeleteComment}
+      onCommentLine={onCommentLine}
+      className="enhanced-paragraph-row"
+    >
+      <p className="enhanced-paragraph">{renderFormattedText(block.text, onOpenFile)}</p>
+    </LineCommentWrapper>
+  );
 }
 
 function DiffBadge({ action }: { action: DiffActionType }): ReactElement {
@@ -625,11 +969,13 @@ function CopyButton({ text }: { text: string }): ReactElement {
 /**
  * Format inline text with inline code (`code`), strong (**text**), math ($...$), and links ([title](url)).
  */
-function renderFormattedText(text: string): Array<string | ReactElement> {
+function renderFormattedText(
+  text: string,
+  onOpenFile?: ((filePath: string) => void) | undefined,
+): Array<string | ReactElement> {
   const parts: Array<string | ReactElement> = [];
   let key = 0;
 
-  // Regex tokenizer for inline markdown constructs
   const pattern = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\$[^$\n]+\$|\[[^\]]+\]\([^)]+\))/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -641,11 +987,30 @@ function renderFormattedText(text: string): Array<string | ReactElement> {
 
     const matchedStr = match[0];
     if (matchedStr.startsWith('`') && matchedStr.endsWith('`')) {
-      parts.push(
-        <code key={key++} className="enhanced-inline-code">
-          {matchedStr.slice(1, -1)}
-        </code>,
-      );
+      const codeContent = matchedStr.slice(1, -1);
+      const isPath =
+        /(?:^|\/|[A-Za-z]:[\\/])[a-zA-Z0-9_\u4e00-\u9fa5.-]+\.[a-zA-Z0-9]+$/i.test(codeContent) ||
+        /^\/(?:[a-zA-Z0-9_\u4e00-\u9fa5.-]+\/)+$/i.test(codeContent) ||
+        /^[a-zA-Z0-9_\u4e00-\u9fa5.-]+\.(?:ts|tsx|js|jsx|py|json|css|scss|md|html|rs|go|sh|png|jpg|svg)$/i.test(
+          codeContent,
+        );
+
+      if (isPath) {
+        parts.push(
+          <PathChip
+            key={key++}
+            fullPath={codeContent}
+            showIcon={true}
+            onOpen={() => onOpenFile?.(codeContent)}
+          />,
+        );
+      } else {
+        parts.push(
+          <code key={key++} className="enhanced-inline-code">
+            {codeContent}
+          </code>,
+        );
+      }
     } else if (matchedStr.startsWith('**') && matchedStr.endsWith('**')) {
       parts.push(
         <strong key={key++} className="enhanced-strong">
