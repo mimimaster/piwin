@@ -36,7 +36,7 @@ export type WorkspaceTitlebarProps = {
   /** Session identity rendered inside titlebar */
   sessionTitle?: string;
   scopeLabel?: string;
-  permissionMode?: import('@piwin/contracts').PermissionMode | null;
+  permissionMode?: import('@piwin/contracts').PermissionPreset | null;
   onOpenPermissions?: () => void;
 };
 
@@ -135,7 +135,7 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
             <button
               type="button"
               className={
-                props.permissionMode === 'bypass'
+                props.permissionMode === 'yolo'
                   ? 'titlebar-mode-badge is-warning'
                   : 'titlebar-mode-badge'
               }
@@ -143,16 +143,16 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
               data-mode={props.permissionMode}
               title={
                 props.locale === 'zh-CN'
-                  ? '权限模式 — 点击打开权限设置'
-                  : 'Permission mode — click to open Permissions settings'
+                  ? '运行模式 — 点击打开权限设置'
+                  : 'Run mode — click to open Permissions settings'
               }
               onClick={props.onOpenPermissions}
             >
               {props.permissionMode === 'auto'
                 ? 'Auto'
-                : props.permissionMode === 'ask-all'
-                  ? 'Ask all'
-                  : 'Bypass'}
+                : props.permissionMode === 'ask'
+                  ? 'Ask'
+                  : 'YOLO'}
             </button>
           ) : null}
         </div>

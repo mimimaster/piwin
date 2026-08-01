@@ -143,6 +143,8 @@ export type DesktopTranslator = {
       modelNamePlaceholder: string;
       modelGroupName: string;
       modelGroupPlaceholder: string;
+      modelTooltipLabel: string;
+      modelTooltipPlaceholder: string;
       contextUnset: string;
       outputUnset: string;
       runtimeLimits: string;
@@ -383,6 +385,10 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         modelNamePlaceholder: isChinese ? '例如 GPT-4.1' : 'e.g. GPT-4.1',
         modelGroupName: isChinese ? '分组名称' : 'Group name',
         modelGroupPlaceholder: isChinese ? '例如 ChatGPT' : 'e.g. ChatGPT',
+        modelTooltipLabel: isChinese ? '提示信息 (Tooltip)' : 'Tooltip (Markdown)',
+        modelTooltipPlaceholder: isChinese
+          ? '例如：擅长代码与多步推理'
+          : 'e.g. Strong at coding and multi-step reasoning',
         contextUnset: isChinese ? '未设置' : 'Context unset',
         outputUnset: isChinese ? '未设置' : 'Output unset',
         runtimeLimits: isChinese

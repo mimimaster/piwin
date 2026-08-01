@@ -268,10 +268,10 @@
   min-height: 0;
   height: 100%;
   /* Horizontal padding is handled by the .chat-stage parent.
-     Keep only vertical padding here. */
+     Keep padding-top 0 so sticky user message headers freeze flush at top:0 without gaps. */
   overflow-y: auto;
   overflow-y: overlay;
-  padding: 24px 0 12px;
+  padding: 0 0 12px;
   background: transparent;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent;
@@ -313,7 +313,7 @@
   width: 100%;
   max-width: var(--chat-max, 760px);
   margin: 0 auto;
-  padding: 0 20px 24px;
+  padding: 16px 20px 24px;
   box-sizing: border-box;
   gap: 20px;
 }
@@ -777,6 +777,185 @@
   pointer-events: auto;
 }
 
+/* ─── Turn-level files changed bar (files-changed-bar.tsx) ─────────── */
+/* Compact summary under assistant replies: "N files changed · +x -y [Review]".
+   Lists tool-mutated paths for the message; Review opens the Changes panel. */
+
+.files-changed-bar {
+  margin: 10px 0 4px;
+  border: 1px solid var(--line-soft, var(--line));
+  border-radius: 10px;
+  background: color-mix(
+    in srgb,
+    var(--card, var(--panel)) 94%,
+    var(--surface-inset, var(--panel2))
+  );
+  overflow: hidden;
+}
+
+.files-changed-bar-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 10px;
+  min-height: 36px;
+}
+
+.files-changed-bar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  padding: 2px 0;
+}
+
+.files-changed-bar-toggle:hover {
+  color: var(--text);
+}
+
+.files-changed-bar-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+
+.files-changed-bar-count {
+  flex-shrink: 0;
+  color: var(--text);
+  font-weight: 550;
+}
+
+.files-changed-bar-file-pill {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 42%;
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: var(--surface-inset, var(--panel2));
+  border: 1px solid var(--line-soft, var(--line));
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.files-changed-bar-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.files-changed-bar-stat {
+  flex-shrink: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.files-changed-bar-stat .add {
+  color: var(--ok, #179b62);
+}
+
+.files-changed-bar-stat .del {
+  color: var(--danger, #d64541);
+}
+
+.files-changed-bar-chevron {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--faint, var(--muted));
+  transition: transform 140ms ease;
+}
+
+.files-changed-bar-chevron.open {
+  transform: rotate(180deg);
+}
+
+.files-changed-bar-review {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 1px solid var(--line-strong, var(--line));
+  background: var(--control, var(--surface-inset));
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.files-changed-bar-review:hover {
+  color: var(--text);
+  border-color: var(--faint, var(--muted));
+  background: var(--surface-hover, var(--panel2));
+}
+
+.files-changed-bar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px;
+  border-top: 1px solid var(--line-soft, var(--line));
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.files-changed-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.files-changed-bar-row:hover {
+  background: var(--surface-hover, color-mix(in srgb, var(--text) 4%, transparent));
+}
+
+.files-changed-bar-row-icon {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+}
+
+.files-changed-bar-row-name {
+  flex-shrink: 0;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-weight: 550;
+  color: var(--text);
+}
+
+.files-changed-bar-row-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--faint, var(--muted));
+}
+
 /* ─── Walkthrough action hover/focus reveal (spec §15.6 case 5) ─────── */
 /* The Generate Walkthrough button on eligible final assistant messages is
    hidden by default and revealed on hover/focus of the message row, mirroring
@@ -811,6 +990,161 @@
 .msg-action-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ─── Walkthrough Document Artifact Card ─────────────────────── */
+
+.walkthrough-card {
+  position: relative;
+  border-radius: 12px;
+  margin: 8px 0;
+  border: 1px solid var(--line-soft);
+  background: color-mix(in srgb, var(--card) 92%, var(--surface-inset));
+  transition: all 180ms ease;
+  overflow: visible;
+}
+
+.walkthrough-card:hover {
+  border-color: color-mix(in srgb, var(--line) 80%, var(--accent));
+  background: color-mix(in srgb, var(--card) 98%, var(--surface-hover));
+}
+
+.walkthrough-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 6px;
+  font-size: 13px;
+}
+
+.doc-artifact-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.walkthrough-card-title {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.walkthrough-card-status {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.walkthrough-card[data-status='generating'] .walkthrough-card-status {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+
+.walkthrough-card[data-status='error'] .walkthrough-card-status {
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  color: var(--danger);
+}
+
+.walkthrough-card-mode,
+.walkthrough-card-model {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+.doc-artifact-body {
+  padding: 0 0 4px;
+  cursor: pointer;
+}
+
+.doc-artifact-excerpt-box {
+  padding: 4px 14px 12px;
+}
+
+.doc-artifact-excerpt-text {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Floating Regenerate Action & Tooltip Bubble */
+.walkthrough-card-hover-actions {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+  z-index: 25;
+}
+
+.walkthrough-card:hover .walkthrough-card-hover-actions,
+.walkthrough-card:focus-within .walkthrough-card-hover-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.doc-artifact-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.doc-artifact-icon-btn:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+  border-color: var(--line);
+}
+
+/* Hover Tooltip Bubble */
+.doc-artifact-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  padding: 5px 9px;
+  border-radius: 7px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  z-index: 100;
+}
+
+.doc-artifact-icon-btn:hover .doc-artifact-tooltip {
+  opacity: 1;
+  transform: translateY(-2px);
 }
 
 /* ─── Tool call cards — Paper/Noir card (proto-shell.css .tool block) ── */
@@ -1282,22 +1616,17 @@
 .turn-thinking pre {
   margin: 0;
   padding-left: 12px;
-  border-left: 1.5px solid rgba(255, 255, 255, 0.09);
+  border-left: 1.5px solid color-mix(in srgb, var(--text) 12%, transparent);
   white-space: pre-wrap;
   font-family: inherit;
   font-size: 12px;
   line-height: 1.55;
-  color: var(--wb-dim, var(--faint));
+  color: var(--muted);
   background: transparent;
 }
 
-.turn-shimmer-text {
-  background: linear-gradient(
-    90deg,
-    var(--wb-dim, #5f6672) 0%,
-    #cfd4db 45%,
-    var(--wb-dim, #5f6672) 60%
-  );
+.turn-thinking pre.turn-shimmer-text {
+  background: linear-gradient(90deg, var(--muted) 0%, var(--text) 45%, var(--muted) 60%);
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -1339,29 +1668,66 @@
   color: var(--wb-dim, var(--faint));
 }
 
+.chat-turn-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
 /*
- * User message display — same width language as the docked composer and the
- * inline edit card (full chat-thread width, soft card chrome). Short text
- * still spans the column so edit → view doesn’t jump from wide to tiny.
+ * User message display — frozen sticky header during transcript scrolling.
+ * Pinned flush at top: 0 as content scrolls underneath, with frosted backdrop blur.
  */
 .bubble.role-user {
+  position: sticky;
+  top: 0;
+  z-index: 10;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   margin-left: 0;
   margin-right: 0;
   padding: 14px 16px 12px;
-  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--panel) 94%, var(--canvas));
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--text) 2%, transparent),
-    0 8px 24px color-mix(in srgb, var(--accent) 5%, rgba(0, 0, 0, 0.16));
+  /* Background color harmonized with main theme canvas, zero drop-shadow */
+  background: color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 92%, var(--panel, #ffffff));
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: none;
+  transition:
+    background-color 200ms ease,
+    border-color 200ms ease;
 }
 
+[data-theme='dark'] .bubble.role-user {
+  background: color-mix(in srgb, var(--canvas, var(--bg, #121214)) 92%, var(--panel, #1c1c1e));
+  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+  box-shadow: none;
+}
+
+/* Top shield extension mask to cover top-left & top-right corner gaps when sticky */
 .bubble.role-user::before {
-  content: none;
-  display: none;
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  height: 20px;
+  background: color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 96%, var(--panel, #ffffff));
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  pointer-events: none;
+  z-index: -1;
+  display: block;
+}
+
+[data-theme='dark'] .bubble.role-user::before {
+  background: color-mix(in srgb, var(--canvas, var(--bg, #121214)) 96%, var(--panel, #1c1c1e));
 }
 
 .bubble.role-user .message-text {
@@ -1400,32 +1766,34 @@
   cursor: pointer;
 }
 
-/* Collapsed state: clip height + fade the bottom away */
+/* Collapsed state: fixed height + fade the bottom away */
 .message-text-collapsible.is-collapsed .message-text {
   overflow: hidden;
+  height: 78px;
   /* Fade mask: sharp at top, ghostly at bottom */
   -webkit-mask-image: linear-gradient(
     to bottom,
     #000 0%,
-    #000 50%,
+    #000 45%,
     rgba(0, 0, 0, 0.35) 75%,
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
     #000 0%,
-    #000 50%,
+    #000 45%,
     rgba(0, 0, 0, 0.35) 75%,
     transparent 100%
   );
 }
 
-/* Expanded state: no clipping, no mask */
+/* Expanded state: no clipping, height auto, no mask */
 .message-text-collapsible.is-expanded .message-text {
   overflow: visible;
+  height: auto !important;
+  max-height: none !important;
   -webkit-mask-image: none;
   mask-image: none;
-  max-height: none !important;
 }
 
 .user-message-actions {
@@ -1441,6 +1809,15 @@
   line-height: 1;
   color: var(--muted);
   user-select: none;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.bubble.role-user:hover .user-message-actions,
+.bubble.role-user:focus-within .user-message-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .user-message-time {
@@ -1505,12 +1882,12 @@
 @media (prefers-reduced-motion: reduce) {
   .bubble.is-new,
   .tool-call-card,
-  .turn-shimmer-text {
+  .turn-thinking pre.turn-shimmer-text {
     animation: none;
   }
-  .turn-shimmer-text {
-    -webkit-text-fill-color: var(--wb-dim, var(--faint));
-    color: var(--wb-dim, var(--faint));
+  .turn-thinking pre.turn-shimmer-text {
+    -webkit-text-fill-color: var(--muted);
+    color: var(--muted);
     background: none;
   }
 }
@@ -1561,6 +1938,12 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 5%, transparent);
 }
 
+.md-code-block[data-is-shell='true'] {
+  border: 1px solid
+    color-mix(in srgb, var(--accent) 25%, color-mix(in srgb, var(--text) 12%, transparent));
+  background: color-mix(in srgb, var(--surface-inset) 92%, #0d1117);
+}
+
 .md-code-header {
   display: flex;
   align-items: center;
@@ -1568,6 +1951,32 @@
   gap: 8px;
   padding: 6px 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+.md-code-block[data-is-shell='true'] .md-code-header {
+  background: color-mix(in srgb, var(--accent) 8%, color-mix(in srgb, var(--text) 4%, transparent));
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.md-code-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.md-code-shell-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .md-code-lang {
@@ -1582,6 +1991,140 @@
   font-size: var(--code-font-size, 13px);
   overflow-wrap: var(--code-wrap, unset);
   word-break: var(--code-wrap, unset);
+}
+
+/* ─── Markdown Tables ───────────────────────────────────────────────── */
+
+.md-table-wrapper {
+  margin: 10px 0 14px;
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: color-mix(in srgb, var(--surface-inset) 80%, var(--canvas));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.md-table th {
+  padding: 9px 14px;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+}
+
+.md-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
+  color: var(--text);
+}
+
+.md-table tr:last-child td {
+  border-bottom: none;
+}
+
+.md-table tbody tr:nth-child(even) {
+  background: color-mix(in srgb, var(--text) 2.5%, transparent);
+}
+
+.md-table tbody tr:hover {
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+/* ─── Headings & Callouts ────────────────────────────────────────────── */
+
+.md-h {
+  margin: 1.2em 0 0.4em;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.md-h1 {
+  font-size: 1.4em;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  padding-bottom: 0.3em;
+}
+
+.md-h2 {
+  font-size: 1.25em;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  padding-bottom: 0.25em;
+}
+
+.md-h3 {
+  font-size: 1.1em;
+}
+
+.md-h4,
+.md-h5,
+.md-h6 {
+  font-size: 1em;
+}
+
+.md-list-ordered {
+  list-style-type: decimal;
+}
+
+.md-blockquote {
+  margin: 0.6em 0 0.8em;
+  padding: 8px 14px;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-radius: 0 8px 8px 0;
+  color: var(--text);
+  font-style: italic;
+}
+
+.md-callout {
+  margin: 10px 0;
+  border-radius: 8px;
+  border-left: 4px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  padding: 10px 14px;
+}
+
+.md-callout-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.md-callout-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.md-callout-note {
+  border-left-color: var(--accent, #3b82f6);
+}
+
+.md-callout-tip {
+  border-left-color: #10b981;
+}
+
+.md-callout-warning {
+  border-left-color: #f59e0b;
+}
+
+.md-callout-important {
+  border-left-color: #8b5cf6;
+}
+
+.md-callout-caution {
+  border-left-color: #ef4444;
 }
 
 .md-math-display {
@@ -2365,19 +2908,32 @@
 .plan-head .ic {
   width: 13px;
   height: 13px;
-  color: var(--accent);
+  color: var(--faint);
 }
 
 .plan-card .chev {
-  margin-left: auto;
   transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
   color: var(--faint);
   width: 13px;
   height: 13px;
+  flex: none;
 }
 
 .plan-card.closed .chev {
   transform: rotate(-90deg);
+}
+
+.plan-card .plan-doc-link {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--accent);
+  opacity: 0.85;
+  transition: opacity 120ms;
+}
+
+.plan-card .plan-doc-link:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 .plan-steps {
@@ -2392,55 +2948,45 @@
   align-items: center;
   gap: 9px;
   font-size: 12.5px;
-  color: var(--muted);
+  color: var(--text);
+  transition: color 150ms ease;
 }
 
-.plan-card .step .box {
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
+.plan-card .step .step-icon {
+  width: 16px;
+  height: 16px;
   flex: none;
-  display: grid;
-  place-items: center;
-  border: 1.5px solid var(--line-strong);
-  color: transparent;
-  font-size: 9px;
-}
-
-.plan-card .step.done .box {
-  background: var(--ok);
-  border-color: var(--ok);
-  color: var(--ok-fg);
+  transition: transform 200ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .plan-card .step.done {
-  color: var(--faint);
-  text-decoration: line-through;
-  text-decoration-color: var(--line-strong);
+  color: var(--muted);
 }
 
-.plan-card .step.run .box {
-  border-color: var(--accent);
-}
-
-.plan-card .step.run .box::after {
-  content: '';
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: pulse 1.4s ease-in-out infinite;
+.plan-card .step.done .step-icon {
+  transform: scale(1);
 }
 
 .plan-card .step.run {
   color: var(--text);
+  font-weight: 500;
 }
 
-/* Skipped: dashed box + faint strikethrough (no proto counterpart; the brief
-   calls for a补划线 + faint treatment distinct from done). */
-.plan-card .step.skipped .box {
-  border-style: dashed;
-  border-color: var(--faint);
+@keyframes planPulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+}
+
+.plan-card .step-icon-run .pulse-dot {
+  animation: planPulse 1.4s ease-in-out infinite;
+  transform-origin: center;
 }
 
 .plan-card .step.skipped {

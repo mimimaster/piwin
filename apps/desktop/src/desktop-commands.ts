@@ -10,7 +10,15 @@ export type DesktopCommandId =
   | 'toggle-inspector'
   | 'open-activity'
   | 'open-settings'
-  | 'open-workspace';
+  | 'open-workspace'
+  | 'toggle-sidebar'
+  | 'toggle-right-panel'
+  | 'stop-run'
+  | 'switch-tab-1'
+  | 'switch-tab-2'
+  | 'switch-tab-3'
+  | 'switch-tab-4'
+  | 'switch-tab-5';
 
 export type DesktopCommand = {
   id: DesktopCommandId;
@@ -61,11 +69,61 @@ export const DESKTOP_COMMANDS: DesktopCommand[] = [
     id: 'open-settings',
     title: 'Open Settings',
     keywords: ['settings', 'preferences', 'config'],
+    shortcut: '⌘,',
   },
   {
     id: 'open-workspace',
     title: 'Open Workspace',
     keywords: ['workspace', 'project', 'folder', 'open'],
+    shortcut: '⌘O',
+  },
+  {
+    id: 'toggle-sidebar',
+    title: 'Toggle Sidebar',
+    keywords: ['sidebar', 'sessions', 'navigation', 'toggle'],
+    shortcut: '⌘B',
+  },
+  {
+    id: 'toggle-right-panel',
+    title: 'Toggle Right Panel',
+    keywords: ['right panel', 'inspector', 'toggle', 'panel'],
+    shortcut: '⌘\\',
+  },
+  {
+    id: 'stop-run',
+    title: 'Stop Run',
+    keywords: ['stop', 'abort', 'cancel', 'interrupt'],
+    shortcut: '⌘.',
+  },
+  {
+    id: 'switch-tab-1',
+    title: 'Switch to Files',
+    keywords: ['switch', 'tab', 'files', '1'],
+    shortcut: '⌘1',
+  },
+  {
+    id: 'switch-tab-2',
+    title: 'Switch to Terminal',
+    keywords: ['switch', 'tab', 'terminal', '2'],
+    shortcut: '⌘2',
+  },
+  {
+    id: 'switch-tab-3',
+    title: 'Switch to Changes',
+    keywords: ['switch', 'tab', 'review', 'changes', '3'],
+    shortcut: '⌘3',
+  },
+  {
+    id: 'switch-tab-4',
+    title: 'Switch to Browser',
+    keywords: ['switch', 'tab', 'browser', '4'],
+    shortcut: '⌘4',
+  },
+  {
+    id: 'switch-tab-5',
+    title: 'Switch to Document',
+    keywords: ['switch', 'tab', 'document', 'preview', 'doc', '5'],
+    shortcut: '⌘5',
   },
 ];
 
@@ -75,11 +133,7 @@ export type CommandAvailability = {
 };
 
 export function filterDesktopCommands(query: string): DesktopCommand[] {
-  const tokens = query
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) {
     return DESKTOP_COMMANDS;
   }

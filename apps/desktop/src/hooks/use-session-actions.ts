@@ -40,6 +40,7 @@ export type UseSessionActionsArgs = {
   showArchivedSessions: boolean;
   selectedModelKey: string;
   modelOptions: ModelOption[];
+  thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   agentMode: AgentModeId;
   setEditingMessageId: Dispatch<SetStateAction<string | null>>;
   setRenameDraft: Dispatch<SetStateAction<{ sessionId: string; name: string } | null>>;
@@ -57,6 +58,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     showArchivedSessions,
     selectedModelKey,
     modelOptions,
+    thinkingLevel,
     agentMode,
     setEditingMessageId,
     setRenameDraft,
@@ -428,6 +430,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const handleTrustProject = useCallback(
     async (trust: boolean): Promise<void> => {
       if (!state.projectPath) {
+        dispatch({ type: 'project/trust-dialog', open: false });
         return;
       }
       if (!trust) {
@@ -471,13 +474,18 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
+  // New session button: enter draft mode without creating a host session.
+  // The session is created lazily on first send via resolveSessionIdForComposer
+  // → ensureSession. This avoids cluttering the sidebar with unnamed sessions.
+  // The scope parameter is handled by callers (e.g. onNewGeneralSession does
+  // project/clear before calling this); here we only clear the active session.
   const handleNewSession = useCallback(
-    async (options?: {
+    async (_options?: {
       scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
     }): Promise<void> => {
-      await ensureSession(options);
+      dispatch({ type: 'session/clear-active' });
     },
-    [ensureSession],
+    [dispatch],
   );
 
   const handleExportSession = useCallback(
@@ -832,7 +840,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (!text) {
         return;
       }
-      if (!state.projectTrusted) {
+      const isGeneral = state.activeScope.kind === 'general' || !state.projectPath;
+      if (!isGeneral && !state.projectTrusted) {
         dispatch({ type: 'project/trust-dialog', open: true });
         return;
       }
@@ -854,10 +863,23 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       setEditingMessageId(null);
       const promptText = applyAgentModeToPrompt(agentMode, text);
       dispatch({ type: 'user/send', text });
+      const editInput: {
+        text: string;
+        model?: import('@piwin/contracts').ModelRef;
+        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+        agentMode?: import('@piwin/contracts').AgentModeId;
+      } = { text: promptText, agentMode: agentMode };
+      const editModel = selectedModelRef();
+      if (editModel) {
+        editInput.model = editModel;
+      }
+      if (thinkingLevel) {
+        editInput.thinkingLevel = thinkingLevel;
+      }
       const response = await hostClient.request({
         type: 'session/prompt',
         sessionId: state.activeSessionId,
-        input: { text: promptText },
+        input: editInput,
       });
       if (!response.success) {
         dispatch({ type: 'error', message: response.error });
@@ -876,10 +898,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       agentMode,
       dispatch,
       hostClient,
+      selectedModelRef,
       setEditingMessageId,
+      state.activeScope.kind,
       state.activeSessionId,
+      state.projectPath,
       state.projectTrusted,
       state.streaming,
+      thinkingLevel,
     ],
   );
 
@@ -893,7 +919,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (!text && message.attachments.length === 0) {
         return;
       }
-      if (!state.projectTrusted) {
+      const isGeneral = state.activeScope.kind === 'general' || !state.projectPath;
+      if (!isGeneral && !state.projectTrusted) {
         dispatch({ type: 'project/trust-dialog', open: true });
         return;
       }
@@ -918,11 +945,25 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         text,
         attachments: message.attachments,
       });
-      const input: { text: string; attachments?: PromptAttachment[] } = {
+      const input: {
+        text: string;
+        attachments?: PromptAttachment[];
+        model?: import('@piwin/contracts').ModelRef;
+        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+        agentMode?: import('@piwin/contracts').AgentModeId;
+      } = {
         text: promptText,
+        agentMode: agentMode,
       };
       if (message.attachments.length > 0) {
         input.attachments = message.attachments;
+      }
+      const retryModel = selectedModelRef();
+      if (retryModel) {
+        input.model = retryModel;
+      }
+      if (thinkingLevel) {
+        input.thinkingLevel = thinkingLevel;
       }
       const response = await hostClient.request({
         type: 'session/prompt',
@@ -946,10 +987,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       agentMode,
       dispatch,
       hostClient,
+      selectedModelRef,
+      state.activeScope.kind,
       state.activeSessionId,
       state.messages,
+      state.projectPath,
       state.projectTrusted,
       state.streaming,
+      thinkingLevel,
     ],
   );
 

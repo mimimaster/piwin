@@ -98,6 +98,7 @@ function createContextValue(
     onPetActiveChanged: vi.fn(),
     discoverProviderModels: vi.fn(),
     testProviderModel: vi.fn(),
+    searchModelCatalog: vi.fn(async () => ({ entries: [], catalogVersion: 'test' })),
     storeProviderSecret: vi.fn(),
     loadProviderSecret: vi.fn(),
   };
@@ -112,13 +113,15 @@ function renderSettings(
   const root = createRoot(container);
   act(() => {
     root.render(
-      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-        <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
-          <SettingsProvider value={createContextValue(config, saveConfig)}>
-            <ImageGenerationSettings />
-          </SettingsProvider>
-        </DesktopLocaleProvider>
-      </PiwinUiProvider> as ReactElement,
+      (
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+            <SettingsProvider value={createContextValue(config, saveConfig)}>
+              <ImageGenerationSettings />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>
+      ) as ReactElement,
     );
   });
   return { container, root };
@@ -149,7 +152,10 @@ describe('ImageGenerationSettings', () => {
 
   it('renders the provider dropdown, image model row, and request path', async () => {
     const config = makeConfig();
-    ({ root, container } = renderSettings(config, vi.fn(async () => true)));
+    ({ root, container } = renderSettings(
+      config,
+      vi.fn(async () => true),
+    ));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
@@ -168,8 +174,8 @@ describe('ImageGenerationSettings', () => {
     expect(container!.querySelector('[data-testid="image-gen-baseurl"]')?.textContent).toContain(
       'https://open.bigmodel.cn',
     );
-    const keyStatus = container!.querySelector('[data-testid="image-gen-apikey-status"]')
-      ?.textContent ?? '';
+    const keyStatus =
+      container!.querySelector('[data-testid="image-gen-apikey-status"]')?.textContent ?? '';
     expect(keyStatus).toContain('••••••••');
   });
 
@@ -191,7 +197,9 @@ describe('ImageGenerationSettings', () => {
       row?.click();
     });
 
-    const pathInput = container!.querySelector<HTMLInputElement>('[data-testid="image-model-path"]');
+    const pathInput = container!.querySelector<HTMLInputElement>(
+      '[data-testid="image-model-path"]',
+    );
     expect(pathInput).not.toBeNull();
     expect(pathInput?.value).toBe('/images/generations');
 

@@ -92,7 +92,7 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
         </div>
       </Dialog>
 
-      {props.trustDialogOpen ? (
+      {props.trustDialogOpen && props.projectPath ? (
         <Dialog
           label="Trust this project?"
           open

@@ -142,7 +142,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const previewMax = density === 'compact' ? 48 : density === 'detailed' ? 160 : 96;
   const displayName = tool.presentation?.title ?? tool.toolName;
   const kind = tool.presentation?.kind ?? 'unknown';
-  const changedPaths = tool.presentation?.changedPaths ?? [];
+  // Prefer host changedPaths; fall back to write-like targetPaths so DiffCard
+  // still works for older transcripts that only stored targetPaths.
+  const changedPaths =
+    tool.presentation?.changedPaths && tool.presentation.changedPaths.length > 0
+      ? tool.presentation.changedPaths
+      : tool.status !== 'error' &&
+          (tool.presentation?.actionVerb === 'Edited' ||
+            /write|edit|replace|patch/i.test(tool.toolName))
+        ? (tool.presentation?.targetPaths ?? [])
+        : [];
   const hasChangedPaths = changedPaths.length > 0;
   const canRenderDiffCard = hasChangedPaths && Boolean(props.projectPath) && Boolean(props.request);
   const summary =

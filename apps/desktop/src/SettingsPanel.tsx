@@ -8,7 +8,6 @@ import type {
   ModelDiscoveryResult,
   ModelProviderConfig,
   PiwinConfig,
-  HostResponse,
   HostStatusData,
 } from '@piwin/contracts';
 import { createDefaultWebConfig } from '@piwin/contracts';
@@ -25,33 +24,10 @@ import type { DesktopPreferences } from './ui-preferences';
 import { type SettingsSectionId } from './settings/section-registry';
 import { webToDraft, draftToWeb, type DraftWeb } from './settings/web-draft';
 import { SettingsShell } from './settings/settings-shell';
-import type { SettingsContextValue } from './settings/settings-context';
+import type { SettingsConfigRequest, SettingsContextValue } from './settings/settings-context';
 
 type SettingsPanelProps = {
-  request: (command: {
-    type:
-      | 'config/get'
-      | 'config/set'
-      | 'models/discover'
-      | 'models/test'
-      | 'secrets/set'
-      | 'secrets/get'
-      | 'project/permissions-list'
-      | 'project/permissions-revoke'
-      | 'usage/get-rollup';
-    config?: PiwinConfig;
-    provider?: ModelProviderConfig;
-    apiKey?: string;
-    modelId?: string;
-    providerId?: string;
-    secret?: string;
-    path?: string;
-    key?: string;
-    scope?: import('@piwin/contracts').SessionScope;
-    projectPath?: string;
-    window?: { from?: string; to?: string };
-    topSessions?: number;
-  }) => Promise<HostResponse>;
+  request: SettingsConfigRequest;
   onSaved?: (config: PiwinConfig) => void;
   preferences: DesktopPreferences;
   onPreferencesChange: (prefs: DesktopPreferences) => void;
@@ -201,6 +177,22 @@ export function SettingsPanel({
     [request],
   );
 
+  const searchModelCatalog = useCallback(
+    async (
+      input?: import('@piwin/contracts').ModelCatalogSearchRequest,
+    ): Promise<import('@piwin/contracts').ModelCatalogSearchResult> => {
+      const response = await request({
+        type: 'models/catalog/search',
+        ...(input ? { input } : {}),
+      });
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      return response.data as import('@piwin/contracts').ModelCatalogSearchResult;
+    },
+    [request],
+  );
+
   const storeProviderSecret = useCallback(
     async (providerId: string, secret: string): Promise<string> => {
       const response = await request({ type: 'secrets/set', providerId, secret });
@@ -276,6 +268,7 @@ export function SettingsPanel({
       onPetActiveChanged,
       discoverProviderModels,
       testProviderModel,
+      searchModelCatalog,
       storeProviderSecret,
       loadProviderSecret,
     }),
@@ -307,6 +300,7 @@ export function SettingsPanel({
       onPetActiveChanged,
       discoverProviderModels,
       testProviderModel,
+      searchModelCatalog,
       storeProviderSecret,
       loadProviderSecret,
     ],

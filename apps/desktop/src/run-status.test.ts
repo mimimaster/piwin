@@ -76,6 +76,21 @@ describe('deriveRunStatus', () => {
     expect(status.elapsedMs).toBeGreaterThanOrEqual(2_000);
   });
 
+  it('surfaces preparing detail for vision description', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      activeRunId: 'run-1',
+      activeRunPhase: 'preparing' as const,
+      activeRunPhaseDetail: 'Describing image…',
+      runPhase: 'streaming' as const,
+      streaming: true,
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    expect(status.kind).toBe('preparing');
+    expect(status.label).toBe('Describing');
+    expect(status.summary).toBe('Describing image…');
+  });
+
   it('includes planStep when planning', () => {
     const chat = {
       ...createInitialChatUiState(),

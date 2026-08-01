@@ -6,7 +6,7 @@
  * Markup intentionally mirrors the previous SettingsPanel layout (same CSS
  * classes and data-testids) — R3 owns any CSS restructuring.
  */
-import type { ReactElement, ReactNode } from 'react';
+import { useState, type ReactElement, type ReactNode } from 'react';
 import { IconButton } from '@piwin/ui-kit';
 import { IconClose } from '../shell-icons';
 import { getDesktopCopy } from '../desktop-locale';
@@ -260,6 +260,7 @@ export type SettingsShellProps = {
 
 export function SettingsShell(props: SettingsShellProps): ReactElement {
   const { activeSection, onSelectSection, contextValue, onClose } = props;
+  const [searchQuery, setSearchQuery] = useState('');
   const { locale, translator } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const copy = getDesktopCopy(locale);
@@ -268,6 +269,8 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
     (section) => section.id === activeSection,
   );
   const PageComponent = getSettingsSection(activeSection);
+
+  const query = searchQuery.trim().toLowerCase();
 
   return (
     <div
@@ -311,40 +314,50 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
             <input
               type="text"
               className="settings-search-input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={isChinese ? '搜索设置...' : 'Search Settings...'}
-              disabled
             />
           </div>
           <nav className="settings-nav-list" aria-label={copy.settings}>
-            {SETTINGS_GROUPS.map((group) => (
-              <div key={group.id} className="settings-nav-group">
-                <div className="settings-nav-group-label">
-                  {translator.settings[group.labelKey]}
-                </div>
-                {sectionsForGroup(group.id).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={
-                      activeSection === item.id ? 'settings-nav-item active' : 'settings-nav-item'
-                    }
-                    onClick={() => onSelectSection(item.id)}
-                    aria-current={activeSection === item.id ? 'page' : undefined}
-                    data-testid={`settings-nav-${item.id}`}
-                  >
-                    <span className="settings-nav-icon">{SECTION_ICONS[item.id]}</span>
-                    <span className="settings-nav-label">
-                      {translator.settings.nav[item.labelKey]}
-                    </span>
-                    {item.beta ? (
-                      <span className="settings-beta-badge" aria-label={copy.betaFeature}>
-                        Beta
+            {SETTINGS_GROUPS.map((group) => {
+              const groupSections = sectionsForGroup(group.id).filter((item) => {
+                if (!query) return true;
+                const label = translator.settings.nav[item.labelKey]?.toLowerCase() ?? '';
+                const groupLabel = translator.settings[group.labelKey]?.toLowerCase() ?? '';
+                return label.includes(query) || groupLabel.includes(query) || item.id.includes(query);
+              });
+              if (groupSections.length === 0) return null;
+              return (
+                <div key={group.id} className="settings-nav-group">
+                  <div className="settings-nav-group-label">
+                    {translator.settings[group.labelKey]}
+                  </div>
+                  {groupSections.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={
+                        activeSection === item.id ? 'settings-nav-item active' : 'settings-nav-item'
+                      }
+                      onClick={() => onSelectSection(item.id)}
+                      aria-current={activeSection === item.id ? 'page' : undefined}
+                      data-testid={`settings-nav-${item.id}`}
+                    >
+                      <span className="settings-nav-icon">{SECTION_ICONS[item.id]}</span>
+                      <span className="settings-nav-label">
+                        {translator.settings.nav[item.labelKey]}
                       </span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            ))}
+                      {item.beta ? (
+                        <span className="settings-beta-badge" aria-label={copy.betaFeature}>
+                          Beta
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              );
+            })}
           </nav>
           <div className="settings-nav-footer">
             <span className="settings-connection-dot" aria-hidden />

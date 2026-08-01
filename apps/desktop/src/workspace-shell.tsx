@@ -7,7 +7,7 @@
  * Band structure (top to bottom):
  *   1. Titleband (40px)   — WorkspaceTitlebar, rendered outside this component
  *   2. Context bar (42px) — contextBar slot
- *   3. Stage content      — transcript + composerDock in chat-column
+ *   3. Stage content      — transcript + permissionBar + composerDock in chat-column
  *   4. Status bar (26px)  — statusBar slot
  *   5. Knowledge overlay  — optional full-stage panel (e.g. Knowledge Center)
  *
@@ -22,6 +22,8 @@ export type WorkspaceShellProps = {
   sidebar: ReactNode;
   contextBar: ReactNode;
   transcript: ReactNode;
+  /** Docked permission bar (ADR 0024) — sits between transcript and composer. */
+  permissionBar?: ReactNode | undefined;
   composerDock: ReactNode;
   statusBar: ReactNode;
   rightPanel: ReactNode;
@@ -37,10 +39,15 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
   return (
     <>
       {props.sidebar}
-      <div className={`workspace${props.workspaceClassName !== undefined ? ` ${props.workspaceClassName}` : ''}`}>
-        <section className={`chat-column${props.chatColumnClassName !== undefined ? ` ${props.chatColumnClassName}` : ''}`}>
+      <div
+        className={`workspace${props.workspaceClassName !== undefined ? ` ${props.workspaceClassName}` : ''}`}
+      >
+        <section
+          className={`chat-column${props.chatColumnClassName !== undefined ? ` ${props.chatColumnClassName}` : ''}`}
+        >
           {props.contextBar}
           {props.transcript}
+          {props.permissionBar !== undefined ? props.permissionBar : null}
           {props.composerDock}
           {props.statusBar}
         </section>
@@ -50,4 +57,3 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
     </>
   );
 }
-

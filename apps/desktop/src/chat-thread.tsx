@@ -396,13 +396,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.locale ? { locale: props.locale } : {})}
         />
       ) : null}
-      {props.permissionPrompt && props.onPermission ? (
-        <GateCard
-          prompt={props.permissionPrompt}
-          projectPath={props.projectPath ?? null}
-          onPermission={props.onPermission}
-        />
-      ) : null}
     </div>
   );
 }
@@ -426,6 +419,8 @@ type ChatMessageRowProps = {
   projectPath?: string | null;
   /** Host git request adapter forwarded to tool cards → DiffCard. */
   toolDiffRequest?: DiffCardRequest;
+  filesChangedRequest?: FilesChangedBarRequest;
+  onReviewChanges?: () => void;
   onEdit: (messageId: string) => void;
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
@@ -451,6 +446,8 @@ type ChatMessageRowProps = {
   walkthroughsByMessageId?: Record<string, WalkthroughArtifact>;
   /** Whether the Generate Walkthrough action is enabled. */
   walkthroughEnabled?: boolean;
+  /** Whether auto-generation is active (hides the manual Generate button). */
+  walkthroughAutoGenerate?: boolean;
   /** Pre-computed eligibility for the Generate button (computed by parent). */
   walkthroughEligible?: boolean;
   /** Generate a walkthrough for a message; force overwrites an existing artifact. */
@@ -542,7 +539,7 @@ function UserMessageContent(props: {
         <div
           ref={textRef}
           className="message-text"
-          style={collapsed ? { maxHeight: `${USER_MESSAGE_COLLAPSE_THRESHOLD}px` } : undefined}
+          style={collapsed ? { height: `${USER_MESSAGE_COLLAPSE_THRESHOLD}px` } : undefined}
         >
           {message.text}
         </div>

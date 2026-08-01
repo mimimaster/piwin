@@ -307,15 +307,24 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
   const [remoteSearchHits, setRemoteSearchHits] = useState<SessionSearchHit[] | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  // Pending edit-and-resend from a non-last user message. When set, the revert
-  // confirmation dialog is open; confirming executes the truncate + resend.
   const [pendingRevertEdit, setPendingRevertEdit] = useState<{
     messageId: string;
     text: string;
+    isEdit?: boolean;
   } | null>(null);
+  const [dontAskAgainChecked, setDontAskAgainChecked] = useState(false);
   const [preferences, setPreferences] = useState<DesktopPreferences>(() =>
     loadDesktopPreferences(),
   );
+
+  // Terminal working directory state.
+  // Initialized from saved preference, then falls back to project path or home.
+  const [terminalCwd, setTerminalCwd] = useState<string>(() => {
+    return preferences.terminalLastCwd || state.projectPath || '';
+  });
+  const [terminalRecentDirs, setTerminalRecentDirs] = useState<string[]>(() => {
+    return preferences.terminalRecentDirs || [];
+  });
 
   // Map DesktopPreferences to CSS custom properties on the app-shell element.
   const preferencesStyle = useMemo(() => {
@@ -1116,6 +1125,30 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       case 'open-workspace':
         void handleOpenWorkspaceClick();
         break;
+      case 'toggle-sidebar':
+        shell.toggleSessions();
+        break;
+      case 'toggle-right-panel':
+        shell.toggleInspector(null);
+        break;
+      case 'stop-run':
+        void handleAbort();
+        break;
+      case 'switch-tab-1':
+        openRightTab('files');
+        break;
+      case 'switch-tab-2':
+        openRightTab('terminal');
+        break;
+      case 'switch-tab-3':
+        openRightTab('review');
+        break;
+      case 'switch-tab-4':
+        openRightTab('browser');
+        break;
+      case 'switch-tab-5':
+        openRightTab('docPreview');
+        break;
       default:
         break;
     }
@@ -1350,39 +1383,25 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, []);
   const handleEditAndResendMessage = useCallback(
     (messageId: string, text: string): void => {
-      // Editing the last user message sends immediately — no history is lost.
-      // Editing an earlier message opens the revert confirmation dialog first,
-      // because truncate-from will discard everything after that message.
-      if (messageId === lastUserMessageId) {
+      if (preferences.dontAskRevertConfirm && messageId === lastUserMessageId) {
         void handleEditAndResend(messageId, text);
         return;
       }
-      setPendingRevertEdit({ messageId, text });
+      setPendingRevertEdit({ messageId, text, isEdit: true });
     },
-    [handleEditAndResend, lastUserMessageId],
+    [handleEditAndResend, lastUserMessageId, preferences.dontAskRevertConfirm],
   );
-  // Revert = truncate session at the edited message and resend the new text.
-  const handleConfirmRevertEdit = useCallback((): void => {
-    if (!pendingRevertEdit) return;
-    const { messageId, text } = pendingRevertEdit;
-    setPendingRevertEdit(null);
-    void handleEditAndResend(messageId, text);
-  }, [handleEditAndResend, pendingRevertEdit]);
-  // Don't revert = exit edit mode without sending (no truncate, no resend).
-  const handleDeclineRevertEdit = useCallback((): void => {
-    setPendingRevertEdit(null);
-    setEditingMessageId(null);
-  }, []);
   const handleRetryMessage = useCallback(
     (messageId: string): void => {
       const msg = state.messages.find((m) => m.id === messageId);
-      if (messageId === lastUserMessageId || !msg) {
+      if (!msg) return;
+      if (preferences.dontAskRevertConfirm) {
         void handleRetryFromMessage(messageId);
         return;
       }
-      setPendingRevertEdit({ messageId, text: msg.text });
+      setPendingRevertEdit({ messageId, text: msg.text, isEdit: false });
     },
-    [handleRetryFromMessage, lastUserMessageId, state.messages],
+    [handleRetryFromMessage, preferences.dontAskRevertConfirm, state.messages],
   );
   const handleMessageFeedback = useCallback(
     (message: string, level: 'success' | 'error'): void => {
@@ -1999,42 +2018,71 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           }}
         />
 
-        {/* Revert confirmation when editing/resending a non-last user message.
-            Three actions: Cancel (stay in edit), Don't revert (exit edit, no
-            resend), Revert (truncate session at the message and resend). */}
-        <Dialog
-          label="Submit from a previous message?"
-          open={Boolean(pendingRevertEdit)}
-          onOpenChange={(open) => {
-            if (!open) {
-              // Esc / backdrop: just close the dialog, keep edit mode intact
-              // so the user can reconsider without losing their draft.
-              setPendingRevertEdit(null);
-            }
-          }}
-          testId="revert-edit-confirm"
-        >
-          <h3>Submit from a previous message?</h3>
-          <div className="ui-confirm-description muted">
-            Submitting from a previous message will revert file changes to before this message and
-            clear the messages after this one.
-          </div>
-          <div className="modal-actions">
-            <Button data-testid="revert-edit-cancel" onClick={() => setPendingRevertEdit(null)}>
-              Cancel
-            </Button>
-            <Button data-testid="revert-edit-decline" onClick={handleDeclineRevertEdit}>
-              Don&apos;t revert
-            </Button>
-            <Button
-              variant="danger"
-              data-testid="revert-edit-confirm"
-              onClick={handleConfirmRevertEdit}
-            >
-              Revert
-            </Button>
-          </div>
-        </Dialog>
+        {/* Revert checkpoint confirmation dialog matching exact design specifications */}
+        {pendingRevertEdit ? (
+          <Dialog
+            label="Discard all changes up to this checkpoint?"
+            open
+            onOpenChange={(open) => {
+              if (!open) {
+                setPendingRevertEdit(null);
+                setDontAskAgainChecked(false);
+              }
+            }}
+            testId="revert-edit-confirm"
+          >
+            <div className="revert-modal-content">
+              <h3 className="revert-modal-title">Discard all changes up to this checkpoint?</h3>
+              <p className="revert-modal-subtitle muted">You can always undo this later.</p>
+              <div className="revert-modal-footer">
+                <label className="revert-dont-ask">
+                  <input
+                    type="checkbox"
+                    checked={dontAskAgainChecked}
+                    onChange={(e) => setDontAskAgainChecked(e.target.checked)}
+                    data-testid="revert-dont-ask-checkbox"
+                  />
+                  <span>Don't Ask Again</span>
+                </label>
+                <div className="modal-actions">
+                  <Button
+                    data-testid="revert-edit-cancel"
+                    onClick={() => {
+                      setPendingRevertEdit(null);
+                      setDontAskAgainChecked(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    className="revert-continue-btn"
+                    data-testid="revert-edit-confirm"
+                    onClick={() => {
+                      if (dontAskAgainChecked) {
+                        const nextPrefs = { ...preferences, dontAskRevertConfirm: true };
+                        setPreferences(nextPrefs);
+                        saveDesktopPreferences(nextPrefs);
+                      }
+                      const target = pendingRevertEdit;
+                      setPendingRevertEdit(null);
+                      setDontAskAgainChecked(false);
+                      if (target) {
+                        if (target.isEdit) {
+                          void handleEditAndResend(target.messageId, target.text);
+                        } else {
+                          void handleRetryFromMessage(target.messageId);
+                        }
+                      }
+                    }}
+                  >
+                    Continue <span className="enter-symbol">↵</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Dialog>
+        ) : null}
 
         {settingsOpen ? (
           <SettingsPanel
