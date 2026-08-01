@@ -1,81 +1,96 @@
-# Task 2 Report: Parse SVG fences and classify SVG external resources
+# Task 2 Report — Agent Host: path functions and walkthrough store
 
-## What was implemented
+## What I implemented
 
-- `packages/artifact/src/parser.ts:5-24, 115-201`
-  - Imported `NATIVE_SVG_ARTIFACT_LANGUAGES` and `ArtifactDescriptor`.
-  - Added `NATIVE_SVG_SET`, the required `SVG_SOURCE_PATTERN`, `isNativeSvgLanguage`, and `isSvgSource`.
-  - Renamed the implementation to exported `tryParseArtifactFence`, returning `ArtifactDescriptor | null`.
-  - Added the SVG branch before native HTML parsing. It requires Artifact/UI mode and a valid SVG-root source, preserves raw source, and uses the parsed title or `SVG`.
-  - Kept `tryParseHtmlArtifactFence` as an exported compatibility wrapper delegating to `tryParseArtifactFence`.
+### 1. `packages/agent-host/src/paths.ts`
+- Added `assertSafePathSegment(id, label)` helper: rejects empty, `.`, `..`, `/`, `\`, and NUL bytes. Throws on violation so traversal payloads can never be silently persisted.
+- Added `encodeMessageIdForFilename(messageId)` helper: base64url-encodes the messageId into a filesystem-safe, collision-free filename component (no `/`, `+`, `=`). Decoding is not required — we only need a unique messageId → filename mapping.
+- `getPiwinSessionWalkthroughDir(rootDir, sessionId): string` — returns `<root>/sessions/<sessionId>/walkthroughs/`, validating `sessionId`.
+- `getPiwinSessionWalkthroughPath(rootDir, sessionId, messageId): string` — returns the encoded JSON path, validating both `sessionId` and `messageId`.
+- Validation is scoped to the new walkthrough functions only; the existing `getPiwinSessionDir` is left unchanged so no existing callers are affected.
 
-- `packages/artifact/src/security.ts:21-28`
-  - Added the required `<image>`/`<use>` external `href`, `xlink:href`, and `src` pattern with existing resource kind `image`.
+### 2. `packages/agent-host/src/walkthrough-store.ts`
+- `listWalkthroughs(rootDir, sessionId): Promise<WalkthroughArtifact[]>` — loads the transcript to get valid message IDs; if the transcript is missing or unreadable, returns `[]`. Reads the walkthroughs dir, parses each `.json`, keeps only `version === 1` artifacts whose `messageId` still exists in the transcript (skips orphans). Unparseable / non-artifact files are skipped.
+- `loadWalkthrough(rootDir, sessionId, messageId): Promise<WalkthroughArtifact | null>` — reads a single artifact file, returns `null` if missing or invalid.
+- `saveWalkthrough(rootDir, sessionId, artifact): Promise<void>` — `mkdir { recursive: true }` then atomic write (write to `<path>.tmp` then `rename`). Only artifact metadata + markdown are written; the store has no raw-evidence fields.
+- `deleteWalkthrough(rootDir, sessionId, messageId): Promise<void>` — removes a single artifact file; no-op if missing.
+- `deleteSessionWalkthroughs(rootDir, sessionId): Promise<void>` — removes the entire walkthroughs directory recursively; no-op if missing (called on session permanent delete).
 
-- `packages/artifact/src/streaming.ts:5-16, 25-29, 46-52, 101-106`
-  - Added `NATIVE_SVG_SET`, `SVG_LIKE_SOURCE_PATTERN`, `isNativeSvgLanguage`, and SVG recognition only to `findOpenArtifactFence`.
-  - Left the ambiguous-fence normalizer unchanged, so standard SVG fences retain `svg` and remain source-only during streaming.
+### 3. `packages/agent-host/src/index.ts`
+- Exported `getPiwinSessionWalkthroughDir`, `getPiwinSessionWalkthroughPath` from `./paths.js`.
+- Exported `listWalkthroughs`, `loadWalkthrough`, `saveWalkthrough`, `deleteWalkthrough`, `deleteSessionWalkthroughs` from `./walkthrough-store.js`.
 
-- Tests appended as specified:
-  - `packages/artifact/src/parser.test.ts:45-81`
-  - `packages/artifact/src/security.test.ts:88-97`
-  - `packages/artifact/src/streaming.test.ts:24-28`
+## What I tested and results
+
+`packages/agent-host/src/walkthrough-store.test.ts` (13 tests, all passing):
+1. saveWalkthrough creates dir and JSON file
+2. round-trips an artifact via save then load
+3. loadWalkthrough returns null when file does not exist
+4. messageId cannot escape session dir (path traversal rejected) — covers `..`, `/`, NUL for both sessionId and messageId
+5. listWalkthroughs returns only valid-version artifacts (a `version: 99` file is ignored)
+6. listWalkthroughs returns empty when transcript not found
+7. listWalkthroughs skips orphan artifacts (message no longer in transcript)
+8. raw evidence is not present in saved file (asserts no `rawEvidence`/`toolOutput` keys, only `markdown`)
+9. deleteWalkthrough removes the artifact file
+10. deleteWalkthrough is a no-op when file missing
+11. deleteSessionWalkthroughs removes the walkthroughs directory
+12. deleteSessionWalkthroughs is a no-op when dir missing
+13. saveWalkthrough overwrites existing artifact for same messageId
+
+Tests use `mkdtemp` + `tmpdir()` per the existing `config-store.test.ts` pattern.
 
 ## TDD evidence
 
-### RED
+Implemented tests alongside the store (tests written immediately after the implementation file, then run RED→fixed narrowing issues→GREEN). Final state: 13/13 green.
 
-Command:
+## Verification
 
-```bash
-pnpm --filter @piwin/artifact test -- src/parser.test.ts src/security.test.ts src/streaming.test.ts
-```
-
-Result: expected failure. The focused run reported 3 failed new tests and 27 passed tests: SVG parser promotion, external SVG image/use classification, and open SVG fence detection each failed; all pre-existing cases passed.
-
-### GREEN
-
-Command:
-
-```bash
-pnpm --filter @piwin/artifact test -- src/parser.test.ts src/security.test.ts src/streaming.test.ts
-```
-
-Result: pass — 3 test files, 30 tests passed.
-
-Full package verification command:
-
-```bash
-pnpm --filter @piwin/artifact test
-```
-
-Result: pass — 11 test files, 69 tests passed.
-
-Additional checks:
-
-```bash
-git diff --check
-```
-
-Result: pass with no whitespace errors.
+- `pnpm --filter @piwin/agent-host typecheck` → pass (exit 0)
+- `pnpm --filter @piwin/agent-host test` → 57 files / 401 tests pass (exit 0), including the new `walkthrough-store.test.ts` (13 tests) and existing `paths.test.ts`.
 
 ## Files changed
-
-- `packages/artifact/src/parser.ts`
-- `packages/artifact/src/parser.test.ts`
-- `packages/artifact/src/security.ts`
-- `packages/artifact/src/security.test.ts`
-- `packages/artifact/src/streaming.ts`
-- `packages/artifact/src/streaming.test.ts`
+- `packages/agent-host/src/paths.ts` (modified — added 2 functions + 2 helpers)
+- `packages/agent-host/src/walkthrough-store.ts` (new)
+- `packages/agent-host/src/walkthrough-store.test.ts` (new)
+- `packages/agent-host/src/index.ts` (modified — added exports)
 
 ## Self-review findings
-
-- The required SVG root pattern is copied verbatim and accepts an optional XML declaration, a root `<svg>`, and either a closing `</svg>` or self-closing `/>` form.
-- The SVG parser branch is before native HTML parsing and returns `null` for disabled mode or non-SVG source, preserving ordinary-code behavior.
-- The security expression is the required exact pattern and reports both SVG references as `image` resources.
-- SVG was not added to the ambiguous-fence normalizer; only open-fence discovery was extended.
-- `git diff --check` is clean and the full artifact test suite is green.
+- Path traversal protection is scoped to the new walkthrough path functions only, leaving the shared `getPiwinSessionDir` behavior unchanged (no risk to existing callers).
+- Atomic write uses temp-file + `rename` on the same filesystem (same directory), which is atomic on POSIX/NTFS.
+- `listWalkthroughs` loads the transcript to derive valid message IDs; a missing/unparseable transcript yields `[]` (matches spec §7.2 "transcript truncate 后，指向已不存在消息的 Artifact 不再返回"). Orphan files are skipped, not deleted, in this task; spec notes Host may clean orphans on next write — that cleanup is deferred to the generation task.
+- The store never persists raw evidence: `WalkthroughArtifact` carries only `markdown` and metadata; no `rawEvidence`/`toolOutput` fields exist on the type.
+- `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes` satisfied (typed the ready-artifact helper as `Extract<WalkthroughArtifact, { status: 'ready' }>`).
 
 ## Concerns
+- None blocking. Orphan file cleanup-on-write is intentionally deferred to the generation task per spec wording.
 
-`pnpm --filter @piwin/artifact typecheck` currently fails at the pre-existing Task 1/Task 3 boundary in `packages/artifact/src/evaluate.ts:78`: `tryParseHtmlArtifactFence` now correctly returns `ArtifactDescriptor`, while `evaluateHtmlArtifactDescriptor` still accepts only `HtmlArtifactDescriptor`. The implementation plan assigns the generic evaluator/signature update to Task 3, and Task 2 explicitly says not to change evaluator/UI code, so evaluator code was intentionally left untouched. Task 3 should resolve this before workspace typecheck.
+---
+
+## Fix report: sound type guard + variant test coverage (review findings 1 & 2)
+
+### Finding 1 — `isWalkthroughArtifact` type guard made sound
+File: `packages/agent-host/src/walkthrough-store.ts`
+
+The guard now branches on `status` and validates variant-specific required fields:
+- base fields: `version === 1`, `id`, `sessionId`, `messageId`, `mode`, `sourceHash`, `createdAt`, `updatedAt` (all strings). `model` on base stays optional.
+- `generating`: requires `generationId` (string)
+- `ready`: requires `markdown` (string), `generatedAt` (string), `model` (validated as a `ModelRef` via a new `isModelRef` helper — `protocol`, `providerId`, `modelId` must be non-empty strings)
+- `error`: requires `error` (validated via a new `isWalkthroughError` helper — `code` and `message` strings) and `generatedAt` (string)
+
+A corrupted disk file with `status: 'ready'` but no `markdown`/`model` now fails the guard and is treated as `null`/skipped instead of causing runtime undefined access.
+
+### Finding 2 — generating/error variant test coverage
+File: `packages/agent-host/src/walkthrough-store.test.ts`
+
+Added `makeGeneratingArtifact` and `makeErrorArtifact` helpers (mirroring `makeReadyArtifact`) and three new tests:
+- round-trip `generating` artifact (save → load → verify `generationId` + `status`)
+- round-trip `error` artifact (save → load → verify `error.code`, `error.message`, `status`)
+- `listWalkthroughs` includes both `generating` and `error` artifacts when their `messageId` is present in the transcript
+- bonus regression test: `loadWalkthrough` returns `null` for a `ready`-shaped file missing `markdown`/`model`/`generatedAt` (directly exercises the sound guard)
+
+### Verification
+- `pnpm --filter @piwin/agent-host typecheck` → pass (exit 0)
+- `pnpm --filter @piwin/agent-host test` → 57 files / 405 tests pass (exit 0), `walkthrough-store.test.ts` now 17 tests (was 13).
+
+### Concerns
+- None. The `isModelRef`/`isWalkthroughError` helpers are local to the store module; no public API change.

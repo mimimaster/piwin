@@ -985,4 +985,238 @@ describe('chatUiReducer', () => {
       expect(state.subagentStreams['child-2']).toBeDefined();
     });
   });
+
+  describe('walkthrough artifacts', () => {
+    function readyArtifact(messageId: string): import('@piwin/contracts').WalkthroughArtifact {
+      return {
+        version: 1,
+        id: `wt-${messageId}`,
+        sessionId: 's1',
+        messageId,
+        mode: 'default',
+        model: { protocol: 'openai-compatible', providerId: 'mock', modelId: 'mock-wt' },
+        sourceHash: 'hash',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        status: 'ready',
+        markdown: '# Walkthrough',
+        generatedAt: '2026-01-01T00:00:00.000Z',
+      };
+    }
+
+    it('walkthrough/hydrate replaces the map keyed by messageId', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/hydrate',
+        artifacts: [readyArtifact('a1'), readyArtifact('a2')],
+      });
+      expect(Object.keys(state.walkthroughsByMessageId)).toHaveLength(2);
+      expect(state.walkthroughsByMessageId['a1']?.status).toBe('ready');
+      expect(state.walkthroughsByMessageId['a2']?.status).toBe('ready');
+    });
+
+    it('walkthrough/updated upserts an artifact by messageId', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/updated',
+        artifact: {
+          version: 1,
+          id: 'wt-a1',
+          sessionId: 's1',
+          messageId: 'a1',
+          mode: 'default',
+          sourceHash: 'hash',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          status: 'generating',
+          generationId: 'gen-1',
+        },
+      });
+      expect(state.walkthroughsByMessageId['a1']?.status).toBe('generating');
+      // Upsert to ready.
+      state = chatUiReducer(state, {
+        type: 'walkthrough/updated',
+        artifact: readyArtifact('a1'),
+      });
+      expect(state.walkthroughsByMessageId['a1']?.status).toBe('ready');
+    });
+
+    function generatingArtifact(
+      messageId: string,
+      generationId: string,
+    ): import('@piwin/contracts').WalkthroughArtifact {
+      return {
+        version: 1,
+        id: `wt-${messageId}`,
+        sessionId: 's1',
+        messageId,
+        mode: 'default',
+        sourceHash: 'hash',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        status: 'generating',
+        generationId,
+      };
+    }
+
+    it('walkthrough/updated accepts a generating push against a terminal (ready) artifact (force regeneration)', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, { type: 'walkthrough/updated', artifact: readyArtifact('a1') });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/updated',
+        artifact: generatingArtifact('a1', 'gen-2'),
+      });
+      // A fresh generating push (new generationId) on a ready artifact is a
+      // regeneration request and must be accepted so the UI shows "Generating...".
+      expect(state.walkthroughsByMessageId['a1']?.status).toBe('generating');
+    });
+
+    it('walkthrough/updated accepts a generating push against a terminal (error) artifact (force regeneration)', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      const errorArtifact: import('@piwin/contracts').WalkthroughArtifact = {
+        version: 1,
+        id: 'wt-a1',
+        sessionId: 's1',
+        messageId: 'a1',
+        mode: 'default',
+        sourceHash: 'hash',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        status: 'error',
+        error: { code: 'empty-output', message: 'no output' },
+        generatedAt: '2026-01-01T00:00:00.000Z',
+      };
+      state = chatUiReducer(state, { type: 'walkthrough/updated', artifact: errorArtifact });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/updated',
+        artifact: generatingArtifact('a1', 'gen-2'),
+      });
+      expect(state.walkthroughsByMessageId['a1']?.status).toBe('generating');
+    });
+
+    it('walkthrough/updated drops a stale generating push from an older generation', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/updated',
+        artifact: generatingArtifact('a1', 'gen-1'),
+      });
+      // A late generating push with a different generationId is stale.
+      state = chatUiReducer(state, {
+        type: 'walkthrough/updated',
+        artifact: generatingArtifact('a1', 'gen-late'),
+      });
+      expect(state.walkthroughsByMessageId['a1']?.status).toBe('generating');
+      expect((state.walkthroughsByMessageId['a1'] as { generationId: string }).generationId).toBe(
+        'gen-1',
+      );
+    });
+
+    it('walkthrough/updated accepts a generating push with the same generationId (update)', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/updated',
+        artifact: generatingArtifact('a1', 'gen-1'),
+      });
+      const updated = {
+        ...generatingArtifact('a1', 'gen-1'),
+        updatedAt: '2026-01-02T00:00:00.000Z',
+      };
+      state = chatUiReducer(state, { type: 'walkthrough/updated', artifact: updated });
+      expect(state.walkthroughsByMessageId['a1']?.status).toBe('generating');
+      expect(state.walkthroughsByMessageId['a1']?.updatedAt).toBe('2026-01-02T00:00:00.000Z');
+    });
+
+    it('walkthrough/updated always accepts a terminal (ready) push over a generating artifact', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/updated',
+        artifact: generatingArtifact('a1', 'gen-1'),
+      });
+      state = chatUiReducer(state, { type: 'walkthrough/updated', artifact: readyArtifact('a1') });
+      expect(state.walkthroughsByMessageId['a1']?.status).toBe('ready');
+    });
+
+    it('walkthrough/updated ignores an artifact whose sessionId differs from the active session', () => {
+      // Cross-session leak guard: a walkthrough generation that completes for
+      // session B after the user switched to session A must not leak into A.
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'sA' });
+      const staleArtifact = {
+        ...readyArtifact('a1'),
+        sessionId: 'sB',
+      };
+      state = chatUiReducer(state, { type: 'walkthrough/updated', artifact: staleArtifact });
+      expect('a1' in state.walkthroughsByMessageId).toBe(false);
+    });
+
+    it('walkthrough/remove deletes an artifact by messageId', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/hydrate',
+        artifacts: [readyArtifact('a1')],
+      });
+      state = chatUiReducer(state, { type: 'walkthrough/remove', messageId: 'a1' });
+      expect('a1' in state.walkthroughsByMessageId).toBe(false);
+    });
+
+    it('session switch clears the walkthrough map', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/hydrate',
+        artifacts: [readyArtifact('a1')],
+      });
+      expect(Object.keys(state.walkthroughsByMessageId)).toHaveLength(1);
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+      expect(Object.keys(state.walkthroughsByMessageId)).toHaveLength(0);
+    });
+
+    it('session/load-messages does NOT clear the walkthrough map (hydrate race)', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/hydrate',
+        artifacts: [readyArtifact('a1')],
+      });
+      state = chatUiReducer(state, {
+        type: 'session/load-messages',
+        sessionId: 's1',
+        messages: [
+          {
+            id: 'u1',
+            role: 'user',
+            text: 'hi',
+            createdAt: '2026-01-01T00:00:00.000Z',
+            status: 'done',
+          },
+        ],
+      });
+      // load-messages must not wipe a freshly-hydrated walkthrough map; the
+      // map is cleared by session/set which fires before load-messages.
+      expect(Object.keys(state.walkthroughsByMessageId)).toHaveLength(1);
+      expect(state.walkthroughsByMessageId['a1']?.status).toBe('ready');
+    });
+
+    it('scope/set clears the walkthrough map', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+      state = chatUiReducer(state, {
+        type: 'walkthrough/hydrate',
+        artifacts: [readyArtifact('a1')],
+      });
+      state = chatUiReducer(state, {
+        type: 'scope/set',
+        scope: { kind: 'project', projectPath: '/tmp' },
+      });
+      expect(Object.keys(state.walkthroughsByMessageId)).toHaveLength(0);
+    });
+  });
 });

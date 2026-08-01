@@ -70,7 +70,16 @@ export {
   getPiwinSessionsDir,
   getPiwinSessionDir,
   getPiwinSessionTranscriptPath,
+  getPiwinSessionWalkthroughDir,
+  getPiwinSessionWalkthroughPath,
 } from './paths.js';
+export {
+  listWalkthroughs,
+  loadWalkthrough,
+  saveWalkthrough,
+  deleteWalkthrough,
+  deleteSessionWalkthroughs,
+} from './walkthrough-store.js';
 export { buildSessionTools, attachToolsToPiSession } from './session-tools.js';
 export type {
   SessionToolRegistration,
@@ -165,3 +174,38 @@ export {
   buildRunTerminalEvent,
 } from './active-run.js';
 export type { ActiveRun, ActiveRunRegistry } from './active-run.js';
+
+export {
+  assembleSystemPrompt,
+  assembleUserPrompt,
+  collectWalkthroughEvidence,
+  computeSourceHash,
+  computeSourceHashFromBounded,
+  EVIDENCE_DELIMITER_CLOSE,
+  EVIDENCE_DELIMITER_OPEN,
+  isMediaPathUnderMediaRoot,
+  isWalkthroughEligibleMessage,
+  redactAndBoundEvidence,
+  WALKTHROUGH_SYSTEM_PROMPT,
+} from './walkthrough-source.js';
+export type {
+  BoundedEvidence,
+  CollectWalkthroughEvidenceOptions,
+  WalkthroughEvidence,
+} from './walkthrough-source.js';
+
+export { completeWalkthrough, WalkthroughCompletionError } from './walkthrough-completion.js';
+export type {
+  WalkthroughCompletionDependencies,
+  WalkthroughCompletionRequest,
+  WalkthroughCompletionResult,
+} from './walkthrough-completion.js';
+
+export {
+  handleWalkthroughList,
+  handleWalkthroughGenerate,
+  handleWalkthroughCancel,
+  isWalkthroughCommand,
+  WalkthroughGenerationRegistry,
+} from './commands/walkthrough-commands.js';
+export type { WalkthroughCommandContext } from './commands/walkthrough-commands.js';

@@ -204,7 +204,9 @@
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border: 1px solid var(--border, var(--border-color, rgba(0, 0, 0, 0.12))) !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.18),
+    0 4px 12px rgba(0, 0, 0, 0.08) !important;
   z-index: 100;
   pointer-events: auto;
   animation: history-bubble-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -420,7 +422,11 @@
   font-weight: 750;
   letter-spacing: -0.035em;
   text-transform: none;
-  background: linear-gradient(135deg, var(--text) 30%, color-mix(in srgb, var(--accent) 70%, var(--text)) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--text) 30%,
+    color-mix(in srgb, var(--accent) 70%, var(--text)) 100%
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -471,7 +477,9 @@
   width: 15px;
   height: 15px;
   color: var(--accent);
-  transition: transform 0.2s ease, color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    color 0.2s ease;
 }
 
 .empty-state-cta-button:hover .empty-state-cta-icon {
@@ -765,6 +773,23 @@
 
 .bubble:hover .message-actions,
 .bubble:focus-within .message-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ─── Walkthrough action hover/focus reveal (spec §15.6 case 5) ─────── */
+/* The Generate Walkthrough button on eligible final assistant messages is
+   hidden by default and revealed on hover/focus of the message row, mirroring
+   the .message-actions pattern above. */
+
+.walkthrough-action-buttons {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.chat-message-row:hover .walkthrough-action-buttons,
+.chat-message-row:focus-within .walkthrough-action-buttons {
   opacity: 1;
   pointer-events: auto;
 }
@@ -1405,7 +1430,6 @@
   max-height: none !important;
 }
 
-
 .user-message-actions {
   display: inline-flex;
   align-items: center;
@@ -1441,7 +1465,9 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: color 0.12s ease, background-color 0.12s ease;
+  transition:
+    color 0.12s ease,
+    background-color 0.12s ease;
 }
 
 .user-msg-btn:hover:not(:disabled) {
@@ -2036,7 +2062,9 @@
   z-index: 20;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
   transform: translateY(-2px);
 }
 
