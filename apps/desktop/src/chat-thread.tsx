@@ -24,8 +24,8 @@ import { SubagentActivityCard } from './subagent-activity-card';
 import { TurnWorkDetails } from './turn-work-details';
 import { RunActivitySlot } from './RunActivitySlot.js';
 import { PlanCard } from './plan-card';
-import { GateCard } from './gate-card';
 import { WalkthroughAction, isWalkthroughEligible } from './walkthrough-action';
+import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
@@ -194,6 +194,13 @@ export type ChatThreadProps = {
   projectPath?: string | null;
   /** Host git request adapter forwarded to tool cards → DiffCard. */
   toolDiffRequest?: DiffCardRequest;
+  /**
+   * Host git request for turn-level files-changed stats (`git/diff-summary`).
+   * Same adapter as ChangesPanel; optional so the bar still lists paths without stats.
+   */
+  filesChangedRequest?: FilesChangedBarRequest;
+  /** Open Review / Changes inspector (FilesChangedBar Review button). */
+  onReviewChanges?: () => void;
   /** Existing permission respond handler (allow / deny / ask). */
   onPermission?: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
   workDetailsExpanded?: WorkDetailsExpanded;
@@ -272,6 +279,26 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return undefined;
   }, [props.messages]);
 
+  const turnGroups = useMemo(() => {
+    type TurnGroup = {
+      id: string;
+      items: { message: ChatMessageUi; index: number }[];
+    };
+    const turns: TurnGroup[] = [];
+    let currentTurn: TurnGroup | null = null;
+    props.messages.forEach((message, index) => {
+      if (message.role === 'user' || !currentTurn) {
+        currentTurn = {
+          id: `turn-${message.id}`,
+          items: [],
+        };
+        turns.push(currentTurn);
+      }
+      currentTurn.items.push({ message, index });
+    });
+    return turns;
+  }, [props.messages]);
+
   return (
     <div className="chat-thread">
       {props.plan ? (
@@ -282,64 +309,79 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.onPlanAbort ? { onAbort: props.onPlanAbort } : {})}
         />
       ) : null}
-      {props.messages.map((message, messageIndex) => (
-        <ChatMessageRow
-          key={message.id}
-          message={message}
-          messageIndex={messageIndex}
-          isNew={enteringIds.has(message.id)}
-          streaming={props.streaming}
-          editingMessageId={props.editingMessageId}
-          lastUserMessageId={props.lastUserMessageId}
-          activeTheme={props.activeTheme}
-          artifactThemeKey={props.artifactThemeKey}
-          runRecordsById={props.runRecordsById ?? {}}
-          activeRunId={props.activeRunId ?? null}
-          permissionPrompt={props.permissionPrompt ?? null}
-          workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
-          toolDensity={props.toolDensity ?? 'comfortable'}
-          {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
-          {...(props.toolDiffRequest !== undefined
-            ? { toolDiffRequest: props.toolDiffRequest }
-            : {})}
-          onEdit={props.onEdit}
-          onCancelEdit={props.onCancelEdit}
-          onEditResend={props.onEditResend}
-          onRetry={props.onRetry}
-          onFeedback={props.onFeedback}
-          onOpenSubagentSession={props.onOpenSubagentSession}
-          composerCard={props.composerCard}
-          {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
-          {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
-          {...(props.artifactCodeFirst !== undefined
-            ? { artifactCodeFirst: props.artifactCodeFirst }
-            : {})}
-          {...(props.artifactMaxBytes !== undefined
-            ? { artifactMaxBytes: props.artifactMaxBytes }
-            : {})}
-          {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
-          {...(props.locale ? { locale: props.locale } : {})}
-          {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
-          {...(props.walkthroughsByMessageId
-            ? { walkthroughsByMessageId: props.walkthroughsByMessageId }
-            : {})}
-          {...(props.walkthroughEnabled !== undefined
-            ? { walkthroughEnabled: props.walkthroughEnabled }
-            : {})}
-          {...(props.onGenerateWalkthrough
-            ? {
-                onGenerateWalkthrough: props.onGenerateWalkthrough,
-                walkthroughEligible: isWalkthroughEligible({
-                  message,
-                  messages: props.messages,
-                  runRecordsById: props.runRecordsById ?? {},
-                  activeRunId: props.activeRunId ?? null,
-                  enabled: props.walkthroughEnabled !== false,
-                }),
-              }
-            : {})}
-          {...(props.onCancelWalkthrough ? { onCancelWalkthrough: props.onCancelWalkthrough } : {})}
-        />
+      {turnGroups.map((turn) => (
+        <section key={turn.id} className="chat-turn-group">
+          {turn.items.map(({ message, index: messageIndex }) => (
+            <ChatMessageRow
+              key={message.id}
+              message={message}
+              messageIndex={messageIndex}
+              isNew={enteringIds.has(message.id)}
+              streaming={props.streaming}
+              editingMessageId={props.editingMessageId}
+              lastUserMessageId={props.lastUserMessageId}
+              activeTheme={props.activeTheme}
+              artifactThemeKey={props.artifactThemeKey}
+              runRecordsById={props.runRecordsById ?? {}}
+              activeRunId={props.activeRunId ?? null}
+              permissionPrompt={props.permissionPrompt ?? null}
+              workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
+              toolDensity={props.toolDensity ?? 'comfortable'}
+              {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+              {...(props.toolDiffRequest !== undefined
+                ? { toolDiffRequest: props.toolDiffRequest }
+                : {})}
+              {...(props.filesChangedRequest !== undefined
+                ? { filesChangedRequest: props.filesChangedRequest }
+                : {})}
+              {...(props.onReviewChanges !== undefined
+                ? { onReviewChanges: props.onReviewChanges }
+                : {})}
+              onEdit={props.onEdit}
+              onCancelEdit={props.onCancelEdit}
+              onEditResend={props.onEditResend}
+              onRetry={props.onRetry}
+              onFeedback={props.onFeedback}
+              onOpenSubagentSession={props.onOpenSubagentSession}
+              composerCard={props.composerCard}
+              {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+              {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
+              {...(props.artifactCodeFirst !== undefined
+                ? { artifactCodeFirst: props.artifactCodeFirst }
+                : {})}
+              {...(props.artifactMaxBytes !== undefined
+                ? { artifactMaxBytes: props.artifactMaxBytes }
+                : {})}
+              {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
+              {...(props.locale ? { locale: props.locale } : {})}
+              {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
+              {...(props.walkthroughsByMessageId
+                ? { walkthroughsByMessageId: props.walkthroughsByMessageId }
+                : {})}
+              {...(props.walkthroughEnabled !== undefined
+                ? { walkthroughEnabled: props.walkthroughEnabled }
+                : {})}
+              {...(props.walkthroughAutoGenerate !== undefined
+                ? { walkthroughAutoGenerate: props.walkthroughAutoGenerate }
+                : {})}
+              {...(props.onGenerateWalkthrough
+                ? {
+                    onGenerateWalkthrough: props.onGenerateWalkthrough,
+                    walkthroughEligible: isWalkthroughEligible({
+                      message,
+                      messages: props.messages,
+                      runRecordsById: props.runRecordsById ?? {},
+                      activeRunId: props.activeRunId ?? null,
+                      enabled: props.walkthroughEnabled !== false,
+                    }),
+                  }
+                : {})}
+              {...(props.onCancelWalkthrough
+                ? { onCancelWalkthrough: props.onCancelWalkthrough }
+                : {})}
+            />
+          ))}
+        </section>
       ))}
       {props.streaming &&
       !props.permissionPrompt &&
@@ -643,11 +685,23 @@ const ChatMessageRow = memo(
             onFeedback={props.onFeedback}
           />
         )}
+        {message.role === 'assistant' && message.tools.length > 0 ? (
+          <FilesChangedBar
+            tools={message.tools}
+            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+            {...(props.filesChangedRequest !== undefined
+              ? { request: props.filesChangedRequest }
+              : {})}
+            {...(props.onReviewChanges !== undefined ? { onReview: props.onReviewChanges } : {})}
+            {...(props.locale ? { locale: props.locale } : {})}
+          />
+        ) : null}
         {message.role === 'assistant' && props.onGenerateWalkthrough ? (
           <WalkthroughAction
             message={message}
             artifact={props.walkthroughsByMessageId?.[message.id]}
             eligible={props.walkthroughEligible === true}
+            autoGenerate={props.walkthroughAutoGenerate === true}
             onGenerate={props.onGenerateWalkthrough}
             {...(props.locale ? { locale: props.locale } : {})}
             {...(props.onCancelWalkthrough ? { onCancel: props.onCancelWalkthrough } : {})}
@@ -682,11 +736,16 @@ const ChatMessageRow = memo(
       previous.permissionPrompt === next.permissionPrompt &&
       previous.workDetailsExpanded === next.workDetailsExpanded &&
       previous.toolDensity === next.toolDensity &&
+      previous.projectPath === next.projectPath &&
+      previous.toolDiffRequest === next.toolDiffRequest &&
       previous.locale === next.locale &&
       previous.onArtifactAction === next.onArtifactAction &&
       previous.onOpenDocument === next.onOpenDocument &&
+      previous.filesChangedRequest === next.filesChangedRequest &&
+      previous.onReviewChanges === next.onReviewChanges &&
       previous.walkthroughsByMessageId === next.walkthroughsByMessageId &&
       previous.walkthroughEnabled === next.walkthroughEnabled &&
+      previous.walkthroughAutoGenerate === next.walkthroughAutoGenerate &&
       previous.walkthroughEligible === next.walkthroughEligible &&
       previous.onGenerateWalkthrough === next.onGenerateWalkthrough &&
       previous.onCancelWalkthrough === next.onCancelWalkthrough &&
