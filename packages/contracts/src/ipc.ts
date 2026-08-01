@@ -278,6 +278,12 @@ export type HostCommand =
     }
   | {
       id?: string;
+      type: 'vision/delegate';
+      input: import('./vision-delegation.js').VisionDelegateInput;
+    }
+  | { id?: string; type: 'vision/cache/clear' }
+  | {
+      id?: string;
       type: 'secrets/set';
       providerId: string;
       secret: string;

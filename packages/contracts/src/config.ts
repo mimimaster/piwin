@@ -170,6 +170,26 @@ export type ImageGenerationConfig = {
   defaultModel?: ModelRef;
 };
 
+/**
+ * Text-only primary model: describe composer images via a vision model
+ * before the main turn (Spec vision-delegation D1). Default off.
+ */
+export type VisionDelegationConfig = {
+  /** Default false. */
+  enabled: boolean;
+  /**
+   * Vision model used for descriptions. Should be a configured model with
+   * `input` including `image`. Invalid configs are treated as disabled + warn.
+   */
+  model?: ModelRef;
+  /** Override system prompt for the vision describe call. */
+  systemPrompt?: string;
+  /** Default 30_000. */
+  timeoutMs?: number;
+  /** Default true. */
+  cacheEnabled?: boolean;
+};
+
 export type PiwinConfig = {
   hostMode: 'sdk' | 'rpc';
   agentMock?: boolean;
@@ -205,6 +225,8 @@ export type PiwinConfig = {
   marketplace?: MarketplaceConfig;
   /** Image generation config (default model, future options). */
   imageGeneration?: ImageGenerationConfig;
+  /** Text-only vision delegation (composer images). */
+  visionDelegation?: VisionDelegationConfig;
   /** Permission policy mode and rule sets (ADR 0019). */
   permissions?: PermissionConfig;
   /** Walkthrough generation settings (spec §6.1). */
