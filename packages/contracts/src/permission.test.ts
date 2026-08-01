@@ -3,6 +3,11 @@ import {
   createDefaultPermissionConfig,
   createEmptyRuleSet,
   mergeRuleSets,
+  modeToPreset,
+  resolvePreset,
+  type AgentModeId,
+  type PermissionMode,
+  type PermissionPreset,
 } from './permission.js';
 
 const denyRule = {
@@ -24,8 +29,69 @@ const allowRule = {
 };
 
 describe('createDefaultPermissionConfig', () => {
-  it('returns auto mode', () => {
-    expect(createDefaultPermissionConfig()).toEqual({ mode: 'auto' });
+  it('returns auto mode and preset', () => {
+    expect(createDefaultPermissionConfig()).toEqual({ mode: 'auto', preset: 'auto' });
+  });
+});
+
+describe('resolvePreset', () => {
+  it('maps ask → ask-all + workspace', () => {
+    expect(resolvePreset('ask')).toEqual({ mode: 'ask-all', sandbox: 'workspace' });
+  });
+
+  it('maps auto → auto + workspace', () => {
+    expect(resolvePreset('auto')).toEqual({ mode: 'auto', sandbox: 'workspace' });
+  });
+
+  it('maps yolo → bypass + none', () => {
+    expect(resolvePreset('yolo')).toEqual({ mode: 'bypass', sandbox: 'none' });
+  });
+
+  it('raises read-only floor under plan agent mode', () => {
+    expect(resolvePreset('auto', 'plan')).toEqual({
+      mode: 'ask-all',
+      sandbox: 'read-only',
+    });
+  });
+
+  it('raises read-only floor under ask agent mode', () => {
+    expect(resolvePreset('auto', 'ask')).toEqual({
+      mode: 'ask-all',
+      sandbox: 'read-only',
+    });
+  });
+
+  it('allows yolo under plan with bypass + none (locked: warn not block)', () => {
+    expect(resolvePreset('yolo', 'plan')).toEqual({
+      mode: 'bypass',
+      sandbox: 'none',
+    });
+  });
+
+  it('defaults agentMode to agent', () => {
+    expect(resolvePreset('auto')).toEqual(resolvePreset('auto', 'agent'));
+  });
+});
+
+describe('modeToPreset', () => {
+  it('maps auto → auto', () => {
+    expect(modeToPreset('auto')).toBe('auto');
+  });
+
+  it('maps ask-all → ask', () => {
+    expect(modeToPreset('ask-all')).toBe('ask');
+  });
+
+  it('maps bypass → yolo', () => {
+    expect(modeToPreset('bypass')).toBe('yolo');
+  });
+
+  it('is the inverse of resolvePreset for all presets (agent mode)', () => {
+    const presets: PermissionPreset[] = ['ask', 'auto', 'yolo'];
+    for (const preset of presets) {
+      const resolved = resolvePreset(preset, 'agent');
+      expect(modeToPreset(resolved.mode)).toBe(preset);
+    }
   });
 });
 

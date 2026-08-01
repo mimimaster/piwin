@@ -85,6 +85,7 @@ export type HostCommand =
   | {
       id?: string;
       type: 'project/authorize-terminal';
+      /** Project root for authorization. Empty/omitted = general-scope terminal. */
       projectPath: string;
       cwd?: string;
     }
