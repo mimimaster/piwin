@@ -262,7 +262,7 @@ ResourceLoader path; ADR 0023). It calls only Pi-native `ctx.ui.select` /
 | `@piwin/pet` | Codex pet adapter + state machine |
 | `@piwin/artifact` | Markdown helpers + HTML artifact runtime (from openwebui_m) |
 | `@piwin/browser` | Playwright-driven browser session (agent tools + panel mirror + element pick) |
-| `@piwin/media` | Paste store, previews, path injection for text models |
+| `@piwin/media` | Paste store, previews; model-facing images loaded as native content by agent-host |
 | `@piwin/marketplace` | Unified install sources |
 | `@piwin/ui-kit` | Shared desktop UI primitives |
 

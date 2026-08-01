@@ -17,20 +17,21 @@
 | Area | Status | Notes |
 |------|--------|-------|
 | `@piwin/media` save/resolve + tests | Done | path under `~/.piwin/media`, mime/size policy |
-| `formatTextModelImageInjection` path inject | Done | contracts; no base64 dump |
-| CLI `chat --image` | Done | save via media service then inject path |
+| Native `ImageContent` for composer media | **Done (2026-08-01)** | adapter `prompt(text, { images })`; path inject no longer default |
+| `formatTextModelImageInjection` | Kept | fallback helper only (text-only / delegation) |
+| CLI `chat --image` | Done | save + `PromptInput.attachments` (native images via adapter) |
 | `@piwin/tools-web` search/fetch + tools | Done | Brave/Tavily providers; fetch size/timeout/block |
 | Host session tools registration | Done | `session-tools` + sdk-adapter wiring |
 | Config `web` defaults / load-save | Done | agent-host config-store |
-| Desktop paste/drop/chip/preview UI | **Not done** | needs Tauri composer + asset protocol |
+| Desktop paste/drop/chip/preview UI | Done (later) | composer media pipeline |
 | Network permission UI for web tools | **Not done** | can reuse permission modal later |
 
 ## 1. Goal
 
-1. **Media**：粘贴/拖放图片 → 落盘 `~/.piwin/media/<session>/` → 聊天气泡预览 → 文本模型只注入 **本地 path**（禁止默认 base64 dump）。
+1. **Media**：粘贴/拖放图片 → 落盘 `~/.piwin/media/<session>/` → 聊天气泡预览 → 模型侧默认 **原生 image content**（ADR 0005 amendment 2026-08-01）。禁止把 base64 塞进 **text** prompt。
 2. **Web tools**：内建 `web_search` + `web_fetch`（可关，可换 provider），走 permission，结果带引用。
 
-与 PRD 一致：图片对文本模型 = path 字符串；web 能力对文本模型很有必要。
+历史：M3 初版默认 path 注入；2026-08-01 起 composer media 默认走 Pi `prompt({ images })`。
 
 ---
 
@@ -39,7 +40,7 @@
 | 不做 | 原因 |
 |------|------|
 | 自建搜索引擎 / 爬虫集群 | 用现成 API 或轻量 HTML 源 |
-| 默认把图片变 vision multipart | 可做开关，默认 path 注入（PRD） |
+| ~~默认把图片变 vision multipart~~ | **Superseded 2026-08-01**: composer media defaults to native images |
 | 完整 browser use（点击/登录） | 后置；需要再用 Playwright skill/MCP |
 | 重写 Claude Code 私有搜索后端 | 闭源，只借鉴 **工具拆分模型** |
 

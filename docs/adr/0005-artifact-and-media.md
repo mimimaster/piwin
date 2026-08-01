@@ -12,7 +12,7 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
 
 1. Default chat rendering = **Markdown**
 2. HTML artifact runtime = **port pure logic** from `openwebui_m` into `@piwin/artifact`
-3. Images: preview in chat; paste saves under `~/.piwin/media/...`; text models receive **absolute path** by default
+3. Images: preview in chat; paste saves under `~/.piwin/media/...`; host passes native image content to Pi by default (see amendment 2026-08-01)
 4. **Coding-agent phase policy (2026-07-25 amendment):**
    - While an assistant message is **streaming**, render safe Markdown only: incomplete fences stay source, Mermaid does not execute, and Artifact iframes are not mounted.
    - When a message is **completed**, normal code fences remain source-first with copy affordances.
@@ -23,8 +23,35 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
 
 - Extra package boundary (`artifact`, `media`)
 - Must invest in tests for security classifier
-- Vision multipart is optional later, not default
+- Vision multipart is the default for composer media attachments (see amendment 2026-08-01)
 - Ordinary coding turns stay legible and cheap to stream; Artifacts remain deliberate interactive deliverables
+
+## Amendment (2026-08-01): Native image content for composer media
+
+**Supersedes** the original “text models receive absolute path by default” decision for **composer paste/drop/file-picker media attachments**.
+
+### Decision
+
+1. Media is still saved under `~/.piwin/media/<session>/` (path remains the durable store + UI preview source + transcript attachment ref).
+2. On `session/prompt`, host validates attachment paths stay under the media root, then the Pi adapter loads file bytes and calls:
+   `piSession.prompt(text, { images: ImageContent[] })`.
+3. Prompt **text** no longer receives `[attached image] path: ...` injection for media attachments by default.
+4. Web-element attachments keep structured text injection (`formatTextModelWebElementInjection`); optional screenshot path remains a media-root-guarded ref.
+5. Path-string injection (`formatTextModelImageInjection`) remains available as a **fallback** for text-only models without vision delegation / Pi vision extension — not the default path.
+6. Still forbidden: stuffing base64 into the **text** prompt body.
+
+### Why
+
+- Path-only injection forced multimodal models through an extra `read` tool round-trip (or left them blind).
+- Pi SDK/RPC already accept `images?: ImageContent[]` on `prompt`.
+- Pi extensions (e.g. vision handoff) can intercept real image blocks; they cannot recover pixels from a path string in text.
+- Durable path storage is retained; only the model-facing encoding changes.
+
+### Consequences
+
+- Large images increase prompt token/memory cost; resize/delegation can be added incrementally.
+- Text-only models without a vision hook may not “see” pixels until delegation/extension is configured.
+- Update AGENTS.md §1.6 and host tests that previously asserted path injection in prompt text.
 
 ## Amendment (2026-07-30): Artifact preview opt-in on Desktop
 
