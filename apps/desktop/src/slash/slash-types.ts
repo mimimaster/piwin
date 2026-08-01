@@ -47,7 +47,7 @@ export type ParsedSlashSubmit =
     }
   | {
       kind: 'mode';
-      modeId: 'agent' | 'plan' | 'debug' | 'ask';
+      modeId: 'agent' | 'plan' | 'ask';
       name: string;
       /** Extra text after mode name; empty when mode-only. */
       args: string;

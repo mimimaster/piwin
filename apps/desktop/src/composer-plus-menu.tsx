@@ -15,19 +15,8 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@piwin/ui-kit';
-import {
-  AGENT_MODES,
-  type AgentModeId,
-} from './agent-mode';
-import {
-  IconFolder,
-  IconListTree,
-  IconMcp,
-  IconSearch,
-  IconSkill,
-  IconSpark,
-  IconUsers,
-} from './shell-icons';
+import { AGENT_MODES, type AgentModeId } from './agent-mode';
+import { IconFolder, IconListTree, IconMcp, IconSkill, IconSpark, IconUsers } from './shell-icons';
 
 export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp';
 
@@ -63,8 +52,6 @@ function modeIcon(modeId: AgentModeId): ReactElement {
   switch (modeId) {
     case 'plan':
       return <IconListTree />;
-    case 'debug':
-      return <IconSearch />;
     case 'ask':
       return <IconUsers />;
     default:

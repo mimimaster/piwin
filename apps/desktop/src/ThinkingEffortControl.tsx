@@ -15,7 +15,12 @@ type ThinkingEffortControlProps = {
   ultraEnabled: boolean;
   value: ThinkingLevel;
   onChange: (level: ThinkingLevel) => void;
-  models?: Array<{ key: string; label: string; protocol?: ModelRef['protocol'] }>;
+  models?: Array<{
+    key: string;
+    label: string;
+    protocol?: ModelRef['protocol'];
+    supportsImage?: boolean;
+  }>;
   selectedModelKey?: string;
   onSelectModel?: (key: string) => void;
 };
@@ -51,9 +56,7 @@ export function ThinkingEffortControl({
 
   // Radix owns outside-pointer dismissal, Escape, and focus return to the trigger.
   return (
-    <div
-      className={isUltra ? 'thinking-effort-control ultra-active' : 'thinking-effort-control'}
-    >
+    <div className={isUltra ? 'thinking-effort-control ultra-active' : 'thinking-effort-control'}>
       <Popover
         open={open}
         onOpenChange={setOpen}
@@ -148,7 +151,19 @@ export function ThinkingEffortControl({
                       <IconSpark width={14} height={14} />
                     </span>
                     <span className="thinking-effort-model-info">
-                      <span className="thinking-effort-model-option-label">{name}</span>
+                      <span className="thinking-effort-model-option-label">
+                        {name}
+                        {model.supportsImage ? (
+                          <span
+                            className="thinking-effort-model-vision-tag"
+                            data-testid={`model-vision-tag-${model.key}`}
+                            title="Vision"
+                          >
+                            {' '}
+                            · vision
+                          </span>
+                        ) : null}
+                      </span>
                       {provider ? (
                         <span className="thinking-effort-model-provider-badge">{provider}</span>
                       ) : null}
@@ -204,8 +219,7 @@ function shortenModelLabel(label: string): string {
   }
   // "Cpa / deepseek-v4-flash" → prefer the model segment after " / ".
   const slashParts = trimmedLabel.split(/\s*\/\s*/);
-  const preferred =
-    slashParts.length > 1 ? slashParts[slashParts.length - 1]! : trimmedLabel;
+  const preferred = slashParts.length > 1 ? slashParts[slashParts.length - 1]! : trimmedLabel;
   const lastSegment = preferred.includes('/')
     ? preferred.slice(preferred.lastIndexOf('/') + 1)
     : preferred;

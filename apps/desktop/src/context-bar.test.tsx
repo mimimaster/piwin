@@ -242,9 +242,9 @@ describe('ContextBar', () => {
     expect(onOpenPermissions).toHaveBeenCalledTimes(1);
   });
 
-  it('applies the warning tone to the bypass mode badge', () => {
+  it('applies the warning tone to the yolo mode badge', () => {
     renderContextBar(
-      createBaseProps({ runState: createIdleRunStatus(), permissionMode: 'bypass' }),
+      createBaseProps({ runState: createIdleRunStatus(), permissionMode: 'yolo' }),
       root,
     );
 
@@ -252,7 +252,7 @@ describe('ContextBar', () => {
       '[data-testid="context-bar-mode-badge"]',
     );
     expect(badge).not.toBeNull();
-    expect(badge?.getAttribute('data-mode')).toBe('bypass');
+    expect(badge?.getAttribute('data-mode')).toBe('yolo');
     expect(badge?.classList.contains('is-warning')).toBe(true);
   });
 

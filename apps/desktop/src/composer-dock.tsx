@@ -30,7 +30,8 @@ import { WebElementChip } from './WebElementChip';
 import type { PendingComposerAttachment } from './media-utils';
 import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
-import { IconClose, IconExpand, IconPlus, IconSend, IconStop } from './shell-icons';
+import { RunModeControl } from './RunModeControl';
+import { IconClose, IconPlus, IconSend, IconStop } from './shell-icons';
 import {
   buildSlashCatalog,
   detectActiveSlashToken,
@@ -55,6 +56,8 @@ export type ComposerModelOption = {
   modelId: string;
   label: string;
   contextWindow?: number;
+  /** True when model.input includes image. */
+  supportsImage?: boolean;
 };
 
 export type ComposerDockProps = {
@@ -108,6 +111,13 @@ export type ComposerDockProps = {
   hostMock?: boolean;
   transportLabel?: string;
   onOpenHostSettings?: () => void;
+  /** ADR 0024: Run Mode preset (Ask / Auto / YOLO). */
+  runModePreset?: import('@piwin/contracts').PermissionPreset;
+  onRunModeChange?: (preset: import('@piwin/contracts').PermissionPreset) => void;
+  onRunModeSetDefault?: (preset: import('@piwin/contracts').PermissionPreset) => void;
+  onOpenPermissionsSettings?: () => void;
+  /** YOLO unavailable for untrusted projects. */
+  runModeYoloDisabled?: boolean;
 };
 
 export function ComposerCard(props: ComposerDockProps): ReactElement {
@@ -123,6 +133,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     key: `${model.providerId}::${model.modelId}`,
     label: model.label,
     protocol: model.protocol,
+    ...(model.supportsImage ? { supportsImage: true } : {}),
   }));
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -430,7 +441,20 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
     }
 
-    // 4. Enter Send handling with strict IME protection
+    // 4. ⌘Enter force send (bypasses IME protection)
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
+      event.preventDefault();
+      if (hasContent) {
+        if (isStreamingRun) {
+          triggerSteer();
+        } else {
+          triggerSend();
+        }
+      }
+      return;
+    }
+
+    // 5. Enter Send handling with strict IME protection
     const now = Date.now();
     const isRecentlyComposing = isComposingRef.current || now - lastCompositionEndRef.current < 100;
 
@@ -593,17 +617,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             />
           </div>
 
-          {/* Expand Modal Editor button */}
-          <IconButton
-            className="composer-v2-icon-btn"
-            data-testid="composer-expand-btn"
-            title="Expand prompt editor"
-            label="Expand prompt editor"
-            onClick={() => setModalEditorOpen(true)}
-          >
-            <IconExpand width={14} height={14} />
-          </IconButton>
-
           {/* Agent mode chip (non-default only) */}
           {props.agentMode !== 'agent' ? (
             <span
@@ -627,6 +640,20 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         </div>
 
         <div className="composer-v2-toolbar-right">
+          {/* Run Mode pill (ADR 0024) */}
+          {props.onRunModeChange && props.runModePreset ? (
+            <RunModeControl
+              disabled={isStreamingRun}
+              value={props.runModePreset}
+              onChange={props.onRunModeChange}
+              {...(props.onRunModeSetDefault ? { onSetDefault: props.onRunModeSetDefault } : {})}
+              {...(props.onOpenPermissionsSettings
+                ? { onOpenSettings: props.onOpenPermissionsSettings }
+                : {})}
+              {...(props.runModeYoloDisabled ? { yoloDisabled: true } : {})}
+            />
+          ) : null}
+
           {/* Thinking effort control */}
           <ThinkingEffortControl
             disabled={isStreamingRun || !props.onThinkingLevelChange}
@@ -675,6 +702,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 aria-label={props.runPhase === 'aborting' ? 'Stopping' : 'Stop'}
                 title={props.runPhase === 'aborting' ? 'Stopping…' : 'Stop'}
               >
+                <span className="stop-btn-pulse" aria-hidden />
                 <IconStop />
               </button>
             )
@@ -747,4 +775,3 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
     </footer>
   );
 }
-
