@@ -58,6 +58,7 @@ import type {
   SessionExportData,
   SessionExportFormat,
 } from './session-ops.js';
+import type { WalkthroughArtifact } from './walkthrough-artifact.js';
 
 /**
  * Bytes are base64 only while crossing the desktop-to-host transport.
@@ -434,7 +435,23 @@ export type HostCommand =
   | { id?: string; type: 'browser/navigate'; url: string }
   | { id?: string; type: 'browser/pick-at'; x: number; y: number }
   | { id?: string; type: 'browser/screenshot'; path?: string }
-  | { id?: string; type: 'browser/stop' };
+  | { id?: string; type: 'browser/stop' }
+  | { id?: string; type: 'walkthrough/list'; sessionId: string }
+  | {
+      id?: string;
+      type: 'walkthrough/generate';
+      sessionId: string;
+      messageId: string;
+      runId?: string;
+      force?: boolean;
+    }
+  | {
+      id?: string;
+      type: 'walkthrough/cancel';
+      sessionId: string;
+      messageId: string;
+      generationId?: string;
+    };
 
 /** Host → UI / external client (responses + push) */
 export type HostResponse =
@@ -504,7 +521,12 @@ export type HostPush =
   | { type: 'pet/state'; pet: PetRuntimeSnapshot }
   | { type: 'browser/frame'; dataUrl: string; width: number; height: number; ts: number }
   | { type: 'browser/state'; url?: string; title?: string; ts: number }
-  | { type: 'browser/picked'; result: WebElementPickResult };
+  | { type: 'browser/picked'; result: WebElementPickResult }
+  | {
+      type: 'walkthrough/updated';
+      sessionId: string;
+      artifact: WalkthroughArtifact;
+    };
 
 /** Pi ExtensionUIContext dialog kinds bridged to Desktop. */
 export type ExtensionUiKind = 'confirm' | 'select' | 'input';

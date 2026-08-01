@@ -12,6 +12,7 @@ import type {
   SessionTranscriptMessage,
   SubagentActivityView,
   ToolPresentation,
+  WalkthroughArtifact,
 } from '@piwin/contracts';
 import type { SessionOutlineNode } from '@piwin/contracts';
 
@@ -176,6 +177,11 @@ export type ChatUiState = {
   subagentStreams: Record<string, SubagentStreamState>;
   /** Latest child session summaries keyed by childSessionId (live list sync). */
   subagentChildren: Record<string, SessionSummary>;
+  /**
+   * Walkthrough artifacts keyed by owning assistant messageId (spec §5.1).
+   * Cleared on session switch so stale artifacts never leak across sessions.
+   */
+  walkthroughsByMessageId: Record<string, WalkthroughArtifact>;
 };
 
 export type ChatUiAction =
@@ -229,7 +235,10 @@ export type ChatUiAction =
       event: AgentEvent;
     }
   | { type: 'subagent/clear-stream'; childSessionId: string }
-  | { type: 'subagent/updated'; parentSessionId: string; child: SessionSummary };
+  | { type: 'subagent/updated'; parentSessionId: string; child: SessionSummary }
+  | { type: 'walkthrough/hydrate'; artifacts: WalkthroughArtifact[] }
+  | { type: 'walkthrough/updated'; artifact: WalkthroughArtifact }
+  | { type: 'walkthrough/remove'; messageId: string };
 
 export function createInitialChatUiState(): ChatUiState {
   return {
@@ -267,6 +276,7 @@ export function createInitialChatUiState(): ChatUiState {
     runRecordsById: {},
     subagentStreams: {},
     subagentChildren: {},
+    walkthroughsByMessageId: {},
   };
 }
 
@@ -300,6 +310,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         streaming: false,
         runTerminal: { kind: 'none' },
         error: null,
+        walkthroughsByMessageId: {},
       };
     case 'project/set':
       return {
@@ -323,6 +334,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         streaming: false,
         runTerminal: { kind: 'none' },
         error: null,
+        walkthroughsByMessageId: {},
       };
     case 'project/clear':
       return {
@@ -344,6 +356,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         streaming: false,
         runTerminal: { kind: 'none' },
         error: null,
+        walkthroughsByMessageId: {},
       };
     case 'project/trust-dialog':
       return { ...state, trustDialogOpen: action.open };
@@ -367,6 +380,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         receivedEventIds: [],
         lastAcceptedSequenceByRun: {},
         runRecordsById: {},
+        walkthroughsByMessageId: {},
       };
     case 'session/load-messages': {
       const messages: ChatMessageUi[] = action.messages.map((message) => ({
@@ -403,6 +417,11 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runTerminal: { kind: 'none' },
         error: null,
         runRecordsById: buildRunRecordsFromTranscriptMessages(action.messages),
+        // Walkthrough artifacts are hydrated separately via walkthrough/list
+        // after load. Do NOT clear the map here: session/set (which fires
+        // before load-messages) already clears it, and a walkthrough/list
+        // response may resolve before load-messages is dispatched — clearing
+        // here would wipe the freshly-hydrated map.
       };
     }
     case 'session/add':
@@ -551,6 +570,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastTerminalRunId: null,
         streaming: false,
         runTerminal: { kind: 'none' },
+        walkthroughsByMessageId: {},
       };
     case 'session/truncate': {
       if (state.activeSessionId !== action.sessionId) {
@@ -762,6 +782,49 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       const nextStreams = { ...state.subagentStreams };
       delete nextStreams[action.childSessionId];
       return { ...state, subagentStreams: nextStreams };
+    }
+    case 'walkthrough/hydrate': {
+      const walkthroughsByMessageId: Record<string, WalkthroughArtifact> = {};
+      for (const artifact of action.artifacts) {
+        walkthroughsByMessageId[artifact.messageId] = artifact;
+      }
+      return { ...state, walkthroughsByMessageId };
+    }
+    case 'walkthrough/updated': {
+      // Cross-session guard: a walkthrough generation that completes for
+      // session B must not leak into session A's map after the user has
+      // switched away. Only accept pushes for the active session.
+      if (state.activeSessionId !== action.artifact.sessionId) return state;
+      const existing = state.walkthroughsByMessageId[action.artifact.messageId];
+      // Only drop a `generating` push when a *different* generation is still
+      // in flight — that is a stale late push from an old generation. A
+      // `generating` push against a terminal (ready/error) artifact represents
+      // a fresh regeneration request (e.g. the user clicked Regenerate) and
+      // must be accepted so the UI shows "Generating...". Terminal pushes
+      // (ready/error) always update.
+      if (
+        existing &&
+        existing.status === 'generating' &&
+        action.artifact.status === 'generating' &&
+        existing.generationId !== action.artifact.generationId
+      ) {
+        return state;
+      }
+      return {
+        ...state,
+        walkthroughsByMessageId: {
+          ...state.walkthroughsByMessageId,
+          [action.artifact.messageId]: action.artifact,
+        },
+      };
+    }
+    case 'walkthrough/remove': {
+      if (!(action.messageId in state.walkthroughsByMessageId)) {
+        return state;
+      }
+      const nextWalkthroughs = { ...state.walkthroughsByMessageId };
+      delete nextWalkthroughs[action.messageId];
+      return { ...state, walkthroughsByMessageId: nextWalkthroughs };
     }
     default:
       return state;

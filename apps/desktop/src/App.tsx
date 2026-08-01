@@ -13,6 +13,7 @@ import type {
   ProjectRecord,
   SessionSearchHit,
   ThemeManifest,
+  WalkthroughArtifact,
 } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, type SessionListItemUi } from './chat-reducer';
 import { HostClient } from './host-client';
@@ -490,8 +491,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       addDoc(activeDocument.title, activeDocument.filePath ?? activeDocument.title);
     }
 
+    // Walkthrough documents: one virtual markdown doc per ready artifact
+    // (spec §5.4). Path is virtual: walkthroughs/<message-id>.md.
+    for (const messageId of Object.keys(state.walkthroughsByMessageId)) {
+      const artifact = state.walkthroughsByMessageId[messageId];
+      if (artifact && artifact.status === 'ready') {
+        addDoc('Walkthrough', `walkthroughs/${messageId}.md`, 'book');
+      }
+    }
+
     return items;
-  }, [sessionPlan, state.messages, activeDocument]);
+  }, [sessionPlan, state.messages, activeDocument, state.walkthroughsByMessageId]);
 
   // Remount artifact iframes when the active theme changes so sandboxed
   // documents pick up new artifact variables (root owns the manifest itself).
@@ -550,6 +560,68 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
     [hostClient],
   );
+
+  // Walkthrough generation (spec §5.2): request the host generate/cancel a
+  // walkthrough artifact for an assistant message. The host publishes
+  // `walkthrough/updated` pushes that the bootstrap hook forwards to the reducer.
+  const handleGenerateWalkthrough = useCallback(
+    (messageId: string, force?: boolean) => {
+      if (!state.activeSessionId) return;
+      void hostClient
+        .request({
+          type: 'walkthrough/generate',
+          sessionId: state.activeSessionId,
+          messageId,
+          ...(force ? { force: true } : {}),
+        })
+        .then((response) => {
+          if (!response.success) {
+            console.warn(`[piwin] walkthrough generate failed: ${response.error}`);
+          }
+        });
+    },
+    [hostClient, state.activeSessionId],
+  );
+
+  const handleCancelWalkthrough = useCallback(
+    (messageId: string, generationId?: string) => {
+      if (!state.activeSessionId) return;
+      void hostClient
+        .request({
+          type: 'walkthrough/cancel',
+          sessionId: state.activeSessionId,
+          messageId,
+          ...(generationId !== undefined ? { generationId } : {}),
+        })
+        .then((response) => {
+          if (!response.success) {
+            console.warn(`[piwin] walkthrough cancel failed: ${response.error}`);
+          }
+        });
+    },
+    [hostClient, state.activeSessionId],
+  );
+
+  // Hydrate walkthrough artifacts whenever the active session changes.
+  // We intentionally do NOT guard on messages.length === 0: session/set fires
+  // first (clearing messages), so an early return would skip the hydrate call
+  // and the later session/load-messages dispatch doesn't change activeSessionId,
+  // meaning the effect would never re-run. The host returns persisted artifacts
+  // (empty list when none exist) which we dispatch into the reducer map.
+  useEffect(() => {
+    if (!state.activeSessionId) return;
+    void hostClient
+      .request({ type: 'walkthrough/list', sessionId: state.activeSessionId })
+      .then((response) => {
+        if (!response.success) return;
+        const data = response.data as { artifacts?: WalkthroughArtifact[] } | undefined;
+        if (data?.artifacts) {
+          dispatch({ type: 'walkthrough/hydrate', artifacts: data.artifacts });
+        }
+      });
+    // Only re-run when the active session changes (not on every message delta).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.activeSessionId, hostClient]);
 
   // Stable identities: panels reload via useEffect([request]) — a fresh
   // closure per render would re-fire full loads on every App render.
@@ -1524,6 +1596,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     onPlanAbort={handlePlanAbort}
                     composerCard={composerCard}
                     subagentStreams={state.subagentStreams}
+                    walkthroughsByMessageId={state.walkthroughsByMessageId}
+                    walkthroughEnabled={config?.walkthrough?.enabled !== false}
+                    onGenerateWalkthrough={handleGenerateWalkthrough}
+                    onCancelWalkthrough={handleCancelWalkthrough}
                   />
                 )}
               </TranscriptViewport>
@@ -1666,12 +1742,21 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     content={activeDocument?.content}
                     filePath={activeDocument?.filePath}
                     sessionDocuments={sessionDocuments}
-                    onSelectDocument={(doc) =>
+                    onSelectDocument={(doc) => {
+                      // Walkthrough virtual docs: resolve markdown content from the
+                      // in-memory artifact map (path: walkthroughs/<message-id>.md).
+                      const walkthroughMatch = doc.path?.match(/^walkthroughs\/(.+)\.md$/);
+                      const walkthroughArtifact = walkthroughMatch
+                        ? state.walkthroughsByMessageId[walkthroughMatch[1] as string]
+                        : undefined;
                       handleOpenDocument({
                         title: doc.title,
                         ...(doc.path ? { path: doc.path } : {}),
-                      })
-                    }
+                        ...(walkthroughArtifact?.status === 'ready'
+                          ? { content: walkthroughArtifact.markdown }
+                          : {}),
+                      });
+                    }}
                     locale={desktopLocale}
                   />
                 }

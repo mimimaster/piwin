@@ -29,7 +29,9 @@ import {
   createDefaultPromptsConfig,
   createDefaultSessionConfig,
   createDefaultSkillsConfig,
+  createDefaultWalkthroughConfig,
   createDefaultWebConfig,
+  normalizeWalkthroughConfig,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from './paths.js';
 import { sanitizeProvidersForSave, validatePiwinConfig } from './provider-validation.js';
@@ -56,6 +58,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     execution: createDefaultExecutionConfig(),
     automation: createDefaultAutomationConfig(),
     marketplace: createDefaultMarketplaceConfig(),
+    walkthrough: createDefaultWalkthroughConfig(),
   };
 }
 
@@ -206,6 +209,7 @@ function normalizeConfig(value: unknown): PiwinConfig {
     defaults.session ?? createDefaultSessionConfig(),
   );
   normalized.permissions = normalizePermissionConfig(record.permissions);
+  normalized.walkthrough = normalizeWalkthroughConfig(record.walkthrough);
   return normalized;
 }
 

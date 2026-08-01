@@ -1,6 +1,37 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
+/**
+ * Rejects id segments that could escape their intended directory via path
+ * traversal. Walkthrough artifacts are keyed by `sessionId + messageId`; both
+ * must be single path segments with no separators, parent references, or NUL
+ * bytes. Throws so callers cannot silently persist a traversal payload.
+ */
+function assertSafePathSegment(id: string, label: string): void {
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(`Invalid ${label}: must be a non-empty string`);
+  }
+  if (id === '.' || id === '..') {
+    throw new Error(`Invalid ${label}: path segment must not be "." or ".."`);
+  }
+  if (id.includes('/') || id.includes('\\')) {
+    throw new Error(`Invalid ${label}: path segment must not contain separators`);
+  }
+  if (id.includes('\0')) {
+    throw new Error(`Invalid ${label}: path segment must not contain NUL bytes`);
+  }
+}
+
+/**
+ * Encodes a messageId into a filesystem-safe filename component. base64url
+ * produces URL/filename-safe characters (no `/`, `+`, or `=`) and is stable for
+ * a given input. Decoding is not required — we only need a unique, collision-free
+ * mapping from messageId to filename.
+ */
+function encodeMessageIdForFilename(messageId: string): string {
+  return Buffer.from(messageId, 'utf8').toString('base64url');
+}
+
 export function getPiwinRoot(override?: string): string {
   if (override && override.trim().length > 0) {
     return override;
@@ -71,6 +102,35 @@ export function getPiwinSessionTranscriptPath(rootDir: string, sessionId: string
 
 export function getPiwinSessionPlanPath(rootDir: string, sessionId: string): string {
   return join(getPiwinSessionDir(rootDir, sessionId), 'plan.json');
+}
+
+/**
+ * Directory holding persisted Walkthrough artifacts for a session
+ * (spec §7.2): `~/.piwin/sessions/<sessionId>/walkthroughs/`. Validates
+ * `sessionId` so it cannot escape the session directory via path traversal.
+ */
+export function getPiwinSessionWalkthroughDir(rootDir: string, sessionId: string): string {
+  assertSafePathSegment(sessionId, 'sessionId');
+  return join(getPiwinSessionDir(rootDir, sessionId), 'walkthroughs');
+}
+
+/**
+ * Path to a single persisted Walkthrough artifact JSON file. The messageId is
+ * base64url-encoded so any character is filesystem-safe while remaining a
+ * unique mapping back to the source message (spec §7.2). Both `sessionId` and
+ * `messageId` are validated against path traversal.
+ */
+export function getPiwinSessionWalkthroughPath(
+  rootDir: string,
+  sessionId: string,
+  messageId: string,
+): string {
+  assertSafePathSegment(sessionId, 'sessionId');
+  assertSafePathSegment(messageId, 'messageId');
+  return join(
+    getPiwinSessionWalkthroughDir(rootDir, sessionId),
+    `${encodeMessageIdForFilename(messageId)}.json`,
+  );
 }
 
 /** CE-OBS: append-only usage ledger (JSONL) under the product root. */
