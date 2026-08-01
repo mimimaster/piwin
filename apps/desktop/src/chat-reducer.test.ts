@@ -766,6 +766,45 @@ describe('chatUiReducer', () => {
       expect(state.generalSessions.map((item) => item.id)).toEqual(['g1']);
       expect(state.sessions).toEqual([]);
     });
+
+    it('session/clear-active enters draft mode (null activeSessionId, cleared messages)', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [{ id: 'g1', name: 'G1' }],
+      });
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'g1' });
+      state = chatUiReducer(state, {
+        type: 'session/load-messages',
+        sessionId: 'g1',
+        messages: [
+          {
+            id: 'm1',
+            role: 'user',
+            text: 'hi',
+            thinking: '',
+            tools: [],
+            attachments: [],
+            status: 'done',
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      });
+      expect(state.activeSessionId).toBe('g1');
+      expect(state.messages).toHaveLength(1);
+
+      // session/clear-active is the "New session" (draft mode) action.
+      state = chatUiReducer(state, { type: 'session/clear-active' });
+      expect(state.activeSessionId).toBe(null);
+      expect(state.messages).toEqual([]);
+      expect(state.outline).toEqual([]);
+      expect(state.activeSessionArchived).toBe(false);
+      expect(state.runPhase).toBe('idle');
+      expect(state.streaming).toBe(false);
+      // Sidebar list is preserved — only the active session is cleared.
+      expect(state.sessions.map((item) => item.id)).toEqual(['g1']);
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g1']);
+    });
   });
 
   describe('C1: envelope-based dedup', () => {
