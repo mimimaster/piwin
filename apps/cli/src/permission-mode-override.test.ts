@@ -36,10 +36,31 @@ describe('parsePermissionModeOverride', () => {
     ).toEqual({ mode: 'bypass', fromDangerousAlias: true });
   });
 
+  it('parses --permission-mode ask (ADR 0024 preset)', () => {
+    expect(parsePermissionModeOverride(['chat', '--permission-mode', 'ask'])).toEqual({
+      mode: 'ask-all',
+      fromDangerousAlias: false,
+    });
+  });
+
+  it('parses --permission-mode yolo (ADR 0024 preset → bypass)', () => {
+    expect(parsePermissionModeOverride(['chat', '--permission-mode', 'yolo'])).toEqual({
+      mode: 'bypass',
+      fromDangerousAlias: true,
+    });
+  });
+
+  it('parses --yolo shorthand flag (ADR 0024)', () => {
+    expect(parsePermissionModeOverride(['chat', '--yolo', 'hello'])).toEqual({
+      mode: 'bypass',
+      fromDangerousAlias: true,
+    });
+  });
+
   it('throws on an invalid --permission-mode value', () => {
-    expect(() =>
-      parsePermissionModeOverride(['chat', '--permission-mode', 'yolo']),
-    ).toThrowError(/Invalid --permission-mode value: yolo/);
+    expect(() => parsePermissionModeOverride(['chat', '--permission-mode', 'fast'])).toThrowError(
+      /Invalid --permission-mode value: fast/,
+    );
   });
 
   it('ignores --permission-mode when --dangerously-bypass-permissions is also set', () => {
