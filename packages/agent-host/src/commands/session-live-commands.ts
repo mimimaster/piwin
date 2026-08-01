@@ -12,6 +12,7 @@ import type {
   HostPush,
   HostResponse,
   ModelRef,
+  PiwinConfig,
   PromptInput,
   SessionHandle,
   SessionResumeData,
@@ -66,6 +67,8 @@ import {
 export type SessionLiveContext = {
   piwinRoot?: string;
   host: AgentHost;
+  /** Loads the full piwin config from disk. Used by preparePromptInput for walkthrough config. */
+  loadConfig: () => Promise<PiwinConfig>;
   /** HostRuntime-owned creation seam for explicit integration fixtures. */
   createSession: (input: CreateSessionInput) => Promise<SessionHandle>;
   sessions: Map<string, SessionHandle>;
@@ -111,7 +114,9 @@ export type SessionLiveContext = {
     childSessionId: string,
     force: boolean,
   ) => Promise<HostResponse>;
-  buildModelPromptInput: (input: PromptInput) => PromptInput;
+  buildModelPromptInput: (input: PromptInput, signal?: AbortSignal) => Promise<PromptInput>;
+  /** Sync media-root validation before accepting a run. */
+  validatePromptAttachments: (input: PromptInput) => void;
   runWithContext: (runId: string, operation: () => Promise<void>) => void;
   /** ADR 0015: foreground run lifecycle. */
   getActiveRun: (sessionId: string) => ActiveRun | undefined;
@@ -128,6 +133,11 @@ export type SessionLiveContext = {
     message?: string,
   ) => boolean;
   settlePendingPermissionsForSession: (sessionId: string) => void;
+  setSessionPermissionOverride: (
+    sessionId: string,
+    mode: import('@piwin/contracts').PermissionMode,
+  ) => void;
+  clearSessionPermissionOverride: (sessionId: string) => void;
 };
 
 const TYPES = new Set<HostCommand['type']>([
@@ -191,7 +201,16 @@ async function preparePromptInput(
   }
   throwIfPromptPreparationAborted(run);
 
-  const promptInput = context.buildModelPromptInput(command.input);
+  const hasMedia = command.input.attachments?.some((item) => item.kind === 'media') === true;
+  if (hasMedia) {
+    // Surface "Describing image…" while D1 may run inside buildModelPromptInput.
+    context.emitRunPhase(command.sessionId, run.runId, 'preparing', 'Describing image…');
+  }
+
+  const promptInput = await context.buildModelPromptInput(
+    command.input,
+    run.abortController.signal,
+  );
   throwIfPromptPreparationAborted(run);
 
   // A continuous Pi SDK session keeps native context itself. Inject product
@@ -223,6 +242,23 @@ async function preparePromptInput(
   }
   throwIfPromptPreparationAborted(run);
 
+  // Agent mode permission floor: when plan/ask mode is active, raise the
+  // permission floor to ask-all + read-only so the gated tools enforce it.
+  const agentMode = command.input.agentMode;
+  if (agentMode === 'plan' || agentMode === 'ask') {
+    try {
+      const config = await context.loadConfig();
+      const preset = config.permissions?.preset ?? 'auto';
+      const { resolvePreset } = await import('@piwin/contracts');
+      const resolved = resolvePreset(preset, agentMode);
+      context.setSessionPermissionOverride(command.sessionId, resolved.mode);
+    } catch {
+      // Best-effort: config load failure should not block the prompt.
+    }
+  } else {
+    context.clearSessionPermissionOverride(command.sessionId);
+  }
+
   const planPath = getPiwinSessionPlanPath(getPiwinRoot(context.piwinRoot), command.sessionId);
   const activePlan = await loadSessionPlan(planPath);
   throwIfPromptPreparationAborted(run);
@@ -236,6 +272,22 @@ async function preparePromptInput(
   if (filesTouched) {
     promptInput.text = `${filesTouched}\n\n${promptInput.text}`;
   }
+
+  // When walkthrough autoGenerate is enabled, inject the concise prompt so the
+  // model keeps its inline response brief — a detailed walkthrough will be
+  // generated separately. This applies regardless of plan state, aligning with
+  // Google Antigravity's behavior of always keeping chat concise when a
+  // walkthrough will be auto-generated.
+  try {
+    const config = await context.loadConfig();
+    const walkthrough = config.walkthrough;
+    if (walkthrough?.enabled && walkthrough?.autoGenerate && walkthrough.concisePrompt) {
+      promptInput.text = `${walkthrough.concisePrompt}\n\n${promptInput.text}`;
+    }
+  } catch {
+    // Best-effort: config load failure should not block the prompt.
+  }
+  throwIfPromptPreparationAborted(run);
   context.sessionLastPromptText.set(command.sessionId, command.input.text);
   if (command.input.model) {
     context.sessionModels.set(command.sessionId, command.input.model);
@@ -663,7 +715,7 @@ export async function handleSessionLiveCommand(
       // paths must still fail the request instead of becoming an async
       // terminal error after the UI has shown an accepted run.
       try {
-        context.buildModelPromptInput(command.input);
+        context.validatePromptAttachments(command.input);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return fail(requestId, 'session/prompt', message);

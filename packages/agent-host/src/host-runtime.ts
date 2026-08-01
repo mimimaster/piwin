@@ -155,6 +155,7 @@ import {
   getPiwinUsageLedgerPath,
 } from './paths.js';
 import { buildPermissionRequestContext } from './permission-context.js';
+import { SessionAllowlist } from './session-allowlist.js';
 import { fail, ok } from './response-helpers.js';
 import { indexRecordToSummary } from './session-summary-map.js';
 import { dispatchDomainCommands } from './commands/domain-command-dispatch.js';
@@ -261,6 +262,10 @@ export class HostRuntime {
       cleanup?: () => void;
     }
   >();
+  /** ADR 0024 §4: per-session in-memory allowlists for "Allow for session". */
+  private readonly sessionAllowlists = new Map<string, SessionAllowlist>();
+  /** Per-session permission mode overrides set by agent mode (Plan/Ask). */
+  private readonly sessionPermissionOverrides = new Map<string, PermissionMode>();
   private readonly pendingExtensionUi = new Map<
     string,
     {
@@ -369,6 +374,8 @@ export class HostRuntime {
         };
       },
       getBrowserSession: () => this.browserSession ?? undefined,
+      getSessionAllowlist: (sessionId: string) => this.getOrCreateSessionAllowlist(sessionId),
+      getPermissionMode: (sessionId: string) => this.getSessionPermissionOverride(sessionId),
     };
     if (typeof options.piwinRoot === 'string') {
       createOptions.piwinRoot = options.piwinRoot;
@@ -824,6 +831,59 @@ export class HostRuntime {
         },
       });
     });
+  }
+
+  /**
+   * Get or create the in-memory session allowlist (ADR 0024 §4).
+   * Used by gated bash/file tools to check "Allow for session" approvals.
+   */
+  getOrCreateSessionAllowlist(sessionId: string): SessionAllowlist {
+    let al = this.sessionAllowlists.get(sessionId);
+    if (!al) {
+      al = new SessionAllowlist();
+      this.sessionAllowlists.set(sessionId, al);
+    }
+    return al;
+  }
+
+  /**
+   * Record a session-scoped allow (ADR 0024 §4). Called when the user picks
+   * "Allow for session" on a permission prompt. Extracts the command or path
+   * from the permission detail.
+   */
+  rememberSessionPermission(sessionId: string, action: string, detail: string): void {
+    const al = this.getOrCreateSessionAllowlist(sessionId);
+    // Bash detail format: `<reason>: <command>` — the command is after `: `.
+    // File-write detail is the resolved absolute path.
+    if (action === 'bash') {
+      const colonIdx = detail.indexOf(': ');
+      const command = colonIdx >= 0 ? detail.slice(colonIdx + 2) : detail;
+      al.addBashCommand(command);
+    } else if (action === 'file-write') {
+      al.addFilePath(detail);
+    }
+    // Network and other actions: no session remember (use project or once).
+  }
+
+  /** Clear the session allowlist when a session is disposed. */
+  clearSessionAllowlist(sessionId: string): void {
+    this.sessionAllowlists.delete(sessionId);
+    this.sessionPermissionOverrides.delete(sessionId);
+  }
+
+  /** Set a per-session permission mode override (agent mode Plan/Ask floor). */
+  setSessionPermissionOverride(sessionId: string, mode: PermissionMode): void {
+    this.sessionPermissionOverrides.set(sessionId, mode);
+  }
+
+  /** Clear a per-session permission mode override. */
+  clearSessionPermissionOverride(sessionId: string): void {
+    this.sessionPermissionOverrides.delete(sessionId);
+  }
+
+  /** Get the per-session permission mode override, if any. */
+  getSessionPermissionOverride(sessionId: string): PermissionMode | undefined {
+    return this.sessionPermissionOverrides.get(sessionId);
   }
 
   waitForPermission(requestId: string): Promise<PermissionDecision> {
@@ -1576,6 +1636,9 @@ export class HostRuntime {
           }
         }
       },
+      setSessionPermissionOverride: (sessionId, mode) =>
+        this.setSessionPermissionOverride(sessionId, mode),
+      clearSessionPermissionOverride: (sessionId) => this.clearSessionPermissionOverride(sessionId),
     };
   }
 
@@ -1640,6 +1703,12 @@ export class HostRuntime {
       pendingExtensionUi: this.pendingExtensionUi,
       rememberProjectPermission: (sessionId, action, detail, scope, projectPath) =>
         this.rememberProjectPermission(sessionId, action, detail, scope, projectPath),
+      rememberSessionPermission: (sessionId, action, detail) =>
+        this.rememberSessionPermission(sessionId, action, detail),
+      sessionPermissionOverrides: this.sessionPermissionOverrides,
+      setSessionPermissionOverride: (sessionId, mode) =>
+        this.setSessionPermissionOverride(sessionId, mode),
+      clearSessionPermissionOverride: (sessionId) => this.clearSessionPermissionOverride(sessionId),
       planExecution: {
         spawnSubagent: (input) => this.spawnPlanSubagent(input),
         mergeSubagent: (childSessionId) => this.mergePlanSubagent(childSessionId),

@@ -9,6 +9,7 @@ import type {
   SessionScope,
   SessionSummary,
 } from '@piwin/contracts';
+import { resolvePreset } from '@piwin/contracts';
 import {
   createSessionRecord,
   getSessionRecord,
@@ -135,6 +136,19 @@ export type PiSdkAdapterOptions = {
    * guard still narrows `bypass` to `auto` for untrusted projects.
    */
   permissionModeOverride?: PermissionMode;
+  /**
+   * ADR 0024 §4: provides per-session in-memory allowlists for "Allow for
+   * session" approval scope. HostRuntime injects this; the adapter passes the
+   * allowlist to the gated bash/file tools.
+   */
+  getSessionAllowlist?: (sessionId: string) => import('./session-allowlist.js').SessionAllowlist;
+  /**
+   * Per-prompt permission mode override (agent mode binding). When set, the
+   * gated bash/file tools call this to get the effective permission mode
+   * instead of using the static session-level mode. HostRuntime injects this
+   * to raise the permission floor under Plan/Ask agent modes.
+   */
+  getPermissionMode?: (sessionId: string) => PermissionMode | undefined;
   /**
    * Subagent delegation seam for the model-facing piwin_subagent_run tool.
    * HostRuntime injects these to route spawn/merge through session/* commands
@@ -507,13 +521,20 @@ async function createPiSdkSession(
     console.warn(`[piwin] permission rules unavailable: ${message}`);
   }
 
-  // Bypass guard (ADR 0019 §3): `bypass` mode is refused for untrusted
-  // projects so a freshly-cloned repo cannot disable prompts by editing its
-  // own permissions.json. General scope (no project) keeps bypass — the user
-  // is the trust authority there. The downgrade only narrows the effective
-  // mode; rules + allowlists still apply.
-  const configuredMode =
-    adapterOptions.permissionModeOverride ?? config.permissions?.mode ?? 'auto';
+  // Bypass guard (ADR 0019 §3, ADR 0024): `bypass`/`yolo` mode is refused for
+  // untrusted projects so a freshly-cloned repo cannot disable prompts by
+  // editing its own permissions.json. General scope (no project) keeps bypass
+  // — the user is the trust authority there. The downgrade only narrows the
+  // effective mode; rules + allowlists still apply.
+  //
+  // ADR 0024: resolve user-facing preset → internal mode. Backward compat:
+  // if `config.permissions.preset` is absent, fall back to `config.permissions.mode`.
+  const presetFromConfig = config.permissions?.preset;
+  const modeFromConfig = config.permissions?.mode ?? 'auto';
+  const resolvedFromPreset = presetFromConfig
+    ? resolvePreset(presetFromConfig).mode
+    : modeFromConfig;
+  const configuredMode = adapterOptions.permissionModeOverride ?? resolvedFromPreset;
   const isProjectScope = location.scope.kind === 'project';
   const guard = resolveBypassGuard(configuredMode, isProjectScope, projectTrusted);
   if (guard.downgraded) {
@@ -713,6 +734,10 @@ async function createPiSdkSession(
         cwd: string;
         projectsFilePath: string;
         projectPath: string;
+        mode: PermissionMode;
+        getMode?: () => PermissionMode;
+        rules?: PermissionRuleSet;
+        sessionAllowlist?: import('./session-allowlist.js').SessionAllowlist;
         requestPermission?: (request: {
           action: string;
           detail: string;
@@ -723,6 +748,17 @@ async function createPiSdkSession(
         cwd: agentCwd,
         projectsFilePath,
         projectPath: permissionProjectPath,
+        mode: effectivePermissionMode,
+        ...(adapterOptions.getPermissionMode
+          ? {
+              getMode: () =>
+                adapterOptions.getPermissionMode!(sessionId) ?? effectivePermissionMode,
+            }
+          : {}),
+        ...(mergedRules ? { rules: mergedRules } : {}),
+        ...(adapterOptions.getSessionAllowlist
+          ? { sessionAllowlist: adapterOptions.getSessionAllowlist(sessionId) }
+          : {}),
       };
       if (permissionHandler) {
         gatedBashOptions.requestPermission = wrapPermissionHandler(
@@ -745,9 +781,11 @@ async function createPiSdkSession(
       const gatedFileOptions: {
         cwd: string;
         mode: 'auto' | 'ask-all' | 'bypass';
+        getMode?: () => PermissionMode;
         rules: PermissionRuleSet;
         projectRoot: string;
         projectsFilePath: string;
+        sessionAllowlist?: import('./session-allowlist.js').SessionAllowlist;
         requestPermission?: (request: {
           action: string;
           detail: string;
@@ -757,9 +795,18 @@ async function createPiSdkSession(
       } = {
         cwd: agentCwd,
         mode: effectivePermissionMode,
+        ...(adapterOptions.getPermissionMode
+          ? {
+              getMode: () =>
+                adapterOptions.getPermissionMode!(sessionId) ?? effectivePermissionMode,
+            }
+          : {}),
         rules: mergedRules ?? createBundledRuleSet(),
         projectRoot: permissionProjectPath,
         projectsFilePath,
+        ...(adapterOptions.getSessionAllowlist
+          ? { sessionAllowlist: adapterOptions.getSessionAllowlist(sessionId) }
+          : {}),
       };
       if (permissionHandler) {
         gatedFileOptions.requestPermission = wrapPermissionHandler(

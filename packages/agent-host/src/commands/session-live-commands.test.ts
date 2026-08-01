@@ -305,7 +305,8 @@ function createControlContext(
     ensureLiveSession: async () => session,
     resolveAutoCompaction: async () => ({ enabled: true, source: 'test', globalDefault: true }),
     handleMergeSubagent: async () => ({ type: 'response', command: 'test', success: true }),
-    buildModelPromptInput: (input) => input,
+    buildModelPromptInput: async (input) => input,
+    validatePromptAttachments: () => undefined,
     runWithContext: (_runId, operation): void => {
       void operation();
     },
@@ -317,6 +318,9 @@ function createControlContext(
     emitRunPhase: (): void => undefined,
     emitRunTerminal: (sessionId, runId) => registry.markTerminal(sessionId, runId),
     settlePendingPermissionsForSession: (): void => undefined,
+    setSessionPermissionOverride: (): void => undefined,
+    clearSessionPermissionOverride: (): void => undefined,
+    loadConfig: async () => ({}) as any,
   };
   return { context, registry, activeRun };
 }

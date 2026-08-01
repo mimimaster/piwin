@@ -105,7 +105,8 @@ describe('config-store', () => {
     config.permissions = { mode: 'bypass' };
     await savePiwinConfig(config, rootDir);
     const loaded = await loadPiwinConfig(rootDir);
-    expect(loaded.permissions).toEqual({ mode: 'bypass' });
+    // ADR 0024: normalizePermissionConfig adds preset from legacy mode.
+    expect(loaded.permissions).toEqual({ mode: 'bypass', preset: 'yolo' });
   });
 
   it('falls back to auto when permissions.mode is missing or invalid', async () => {
@@ -119,6 +120,6 @@ describe('config-store', () => {
     corrupted.permissions = { mode: 'yolo' };
     await writeFile(join(rootDir, 'config.json'), JSON.stringify(corrupted), 'utf8');
     const loaded = await loadPiwinConfig(rootDir);
-    expect(loaded.permissions).toEqual({ mode: 'auto' });
+    expect(loaded.permissions).toEqual({ mode: 'auto', preset: 'auto' });
   });
 });

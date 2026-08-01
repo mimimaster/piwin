@@ -39,6 +39,10 @@ export type CreateAgentHostOptions = AgentHostFactoryOptions & {
   onMergeSubagent?: PiSdkAdapterOptions['onMergeSubagent'];
   /** Host-owned browser session getter (ADR 0020). */
   getBrowserSession?: PiSdkAdapterOptions['getBrowserSession'];
+  /** ADR 0024 §4: per-session in-memory allowlist provider. */
+  getSessionAllowlist?: PiSdkAdapterOptions['getSessionAllowlist'];
+  /** Per-prompt permission mode override provider (agent mode Plan/Ask floor). */
+  getPermissionMode?: PiSdkAdapterOptions['getPermissionMode'];
 };
 
 export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
@@ -78,6 +82,9 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
     if (options.getBrowserSession) {
       rpcOptions.getBrowserSession = options.getBrowserSession;
     }
+    if (options.getPermissionMode) {
+      rpcOptions.getPermissionMode = options.getPermissionMode;
+    }
     return new PiRpcAdapter(rpcOptions);
   }
 
@@ -114,6 +121,12 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
   }
   if (options.getBrowserSession) {
     sdkOptions.getBrowserSession = options.getBrowserSession;
+  }
+  if (options.getSessionAllowlist) {
+    sdkOptions.getSessionAllowlist = options.getSessionAllowlist;
+  }
+  if (options.getPermissionMode) {
+    sdkOptions.getPermissionMode = options.getPermissionMode;
   }
   return new PiSdkAdapter(sdkOptions);
 }

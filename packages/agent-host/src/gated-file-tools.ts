@@ -24,6 +24,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import type { PermissionDecision, PermissionMode, PermissionRuleSet } from '@piwin/contracts';
 import { getFileWriteAllowlist, pathInFileWriteAllowlist } from '@piwin/project';
 import { evaluateFileWritePermission, resolveNonInteractiveDecision } from './permission-policy.js';
+import type { SessionAllowlist } from './session-allowlist.js';
 import type { ToolPermissionGate } from './session-tools.js';
 
 export type BuildGatedFileToolsOptions = {
@@ -31,6 +32,9 @@ export type BuildGatedFileToolsOptions = {
   cwd: string;
   /** Permission mode from `config.permissions?.mode` (default `'auto'`). */
   mode: PermissionMode;
+  /** Dynamic permission mode override (per-prompt agent mode). When set,
+   *  the effective mode is `getMode()` instead of the static `mode`. */
+  getMode?: () => PermissionMode;
   /** Merged rule set (bundled + user + project layers). */
   rules: PermissionRuleSet;
   /** Absolute project root used for in-project / escapes-root checks. */
@@ -39,6 +43,8 @@ export type BuildGatedFileToolsOptions = {
   projectsFilePath: string;
   /** Project path key for the project-store lookup (defaults to `projectRoot`). */
   projectPath?: string;
+  /** In-memory session allowlist (ADR 0024 §4). */
+  sessionAllowlist?: SessionAllowlist;
   /** Interactive gate (Desktop via HostRuntime). When omitted, ask → deny. */
   requestPermission?: ToolPermissionGate;
 };
@@ -194,7 +200,7 @@ function createWriteGate(
   gatedWriteFile: (absolutePath: string, content: string) => Promise<void>;
   gatedMkdir: (dir: string) => Promise<void>;
 } {
-  const { mode, rules, requestPermission } = options;
+  const { mode: staticMode, getMode, rules, requestPermission, sessionAllowlist } = options;
 
   async function gatePath(targetPath: string): Promise<void> {
     const absPath = resolve(targetPath);
@@ -223,10 +229,16 @@ function createWriteGate(
       return;
     }
 
+    // Session-scoped approvals (ADR 0024 §4): in-memory, per-session only.
+    if (sessionAllowlist?.hasFilePath(resolvedPath)) {
+      return;
+    }
+
+    const effectiveMode = getMode ? getMode() : staticMode;
     const evaluation = evaluateFileWritePermission({
       absPath: resolvedPath,
       projectRoot,
-      mode,
+      mode: effectiveMode,
       rules,
     });
 

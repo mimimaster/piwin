@@ -3,8 +3,10 @@
  * HostRuntime fills this; handlers must not import HostRuntime.
  */
 import type {
+  AgentModeId,
   HostPush,
   PermissionDecision,
+  PermissionMode,
   SessionHandle,
   SessionTranscriptMessage,
   SubagentIsolationMode,
@@ -80,8 +82,20 @@ export type HostCommandContext = {
     scope?: 'project',
     projectPath?: string,
   ) => Promise<void>;
+  /** ADR 0024 §4: record a session-scoped allow (in-memory, no persistence). */
+  rememberSessionPermission: (sessionId: string, action: string, detail: string) => void;
   /** Optional plan execution orchestration seam. */
   planExecution?: PlanExecutionSeam;
+  /**
+   * Per-session permission mode overrides set by agent mode (Plan/Ask).
+   * When a session has an entry, the gated bash/file tools use it instead
+   * of the static session-level permission mode.
+   */
+  sessionPermissionOverrides: Map<string, PermissionMode>;
+  /** Set a per-session permission mode override (agent mode Plan/Ask floor). */
+  setSessionPermissionOverride: (sessionId: string, mode: PermissionMode) => void;
+  /** Clear a per-session permission mode override. */
+  clearSessionPermissionOverride: (sessionId: string) => void;
   /**
    * Optional walkthrough service bag (spec §11.1). Provided by HostRuntime for
    * both SDK and RPC adapters; mock/test contexts may omit it.
