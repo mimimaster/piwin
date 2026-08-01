@@ -31,8 +31,8 @@ export type PlanExecutionState = {
   endedAt?: string;
 };
 
-/** Bounded summary produced at the end of a plan execution (walkthrough). */
-export type PlanExecutionWalkthrough = {
+/** Bounded summary produced at the end of a plan execution. */
+export type PlanExecutionSummary = {
   planId: string;
   mode: PlanExecutionMode;
   completedStepIds: string[];

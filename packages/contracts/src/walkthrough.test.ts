@@ -3,6 +3,7 @@ import type { ModelRef } from './host.js';
 import type { WalkthroughConfig } from './walkthrough.js';
 import {
   createDefaultWalkthroughConfig,
+  DEFAULT_CONCISE_PROMPT,
   DEFAULT_WALKTHROUGH_PROMPT,
   MAX_WALKTHROUGH_PROMPT_BYTES,
   normalizeWalkthroughConfig,
@@ -16,9 +17,11 @@ const VALID_MODEL_REFS: ModelRef[] = [
 ];
 
 describe('walkthrough config', () => {
-  it('createDefaultWalkthroughConfig returns enabled/default/default prompt', () => {
+  it('createDefaultWalkthroughConfig returns enabled/autoGenerate/concisePrompt/default prompt', () => {
     const config = createDefaultWalkthroughConfig();
     expect(config.enabled).toBe(true);
+    expect(config.autoGenerate).toBe(true);
+    expect(config.concisePrompt).toBe(DEFAULT_CONCISE_PROMPT);
     expect(config.mode).toBe('default');
     expect(config.custom.model).toBeNull();
     expect(config.custom.prompt).toBe(DEFAULT_WALKTHROUGH_PROMPT);
@@ -29,6 +32,12 @@ describe('walkthrough config', () => {
     expect(new TextEncoder().encode(DEFAULT_WALKTHROUGH_PROMPT).length).toBeLessThanOrEqual(
       MAX_WALKTHROUGH_PROMPT_BYTES,
     );
+  });
+
+  it('default concise prompt is non-empty', () => {
+    expect(DEFAULT_CONCISE_PROMPT.trim()).not.toBe('');
+    expect(DEFAULT_CONCISE_PROMPT).toContain('<walkthrough-context priority="critical">');
+    expect(DEFAULT_CONCISE_PROMPT).toContain('</walkthrough-context>');
   });
 
   it('WalkthroughConfig accepts all three provider protocols', () => {
@@ -149,6 +158,7 @@ describe('walkthrough config', () => {
 
   it('accepts a fully valid custom config', () => {
     const config: WalkthroughConfig = {
+      ...createDefaultWalkthroughConfig(),
       enabled: false,
       mode: 'custom',
       custom: {

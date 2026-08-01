@@ -57,6 +57,12 @@ export type UsageRecord = {
   source: 'assistant-usage' | 'host-estimate';
   /** ISO timestamp of the turn. */
   recordedAt: string;
+  /** Generation duration in milliseconds when known. */
+  durationMs?: number;
+  /** First token latency in milliseconds when known. */
+  firstTokenMs?: number;
+  /** Turn outcome status. */
+  success?: boolean;
 };
 
 /** Token aggregate for a single model / day / session bucket. */
@@ -65,6 +71,9 @@ export type UsageBucket = {
   completionTokens: number;
   totalTokens: number;
   entryCount: number;
+  durationMs?: number;
+  firstTokenMs?: number;
+  successCount?: number;
 };
 
 /** Per-session total for the rollup session breakdown. */

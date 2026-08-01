@@ -20,6 +20,14 @@ export type WalkthroughCustomConfig = {
 export type WalkthroughConfig = {
   /** Enables the action and creation of new Walkthrough artifacts. */
   enabled: boolean;
+  /** When true, walkthroughs auto-generate after eligible runs without a button click. */
+  autoGenerate: boolean;
+  /**
+   * The "be brief" prompt injected into the model's context when autoGenerate is on
+   * and a plan is active. Tells the model to keep its inline response concise since
+   * a detailed walkthrough will be generated separately.
+   */
+  concisePrompt: string;
   mode: WalkthroughMode;
   custom: WalkthroughCustomConfig;
 };
@@ -27,24 +35,49 @@ export type WalkthroughConfig = {
 export const MAX_WALKTHROUGH_PROMPT_BYTES = 16 * 1024;
 
 export const DEFAULT_WALKTHROUGH_PROMPT = [
-  'Generate a developer-facing Walkthrough for the completed coding-agent turn.',
+  'Generate a developer-facing delivery document for the completed coding-agent turn.',
   '',
-  'Use only facts supported by the supplied evidence. Do not claim that a file, test,',
-  'browser flow, screenshot, or command was completed unless the evidence supports it.',
-  'Clearly distinguish completed work, verified work, failures, and unresolved items.',
+  'Follow Google’s Dual-Track model:',
+  '- Track 1 (Inline chat): Handles the brief high-level summary.',
+  '- Track 2 (This document): Carries the detailed evidence, diffs, diagrams, and verification details.',
+  '',
+  'Choose an appropriate H1 title suited to the task (e.g., `# Walkthrough`, `# Technical Overview`, `# Implementation Summary`).',
+  'Organize with clean Markdown sections appropriate for the evidence. Include these sections when relevant:',
+  '- ## Summary (Brief objective and outcome)',
+  '- ## What Changed (Files modified with diffs and action badges [MODIFY], [NEW], [DELETE])',
+  '- ## Technical Details (Architecture breakdown; use Mermaid diagrams for multi-module or service-level changes)',
+  '- ## Validation (Commands, automated tests, and verification results)',
+  '- ## How to Verify (Clear instructions for manual or automated testing)',
+  '- ## Notes / Unresolved Items (Any remaining items, risks, or next steps)',
+  '',
+  'Omit sections that do not apply (e.g. do not include ## What Changed if no files were modified).',
+  'Use only facts supported by the supplied evidence. Do not reproduce long tool output or include secrets.',
   'Respond in the primary language of the user request.',
-  '',
-  'Use these Markdown sections when they apply:',
-  '# Walkthrough',
-  '## Summary',
-  '## What Changed',
-  '## Technical Details',
-  '## Validation',
-  '## How to Verify',
-  '## Notes / Unresolved Items',
-  '',
-  'Do not reproduce long tool output. Do not include API keys, tokens, passwords,',
-  'environment variable values, or other secrets.',
+].join('\n');
+
+/**
+ * Default concise response prompt injected into the model's context when
+ * `autoGenerate` is enabled and a plan is active. Tells the model to keep
+ * its inline response brief since a detailed walkthrough will be generated
+ * separately. Users can edit this in settings.
+ */
+export const DEFAULT_CONCISE_PROMPT = [
+  '<walkthrough-context priority="critical">',
+  '  <instruction>',
+  '    Coding and verification for this turn are complete. A detailed Walkthrough Artifact will be automatically generated after this turn.',
+  '    Keep your inline chat response strictly concise, professional, and outcome-driven:',
+  "    1. Direct Answer: State whether the user's request is fulfilled and summarize the core changes in 2-3 brief sentences.",
+  '    2. No Noise: CRITICAL — NEVER output long code blocks, full file paths, or verbose test logs in this chat response. All implementation details, diffs, and validation logs belong exclusively in the Walkthrough Artifact.',
+  '  </instruction>',
+  '</walkthrough-context>',
+].join('\n');
+
+export const DEFAULT_CONCISE_PROMPT_ZH = [
+  '[piwin walkthrough context]',
+  '本轮对话结束后将自动生成详细的 Walkthrough。',
+  '请保持主回答简洁：用 2-3 句话总结输出结果。',
+  '不要在聊天框中重复贴大段代码块、文件路径或逐步说明——后续的 Walkthrough 将包含这些内容。',
+  '[end walkthrough context]',
 ].join('\n');
 
 /** Provider protocols accepted by `WalkthroughCustomConfig.model`. */
@@ -57,6 +90,8 @@ const SUPPORTED_WALKTHROUGH_PROTOCOLS: readonly ModelRef['protocol'][] = [
 export function createDefaultWalkthroughConfig(): WalkthroughConfig {
   return {
     enabled: true,
+    autoGenerate: true,
+    concisePrompt: DEFAULT_CONCISE_PROMPT,
     mode: 'default',
     custom: {
       model: null,
@@ -83,6 +118,14 @@ export function validateWalkthroughConfig(config: WalkthroughConfig): Walkthroug
 
   if (typeof config.enabled !== 'boolean') {
     issues.push({ path: 'walkthrough.enabled', message: 'must be a boolean' });
+  }
+
+  if (typeof config.autoGenerate !== 'boolean') {
+    issues.push({ path: 'walkthrough.autoGenerate', message: 'must be a boolean' });
+  }
+
+  if (typeof config.concisePrompt !== 'string' || config.concisePrompt.trim() === '') {
+    issues.push({ path: 'walkthrough.concisePrompt', message: 'must be a non-empty string' });
   }
 
   if (config.mode !== 'default' && config.mode !== 'custom') {
@@ -147,6 +190,12 @@ export function normalizeWalkthroughConfig(value: unknown): WalkthroughConfig {
 
   const mode: WalkthroughMode = record.mode === 'custom' ? 'custom' : 'default';
   const enabled = typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled;
+  const autoGenerate =
+    typeof record.autoGenerate === 'boolean' ? record.autoGenerate : defaults.autoGenerate;
+  const concisePrompt =
+    typeof record.concisePrompt === 'string' && record.concisePrompt.trim() !== ''
+      ? record.concisePrompt
+      : defaults.concisePrompt;
 
   const prompt =
     customRecord && typeof customRecord.prompt === 'string' && customRecord.prompt.trim() !== ''
@@ -169,6 +218,8 @@ export function normalizeWalkthroughConfig(value: unknown): WalkthroughConfig {
 
   return {
     enabled,
+    autoGenerate,
+    concisePrompt,
     mode,
     custom: {
       model,
