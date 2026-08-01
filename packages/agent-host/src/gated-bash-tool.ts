@@ -2,9 +2,10 @@
  * Replace Pi built-in bash with a permission-gated bash tool.
  * Deny hard-patterns immediately; ask UI for destructive patterns.
  */
-import type { PermissionDecision } from '@piwin/contracts';
+import type { PermissionDecision, PermissionMode, PermissionRuleSet } from '@piwin/contracts';
 import { commandInBashAllowlist, getBashAllowlist } from '@piwin/project';
 import { evaluateBashPermission, resolveNonInteractiveDecision } from './permission-policy.js';
+import type { SessionAllowlist } from './session-allowlist.js';
 
 export type GatedBashPermissionRequest = {
   action: string;
@@ -19,6 +20,15 @@ export type BuildGatedBashToolOptions = {
   projectsFilePath?: string;
   /** Project path key for the project-store lookup (defaults to `cwd`). */
   projectPath?: string;
+  /** Permission mode from `config.permissions` (default `'auto'`). */
+  mode?: PermissionMode;
+  /** Dynamic permission mode override (per-prompt agent mode). When set,
+   *  the effective mode is `getMode()` instead of the static `mode`. */
+  getMode?: () => PermissionMode;
+  /** Merged rule set (bundled + user + project layers). */
+  rules?: PermissionRuleSet;
+  /** In-memory session allowlist (ADR 0024 §4). */
+  sessionAllowlist?: SessionAllowlist;
   requestPermission?: (request: GatedBashPermissionRequest) => Promise<PermissionDecision>;
 };
 
@@ -94,6 +104,10 @@ export async function buildGatedBashToolDefinition(
 
   const localOps = createLocalBashOperations();
   const requestPermission = options.requestPermission;
+  const staticMode = options.mode ?? 'auto';
+  const getMode = options.getMode;
+  const rules = options.rules;
+  const sessionAllowlist = options.sessionAllowlist;
 
   return createBashToolDefinition(options.cwd, {
     operations: {
@@ -103,7 +117,13 @@ export async function buildGatedBashToolDefinition(
           return localOps.exec(command, cwd, execOptions);
         }
 
-        const evaluation = evaluateBashPermission(command);
+        // Session-scoped approvals (ADR 0024 §4): in-memory, per-session only.
+        if (sessionAllowlist?.hasBashCommand(command)) {
+          return localOps.exec(command, cwd, execOptions);
+        }
+
+        const effectiveMode = getMode ? getMode() : staticMode;
+        const evaluation = evaluateBashPermission(command, effectiveMode, rules);
         let decision: PermissionDecision = evaluation.decision;
 
         if (decision === 'ask') {

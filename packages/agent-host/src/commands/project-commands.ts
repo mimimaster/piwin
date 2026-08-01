@@ -2,6 +2,7 @@
  * project/open + trust + permissions + list-dir + read-file.
  */
 import { readFile, readdir, stat } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import type { HostCommand, HostResponse } from '@piwin/contracts';
 import {
@@ -282,29 +283,16 @@ async function authorizeTerminalCwd(
   cwd: string | undefined,
   requestId: string | undefined,
 ): Promise<HostResponse> {
-  const absoluteProject = path.resolve(projectPath);
-  const document = await loadProjectStore(projectsPath);
-  const record = document.projects.find((item) => item.path === absoluteProject);
-  if (!record || record.trust !== 'trusted') {
-    return fail(requestId, 'project/authorize-terminal', 'project is not opened and trusted');
-  }
-  const requestedCwd = path.resolve(cwd?.trim() || absoluteProject);
-  let canonicalProject = absoluteProject;
-  let canonicalCwd = requestedCwd;
+  const requestedCwd = path.resolve(cwd?.trim() || os.homedir());
+  const fs = await import('node:fs/promises');
+
+  let canonicalCwd: string;
   try {
-    const fs = await import('node:fs/promises');
-    canonicalProject = await fs.realpath(absoluteProject);
     canonicalCwd = await fs.realpath(requestedCwd);
   } catch {
-    // fall back to resolve() when realpath fails (missing path)
+    canonicalCwd = requestedCwd;
   }
-  const rootWithSep = canonicalProject.endsWith(path.sep)
-    ? canonicalProject
-    : `${canonicalProject}${path.sep}`;
-  const inside = canonicalCwd === canonicalProject || canonicalCwd.startsWith(rootWithSep);
-  if (!inside) {
-    return fail(requestId, 'project/authorize-terminal', 'cwd is outside the trusted project root');
-  }
+
   try {
     const info = await stat(canonicalCwd);
     if (!info.isDirectory()) {
@@ -313,6 +301,39 @@ async function authorizeTerminalCwd(
   } catch {
     return fail(requestId, 'project/authorize-terminal', 'cwd does not exist');
   }
+
+  const trimmedProject = projectPath.trim();
+  if (!trimmedProject) {
+    // General-scope terminal: no project record needed.
+    return ok(requestId, 'project/authorize-terminal', {
+      authorized: true as const,
+      projectPath: '',
+      cwd: canonicalCwd,
+    });
+  }
+
+  const absoluteProject = path.resolve(trimmedProject);
+  const document = await loadProjectStore(projectsPath);
+  const record = document.projects.find((item) => item.path === absoluteProject);
+  if (!record || record.trust !== 'trusted') {
+    return fail(requestId, 'project/authorize-terminal', 'project is not opened and trusted');
+  }
+
+  let canonicalProject = absoluteProject;
+  try {
+    canonicalProject = await fs.realpath(absoluteProject);
+  } catch {
+    // fall back to resolve() when realpath fails (missing path)
+  }
+
+  const rootWithSep = canonicalProject.endsWith(path.sep)
+    ? canonicalProject
+    : `${canonicalProject}${path.sep}`;
+  const inside = canonicalCwd === canonicalProject || canonicalCwd.startsWith(rootWithSep);
+  if (!inside) {
+    return fail(requestId, 'project/authorize-terminal', 'cwd is outside the trusted project root');
+  }
+
   return ok(requestId, 'project/authorize-terminal', {
     authorized: true as const,
     projectPath: canonicalProject,

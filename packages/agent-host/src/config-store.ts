@@ -16,6 +16,7 @@ import type {
   ThinkingConfig,
   ThinkingLevel,
   WebConfig,
+  PermissionPreset,
 } from '@piwin/contracts';
 import {
   createDefaultAutomationConfig,
@@ -29,7 +30,9 @@ import {
   createDefaultSkillsConfig,
   createDefaultWalkthroughConfig,
   createDefaultWebConfig,
+  modeToPreset,
   normalizeWalkthroughConfig,
+  resolvePreset,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from './paths.js';
 import { sanitizeProvidersForSave, validatePiwinConfig } from './provider-validation.js';
@@ -230,9 +233,17 @@ function normalizePermissionConfig(value: unknown): PermissionConfig {
   if (!record) {
     return createDefaultPermissionConfig();
   }
+  // ADR 0024: accept `preset` (ask/auto/yolo) as the preferred field.
+  const preset = record.preset;
+  if (preset === 'ask' || preset === 'auto' || preset === 'yolo') {
+    const resolved = resolvePreset(preset as PermissionPreset);
+    return { mode: resolved.mode, preset: preset as PermissionPreset };
+  }
+  // Backward compat: accept legacy `mode` (auto/ask-all/bypass).
   const mode = record.mode;
   if (mode === 'auto' || mode === 'ask-all' || mode === 'bypass') {
-    return { mode: mode as PermissionMode };
+    const presetFromMode = modeToPreset(mode as PermissionMode);
+    return { mode: mode as PermissionMode, preset: presetFromMode };
   }
   return createDefaultPermissionConfig();
 }
