@@ -547,8 +547,6 @@ async function createPiSdkSession(
     projectPath: agentCwd,
     planPath: getPiwinSessionPlanPath(rootDir, sessionId),
   });
-  const executionMode = input.executionMode ?? 'agent';
-  const chatMode = executionMode === 'chat';
   // Subagent delegation tool: only when host injected spawn/merge seams and
   // this session is not itself a readonly subagent (depth max 1, no nesting).
   const subagentRunTool =
@@ -617,14 +615,11 @@ async function createPiSdkSession(
     processToolOptions.requestPermission = requestPermission;
   }
   // readonly sub-agents: no process_start (long-running writers)
-  const processTools = chatMode || readonlySubagent ? [] : buildProcessTools(processToolOptions);
+  const processTools = readonlySubagent ? [] : buildProcessTools(processToolOptions);
 
   // Notes library tools (ADR 0018). Default enabled; FTS-only until embedding configured.
-  // Knowledge profile (chat) gets read-only notes tools; coding profile (agent)
-  // gets full CRUD. See doc-flashcards §10.2.
   const notesEnabled = config.notes?.enabled !== false;
   let notesTools: import('@piwin/tools-web').HostToolDefinition[] = [];
-  let notesSearchOnlyTools: import('@piwin/tools-web').HostToolDefinition[] = [];
   let notesIndexCleanup: (() => void) | null = null;
   if (notesEnabled) {
     const noteStore = createNoteStore({ piwinRoot: rootDir });
@@ -659,16 +654,10 @@ async function createPiSdkSession(
       notesToolOptions.requestPermission = requestPermission;
     }
     notesTools = buildNotesTools(notesToolOptions);
-    notesSearchOnlyTools = buildNotesTools({ ...notesToolOptions, readOnly: true });
   }
 
   // Flashcard tools (ADR 0018 §7, doc-flashcards §10).
-  // Knowledge profile (chat): enabled. Coding profile (agent): disabled unless
-  // config.flashcards.agentModeTools is true. Debug profile: enabled.
   const flashcardsEnabled = config.flashcards?.enabled !== false;
-  const flashcardsInCoding = config.flashcards?.agentModeTools === true;
-  const flashcardsInKnowledge = flashcardsEnabled;
-  const flashcardsInDebug = flashcardsEnabled;
   let flashcardTools: import('@piwin/tools-web').HostToolDefinition[] = [];
   if (flashcardsEnabled) {
     const cardStore = createCardStore({ piwinRoot: rootDir });
@@ -685,16 +674,12 @@ async function createPiSdkSession(
     flashcardTools = buildFlashcardTools(flashcardToolOptions);
   }
 
-  // Tool profiles by ExecutionMode (doc-flashcards §10.2).
-  // - knowledge (chat): flashcards + read-only notes + optional web
-  // - coding (agent): web/mcp/plan/process/notes CRUD, no flashcards (unless agentModeTools)
-  // - debug (agent-debug): coding ∪ flashcards
-  // Browser session tools (ADR 0020). Appended to the coding/agent tool set
-  // (not knowledge/chat) when a host-owned BrowserSession is available. The
-  // navigate tool is permission-gated inside its executor.
+  // Browser session tools (ADR 0020). Appended to the tool set when a
+  // host-owned BrowserSession is available. The navigate tool is
+  // permission-gated inside its executor.
   const browserSession = adapterOptions.getBrowserSession?.();
   const browserTools: import('@piwin/tools-web').HostToolDefinition[] = [];
-  if (browserSession && !chatMode && !readonlySubagent) {
+  if (browserSession && !readonlySubagent) {
     const browserToolOptions: import('./browser-tools.js').CreateBrowserToolsOptions = {};
     if (requestPermission) {
       browserToolOptions.requestPermission = requestPermission;
@@ -705,33 +690,23 @@ async function createPiSdkSession(
     browserTools.push(...createBrowserToolDefinitions(browserSession, browserToolOptions));
   }
 
-  const knowledgeTools: import('@piwin/tools-web').HostToolDefinition[] = [
-    ...flashcardTools,
-    ...notesSearchOnlyTools,
-    ...(flashcardsInKnowledge ? webTools : []),
-  ];
-  const codingTools: import('@piwin/tools-web').HostToolDefinition[] = [
+  // Unified tool set: all tools available in every session.
+  const hostTools: import('@piwin/tools-web').HostToolDefinition[] = [
     ...webTools,
     ...mcpBridge.tools,
     planTool,
     planCreateTool,
     ...processTools,
     ...notesTools,
-    ...(flashcardsInCoding ? flashcardTools : []),
+    ...flashcardTools,
     ...(subagentRunTool ? [subagentRunTool] : []),
     ...(imageGenTool ? [imageGenTool] : []),
     ...browserTools,
   ];
-  const hostTools =
-    executionMode === 'chat'
-      ? knowledgeTools
-      : executionMode === 'agent-debug'
-        ? [...codingTools, ...flashcardTools]
-        : codingTools;
   const customTools = toPiCustomTools(hostTools);
 
   // Replace built-in bash with permission-gated bash (hard-deny + ask UI).
-  if (!chatMode && !readonlySubagent) {
+  if (!readonlySubagent) {
     try {
       const gatedBashOptions: {
         cwd: string;
@@ -891,7 +866,7 @@ async function createPiSdkSession(
   }
 
   console.info(
-    `[piwin] session tools mode=${executionMode} custom=${customTools.length} (web=${webTools.length}, mcp=${mcpBridge.toolCount}) skills=${skillPaths.length} extensions=${extensionPaths.length} prompts=${promptPaths.length}`,
+    `[piwin] session tools custom=${customTools.length} (web=${webTools.length}, mcp=${mcpBridge.toolCount}) skills=${skillPaths.length} extensions=${extensionPaths.length} prompts=${promptPaths.length}`,
   );
 
   const handle = wrapPiSession(piSession, sessionId, modelRuntime);

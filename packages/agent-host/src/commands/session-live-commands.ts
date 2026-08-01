@@ -8,7 +8,6 @@ import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import type {
   AgentHost,
   CreateSessionInput,
-  ExecutionMode,
   HostCommand,
   HostPush,
   HostResponse,
@@ -48,7 +47,6 @@ import {
 import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
-import { resolveExecutionMode } from '../execution-mode.js';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
@@ -71,7 +69,6 @@ export type SessionLiveContext = {
   /** HostRuntime-owned creation seam for explicit integration fixtures. */
   createSession: (input: CreateSessionInput) => Promise<SessionHandle>;
   sessions: Map<string, SessionHandle>;
-  sessionExecutionModes: Map<string, ExecutionMode>;
   sessionFilesTouched: Map<string, string>;
   sessionLastPromptText: Map<string, string>;
   sessionModels: Map<string, ModelRef>;
@@ -288,8 +285,6 @@ export async function handleSessionLiveCommand(
       if (command.input.task) {
         lineage.task = command.input.task;
       }
-      const executionMode = resolveExecutionMode(command.input.executionMode);
-      context.sessionExecutionModes.set(session.id, executionMode);
       await context.bindSession(
         session,
         createInput.projectPath,
@@ -299,7 +294,6 @@ export async function handleSessionLiveCommand(
       context.pushStatus();
       return ok(requestId, 'session/create', {
         sessionId: session.id,
-        executionMode,
       });
     }
     case 'session/spawn': {

@@ -5,7 +5,6 @@ import type { SkillsConfig } from './skills.js';
 import type { ExtensionsConfig } from './extensions.js';
 import type { PromptsConfig } from './prompts.js';
 import type { ProcessConfig } from './process.js';
-import type { ExecutionConfig } from './session-ops.js';
 import type { NotesConfig } from './notes.js';
 import type { FlashcardsConfig } from './flashcards.js';
 import type { AutomationConfig } from './automation.js';
@@ -174,8 +173,6 @@ export type PiwinConfig = {
   compaction?: CompactionConfig;
   /** Managed process registry (CE-PROC). */
   process?: ProcessConfig;
-  /** Default execution mode for new sessions (CE-CHAT / CE-MODE). */
-  execution?: ExecutionConfig;
   /** Product session behavior. */
   session?: SessionConfig;
   /** Notes library + local-first RAG (ADR 0018). */

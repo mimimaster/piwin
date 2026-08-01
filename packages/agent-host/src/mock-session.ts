@@ -75,13 +75,10 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
 
       emit({ type: 'message/start', messageId: assistantMessageId, role: 'assistant' });
 
-      const chatMode = input.executionMode === 'chat';
-      if (!chatMode) {
-        const toolCallId = randomUUID();
-        emit({ type: 'tool/start', toolCallId, toolName: 'mock_echo' });
-        emit({ type: 'tool/update', toolCallId, delta: `echo: ${userText.slice(0, 80)}` });
-        emit({ type: 'tool/end', toolCallId, isError: false });
-      }
+      const toolCallId = randomUUID();
+      emit({ type: 'tool/start', toolCallId, toolName: 'mock_echo' });
+      emit({ type: 'tool/update', toolCallId, delta: `echo: ${userText.slice(0, 80)}` });
+      emit({ type: 'tool/end', toolCallId, isError: false });
 
       let assembled = '';
       for (const chunk of chunkText(reply, 24)) {

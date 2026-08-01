@@ -4,7 +4,6 @@ import type {
   AutomationConfig,
   CompactionConfig,
   DesktopRestoreConfig,
-  ExecutionConfig,
   ExtensionsConfig,
   MarketplaceConfig,
   PermissionConfig,
@@ -21,7 +20,6 @@ import type {
 import {
   createDefaultAutomationConfig,
   createDefaultCompactionConfig,
-  createDefaultExecutionConfig,
   createDefaultExtensionsConfig,
   createDefaultMarketplaceConfig,
   createDefaultPermissionConfig,
@@ -55,7 +53,6 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     prompts: createDefaultPromptsConfig(),
     compaction: createDefaultCompactionConfig(),
     process: createDefaultProcessConfig(),
-    execution: createDefaultExecutionConfig(),
     automation: createDefaultAutomationConfig(),
     marketplace: createDefaultMarketplaceConfig(),
     walkthrough: createDefaultWalkthroughConfig(),
@@ -183,10 +180,6 @@ function normalizeConfig(value: unknown): PiwinConfig {
   normalized.process = normalizeProcessConfig(
     record.process,
     defaults.process ?? createDefaultProcessConfig(),
-  );
-  normalized.execution = normalizeExecutionConfig(
-    record.execution,
-    defaults.execution ?? createDefaultExecutionConfig(),
   );
   normalized.automation = normalizeAutomationConfig(
     record.automation,
@@ -522,20 +515,6 @@ function normalizeProcessConfig(value: unknown, defaults: ProcessConfig): Proces
         : (defaults.killOnHostDispose ?? true),
   };
   return normalized;
-}
-
-function normalizeExecutionConfig(value: unknown, defaults: ExecutionConfig): ExecutionConfig {
-  const record = asRecord(value);
-  if (!record) {
-    return defaults;
-  }
-  const defaultMode = record.defaultMode;
-  return {
-    defaultMode:
-      defaultMode === 'chat' || defaultMode === 'agent' || defaultMode === 'agent-debug'
-        ? defaultMode
-        : (defaults.defaultMode ?? 'agent'),
-  };
 }
 
 function normalizeAutomationConfig(value: unknown, defaults: AutomationConfig): AutomationConfig {
