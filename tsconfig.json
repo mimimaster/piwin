@@ -20,6 +20,7 @@
     { "path": "packages/media" },
     { "path": "packages/marketplace" },
     { "path": "packages/ui-kit" },
+    { "path": "packages/browser" },
     { "path": "apps/cli" }
   ]
 }

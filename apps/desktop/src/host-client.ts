@@ -319,4 +319,34 @@ export class HostClient {
       listener(message);
     }
   }
+
+  // --- Browser session commands (ADR 0020 §6) -------------------------------
+
+  /** Start the shared browser session (idempotent). */
+  async browserStart(): Promise<HostResponse> {
+    return this.request({ type: 'browser/start' });
+  }
+
+  /** Navigate the mirrored browser to `url`. */
+  async browserNavigate(url: string): Promise<HostResponse> {
+    return this.request({ type: 'browser/navigate', url });
+  }
+
+  /** Pick the web element at viewport CSS coordinates (x, y). */
+  async browserPickAt(x: number, y: number): Promise<HostResponse> {
+    return this.request({ type: 'browser/pick-at', x, y });
+  }
+
+  /** Capture a screenshot; when `path` is omitted the host chooses the path. */
+  async browserScreenshot(path?: string): Promise<HostResponse> {
+    return this.request({
+      type: 'browser/screenshot',
+      ...(path !== undefined ? { path } : {}),
+    });
+  }
+
+  /** Stop the shared browser session and release Chromium. */
+  async browserStop(): Promise<HostResponse> {
+    return this.request({ type: 'browser/stop' });
+  }
 }

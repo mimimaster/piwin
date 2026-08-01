@@ -2047,9 +2047,8 @@
   font-size: 11px;
 }
 
-/* ── Browser, Canvas, Side Chat panels ─────────────────────────────── */
+/* ── Canvas, Side Chat panels ───────────────────────────────────────── */
 
-.browser-panel,
 .canvas-panel,
 .side-chat-panel {
   display: flex;
@@ -2057,47 +2056,6 @@
   flex: 1;
   min-height: 0;
   height: 100%;
-}
-
-/* Browser */
-
-.browser-panel-bar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line-soft);
-  flex-shrink: 0;
-}
-
-.browser-panel-input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 12px;
-}
-
-.browser-panel-input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-.browser-panel-frame {
-  flex: 1;
-  min-height: 0;
-  background: var(--panel);
-}
-
-.browser-panel-iframe {
-  width: 100%;
-  height: 100%;
-  border: 0;
 }
 
 /* Canvas */
@@ -2859,4 +2817,221 @@
   font-size: 10px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+/* ── Browser Session panel (ADR 0020 §6) ─────────────────────────── */
+
+.browser-session-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--canvas, var(--bg));
+}
+
+.browser-session-urlbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.browser-session-urlbar-icon {
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.browser-session-url-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.browser-session-url-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.browser-session-go-btn,
+.browser-session-refresh-btn {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.browser-session-go-btn:hover,
+.browser-session-refresh-btn:hover {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.browser-session-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-shrink: 0;
+}
+
+.browser-session-pick-toggle {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--control);
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.browser-session-pick-toggle.active {
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 15%, transparent));
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.browser-session-pick-toggle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.browser-session-pick-pending {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.browser-session-pick-error {
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.browser-session-clear-highlight {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.browser-session-clear-highlight:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.browser-session-frame-container {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+}
+
+.browser-session-frame {
+  /* IMPORTANT: the img MUST stay auto-sized — max-width/max-height with no
+     fixed width/height. Pick coordinate scaling uses img.clientWidth and the
+     highlight overlay offset assumes the img's box equals the displayed image;
+     a fixed size (or object-fit) that detaches clientWidth from the visible
+     image would break both. object-fit: contain is inert here (auto-sized img)
+     but kept in case a fixed size is ever introduced. */
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+.browser-session-frame.pick-mode {
+  cursor: crosshair;
+}
+
+.browser-session-frame-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.browser-session-highlight {
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+/* ── Web element chip (composer + chat) ──────────────────────────── */
+
+.web-element-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 240px;
+  padding: 4px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--control);
+}
+
+.web-element-chip.compact {
+  max-width: 180px;
+}
+
+.web-element-chip-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.web-element-chip-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
+}
+
+.web-element-chip-url {
+  font-size: 11px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.web-element-chip-selector {
+  font-size: 10px;
+  color: var(--muted);
+  font-family: var(--mono, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.web-element-chip-text {
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

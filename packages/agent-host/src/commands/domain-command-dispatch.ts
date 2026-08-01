@@ -12,6 +12,7 @@ import { handlePtyCommand } from './pty-commands.js';
 import { handleAutomationCommand } from './automation-commands.js';
 import { handleResolveCommand } from './resolve-commands.js';
 import { handleProjectCommand } from './project-commands.js';
+import { handleBrowserCommand } from './browser-commands.js';
 import { handleSessionProductCommand } from './session-product-commands.js';
 import { handleUsageCommand } from './usage-commands.js';
 import type { SessionProductCommandContext } from './session-product-commands.js';
@@ -43,6 +44,7 @@ export async function dispatchDomainCommands(
     handlePtyCommand,
     handleAutomationCommand,
     handleResolveCommand,
+    handleBrowserCommand,
   ] as const) {
     const result = await handler(command, requestId, context);
     if (result) {

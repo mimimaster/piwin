@@ -136,6 +136,7 @@ describe('HostRuntime', () => {
         attachments: [
           {
             id: asset.id,
+            kind: 'media',
             path: asset.absolutePath,
             mimeType: asset.mimeType,
             byteSize: asset.byteSize,
@@ -189,6 +190,7 @@ describe('HostRuntime', () => {
         attachments: [
           {
             id: 'x',
+            kind: 'media',
             path: '/etc/passwd',
             mimeType: 'image/png',
             byteSize: 12,

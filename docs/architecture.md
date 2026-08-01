@@ -241,6 +241,7 @@ rule editor is a follow-up (ADR 0019 open questions); until then users edit
 | `@piwin/theme` | Theme packages install/apply |
 | `@piwin/pet` | Codex pet adapter + state machine |
 | `@piwin/artifact` | Markdown helpers + HTML artifact runtime (from openwebui_m) |
+| `@piwin/browser` | Playwright-driven browser session (agent tools + panel mirror + element pick) |
 | `@piwin/media` | Paste store, previews, path injection for text models |
 | `@piwin/marketplace` | Unified install sources |
 | `@piwin/ui-kit` | Shared desktop UI primitives |
@@ -303,7 +304,50 @@ Paste image
   → vision path (later): image content parts when protocol + model support
 ```
 
-## 8. Tauri desktop shape
+## 8. Browser Session
+
+A host-owned, Playwright-driven browser session (`@piwin/browser`, ADR 0020) that
+owns **one** headless Chromium shared by the agent and the desktop panel — "what
+the user sees == what the agent controls".
+
+- **Agent tools** — `browser_navigate` / `browser_snapshot` / `browser_click` /
+  `browser_type` / `browser_fill_form` / `browser_scroll` / `browser_screenshot` /
+  `browser_find` / `browser_back` / `browser_forward` / `browser_wait`, registered
+  by `@piwin/agent-host` (`browser-tools.ts`). Snapshots use the **same ref
+  grammar as `@playwright/mcp`**: `locator('html').ariaSnapshot({ mode: 'ai',
+  boxes: true })` emits `[ref=eN]` + `[box=x,y,w,h]` annotations, and refs resolve
+  via `locator('aria-ref=e5')`. The snapshot output is **not** parseable YAML
+  (plain scalars with inline annotations; the `yaml` parser folds the indented
+  children), so `@piwin/browser` derives the tree with a small dedicated line
+  parser — no `yaml` dependency and no `page.accessibility` (removed in
+  Playwright 1.x).
+- **Panel mirror** — the desktop `BrowserSessionPanel` renders throttled JPEG
+  frame pushes (`browser/frame`, ~2–4 fps, size-capped) plus URL/title state
+  (`browser/state`) from the **same** instance the agent drives.
+- **Element pick → attach** — a user-initiated pick runs `elementFromPoint` in
+  the page context (same-origin, works on any site), returns a stable CSS
+  selector (`@medv/finder`, bundled and injected at the context level so it
+  survives navigation) + a bounded `innerText`/`outerHTML` + best-effort
+  snapshot `ref` + optional element-cropped screenshot under the media root. On
+  send, the host injects model-facing text (**URL + selector + bounded text +
+  optional screenshot path — no base64**, AGENTS.md §3.6) via
+  `formatTextModelWebElementInjection`.
+- **Permission** — `browser_navigate` allows **loopback only** (`localhost`,
+  `127.0.0.1`, `::1`) by default; **link-local / cloud metadata
+  (`169.254.169.254`, `fe80::/10`) and private ranges (`10/8`, `172.16/12`,
+  `192.168/16`, `fd00::/8`) go through the rule engine with default `ask`** —
+  never blanket-allow private (SSRF). Classification reuses
+  `isPrivateOrLocalHostname` / `isPrivateOrLocalIpAddress` from `@piwin/tools-web`.
+  Pick/attach is user-initiated (no prompt).
+- **CLI parity** — `browser_*` tools work in CLI sessions (host-owned service);
+  the visual panel is desktop-only. The degradation is intentional and documented
+  (AGENTS.md §5).
+- **Chromium** — `playwright-core` does not download browsers; it reuses the
+  chromium installed by `pnpm --dir apps/desktop e2e:install` (`playwright
+  install chromium`). `piwin doctor` reports chromium presence with an actionable
+  install hint.
+
+## 9. Tauri desktop shape
 
 ```text
 apps/desktop/
@@ -317,7 +361,7 @@ Tauri main process / commands call into Node host **or** a long-lived host sidec
 
 Alternative (simpler smoke): CLI embeds host in-process; Desktop spawns `piwin host --mode sdk|rpc`.
 
-## 9. CLI shape
+## 10. CLI shape
 
 ```text
 apps/cli → @piwin/agent-host + services
@@ -325,7 +369,7 @@ apps/cli → @piwin/agent-host + services
 
 Commands mirror host capabilities; no separate business logic.
 
-## 10. Testing strategy
+## 11. Testing strategy
 
 | Layer | Tests |
 |-------|-------|
@@ -334,7 +378,7 @@ Commands mirror host capabilities; no separate business logic.
 | agent-host adapters | integration with mocked Pi / recorded RPC |
 | desktop critical flows | playwright later |
 
-## 11. Evolution rules (anti-shitpile)
+## 12. Evolution rules (anti-shitpile)
 
 1. New feature → ADR if it crosses packages
 2. Contracts first, then package, then app wiring
@@ -342,7 +386,7 @@ Commands mirror host capabilities; no separate business logic.
 4. Marketplace installs only through `@piwin/marketplace`
 5. Prefer deleting code over "temporary" helpers that become permanent
 
-## 12. Open implementation choices (tracked)
+## 13. Open implementation choices (tracked)
 
 | Topic | Current lean |
 |-------|----------------|
@@ -351,7 +395,7 @@ Commands mirror host capabilities; no separate business logic.
 | Default host mode | SDK |
 | Sidecar vs in-process for Tauri | Sidecar host process |
 
-## 12. Capability honesty (2026-07-24)
+## 14. Capability honesty (2026-07-24)
 
 | Layer | States (truthful labels) | Notes |
 |-------|--------------------------|-------|

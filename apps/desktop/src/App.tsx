@@ -34,11 +34,11 @@ import type { HostLogEntry } from './HostLogPanel';
 import { NotesPanel } from './NotesPanel';
 import { FlashcardsPanel } from './FlashcardsPanel';
 import { KnowledgeCenterPanel } from './KnowledgeCenterPanel';
-import { BrowserPanel } from './browser-panel';
 import { CanvasPanel } from './canvas-panel';
 import { SideChatPanel } from './side-chat-panel';
 import { DocPreviewPanel, type SessionDocItem } from './DocPreviewPanel';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
+import { BrowserSessionPanel } from './browser-session-panel';
 import { collectSessionTools } from './tool-call-card';
 import { ChangesPanel } from './changes-panel';
 import { TerminalDock, type PtyOutputLine } from './terminal-dock';
@@ -798,6 +798,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     handleComposerPaste,
     handleComposerDrop,
     handlePickImageFiles,
+    addWebElement,
     handleSend,
     handleSteer,
     handleFollowUp,
@@ -1650,8 +1651,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     }}
                   />
                 }
-                browserContent={<BrowserPanel />}
                 canvasContent={<CanvasPanel />}
+                browserContent={
+                  <BrowserSessionPanel
+                    hostClient={hostClient}
+                    onAddWebElement={addWebElement}
+                    agentRunning={state.streaming}
+                  />
+                }
                 sideChatContent={<SideChatPanel sessionId={state.activeSessionId} />}
                 docPreviewContent={
                   <DocPreviewPanel

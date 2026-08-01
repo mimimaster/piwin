@@ -41,6 +41,7 @@ export function IconSideChat(props: IconProps): ReactElement {
   );
 }
 
+/** Globe / browser-session vector icon (ADR 0020 §6 panel tab). */
 export function IconBrowser(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
@@ -540,4 +541,3 @@ export function IconExpand(props: IconProps): ReactElement {
     </IconBase>
   );
 }
-

@@ -281,7 +281,22 @@ async function commandDoctor(): Promise<void> {
   console.log('- Pi kernel: via @piwin/agent-host only (apps must not import Pi)');
   console.log('- bash: permission-gated (deny hard patterns; ask destructive)');
   console.log('- IPC: HostCommand/HostPush + `host serve` available');
-  console.log('- packages: media tools-web skills mcp marketplace git theme pet artifact');
+  console.log('- packages: media tools-web skills mcp marketplace git theme pet artifact browser');
+  try {
+    const { getBrowserInstallStatus } = await import('@piwin/browser');
+    const browserStatus = getBrowserInstallStatus();
+    if (browserStatus.available) {
+      console.log(`- browser chromium: available (${browserStatus.path ?? 'unknown path'})`);
+    } else {
+      console.log(
+        `- browser chromium: MISSING (${browserStatus.hint ?? 'run pnpm --dir apps/desktop e2e:install'})`,
+      );
+    }
+  } catch (error) {
+    console.log(
+      `- browser chromium: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
   try {
     const runtime = new HostRuntime({
       mode: config.hostMode === 'rpc' ? 'rpc' : 'sdk',

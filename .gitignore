@@ -32,3 +32,7 @@ pelican-bicycle.html
 pelican-bike.html
 pelican-riding-bicycle.svg
 pelican-riding-bicycle-2.svg
+
+# icon generation backups (not source)
+apps/desktop/public/icon-backup-2026-07-31/
+apps/desktop/src-tauri/icons-backup-2026-07-31/

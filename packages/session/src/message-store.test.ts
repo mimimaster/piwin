@@ -21,6 +21,7 @@ describe('message-store', () => {
       attachments: [
         {
           id: 'a1',
+          kind: 'media',
           path: '/tmp/media/x.png',
           mimeType: 'image/png',
           byteSize: 10,
