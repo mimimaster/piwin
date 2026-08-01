@@ -48,5 +48,11 @@
     "typescript": "^5.9.3",
     "vite": "^6.4.3",
     "vitest": "^3.2.7"
+  },
+  "vitest": {
+    "environment": "happy-dom",
+    "setupFiles": [
+      "./src/setupTests.ts"
+    ]
   }
 }
