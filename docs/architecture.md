@@ -231,7 +231,7 @@ rule editor is a follow-up (ADR 0019 open questions); until then users edit
 | Package | Responsibility |
 |---------|----------------|
 | `@piwin/contracts` | Types, events, config schemas (runtime-light) |
-| `@piwin/agent-host` | Host + SDK/RPC adapters + permission, `image_gen` tool (routed by model name, gated on `imagegen` skill) |
+| `@piwin/agent-host` | Host + SDK/RPC adapters + permission; config-driven `image_gen` host tool (routed by model name, gated on `imagegen` skill) |
 | `@piwin/session` | History index, tree projection, naming |
 | `@piwin/project` | Workspace/project trust, cwd binding |
 | `@piwin/skills` | Discovery, install, defaults, find/create helpers |
@@ -249,7 +249,7 @@ rule editor is a follow-up (ADR 0019 open questions); until then users edit
 
 ```text
 ~/.piwin/
-  config.json                 # product config (host mode, providers, Desktop composer/session restore)
+  config.json                 # product config (host mode, providers, imageGeneration, Desktop composer/session restore)
   credentials/                # secrets (prefer OS keychain)
   sessions-index/             # SQLite or JSONL index over Pi sessions
   skills/
@@ -270,7 +270,8 @@ Pi native paths remain under `~/.pi/agent/`. piwin maps:
 and thinking effort) and last selected session. These are product settings,
 not browser-local presentation preferences. Restoring a project session opens
 the project without granting new trust; sending remains gated by its current
-trust state.
+trust state. The `imageGeneration` config section holds the default image model,
+configured through the Desktop's `Image Generation` settings page.
 
 ## 6. Model protocols
 

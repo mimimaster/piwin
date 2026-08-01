@@ -15,6 +15,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'appearance',
   'permissions',
   'models',
+  'image-generation',
   'skills',
   'extensions',
   'prompts',
