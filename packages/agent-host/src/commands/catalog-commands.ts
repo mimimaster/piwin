@@ -25,7 +25,19 @@ import { ensureBundledPromptsInstalled } from '../ensure-bundled-prompts.js';
 import { scanPrompts } from '../prompt-scanner.js';
 import { decodeBase64Media } from '../media-decode.js';
 import { discoverProviderModels } from '../provider-model-discovery.js';
+import { searchPiCatalog } from '../model-catalog-reader.js';
 import { testProviderModel } from '../provider-model-test.js';
+import {
+  DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
+  VisionDelegationCache,
+  delegateImageToVisionModel,
+  sharedVisionDelegationCache,
+} from '../vision-delegation.js';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { assertInsideMediaRoot } from '@piwin/media';
+import type { VisionDelegateResult } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
 import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { createSecretResolver } from '../secret-resolver.js';
@@ -64,7 +76,10 @@ const TYPES = new Set<HostCommand['type']>([
   'config/get',
   'config/set',
   'models/discover',
+  'models/catalog/search',
   'models/test',
+  'vision/delegate',
+  'vision/cache/clear',
   'secrets/set',
   'secrets/get',
 ]);
@@ -304,11 +319,7 @@ export async function handleCatalogCommand(
       const controller = new AbortController();
       if (requestId) activePetAborts.set(requestId, controller);
       try {
-        const results = await queryRemotePetStore(
-          rootDir,
-          command.query.query,
-          controller.signal,
-        );
+        const results = await queryRemotePetStore(rootDir, command.query.query, controller.signal);
         return ok(requestId, 'pet/store-query', { results });
       } finally {
         if (requestId) activePetAborts.delete(requestId);
@@ -319,11 +330,7 @@ export async function handleCatalogCommand(
       const controller = new AbortController();
       if (requestId) activePetAborts.set(requestId, controller);
       try {
-        const installed = await installPetFromRegistry(
-          rootDir,
-          command.url,
-          controller.signal,
-        );
+        const installed = await installPetFromRegistry(rootDir, command.url, controller.signal);
         return ok(requestId, 'pet/install-registry', installed);
       } finally {
         if (requestId) activePetAborts.delete(requestId);
@@ -379,6 +386,15 @@ export async function handleCatalogCommand(
         return fail(requestId, 'models/discover', message);
       }
     }
+    case 'models/catalog/search': {
+      try {
+        const result = searchPiCatalog(command.input ?? {});
+        return ok(requestId, 'models/catalog/search', result);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return fail(requestId, 'models/catalog/search', message);
+      }
+    }
     case 'models/test': {
       try {
         const secretResolver = createSecretResolver();
@@ -404,6 +420,109 @@ export async function handleCatalogCommand(
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return fail(requestId, 'models/test', message);
+      }
+    }
+    case 'vision/cache/clear': {
+      sharedVisionDelegationCache.clear();
+      return ok(requestId, 'vision/cache/clear', { cleared: true });
+    }
+    case 'vision/delegate': {
+      let tempDir: string | null = null;
+      try {
+        const rootDir = getPiwinRoot(context.piwinRoot);
+        const config = await loadPiwinConfig(rootDir);
+        const visionConfig = config.visionDelegation;
+        if (!visionConfig?.enabled || !visionConfig.model) {
+          return fail(
+            requestId,
+            'vision/delegate',
+            'Vision delegation is not enabled or no vision model is configured',
+          );
+        }
+        const visionRef = visionConfig.model;
+        const visionProvider = config.providers.find((item) => item.id === visionRef.providerId);
+        if (!visionProvider) {
+          return fail(
+            requestId,
+            'vision/delegate',
+            `Vision provider not found: ${visionRef.providerId}`,
+          );
+        }
+        const secretResolver = createSecretResolver();
+        const apiKey = await secretResolver.resolveProviderSecret(visionProvider);
+        if (!apiKey) {
+          return fail(requestId, 'vision/delegate', 'Could not resolve vision model API key');
+        }
+
+        const mimeType = command.input.mimeType?.trim();
+        if (!mimeType) {
+          return fail(requestId, 'vision/delegate', 'mimeType is required');
+        }
+
+        let imagePath = command.input.imagePath?.trim();
+        if (imagePath) {
+          const mediaRoot = getPiwinMediaDir(rootDir);
+          assertInsideMediaRoot(mediaRoot, imagePath);
+        } else if (command.input.imageBase64?.trim()) {
+          tempDir = await mkdtemp(join(tmpdir(), 'piwin-vision-'));
+          const ext =
+            mimeType === 'image/jpeg' ? 'jpg' : mimeType === 'image/webp' ? 'webp' : 'png';
+          imagePath = join(tempDir, `preview.${ext}`);
+          await writeFile(imagePath, Buffer.from(command.input.imageBase64, 'base64'));
+        } else {
+          return fail(requestId, 'vision/delegate', 'imagePath or imageBase64 is required');
+        }
+
+        const systemPrompt =
+          command.input.prompt?.trim() ||
+          visionConfig.systemPrompt?.trim() ||
+          DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
+        const fileBytes = await readFile(imagePath);
+        const cacheKey =
+          visionConfig.cacheEnabled === false
+            ? null
+            : VisionDelegationCache.buildKey({
+                fileBytes,
+                mimeType,
+                providerId: visionRef.providerId,
+                modelId: visionRef.modelId,
+                systemPrompt,
+              });
+        let cacheHit = false;
+        let description: string | undefined;
+        if (cacheKey) {
+          description = sharedVisionDelegationCache.get(cacheKey);
+          cacheHit = description !== undefined;
+        }
+        const started = Date.now();
+        if (!description) {
+          description = await delegateImageToVisionModel({
+            imagePath,
+            mimeType,
+            provider: visionProvider,
+            modelId: visionRef.modelId,
+            apiKey,
+            systemPrompt,
+            ...(visionConfig.timeoutMs !== undefined ? { timeoutMs: visionConfig.timeoutMs } : {}),
+          });
+          if (cacheKey) {
+            sharedVisionDelegationCache.set(cacheKey, description);
+          }
+        }
+        const result: VisionDelegateResult = {
+          description,
+          model: visionRef,
+          durationMs: Date.now() - started,
+          cacheHit,
+        };
+        return ok(requestId, 'vision/delegate', result);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return fail(requestId, 'vision/delegate', message);
+      } finally {
+        if (tempDir) {
+          await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+        }
       }
     }
     case 'secrets/set': {

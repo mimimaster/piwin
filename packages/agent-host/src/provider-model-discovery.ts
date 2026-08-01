@@ -4,11 +4,8 @@
  * The desktop never sends credentials over the network. It asks the host to
  * call the protocol-specific discovery endpoint using a resolved secret.
  */
-import type {
-  DiscoveredModel,
-  ModelDiscoveryResult,
-  ModelProviderConfig,
-} from '@piwin/contracts';
+import type { DiscoveredModel, ModelDiscoveryResult, ModelProviderConfig } from '@piwin/contracts';
+import { enrichFromCatalog, lookupCatalogByModelId } from './model-catalog-reader.js';
 
 const DISCOVERY_TIMEOUT_MS = 15_000;
 const ANTHROPIC_API_VERSION = '2023-06-01';
@@ -53,7 +50,9 @@ export async function discoverProviderModels(
       );
     }
     const payload: unknown = await response.json();
-    const models = parseDiscoveredModels(provider.protocol, payload);
+    const models = parseDiscoveredModels(provider.protocol, payload).map((model) =>
+      enrichDiscoveredModelFromCatalog(model),
+    );
     return { providerId: provider.id, protocol: provider.protocol, models };
   } catch (error) {
     if (error instanceof ProviderModelDiscoveryError) {
@@ -183,4 +182,8 @@ function parseDiscoveredModels(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+function enrichDiscoveredModelFromCatalog(model: DiscoveredModel): DiscoveredModel {
+  return enrichFromCatalog(model, lookupCatalogByModelId(model.id));
 }

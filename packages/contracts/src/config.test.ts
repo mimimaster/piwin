@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { ModelConfigEntry, ModelCapability, ModelRouteConfig, PiwinConfig, ImageGenerationConfig } from './config.js';
+import type {
+  ModelConfigEntry,
+  ModelCapability,
+  ModelRouteConfig,
+  PiwinConfig,
+  ImageGenerationConfig,
+} from './config.js';
 
 describe('ModelConfigEntry capabilities + routes', () => {
   it('accepts capabilities and routes', () => {
@@ -21,6 +27,16 @@ describe('ModelConfigEntry capabilities + routes', () => {
   it('accepts a chat-only model without capabilities (backward compat)', () => {
     const entry: ModelConfigEntry = { id: 'gpt-4.1' };
     expect(entry.capabilities).toBeUndefined();
+  });
+
+  it('accepts input modalities and reasoning flags', () => {
+    const entry: ModelConfigEntry = {
+      id: 'claude-sonnet',
+      input: ['text', 'image'],
+      reasoning: true,
+    };
+    expect(entry.input).toContain('image');
+    expect(entry.reasoning).toBe(true);
   });
 });
 
