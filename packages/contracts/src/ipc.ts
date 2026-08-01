@@ -265,6 +265,11 @@ export type HostCommand =
     }
   | {
       id?: string;
+      type: 'models/catalog/search';
+      input?: import('./model-catalog.js').ModelCatalogSearchRequest;
+    }
+  | {
+      id?: string;
       type: 'models/test';
       provider: ModelProviderConfig;
       modelId: string;

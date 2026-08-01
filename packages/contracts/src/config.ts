@@ -16,6 +16,9 @@ import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 /** Model capability tags. Drives tool routing and settings UI grouping. */
 export type ModelCapability = 'chat' | 'image-generation';
 
+/** Input modalities a model accepts (Pi catalog / ModelRuntime). */
+export type ModelInputModality = 'text' | 'image';
+
 /** Per-capability route override (request path + timeout). */
 export type ModelRouteConfig = {
   /** Custom request path appended to provider baseUrl (e.g. '/images/generations'). */
@@ -38,10 +41,22 @@ export type ModelConfigEntry = {
   maxOutputTokens?: number;
   /** Optional Markdown shown when the model is hovered in a picker. */
   tooltipMarkdown?: string;
+  /** Optional default thinking/reasoning effort level for this model. */
+  thinkingLevel?: ThinkingLevel;
   /** Capabilities this model supports. Omit = ['chat'] for backward compat. */
   capabilities?: ModelCapability[];
   /** Per-capability route overrides (path, timeout). */
   routes?: Partial<Record<ModelCapability, ModelRouteConfig>>;
+  /**
+   * Input modalities. Omit = treat as `['text']` (safe default: do not assume vision).
+   * Source: catalog autocomplete / user checkbox / discover+catalog enrich.
+   */
+  input?: readonly ModelInputModality[];
+  /**
+   * Whether the model supports reasoning/thinking.
+   * When omitted at Pi registration time, defaults to `true` (legacy behavior).
+   */
+  reasoning?: boolean;
 };
 
 /** Default context window when a model omits `contextWindow`. */
@@ -91,6 +106,11 @@ export type ModelProviderConfig =
 export type DiscoveredModel = {
   id: string;
   label?: string;
+  /** Filled by host catalog enrich after discover (optional). */
+  input?: readonly ModelInputModality[];
+  reasoning?: boolean;
+  contextWindow?: number;
+  maxOutputTokens?: number;
 };
 
 /** Safe model discovery payload. Never includes API credentials. */
