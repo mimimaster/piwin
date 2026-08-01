@@ -8,6 +8,7 @@ import type {
   SessionSearchResult,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
+import { createDefaultWalkthroughConfig } from '@piwin/contracts';
 import { getSessionRecord } from '@piwin/session';
 import { HostRuntime } from './host-runtime.js';
 import { savePiwinConfig } from './config-store.js';
@@ -312,6 +313,10 @@ describe('CE-CHAT session ops', () => {
           allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
         },
         artifact: { maxBytes: 100 * 1024, htmlUiModeDefault: false },
+        walkthrough: {
+          ...createDefaultWalkthroughConfig(),
+          autoGenerate: false,
+        },
       },
       rootDir,
     );
