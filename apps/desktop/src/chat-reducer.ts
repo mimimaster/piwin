@@ -2,7 +2,7 @@ import type {
   AgentEvent,
   AgentEventEnvelope,
   ContextUsageSnapshot,
-  MediaAttachmentRef,
+  PromptAttachment,
   PermissionDecision,
   PermissionRequestContext,
   SessionRunOutcome,
@@ -40,7 +40,7 @@ export type ChatMessageUi = {
   text: string;
   thinking: string;
   tools: ToolCardUi[];
-  attachments: MediaAttachmentRef[];
+  attachments: PromptAttachment[];
   status: 'streaming' | 'done' | 'error';
   createdAt?: string;
   /** Run that produced this assistant message when host provided run identity. */
@@ -200,7 +200,7 @@ export type ChatUiAction =
   | { type: 'session/hide-from-list'; sessionId: string }
   | { type: 'session/clear-active' }
   | { type: 'session/truncate'; sessionId: string; messages: SessionTranscriptMessage[] }
-  | { type: 'user/send'; text: string; attachments?: MediaAttachmentRef[] }
+  | { type: 'user/send'; text: string; attachments?: PromptAttachment[] }
   | { type: 'run/aborting' }
   | { type: 'run/accepted'; runId: string; acceptedAt?: string }
   | { type: 'run/terminal-dismiss' }

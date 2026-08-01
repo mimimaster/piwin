@@ -59,12 +59,15 @@ A host-side capability service that owns **one** headless Chromium via
   `browser_click`, `browser_type`, `browser_fill_form`, `browser_scroll`,
   `browser_screenshot`, `browser_find`, `browser_back`/`browser_forward`,
   `browser_wait`. Snapshots use the **same ref grammar as `@playwright/mcp`**:
-  `locator('html').ariaSnapshot({ mode: 'ai', boxes: true })` emits YAML with
-  `[ref=eN]` and `[box=x,y,w,h]` annotations, and refs resolve via
+  `locator('html').ariaSnapshot({ mode: 'ai', boxes: true })` emits an
+  indentation-based line format — one `- role "name" [ref=eN] [box=x,y,w,h]` line
+  per node with annotations as an order-independent bag — that is **not**
+  parseable as YAML (the `yaml` package folds indented `- child` lines into the
+  parent scalar and throws `MULTILINE_IMPLICIT_KEY`). The typed
+  `BrowserSnapshotNode[]` tree is therefore derived with a small dedicated line
+  parser; there is **no `yaml` dependency**. Refs resolve via
   `locator('aria-ref=e5')`. Both are public `playwright-core` APIs (the legacy
-  `page.accessibility` was removed in 1.x and must not be used). The typed
-  `BrowserSnapshotNode[]` tree is derived by parsing this YAML (small dedicated
-  parser; no new runtime dep beyond a `yaml` lib if we reuse it).
+  `page.accessibility` was removed in 1.x and must not be used).
 - **Pick surface** — `pickElementAt(x, y)` runs `document.elementFromPoint` in
   the page context (same-origin by definition, so it works on any site) and
   returns a stable CSS selector (`@medv/finder`, bundled and injected via
@@ -78,9 +81,10 @@ A host-side capability service that owns **one** headless Chromium via
   JPEG data-URLs) plus URL/title state, for the desktop panel.
 
 Dependencies: `@piwin/contracts` (types) + `playwright-core` (+ `@medv/finder`,
-+ `yaml` for snapshot parsing). It is an application package below the host
-boundary, exactly like `tools-web`. It does **not** import Pi, DOM host APIs, or
-`agent-host`.
+bundled via esbuild and injected at the browser context level so it survives
+navigations). It is an application package below the host boundary, exactly like
+`tools-web`. It does **not** import Pi, DOM host APIs, or `agent-host`. There is
+**no `yaml` dependency** — the snapshot is parsed with a dedicated line parser.
 
 ### 3. Tool wiring in `@piwin/agent-host`
 
@@ -203,10 +207,12 @@ The visual panel is desktop-only; CLI degradation is intentional and documented
   limitation; a headed/stealth option is deferred.
 - **No `page.accessibility`**: it was removed in Playwright 1.x. All snapshot
   logic uses `ariaSnapshot({ mode: 'ai', boxes: true })` + `locator('aria-ref=…')`.
-- **YAML parsing**: `ariaSnapshot` returns YAML text; deriving the typed
-  `BrowserSnapshotNode[]` needs a YAML parser (`yaml` pkg) or we keep the raw
-  YAML string as the tool payload. The `yaml` dependency is justified; add it to
-  `@piwin/browser`.
+- **Snapshot parsing**: `ariaSnapshot({ mode: 'ai', boxes: true })` returns an
+  indentation-based line format, not valid YAML — the `yaml` package folds
+  indented `- child` lines into the parent scalar and throws
+  `MULTILINE_IMPLICIT_KEY`. `@piwin/browser` derives the typed
+  `BrowserSnapshotNode[]` with a small dedicated line parser (`src/snapshot.ts`);
+  there is **no `yaml` dependency**.
 
 ## Alternatives considered
 

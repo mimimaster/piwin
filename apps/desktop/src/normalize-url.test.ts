@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeUrl } from './browser-panel';
+import { normalizeUrl } from './normalize-url';
 
 describe('normalizeUrl', () => {
   it('keeps a full http URL as-is', () => {

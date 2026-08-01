@@ -4,6 +4,7 @@
  */
 import type {
   AgentEvent,
+  MediaAttachmentRef,
   PromptInput,
   SessionTranscriptDocument,
   SessionTranscriptMessage,
@@ -142,7 +143,14 @@ export function createTranscriptRecorder(options: {
         text: input.text,
       };
       if (input.attachments && input.attachments.length > 0) {
-        messageInput.attachments = input.attachments;
+        // The transcript schema is still media-only; web-element attachments
+        // land here once the browser session ships (Task 2/3) and widen it.
+        const mediaAttachments = input.attachments.filter(
+          (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
+        );
+        if (mediaAttachments.length > 0) {
+          messageInput.attachments = mediaAttachments;
+        }
       }
       const message = createUserTranscriptMessage(messageInput);
       await enqueueWrite(async () => {

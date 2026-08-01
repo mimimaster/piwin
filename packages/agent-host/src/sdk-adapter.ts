@@ -48,6 +48,7 @@ import { buildNotesTools } from './notes-tools.js';
 import { resolveNotesEmbeddingApiKey } from './notes-embedding-secret.js';
 import { createCardStore } from '@piwin/flashcards';
 import { buildFlashcardTools } from './flashcard-tools.js';
+import { createBrowserToolDefinitions } from './browser-tools.js';
 import { createSecretResolver } from './secret-resolver.js';
 import {
   buildPiProviderRegistration,
@@ -149,6 +150,12 @@ export type PiSdkAdapterOptions = {
   onMergeSubagent?: (
     childSessionId: string,
   ) => Promise<{ summaryPreview?: string; alreadyMerged?: boolean }>;
+  /**
+   * Host-owned browser session (ADR 0020). When present, `browser_*` tools are
+   * appended to the coding/agent tool set. Lazily provided so HostRuntime can
+   * create the session before the first Pi session without a static import.
+   */
+  getBrowserSession?: () => import('@piwin/browser').BrowserSession | undefined;
 };
 
 /**
@@ -682,6 +689,22 @@ async function createPiSdkSession(
   // - knowledge (chat): flashcards + read-only notes + optional web
   // - coding (agent): web/mcp/plan/process/notes CRUD, no flashcards (unless agentModeTools)
   // - debug (agent-debug): coding ∪ flashcards
+  // Browser session tools (ADR 0020). Appended to the coding/agent tool set
+  // (not knowledge/chat) when a host-owned BrowserSession is available. The
+  // navigate tool is permission-gated inside its executor.
+  const browserSession = adapterOptions.getBrowserSession?.();
+  const browserTools: import('@piwin/tools-web').HostToolDefinition[] = [];
+  if (browserSession && !chatMode && !readonlySubagent) {
+    const browserToolOptions: import('./browser-tools.js').CreateBrowserToolsOptions = {};
+    if (requestPermission) {
+      browserToolOptions.requestPermission = requestPermission;
+    }
+    if (mergedRules) {
+      browserToolOptions.rules = mergedRules;
+    }
+    browserTools.push(...createBrowserToolDefinitions(browserSession, browserToolOptions));
+  }
+
   const knowledgeTools: import('@piwin/tools-web').HostToolDefinition[] = [
     ...flashcardTools,
     ...notesSearchOnlyTools,
@@ -697,6 +720,7 @@ async function createPiSdkSession(
     ...(flashcardsInCoding ? flashcardTools : []),
     ...(subagentRunTool ? [subagentRunTool] : []),
     ...(imageGenTool ? [imageGenTool] : []),
+    ...browserTools,
   ];
   const hostTools =
     executionMode === 'chat'

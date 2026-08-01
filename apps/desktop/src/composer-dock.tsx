@@ -26,6 +26,7 @@ import {
 } from './composer-plus-menu';
 import { getAgentMode, type AgentModeId } from './agent-mode';
 import { MediaPreview } from './MediaPreview';
+import { WebElementChip } from './WebElementChip';
 import type { PendingComposerAttachment } from './media-utils';
 import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
@@ -434,8 +435,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
     // 4. Enter Send handling with strict IME protection
     const now = Date.now();
-    const isRecentlyComposing =
-      isComposingRef.current || now - lastCompositionEndRef.current < 100;
+    const isRecentlyComposing = isComposingRef.current || now - lastCompositionEndRef.current < 100;
 
     if (
       event.key === 'Enter' &&
@@ -487,7 +487,11 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         <div className="composer-v2-attachments">
           {props.pendingAttachments.map((item) => (
             <div key={item.localId} className="composer-v2-attachment-chip">
-              <MediaPreview attachment={item.attachment} previewUrl={item.previewUrl} compact />
+              {item.attachment.kind === 'web-element' ? (
+                <WebElementChip attachment={item.attachment} compact />
+              ) : (
+                <MediaPreview attachment={item.attachment} previewUrl={item.previewUrl} compact />
+              )}
               <button
                 type="button"
                 className="composer-v2-chip-remove"

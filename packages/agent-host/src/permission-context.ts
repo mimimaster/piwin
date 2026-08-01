@@ -50,6 +50,17 @@ export function buildPermissionRequestContext(
     };
   }
 
+  if (lowered.startsWith('browser:') || lowered.includes('browser_navigate')) {
+    const host = extractHost(detailText);
+    return {
+      kind: 'network',
+      summary: action,
+      ...(host ? { host } : {}),
+      reason: 'Browser navigation requires review',
+      ...(detailText ? { command: detailText } : {}),
+    };
+  }
+
   if (lowered.startsWith('mcp:') || lowered.includes('mcp')) {
     const serverId =
       (lowered === 'mcp:tool-call' || lowered === 'mcp:connect'

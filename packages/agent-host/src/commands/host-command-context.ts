@@ -13,6 +13,7 @@ import type {
 import type { McpLifecycleManager } from '@piwin/mcp';
 import type { ProcessRegistry } from '@piwin/process';
 import type { SessionTodoStore } from '@piwin/automation';
+import type { BrowserSession } from '@piwin/browser';
 import type { PtyHost } from '../pty-host.js';
 import type { ExtensionUiKind, ExtensionUiResponse } from '../extension-ui-bridge.js';
 
@@ -44,6 +45,8 @@ export type HostCommandContext = {
   getMcpManager: () => McpLifecycleManager;
   getProcessRegistry: () => ProcessRegistry;
   getPtyHost: () => PtyHost;
+  /** Browser session owned by HostRuntime; undefined when not started (ADR 0020). */
+  getBrowserSession?: () => BrowserSession | undefined;
   todoStore: SessionTodoStore;
   petStateStore: import('../pet-state-store.js').PetStateStore;
   runCronJob: (

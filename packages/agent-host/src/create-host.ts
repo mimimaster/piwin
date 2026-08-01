@@ -37,6 +37,8 @@ export type CreateAgentHostOptions = AgentHostFactoryOptions & {
   /** Subagent delegation seam for piwin_subagent_run tool (SDK mode only). */
   onSpawnSubagent?: PiSdkAdapterOptions['onSpawnSubagent'];
   onMergeSubagent?: PiSdkAdapterOptions['onMergeSubagent'];
+  /** Host-owned browser session getter (ADR 0020). */
+  getBrowserSession?: PiSdkAdapterOptions['getBrowserSession'];
 };
 
 export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
@@ -73,6 +75,9 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
     if (options.permissionModeOverride) {
       rpcOptions.permissionModeOverride = options.permissionModeOverride;
     }
+    if (options.getBrowserSession) {
+      rpcOptions.getBrowserSession = options.getBrowserSession;
+    }
     return new PiRpcAdapter(rpcOptions);
   }
 
@@ -106,6 +111,9 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
   }
   if (options.onMergeSubagent) {
     sdkOptions.onMergeSubagent = options.onMergeSubagent;
+  }
+  if (options.getBrowserSession) {
+    sdkOptions.getBrowserSession = options.getBrowserSession;
   }
   return new PiSdkAdapter(sdkOptions);
 }
