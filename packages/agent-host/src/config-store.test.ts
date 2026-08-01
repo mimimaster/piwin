@@ -85,7 +85,6 @@ describe('config-store', () => {
       killOnSessionEnd: true,
       killOnHostDispose: false,
     };
-    config.execution = { defaultMode: 'agent-debug' };
     config.automation = { enabled: true, cronEnabled: true, hooksEnabled: false };
     config.marketplace = {
       skillSources: ['static', 'git-index'],
@@ -96,7 +95,6 @@ describe('config-store', () => {
     const loaded = await loadPiwinConfig(rootDir);
 
     expect(loaded.process).toEqual(config.process);
-    expect(loaded.execution).toEqual(config.execution);
     expect(loaded.automation).toEqual(config.automation);
     expect(loaded.marketplace).toEqual(config.marketplace);
   });

@@ -2,7 +2,6 @@
 
 import type { ContextUsageSnapshot } from './usage.js';
 import type { ManagedProcessLogChunk, ManagedProcessRecord } from './process.js';
-import type { ExecutionMode } from './session-ops.js';
 import type { SubagentSpawnOptions } from './subagent.js';
 import type { CompactionFileOps } from './compaction-fileops.js';
 import type { PromptAttachment } from './browser.js';
@@ -111,8 +110,6 @@ export type CreateSessionInput = {
   sessionName?: string;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
-  /** CE-CHAT / CE-MODE light: chat strips tools; agent is default. */
-  executionMode?: ExecutionMode;
   /** When set, creates a product-layer sub-agent session (depth max 1). */
   parentSessionId?: string;
   /** Initial task text for sub-agent (seeded as first user prompt after create). */

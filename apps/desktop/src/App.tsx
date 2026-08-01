@@ -8,7 +8,6 @@ import {
   type SetStateAction,
 } from 'react';
 import type {
-  ExecutionMode,
   PiwinConfig,
   ProjectRecord,
   SessionSearchHit,
@@ -299,7 +298,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   } | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
-  const [executionMode, setExecutionMode] = useState<ExecutionMode>('agent');
   const [remoteSearchHits, setRemoteSearchHits] = useState<SessionSearchHit[] | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   // Pending edit-and-resend from a non-last user message. When set, the revert
@@ -670,7 +668,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setProjectInput,
     setProjectPickerOpen,
     showArchivedSessions,
-    executionMode,
     selectedModelKey,
     modelOptions,
     agentMode,
@@ -686,7 +683,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     async (text: string, title?: string) => {
       const sessionId = await ensureSession({
         scope: { kind: 'general' },
-        executionMode: 'chat',
         ...(title ? { sessionName: title } : {}),
       });
       if (!sessionId) {
@@ -1339,8 +1335,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         />
 
         <WorkspaceTitlebar
-          executionMode={executionMode}
-          onExecutionModeChange={setExecutionMode}
           appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
           sessionsExpanded={navDrawerOpen}
           onToggleSessions={() => {

@@ -56,7 +56,7 @@ describe('CE-CHAT session ops', () => {
 
     const created = await runtime.handleCommand({
       type: 'session/create',
-      input: { projectPath, sessionName: 'demo-chat', executionMode: 'agent' },
+      input: { projectPath, sessionName: 'demo-chat' },
     });
     expect(created.success).toBe(true);
     if (!created.success) throw new Error(created.error);
@@ -166,7 +166,7 @@ describe('CE-CHAT session ops', () => {
 
     const created = await runtime.handleCommand({
       type: 'session/create',
-      input: { projectPath, sessionName: 'revert-demo', executionMode: 'agent' },
+      input: { projectPath, sessionName: 'revert-demo' },
     });
     expect(created.success).toBe(true);
     if (!created.success) throw new Error(created.error);
@@ -225,46 +225,6 @@ describe('CE-CHAT session ops', () => {
     await runtime.dispose();
   });
 
-  it('chat mode does not emit mock tool events', async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-chat-mode-'));
-    const pushes: HostPush[] = [];
-    const runtime = new HostRuntime({
-      mode: 'sdk',
-      mock: true,
-      piwinRoot: rootDir,
-      onPush: (message) => pushes.push(message),
-    });
-    const projectPath = join(rootDir, 'proj');
-    await runtime.handleCommand({ type: 'project/open', path: projectPath });
-    await runtime.handleCommand({ type: 'project/trust', path: projectPath });
-    const created = await runtime.handleCommand({
-      type: 'session/create',
-      input: { projectPath, executionMode: 'chat' },
-    });
-    if (!created.success) throw new Error(created.error);
-    const sessionId = (created.data as { sessionId: string }).sessionId;
-    await runtime.handleCommand({
-      type: 'session/prompt',
-      sessionId,
-      input: { text: 'hello chat mode' },
-    });
-    for (let attempt = 0; attempt < 100; attempt += 1) {
-      const terminal = pushes.find(
-        (push) =>
-          push.type === 'event' &&
-          push.event.type === 'run/terminal' &&
-          push.event.sessionId === sessionId,
-      );
-      if (terminal) break;
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
-    const toolStarts = pushes.filter(
-      (push) => push.type === 'event' && push.event.type === 'tool/start',
-    );
-    expect(toolStarts).toHaveLength(0);
-    await runtime.dispose();
-  });
-
   it('auto-names a session after the first completed exchange and retries until success', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-trigger-'));
     const pushes: HostPush[] = [];
@@ -279,7 +239,7 @@ describe('CE-CHAT session ops', () => {
     await runtime.handleCommand({ type: 'project/trust', path: projectPath });
     const created = await runtime.handleCommand({
       type: 'session/create',
-      input: { projectPath, executionMode: 'chat' },
+      input: { projectPath },
     });
     if (!created.success) throw new Error(created.error);
     const sessionId = (created.data as { sessionId: string }).sessionId;
@@ -378,7 +338,7 @@ describe('CE-CHAT session ops', () => {
     await runtime.handleCommand({ type: 'project/trust', path: projectPath });
     const created = await runtime.handleCommand({
       type: 'session/create',
-      input: { projectPath, executionMode: 'chat' },
+      input: { projectPath },
     });
     if (!created.success) throw new Error(created.error);
     const sessionId = (created.data as { sessionId: string }).sessionId;

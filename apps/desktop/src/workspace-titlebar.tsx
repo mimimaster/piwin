@@ -3,7 +3,6 @@
  * Brand and host status live in the left navigator.
  */
 import type { ReactElement } from 'react';
-import type { ExecutionMode } from '@piwin/contracts';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -19,8 +18,6 @@ import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import { DropdownMenu, DropdownMenuItem, IconButton } from '@piwin/ui-kit';
 
 export type WorkspaceTitlebarProps = {
-  executionMode: ExecutionMode;
-  onExecutionModeChange: (mode: ExecutionMode) => void;
   appearanceMode?: 'light' | 'dark';
   sessionsExpanded?: boolean;
   onToggleSessions?: () => void;
@@ -74,9 +71,7 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
     <header className="titlebar workbench-topbar" data-testid="workbench-topbar">
       <IconButton
         className={
-          props.sessionsExpanded
-            ? 'topbar-sessions-toggle active'
-            : 'topbar-sessions-toggle'
+          props.sessionsExpanded ? 'topbar-sessions-toggle active' : 'topbar-sessions-toggle'
         }
         data-testid="rail-chats-btn"
         label={props.sessionsExpanded ? '收起左边栏' : '展开左边栏'}
@@ -122,9 +117,7 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
         <div className="titlebar-session-identity">
           {props.sessionTitle.includes(' / ') ? (
             <>
-              <span className="titlebar-project-name">
-                {props.sessionTitle.split(' / ')[0]}
-              </span>
+              <span className="titlebar-project-name">{props.sessionTitle.split(' / ')[0]}</span>
               <span className="titlebar-sep">/</span>
               <span className="titlebar-session-name">
                 {props.sessionTitle.split(' / ').slice(1).join(' / ')}
@@ -186,10 +179,7 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
               </IconButton>
             }
           >
-            <DropdownMenuItem
-              testId="more-sessions"
-              onSelect={() => props.onToggleSessions?.()}
-            >
+            <DropdownMenuItem testId="more-sessions" onSelect={() => props.onToggleSessions?.()}>
               <IconPanelLeft /> Sessions
             </DropdownMenuItem>
             <DropdownMenuItem testId="more-skills" onSelect={() => props.onOpenSkills?.()}>
@@ -198,27 +188,6 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
             <DropdownMenuItem testId="more-mcp" onSelect={() => props.onOpenMcp?.()}>
               <IconMcp width={16} height={16} /> MCP
             </DropdownMenuItem>
-            {/* Quiet workbench: frameless new-session mode (no boxed select on titleband). */}
-            {(
-              [
-                { mode: 'chat' as const, label: 'New session: Chat' },
-                { mode: 'agent' as const, label: 'New session: Agent' },
-                { mode: 'agent-debug' as const, label: 'New session: Agent Debug' },
-              ] as const
-            ).map((entry) => (
-              <DropdownMenuItem
-                key={entry.mode}
-                testId={
-                  entry.mode === props.executionMode
-                    ? 'execution-mode-select'
-                    : `execution-mode-${entry.mode}`
-                }
-                onSelect={() => props.onExecutionModeChange(entry.mode)}
-              >
-                {props.executionMode === entry.mode ? '✓ ' : ''}
-                {entry.label}
-              </DropdownMenuItem>
-            ))}
             <DropdownMenuItem
               testId="more-appearance"
               onSelect={() => props.onToggleAppearance?.()}
@@ -227,10 +196,7 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
               {props.appearanceMode === 'light' ? 'Dark mode' : 'Light mode'}
             </DropdownMenuItem>
             {props.onOpenSettings ? (
-              <DropdownMenuItem
-                testId="more-settings"
-                onSelect={() => props.onOpenSettings?.()}
-              >
+              <DropdownMenuItem testId="more-settings" onSelect={() => props.onOpenSettings?.()}>
                 {copy.settings}
               </DropdownMenuItem>
             ) : null}

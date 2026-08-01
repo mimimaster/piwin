@@ -3,20 +3,6 @@
  * Index projection lives under `~/.piwin/sessions-index/`.
  */
 
-/** Light execution modes (W1 / CE-MODE-01 polish later). */
-export type ExecutionMode = 'chat' | 'agent' | 'agent-debug';
-
-/** Product config under `PiwinConfig.execution`. */
-export type ExecutionConfig = {
-  defaultMode?: ExecutionMode;
-};
-
-export function createDefaultExecutionConfig(): ExecutionConfig {
-  return {
-    defaultMode: 'agent',
-  };
-}
-
 /** FTS / projection search over product session index. */
 export type SessionSearchQuery = {
   query: string;

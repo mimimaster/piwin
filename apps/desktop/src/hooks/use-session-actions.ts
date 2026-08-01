@@ -3,7 +3,6 @@
  */
 import { useCallback, useRef, type Dispatch, type SetStateAction } from 'react';
 import type {
-  ExecutionMode,
   ModelRef,
   PermissionDecision,
   PermissionRememberScope,
@@ -39,7 +38,6 @@ export type UseSessionActionsArgs = {
   setProjectInput: Dispatch<SetStateAction<string>>;
   setProjectPickerOpen: Dispatch<SetStateAction<boolean>>;
   showArchivedSessions: boolean;
-  executionMode: ExecutionMode;
   selectedModelKey: string;
   modelOptions: ModelOption[];
   agentMode: AgentModeId;
@@ -57,7 +55,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     projectInput,
     setProjectPickerOpen,
     showArchivedSessions,
-    executionMode,
     selectedModelKey,
     modelOptions,
     agentMode,
@@ -244,7 +241,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       projectPath?: string;
       alreadyTrusted?: boolean;
       scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
-      executionMode?: ExecutionMode;
       sessionName?: string;
     }): Promise<string | null> => {
       const explicitScope = options?.scope;
@@ -269,14 +265,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
           projectPath?: string;
           model?: ModelRef;
-          executionMode?: ExecutionMode;
           sessionName?: string;
         };
 
         if (useGeneral) {
           createInput = {
             scope: { kind: 'general' },
-            executionMode: options?.executionMode ?? executionMode,
           };
         } else {
           const projectPath = requestedProjectPath;
@@ -292,7 +286,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           createInput = {
             scope: { kind: 'project', projectPath },
             projectPath,
-            executionMode: options?.executionMode ?? executionMode,
           };
         }
         if (options?.sessionName) {
@@ -327,7 +320,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     },
     [
       dispatch,
-      executionMode,
       hostClient,
       selectedModelRef,
       state.projectPath,

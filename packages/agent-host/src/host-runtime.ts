@@ -114,7 +114,6 @@ import {
 } from '@piwin/session';
 import type {
   ContextUsageSnapshot,
-  ExecutionMode,
   SessionPlan,
   SessionResumeData,
   SessionTranscriptMessage,
@@ -203,8 +202,6 @@ export class HostRuntime {
   private readonly host: AgentHost;
   private readonly sessions = new Map<string, SessionHandle>();
   private readonly sessionProjects = new Map<string, string>();
-  /** CE-MODE: per-session execution mode (chat strips tools). */
-  private readonly sessionExecutionModes = new Map<string, ExecutionMode>();
   /** CE-OBS: last known usage snapshot per session. */
   private readonly sessionUsage = new Map<string, ContextUsageSnapshot>();
   /** Last user prompt text for host-estimate usage (mock path). */
@@ -1159,7 +1156,6 @@ export class HostRuntime {
         const session = await this.host.createSession({
           projectPath,
           sessionName: `cron-${job.id.slice(0, 8)}`,
-          executionMode: 'agent',
         });
         await this.bindSession(session, projectPath, `cron-${job.id.slice(0, 8)}`, {
           kind: 'main',
@@ -1344,7 +1340,6 @@ export class HostRuntime {
       host: this.host,
       createSession: (input) => this.createSession(input),
       sessions: this.sessions,
-      sessionExecutionModes: this.sessionExecutionModes,
       sessionFilesTouched: this.sessionFilesTouched,
       sessionLastPromptText: this.sessionLastPromptText,
       sessionModels: this.sessionModels,
@@ -2174,7 +2169,6 @@ export class HostRuntime {
       throw new Error(`Unknown session: ${sessionId}`);
     }
     const messages = await this.loadTranscriptMessages(sessionId);
-    const executionMode = this.sessionExecutionModes.get(sessionId) ?? 'agent';
     try {
       const session = await this.host.resumeSession(sessionId);
       await this.bindSession(session, record.projectPath, record.name);
@@ -2185,8 +2179,7 @@ export class HostRuntime {
         projectPath: record.projectPath,
         seedMessages: messages,
         createLiveSession: async (input) => {
-          const createInput = { ...input, executionMode };
-          return this.createSession(createInput);
+          return this.createSession(input);
         },
       };
       if (record.name) {
@@ -2292,7 +2285,6 @@ export class HostRuntime {
       this.unsubscribers.delete(sessionId);
     }
     this.sessionProjects.delete(sessionId);
-    this.sessionExecutionModes.delete(sessionId);
     this.sessionModels.delete(sessionId);
     this.sessionLastAssistantReply.delete(sessionId);
     const recorder = this.transcriptRecorders.get(sessionId);

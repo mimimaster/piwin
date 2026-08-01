@@ -1681,7 +1681,6 @@ async function commandDocCards(argv: string[]): Promise<void> {
       const sessionName = `Doc cards: ${basename(canonical)}`;
       const session = await host.createSession({
         scope: { kind: 'general' },
-        executionMode: 'chat',
         sessionName,
       });
       const unsubscribe = session.subscribe((event) => {

@@ -283,7 +283,6 @@ function createControlContext(
     host,
     createSession: async () => session,
     sessions: new Map([[session.id, session]]),
-    sessionExecutionModes: new Map(),
     sessionFilesTouched: new Map(),
     sessionLastPromptText: new Map(),
     sessionModels: new Map(),

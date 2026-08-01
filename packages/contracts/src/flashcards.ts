@@ -94,12 +94,6 @@ export type FlashcardsConfig = {
   newPerDay?: number;
   /** Review cap per day; default 200. */
   maxReviewsPerDay?: number;
-  /**
-   * When true, flashcard tools also appear on the coding (agent) profile.
-   * Default false — migration hatch for existing agent-mode flashcard users.
-   * See docs/specs/doc-flashcards.md §10.3.
-   */
-  agentModeTools?: boolean;
   /** Max cards per `flashcard_batch_create`. Default 40. */
   maxBatchSize?: number;
 };

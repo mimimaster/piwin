@@ -1320,7 +1320,6 @@ describe('HostRuntime', () => {
         type: 'session/create',
         input: {
           projectPath: '/tmp/piwin-test-project',
-          executionMode: 'agent',
         },
       });
       // The session creation should succeed (index write is best-effort).
