@@ -185,7 +185,7 @@
 
 /* Action category custom glows */
 .run-activity-splash[data-action="terminal"] .run-activity-splash-glow {
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.65) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.65) 0%, transparent 70%);
 }
 
 .run-activity-splash[data-action="edit"] .run-activity-splash-glow {
@@ -284,9 +284,9 @@
 }
 
 .run-activity-badge[data-action="terminal"] {
-  color: #fbbf24;
-  background: rgba(245, 158, 11, 0.14);
-  border-color: rgba(245, 158, 11, 0.3);
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(16, 185, 129, 0.3);
 }
 
 .run-activity-badge[data-action="edit"] {
@@ -345,23 +345,22 @@
 .run-activity-timer-pill {
   font-size: 11px;
   font-family: var(--font-mono, monospace);
-  color: var(--text-tertiary, #94a3b8);
-  background: rgba(15, 23, 42, 0.4);
+  color: var(--content-secondary, var(--muted, #82776a));
+  background: var(--surface-hover, rgba(0, 0, 0, 0.05));
   padding: 1px 6px;
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.08));
   animation: activity-pill-shimmer 2.5s ease-in-out infinite;
 }
 
 @keyframes activity-pill-shimmer {
   0%, 100% {
     opacity: 0.85;
-    border-color: rgba(255, 255, 255, 0.08);
+    border-color: var(--border, rgba(0, 0, 0, 0.08));
   }
   50% {
     opacity: 1;
-    border-color: rgba(96, 165, 250, 0.3);
-    box-shadow: 0 0 8px rgba(96, 165, 250, 0.2);
+    border-color: rgba(16, 185, 129, 0.35);
   }
 }
 
