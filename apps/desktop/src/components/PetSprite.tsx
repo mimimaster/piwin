@@ -82,6 +82,10 @@ export function PetSprite(props: PetSpriteProps) {
       return;
     }
 
+    // Switching pets: drop the previous sheet so the loop does not slice the
+    // old image with the new pet's cell geometry/rows while this one loads.
+    imageRef.current = null;
+
     const img = new Image();
     img.src = src;
     img.onload = () => {
