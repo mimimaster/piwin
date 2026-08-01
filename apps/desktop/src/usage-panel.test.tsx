@@ -153,9 +153,17 @@ describe('UsagePanel', () => {
     await flushLoad();
     // Default range is 'all' → no window.
     expect(requestedWindow).toBeUndefined();
+
     const todayButton = container?.querySelector('[data-testid="usage-range-7d"]');
     act(() => {
       (todayButton as HTMLButtonElement | null)?.click();
+    });
+    await flushLoad();
+    expect(requestedWindow?.from).toBeTruthy();
+
+    const yearButton = container?.querySelector('[data-testid="usage-range-1y"]');
+    act(() => {
+      (yearButton as HTMLButtonElement | null)?.click();
     });
     await flushLoad();
     expect(requestedWindow?.from).toBeTruthy();
@@ -167,5 +175,29 @@ describe('UsagePanel', () => {
     // SAMPLE_ROLLUP.byModel has a single "gpt-4o" model → one provider row.
     const providerRows = container?.querySelectorAll('.usage-table tbody tr');
     expect(providerRows && providerRows.length).toBeGreaterThan(0);
+  });
+
+  it('renders GitHub-style contribution heatmap cells and ratio bar', async () => {
+    ({ root, container } = renderPanel());
+    await flushLoad();
+    const cells = container?.querySelectorAll('.usage-heatmap-cell');
+    expect(cells && cells.length).toBeGreaterThan(50);
+
+    const ratioBar = container?.querySelector('.usage-ratio-bar');
+    expect(ratioBar).toBeTruthy();
+  });
+
+  it('toggles chart metric modes between total, split, and turns', async () => {
+    ({ root, container } = renderPanel());
+    await flushLoad();
+    const toggles = container?.querySelectorAll('.usage-chart-toggle');
+    expect(toggles).toHaveLength(3);
+
+    act(() => {
+      (toggles[1] as HTMLButtonElement).click();
+    });
+
+    const splitFills = container?.querySelectorAll('.usage-day-bar-fill.prompt');
+    expect(splitFills && splitFills.length).toBeGreaterThan(0);
   });
 });
