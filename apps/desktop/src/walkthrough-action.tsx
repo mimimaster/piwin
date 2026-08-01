@@ -17,6 +17,8 @@ export type WalkthroughActionProps = {
   artifact?: WalkthroughArtifact | undefined;
   /** Whether the Generate button should be shown (pre-computed by parent). */
   eligible: boolean;
+  /** When true, auto-generation is active — hide the manual Generate button. */
+  autoGenerate?: boolean;
   /** Locale for user-facing strings (defaults to English when omitted). */
   locale?: 'zh-CN' | 'en';
   onGenerate: (messageId: string, force?: boolean) => void | Promise<void>;
@@ -73,7 +75,7 @@ function findLastAssistantForRun(messages: ChatMessageUi[], runId: string): stri
 }
 
 export function WalkthroughAction(props: WalkthroughActionProps): ReactElement | null {
-  const { message, artifact, eligible, locale } = props;
+  const { message, artifact, eligible, autoGenerate, locale } = props;
   const isZh = locale === 'zh-CN';
 
   // No button and no artifact → render nothing.
@@ -89,7 +91,10 @@ export function WalkthroughAction(props: WalkthroughActionProps): ReactElement |
   // the walkthrough-regenerate-btn-* testid. So the action's own button
   // section only shows the Generate button when there is no ready artifact
   // (i.e., no artifact, or generating/error state).
-  const showGenerateButton = eligible && !(artifact && artifact.status === 'ready');
+  // When autoGenerate is active, the manual Generate button is hidden —
+  // walkthroughs are produced automatically by the host after each run.
+  const showGenerateButton =
+    eligible && !autoGenerate && !(artifact && artifact.status === 'ready');
 
   return (
     <div className="walkthrough-action" data-testid={`walkthrough-action-${message.id}`}>
