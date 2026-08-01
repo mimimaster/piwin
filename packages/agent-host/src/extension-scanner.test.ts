@@ -2,10 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  collectExtensionEntryPaths,
-  scanExtensions,
-} from './extension-scanner.js';
+import { collectExtensionEntryPaths, scanExtensions } from './extension-scanner.js';
 import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
 import { extensionIdFromPath } from './pi-resource-loader.js';
 
@@ -56,10 +53,11 @@ describe('extension-scanner', () => {
     expect(paths.some((path) => path.endsWith('drop.ts'))).toBe(false);
   });
 
-  it('installs bundled path-guard once and marks bundled source', async () => {
+  it('installs bundled extensions once and marks bundled sources', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-ext-bundled-'));
     const installed = await ensureBundledExtensionsInstalled(rootDir);
     expect(installed).toContain('path-guard');
+    expect(installed).toContain('questionnaire');
     const again = await ensureBundledExtensionsInstalled(rootDir);
     expect(again).toEqual([]);
 
@@ -68,6 +66,11 @@ describe('extension-scanner', () => {
     expect(pathGuard).toBeDefined();
     expect(pathGuard?.source).toBe('bundled');
     expect(pathGuard?.description.toLowerCase()).toContain('secret');
+
+    const questionnaire = listed.find((item) => item.id === 'questionnaire');
+    expect(questionnaire).toBeDefined();
+    expect(questionnaire?.source).toBe('bundled');
+    expect(questionnaire?.description.toLowerCase()).toContain('question');
   });
 });
 
