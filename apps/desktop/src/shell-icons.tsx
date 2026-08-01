@@ -41,6 +41,75 @@ export function IconSideChat(props: IconProps): ReactElement {
   );
 }
 
+/** Comment plus icon matching user screenshot for line-level comment creation */
+export function IconCommentPlus(props: IconProps): ReactElement {
+  return (
+    <IconBase
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M20 14a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z" />
+      <line x1="9" y1="9.5" x2="15" y2="9.5" />
+      <line x1="12" y1="6.5" x2="12" y2="12.5" />
+    </IconBase>
+  );
+}
+
+/** High-contrast, distinct speech bubble SVG icon for line hover */
+export function IconCommentOutline(props: IconProps): ReactElement {
+  return (
+    <IconBase
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      <circle cx="9" cy="11.5" r="1" fill="currentColor" />
+      <circle cx="12" cy="11.5" r="1" fill="currentColor" />
+      <circle cx="15" cy="11.5" r="1" fill="currentColor" />
+    </IconBase>
+  );
+}
+
+/** Comment filled speech bubble (Active vector) */
+export function IconCommentFilled(props: IconProps): ReactElement {
+  return (
+    <IconBase viewBox="0 0 24 24" fill="currentColor" stroke="none" {...props}>
+      <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
+    </IconBase>
+  );
+}
+
+/** Blue-button comment action glyph (Antigravity-style line comment). */
+export function IconCommentAction(props: IconProps): ReactElement {
+  return (
+    <IconBase
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.9}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      {/* Rounded doc / quote card */}
+      <rect x="4" y="4" width="16" height="14" rx="2.5" />
+      <path d="M8 9h8M8 12.5h5" />
+      {/* Small tail / bubble corner */}
+      <path d="M9 18v2.5L12.5 18" />
+    </IconBase>
+  );
+}
+
 /** Globe / browser-session vector icon (ADR 0020 §6 panel tab). */
 export function IconBrowser(props: IconProps): ReactElement {
   return (
@@ -342,7 +411,6 @@ export function IconRevert(props: IconProps): ReactElement {
   );
 }
 
-
 export function IconDocument(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
@@ -538,6 +606,17 @@ export function IconExpand(props: IconProps): ReactElement {
       <path d="M9 21H3v-6" />
       <path d="M21 3l-7 7" />
       <path d="M3 21l7-7" />
+    </IconBase>
+  );
+}
+
+/** Brain / thinking icon for thought summary. */
+export function IconBrain(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+      <path d="M12 5v13" />
     </IconBase>
   );
 }
