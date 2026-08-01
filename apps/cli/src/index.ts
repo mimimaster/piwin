@@ -29,7 +29,7 @@ import type {
   UsageRollup,
 } from '@piwin/contracts';
 import { formatCapabilityMatrixLines } from '@piwin/contracts';
-import { formatTextModelImageInjection } from '@piwin/contracts';
+import type { PromptAttachment } from '@piwin/contracts';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { loadMcpConfig, saveMcpConfig, tryValidateMcpConfig, listEnabledServers } from '@piwin/mcp';
 import { installSkill, installExtension, RECOMMENDED_SKILLS } from '@piwin/marketplace';
@@ -188,37 +188,91 @@ function parseHostServeTestFixture(argv: string[]): HostRuntimeTestFixture | und
   throw new Error(`Unknown host test fixture: ${value}`);
 }
 
-function formatEvent(event: AgentEvent): string | null {
-  switch (event.type) {
-    case 'message/text_delta':
-      return event.delta;
-    case 'message/thinking_delta':
-      return `\n[thinking] ${event.delta}`;
-    case 'tool/start':
-      return `\n[tool:${event.toolName} start ${event.toolCallId}]\n`;
-    case 'tool/update':
-      return event.delta ? `[tool] ${event.delta}\n` : null;
-    case 'tool/end':
-      return `[tool end ${event.toolCallId} ${event.isError ? 'error' : 'ok'}]\n`;
-    case 'error':
-      return `\n[error] ${event.message}\n`;
-    case 'permission/request':
-      return `\n[permission ${event.defaultDecision}] ${event.action}: ${event.detail}\n`;
-    case 'usage/update': {
-      const usage = event.usage;
-      const used = usage.tokensUsed ?? usage.totalTokens;
-      const limit = usage.tokensLimit;
-      if (typeof used === 'number' && typeof limit === 'number') {
-        return `\n[usage] ${used}/${limit} tokens\n`;
+/**
+ * Stateful assistant event formatter for the CLI.
+ * Accumulates thinking deltas into a block and tool output per tool call.
+ */
+function createAssistantCliDisplay() {
+  let thinkingBuffer = '';
+  let sawTextDelta = false;
+
+  return {
+    /** Process one AgentEvent, return the string to write (or null for no-op). */
+    feed(event: AgentEvent): string | null {
+      switch (event.type) {
+        case 'message/text_delta':
+          // Flush any buffered thinking block before text starts
+          if (thinkingBuffer) {
+            const block = `\n[thinking]\n${thinkingBuffer.trimEnd()}\n[/thinking]\n`;
+            thinkingBuffer = '';
+            sawTextDelta = true;
+            return block + event.delta;
+          }
+          sawTextDelta = true;
+          return event.delta;
+
+        case 'message/text_snapshot':
+          // Snapshot is a full cumulative replacement; only emit if we never
+          // streamed deltas for this message (otherwise it would duplicate).
+          if (sawTextDelta) return null;
+          return event.text;
+
+        case 'message/thinking_delta':
+          thinkingBuffer += event.delta;
+          return null; // buffer until text starts or message ends
+
+        case 'message/start':
+          sawTextDelta = false;
+          return '\n';
+
+        case 'message/end': {
+          // Flush remaining thinking buffer
+          let out = '';
+          if (thinkingBuffer) {
+            out = `\n[thinking]\n${thinkingBuffer.trimEnd()}\n[/thinking]\n`;
+            thinkingBuffer = '';
+          }
+          sawTextDelta = false;
+          return out || null;
+        }
+
+        case 'tool/start':
+          return `\n[tool:${event.toolName}]`;
+
+        case 'tool/update':
+          if (!event.delta) return null;
+          return event.delta;
+
+        case 'tool/end':
+          if (event.isError) {
+            return `\n[tool:error] ${event.toolCallId}\n`;
+          }
+          return '\n';
+
+        case 'error':
+          return `\n[error] ${event.message}\n`;
+
+        case 'permission/request':
+          return `\n[permission ${event.defaultDecision}] ${event.action}: ${event.detail}\n`;
+
+        case 'usage/update': {
+          const usage = event.usage;
+          const used = usage.tokensUsed ?? usage.totalTokens;
+          const limit = usage.tokensLimit;
+          if (typeof used === 'number' && typeof limit === 'number') {
+            return `\n[usage] ${used}/${limit} tokens\n`;
+          }
+          if (typeof used === 'number') {
+            return `\n[usage] ${used} tokens\n`;
+          }
+          return `\n[usage] unknown\n`;
+        }
+
+        default:
+          return null;
       }
-      if (typeof used === 'number') {
-        return `\n[usage] ${used} tokens\n`;
-      }
-      return `\n[usage] unknown\n`;
-    }
-    default:
-      return null;
-  }
+    },
+  };
 }
 
 async function commandDoctor(): Promise<void> {
@@ -631,6 +685,7 @@ async function commandChat(argv: string[]): Promise<void> {
     return;
   }
 
+  const attachments: PromptAttachment[] = [];
   if (imagePath) {
     const root = getPiwinRoot();
     const config = await loadPiwinConfig(root);
@@ -646,13 +701,30 @@ async function commandChat(argv: string[]): Promise<void> {
       mimeType: guessMime(imagePath),
       source: 'file-picker',
     });
-    const injection = formatTextModelImageInjection({
-      absolutePath: saved.absolutePath,
+    // ADR 0005 (2026-08-01): pass media as attachment; host routes native vs path/D1.
+    attachments.push({
+      id: saved.id,
+      kind: 'media',
+      path: saved.absolutePath,
       mimeType: saved.mimeType,
       byteSize: saved.byteSize,
+      source: 'file-picker',
     });
-    message = message ? `${message}\n\n${injection}` : injection;
     console.error(`[media] saved ${saved.absolutePath}`);
+    const defaultProvider = config.providers.find((item) => item.id === config.defaultProviderId);
+    const defaultModel = defaultProvider?.models.find((item) => item.id === config.defaultModelId);
+    const supportsImage = defaultModel?.input?.includes('image') === true;
+    if (!supportsImage) {
+      if (config.visionDelegation?.enabled && config.visionDelegation.model) {
+        console.error(
+          `[media] default model is text-only; vision delegation will describe the image via ${config.visionDelegation.model.providerId}/${config.visionDelegation.model.modelId}`,
+        );
+      } else {
+        console.error(
+          '[media] default model is text-only (or input unset); host will path-inject the image. Mark model input as image or enable visionDelegation for descriptions.',
+        );
+      }
+    }
   }
 
   const projectPath = parseOptionalProject(argv);
@@ -679,15 +751,19 @@ async function commandChat(argv: string[]): Promise<void> {
       ? { scope: { kind: 'project', projectPath }, projectPath }
       : { scope: { kind: 'general' } },
   );
+  const display = createAssistantCliDisplay();
   const unsubscribe = session.subscribe((event) => {
-    const line = formatEvent(event);
+    const line = display.feed(event);
     if (line !== null) {
       process.stdout.write(line);
     }
   });
 
   try {
-    await session.prompt({ text: message });
+    await session.prompt({
+      text: message,
+      ...(attachments.length > 0 ? { attachments } : {}),
+    });
     process.stdout.write('\n');
   } finally {
     unsubscribe();
@@ -1685,8 +1761,9 @@ async function commandDocCards(argv: string[]): Promise<void> {
         scope: { kind: 'general' },
         sessionName,
       });
+      const display = createAssistantCliDisplay();
       const unsubscribe = session.subscribe((event) => {
-        const line = formatEvent(event);
+        const line = display.feed(event);
         if (line !== null) {
           process.stdout.write(line);
         }
