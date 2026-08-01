@@ -41,6 +41,45 @@ export type PlanCardProps = {
   actionInProgress?: boolean;
 };
 
+export function StepIcon({ visual }: { visual: PlanStepVisual }): ReactElement {
+  switch (visual) {
+    case 'done':
+      return (
+        <svg className="step-icon step-icon-done" viewBox="0 0 16 16" width="16" height="16" aria-label="Done">
+          <circle cx="8" cy="8" r="7" fill="var(--ok, #10b981)" />
+          <path
+            d="M4.8 8.2l2.2 2.2 4.2-4.4"
+            stroke="#ffffff"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </svg>
+      );
+    case 'run':
+      return (
+        <svg className="step-icon step-icon-run" viewBox="0 0 16 16" width="16" height="16" aria-label="Running">
+          <circle cx="8" cy="8" r="6.5" stroke="var(--accent)" strokeWidth="1.5" fill="none" />
+          <circle cx="8" cy="8" r="3" fill="var(--accent)" className="pulse-dot" />
+        </svg>
+      );
+    case 'skipped':
+      return (
+        <svg className="step-icon step-icon-skipped" viewBox="0 0 16 16" width="16" height="16" aria-label="Skipped">
+          <circle cx="8" cy="8" r="6.5" stroke="var(--faint)" strokeWidth="1.2" fill="none" />
+          <path d="M4.5 11.5l7-7" stroke="var(--faint)" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
+      );
+    default:
+      return (
+        <svg className="step-icon step-icon-pending" viewBox="0 0 16 16" width="16" height="16" aria-label="Pending">
+          <circle cx="8" cy="8" r="6.5" stroke="var(--faint)" strokeWidth="1.2" strokeDasharray="2.5 2.5" fill="none" />
+        </svg>
+      );
+  }
+}
+
 export function PlanCard({
   plan,
   defaultOpen = true,
@@ -60,6 +99,9 @@ export function PlanCard({
   const isTerminal = plan.status === 'done' || plan.status === 'abandoned';
   const canProcess =
     !isTerminal && !isRunning && (plan.status === 'draft' || plan.status === 'approved');
+
+  const totalCount = plan.steps.length;
+  const doneCount = plan.steps.filter((s) => s.status === 'done').length;
 
   function handleOpenDoc(event: React.MouseEvent): void {
     event.stopPropagation();
@@ -102,17 +144,17 @@ export function PlanCard({
         onClick={() => setOpen(!open)}
         aria-expanded={open}
       >
+        <svg className="chev ic" viewBox="0 0 24 24">
+          <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
         <span className="plan-title">
-          计划 · {plan.steps.length} 步（{plan.title}）
+          {doneCount} / {totalCount} tasks done{plan.title ? ` · ${plan.title}` : ''}
         </span>
         {onOpenDocument ? (
           <span className="plan-doc-link" title="在右侧面板中打开增强文档" onClick={handleOpenDoc}>
             📄 Implementation Plan
           </span>
         ) : null}
-        <svg className="chev ic" viewBox="0 0 24 24">
-          <path d="M6 9l6 6 6-6" />
-        </svg>
       </button>
       <Collapse expanded={open}>
         <div className="plan-steps">
@@ -120,8 +162,8 @@ export function PlanCard({
             const visual = planStepVisual(step.status);
             return (
               <div key={step.id} className={`step ${visual === 'pending' ? '' : visual}`}>
-                <span className="box">{visual === 'done' ? '✓' : ''}</span>
-                {step.title}
+                <StepIcon visual={visual} />
+                <span className="step-label">{step.title}</span>
               </div>
             );
           })}
