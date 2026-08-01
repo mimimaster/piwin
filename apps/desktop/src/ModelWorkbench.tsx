@@ -1,6 +1,12 @@
 import { useState, type ReactElement } from 'react';
-import type { DiscoveredModel, ModelConfigEntry, ModelDiscoveryResult, ModelProviderConfig } from '@piwin/contracts';
-import { Button, Field, Notice, Spinner } from '@piwin/ui-kit';
+import type {
+  DiscoveredModel,
+  ModelConfigEntry,
+  ModelDiscoveryResult,
+  ModelProviderConfig,
+  ThinkingLevel,
+} from '@piwin/contracts';
+import { Button, Field, Notice, Popover, Spinner } from '@piwin/ui-kit';
 import { AddModelDialog } from './AddModelDialog';
 import { DiscoverModelsDialog } from './DiscoverModelsDialog';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -21,14 +27,18 @@ export type ModelWorkbenchProps = {
   onSetDefaultModel: (modelId: string) => void;
   onDiscoverModels: (provider: ModelProviderConfig) => Promise<ModelDiscoveryResult>;
   onTestModel: (provider: ModelProviderConfig, modelId: string) => Promise<{ durationMs: number }>;
+  /** Optional Pi catalog autocomplete for Add Model. */
+  searchCatalog?: (query: string) => Promise<import('@piwin/contracts').ModelCatalogEntry[]>;
 };
 
 function localizeFetchError(message: string, isChinese: boolean): string {
   const lower = message.toLowerCase();
-  if (lower.includes('no api key') || lower.includes('could not be resolved') || lower.includes('没有可用')) {
-    return isChinese
-      ? '没有可用的 API 密钥。'
-      : 'No usable API key.';
+  if (
+    lower.includes('no api key') ||
+    lower.includes('could not be resolved') ||
+    lower.includes('没有可用')
+  ) {
+    return isChinese ? '没有可用的 API 密钥。' : 'No usable API key.';
   }
   if (lower.includes('timed out') || lower.includes('超时')) {
     return isChinese ? '获取超时。' : 'Timed out.';
@@ -48,6 +58,7 @@ function formatTokenCount(value: string | number | undefined): string {
 type ModelTestState = {
   tone: 'ok' | 'error' | 'busy';
   message: string;
+  errorMessage?: string;
 };
 
 export function ModelWorkbench({
@@ -58,6 +69,7 @@ export function ModelWorkbench({
   onSetDefaultModel,
   onDiscoverModels,
   onTestModel,
+  searchCatalog,
 }: ModelWorkbenchProps): ReactElement {
   const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.provider;
@@ -88,7 +100,6 @@ export function ModelWorkbench({
   }
 
   function removeModel(modelId: string): void {
-    if (provider.models.length <= 1) return;
     onModelsChange(provider.models.filter((model) => model.id !== modelId));
     if (expandedId === modelId) setExpandedId(null);
   }
@@ -106,7 +117,9 @@ export function ModelWorkbench({
       setPickerModels(result.models);
       setPickerOpen(true);
     } catch (error) {
-      setFetchError(localizeFetchError(error instanceof Error ? error.message : String(error), isChinese));
+      setFetchError(
+        localizeFetchError(error instanceof Error ? error.message : String(error), isChinese),
+      );
     } finally {
       setFetching(false);
     }
@@ -123,12 +136,21 @@ export function ModelWorkbench({
       const seconds = (result.durationMs / 1000).toFixed(1);
       setTestStatus((current) => ({
         ...current,
-        [modelId]: { tone: 'ok', message: isChinese ? `可用 · ${seconds}s` : `Available · ${seconds}s` },
+        [modelId]: {
+          tone: 'ok',
+          message: isChinese ? `可用 · ${seconds}s` : `Available · ${seconds}s`,
+        },
       }));
     } catch (error) {
+      const rawMsg = error instanceof Error ? error.message : String(error);
+      const detailMsg = localizeFetchError(rawMsg, isChinese);
       setTestStatus((current) => ({
         ...current,
-        [modelId]: { tone: 'error', message: isChinese ? '失败' : 'Failed' },
+        [modelId]: {
+          tone: 'error',
+          message: isChinese ? '测试失败' : 'Failed',
+          errorMessage: detailMsg,
+        },
       }));
     } finally {
       setTestingModelId(null);
@@ -147,11 +169,20 @@ export function ModelWorkbench({
     <div className="model-workbench" data-testid="model-workbench">
       <PageTitle
         title={isChinese ? '模型目录' : 'Model Directory'}
-        description={isChinese ? '管理此提供商下的模型及其运行时限制。' : 'Manage models and their runtime limits.'}
+        description={
+          isChinese
+            ? '管理此提供商下的模型及其运行时限制。'
+            : 'Manage models and their runtime limits.'
+        }
         trailing={
           <div style={{ display: 'flex', gap: '8px' }}>
-            <Button size="compact" variant="ghost" disabled={disabled || fetching} onClick={handleFetchModels}>
-              {fetching ? <Spinner /> : (isChinese ? '自动发现' : 'Discover')}
+            <Button
+              size="compact"
+              variant="ghost"
+              disabled={disabled || fetching}
+              onClick={handleFetchModels}
+            >
+              {fetching ? <Spinner /> : isChinese ? '自动发现' : 'Discover'}
             </Button>
             <Button size="compact" disabled={disabled} onClick={() => setAddOpen(true)}>
               + {isChinese ? '添加' : 'Add'}
@@ -165,7 +196,9 @@ export function ModelWorkbench({
 
       <div className="ext-list" style={{ marginTop: 12 }}>
         {provider.models.length === 0 ? (
-          <li className="muted" style={{ textAlign: 'center', padding: '32px' }}>{copy.modelsEmpty}</li>
+          <li className="muted" style={{ textAlign: 'center', padding: '32px' }}>
+            {copy.modelsEmpty}
+          </li>
         ) : (
           provider.models.map((model) => {
             const isExpanded = expandedId === model.id;
@@ -180,37 +213,169 @@ export function ModelWorkbench({
               >
                 <div
                   data-testid="model-dir-row"
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', cursor: 'pointer' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    padding: '10px 12px',
+                    cursor: 'pointer',
+                  }}
                   onClick={() => setExpandedId(isExpanded ? null : model.id)}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ fontFamily: 'var(--mono)', fontSize: '13.5px' }}>{model.id}</strong>
-                      {isDefault && <span className="pill">默认</span>}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <strong style={{ fontFamily: 'var(--mono)', fontSize: '13.5px' }}>
+                        {model.id}
+                      </strong>
+                      {isDefault && <span className="pill">{isChinese ? '默认' : 'Default'}</span>}
+                      {model.input?.includes('image') ? (
+                        <span
+                          className="pill"
+                          data-testid={`model-pill-vision-${model.id}`}
+                          style={{
+                            background: 'var(--surface-hover, rgba(255,255,255,0.08))',
+                            color: 'var(--accent, #60a5fa)',
+                          }}
+                        >
+                          {isChinese ? '视觉' : 'Vision'}
+                        </span>
+                      ) : (
+                        <span
+                          className="pill"
+                          data-testid={`model-pill-text-${model.id}`}
+                          style={{
+                            background: 'var(--surface-hover, rgba(255,255,255,0.06))',
+                            color: 'var(--muted)',
+                          }}
+                        >
+                          {isChinese ? '仅文本' : 'Text'}
+                        </span>
+                      )}
+                      {model.reasoning === true || model.reasoning === undefined ? (
+                        <span
+                          className="pill"
+                          data-testid={`model-pill-reasoning-${model.id}`}
+                          style={{
+                            background: 'var(--surface-hover, rgba(255,255,255,0.08))',
+                            color: 'var(--accent, #60a5fa)',
+                          }}
+                        >
+                          {isChinese ? '推理' : 'Reasoning'}
+                        </span>
+                      ) : null}
+                      {model.thinkingLevel && (
+                        <span
+                          className="pill"
+                          style={{
+                            background: 'var(--surface-hover, rgba(255,255,255,0.08))',
+                            color: 'var(--accent, #60a5fa)',
+                          }}
+                        >
+                          {isChinese ? '思考度' : 'Thinking'}: {model.thinkingLevel}
+                        </span>
+                      )}
                     </div>
                     <div className="muted" style={{ fontSize: '11.5px', marginTop: 2 }}>
-                      {formatTokenCount(model.contextWindow)} ctx · {formatTokenCount(model.maxOutputTokens)} out
+                      {formatTokenCount(model.contextWindow)} ctx ·{' '}
+                      {formatTokenCount(model.maxOutputTokens)} out
                     </div>
                   </div>
-                  {status && (
-                    <span className={`mcp-status ${status.tone === 'ok' ? 'running' : status.tone === 'error' ? 'error' : 'starting'}`} style={{ fontSize: '11.5px' }}>
-                      {status.message}
-                    </span>
-                  )}
+                  {status &&
+                    (status.tone === 'error' && status.errorMessage ? (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Popover
+                          trigger={
+                            <span
+                              className="mcp-status error"
+                              style={{
+                                fontSize: '11.5px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                              data-testid={`model-test-error-trigger-${model.id}`}
+                            >
+                              {status.message}
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                              >
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M12 8v4M12 16h.01" />
+                              </svg>
+                            </span>
+                          }
+                          align="end"
+                          side="top"
+                          label={isChinese ? '测试失败原因' : 'Test Failure Reason'}
+                          testId={`model-test-error-popover-${model.id}`}
+                        >
+                          <div
+                            style={{ padding: '10px 14px', maxWidth: '280px', fontSize: '12px' }}
+                          >
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                color: 'var(--danger, #ef4444)',
+                                marginBottom: '4px',
+                              }}
+                            >
+                              {isChinese ? '测试模型失败' : 'Test Model Failed'}
+                            </div>
+                            <div
+                              style={{
+                                color: 'var(--text, #f8fafc)',
+                                wordBreak: 'break-word',
+                                lineHeight: '1.4',
+                              }}
+                            >
+                              {status.errorMessage}
+                            </div>
+                          </div>
+                        </Popover>
+                      </div>
+                    ) : (
+                      <span
+                        className={`mcp-status ${status.tone === 'ok' ? 'running' : 'starting'}`}
+                        style={{ fontSize: '11.5px' }}
+                      >
+                        {status.message}
+                      </span>
+                    ))}
                   <div className="muted" style={{ fontSize: '12px', opacity: 0.5 }}>
                     {isExpanded ? '↑' : '↓'}
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <div style={{ padding: '20px 12px 12px', borderTop: '1px solid var(--line-soft)', background: 'var(--surface-inset)', borderRadius: '0 0 8px 8px' }}>
+                  <div
+                    style={{
+                      padding: '20px 12px 12px',
+                      borderTop: '1px solid var(--line-soft)',
+                      background: 'var(--surface-inset)',
+                      borderRadius: '0 0 8px 8px',
+                    }}
+                  >
                     <ModelInlineEditor
                       model={model}
                       disabled={disabled}
                       isChinese={isChinese}
                       isDefault={isDefault}
                       testing={testingModelId === model.id}
-                      canRemove={provider.models.length > 1}
+                      testError={status?.tone === 'error' ? status.errorMessage : undefined}
+                      canRemove={provider.models.length > 0}
                       onSave={(updated) => handleSaveExpandedModel(model.id, updated)}
                       onCancel={() => setExpandedId(null)}
                       onTest={() => void handleTestModel(model.id)}
@@ -238,6 +403,7 @@ export function ModelWorkbench({
         onOpenChange={setAddOpen}
         existingModelIds={provider.models.map((m) => m.id)}
         onAdd={addManualModel}
+        {...(searchCatalog ? { searchCatalog } : {})}
       />
     </div>
   );
@@ -249,6 +415,7 @@ type InlineEditorProps = {
   isChinese: boolean;
   isDefault: boolean;
   testing: boolean;
+  testError?: string | undefined;
   canRemove: boolean;
   removeLabel: string;
   onSave: (draft: ModelConfigurationDraft) => void;
@@ -264,6 +431,7 @@ function ModelInlineEditor({
   isChinese,
   isDefault,
   testing,
+  testError,
   canRemove,
   removeLabel,
   onSave,
@@ -277,7 +445,7 @@ function ModelInlineEditor({
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div className="mcp-form-grid">
         <Field label={isChinese ? '模型 ID' : 'Model ID'}>
           <input
@@ -320,25 +488,105 @@ function ModelInlineEditor({
             data-testid="model-edit-output"
           />
         </Field>
+        <Field label={isChinese ? '思考度 (Thinking Effort)' : 'Thinking Effort'}>
+          <select
+            className="mcp-raw-editor"
+            style={{
+              height: 'auto',
+              padding: '8px 12px',
+              background: 'var(--surface-hover, rgba(255,255,255,0.06))',
+              color: 'var(--text)',
+            }}
+            value={local.thinkingLevel}
+            onChange={(e) =>
+              setLocal({ ...local, thinkingLevel: e.target.value as ThinkingLevel | '' })
+            }
+            data-testid="model-edit-thinking"
+          >
+            <option value="">{isChinese ? '未配置 (默认)' : 'Unset (Default)'}</option>
+            <option value="off">{isChinese ? '关闭 (Off)' : 'Off'}</option>
+            <option value="minimal">{isChinese ? '极低 (Minimal)' : 'Minimal'}</option>
+            <option value="low">{isChinese ? '低 (Low)' : 'Low'}</option>
+            <option value="medium">{isChinese ? '中 (Medium)' : 'Medium'}</option>
+            <option value="high">{isChinese ? '高 (High)' : 'High'}</option>
+            <option value="xhigh">{isChinese ? '超高 (xHigh)' : 'xHigh'}</option>
+            <option value="max">{isChinese ? '极高 (Max)' : 'Max'}</option>
+            <option value="ultra">{isChinese ? '极致 (Ultra)' : 'Ultra'}</option>
+          </select>
+        </Field>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={local.supportsImage}
+            onChange={(e) => setLocal({ ...local, supportsImage: e.target.checked })}
+            data-testid="model-edit-supports-image"
+          />
+          {isChinese ? '支持图像输入（Vision）' : 'Supports image input (Vision)'}
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <input
+            type="checkbox"
+            checked={local.reasoning}
+            onChange={(e) => setLocal({ ...local, reasoning: e.target.checked })}
+            data-testid="model-edit-reasoning"
+          />
+          {isChinese ? '支持推理 / Thinking' : 'Supports reasoning / thinking'}
+        </label>
+      </div>
+
+      {testError ? (
+        <Notice tone="error">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>
+              <strong>{isChinese ? '测试失败原因：' : 'Test Failure: '}</strong>
+              {testError}
+            </span>
+          </div>
+        </Notice>
+      ) : null}
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginTop: 8,
+        }}
+      >
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Button variant="primary" size="compact" disabled={disabled} onClick={() => onSave(local)}>保存</Button>
-          <Button variant="ghost" size="compact" onClick={onCancel}>取消</Button>
+          <Button
+            variant="primary"
+            size="compact"
+            disabled={disabled}
+            onClick={() => onSave(local)}
+          >
+            {isChinese ? '保存' : 'Save'}
+          </Button>
+          <Button variant="ghost" size="compact" onClick={onCancel}>
+            {isChinese ? '取消' : 'Cancel'}
+          </Button>
         </div>
-        
+
         <div style={{ display: 'flex', gap: '8px' }}>
           <Button size="compact" variant="ghost" disabled={testing || disabled} onClick={onTest}>
-            {testing ? '检测中...' : '测试模型'}
+            {testing ? (isChinese ? '检测中...' : 'Testing...') : isChinese ? '测试模型' : 'Test'}
           </Button>
           {!isDefault && (
             <Button size="compact" variant="ghost" disabled={disabled} onClick={onSetDefault}>
-              设为默认
+              {isChinese ? '设为默认' : 'Set as default'}
             </Button>
           )}
           {canRemove && (
-            <Button size="compact" variant="ghost" disabled={disabled} onClick={onRemove} style={{ color: 'var(--danger)' }}>
+            <Button
+              size="compact"
+              variant="ghost"
+              disabled={disabled}
+              onClick={onRemove}
+              style={{ color: 'var(--danger)' }}
+            >
               {removeLabel}
             </Button>
           )}

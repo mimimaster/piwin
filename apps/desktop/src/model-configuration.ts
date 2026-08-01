@@ -1,4 +1,9 @@
-import type { DiscoveredModel, ModelConfigEntry } from '@piwin/contracts';
+import type {
+  DiscoveredModel,
+  ModelConfigEntry,
+  ModelInputModality,
+  ThinkingLevel,
+} from '@piwin/contracts';
 
 export type ModelConfigurationDraft = {
   id: string;
@@ -6,6 +11,11 @@ export type ModelConfigurationDraft = {
   contextWindow: string;
   maxOutputTokens: string;
   tooltipMarkdown: string;
+  thinkingLevel: ThinkingLevel | '';
+  /** Maps to `input` including `image`. */
+  supportsImage: boolean;
+  /** Maps to `reasoning`. */
+  reasoning: boolean;
 };
 
 export function createModelConfigurationDraft(model: ModelConfigEntry): ModelConfigurationDraft {
@@ -15,6 +25,10 @@ export function createModelConfigurationDraft(model: ModelConfigEntry): ModelCon
     contextWindow: model.contextWindow === undefined ? '' : String(model.contextWindow),
     maxOutputTokens: model.maxOutputTokens === undefined ? '' : String(model.maxOutputTokens),
     tooltipMarkdown: model.tooltipMarkdown ?? '',
+    thinkingLevel: model.thinkingLevel ?? '',
+    supportsImage: model.input?.includes('image') ?? false,
+    // Default true matches host registration when field is omitted.
+    reasoning: model.reasoning ?? true,
   };
 }
 
@@ -44,6 +58,13 @@ export function createModelConfigurationEntry(
   if (tooltipMarkdown) {
     model.tooltipMarkdown = tooltipMarkdown;
   }
+  if (draft.thinkingLevel) {
+    model.thinkingLevel = draft.thinkingLevel;
+  }
+  model.input = draft.supportsImage
+    ? (['text', 'image'] as const satisfies readonly ModelInputModality[])
+    : (['text'] as const satisfies readonly ModelInputModality[]);
+  model.reasoning = draft.reasoning;
   return model;
 }
 
@@ -78,9 +99,25 @@ export function mergeDiscoveredModels(
     if (discoveredModel.label?.trim() && discoveredModel.label !== modelId) {
       model.label = discoveredModel.label.trim();
     }
+    if (discoveredModel.input) {
+      model.input = discoveredModel.input;
+    }
+    if (discoveredModel.reasoning !== undefined) {
+      model.reasoning = discoveredModel.reasoning;
+    }
+    if (discoveredModel.contextWindow !== undefined) {
+      model.contextWindow = discoveredModel.contextWindow;
+    }
+    if (discoveredModel.maxOutputTokens !== undefined) {
+      model.maxOutputTokens = discoveredModel.maxOutputTokens;
+    }
     modelsById.set(modelId, model);
   }
   return [...modelsById.values()];
+}
+
+export function modelSupportsImage(model: Pick<ModelConfigEntry, 'input'> | undefined): boolean {
+  return model?.input?.includes('image') ?? false;
 }
 
 function parseOptionalPositiveInteger(value: string): number | undefined {

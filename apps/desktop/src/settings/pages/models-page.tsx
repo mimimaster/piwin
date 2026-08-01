@@ -7,6 +7,7 @@
  */
 import type { ReactElement } from 'react';
 import { ProviderSettings } from '../../ProviderSettings';
+import { VisionDelegationSettings } from '../../VisionDelegationSettings';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { useSettings } from '../settings-context';
 
@@ -20,6 +21,7 @@ export function ModelsPage(): ReactElement {
     setInfo,
     discoverProviderModels,
     testProviderModel,
+    searchModelCatalog,
     storeProviderSecret,
     loadProviderSecret,
   } = useSettings();
@@ -44,7 +46,14 @@ export function ModelsPage(): ReactElement {
         onTestModel={testProviderModel}
         onStoreSecret={storeProviderSecret}
         onLoadSecret={loadProviderSecret}
+        searchCatalog={async (query) => {
+          const result = await searchModelCatalog({ query, limit: 12 });
+          return result.entries;
+        }}
       />
+      <div style={{ marginTop: 40, paddingTop: 32, borderTop: '1px solid var(--line-soft)' }}>
+        <VisionDelegationSettings />
+      </div>
     </div>
   );
 }
