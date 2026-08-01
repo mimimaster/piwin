@@ -5,7 +5,15 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import { Button, Collapse, DropdownMenu, DropdownMenuItem, IconButton, Modal, TextInput } from '@piwin/ui-kit';
+import {
+  Button,
+  Collapse,
+  DropdownMenu,
+  DropdownMenuItem,
+  IconButton,
+  Modal,
+  TextInput,
+} from '@piwin/ui-kit';
 import type {
   ModelConfigEntry,
   ModelDiscoveryResult,
@@ -16,11 +24,7 @@ import { ModelWorkbench } from './ModelWorkbench';
 import { ProviderKeyManagerDialog } from './ProviderKeyManagerDialog';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useConfirmDialog } from './use-confirm-dialog';
-import {
-  PROVIDER_PRESETS,
-  type ProviderPreset,
-  type ProviderProtocol,
-} from './provider-presets';
+import { PROVIDER_PRESETS, type ProviderPreset, type ProviderProtocol } from './provider-presets';
 import { IconClose, IconSettings, IconStar } from './shell-icons';
 import { PageTitle } from './settings/page-title';
 import { FieldRow } from './settings/field-row';
@@ -48,6 +52,7 @@ export type ProviderSettingsProps = {
   onStoreSecret: (providerId: string, secret: string) => Promise<string>;
   /** Load multi-line secret for key manager. */
   onLoadSecret: (providerId: string) => Promise<string | null>;
+  searchCatalog?: (query: string) => Promise<import('@piwin/contracts').ModelCatalogEntry[]>;
 };
 
 type HeaderDraftRow = {
@@ -164,6 +169,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     onTestModel,
     onStoreSecret,
     onLoadSecret,
+    searchCatalog,
   } = props;
   const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.provider;
@@ -289,9 +295,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     }
     const nextProviders = config.providers.filter((item) => item.id !== selectedId);
     const nextDefault =
-      config.defaultProviderId === selectedId
-        ? nextProviders[0]?.id
-        : config.defaultProviderId;
+      config.defaultProviderId === selectedId ? nextProviders[0]?.id : config.defaultProviderId;
     const nextDefaultModel =
       config.defaultProviderId === selectedId
         ? nextProviders[0]?.models[0]?.id
@@ -334,7 +338,9 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     }
   }
 
-  async function persistOneShotKeyIfNeeded(oneShot: string | undefined): Promise<ProviderDraft | null> {
+  async function persistOneShotKeyIfNeeded(
+    oneShot: string | undefined,
+  ): Promise<ProviderDraft | null> {
     if (!draft || !oneShot) {
       return draft;
     }
@@ -435,13 +441,20 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
       onError(locale === 'zh-CN' ? '提供商已存在。' : 'Provider already exists.');
       return;
     }
-    const nextProviders = [...config.providers, {
+    const provider: ModelProviderConfig = {
       id,
       protocol: preset.protocol,
       name: preset.name,
       baseUrl: preset.baseUrl,
-      models: [],
-    }];
+      models: preset.models.map((model) => ({
+        id: model.id,
+        ...(model.label ? { label: model.label } : {}),
+      })),
+    };
+    if (preset.apiKeyEnv.trim()) {
+      provider.apiKeyEnv = preset.apiKeyEnv.trim();
+    }
+    const nextProviders = [...config.providers, provider];
     const next: PiwinConfig = { ...config, providers: nextProviders };
     if (await onSave(next)) {
       setSelectedId(id);
@@ -465,7 +478,9 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
               onClick={() => setSelectedId(provider.id)}
             >
               {provider.name}
-              {provider.id === config.defaultProviderId && <IconStar width={10} height={10} style={{ marginLeft: 6, opacity: 0.6 }} />}
+              {provider.id === config.defaultProviderId && (
+                <IconStar width={10} height={10} style={{ marginLeft: 6, opacity: 0.6 }} />
+              )}
             </button>
           ))}
           {config.providers.length < 20 && (
@@ -519,16 +534,27 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                           ? 'provider-autosave-status provider-autosave-status--error'
                           : 'provider-autosave-status'
                       }
-                      style={{ fontSize: '11.5px', color: autoSaveStatus === 'error' ? 'var(--danger)' : 'var(--faint)' }}
+                      style={{
+                        fontSize: '11.5px',
+                        color: autoSaveStatus === 'error' ? 'var(--danger)' : 'var(--faint)',
+                      }}
                     >
                       {autoSaveStatus === 'pending'
-                        ? (locale === 'zh-CN' ? '待保存…' : 'Pending…')
+                        ? locale === 'zh-CN'
+                          ? '待保存…'
+                          : 'Pending…'
                         : autoSaveStatus === 'saving' || saving
-                          ? (locale === 'zh-CN' ? '保存中…' : 'Saving…')
+                          ? locale === 'zh-CN'
+                            ? '保存中…'
+                            : 'Saving…'
                           : autoSaveStatus === 'saved'
-                            ? (locale === 'zh-CN' ? '已保存' : 'Saved')
+                            ? locale === 'zh-CN'
+                              ? '已保存'
+                              : 'Saved'
                             : autoSaveStatus === 'error'
-                              ? (locale === 'zh-CN' ? '保存失败' : 'Save failed')
+                              ? locale === 'zh-CN'
+                                ? '保存失败'
+                                : 'Save failed'
                               : ''}
                     </span>
                   </div>
@@ -538,9 +564,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
               <FieldRow
                 label={copy.apiKeyLabel}
                 description={
-                  hasKeychainSecret(draft)
-                    ? copy.apiKeyStoredPlaceholder
-                    : copy.apiKeyPlaceholder
+                  hasKeychainSecret(draft) ? copy.apiKeyStoredPlaceholder : copy.apiKeyPlaceholder
                 }
               >
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -551,11 +575,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                     onChange={(event) => {
                       markDraft({ ...draft, apiKeyInput: event.currentTarget.value });
                     }}
-                    placeholder={
-                      hasKeychainSecret(draft)
-                        ? '••••••••'
-                        : '...'
-                    }
+                    placeholder={hasKeychainSecret(draft) ? '••••••••' : '...'}
                     spellCheck={false}
                     autoComplete="off"
                     style={{ width: '220px' }}
@@ -571,9 +591,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                 </div>
               </FieldRow>
 
-              <FieldRow
-                label={copy.apiAddress}
-              >
+              <FieldRow label={copy.apiAddress}>
                 <TextInput
                   data-testid="provider-baseurl-input"
                   value={draft.baseUrl}
@@ -584,9 +602,22 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                 />
               </FieldRow>
 
-              <div className="provider-field" data-testid="provider-headers" style={{ marginTop: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <label className="ui-field-row-label" style={{ marginBottom: 0 }}>{copy.requestHeaders}</label>
+              <div
+                className="provider-field"
+                data-testid="provider-headers"
+                style={{ marginTop: 8 }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 12,
+                  }}
+                >
+                  <label className="ui-field-row-label" style={{ marginBottom: 0 }}>
+                    {copy.requestHeaders}
+                  </label>
                   <Button
                     size="compact"
                     variant="ghost"
@@ -604,16 +635,31 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                   </Button>
                 </div>
                 <Collapse expanded={draft.headerRows.length > 0}>
-                  <ul className="provider-header-list" style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <ul
+                    className="provider-header-list"
+                    style={{
+                      listStyle: 'none',
+                      padding: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                    }}
+                  >
                     {draft.headerRows.map((row) => (
-                      <li key={row.id} className="provider-header-row" style={{ display: 'flex', gap: '8px' }}>
+                      <li
+                        key={row.id}
+                        className="provider-header-row"
+                        style={{ display: 'flex', gap: '8px' }}
+                      >
                         <TextInput
                           value={row.name}
                           onChange={(event) =>
                             markDraft({
                               ...draft,
                               headerRows: draft.headerRows.map((item) =>
-                                item.id === row.id ? { ...item, name: event.currentTarget.value } : item,
+                                item.id === row.id
+                                  ? { ...item, name: event.currentTarget.value }
+                                  : item,
                               ),
                             })
                           }
@@ -631,7 +677,9 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                             markDraft({
                               ...draft,
                               headerRows: draft.headerRows.map((item) =>
-                                item.id === row.id ? { ...item, value: event.currentTarget.value } : item,
+                                item.id === row.id
+                                  ? { ...item, value: event.currentTarget.value }
+                                  : item,
                               ),
                             })
                           }
@@ -656,25 +704,29 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
                   </ul>
                 </Collapse>
                 {draft.headerRows.length === 0 && (
-                  <p className="muted" style={{ fontSize: '12.5px', marginTop: -4 }}>{copy.requestHeadersHint}</p>
+                  <p className="muted" style={{ fontSize: '12.5px', marginTop: -4 }}>
+                    {copy.requestHeadersHint}
+                  </p>
                 )}
               </div>
             </section>
 
             {/* Model workbench */}
-            <div className="provider-models-section" style={{ marginTop: 40, paddingTop: 32, borderTop: '1px solid var(--line-soft)' }}>
+            <div
+              className="provider-models-section"
+              style={{ marginTop: 40, paddingTop: 32, borderTop: '1px solid var(--line-soft)' }}
+            >
               <ModelWorkbench
                 provider={draftToProvider(draft)}
                 disabled={saving}
                 defaultModelId={
-                  config.defaultProviderId === selectedId
-                    ? config.defaultModelId ?? null
-                    : null
+                  config.defaultProviderId === selectedId ? (config.defaultModelId ?? null) : null
                 }
                 onModelsChange={(models) => markDraft({ ...draft, models })}
                 onSetDefaultModel={(modelId) => void handleSetDefaultModel(modelId)}
                 onDiscoverModels={discoverWithDraft}
                 onTestModel={testModelWithDraft}
+                {...(searchCatalog ? { searchCatalog } : {})}
               />
             </div>
           </div>
@@ -688,19 +740,43 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
         testId="provider-add-dialog"
         size="md"
       >
-        <ul className="provider-preset-list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <ul
+          className="provider-preset-list"
+          style={{
+            listStyle: 'none',
+            padding: 0,
+            margin: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
+        >
           {PROVIDER_PRESETS.map((preset) => (
             <li key={preset.id}>
               <button
                 type="button"
                 className="provider-preset-item"
-                style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid var(--line-soft)', background: 'var(--surface-raised)', color: 'var(--text)', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  border: '1px solid var(--line-soft)',
+                  background: 'var(--surface-raised)',
+                  color: 'var(--text)',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  cursor: 'pointer',
+                }}
                 onClick={() => void handleAddFromPreset(preset)}
               >
                 <span style={{ fontSize: '20px' }}>{preset.icon || '🤖'}</span>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <strong style={{ fontSize: '14.5px' }}>{preset.name}</strong>
-                  <span className="muted" style={{ fontSize: '12px' }}>{preset.protocol}</span>
+                  <span className="muted" style={{ fontSize: '12px' }}>
+                    {preset.protocol}
+                  </span>
                 </div>
               </button>
             </li>

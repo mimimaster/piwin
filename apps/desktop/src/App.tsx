@@ -84,6 +84,8 @@ type ModelOption = {
   modelId: string;
   label: string;
   contextWindow?: number;
+  thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+  supportsImage?: boolean;
 };
 
 function modelsFromConfig(config: PiwinConfig | null): ModelOption[] {
@@ -99,6 +101,8 @@ function modelsFromConfig(config: PiwinConfig | null): ModelOption[] {
         modelId: model.id,
         label: `${provider.name} / ${model.label ?? model.id}`,
         ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),
+        ...(model.thinkingLevel ? { thinkingLevel: model.thinkingLevel } : {}),
+        ...(model.input?.includes('image') ? { supportsImage: true } : {}),
       });
     }
   }
@@ -670,6 +674,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     showArchivedSessions,
     selectedModelKey,
     modelOptions,
+    thinkingLevel,
     agentMode,
     setEditingMessageId,
     setRenameDraft,
@@ -754,26 +759,47 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     state.hostReady,
   ]);
 
+  // Resolve the effective model selection. Priority:
+  //   1. composerProfile.model (per-desktop persisted selection)
+  //   2. config.defaultProviderId / defaultModelId (product default)
+  // When neither resolves to a live model option, clear the selection so the
+  // composer falls back to host defaults instead of holding a stale key.
   useEffect(() => {
     const composerProfile = config?.desktop?.composerProfile;
-    if (!composerProfile) {
-      return;
-    }
-    if (composerProfile.model) {
-      const matchingModel = modelOptions.find(
-        (model) =>
-          model.providerId === composerProfile.model?.providerId &&
-          model.modelId === composerProfile.model?.modelId &&
-          model.protocol === composerProfile.model?.protocol,
-      );
-      if (matchingModel) {
-        setSelectedModelKey(`${matchingModel.providerId}::${matchingModel.modelId}`);
-      }
-    }
-    if (composerProfile.thinkingLevel) {
+    const desired = composerProfile?.model
+      ? modelOptions.find(
+          (model) =>
+            model.providerId === composerProfile.model?.providerId &&
+            model.modelId === composerProfile.model?.modelId &&
+            model.protocol === composerProfile.model?.protocol,
+        )
+      : undefined;
+    const fallback =
+      config?.defaultProviderId && config?.defaultModelId
+        ? modelOptions.find(
+            (model) =>
+              model.providerId === config.defaultProviderId &&
+              model.modelId === config.defaultModelId,
+          )
+        : undefined;
+    const resolved = desired ?? fallback;
+    const resolvedKey = resolved ? `${resolved.providerId}::${resolved.modelId}` : '';
+    setSelectedModelKey(resolvedKey);
+
+    // Apply per-model default thinking level only when the composer profile
+    // does not carry an explicit thinkingLevel. An explicit profile value wins
+    // so the user's last manual choice survives model switches.
+    if (composerProfile?.thinkingLevel) {
       setThinkingLevel(composerProfile.thinkingLevel);
+    } else if (resolved?.thinkingLevel) {
+      setThinkingLevel(resolved.thinkingLevel);
     }
-  }, [config?.desktop?.composerProfile, modelOptions]);
+  }, [
+    config?.desktop?.composerProfile,
+    config?.defaultProviderId,
+    config?.defaultModelId,
+    modelOptions,
+  ]);
 
   const saveConfigInOrder = useCallback(
     (nextConfig: PiwinConfig): void => {
