@@ -41,6 +41,77 @@
   margin-top: 16px;
 }
 
+/* ─── Checkpoint Revert Modal ────────────────────────────────────────── */
+
+.revert-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.revert-modal-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.45;
+}
+
+.revert-modal-subtitle {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.revert-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.revert-modal-footer .modal-actions {
+  margin-top: 0;
+}
+
+.revert-dont-ask {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  transition: color 140ms ease;
+}
+
+.revert-dont-ask:hover {
+  color: var(--text);
+}
+
+.revert-dont-ask input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.revert-continue-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.revert-continue-btn .enter-symbol {
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.9;
+}
+
 .ui-dialog-content {
   /* Appearance/centering moved to @piwin/ui-kit/styles.css; desktop only
      assigns the overlay layer. */

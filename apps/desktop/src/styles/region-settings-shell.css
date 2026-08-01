@@ -42,12 +42,12 @@
   width: min(980px, calc(100vw - 48px));
   height: min(720px, calc(100vh - var(--titleband-height, 34px) - 48px));
   max-height: calc(100vh - var(--titleband-height, 34px) - 32px);
-  background: var(--surface-raised, var(--canvas));
-  border: 1px solid color-mix(in srgb, var(--line-soft) 85%, var(--accent));
-  border-radius: var(--radius-window, 14px);
+  background: var(--panel);
+  border: none;
+  border-radius: var(--radius-overlay, 16px);
   box-shadow:
-    0 24px 48px -12px rgba(0, 0, 0, 0.35),
-    0 0 0 1px color-mix(in srgb, var(--line-soft) 50%, transparent);
+    0 24px 64px -12px rgba(0, 0, 0, 0.45),
+    0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
   overflow: hidden;
   animation: settings-dialog-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -68,11 +68,11 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 18px 12px 12px;
+  padding: 20px 14px 14px;
   min-height: 0;
   overflow: hidden;
-  border-right: 1px solid var(--line-soft);
-  background: color-mix(in srgb, var(--sidebar) 95%, transparent);
+  border-right: none;
+  background: var(--surface-inset, var(--panel2));
 }
 
 .settings-nav-brand {
@@ -106,7 +106,7 @@
 .settings-search-icon {
   position: absolute;
   top: 50%;
-  left: 9px;
+  left: 10px;
   transform: translateY(-50%);
   color: var(--faint);
   pointer-events: none;
@@ -115,29 +115,25 @@
 .settings-search-input {
   width: 100%;
   min-height: var(--control-height-default, 30px);
-  padding: 5px 8px 5px 28px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--radius-control, 7px);
-  background: var(--surface-inset, var(--surface-control));
+  padding: 6px 10px 6px 30px;
+  border: none;
+  border-radius: var(--radius-control, 8px);
+  background: color-mix(in srgb, var(--text) 5%, var(--panel));
   color: var(--text);
   font-size: 12px;
   outline: none;
   transition:
-    border-color var(--motion-quick, 120ms) var(--motion-ease, ease),
     box-shadow var(--motion-quick, 120ms) var(--motion-ease, ease),
     background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
 }
 
 .settings-search-input:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 28%, var(--line-soft));
+  background: color-mix(in srgb, var(--text) 8%, var(--panel));
 }
 
 .settings-search-input:focus {
-  border-color: var(--accent);
-  background: var(--surface-raised);
-  box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
-    0 1px 2px color-mix(in srgb, #000 8%, transparent);
+  background: var(--panel);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .settings-search-input:disabled {
@@ -149,7 +145,7 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   min-height: 0;
   overflow-y: auto;
   padding-right: 2px;
@@ -158,17 +154,17 @@
 .settings-nav-group {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .settings-nav-group-label {
-  margin: 0 8px 4px;
+  margin: 4px 8px 4px;
   font-size: 10.5px;
-  font-weight: 650;
-  letter-spacing: 0.03em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   color: var(--faint);
   text-transform: uppercase;
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
 .settings-nav-item {
@@ -177,10 +173,10 @@
   gap: 9px;
   text-align: left;
   border: 0;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
-  padding: 6px 8px;
+  padding: 7px 10px;
   cursor: pointer;
   font: inherit;
   font-size: 13px;
@@ -197,20 +193,19 @@
 .settings-nav-item.active {
   position: relative;
   color: var(--text);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-raised));
-  font-weight: 550;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel));
+  font-weight: 600;
 }
 
 .settings-nav-item.active::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
+  left: 2px;
+  top: 7px;
+  bottom: 7px;
   width: 3px;
   background: var(--accent);
-  border-radius: 0 2px 2px 0;
+  border-radius: 3px;
 }
 
 .settings-nav-icon {
@@ -235,17 +230,17 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px 0;
+  padding: 10px 8px 0;
   font-size: 11px;
   color: var(--faint);
-  border-top: 1px solid var(--line-soft);
+  border-top: none;
 }
 
 .settings-connection-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #10b981;
+  background: var(--ok, #10b981);
 }
 
 /* ── Main Content Area inside sub-form dialog ────────────────────────────── */
@@ -258,7 +253,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding: 20px 28px 36px;
+  padding: 24px 32px 40px;
   background: var(--canvas);
 }
 
@@ -275,9 +270,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 0 0 20px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line-soft);
+  margin: 0 0 24px;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .settings-main-header h2 {

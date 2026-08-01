@@ -132,16 +132,16 @@
   margin-bottom: 8px;
   padding: 0 9px;
   color: var(--faint);
-  border: 1px solid var(--line);
+  border: none;
   border-radius: 7px;
-  background: var(--control);
+  background: color-mix(in srgb, var(--text) 5%, var(--sidebar));
   font-size: 12px;
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition: box-shadow 140ms ease, background 140ms ease;
 }
 
 .search-field:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+  background: var(--panel);
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .search-field input {
@@ -786,8 +786,8 @@
   flex-direction: column;
   gap: 4px;
   margin-top: auto;
-  padding: 8px 4px 0;
-  border-top: 1px solid var(--line);
+  padding: 12px 4px 0;
+  border-top: none;
 }
 
 .sidebar-footer-button {

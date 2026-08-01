@@ -68,6 +68,7 @@ describe('DesktopPreferences loading', () => {
       workDetailsExpanded: 'auto',
       artifactPreviewEnabled: true,
       artifactCodeFirst: false,
+      dontAskRevertConfirm: false,
     });
   });
 
@@ -88,6 +89,7 @@ describe('DesktopPreferences loading', () => {
       workDetailsExpanded: 'always',
       artifactPreviewEnabled: true,
       artifactCodeFirst: true,
+      dontAskRevertConfirm: false,
     });
   });
 
@@ -165,6 +167,7 @@ describe('DesktopPreferences saving and roundtrip', () => {
       workDetailsExpanded: 'collapsed',
       artifactPreviewEnabled: true,
       artifactCodeFirst: true,
+      dontAskRevertConfirm: true,
     };
     saveDesktopPreferences(input);
 
@@ -181,6 +184,7 @@ describe('DesktopPreferences saving and roundtrip', () => {
       workDetailsExpanded: 'auto',
       artifactPreviewEnabled: true,
       artifactCodeFirst: false,
+      dontAskRevertConfirm: false,
     };
     saveDesktopPreferences(defaults);
 

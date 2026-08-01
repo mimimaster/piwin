@@ -45,12 +45,43 @@ type EnhancedBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'list'; items: EnhancedListItem[] }
   | { type: 'code'; language: string; source: string }
-  | { type: 'callout'; kind: 'note' | 'tip' | 'important' | 'warning' | 'caution'; text: string };
+  | { type: 'details'; summary: string; content: string }
+  | { type: 'callout'; kind: 'note' | 'tip' | 'important' | 'warning' | 'caution'; text: string }
+  | {
+      type: 'table';
+      headers: string[];
+      alignments: ('left' | 'center' | 'right' | 'default')[];
+      rows: string[][];
+    };
 
 type EnhancedListItem = {
   text: string;
+  checked?: boolean | undefined;
   subItems?: string[] | undefined;
 };
+
+function parseTableRow(line: string): string[] {
+  let content = line.trim();
+  if (content.startsWith('|')) content = content.slice(1);
+  if (content.endsWith('|')) content = content.slice(0, -1);
+  return content.split('|').map((cell) => cell.trim());
+}
+
+function parseTableAlignment(delimiterCell: string): 'left' | 'center' | 'right' | 'default' {
+  const cell = delimiterCell.trim();
+  const starts = cell.startsWith(':');
+  const ends = cell.endsWith(':');
+  if (starts && ends) return 'center';
+  if (ends) return 'right';
+  if (starts) return 'left';
+  return 'default';
+}
+
+function isTableDelimiterLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed.includes('-')) return false;
+  return /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(trimmed);
+}
 
 function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
   const lines = text.split(/\r?\n/);
@@ -81,6 +112,66 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
         language,
         source: codeLines.join('\n'),
       });
+      continue;
+    }
+
+    // HTML <details><summary> blocks
+    if (trimmed.toLowerCase().startsWith('<details')) {
+      let summaryText = 'Details';
+      const detailLines: string[] = [];
+      const inlineSummaryMatch = /<summary>(.*?)<\/summary>/i.exec(line);
+      if (inlineSummaryMatch && inlineSummaryMatch[1]) {
+        summaryText = inlineSummaryMatch[1].trim();
+      }
+      i++;
+      while (i < lines.length) {
+        const cur = lines[i] ?? '';
+        const curTrimmed = cur.trim();
+        if (curTrimmed.toLowerCase().startsWith('</details>')) {
+          i++;
+          break;
+        }
+        const sumMatch = /<summary>(.*?)<\/summary>/i.exec(cur);
+        if (sumMatch && sumMatch[1]) {
+          summaryText = sumMatch[1].trim();
+        } else if (
+          !curTrimmed.toLowerCase().startsWith('<summary') &&
+          !curTrimmed.toLowerCase().startsWith('</summary')
+        ) {
+          detailLines.push(cur);
+        }
+        i++;
+      }
+      blocks.push({
+        type: 'details',
+        summary: summaryText,
+        content: detailLines.join('\n'),
+      });
+      continue;
+    }
+
+    // Tables
+    if (
+      trimmed.includes('|') &&
+      i + 1 < lines.length &&
+      isTableDelimiterLine(lines[i + 1] ?? '')
+    ) {
+      const headers = parseTableRow(line);
+      const delimiterCells = parseTableRow(lines[i + 1] ?? '');
+      const alignments = delimiterCells.map(parseTableAlignment);
+      i += 2;
+
+      const rows: string[][] = [];
+      while (
+        i < lines.length &&
+        (lines[i] ?? '').trim() !== '' &&
+        !(lines[i] ?? '').trim().startsWith('```') &&
+        (lines[i] ?? '').includes('|')
+      ) {
+        rows.push(parseTableRow(lines[i] ?? ''));
+        i++;
+      }
+      blocks.push({ type: 'table', headers, alignments, rows });
       continue;
     }
 
@@ -197,6 +288,14 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
         const itemMatch = /^[-*]\s+(.*)$/.exec(currentTrimmed);
         if (itemMatch && itemMatch[1]) {
           const itemText = itemMatch[1];
+          const checkMatch = /^\[([ xX])\]\s+(.*)$/.exec(itemText);
+          let checked: boolean | undefined;
+          let cleanText = itemText;
+          if (checkMatch && checkMatch[1] !== undefined && checkMatch[2] !== undefined) {
+            checked = checkMatch[1].toLowerCase() === 'x';
+            cleanText = checkMatch[2];
+          }
+
           const subItems: string[] = [];
           i++;
 
@@ -219,7 +318,8 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
           }
 
           items.push({
-            text: itemText,
+            text: cleanText,
+            ...(checked !== undefined ? { checked } : {}),
             ...(subItems.length > 0 ? { subItems } : {}),
           });
         } else {
@@ -261,6 +361,67 @@ function HeadingElement({
     default:
       return <h6 className={className}>{children}</h6>;
   }
+}
+
+function CodeBlockView({
+  language,
+  source,
+}: {
+  language: string;
+  source: string;
+}): ReactElement {
+  const [expanded, setExpanded] = useState(false);
+  const lines = source.split('\n');
+  const isDiff =
+    language.toLowerCase() === 'diff' ||
+    lines.some((l) => l.startsWith('+ ') || l.startsWith('- '));
+  const FOLD_THRESHOLD = 16;
+  const isLong = lines.length > FOLD_THRESHOLD;
+  const visibleLines = isLong && !expanded ? lines.slice(0, FOLD_THRESHOLD) : lines;
+
+  return (
+    <div className={`enhanced-code-block${isLong && !expanded ? ' folded' : ''}`}>
+      <div className="enhanced-code-header">
+        <span className="code-lang">{language || (isDiff ? 'diff' : 'code')}</span>
+        <div className="code-header-actions">
+          {isLong ? (
+            <Button
+              variant="ghost"
+              size="compact"
+              onClick={() => setExpanded((prev) => !prev)}
+            >
+              {expanded ? 'Collapse' : `Expand (${lines.length} lines)`}
+            </Button>
+          ) : null}
+          <CopyButton text={source} />
+        </div>
+      </div>
+      <div className="enhanced-code-body-wrapper">
+        <pre className="enhanced-code">
+          <code>
+            {visibleLines.map((line, idx) => {
+              if (isDiff) {
+                const isAdd = line.startsWith('+');
+                const isDel = line.startsWith('-');
+                const lineClass = isAdd
+                  ? 'diff-line-add'
+                  : isDel
+                    ? 'diff-line-delete'
+                    : 'diff-line-context';
+                return (
+                  <div key={idx} className={`diff-line ${lineClass}`}>
+                    {line}
+                  </div>
+                );
+              }
+              return <div key={idx}>{line}</div>;
+            })}
+          </code>
+        </pre>
+        {isLong && !expanded ? <div className="enhanced-code-fade" /> : null}
+      </div>
+    </div>
+  );
 }
 
 function EnhancedBlockView({
@@ -319,6 +480,17 @@ function EnhancedBlockView({
     );
   }
 
+  if (block.type === 'details') {
+    return (
+      <details className="enhanced-details">
+        <summary className="enhanced-summary">{block.summary}</summary>
+        <div className="enhanced-details-content">
+          <EnhancedMarkdownView text={block.content} onOpenFile={onOpenFile} />
+        </div>
+      </details>
+    );
+  }
+
   if (block.type === 'code') {
     if (isMermaidFenceLanguage(block.language)) {
       return <MermaidBlock source={block.source} />;
@@ -334,17 +506,7 @@ function EnhancedBlockView({
         );
       }
     }
-    return (
-      <div className="enhanced-code-block">
-        <div className="enhanced-code-header">
-          <span className="code-lang">{block.language || 'code'}</span>
-          <CopyButton text={block.source} />
-        </div>
-        <pre className="enhanced-code">
-          <code>{block.source}</code>
-        </pre>
-      </div>
-    );
+    return <CodeBlockView language={block.language} source={block.source} />;
   }
 
   if (block.type === 'callout') {
@@ -361,7 +523,17 @@ function EnhancedBlockView({
       <ul className="enhanced-list">
         {block.items.map((item, index) => (
           <li key={index} className="enhanced-list-item">
-            <div className="item-text">{renderFormattedText(item.text)}</div>
+            <div className="item-text">
+              {item.checked !== undefined ? (
+                <input
+                  type="checkbox"
+                  checked={item.checked}
+                  readOnly
+                  className="enhanced-checkbox"
+                />
+              ) : null}
+              <span>{renderFormattedText(item.text)}</span>
+            </div>
             {item.subItems && item.subItems.length > 0 ? (
               <ul className="enhanced-sub-list">
                 {item.subItems.map((sub, subIndex) => (
@@ -374,6 +546,40 @@ function EnhancedBlockView({
           </li>
         ))}
       </ul>
+    );
+  }
+
+function getTextAlign(alignment?: 'left' | 'center' | 'right' | 'default'): 'left' | 'center' | 'right' | undefined {
+  if (!alignment || alignment === 'default') return undefined;
+  return alignment;
+}
+
+  if (block.type === 'table') {
+    return (
+      <div className="md-table-wrapper" data-testid="enhanced-md-table">
+        <table className="md-table">
+          <thead>
+            <tr>
+              {block.headers.map((header, hIdx) => (
+                <th key={hIdx} style={{ textAlign: getTextAlign(block.alignments[hIdx]) }}>
+                  {renderFormattedText(header)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {block.rows.map((row, rIdx) => (
+              <tr key={rIdx}>
+                {row.map((cell, cIdx) => (
+                  <td key={cIdx} style={{ textAlign: getTextAlign(block.alignments[cIdx]) }}>
+                    {renderFormattedText(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   }
 

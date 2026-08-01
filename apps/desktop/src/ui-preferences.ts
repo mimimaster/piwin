@@ -22,6 +22,12 @@ export type DesktopPreferences = {
    * When false (default), artifact blocks immediately render dynamic UI.
    */
   artifactCodeFirst: boolean;
+  /** Last terminal working directory (remembered across sessions). */
+  terminalLastCwd?: string;
+  /** Recent terminal directories (most recent first, max 5). */
+  terminalRecentDirs?: string[];
+  /** When true, revert checkpoint confirmation modal is bypassed. */
+  dontAskRevertConfirm?: boolean;
 };
 
 const TOOL_DENSITY_KEY = 'piwin.desktop.toolCallDensity';
@@ -31,6 +37,9 @@ const CODE_WRAP_KEY = 'piwin.desktop.codeWrap';
 const WORK_DETAILS_EXPANDED_KEY = 'piwin.desktop.workDetailsExpanded';
 const ARTIFACT_PREVIEW_KEY = 'piwin.desktop.artifactPreviewEnabled';
 const ARTIFACT_CODE_FIRST_KEY = 'piwin.desktop.artifactCodeFirst';
+const TERMINAL_LAST_CWD_KEY = 'piwin.desktop.terminalLastCwd';
+const TERMINAL_RECENT_DIRS_KEY = 'piwin.desktop.terminalRecentDirs';
+const DONT_ASK_REVERT_CONFIRM_KEY = 'piwin.desktop.dontAskRevertConfirm';
 
 function readString(key: string): string | null {
   try {
@@ -78,7 +87,22 @@ function parseBoolean(raw: string | null, fallback: boolean): boolean {
   return fallback;
 }
 
+function parseStringArray(raw: string | null): string[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.every((item: unknown) => typeof item === 'string')) {
+      return parsed as string[];
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return undefined;
+}
+
 export function loadDesktopPreferences(): DesktopPreferences {
+  const lastCwd = readString(TERMINAL_LAST_CWD_KEY);
+  const recentDirsRaw = readString(TERMINAL_RECENT_DIRS_KEY);
   return {
     assistantTextSize: parseSizeOption(readString(ASSISTANT_TEXT_SIZE_KEY), 'default'),
     codeTextSize: parseSizeOption(readString(CODE_TEXT_SIZE_KEY), 'default'),
@@ -87,6 +111,9 @@ export function loadDesktopPreferences(): DesktopPreferences {
     workDetailsExpanded: parseWorkDetails(readString(WORK_DETAILS_EXPANDED_KEY)),
     artifactPreviewEnabled: true,
     artifactCodeFirst: parseBoolean(readString(ARTIFACT_CODE_FIRST_KEY), false),
+    dontAskRevertConfirm: parseBoolean(readString(DONT_ASK_REVERT_CONFIRM_KEY), false),
+    ...(lastCwd ? { terminalLastCwd: lastCwd } : {}),
+    ...(recentDirsRaw ? { terminalRecentDirs: parseStringArray(recentDirsRaw) ?? [] } : {}),
   };
 }
 
@@ -98,6 +125,13 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   writeString(WORK_DETAILS_EXPANDED_KEY, prefs.workDetailsExpanded);
   writeString(ARTIFACT_PREVIEW_KEY, 'true');
   writeString(ARTIFACT_CODE_FIRST_KEY, String(prefs.artifactCodeFirst));
+  writeString(DONT_ASK_REVERT_CONFIRM_KEY, String(prefs.dontAskRevertConfirm ?? false));
+  if (prefs.terminalLastCwd) {
+    writeString(TERMINAL_LAST_CWD_KEY, prefs.terminalLastCwd);
+  }
+  if (prefs.terminalRecentDirs) {
+    writeString(TERMINAL_RECENT_DIRS_KEY, JSON.stringify(prefs.terminalRecentDirs));
+  }
 }
 
 // ---- Backward-compat helpers (used by existing callers and the old tests) ----

@@ -1,15 +1,13 @@
 /**
  * Settings → General page (Wave 1 migration from SettingsPanel).
- * Language select, host capability matrix, agent runtime mode, and the
- * remembered-permissions list. Reads state via useSettings().
+ * Language select + host capability matrix. Reads state via useSettings().
  */
 import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { buildCapabilityMatrix } from '@piwin/contracts';
 import { getDesktopCopy, type DesktopLocale } from '../../desktop-locale';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { Collapse, Select, Switch } from '@piwin/ui-kit';
-import { RememberedPermissionsSection } from '../../RememberedPermissionsSection';
+import { Collapse, Select } from '@piwin/ui-kit';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
@@ -75,20 +73,8 @@ function getCapabilityLabel(capabilityId: string, fallback: string, locale: Desk
 export function GeneralPage(): ReactElement {
   const { locale, setLocale } = useDesktopLocale();
   const copy = getDesktopCopy(locale);
-  const {
-    config,
-    hostStatus,
-    projectPath,
-    request,
-    saveConfig,
-  } = useSettings();
-  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const { hostStatus } = useSettings();
   const [capabilitiesOpen, setCapabilitiesOpen] = useState(false);
-
-  async function handleToggleMock(agentMock: boolean): Promise<void> {
-    if (!config) return;
-    await saveConfig({ ...config, agentMock });
-  }
 
   return (
     <div className="settings-card">
@@ -96,15 +82,10 @@ export function GeneralPage(): ReactElement {
         <PageTitle
           title={locale === 'zh-CN' ? '基础与运行' : 'General & Runtime'}
           description={
-            locale === 'zh-CN'
-              ? '管理 piwin 界面显示语言与 Agent 运行模式。'
-              : 'Manage piwin display language and agent execution mode.'
+            locale === 'zh-CN' ? '管理 piwin 界面显示语言。' : 'Manage piwin display language.'
           }
         />
-        <FieldRow
-          label={copy.language}
-          description={copy.languageDescription}
-        >
+        <FieldRow label={copy.language} description={copy.languageDescription}>
           <Select
             value={locale}
             testId="settings-language-select"
@@ -117,32 +98,7 @@ export function GeneralPage(): ReactElement {
             style={{ minWidth: 140 }}
           />
         </FieldRow>
-        {config ? (
-          <FieldRow
-            label={locale === 'zh-CN' ? '在线模式' : 'Online mode'}
-            description={locale === 'zh-CN' ? '开启后连接到 Host 与模型；关闭则保持离线（Mock）。' : 'Connect to host/model when enabled; stay offline (Mock) when disabled.'}
-          >
-            <Switch
-              checked={config.agentMock !== true}
-              onCheckedChange={(online) => void handleToggleMock(!online)}
-              aria-label={locale === 'zh-CN' ? '在线模式' : 'Online mode'}
-            />
-          </FieldRow>
-        ) : null}
       </div>
-
-      <RememberedPermissionsSection
-        projectPath={projectPath}
-        expanded={permissionsOpen}
-        onToggle={() => setPermissionsOpen((v) => !v)}
-        request={async (command) =>
-          request({
-            type: command.type,
-            path: command.path,
-            ...(command.key ? { key: command.key } : {}),
-          })
-        }
-      />
 
       {hostStatus ? (
         <div className="settings-section settings-section-card" data-testid="capability-matrix">
@@ -155,13 +111,6 @@ export function GeneralPage(): ReactElement {
           >
             <PageTitle
               title={locale === 'zh-CN' ? 'Host 能力 (高级)' : 'Host capabilities (Advanced)'}
-              description={
-                <>
-                  {locale === 'zh-CN' ? '当前模式' : 'Current mode'}{' '}
-                  <code>{hostStatus.mode}</code>
-                  {hostStatus.mock ? ' · mock' : ''}
-                </>
-              }
             />
             <svg
               className={`settings-collapsible-chevron ${capabilitiesOpen ? 'open' : ''}`}
@@ -187,9 +136,7 @@ export function GeneralPage(): ReactElement {
                 <li
                   key={row.id}
                   className={
-                    row.available
-                      ? 'capability-row available'
-                      : 'capability-row unavailable'
+                    row.available ? 'capability-row available' : 'capability-row unavailable'
                   }
                   data-testid={`capability-row-${row.id}`}
                 >

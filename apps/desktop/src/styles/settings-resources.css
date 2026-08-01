@@ -20,16 +20,17 @@
 
 /* Card-wrapped section styling for clean grouped settings */
 .settings-section-card {
-  background: var(--surface-raised, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--line-soft);
-  border-radius: 12px;
-  padding: 20px 24px;
+  background: var(--panel2, var(--surface-inset));
+  border: none;
+  border-radius: 14px;
+  padding: 22px 26px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
 .settings-section-card .settings-card-heading {
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--line-soft) 60%, transparent);
+  margin-bottom: 18px;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .settings-section-card .ui-field-row:first-child {
@@ -67,7 +68,7 @@
   justify-content: space-between;
   width: 100%;
   padding: 0;
-  margin: 0 0 0 0;
+  margin: 0;
   background: transparent;
   border: none;
   color: var(--text);
@@ -102,11 +103,14 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 32px;
-  padding: 16px 0;
+  padding: 14px 0;
+  border-radius: 8px;
+  transition: background-color var(--motion-quick, 120ms) ease;
 }
 
 .ui-field-row + .ui-field-row {
-  border-top: 1px solid color-mix(in srgb, var(--line-soft) 50%, transparent);
+  border-top: none;
+  margin-top: 4px;
 }
 
 .ui-field-row-content {

@@ -32,7 +32,7 @@ export function DocPreviewPanel({
   onOpenFile,
   locale = 'zh-CN',
 }: DocPreviewPanelProps): ReactElement {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Strip file path and extension from display title e.g. "/path/to/自我介绍.md" -> "自我介绍"
   const rawTitle = title || 'Implementation Plan';

@@ -2,7 +2,7 @@
  * Left project/session rail: brand, repositories, agent list, host status footer.
  * Handlers stay in App — this component is presentation + local open menu state only.
  */
-import { useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { HostStatusData, ProjectRecord } from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer';
 import type { SessionTimeGroup } from './session-groups';
@@ -227,6 +227,57 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
   const [showAllProjectSessions, setShowAllProjectSessions] = useState<Record<string, boolean>>({});
   const [showAllGeneralSessions, setShowAllGeneralSessions] = useState<boolean>(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  // Keyboard navigation for session list (↑↓ Enter) when focus is inside the sidebar.
+  useEffect(() => {
+    const el = sidebarRef.current;
+    if (!el) return;
+
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown' && event.key !== 'Enter') {
+        return;
+      }
+      // Only handle when focus is inside the sidebar.
+      const target = event.target;
+      if (!(target instanceof Node) || !el!.contains(target)) {
+        return;
+      }
+      // Skip if typing in an editable field.
+      if (target instanceof HTMLElement) {
+        const tag = target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
+          return;
+        }
+      }
+
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        const items = el!.querySelectorAll<HTMLElement>('[data-session-id]');
+        if (items.length === 0) return;
+        const currentIndex = Array.from(items).findIndex((item) => item === document.activeElement);
+        let nextIndex: number;
+        if (event.key === 'ArrowDown') {
+          nextIndex = currentIndex < items.length - 1 ? currentIndex + 1 : 0;
+        } else {
+          nextIndex = currentIndex > 0 ? currentIndex - 1 : items.length - 1;
+        }
+        items[nextIndex]?.focus();
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        const active = document.activeElement;
+        if (active instanceof HTMLElement && active.hasAttribute('data-session-id')) {
+          event.preventDefault();
+          active.click();
+        }
+      }
+    }
+
+    el.addEventListener('keydown', onKeyDown);
+    return () => el.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const sortedFilteredSessions = useMemo(() => {
     if (sortBy === 'alphabetical') {
@@ -248,7 +299,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   }, [props.generalSessions, sortBy]);
 
   return (
-    <aside className="sidebar" aria-label={copy.workspace}>
+    <aside className="sidebar" ref={sidebarRef} aria-label={copy.workspace}>
       <div className="sidebar-top">
         {props.isOverlayPresentation ? (
           <div className="sidebar-overlay-header">

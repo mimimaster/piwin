@@ -77,8 +77,15 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
       },
     };
     const status = labels[activePhase];
+    const detail = input.chat.activeRunPhaseDetail?.trim();
     return {
       ...status,
+      ...(detail
+        ? {
+            label: activePhase === 'preparing' ? 'Describing' : status.label,
+            summary: detail,
+          }
+        : {}),
       ...baseCounts,
       canStop: true,
       ...(input.chat.activeRunStartedAt !== null

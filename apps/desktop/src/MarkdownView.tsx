@@ -6,6 +6,7 @@ import {
   type ArtifactActionMessage,
   type ArtifactPreviewDecision,
   type ArtifactThemeVariables,
+  type TableAlignment,
 } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
 import { fileNameFromPath, PathChip } from './path-chip';
@@ -64,6 +65,17 @@ type MarkdownViewProps = {
   /** Callback when user clicks a markdown document link or plan document chip. */
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
 };
+
+const SHELL_LANGUAGES = new Set(['bash', 'sh', 'zsh', 'shell', 'console', 'terminal', 'cmd', 'powershell']);
+
+function isShellLanguage(lang?: string): boolean {
+  return lang ? SHELL_LANGUAGES.has(lang.trim().toLowerCase()) : false;
+}
+
+function getTextAlign(alignment?: TableAlignment): 'left' | 'center' | 'right' | undefined {
+  if (!alignment || alignment === 'default') return undefined;
+  return alignment;
+}
 
 /**
  * Markdown renderer with optional HTML Artifact previews, KaTeX, and Mermaid.
@@ -132,7 +144,81 @@ export function MarkdownView({
           }
           return <CodeFenceView key={index} {...fenceProps} />;
         }
+        if (block.type === 'heading') {
+          const HeadingTag = `h${Math.min(6, Math.max(1, block.level))}` as
+            | 'h1'
+            | 'h2'
+            | 'h3'
+            | 'h4'
+            | 'h5'
+            | 'h6';
+          return (
+            <HeadingTag key={index} className={`md-h md-h${block.level}`}>
+              {renderInline(block.text, onOpenDocument)}
+            </HeadingTag>
+          );
+        }
+        if (block.type === 'table') {
+          return (
+            <div key={index} className="md-table-wrapper" data-testid="md-table">
+              <table className="md-table">
+                <thead>
+                  <tr>
+                    {block.headers.map((header, hIdx) => (
+                      <th key={hIdx} style={{ textAlign: getTextAlign(block.alignments[hIdx]) }}>
+                        {renderInline(header, onOpenDocument)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.rows.map((row, rIdx) => (
+                    <tr key={rIdx}>
+                      {row.map((cell, cIdx) => (
+                        <td key={cIdx} style={{ textAlign: getTextAlign(block.alignments[cIdx]) }}>
+                          {renderInline(cell, onOpenDocument)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        if (block.type === 'blockquote') {
+          if (block.kind) {
+            return (
+              <div
+                key={index}
+                className={`md-callout md-callout-${block.kind}`}
+                data-testid={`callout-${block.kind}`}
+              >
+                <div className="md-callout-header">
+                  <span className="md-callout-badge">{block.kind.toUpperCase()}</span>
+                </div>
+                <div className="md-callout-body">
+                  {renderInline(block.text, onOpenDocument)}
+                </div>
+              </div>
+            );
+          }
+          return (
+            <blockquote key={index} className="md-blockquote">
+              {renderInline(block.text, onOpenDocument)}
+            </blockquote>
+          );
+        }
         if (block.type === 'list') {
+          if (block.ordered) {
+            return (
+              <ol key={index} className="md-list md-list-ordered">
+                {block.items.map((item, itemIndex) => (
+                  <li key={itemIndex}>{renderInline(item, onOpenDocument)}</li>
+                ))}
+              </ol>
+            );
+          }
           return (
             <ul key={index} className="md-list">
               {block.items.map((item, itemIndex) => (
@@ -213,12 +299,21 @@ function CodeFenceView(props: {
 
   const decision: ArtifactPreviewDecision = evaluateCodeFence(evaluateOptions);
   const isFlashcard = isFlashcardArtifactSource(props.source);
+  const decisionLanguage = decision.kind === 'code' ? decision.language : undefined;
+  const isShell = isShellLanguage(props.language || decisionLanguage);
 
   if (streamMode && decision.kind === 'code') {
     return (
-      <div className="md-code-block" data-testid="code-fence-streaming">
+      <div
+        className="md-code-block"
+        data-is-shell={isShell ? 'true' : undefined}
+        data-testid="code-fence-streaming"
+      >
         <div className="md-code-header">
-          <span className="md-code-lang muted">{props.language || 'code'}</span>
+          <div className="md-code-header-title">
+            {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
+            <span className="md-code-lang muted">{props.language || (isShell ? 'bash' : 'code')}</span>
+          </div>
         </div>
         <pre className="md-code">
           <code data-language={props.language || undefined}>{props.source}</code>
@@ -267,9 +362,16 @@ function CodeFenceView(props: {
     // raw props so output stays byte-stable with the capability-on path.
     if (!props.artifactPreviewEnabled) {
       return (
-        <div className="md-code-block" data-testid="code-fence-source">
+        <div
+          className="md-code-block"
+          data-is-shell={isShell ? 'true' : undefined}
+          data-testid="code-fence-source"
+        >
           <div className="md-code-header">
-            <span className="md-code-lang muted">{props.language || 'code'}</span>
+            <div className="md-code-header-title">
+              {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
+              <span className="md-code-lang muted">{props.language || (isShell ? 'bash' : 'code')}</span>
+            </div>
             <CopyCodeButton text={props.source} />
           </div>
           <pre className="md-code">
@@ -284,9 +386,16 @@ function CodeFenceView(props: {
     if (decision.kind === 'blocked') {
       return (
         <div className="artifact-with-source">
-          <div className="md-code-block" data-testid="code-fence-source">
+          <div
+            className="md-code-block"
+            data-is-shell={isShell ? 'true' : undefined}
+            data-testid="code-fence-source"
+          >
             <div className="md-code-header">
-              <span className="md-code-lang muted">{props.language || 'html'}</span>
+              <div className="md-code-header-title">
+                {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
+                <span className="md-code-lang muted">{props.language || 'html'}</span>
+              </div>
               <CopyCodeButton text={props.source} />
             </div>
             <pre className="md-code">
@@ -325,9 +434,16 @@ function CodeFenceView(props: {
             {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
           />
         ) : (
-          <div className="md-code-block" data-testid="code-fence-source">
+          <div
+            className="md-code-block"
+            data-is-shell={isShell ? 'true' : undefined}
+            data-testid="code-fence-source"
+          >
             <div className="md-code-header">
-              <span className="md-code-lang muted">{props.language || 'html'}</span>
+              <div className="md-code-header-title">
+                {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
+                <span className="md-code-lang muted">{props.language || 'html'}</span>
+              </div>
               <div className="md-code-header-actions">
                 <CopyCodeButton text={props.source} />
                 <Button
@@ -350,9 +466,16 @@ function CodeFenceView(props: {
   }
 
   return (
-    <div className="md-code-block" data-testid="code-fence-source">
+    <div
+      className="md-code-block"
+      data-is-shell={isShell ? 'true' : undefined}
+      data-testid="code-fence-source"
+    >
       <div className="md-code-header">
-        <span className="md-code-lang muted">{decision.language || 'code'}</span>
+        <div className="md-code-header-title">
+          {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
+          <span className="md-code-lang muted">{decision.language || (isShell ? 'bash' : 'code')}</span>
+        </div>
         <CopyCodeButton text={decision.source} />
       </div>
       <pre className="md-code">

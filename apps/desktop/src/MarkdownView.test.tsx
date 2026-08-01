@@ -281,4 +281,33 @@ describe('MarkdownView path chips', () => {
     });
     expect(onOpenDocument).toHaveBeenCalledWith({ title: 'My Notes', path: fullPath });
   });
+
+  it('renders bash command line code blocks with shell formatting', () => {
+    const bashText = '```bash\npnpm run dev\n```';
+    const { container } = renderMarkdown(
+      <MarkdownView text={bashText} renderingPhase="completed" />,
+    );
+    const codeBlock = container.querySelector('[data-is-shell="true"]');
+    expect(codeBlock).not.toBeNull();
+    const shellIcon = container.querySelector('.md-code-shell-icon');
+    expect(shellIcon).not.toBeNull();
+    expect(shellIcon?.textContent).toBe('$');
+  });
+
+  it('renders markdown tables with proper structure and text-align styles', () => {
+    const tableText = `
+| Header 1 | Header 2 |
+| :--- | ---: |
+| Left cell | Right cell |
+`;
+    const { container } = renderMarkdown(
+      <MarkdownView text={tableText} renderingPhase="completed" />,
+    );
+    const table = container.querySelector('[data-testid="md-table"]');
+    expect(table).not.toBeNull();
+    const headers = container.querySelectorAll('.md-table th');
+    expect(headers.length).toBe(2);
+    expect((headers[0] as HTMLElement).style.textAlign).toBe('left');
+    expect((headers[1] as HTMLElement).style.textAlign).toBe('right');
+  });
 });

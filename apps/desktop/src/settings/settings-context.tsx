@@ -30,7 +30,10 @@ export type SettingsConfigRequest = (command: {
     | 'config/get'
     | 'config/set'
     | 'models/discover'
+    | 'models/catalog/search'
     | 'models/test'
+    | 'vision/delegate'
+    | 'vision/cache/clear'
     | 'secrets/set'
     | 'secrets/get'
     | 'project/permissions-list'
@@ -48,6 +51,9 @@ export type SettingsConfigRequest = (command: {
   projectPath?: string;
   window?: { from?: string; to?: string };
   topSessions?: number;
+  input?:
+    | import('@piwin/contracts').ModelCatalogSearchRequest
+    | import('@piwin/contracts').VisionDelegateInput;
 }) => Promise<HostResponse>;
 
 export type SettingsContextValue = {
@@ -94,6 +100,9 @@ export type SettingsContextValue = {
     modelId: string,
     options?: { apiKey?: string },
   ) => Promise<{ durationMs: number }>;
+  searchModelCatalog: (
+    input?: import('@piwin/contracts').ModelCatalogSearchRequest,
+  ) => Promise<import('@piwin/contracts').ModelCatalogSearchResult>;
   storeProviderSecret: (providerId: string, secret: string) => Promise<string>;
   loadProviderSecret: (providerId: string) => Promise<string | null>;
 };

@@ -19,7 +19,10 @@ export type HostRequestAdapters = {
       | 'config/get'
       | 'config/set'
       | 'models/discover'
+      | 'models/catalog/search'
       | 'models/test'
+      | 'vision/delegate'
+      | 'vision/cache/clear'
       | 'secrets/set'
       | 'secrets/get'
       | 'project/permissions-list'
@@ -37,6 +40,9 @@ export type HostRequestAdapters = {
     projectPath?: string;
     window?: { from?: string; to?: string };
     topSessions?: number;
+    input?:
+      | import('@piwin/contracts').ModelCatalogSearchRequest
+      | import('@piwin/contracts').VisionDelegateInput;
   }) => Promise<HostResponse>;
   requestSkills: (command: {
     type:
@@ -188,6 +194,31 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           provider: command.provider,
           modelId: command.modelId,
           ...(command.apiKey ? { apiKey: command.apiKey } : {}),
+        });
+      }
+      if (command.type === 'models/catalog/search') {
+        return hostClient.request({
+          type: 'models/catalog/search',
+          ...(command.input
+            ? { input: command.input as import('@piwin/contracts').ModelCatalogSearchRequest }
+            : {}),
+        });
+      }
+      if (command.type === 'vision/cache/clear') {
+        return hostClient.request({ type: 'vision/cache/clear' });
+      }
+      if (command.type === 'vision/delegate') {
+        if (!command.input || typeof command.input !== 'object') {
+          return {
+            type: 'response',
+            command: 'vision/delegate',
+            success: false,
+            error: 'input is required',
+          };
+        }
+        return hostClient.request({
+          type: 'vision/delegate',
+          input: command.input as import('@piwin/contracts').VisionDelegateInput,
         });
       }
       if (command.type === 'secrets/set') {
