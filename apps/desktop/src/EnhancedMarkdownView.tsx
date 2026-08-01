@@ -471,7 +471,15 @@ function LineCommentWrapper({
 
   return (
     <div
-      className={`enhanced-line-wrapper has-hover-highlight ${popoverOpen ? 'popover-open' : ''} ${className}`}
+      className={[
+        'enhanced-line-wrapper',
+        'has-hover-highlight',
+        hasComment ? 'has-comment' : '',
+        popoverOpen ? 'popover-open' : '',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
       <div className="line-main-content">{children}</div>
 

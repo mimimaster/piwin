@@ -2819,12 +2819,41 @@
 .enhanced-line-wrapper {
   position: relative;
   transition: background-color 0.15s ease;
-  border-radius: 4px;
+  border-radius: 6px;
   background: transparent;
+  /* room for the absolute comment button */
+  padding-right: 34px;
 }
 
-.enhanced-line-wrapper:hover {
-  background: transparent;
+/* Soft hover for any commentable line */
+.enhanced-line-wrapper.has-hover-highlight:hover,
+.enhanced-line-wrapper.popover-open {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 6%, transparent);
+}
+
+/* Commented lines: always tinted */
+.enhanced-line-wrapper.has-comment {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 10%, transparent);
+}
+
+/* Commented + hover: deepen */
+.enhanced-line-wrapper.has-comment:hover,
+.enhanced-line-wrapper.has-comment.popover-open {
+  background: color-mix(in srgb, var(--accent, #3b82f6) 16%, transparent);
+}
+
+[data-theme='light'] .enhanced-line-wrapper.has-hover-highlight:hover,
+[data-theme='light'] .enhanced-line-wrapper.popover-open {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+[data-theme='light'] .enhanced-line-wrapper.has-comment {
+  background: rgba(59, 130, 246, 0.09);
+}
+
+[data-theme='light'] .enhanced-line-wrapper.has-comment:hover,
+[data-theme='light'] .enhanced-line-wrapper.has-comment.popover-open {
+  background: rgba(59, 130, 246, 0.14);
 }
 
 .line-comment-btn {
