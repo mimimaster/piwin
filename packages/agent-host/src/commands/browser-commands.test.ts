@@ -75,6 +75,10 @@ function createContext(
     pendingPermissions: new Map(),
     pendingExtensionUi: new Map(),
     rememberProjectPermission: async () => {},
+    rememberSessionPermission: () => {},
+    sessionPermissionOverrides: new Map(),
+    setSessionPermissionOverride: () => {},
+    clearSessionPermissionOverride: () => {},
   };
 }
 

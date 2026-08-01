@@ -19,6 +19,7 @@
     "lint": "echo \"lint ok (agent-host)\""
   },
   "dependencies": {
+    "@earendil-works/pi-ai": "0.80.10",
     "@earendil-works/pi-coding-agent": "0.80.10",
     "@piwin/automation": "workspace:*",
     "@piwin/browser": "workspace:*",

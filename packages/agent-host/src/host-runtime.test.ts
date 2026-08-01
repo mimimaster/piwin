@@ -80,7 +80,7 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
-  it('saves media via IPC and injects path metadata into the model prompt', async () => {
+  it('saves media via IPC; text-only primary path-injects and never dumps base64', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-media-'));
     const textDeltas: string[] = [];
     const runtime = new HostRuntime({
@@ -146,7 +146,7 @@ describe('HostRuntime', () => {
       },
     });
     expect(prompted.success).toBe(true);
-    // ADR 0015: prompt returns on accept; wait for background stream to finish.
+    // No default model input → text-only → path inject fallback (no ImageContent).
     for (let attempt = 0; attempt < 150; attempt += 1) {
       const joinedSoFar = textDeltas.join('');
       if (joinedSoFar.includes('[attached image]') && joinedSoFar.includes(asset.absolutePath)) {
@@ -155,8 +155,95 @@ describe('HostRuntime', () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     const joined = textDeltas.join('');
+    expect(joined).toContain('look at this');
     expect(joined).toContain('[attached image]');
     expect(joined).toContain(asset.absolutePath);
+    expect(joined).not.toContain(pngBase64);
+
+    await runtime.dispose();
+  });
+
+  it('keeps media attachments for multimodal primary (no path inject in text)', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-media-vision-'));
+    const { savePiwinConfig, createDefaultPiwinConfig } = await import('./config-store.js');
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'vision-p',
+        protocol: 'openai-compatible',
+        name: 'Vision',
+        baseUrl: 'https://example.test/v1',
+        models: [{ id: 'vision-m', input: ['text', 'image'] }],
+      },
+    ];
+    config.defaultProviderId = 'vision-p';
+    config.defaultModelId = 'vision-m';
+    await savePiwinConfig(config, rootDir);
+
+    const textDeltas: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'event' && message.event.type === 'message/text_delta') {
+          textDeltas.push(message.event.delta);
+        }
+      },
+    });
+
+    const created = await runtime.handleCommand({
+      id: 'create',
+      type: 'session/create',
+      input: { projectPath: '/tmp/project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const pngBase64 =
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const saved = await runtime.handleCommand({
+      id: 'media',
+      type: 'media/save',
+      input: {
+        sessionId,
+        mimeType: 'image/png',
+        source: 'paste',
+        base64Data: pngBase64,
+      },
+    });
+    expect(saved.success).toBe(true);
+    if (!saved.success) throw new Error(saved.error);
+    const asset = (saved.data as MediaSaveData).asset;
+
+    const prompted = await runtime.handleCommand({
+      id: 'prompt',
+      type: 'session/prompt',
+      sessionId,
+      input: {
+        text: 'look at this vision',
+        attachments: [
+          {
+            id: asset.id,
+            kind: 'media',
+            path: asset.absolutePath,
+            mimeType: asset.mimeType,
+            byteSize: asset.byteSize,
+            source: 'paste',
+          },
+        ],
+      },
+    });
+    expect(prompted.success).toBe(true);
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      if (textDeltas.join('').includes('look at this vision')) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const joined = textDeltas.join('');
+    expect(joined).toContain('look at this vision');
+    // Multimodal: path not injected into text; adapter would load ImageContent (mock keeps attachments).
+    expect(joined).not.toContain('[attached image]');
     expect(joined).not.toContain(pngBase64);
 
     await runtime.dispose();
@@ -1271,7 +1358,7 @@ describe('HostRuntime', () => {
     expect(prompted.success).toBe(true);
 
     // Wait for mock stream chunks
-    await new Promise((resolve) => setTimeout(resolve, 200));
+    await new Promise((resolve) => setTimeout(resolve, 600));
     expect(textDeltas.join('')).toContain('hello general');
 
     const generalList = await runtime.handleCommand({
