@@ -43,15 +43,6 @@ const SAMPLE_ROLLUP: UsageRollup = {
       firstAt: '2026-08-01T10:00:00.000Z',
       lastAt: '2026-08-01T11:00:00.000Z',
     },
-    {
-      sessionId: 's2',
-      promptTokens: 100,
-      completionTokens: 100,
-      totalTokens: 200,
-      entryCount: 1,
-      firstAt: '2026-08-02T09:00:00.000Z',
-      lastAt: '2026-08-02T09:00:00.000Z',
-    },
   ],
 };
 
@@ -110,11 +101,10 @@ describe('UsagePanel', () => {
     expect(panel?.getAttribute('data-scope')).toBe('project');
   });
 
-  it('renders per-day bars and per-session rows', async () => {
+  it('renders per-day bars for daily trend', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
     expect(container?.querySelectorAll('.usage-day-bar')).toHaveLength(2);
-    expect(container?.querySelectorAll('.usage-session-row')).toHaveLength(2);
   });
 
   it('requests with project path when project scope is active', async () => {
@@ -126,17 +116,6 @@ describe('UsagePanel', () => {
     ({ root, container } = renderPanel({ request }));
     await flushLoad();
     expect(requestedProjectPath).toBe('/tmp/proj');
-  });
-
-  it('opens a session from the breakdown', async () => {
-    let opened: string | undefined;
-    ({ root, container } = renderPanel({ onOpenSession: (id) => (opened = id) }));
-    await flushLoad();
-    const row = container?.querySelector('.usage-session-row');
-    act(() => {
-      (row as HTMLButtonElement | null)?.click();
-    });
-    expect(opened).toBe('s1');
   });
 
   it('sends a window when a time range is selected', async () => {
@@ -177,7 +156,7 @@ describe('UsagePanel', () => {
     expect(providerRows && providerRows.length).toBeGreaterThan(0);
   });
 
-  it('renders GitHub-style contribution heatmap cells and ratio bar', async () => {
+  it('renders GitHub-style contribution heatmap matrix and ratio bar', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
     const cells = container?.querySelectorAll('.usage-heatmap-cell');
