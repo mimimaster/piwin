@@ -9,6 +9,9 @@ const MAX_DEFAULT_NAME_CHARS = 60;
  */
 export function deriveDefaultNameFromMessage(text: string): string {
   let cleaned = text;
+  // Strip injected walkthrough context directives (both XML and bracket formats).
+  cleaned = cleaned.replace(/<walkthrough-context[\s\S]*?<\/walkthrough-context>/gi, '');
+  cleaned = cleaned.replace(/\[piwin walkthrough context\][\s\S]*?\[end walkthrough context\]/gi, '');
   // Strip markdown headers, bold, italic, inline code, code fences.
   cleaned = cleaned.replace(/^#{1,6}\s+/gm, '');
   cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, '$1');
