@@ -79,6 +79,8 @@ type EnhancedBlock =
     }
   | { type: 'paragraph'; text: string }
   | { type: 'list'; items: EnhancedListItem[] }
+  | { type: 'ordered-list'; items: EnhancedListItem[] }
+  | { type: 'blockquote'; text: string }
   | { type: 'code'; language: string; source: string }
   | { type: 'details'; summary: string; content: string }
   | { type: 'callout'; kind: 'note' | 'tip' | 'important' | 'warning' | 'caution'; text: string }
@@ -357,6 +359,58 @@ function parseEnhancedMarkdownBlocks(text: string): EnhancedBlock[] {
         }
       }
       blocks.push({ type: 'list', items });
+      continue;
+    }
+
+    // Ordered lists (1. 2. …)
+    if (/^\d+\.\s+/.test(trimmed)) {
+      const items: EnhancedListItem[] = [];
+      while (i < lines.length) {
+        const currentTrimmed = (lines[i] ?? '').trim();
+        const itemMatch = /^(\d+)\.\s+(.*)$/.exec(currentTrimmed);
+        if (!itemMatch || itemMatch[2] === undefined) break;
+        const itemText = itemMatch[2];
+        const checkMatch = /^\[([ xX])\]\s+(.*)$/.exec(itemText);
+        let checked: boolean | undefined;
+        let cleanText = itemText;
+        if (checkMatch?.[1] !== undefined && checkMatch[2] !== undefined) {
+          checked = checkMatch[1].toLowerCase() === 'x';
+          cleanText = checkMatch[2];
+        }
+        const subItems: string[] = [];
+        i++;
+        while (i < lines.length) {
+          const nextLine = lines[i] ?? '';
+          const nextTrimmed = nextLine.trim();
+          if (
+            /^\s+[-*]\s+/.test(nextLine) ||
+            (nextLine.startsWith('  ') && /^[-*]\s+/.test(nextTrimmed))
+          ) {
+            const subMatch = /^[-*]\s+(.*)$/.exec(nextTrimmed);
+            if (subMatch?.[1]) subItems.push(subMatch[1]);
+            i++;
+          } else {
+            break;
+          }
+        }
+        items.push({
+          text: cleanText,
+          ...(checked !== undefined ? { checked } : {}),
+          ...(subItems.length > 0 ? { subItems } : {}),
+        });
+      }
+      blocks.push({ type: 'ordered-list', items });
+      continue;
+    }
+
+    // Plain blockquotes (non-callout). Callouts (`> [!NOTE]`) are handled above.
+    if (trimmed.startsWith('>') && !trimmed.startsWith('> [!')) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && (lines[i] ?? '').trim().startsWith('>')) {
+        quoteLines.push((lines[i] ?? '').trim().replace(/^>\s?/, ''));
+        i++;
+      }
+      blocks.push({ type: 'blockquote', text: quoteLines.join('\n') });
       continue;
     }
 
@@ -838,9 +892,12 @@ function EnhancedBlockView({
     );
   }
 
-  if (block.type === 'list') {
+  if (block.type === 'list' || block.type === 'ordered-list') {
+    const ListTag = block.type === 'ordered-list' ? 'ol' : 'ul';
+    const listClass =
+      block.type === 'ordered-list' ? 'enhanced-list enhanced-ordered-list' : 'enhanced-list';
     return (
-      <ul className="enhanced-list">
+      <ListTag className={listClass}>
         {block.items.map((item, index) => {
           const listLineId = `list-${blockIndex}-${index}-${item.text.slice(0, 30)}`;
           return (
@@ -878,7 +935,24 @@ function EnhancedBlockView({
             </LineCommentWrapper>
           );
         })}
-      </ul>
+      </ListTag>
+    );
+  }
+
+  if (block.type === 'blockquote') {
+    return (
+      <LineCommentWrapper
+        lineId={`quote-${blockIndex}`}
+        lineText={block.text}
+        comments={comments}
+        onAddComment={onAddComment}
+        onEditComment={onEditComment}
+        onDeleteComment={onDeleteComment}
+        onCommentLine={onCommentLine}
+        className="enhanced-blockquote"
+      >
+        <blockquote>{renderFormattedText(block.text, onOpenFile)}</blockquote>
+      </LineCommentWrapper>
     );
   }
 
