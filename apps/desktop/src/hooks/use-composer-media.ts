@@ -487,7 +487,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     // Local echo so intervention is not lost if host events are delayed.
     args.dispatch({ type: 'user/send', text: `[Steer] ${text}`, attachments: [] });
     setComposer('');
-  }, [args, composer]);
+    clearPendingAttachments();
+  }, [args, composer, clearPendingAttachments]);
 
   const handleFollowUp = useCallback(async (): Promise<void> => {
     const text = composer.trim();

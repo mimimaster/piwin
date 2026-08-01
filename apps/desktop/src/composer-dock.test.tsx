@@ -140,4 +140,61 @@ describe('ComposerDock host status', () => {
 
     expect(textarea.style.height).toBe('auto');
   });
+
+  it('renders stop button when streaming and input is empty, and hides steer button', () => {
+    const handleSteer = vi.fn();
+    const handleAbort = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        composer=""
+        onSteer={handleSteer}
+        onAbort={handleAbort}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
+    const stopBtn = container.querySelector('[data-testid="stop-btn"]') as HTMLButtonElement;
+    expect(stopBtn).not.toBeNull();
+    expect(container.querySelector('[data-testid="send-btn"]')).toBeNull();
+
+    act(() => {
+      stopBtn.click();
+    });
+    expect(handleAbort).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders send button in steer mode when streaming and input is non-empty', () => {
+    const handleSteer = vi.fn();
+    const handleSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        composer="Next instruction"
+        onSteer={handleSteer}
+        onSend={handleSend}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="stop-btn"]')).toBeNull();
+
+    const sendBtn = container.querySelector('[data-testid="send-btn"]') as HTMLButtonElement;
+    expect(sendBtn).not.toBeNull();
+    expect(sendBtn.classList.contains('is-steer')).toBe(true);
+
+    act(() => {
+      sendBtn.click();
+    });
+    expect(handleSteer).toHaveBeenCalledTimes(1);
+    expect(handleSend).not.toHaveBeenCalled();
+  });
 });
