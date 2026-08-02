@@ -11,6 +11,7 @@ import type { AutomationConfig } from './automation.js';
 import type { MarketplaceConfig } from './marketplace-registry.js';
 import type { PermissionConfig } from './permission.js';
 import type { WalkthroughConfig } from './walkthrough.js';
+import { THINKING_LEVEL_OPTIONS } from './host.js';
 import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
@@ -43,6 +44,13 @@ export type ModelConfigEntry = {
   tooltipMarkdown?: string;
   /** Optional default thinking/reasoning effort level for this model. */
   thinkingLevel?: ThinkingLevel;
+  /**
+   * Thinking/reasoning effort levels supported by this model.
+   * Omit or use an empty array to hide the composer effort selector.
+   * `thinkingLevel`, when present, is the default selected value and must be
+   * included in this list when the list is configured.
+   */
+  thinkingLevels?: readonly ThinkingLevel[];
   /** Capabilities this model supports. Omit = ['chat'] for backward compat. */
   capabilities?: ModelCapability[];
   /** Per-capability route overrides (path, timeout). */
@@ -62,6 +70,12 @@ export type ModelConfigEntry = {
 /** Default context window when a model omits `contextWindow`. */
 export const DEFAULT_MODEL_CONTEXT_WINDOW = 128_000;
 
+/** Default maximum output tokens when a model omits `maxOutputTokens`. */
+export const DEFAULT_MODEL_MAX_OUTPUT_TOKENS = 8_192;
+
+/** Re-export the ordered thinking-level option set for consumers of this package. */
+export { THINKING_LEVEL_OPTIONS };
+
 export type OpenAiCompatibleProviderConfig = {
   id: string;
   protocol: 'openai-compatible';
@@ -69,6 +83,8 @@ export type OpenAiCompatibleProviderConfig = {
   baseUrl: string;
   apiKeyEnv?: string;
   apiKeyRef?: string;
+  /** Whether this provider is active. Default true when omitted. */
+  enabled?: boolean;
   /** Extra HTTP headers sent with discovery and (when wired) provider requests. */
   headers?: Record<string, string>;
   models: ModelConfigEntry[];
@@ -81,6 +97,8 @@ export type AnthropicCompatibleProviderConfig = {
   baseUrl: string;
   apiKeyEnv?: string;
   apiKeyRef?: string;
+  /** Whether this provider is active. Default true when omitted. */
+  enabled?: boolean;
   /** Extra HTTP headers sent with discovery and (when wired) provider requests. */
   headers?: Record<string, string>;
   models: ModelConfigEntry[];
@@ -94,6 +112,8 @@ export type GoogleGeminiProviderConfig = {
   baseUrl: string;
   apiKeyEnv?: string;
   apiKeyRef?: string;
+  /** Whether this provider is active. Default true when omitted. */
+  enabled?: boolean;
   /** Extra HTTP headers sent with discovery and (when wired) provider requests. */
   headers?: Record<string, string>;
   models: ModelConfigEntry[];
@@ -101,6 +121,14 @@ export type GoogleGeminiProviderConfig = {
 
 export type ModelProviderConfig =
   OpenAiCompatibleProviderConfig | AnthropicCompatibleProviderConfig | GoogleGeminiProviderConfig;
+
+/** Default for the optional `enabled` field on providers. */
+export const DEFAULT_PROVIDER_ENABLED = true;
+
+/** A provider is active unless explicitly disabled. */
+export function isProviderEnabled(provider: { enabled?: boolean }): boolean {
+  return provider.enabled !== false;
+}
 
 /** Normalized model identity returned from a provider's discovery endpoint. */
 export type DiscoveredModel = {
@@ -244,7 +272,10 @@ export function createDefaultWebConfig(): WebConfig {
   return {
     searchProvider: 'duckduckgo',
     searchApiKeyEnv: '',
-    searchMaxResults: 5,
+    searchMaxResults: 10,
+    searchTimeoutMs: 15000,
+    searchSources: [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }],
+    searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 8000 },
     fetchProvider: 'supermarkdown',
     fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
     fetchMaxBytes: 65536,

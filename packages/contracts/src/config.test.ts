@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { THINKING_LEVEL_OPTIONS } from './config.js';
 import type {
   ModelConfigEntry,
   ModelCapability,
@@ -37,6 +38,32 @@ describe('ModelConfigEntry capabilities + routes', () => {
     };
     expect(entry.input).toContain('image');
     expect(entry.reasoning).toBe(true);
+  });
+
+  it('accepts an explicit effort list and default effort', () => {
+    const entry: ModelConfigEntry = {
+      id: 'claude-max',
+      reasoning: true,
+      thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
+      thinkingLevel: 'high',
+    };
+    expect(entry.thinkingLevels).toContain('max');
+    expect(entry.thinkingLevels).toContain(entry.thinkingLevel);
+  });
+});
+
+describe('THINKING_LEVEL_OPTIONS', () => {
+  it('exposes the complete ordered thinking-level option set', () => {
+    expect(THINKING_LEVEL_OPTIONS).toEqual([
+      'off',
+      'minimal',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+      'ultra',
+    ]);
   });
 });
 

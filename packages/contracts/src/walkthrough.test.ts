@@ -17,10 +17,10 @@ const VALID_MODEL_REFS: ModelRef[] = [
 ];
 
 describe('walkthrough config', () => {
-  it('createDefaultWalkthroughConfig returns enabled/autoGenerate/concisePrompt/default prompt', () => {
+  it('createDefaultWalkthroughConfig defaults generation off (ADR 0026)', () => {
     const config = createDefaultWalkthroughConfig();
-    expect(config.enabled).toBe(true);
-    expect(config.autoGenerate).toBe(true);
+    expect(config.enabled).toBe(false);
+    expect(config.autoGenerate).toBe(false);
     expect(config.concisePrompt).toBe(DEFAULT_CONCISE_PROMPT);
     expect(config.mode).toBe('default');
     expect(config.custom.model).toBeNull();
@@ -32,6 +32,29 @@ describe('walkthrough config', () => {
     expect(new TextEncoder().encode(DEFAULT_WALKTHROUGH_PROMPT).length).toBeLessThanOrEqual(
       MAX_WALKTHROUGH_PROMPT_BYTES,
     );
+  });
+
+  it('default prompt includes all rich-text delivery format requirements', () => {
+    // 1. File-change action badges with language tag + path
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('[MODIFY] TS src/utils.ts');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('[NEW] TS src/logger.ts');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('[DELETE] TS src/legacy.ts');
+    // 2. diff fence with +/- prefixed lines
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('```diff');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('- const OLD_TIMEOUT_MS = 5_000;');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('+ const TIMEOUT_MS = 10_000;');
+    // 3. long code sample targeting the >16-line fold
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('20+ lines');
+    // 4. HTML <details> collapsible for logs
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('<details>');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('<summary>');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('</details>');
+    // 5. task checklist markers
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('- [x]');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('- [ ]');
+    // 6. GitHub-style callouts
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('> [!NOTE]');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('> [!TIP]');
   });
 
   it('default concise prompt is non-empty', () => {
@@ -72,17 +95,17 @@ describe('walkthrough config', () => {
     expect(issues.some((i) => i.path === 'walkthrough.custom.prompt')).toBe(true);
   });
 
-  it('accepts empty prompt in default mode (prompt unused)', () => {
+  it('rejects empty prompt in default mode (prompt always used, ADR 0026)', () => {
     const config: WalkthroughConfig = {
       ...createDefaultWalkthroughConfig(),
       mode: 'default',
       custom: { model: null, prompt: '   ' },
     };
     const issues = validateWalkthroughConfig(config);
-    expect(issues.some((i) => i.path === 'walkthrough.custom.prompt')).toBe(false);
+    expect(issues.some((i) => i.path === 'walkthrough.custom.prompt')).toBe(true);
   });
 
-  it('accepts over-limit prompt in default mode (prompt unused)', () => {
+  it('rejects over-limit prompt in default mode (prompt always used, ADR 0026)', () => {
     const over = 'x'.repeat(MAX_WALKTHROUGH_PROMPT_BYTES + 1);
     const config: WalkthroughConfig = {
       ...createDefaultWalkthroughConfig(),
@@ -90,7 +113,7 @@ describe('walkthrough config', () => {
       custom: { model: null, prompt: over },
     };
     const issues = validateWalkthroughConfig(config);
-    expect(issues.some((i) => i.path === 'walkthrough.custom.prompt')).toBe(false);
+    expect(issues.some((i) => i.path === 'walkthrough.custom.prompt')).toBe(true);
   });
 
   it('rejects invalid mode', () => {
@@ -137,14 +160,13 @@ describe('walkthrough config', () => {
     expect(issues.some((i) => i.path === 'walkthrough.custom.model')).toBe(true);
   });
 
-  it('rejects null model in custom mode', () => {
+  it('allows null model even if mode field says custom (ADR 0026 ignores model)', () => {
     const config: WalkthroughConfig = {
       ...createDefaultWalkthroughConfig(),
       mode: 'custom',
       custom: { model: null, prompt: 'explain' },
     };
-    const issues = validateWalkthroughConfig(config);
-    expect(issues.some((i) => i.path === 'walkthrough.custom.model')).toBe(true);
+    expect(validateWalkthroughConfig(config)).toEqual([]);
   });
 
   it('accepts null model in default mode', () => {
@@ -181,7 +203,7 @@ describe('normalizeWalkthroughConfig', () => {
     expect(normalizeWalkthroughConfig('walkthrough')).toEqual(createDefaultWalkthroughConfig());
   });
 
-  it('fills missing fields with defaults while preserving valid ones', () => {
+  it('fills missing fields with defaults while preserving prompt (ADR 0026)', () => {
     const normalized = normalizeWalkthroughConfig({
       mode: 'custom',
       custom: {
@@ -189,14 +211,11 @@ describe('normalizeWalkthroughConfig', () => {
         prompt: 'keep me',
       },
     });
-    expect(normalized.enabled).toBe(true);
-    expect(normalized.mode).toBe('custom');
+    expect(normalized.enabled).toBe(false);
+    expect(normalized.autoGenerate).toBe(false);
+    expect(normalized.mode).toBe('default');
     expect(normalized.custom.prompt).toBe('keep me');
-    expect(normalized.custom.model).toEqual({
-      protocol: 'anthropic-compatible',
-      providerId: 'p2',
-      modelId: 'claude',
-    });
+    expect(normalized.custom.model).toBeNull();
   });
 
   it('coerces invalid mode back to default', () => {
@@ -216,3 +235,20 @@ describe('normalizeWalkthroughConfig', () => {
     expect(normalized.custom.model).toBeNull();
   });
 });
+
+  it('normalizeWalkthroughConfig drops auto/custom-model (ADR 0026)', () => {
+    const config = normalizeWalkthroughConfig({
+      enabled: true,
+      autoGenerate: true,
+      mode: 'custom',
+      custom: {
+        model: { protocol: 'openai-compatible', providerId: 'p', modelId: 'm' },
+        prompt: 'custom prompt',
+      },
+    });
+    expect(config.enabled).toBe(true);
+    expect(config.autoGenerate).toBe(false);
+    expect(config.mode).toBe('default');
+    expect(config.custom.model).toBeNull();
+    expect(config.custom.prompt).toBe('custom prompt');
+  });

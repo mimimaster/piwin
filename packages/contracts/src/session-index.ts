@@ -20,11 +20,13 @@ export type SessionIndexRecord = {
   /**
    * Origin of the session name. Controls auto-naming overwrite policy:
    * - `default`: placeholder `session-<id>`; eligible for auto-naming.
-   * - `auto`: host-derived (text fallback or LLM); eligible for re-naming.
+   * - `text`: host text-fallback name; may still be upgraded to an LLM title
+   *   on a later completed exchange.
+   * - `llm`: LLM-generated title; terminal for auto-naming (never re-run).
    * - `user`: set via manual rename; never overwritten by auto-naming.
    * Defaults to `default` when absent (legacy records).
    */
-  nameSource?: 'default' | 'auto' | 'user';
+  nameSource?: 'default' | 'text' | 'llm' | 'user';
   createdAt: string;
   updatedAt: string;
   messageCount: number;

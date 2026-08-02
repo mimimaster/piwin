@@ -84,6 +84,16 @@ export type PetActivityInfo = {
   permissionAction?: string;
   /** Current run phase, if a run is active. */
   phase?: SessionRunPhase;
+  /**
+   * Short host-normalized work detail for the bubble (path, command, query).
+   * Sourced from ToolPresentation.summary when a tool is active.
+   */
+  detail?: string;
+  /**
+   * Host-side action verb from ToolPresentation (e.g. "Read", "Ran command").
+   * Desktop may localize; host does not.
+   */
+  actionVerb?: string;
 };
 
 export type PetRuntimeSnapshot = {
