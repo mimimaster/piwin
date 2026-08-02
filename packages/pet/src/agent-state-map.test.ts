@@ -46,6 +46,75 @@ describe('reducePetAgentContext', () => {
     expect(ctx.state).toBe('idle');
   });
 
+  it('captures ToolPresentation summary/actionVerb for the bubble', () => {
+    let ctx = createInitialPetAgentContext();
+    ctx = reducePetAgentContext(ctx, {
+      type: 'tool/start',
+      toolCallId: 't1',
+      toolName: 'read',
+      presentation: {
+        kind: 'filesystem',
+        title: 'read',
+        actionVerb: 'Read',
+        summary: 'packages/pet/src/index.ts',
+      },
+    });
+    expect(ctx.toolDetail).toBe('packages/pet/src/index.ts');
+    expect(ctx.toolActionVerb).toBe('Read');
+    ctx = reducePetAgentContext(ctx, { type: 'tool/end', toolCallId: 't1', isError: false });
+    expect(ctx.toolDetail).toBeNull();
+    expect(ctx.toolActionVerb).toBeNull();
+  });
+
+  it('does not clobber start-time detail with tool/update stdout summary', () => {
+    let ctx = createInitialPetAgentContext();
+    ctx = reducePetAgentContext(ctx, {
+      type: 'tool/start',
+      toolCallId: 't1',
+      toolName: 'bash',
+      presentation: {
+        kind: 'shell',
+        title: 'bash',
+        actionVerb: 'Ran command',
+        summary: 'pnpm test',
+      },
+    });
+    ctx = reducePetAgentContext(ctx, {
+      type: 'tool/update',
+      toolCallId: 't1',
+      delta: 'lots of stdout…',
+      presentation: {
+        kind: 'shell',
+        title: 'bash',
+        summary: 'lots of stdout that should not replace the command',
+      },
+    });
+    expect(ctx.toolDetail).toBe('pnpm test');
+  });
+
+  it('fills detail from tool/update only when start had none', () => {
+    let ctx = createInitialPetAgentContext();
+    ctx = reducePetAgentContext(ctx, {
+      type: 'tool/start',
+      toolCallId: 't1',
+      toolName: 'bash',
+    });
+    ctx = reducePetAgentContext(ctx, {
+      type: 'tool/update',
+      toolCallId: 't1',
+      delta: '',
+      presentation: {
+        kind: 'shell',
+        title: 'bash',
+        actionVerb: 'Ran command',
+        command: 'pnpm test',
+        summary: 'pnpm test',
+      },
+    });
+    expect(ctx.toolDetail).toBe('pnpm test');
+    expect(ctx.toolActionVerb).toBe('Ran command');
+  });
+
   it('captures permission action while waiting', () => {
     let ctx = createInitialPetAgentContext();
     ctx = reducePetAgentContext(ctx, {

@@ -39,6 +39,18 @@ export { localProvider } from './sources/local-provider.js';
 export { codexProvider, getCodexSelectedPetId } from './sources/codex-provider.js';
 export { registryProvider } from './sources/registry-provider.js';
 export { downloadAndVerifyPackage, PET_MAX_DOWNLOAD_BYTES } from './sources/registry-download.js';
+export {
+  installPetFromSlug,
+  fetchInstallManifest,
+  isPetSlug,
+  CODEXPETHUB_ORIGIN,
+  INSTALL_MANIFEST_SCHEMA,
+} from './sources/install-manifest.js';
+export {
+  installPetFromCodexPetsNet,
+  fetchCodexPetsNetDetail,
+  CODEX_PETS_NET_ORIGIN,
+} from './sources/codex-pets-net.js';
 
 export {
   createInitialPetAgentContext,

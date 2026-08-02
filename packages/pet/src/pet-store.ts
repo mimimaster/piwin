@@ -182,6 +182,13 @@ export async function installPetFromLocalPath(
   return { petId: result.petId, path: result.path };
 }
 
+/**
+ * Install from the registry provider.
+ * `entryJson` may be:
+ *   - a bare CodexPetHub slug (`blankie`) → install-manifest API
+ *   - a JSON-encoded catalog entry with url/sha256 → zip download
+ *   - a bare package URL (legacy)
+ */
 export async function installPetFromRegistry(
   piwinRoot: string,
   entryJson: string,

@@ -16,6 +16,10 @@ export type PetAgentContext = {
   permissionAction: string | null;
   /** Current run phase (preparing / streaming / tool-running / …). */
   runPhase: SessionRunPhase | null;
+  /** ToolPresentation.summary for the active tool (path / command / query). */
+  toolDetail: string | null;
+  /** ToolPresentation.actionVerb for the active tool (e.g. "Read"). */
+  toolActionVerb: string | null;
 };
 
 export function createInitialPetAgentContext(): PetAgentContext {
@@ -28,6 +32,8 @@ export function createInitialPetAgentContext(): PetAgentContext {
     activeToolName: null,
     permissionAction: null,
     runPhase: null,
+    toolDetail: null,
+    toolActionVerb: null,
   };
 }
 
@@ -51,15 +57,40 @@ export function reducePetAgentContext(
       next.activeTools += 1;
       next.lastError = false;
       next.activeToolName = event.toolName;
+      next.toolDetail = event.presentation?.summary ?? event.presentation?.command ?? null;
+      next.toolActionVerb = event.presentation?.actionVerb ?? null;
       break;
     case 'tool/end':
       next.activeTools = Math.max(0, next.activeTools - 1);
       if (event.isError) next.lastError = true;
-      if (next.activeTools === 0) next.activeToolName = null;
+      if (next.activeTools === 0) {
+        next.activeToolName = null;
+        next.toolDetail = null;
+        next.toolActionVerb = null;
+      }
+      break;
+    case 'tool/update':
+      // Keep the start-time work target (path/command). tool/update presentations
+      // often rebuild from stdout only and would clobber a good detail with a
+      // dump — only fill in when we still have nothing.
+      if (!next.toolDetail) {
+        if (event.presentation?.command) {
+          next.toolDetail = event.presentation.command;
+        } else if (event.presentation?.summary) {
+          next.toolDetail = event.presentation.summary;
+        }
+      }
+      if (!next.toolActionVerb && event.presentation?.actionVerb) {
+        next.toolActionVerb = event.presentation.actionVerb;
+      }
       break;
     case 'permission/request':
       next.waitingPermission = true;
       next.permissionAction = event.action;
+      // Prefer the permission detail (often the command / path) for the bubble.
+      if (event.detail.trim()) {
+        next.toolDetail = event.detail.trim();
+      }
       break;
     case 'permission/resolved':
       next.waitingPermission = false;
@@ -79,6 +110,8 @@ export function reducePetAgentContext(
       next.activeToolName = null;
       next.permissionAction = null;
       next.runPhase = null;
+      next.toolDetail = null;
+      next.toolActionVerb = null;
       break;
     case 'compaction/start':
       next.streaming = true;
@@ -118,5 +151,7 @@ export function petStateFromChatFlags(input: {
     activeToolName: null,
     permissionAction: null,
     runPhase: null,
+    toolDetail: null,
+    toolActionVerb: null,
   });
 }

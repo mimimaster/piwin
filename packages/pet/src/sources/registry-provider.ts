@@ -1,9 +1,8 @@
 /**
- * Registry provider: queries a remote CodexPetHub-compatible catalog and
- * installs pets by downloading + validating + extracting into ~/.piwin/pets.
- * Extraction is delegated to the host (unzip) — this provider validates the
- * manifest post-extract. For now we assume the registry serves a directory
- * zip (no internal nesting); if a top-level folder is present we use it.
+ * Registry provider: installs pets into ~/.piwin/pets from:
+ *   1. CodexPetHub install-manifest by slug (npx codexpethub install <slug>)
+ *   2. JSON-encoded catalog entry / zip URL (legacy / custom registries)
+ *   3. Optional catalog.json query for browse (best-effort; may 404)
  */
 import { execFile } from 'node:child_process';
 import { mkdir, readFile, readdir, rename, rm, rmdir, stat, unlink } from 'node:fs/promises';
@@ -16,13 +15,15 @@ import type {
   PetStoreQueryResult,
 } from '@piwin/contracts';
 import { validatePetManifest } from '../validate-manifest.js';
+import { installPetFromSlug, isPetSlug, type InstallManifestOptions } from './install-manifest.js';
+import { installPetFromCodexPetsNet, type CodexPetsNetOptions } from './codex-pets-net.js';
 import { downloadAndVerifyPackage, type DownloadOptions } from './registry-download.js';
 import type { PetSourceProvider, PetSourceProviderContext } from './pet-source-provider.js';
 
 const execFileAsync = promisify(execFile);
 
 export type RegistryProviderContext = PetSourceProviderContext & {
-  /** HTTPS catalog URL. */
+  /** HTTPS catalog URL (optional browse). */
   registryUrl?: string;
   /** Override fetch (tests). */
   fetch?: typeof fetch;
@@ -31,6 +32,17 @@ export type RegistryProviderContext = PetSourceProviderContext & {
    * and the staging dir; must extract the archive contents into staging.
    */
   unzip?: (zipPath: string, destDir: string) => Promise<void>;
+  /** CodexPetHub origin for install-manifest (default https://codexpethub.com). */
+  registryOrigin?: string;
+  /** Extra allowed hosts for install-manifest assets (tests). */
+  allowedHosts?: ReadonlySet<string>;
+  /**
+   * Preferred registry when installing by bare slug:
+   *   - 'codexpethub' (default) → install-manifest API
+   *   - 'codex-pets-net'         → codex-pets.net zip download
+   * If the preferred registry 404s, the other is tried as a fallback.
+   */
+  preferredSlugRegistry?: 'codexpethub' | 'codex-pets-net';
 };
 
 const DEFAULT_REGISTRY_URL = 'https://codexpethub.com/catalog.json';
@@ -128,14 +140,82 @@ export const registryProvider: PetSourceProvider = {
     location: string,
     signal?: AbortSignal,
   ): Promise<PetInstallResult> {
-    // location is either a JSON-encoded catalog entry (carrying sha256/size)
-    // or a bare package URL — in the bare case we re-query the catalog to
-    // recover the checksum/size before downloading.
     const reg = resolveCtx(ctx);
+    const trimmed = location.trim();
+
+    // 1) Bare slug → try preferred registry, fall back to the other.
+    if (isPetSlug(trimmed) && !trimmed.includes('://') && !trimmed.startsWith('{')) {
+      const preferred = reg.preferredSlugRegistry ?? 'codexpethub';
+      const tryOrder: Array<'codexpethub' | 'codex-pets-net'> =
+        preferred === 'codex-pets-net'
+          ? ['codex-pets-net', 'codexpethub']
+          : ['codexpethub', 'codex-pets-net'];
+
+      let lastErr: unknown = null;
+      for (const registry of tryOrder) {
+        try {
+          if (registry === 'codexpethub') {
+            const opts: InstallManifestOptions = {};
+            if (reg.fetch) opts.fetch = reg.fetch;
+            if (signal) opts.signal = signal;
+            if (reg.registryOrigin) opts.registryOrigin = reg.registryOrigin;
+            if (reg.allowedHosts) opts.allowedHosts = reg.allowedHosts;
+            return await installPetFromSlug(ctx, trimmed, opts);
+          }
+          const opts: CodexPetsNetOptions = {};
+          if (reg.fetch) opts.fetch = reg.fetch;
+          if (signal) opts.signal = signal;
+          if (reg.registryOrigin) opts.registryOrigin = reg.registryOrigin;
+          if (reg.allowedHosts) opts.allowedHosts = reg.allowedHosts;
+          if (reg.unzip) opts.unzip = reg.unzip;
+          return await installPetFromCodexPetsNet(ctx, trimmed, opts);
+        } catch (err) {
+          // 404 / not-found → try next registry. Other errors (hash mismatch,
+          // network) should surface immediately.
+          const msg = err instanceof Error ? err.message : String(err);
+          const isNotFound = /HTTP 404|not found|missing pet\.id|schema/i.test(msg);
+          if (!isNotFound) throw err;
+          lastErr = err;
+        }
+      }
+      throw lastErr ?? new Error(`pet not found on any registry: ${trimmed}`);
+    }
+
+    // 2) JSON-encoded catalog entry or bare package URL (legacy zip path).
     let entry: PetRegistryEntry;
     try {
       entry = JSON.parse(location) as PetRegistryEntry;
     } catch {
+      // Bare URL — try catalog lookup; if that fails and it looks like a slug
+      // we already handled above, so this is a real URL miss.
+      if (isPetSlug(trimmed)) {
+        // Try both registries; codexpethub first, then codex-pets.net.
+        let lastErr: unknown = null;
+        for (const registry of ['codexpethub', 'codex-pets-net'] as const) {
+          try {
+            if (registry === 'codexpethub') {
+              const opts: InstallManifestOptions = {};
+              if (reg.fetch) opts.fetch = reg.fetch;
+              if (signal) opts.signal = signal;
+              if (reg.registryOrigin) opts.registryOrigin = reg.registryOrigin;
+              if (reg.allowedHosts) opts.allowedHosts = reg.allowedHosts;
+              return await installPetFromSlug(ctx, trimmed, opts);
+            }
+            const opts: CodexPetsNetOptions = {};
+            if (reg.fetch) opts.fetch = reg.fetch;
+            if (signal) opts.signal = signal;
+            if (reg.registryOrigin) opts.registryOrigin = reg.registryOrigin;
+            if (reg.allowedHosts) opts.allowedHosts = reg.allowedHosts;
+            if (reg.unzip) opts.unzip = reg.unzip;
+            return await installPetFromCodexPetsNet(ctx, trimmed, opts);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (!/HTTP 404|not found|missing pet\.id|schema/i.test(msg)) throw err;
+            lastErr = err;
+          }
+        }
+        throw lastErr ?? new Error(`pet not found on any registry: ${trimmed}`);
+      }
       const results = await registryProvider.queryStore!(ctx, '', signal);
       const match = results.find((r) => r.location === location);
       if (!match || !match.sha256 || match.sizeBytes === undefined) {
@@ -148,6 +228,40 @@ export const registryProvider: PetSourceProvider = {
         sha256: match.sha256,
         sizeBytes: match.sizeBytes,
       };
+    }
+
+    // JSON entry with only an id/slug and no usable zip url → slug install
+    // (tries both registries).
+    if (
+      entry.id &&
+      isPetSlug(entry.id) &&
+      (!entry.url || !/^https:\/\//i.test(entry.url) || !entry.sha256)
+    ) {
+      let lastErr: unknown = null;
+      for (const registry of ['codexpethub', 'codex-pets-net'] as const) {
+        try {
+          if (registry === 'codexpethub') {
+            const opts: InstallManifestOptions = {};
+            if (reg.fetch) opts.fetch = reg.fetch;
+            if (signal) opts.signal = signal;
+            if (reg.registryOrigin) opts.registryOrigin = reg.registryOrigin;
+            if (reg.allowedHosts) opts.allowedHosts = reg.allowedHosts;
+            return await installPetFromSlug(ctx, entry.id, opts);
+          }
+          const opts: CodexPetsNetOptions = {};
+          if (reg.fetch) opts.fetch = reg.fetch;
+          if (signal) opts.signal = signal;
+          if (reg.registryOrigin) opts.registryOrigin = reg.registryOrigin;
+          if (reg.allowedHosts) opts.allowedHosts = reg.allowedHosts;
+          if (reg.unzip) opts.unzip = reg.unzip;
+          return await installPetFromCodexPetsNet(ctx, entry.id, opts);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!/HTTP 404|not found|missing pet\.id|schema/i.test(msg)) throw err;
+          lastErr = err;
+        }
+      }
+      throw lastErr ?? new Error(`pet not found on any registry: ${entry.id}`);
     }
 
     // entry.id becomes a directory/file name on disk — reject anything that
