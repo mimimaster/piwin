@@ -20,14 +20,7 @@ import type { SubagentIsolationMode } from './subagent.js';
  * a runtime deny/ask/allow gate and is never replaced by this allowlist.
  */
 export type SubagentCapability =
-  | 'read'
-  | 'write'
-  | 'execute'
-  | 'network'
-  | 'mcp'
-  | 'browser'
-  | 'planning'
-  | 'delegate';
+  'read' | 'write' | 'execute' | 'network' | 'mcp' | 'browser' | 'planning' | 'delegate';
 
 /** All valid capability ids, for validation/UI enumeration. */
 export const SUBAGENT_CAPABILITIES: readonly SubagentCapability[] = [
@@ -68,6 +61,22 @@ export type SubagentProfileSettings = {
 export type SubagentProfile = SubagentProfileSettings & {
   source: 'builtin' | 'settings';
 };
+
+/**
+ * Built-in profile metadata for UI display. The Host (`@piwin/agent-host`)
+ * owns the full built-in definitions (capabilities, isolation); this list
+ * only carries id + description so the UI can render a dropdown without
+ * importing the host package. Settings overrides merge by id.
+ */
+export const BUILTIN_SUBAGENT_PROFILE_SUMMARIES: readonly {
+  id: string;
+  description: string;
+}[] = [
+  { id: 'explorer', description: 'Fast read-only codebase exploration' },
+  { id: 'reviewer', description: 'Read-only code review and analysis' },
+  { id: 'implementer', description: 'Isolated implementation with write and execute' },
+  { id: 'tester', description: 'Isolated test execution and fixture writes' },
+];
 
 /**
  * Caller-side selection passed to spawn/run/plan surfaces. A per-call `model`

@@ -24,6 +24,7 @@ export type SettingsSectionId =
   | 'web'
   | 'session'
   | 'automation'
+  | 'subagents'
   | 'pets'
   | 'usage';
 
@@ -60,6 +61,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'extensions', group: 'integrations', labelKey: 'extensions', beta: true },
   { id: 'prompts', group: 'integrations', labelKey: 'prompts' },
   { id: 'automation', group: 'system', labelKey: 'automation', beta: true },
+  { id: 'subagents', group: 'system', labelKey: 'subagents', beta: true },
   { id: 'usage', group: 'system', labelKey: 'usage' },
   { id: 'pets', group: 'personalization', labelKey: 'pets' },
 ] as const;
