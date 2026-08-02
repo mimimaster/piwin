@@ -1,6 +1,8 @@
 /** Lightweight session index (product-side, not Pi JSONL internals). */
 
 import type { SessionScope } from './host.js';
+import type { SubagentRuntimeSnapshot } from './subagent-profile.js';
+import type { SubagentLifecycleState } from './subagent-lifecycle.js';
 
 export type SubagentStatus = 'running' | 'done' | 'failed' | 'cancelled';
 
@@ -59,6 +61,15 @@ export type SessionIndexRecord = {
   subagentRole?: string;
   worktreePath?: string;
   worktreeBranch?: string;
+  /**
+   * CE-SUB-PROF: immutable runtime snapshot captured at child creation.
+   * Source of truth for resume; Settings edits never silently change an
+   * existing child. Legacy flat CE-SUB fields remain as a backward-compatible
+   * projection while new records write the snapshot.
+   */
+  subagentRuntime?: SubagentRuntimeSnapshot;
+  /** CE-SUB-LIFE: orthogonal execution/summary/integration state axes. */
+  subagentLifecycle?: SubagentLifecycleState;
 };
 
 /**

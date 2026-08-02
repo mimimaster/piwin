@@ -3,6 +3,12 @@
 import type { ContextUsageSnapshot } from './usage.js';
 import type { ManagedProcessLogChunk, ManagedProcessRecord } from './process.js';
 import type { SubagentSpawnOptions } from './subagent.js';
+import type { SubagentRuntimeSnapshot } from './subagent-profile.js';
+import type {
+  SubagentExecutionStatus,
+  SubagentIntegrationStatus,
+  SubagentSummaryStatus,
+} from './subagent-lifecycle.js';
 import type { CompactionFileOps } from './compaction-fileops.js';
 import type { PromptAttachment } from './browser.js';
 import type { AgentModeId } from './permission.js';
@@ -131,6 +137,13 @@ export type CreateSessionInput = {
   subagent?: SubagentSpawnOptions;
   /** Optional agent cwd override (worktree path). Defaults to projectPath / workspace. */
   cwd?: string;
+  /**
+   * Internal: immutable runtime snapshot captured at child creation. Used by
+   * the Host to resume a child with its original model/thinking/capabilities/
+   * skills/cwd. Model-facing callers must not supply or mutate this field.
+   * @internal
+   */
+  runtimeSnapshot?: SubagentRuntimeSnapshot;
 };
 
 export type ModelRef = {
@@ -179,6 +192,18 @@ export type SessionSummary = {
   subagentApplyPolicy?: 'none' | 'auto' | 'explicit';
   worktreePath?: string;
   worktreeBranch?: string;
+  /** CE-SUB-PROF: resolved profile id (safe projection of runtime snapshot). */
+  subagentProfileId?: string;
+  /** CE-SUB-PROF: resolved model ref (safe projection of runtime snapshot). */
+  subagentModel?: ModelRef;
+  /** CE-SUB-PROF: resolved thinking level (safe projection of runtime snapshot). */
+  subagentThinkingLevel?: ThinkingLevel;
+  /** CE-SUB-LIFE: orthogonal execution state axis. */
+  subagentExecutionStatus?: SubagentExecutionStatus;
+  /** CE-SUB-LIFE: orthogonal summary-merge state axis. */
+  subagentSummaryStatus?: SubagentSummaryStatus;
+  /** CE-SUB-LIFE: orthogonal code-integration state axis. */
+  subagentIntegrationStatus?: SubagentIntegrationStatus;
 };
 
 export type AgentMessageRole = 'user' | 'assistant' | 'system' | 'tool';
