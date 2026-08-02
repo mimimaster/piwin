@@ -27,6 +27,8 @@ import {
   parseComposerSlashSubmit,
 } from '../slash';
 import { PIWIN_PATH_MIME } from '../file-tree-panel';
+import { deriveDefaultNameFromMessage } from '@piwin/session';
+import { isPlaceholderSessionName } from '../title-display';
 
 export type UseComposerMediaArgs = {
   hostClient: HostClient;
@@ -543,6 +545,20 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
               runId: accepted.runId,
               ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
             });
+          }
+          // Optimistic interim title while host auto-name is in flight.
+          // Local UI only — do not session/rename (would set nameSource user).
+          const currentName =
+            args.state.sessions.find((session) => session.id === sessionId)?.name ??
+            (wasInDraftMode ? `session-${sessionId.slice(0, 8)}` : undefined);
+          if (isPlaceholderSessionName(currentName)) {
+            const interim = deriveDefaultNameFromMessage(text);
+            if (interim) {
+              args.dispatch({
+                type: 'session/update',
+                session: { id: sessionId, name: interim },
+              });
+            }
           }
         }
       } finally {

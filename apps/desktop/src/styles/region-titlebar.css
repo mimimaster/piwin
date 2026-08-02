@@ -23,9 +23,15 @@
   -webkit-app-region: drag;
 }
 
-/* Titleband is window chrome — always above settings/content destinations. */
+/* Titleband sits above normal content, but under the settings fullscreen
+   scrim so the whole window (including the top strip) dims/blurs. */
 .app-shell > .workbench-topbar {
   z-index: calc(var(--layer-settings) + 1);
+}
+
+.app-shell.settings-open > .workbench-topbar {
+  z-index: calc(var(--layer-settings) - 1);
+  pointer-events: none;
 }
 
 /* Only the unused titleband surface may drag the native Tauri window.
@@ -190,8 +196,9 @@
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 8px;
-  max-width: 560px;
+  gap: 6px;
+  /* Leave room for traffic lights / history / actions */
+  max-width: min(560px, calc(100% - 280px));
   overflow: hidden;
   pointer-events: none;
   -webkit-app-region: drag;
@@ -205,7 +212,9 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex-shrink: 0;
+  /* Project can shrink a little, but prefer shrinking session */
+  flex: 0 1 auto;
+  max-width: 28%;
 }
 
 .titlebar-sep {
@@ -216,24 +225,17 @@
   user-select: none;
 }
 
-.titlebar-session-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
+.titlebar-session-name,
 .titlebar-session-title {
   font-size: 13px;
-  font-weight: 550;
+  font-weight: 600;
   color: var(--text);
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0; /* critical for ellipsis in flex */
 }
 
 .titlebar-scope-pill {
