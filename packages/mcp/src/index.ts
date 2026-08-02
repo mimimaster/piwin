@@ -10,15 +10,12 @@ export {
 } from './mcp-config.js';
 export type { McpValidationIssue, McpValidationResult } from './mcp-config.js';
 export {
+  formatMcpCallResult,
   formatMcpExposedName,
   parseMcpExposedName,
   toMcpToolSummary,
 } from './tool-names.js';
-export {
-  connectMcpStdio,
-  connectHandcraftedMcpStdio,
-  listToolsForServer,
-} from './mcp-client.js';
+export { connectMcpStdio, connectHandcraftedMcpStdio, listToolsForServer } from './mcp-client.js';
 export { connectOfficialMcpStdio } from './mcp-client-official.js';
 export type {
   CreateMcpClientOptions,
@@ -29,20 +26,14 @@ export type {
 } from './mcp-transport.js';
 
 export { createMcpLifecycleManager } from './mcp-lifecycle-manager.js';
-export type {
-  McpLifecycleManager,
-  McpLifecycleManagerOptions,
-} from './mcp-lifecycle-manager.js';
+export type { McpLifecycleManager, McpLifecycleManagerOptions } from './mcp-lifecycle-manager.js';
 
 export {
   fingerprintMcpServerConfig,
   formatMcpToolSelector,
   parseMcpToolSelector,
 } from './mcp-fingerprint.js';
-export {
-  createMcpMetadataCatalog,
-  emptyMetadataDocument,
-} from './mcp-metadata-catalog.js';
+export { createMcpMetadataCatalog, emptyMetadataDocument } from './mcp-metadata-catalog.js';
 export type { McpMetadataCatalog } from './mcp-metadata-catalog.js';
 export {
   createEmptyMcpMetadataDocument,

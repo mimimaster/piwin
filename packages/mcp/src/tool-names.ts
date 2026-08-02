@@ -42,6 +42,44 @@ export function toMcpToolSummary(
   return summary;
 }
 
+/**
+ * Normalize an MCP tools/call result into a host tool string.
+ *
+ * Official SDK / MCP protocol return `{ content: [{ type: 'text', text }] }`.
+ * Prefer joined text parts so the model and UI see readable output instead of
+ * a JSON envelope. Fall back to JSON for non-text structured results.
+ */
+export function formatMcpCallResult(result: unknown): string {
+  if (typeof result === 'string') {
+    return result;
+  }
+  if (!result || typeof result !== 'object') {
+    return String(result ?? '');
+  }
+  const record = result as Record<string, unknown>;
+  const content = record.content;
+  if (Array.isArray(content)) {
+    const texts: string[] = [];
+    for (const item of content) {
+      if (!item || typeof item !== 'object') {
+        continue;
+      }
+      const part = item as Record<string, unknown>;
+      if (part.type === 'text' && typeof part.text === 'string') {
+        texts.push(part.text);
+      }
+    }
+    if (texts.length > 0) {
+      return texts.join('\n');
+    }
+  }
+  try {
+    return JSON.stringify(result, null, 2);
+  } catch {
+    return String(result);
+  }
+}
+
 function sanitizeSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9_.-]+/g, '_');
 }

@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  expandEnvMap,
-  tryValidateMcpConfig,
-  validateMcpConfig,
-} from './mcp-config.js';
-import { formatMcpExposedName, parseMcpExposedName } from './tool-names.js';
+import { expandEnvMap, tryValidateMcpConfig, validateMcpConfig } from './mcp-config.js';
+import { formatMcpCallResult, formatMcpExposedName, parseMcpExposedName } from './tool-names.js';
 
 describe('validateMcpConfig', () => {
   it('accepts Cursor-compatible shape', () => {
@@ -18,10 +14,7 @@ describe('validateMcpConfig', () => {
       },
     });
     expect(document.mcpServers.memory?.command).toBe('npx');
-    expect(document.mcpServers.memory?.args).toEqual([
-      '-y',
-      '@modelcontextprotocol/server-memory',
-    ]);
+    expect(document.mcpServers.memory?.args).toEqual(['-y', '@modelcontextprotocol/server-memory']);
   });
 
   it('rejects missing command', () => {
@@ -43,14 +36,21 @@ describe('tool names', () => {
       toolName: 'store',
     });
   });
+
+  it('formats MCP CallToolResult content as plain text', () => {
+    expect(
+      formatMcpCallResult({
+        content: [{ type: 'text', text: '(项目: piwin) 找到 2 条记忆' }],
+      }),
+    ).toBe('(项目: piwin) 找到 2 条记忆');
+    expect(formatMcpCallResult('already a string')).toBe('already a string');
+    expect(formatMcpCallResult({ ok: true })).toContain('"ok"');
+  });
 });
 
 describe('expandEnvMap', () => {
   it('expands ${VAR}', () => {
-    const expanded = expandEnvMap(
-      { TOKEN: 'pre-${API_KEY}-post' },
-      { API_KEY: 'secret' },
-    );
+    const expanded = expandEnvMap({ TOKEN: 'pre-${API_KEY}-post' }, { API_KEY: 'secret' });
     expect(expanded.TOKEN).toBe('pre-secret-post');
   });
 });
