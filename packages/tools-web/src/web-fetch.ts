@@ -94,7 +94,16 @@ export async function webFetch(
     const finalUrl = response.url || currentUrl;
 
     if (contentType.includes('text/html') || looksLikeHtml(rawText)) {
-      const extracted = await extractReadableText(rawText, finalUrl);
+      if (signal.aborted) {
+        throw new Error('fetch timed out before page parsing');
+      }
+      // Parse-bomb defense: cap the HTML handed to the DOM parser (linkedom +
+      // readability) well below the raw body cap so a giant page cannot stall
+      // the turn inside synchronous parsing.
+      const parseCap = config.fetchMaxBytes * 2;
+      const htmlToParse =
+        rawText.length > parseCap ? rawText.slice(0, parseCap) : rawText;
+      const extracted = await extractReadableText(htmlToParse, finalUrl, signal);
       const truncated = extracted.text.length > config.fetchMaxBytes;
       return {
         url: validateFetchUrl(url, config.fetchBlockedUrlPrefixes),
@@ -244,9 +253,16 @@ function looksLikeHtml(text: string): boolean {
 async function extractReadableText(
   html: string,
   baseUrl: string,
+  signal?: AbortSignal,
 ): Promise<{ title: string | null; text: string }> {
   try {
+    if (signal?.aborted) {
+      throw new Error('fetch timed out before page parsing');
+    }
     const linkedom = await import('linkedom');
+    if (signal?.aborted) {
+      throw new Error('fetch timed out before page parsing');
+    }
     const readability = await import('@mozilla/readability');
     const dom = linkedom.parseHTML(html);
     const document = dom.document;

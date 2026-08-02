@@ -15,7 +15,7 @@ export function createWebToolDefinitions(config?: Partial<WebConfig>): HostToolD
     {
       name: 'web_search',
       description:
-        'Search the web for current information. Returns titles, URLs, and snippets with sources.',
+        'Search the web for current information. Host may query multiple configured sources and merge hits (URL-deduped). Returns titles, URLs, and snippets; optional per-hit source tags.',
       parameters: {
         type: 'object',
         properties: {
