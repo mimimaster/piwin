@@ -844,6 +844,8 @@ async function createPiSdkSession(
     ...(disabledExtensionIds.length > 0 ? { disabledExtensionIds } : {}),
     ...(extraPromptPaths.length > 0 ? { extraPromptPaths } : {}),
     ...(disabledPromptIds.length > 0 ? { disabledPromptIds } : {}),
+    // CE-SUB-PROF: profile skill allowlist (intersected with globally enabled skills).
+    ...(input.subagent?.skillIds ? { allowedSkillIds: input.subagent.skillIds } : {}),
   });
 
   const sessionOptions: Record<string, unknown> = {
@@ -875,6 +877,26 @@ async function createPiSdkSession(
     sessionOptions.model = selectedModel;
   }
   sessionOptions.modelRuntime = modelRuntime;
+
+  // CE-SUB-PROF: apply profile thinking level at session creation.
+  if (input.thinkingLevel) {
+    sessionOptions.thinkingLevel = mapThinkingLevelToApi(
+      input.thinkingLevel,
+      requestedModel?.protocol,
+    );
+  }
+
+  // CE-SUB-PROF: apply profile capability tool allowlist. When capabilities
+  // are set, restrict Pi built-in tools to the allowlist. The permission
+  // engine still evaluates each concrete action at runtime.
+  if (input.subagent?.capabilities && input.subagent.capabilities.length > 0) {
+    const { resolveSubagentCapabilitiesToTools } =
+      await import('./subagent-capability-resolver.js');
+    const toolAllowlist = resolveSubagentCapabilitiesToTools(input.subagent.capabilities);
+    if (toolAllowlist.piToolNames.length > 0) {
+      sessionOptions.tools = toolAllowlist.piToolNames;
+    }
+  }
 
   const result = (await (
     createAgentSession as (options: Record<string, unknown>) => Promise<unknown>

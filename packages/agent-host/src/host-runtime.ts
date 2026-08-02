@@ -211,6 +211,10 @@ type SessionLineage = {
   subagentRole?: string;
   worktreePath?: string;
   worktreeBranch?: string;
+  /** CE-SUB-PROF: immutable runtime snapshot (source of truth for resume). */
+  subagentRuntime?: import('@piwin/contracts').SubagentRuntimeSnapshot;
+  /** CE-SUB-LIFE: orthogonal execution/summary/integration state axes. */
+  subagentLifecycle?: import('@piwin/contracts').SubagentLifecycleState;
 };
 
 export class HostRuntime {
@@ -2764,6 +2768,8 @@ function applySubagentLineage(
   if (lineage.subagentRole) record.subagentRole = lineage.subagentRole;
   if (lineage.worktreePath) record.worktreePath = lineage.worktreePath;
   if (lineage.worktreeBranch) record.worktreeBranch = lineage.worktreeBranch;
+  if (lineage.subagentRuntime) record.subagentRuntime = lineage.subagentRuntime;
+  if (lineage.subagentLifecycle) record.subagentLifecycle = lineage.subagentLifecycle;
 }
 
 function copySubagentLineage(
@@ -2784,6 +2790,8 @@ function copySubagentLineage(
   if (lineage.subagentRole) input.subagentRole = lineage.subagentRole;
   if (lineage.worktreePath) input.worktreePath = lineage.worktreePath;
   if (lineage.worktreeBranch) input.worktreeBranch = lineage.worktreeBranch;
+  if (lineage.subagentRuntime) input.subagentRuntime = lineage.subagentRuntime;
+  if (lineage.subagentLifecycle) input.subagentLifecycle = lineage.subagentLifecycle;
 }
 
 function createCancelledExtensionUiResponse(
