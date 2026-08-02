@@ -5,6 +5,7 @@ import {
   buildGitStatusByPath,
   filterTreeNodes,
   flattenVisibleRows,
+  gitStatusForPath,
   keyboardMove,
   type FileTreeNodeState,
 } from './file-tree-model';
@@ -43,6 +44,45 @@ describe('buildGitStatusByPath', () => {
     const map = buildGitStatusByPath(files);
     expect(map.get('src/a.ts')).toBe('modified');
     expect(map.get('src/b.ts')).toBe('added');
+  });
+});
+
+describe('gitStatusForPath', () => {
+  it('returns the status for a matching file path, null for non-matching', () => {
+    const map = buildGitStatusByPath([
+      { path: 'src/a.ts', status: 'modified', staged: false, unstaged: true },
+    ]);
+    expect(gitStatusForPath(map, 'src/a.ts', 'file')).toBe('modified');
+    expect(gitStatusForPath(map, 'src/other.ts', 'file')).toBe(null);
+  });
+
+  it('aggregates folder status from any descendant path under the prefix', () => {
+    const map = buildGitStatusByPath([
+      { path: 'src/a.ts', status: 'added', staged: true, unstaged: false },
+      { path: 'other/b.ts', status: 'modified', staged: false, unstaged: true },
+    ]);
+    expect(gitStatusForPath(map, 'src', 'directory')).toBe('added');
+    expect(gitStatusForPath(map, 'nope', 'directory')).toBe(null);
+  });
+
+  it('prioritizes conflicted over modified among folder descendants', () => {
+    const map = buildGitStatusByPath([
+      { path: 'src/a.ts', status: 'modified', staged: false, unstaged: true },
+      { path: 'src/b.ts', status: 'conflicted', staged: false, unstaged: false },
+    ]);
+    expect(gitStatusForPath(map, 'src', 'directory')).toBe('conflicted');
+  });
+
+  it('returns null for an empty map or no match', () => {
+    expect(gitStatusForPath(new Map(), 'src', 'directory')).toBe(null);
+    expect(gitStatusForPath(new Map(), 'src/a.ts', 'file')).toBe(null);
+  });
+
+  it('tints the root directory when any descendant is changed', () => {
+    const map = buildGitStatusByPath([
+      { path: 'src/a.ts', status: 'modified', staged: false, unstaged: true },
+    ]);
+    expect(gitStatusForPath(map, '', 'directory')).toBe('modified');
   });
 });
 
@@ -99,11 +139,21 @@ describe('keyboardMove', () => {
   });
 
   it('ArrowRight on collapsed dir requests expand', () => {
-    const collapsed = [{ ...rows[0]!, expanded: false }, rows[2]!];
+    const first = rows[0];
+    const last = rows[2];
+    const collapsed = first && last ? [{ ...first, expanded: false }, last] : [];
     expect(keyboardMove(collapsed, 'src', 'ArrowRight')).toEqual({
       nextPath: 'src',
       expandPath: 'src',
     });
+  });
+
+  it('Home moves to the first row', () => {
+    expect(keyboardMove(rows, 'src/a.ts', 'Home')).toEqual({ nextPath: 'src' });
+  });
+
+  it('End moves to the last row', () => {
+    expect(keyboardMove(rows, 'src', 'End')).toEqual({ nextPath: 'README.md' });
   });
 
   it('Enter on file returns activate', () => {
