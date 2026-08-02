@@ -1586,11 +1586,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           workPanelOpen={rightPanelOpen}
           onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
           locale={desktopLocale}
-          sessionTitle={
-            state.projectPath
-              ? `${projectDisplayName(state.projectPath)} / ${activeSessionName}`
-              : activeSessionName
-          }
+          {...(state.projectPath ? { projectName: projectDisplayName(state.projectPath) } : {})}
+          sessionName={activeSessionName}
           scopeLabel={
             state.activeScope.kind === 'general'
               ? desktopCopy.general
