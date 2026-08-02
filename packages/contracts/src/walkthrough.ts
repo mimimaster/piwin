@@ -18,24 +18,38 @@ export type WalkthroughCustomConfig = {
 };
 
 export type WalkthroughConfig = {
-  /** Enables the action and creation of new Walkthrough artifacts. */
+  /**
+   * Opt-in master switch for walkthrough generation (IPC / CLI only).
+   * Host never auto-triggers after runs or plan completion (ADR 0026).
+   * When false, no new artifacts are created. Existing ones remain viewable.
+   */
   enabled: boolean;
-  /** When true, walkthroughs auto-generate after eligible runs without a button click. */
+  /**
+   * Retired (ADR 0026): per-turn auto-generation after every completed run.
+   * Always normalized to false; host does not trigger on ordinary turns.
+   */
   autoGenerate: boolean;
   /**
-   * The "be brief" prompt injected into the model's context when autoGenerate is on
-   * and a plan is active. Tells the model to keep its inline response concise since
-   * a detailed walkthrough will be generated separately.
+   * Retired (ADR 0026): concise-prompt injection into live agent turns.
+   * Kept for config shape compatibility only.
    */
   concisePrompt: string;
+  /**
+   * Retired product surface: always normalized to `default`.
+   * Generation always uses the session/message model (no separate model picker).
+   */
   mode: WalkthroughMode;
+  /**
+   * `custom.prompt` is the user-editable generation prompt (always used).
+   * `custom.model` is ignored and always null (no separate walkthrough model).
+   */
   custom: WalkthroughCustomConfig;
 };
 
 export const MAX_WALKTHROUGH_PROMPT_BYTES = 16 * 1024;
 
 export const DEFAULT_WALKTHROUGH_PROMPT = [
-  'Generate a developer-facing delivery document for the completed coding-agent turn.',
+  'Generate a detailed, developer-facing delivery document for the completed coding-agent turn.',
   '',
   'Follow Google’s Dual-Track model:',
   '- Track 1 (Inline chat): Handles the brief high-level summary.',
@@ -44,13 +58,52 @@ export const DEFAULT_WALKTHROUGH_PROMPT = [
   'Choose an appropriate H1 title suited to the task (e.g., `# Walkthrough`, `# Technical Overview`, `# Implementation Summary`).',
   'Organize with clean Markdown sections appropriate for the evidence. Include these sections when relevant:',
   '- ## Summary (Brief objective and outcome)',
-  '- ## What Changed (Files modified with diffs and action badges [MODIFY], [NEW], [DELETE])',
+  '- ## What Changed (Files modified with action badges, diffs, and code samples)',
   '- ## Technical Details (Architecture breakdown; use Mermaid diagrams for multi-module or service-level changes)',
   '- ## Validation (Commands, automated tests, and verification results)',
   '- ## How to Verify (Clear instructions for manual or automated testing)',
   '- ## Notes / Unresolved Items (Any remaining items, risks, or next steps)',
   '',
+  'Formatting requirements — the delivery UI renders these as rich components, so follow them exactly:',
+  '',
+  '1. File changes: one line per changed file, starting with an action badge, a language tag, and the path:',
+  '   - [MODIFY] TS src/utils.ts',
+  '   - [NEW] TS src/logger.ts',
+  '   - [DELETE] TS src/legacy.ts',
+  '   Use only [MODIFY], [NEW], or [DELETE]; put each entry on its own line.',
+  '',
+  '2. Diffs: show a real unified diff of the key change inside a fenced code block tagged `diff`.',
+  '   Prefix added lines with `+ ` and removed lines with `- `; keep context lines unprefixed:',
+  '   ```diff',
+  '   - const OLD_TIMEOUT_MS = 5_000;',
+  '   + const TIMEOUT_MS = 10_000;',
+  '   ```',
+  '',
+  '3. Code samples: when the evidence supports it, include at least one representative code block',
+  '   of 20+ lines (e.g. the new logger class or the refactored function). The UI automatically',
+  '   folds blocks longer than 16 lines behind an Expand button, so long blocks are expected.',
+  '',
+  '4. Build and test logs: never paste long logs inline. Wrap the full log inside an HTML',
+  '   <details> block so the UI renders it as a click-to-expand section:',
+  '   <details><summary>Build & test logs</summary>',
+  '   ```log',
+  '   ... full output ...',
+  '   ```',
+  '   </details>',
+  '',
+  '5. Task checklist: summarize completed vs. pending work as a checklist:',
+  '   - [x] Refactor timeout handling in src/utils.ts',
+  '   - [x] Add structured logger in src/logger.ts',
+  '   - [ ] Ship migration guide for callers',
+  '',
+  '6. Callouts: use GitHub-style callouts for emphasis:',
+  '   > [!NOTE] The public API surface is unchanged; this is an internal refactor.',
+  '   > [!TIP] Run `pnpm test --filter @piwin/contracts` to verify the new checks.',
+  '',
+  '7. Section dividers: separate major document sections with horizontal rules (`---` or `-----`) for clean visual sectioning.',
+  '',
   'Omit sections that do not apply (e.g. do not include ## What Changed if no files were modified).',
+  'Always format all referenced file paths (modified, created, or mentioned) as Markdown code links or path chips (e.g. `[`filename.ext`](file:///path/to/file.ext)` or `path/to/file.ext`) so users can click any file path to open and inspect the actual file content in the document viewer tab.',
   'Use only facts supported by the supplied evidence. Do not reproduce long tool output or include secrets.',
   'Respond in the primary language of the user request.',
 ].join('\n');
@@ -88,9 +141,11 @@ const SUPPORTED_WALKTHROUGH_PROTOCOLS: readonly ModelRef['protocol'][] = [
 ];
 
 export function createDefaultWalkthroughConfig(): WalkthroughConfig {
+  // ADR 0026: no automatic generation. Prompt remains editable for optional
+  // manual/CLI generation when the user explicitly enables walkthrough.
   return {
-    enabled: true,
-    autoGenerate: true,
+    enabled: false,
+    autoGenerate: false,
     concisePrompt: DEFAULT_CONCISE_PROMPT,
     mode: 'default',
     custom: {
@@ -132,33 +187,24 @@ export function validateWalkthroughConfig(config: WalkthroughConfig): Walkthroug
     issues.push({ path: 'walkthrough.mode', message: "must be 'default' or 'custom'" });
   }
 
-  // Prompt is only used for generation in custom mode; default mode uses the
-  // built-in DEFAULT_WALKTHROUGH_PROMPT and ignores `custom.prompt`, so prompt
-  // issues are only surfaced in custom mode (spec §6.2).
-  if (config.mode === 'custom') {
-    const prompt = config.custom?.prompt;
-    if (typeof prompt !== 'string' || prompt.trim() === '') {
-      issues.push({ path: 'walkthrough.custom.prompt', message: 'must be a non-empty string' });
-    } else {
-      const byteLength = new TextEncoder().encode(prompt).length;
-      if (byteLength > MAX_WALKTHROUGH_PROMPT_BYTES) {
-        issues.push({
-          path: 'walkthrough.custom.prompt',
-          message: `exceeds ${MAX_WALKTHROUGH_PROMPT_BYTES} bytes (${byteLength})`,
-        });
-      }
+  // ADR 0026: generation always uses custom.prompt (session model, no model picker).
+  const prompt = config.custom?.prompt;
+  if (typeof prompt !== 'string' || prompt.trim() === '') {
+    issues.push({ path: 'walkthrough.custom.prompt', message: 'must be a non-empty string' });
+  } else {
+    const byteLength = new TextEncoder().encode(prompt).length;
+    if (byteLength > MAX_WALKTHROUGH_PROMPT_BYTES) {
+      issues.push({
+        path: 'walkthrough.custom.prompt',
+        message: `exceeds ${MAX_WALKTHROUGH_PROMPT_BYTES} bytes (${byteLength})`,
+      });
     }
   }
 
+  // custom.model is ignored product-wise; if present in a hand-edited file, still
+  // validate shape so normalize/validate do not crash on junk.
   const model = config.custom?.model;
-  // In custom mode a generation model is required; default mode uses the
-  // Antigravity public structure and needs no model.
-  if (config.mode === 'custom' && (model === null || model === undefined)) {
-    issues.push({
-      path: 'walkthrough.custom.model',
-      message: 'a generation model is required in custom mode',
-    });
-  } else if (model !== null && model !== undefined) {
+  if (model !== null && model !== undefined) {
     if (!model.providerId || !model.modelId || !model.protocol) {
       issues.push({
         path: 'walkthrough.custom.model',
@@ -188,10 +234,15 @@ export function normalizeWalkthroughConfig(value: unknown): WalkthroughConfig {
   const record = value as Record<string, unknown>;
   const customRecord = asRecord(record.custom);
 
-  const mode: WalkthroughMode = record.mode === 'custom' ? 'custom' : 'default';
+  // ADR 0026 product shape:
+  // - autoGenerate: always false (no every-turn auto; host never auto-triggers)
+  // - mode: always default (no custom-model mode)
+  // - custom.model: always null (use session/message model)
+  // - custom.prompt: preserved user-editable generation prompt
+  // - enabled: user-controlled; default false (opt-in only)
   const enabled = typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled;
-  const autoGenerate =
-    typeof record.autoGenerate === 'boolean' ? record.autoGenerate : defaults.autoGenerate;
+  const autoGenerate = false;
+  const mode: WalkthroughMode = 'default';
   const concisePrompt =
     typeof record.concisePrompt === 'string' && record.concisePrompt.trim() !== ''
       ? record.concisePrompt
@@ -202,27 +253,13 @@ export function normalizeWalkthroughConfig(value: unknown): WalkthroughConfig {
       ? customRecord.prompt
       : defaults.custom.prompt;
 
-  const modelRaw = customRecord ? asRecord(customRecord.model) : null;
-  const model: ModelRef | null =
-    modelRaw &&
-    typeof modelRaw.protocol === 'string' &&
-    typeof modelRaw.providerId === 'string' &&
-    typeof modelRaw.modelId === 'string' &&
-    SUPPORTED_WALKTHROUGH_PROTOCOLS.includes(modelRaw.protocol as ModelRef['protocol'])
-      ? {
-          protocol: modelRaw.protocol as ModelRef['protocol'],
-          providerId: modelRaw.providerId,
-          modelId: modelRaw.modelId,
-        }
-      : null;
-
   return {
     enabled,
     autoGenerate,
     concisePrompt,
     mode,
     custom: {
-      model,
+      model: null,
       prompt,
     },
   };

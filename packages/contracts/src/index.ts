@@ -34,3 +34,4 @@ export * from './permission.js';
 export * from './capability-matrix.js';
 export * from './walkthrough.js';
 export * from './walkthrough-artifact.js';
+export * from './plugin.js';

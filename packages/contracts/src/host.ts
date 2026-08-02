@@ -20,6 +20,30 @@ export type ThinkingLevel =
   /** Product-only enhanced mode. Host maps it to protocol API maximum. */
   | 'ultra';
 
+export const THINKING_LEVEL_OPTIONS: readonly ThinkingLevel[] = [
+  'off',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'ultra',
+];
+
+export function isThinkingLevel(value: unknown): value is ThinkingLevel {
+  return (
+    value === 'off' ||
+    value === 'minimal' ||
+    value === 'low' ||
+    value === 'medium' ||
+    value === 'high' ||
+    value === 'xhigh' ||
+    value === 'max' ||
+    value === 'ultra'
+  );
+}
+
 export type PermissionDecision = 'allow' | 'deny' | 'ask';
 
 /**
@@ -153,7 +177,7 @@ export type SessionSummary = {
   projectPath: string;
   name?: string;
   /** @see SessionIndexRecord.nameSource */
-  nameSource?: 'default' | 'auto' | 'user';
+  nameSource?: 'default' | 'text' | 'llm' | 'user';
   updatedAt: string;
   messageCount: number;
   /** Short last user/assistant preview for session list UI. */
@@ -254,7 +278,7 @@ export type ToolOutputView = {
 };
 
 export type ToolErrorView = {
-  category: 'execution' | 'permission' | 'timeout' | 'unknown';
+  category: 'execution' | 'permission' | 'timeout' | 'cancelled' | 'unknown';
   message: string;
 };
 

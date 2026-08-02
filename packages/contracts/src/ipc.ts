@@ -59,6 +59,7 @@ import type {
   SessionExportFormat,
 } from './session-ops.js';
 import type { WalkthroughArtifact } from './walkthrough-artifact.js';
+import type { PluginInstallSource } from './plugin.js';
 
 /**
  * Bytes are base64 only while crossing the desktop-to-host transport.
@@ -463,6 +464,22 @@ export type HostCommand =
       sessionId: string;
       messageId: string;
       generationId?: string;
+    }
+  /** Plugin system: install / list / uninstall / registry / secrets. */
+  | {
+      id?: string;
+      type: 'plugins/install';
+      source: PluginInstallSource;
+      secrets?: Record<string, string>;
+    }
+  | { id?: string; type: 'plugins/list' }
+  | { id?: string; type: 'plugins/uninstall'; pluginId: string }
+  | { id?: string; type: 'plugins/registry/list'; registryUrl?: string }
+  | {
+      id?: string;
+      type: 'plugins/secrets/collect';
+      pluginId: string;
+      secrets: Record<string, string>;
     };
 
 /** Host → UI / external client (responses + push) */
@@ -482,7 +499,7 @@ export type HostPush =
       type: 'session/name-updated';
       sessionId: string;
       name: string;
-      nameSource: 'auto' | 'user';
+      nameSource: 'text' | 'llm' | 'user';
     }
   | { type: 'plan/updated'; sessionId: string; plan: SessionPlan | null }
   | { type: 'plan/execution-updated'; state: PlanExecutionState }
