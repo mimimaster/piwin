@@ -145,7 +145,12 @@ export async function handleSessionProductCommand(
       if (!fallbackName) {
         return fail(requestId, 'session/auto-name', 'No derivable name from first message');
       }
-      const record = await setSessionAutoName(indexPath, command.sessionId, fallbackName);
+      const record = await setSessionAutoName(
+        indexPath,
+        command.sessionId,
+        fallbackName,
+        'text',
+      );
       if (!record) {
         return fail(requestId, 'session/auto-name', 'Session name is user-set or empty');
       }

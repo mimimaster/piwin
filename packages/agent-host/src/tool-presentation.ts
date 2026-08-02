@@ -1,10 +1,15 @@
 /**
  * Pure host-side tool presentation builder.
  * Desktop must not re-classify tools from raw name strings when presentation is present.
+ *
+ * Head-row contract (Cursor-style):
+ *   [icon] [actionVerb] [path pill | query preview] [countTag] … [status] [duration]
  */
 import type { ToolErrorView, ToolKind, ToolOutputView, ToolPresentation } from '@piwin/contracts';
+import { looksLikeCancelledToolOutput } from './run-abort-reason.js';
 
 const MAX_TOOL_OUTPUT_CHARS = 8_000;
+const MAX_SUMMARY_CHARS = 96;
 
 const SECRET_PATTERNS: RegExp[] = [
   /\b(?:api[_-]?key|token|secret|password|authorization)\s*[:=]\s*['"]?[^\s'"]+/gi,
@@ -23,47 +28,51 @@ export type BuildToolPresentationInput = {
   durationMs?: number;
 };
 
+/** Internal action family used only for presentation (not a contract field). */
+type ToolActionFamily =
+  | 'read'
+  | 'search'
+  | 'explore'
+  | 'edit'
+  | 'shell'
+  | 'git'
+  | 'web-search'
+  | 'web-fetch'
+  | 'mcp'
+  | 'image'
+  | 'other';
+
 /**
  * Classify known product tool names. Unknown / MCP-style names become `other`
  * or `mcp` without inventing filesystem/shell semantics from substrings alone.
  */
 export function classifyToolKind(toolName: string): ToolKind {
-  const normalized = toolName.trim().toLowerCase();
-  if (!normalized) {
-    return 'other';
+  const family = resolveActionFamily(toolName);
+  switch (family) {
+    case 'shell':
+      return 'shell';
+    case 'git':
+      return 'git';
+    case 'web-search':
+    case 'web-fetch':
+      return 'web';
+    case 'mcp':
+      return 'mcp';
+    case 'read':
+    case 'search':
+    case 'explore':
+    case 'edit':
+      return 'filesystem';
+    case 'image':
+      return 'other';
+    default: {
+      const normalized = toolName.trim().toLowerCase();
+      if (normalized === 'process' || normalized.startsWith('process_')) {
+        return 'process';
+      }
+      return 'other';
+    }
   }
-  if (normalized.startsWith('mcp__') || normalized.startsWith('mcp:')) {
-    return 'mcp';
-  }
-  if (
-    normalized === 'bash' ||
-    normalized === 'shell' ||
-    normalized === 'run_terminal_cmd' ||
-    normalized === 'execute_command'
-  ) {
-    return 'shell';
-  }
-  if (
-    normalized === 'read' ||
-    normalized === 'write' ||
-    normalized === 'edit' ||
-    normalized === 'apply_patch' ||
-    normalized === 'read_file' ||
-    normalized === 'write_file' ||
-    normalized === 'str_replace'
-  ) {
-    return 'filesystem';
-  }
-  if (normalized === 'git' || normalized.startsWith('git_')) {
-    return 'git';
-  }
-  if (normalized === 'web_search' || normalized === 'web_fetch' || normalized.startsWith('web_')) {
-    return 'web';
-  }
-  if (normalized === 'process' || normalized.startsWith('process_')) {
-    return 'process';
-  }
-  return 'other';
 }
 
 export function redactToolText(text: string): { text: string; redacted: boolean } {
@@ -99,6 +108,7 @@ export function boundToolOutput(text: string): ToolOutputView {
  * the provider did not supply.
  */
 export function buildToolPresentation(input: BuildToolPresentationInput): ToolPresentation {
+  const family = resolveActionFamily(input.toolName);
   const kind = classifyToolKind(input.toolName);
   const title = humanizeToolTitle(input.toolName, kind);
   const presentation: ToolPresentation = {
@@ -111,25 +121,19 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     presentation.inputPreview = argsPreview;
   }
 
-  const command = extractCommand(kind, input.args);
+  const command = extractCommand(family, input.args);
   if (command) {
     presentation.command = command;
   }
 
-  const targetPaths = extractTargetPaths(kind, input.args);
+  const targetPaths = extractTargetPaths(family, input.args);
   if (targetPaths && targetPaths.length > 0) {
     presentation.targetPaths = targetPaths;
   }
 
   // Write/edit tools: surface target paths as changedPaths so Desktop can
   // aggregate a turn-level "files changed" bar and DiffCard without re-inferring.
-  // Never invent paths for read-only tools; never claim changes on error.
-  if (
-    !input.isError &&
-    targetPaths &&
-    targetPaths.length > 0 &&
-    isWriteLikeTool(input.toolName, kind)
-  ) {
+  if (!input.isError && targetPaths && targetPaths.length > 0 && family === 'edit') {
     presentation.changedPaths = targetPaths;
   }
 
@@ -148,46 +152,146 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
 
   if (typeof input.outputText === 'string' && input.outputText.length > 0) {
     presentation.output = boundToolOutput(input.outputText);
-    if (!presentation.summary) {
-      presentation.summary = presentation.output.text.slice(0, 120).replace(/\s+/g, ' ').trim();
-    }
   }
 
+  let toolWasCancelled = false;
   if (input.isError) {
+    const rawMessage =
+      presentation.output?.text.slice(0, 240).replace(/\s+/g, ' ').trim() || 'Tool failed';
+    toolWasCancelled = looksLikeCancelledToolOutput(rawMessage);
     const error: ToolErrorView = {
-      category: 'execution',
-      message: presentation.summary ?? 'Tool failed',
+      category: toolWasCancelled ? 'cancelled' : 'execution',
+      message: toolWasCancelled ? rawMessage.slice(0, 200) : rawMessage.slice(0, 120),
     };
     presentation.error = error;
   }
 
-  const { actionVerb, lineRange, countTag } = extractActionDetails(
-    input.toolName,
-    kind,
-    input.args,
-    input.outputText,
-  );
-  if (actionVerb) {
-    presentation.actionVerb = actionVerb;
+  const details = extractActionDetails({
+    toolName: input.toolName,
+    family,
+    args: input.args,
+    ...(input.outputText !== undefined ? { outputText: input.outputText } : {}),
+    ...(presentation.targetPaths !== undefined ? { targetPaths: presentation.targetPaths } : {}),
+    ...(presentation.command !== undefined ? { command: presentation.command } : {}),
+  });
+  presentation.actionVerb = details.actionVerb;
+  if (details.lineRange) {
+    presentation.lineRange = details.lineRange;
   }
-  if (lineRange) {
-    presentation.lineRange = lineRange;
+  if (details.countTag) {
+    presentation.countTag = details.countTag;
   }
-  if (countTag) {
-    presentation.countTag = countTag;
+  if (details.summary) {
+    presentation.summary = details.summary;
+  } else if (presentation.command) {
+    presentation.summary = clipSummary(presentation.command);
+  } else if (presentation.targetPaths && presentation.targetPaths.length > 0) {
+    presentation.summary = formatPathsSummary(presentation.targetPaths);
+  } else if (presentation.inputPreview) {
+    presentation.summary = clipSummary(presentation.inputPreview);
+  } else if (presentation.output?.text) {
+    presentation.summary = clipSummary(presentation.output.text.replace(/\s+/g, ' ').trim());
   }
 
-  if (!presentation.summary) {
-    if (presentation.command) {
-      presentation.summary = presentation.command;
-    } else if (presentation.targetPaths && presentation.targetPaths.length > 0) {
-      presentation.summary = presentation.targetPaths.join(', ');
-    } else if (presentation.inputPreview) {
-      presentation.summary = presentation.inputPreview;
-    }
+  if (toolWasCancelled) {
+    presentation.summary = 'Cancelled before completion';
   }
 
   return presentation;
+}
+
+function resolveActionFamily(toolName: string): ToolActionFamily {
+  const n = toolName.trim().toLowerCase();
+  if (!n) return 'other';
+
+  if (n.startsWith('mcp__') || n.startsWith('mcp:')) return 'mcp';
+
+  if (
+    n === 'bash' ||
+    n === 'shell' ||
+    n === 'run_terminal_cmd' ||
+    n === 'execute_command' ||
+    n === 'run_command'
+  ) {
+    return 'shell';
+  }
+
+  if (n === 'web_search' || n === 'web-search') return 'web-search';
+  if (n === 'web_fetch' || n === 'web-fetch' || n === 'fetch_url') return 'web-fetch';
+  if (n.startsWith('web_')) {
+    return n.includes('search') ? 'web-search' : 'web-fetch';
+  }
+
+  if (n === 'git' || n.startsWith('git_') || n.startsWith('git-')) return 'git';
+
+  if (n === 'image_gen' || n === 'image_generate' || n.includes('image_gen')) return 'image';
+
+  if (
+    n === 'write' ||
+    n === 'edit' ||
+    n === 'apply_patch' ||
+    n === 'write_file' ||
+    n === 'str_replace' ||
+    n === 'search_replace' ||
+    n === 'apply_diff' ||
+    n === 'multi_edit' ||
+    n.endsWith('_write') ||
+    n.endsWith('_edit')
+  ) {
+    return 'edit';
+  }
+
+  if (
+    n === 'read' ||
+    n === 'read_file' ||
+    n === 'view' ||
+    n === 'view_file' ||
+    n === 'open_file' ||
+    n.startsWith('read_') ||
+    n.endsWith('_read')
+  ) {
+    return 'read';
+  }
+
+  if (
+    n === 'grep' ||
+    n === 'rg' ||
+    n === 'grep_search' ||
+    n === 'codebase_search' ||
+    n === 'semantic_search' ||
+    n === 'find_content' ||
+    n === 'search_code' ||
+    n.includes('grep') ||
+    (n.endsWith('_search') && !n.startsWith('web_') && !n.includes('glob'))
+  ) {
+    return 'search';
+  }
+
+  if (
+    n === 'glob' ||
+    n === 'glob_file_search' ||
+    n === 'find' ||
+    n === 'find_files' ||
+    n === 'list_dir' ||
+    n === 'list_files' ||
+    n === 'ls' ||
+    n === 'tree' ||
+    n.includes('glob') ||
+    n.includes('list_dir') ||
+    n.includes('explore')
+  ) {
+    return 'explore';
+  }
+
+  // Soft fallbacks for common aliases without inventing FS for random names.
+  if (n.includes('write') || n.includes('edit') || n.includes('replace') || n.includes('patch')) {
+    return 'edit';
+  }
+  if (n.includes('read') || n.includes('view')) {
+    return 'read';
+  }
+
+  return 'other';
 }
 
 function humanizeToolTitle(toolName: string, kind: ToolKind): string {
@@ -202,20 +306,17 @@ function formatArgsPreview(args: unknown): string | undefined {
     return undefined;
   }
   if (typeof args === 'string') {
-    const redacted = redactToolText(args);
-    return redacted.text.slice(0, 240);
+    return clipSummary(redactToolText(args).text);
   }
   try {
-    const serialized = JSON.stringify(args);
-    const redacted = redactToolText(serialized);
-    return redacted.text.slice(0, 240);
+    return clipSummary(redactToolText(JSON.stringify(args)).text);
   } catch {
     return undefined;
   }
 }
 
-function extractCommand(kind: ToolKind, args: unknown): string | undefined {
-  if (kind !== 'shell' && kind !== 'process') {
+function extractCommand(family: ToolActionFamily, args: unknown): string | undefined {
+  if (family !== 'shell') {
     return undefined;
   }
   if (!args || typeof args !== 'object') {
@@ -226,8 +327,14 @@ function extractCommand(kind: ToolKind, args: unknown): string | undefined {
   return command ? redactToolText(command).text : undefined;
 }
 
-function extractTargetPaths(kind: ToolKind, args: unknown): string[] | undefined {
-  if (kind !== 'filesystem' && kind !== 'git') {
+function extractTargetPaths(family: ToolActionFamily, args: unknown): string[] | undefined {
+  if (
+    family !== 'read' &&
+    family !== 'edit' &&
+    family !== 'search' &&
+    family !== 'explore' &&
+    family !== 'git'
+  ) {
     return undefined;
   }
   if (!args || typeof args !== 'object') {
@@ -235,20 +342,118 @@ function extractTargetPaths(kind: ToolKind, args: unknown): string[] | undefined
   }
   const record = args as Record<string, unknown>;
   const paths: string[] = [];
-  for (const key of ['path', 'file', 'file_path', 'filename', 'target']) {
+  for (const key of [
+    'path',
+    'file',
+    'file_path',
+    'filename',
+    'target',
+    'target_file',
+    'targetFile',
+    'glob',
+    'glob_pattern',
+    'GlobPattern',
+    'directory',
+    'dir',
+    'cwd',
+  ]) {
     const value = record[key];
     if (typeof value === 'string' && value.trim()) {
       paths.push(value.trim());
     }
   }
-  if (Array.isArray(record.paths)) {
-    for (const item of record.paths) {
-      if (typeof item === 'string' && item.trim()) {
-        paths.push(item.trim());
+  for (const key of ['paths', 'files', 'file_paths', 'target_paths']) {
+    const list = record[key];
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        if (typeof item === 'string' && item.trim()) {
+          paths.push(item.trim());
+        }
       }
     }
   }
-  return paths.length > 0 ? paths : undefined;
+  return paths.length > 0 ? dedupePaths(paths) : undefined;
+}
+
+function dedupePaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const path of paths) {
+    if (seen.has(path)) continue;
+    seen.add(path);
+    out.push(path);
+  }
+  return out;
+}
+
+/** Basename-first path list for head rows: `a.tsx and 2 other files`. */
+export function formatPathsSummary(paths: readonly string[]): string {
+  const names = paths.map((path) => basename(path)).filter((name) => name.length > 0);
+  if (names.length === 0) {
+    return '';
+  }
+  if (names.length === 1) {
+    return names[0] ?? '';
+  }
+  if (names.length === 2) {
+    return `${names[0]} and ${names[1]}`;
+  }
+  return `${names[0]} and ${names.length - 1} other files`;
+}
+
+function basename(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
+
+function isGlobPattern(value: string): boolean {
+  return value.includes('*') || value.includes('?') || value.includes('**');
+}
+
+function extractSearchQuery(args: unknown): string | undefined {
+  if (!args || typeof args === 'string') {
+    return typeof args === 'string' && args.trim() ? redactToolText(args.trim()).text : undefined;
+  }
+  if (!args || typeof args !== 'object') {
+    return undefined;
+  }
+  const record = args as Record<string, unknown>;
+  for (const key of [
+    'query',
+    'Query',
+    'pattern',
+    'Pattern',
+    'regex',
+    'search',
+    'search_term',
+    'searchTerm',
+    'needle',
+    'text',
+  ]) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) {
+      return redactToolText(value.trim()).text;
+    }
+  }
+  return undefined;
+}
+
+function extractUrl(args: unknown): string | undefined {
+  if (!args || typeof args !== 'object') return undefined;
+  const record = args as Record<string, unknown>;
+  for (const key of ['url', 'uri', 'href', 'link']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+function extractPrompt(args: unknown): string | undefined {
+  if (!args || typeof args !== 'object') return undefined;
+  const record = args as Record<string, unknown>;
+  const prompt = readString(record.prompt) ?? readString(record.description);
+  return prompt ? redactToolText(prompt).text : undefined;
 }
 
 /** True for tools that mutate file contents (not read/search). */
@@ -256,60 +461,118 @@ export function isWriteLikeTool(toolName: string, kind: ToolKind): boolean {
   if (kind !== 'filesystem') {
     return false;
   }
-  const normalized = toolName.trim().toLowerCase();
-  return (
-    normalized === 'write' ||
-    normalized === 'edit' ||
-    normalized === 'apply_patch' ||
-    normalized === 'write_file' ||
-    normalized === 'str_replace' ||
-    normalized.includes('write') ||
-    normalized.includes('edit') ||
-    normalized.includes('replace') ||
-    normalized.includes('patch')
-  );
+  return resolveActionFamily(toolName) === 'edit';
 }
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-function extractActionDetails(
-  toolName: string,
-  kind: ToolKind,
-  args: unknown,
-  outputText?: string,
-): { actionVerb?: string; lineRange?: string; countTag?: string } {
-  const normName = toolName.toLowerCase();
-  let actionVerb: string | undefined;
-  let lineRange: string | undefined;
-  let countTag: string | undefined;
+function clipSummary(text: string, max = MAX_SUMMARY_CHARS): string {
+  const compact = text.replace(/\s+/g, ' ').trim();
+  if (compact.length <= max) return compact;
+  return `${compact.slice(0, max - 1)}…`;
+}
 
+function extractActionDetails(input: {
+  toolName: string;
+  family: ToolActionFamily;
+  args: unknown;
+  outputText?: string;
+  targetPaths?: readonly string[];
+  command?: string;
+}): {
+  actionVerb: string;
+  lineRange?: string;
+  countTag?: string;
+  summary?: string;
+} {
+  const { family, args, outputText, targetPaths, command, toolName } = input;
   const record = args && typeof args === 'object' ? (args as Record<string, unknown>) : {};
+  const searchQuery = extractSearchQuery(args);
 
-  if (normName.includes('grep') || normName.includes('search')) {
-    actionVerb = 'Searched';
-    if (typeof record.Query === 'string') {
-      // Keep query in summary if needed
+  let actionVerb: string;
+  let summary: string | undefined;
+  let countTag: string | undefined;
+  let lineRange: string | undefined;
+
+  switch (family) {
+    case 'search':
+    case 'web-search': {
+      actionVerb = 'Searched';
+      if (searchQuery) summary = clipSummary(searchQuery);
+      break;
     }
-  } else if (normName.includes('view') || normName.includes('read')) {
-    actionVerb = 'Analyzed';
-  } else if (
-    normName.includes('write') ||
-    normName.includes('edit') ||
-    normName.includes('replace')
-  ) {
-    actionVerb = 'Edited';
-  } else if (kind === 'shell' || kind === 'process') {
-    actionVerb = 'Ran command';
-  } else if (kind === 'mcp') {
-    const parts = toolName.replace(/^mcp__?/, '').split('__');
-    actionVerb = parts[0] ? `MCP (${parts[0]})` : 'Called MCP';
-  } else {
-    actionVerb = humanizeToolTitle(toolName, kind);
+    case 'explore': {
+      actionVerb = 'Explored';
+      if (targetPaths && targetPaths.length > 0) {
+        const first = targetPaths[0] ?? '';
+        summary = isGlobPattern(first) ? first : formatPathsSummary(targetPaths);
+      } else if (searchQuery) {
+        summary = clipSummary(searchQuery);
+      }
+      break;
+    }
+    case 'read': {
+      actionVerb = 'Read';
+      if (targetPaths && targetPaths.length > 0) {
+        summary = formatPathsSummary(targetPaths);
+      }
+      break;
+    }
+    case 'edit': {
+      actionVerb = 'Edited';
+      if (targetPaths && targetPaths.length > 0) {
+        summary = formatPathsSummary(targetPaths);
+      }
+      break;
+    }
+    case 'shell': {
+      actionVerb = 'Ran command';
+      if (command) summary = clipSummary(command, 120);
+      break;
+    }
+    case 'git': {
+      actionVerb = gitActionVerb(toolName, args);
+      if (targetPaths && targetPaths.length > 0) {
+        summary = formatPathsSummary(targetPaths);
+      } else if (searchQuery) {
+        summary = clipSummary(searchQuery);
+      } else {
+        const message = readString(record.message) ?? readString(record.commit_message);
+        if (message) summary = clipSummary(message);
+      }
+      break;
+    }
+    case 'web-fetch': {
+      actionVerb = 'Fetched';
+      const url = extractUrl(args);
+      if (url) summary = clipSummary(url, 80);
+      break;
+    }
+    case 'mcp': {
+      const parts = toolName.replace(/^mcp__?/, '').split('__');
+      const server = parts[0];
+      const tool = parts.slice(1).join(' / ') || parts[0];
+      actionVerb = server ? `MCP (${server})` : 'Called MCP';
+      if (tool && tool !== server) summary = tool;
+      break;
+    }
+    case 'image': {
+      actionVerb = 'Generated image';
+      const prompt = extractPrompt(args);
+      if (prompt) summary = clipSummary(prompt, 72);
+      break;
+    }
+    default: {
+      actionVerb = humanizeToolTitle(toolName, 'other');
+      if (searchQuery) summary = clipSummary(searchQuery);
+      else if (targetPaths && targetPaths.length > 0) summary = formatPathsSummary(targetPaths);
+      break;
+    }
   }
 
-  // Line range extraction
+  // Line range (explicit start/end only — avoid treating limit/offset as lines).
   const start = record.StartLine ?? record.startLine ?? record.start_line;
   const end = record.EndLine ?? record.endLine ?? record.end_line;
   if (typeof start === 'number' && typeof end === 'number') {
@@ -318,28 +581,80 @@ function extractActionDetails(
     lineRange = `L${start}`;
   }
 
-  // Count tag / results extraction
-  if (outputText && typeof outputText === 'string') {
-    if (normName.includes('grep') || normName.includes('search')) {
-      try {
-        const parsed = JSON.parse(outputText);
-        if (Array.isArray(parsed)) {
-          countTag = `${parsed.length} results`;
-        } else if (parsed && Array.isArray(parsed.matches)) {
-          countTag = `${parsed.matches.length} results`;
-        }
-      } catch {
-        const lines = outputText.split('\n').filter((l) => l.trim().length > 0);
-        if (lines.length > 0) {
-          countTag = `${lines.length} matches`;
-        }
-      }
-    }
+  // Result counts for search / explore.
+  if (outputText && (family === 'search' || family === 'explore' || family === 'web-search')) {
+    countTag = extractResultCountTag(outputText, family);
+  }
+  if (targetPaths && targetPaths.length > 1 && (family === 'read' || family === 'edit')) {
+    countTag = countTag ?? `${targetPaths.length} files`;
   }
 
   return {
-    ...(actionVerb !== undefined ? { actionVerb } : {}),
+    actionVerb,
     ...(lineRange !== undefined ? { lineRange } : {}),
     ...(countTag !== undefined ? { countTag } : {}),
+    ...(summary !== undefined ? { summary } : {}),
   };
+}
+
+function gitActionVerb(toolName: string, args: unknown): string {
+  const n = toolName.toLowerCase();
+  if (n.includes('status')) return 'Git status';
+  if (n.includes('diff')) return 'Git diff';
+  if (n.includes('log') || n.includes('show')) return 'Git log';
+  if (n.includes('commit')) return 'Git commit';
+  if (n.includes('push')) return 'Git push';
+  if (n.includes('pull') || n.includes('fetch')) return 'Git pull';
+  if (n.includes('branch')) return 'Git branch';
+  if (n.includes('checkout') || n.includes('switch')) return 'Git checkout';
+  if (n.includes('add') || n.includes('stage')) return 'Git add';
+  // Generic `git` tool with subcommand in args.
+  if (args && typeof args === 'object') {
+    const record = args as Record<string, unknown>;
+    const sub =
+      readString(record.command) ??
+      readString(record.subcommand) ??
+      readString(record.action) ??
+      (Array.isArray(record.args) && typeof record.args[0] === 'string'
+        ? record.args[0]
+        : undefined);
+    if (sub) {
+      const first = sub.trim().split(/\s+/)[0]?.toLowerCase();
+      if (first === 'status') return 'Git status';
+      if (first === 'diff') return 'Git diff';
+      if (first === 'log' || first === 'show') return 'Git log';
+      if (first === 'commit') return 'Git commit';
+      if (first === 'push') return 'Git push';
+      if (first === 'pull' || first === 'fetch') return 'Git pull';
+      if (first === 'branch') return 'Git branch';
+      if (first === 'checkout' || first === 'switch') return 'Git checkout';
+      if (first === 'add') return 'Git add';
+      if (first) return `Git ${first}`;
+    }
+  }
+  return 'Git';
+}
+
+function extractResultCountTag(outputText: string, family: ToolActionFamily): string | undefined {
+  try {
+    const parsed = JSON.parse(outputText) as unknown;
+    if (Array.isArray(parsed)) {
+      const unit = family === 'explore' ? 'files' : 'results';
+      return `${parsed.length} ${unit}`;
+    }
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as Record<string, unknown>;
+      if (Array.isArray(obj.matches)) return `${obj.matches.length} results`;
+      if (Array.isArray(obj.files)) return `${obj.files.length} files`;
+      if (Array.isArray(obj.results)) return `${obj.results.length} results`;
+      if (typeof obj.count === 'number') return `${obj.count} results`;
+      if (typeof obj.total === 'number') return `${obj.total} results`;
+    }
+  } catch {
+    const lines = outputText.split('\n').filter((line) => line.trim().length > 0);
+    if (lines.length > 0 && lines.length <= 500) {
+      return family === 'explore' ? `${lines.length} files` : `${lines.length} matches`;
+    }
+  }
+  return undefined;
 }

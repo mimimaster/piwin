@@ -1,5 +1,8 @@
 import type { ModelProviderConfig } from '@piwin/contracts';
-import { DEFAULT_MODEL_CONTEXT_WINDOW } from '@piwin/contracts';
+import {
+  DEFAULT_MODEL_CONTEXT_WINDOW,
+  DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+} from '@piwin/contracts';
 
 export type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai';
 
@@ -74,7 +77,7 @@ export function buildPiProviderRegistration(
         cacheWrite: 0,
       },
       contextWindow: model.contextWindow ?? DEFAULT_MODEL_CONTEXT_WINDOW,
-      maxTokens: model.maxOutputTokens ?? 8_192,
+      maxTokens: model.maxOutputTokens ?? DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
       ...(provider.headers ? { headers: provider.headers } : {}),
     })),
   };

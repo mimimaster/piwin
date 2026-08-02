@@ -26,6 +26,8 @@ const secretResolver: SecretResolver = {
   reportProviderSecret: async () => ({ providerId: 'openai', status: 'ok' }),
   writeProviderSecret: async () => 'keychain:x',
   readProviderSecret: async () => null,
+  writeSecretByRef: async () => undefined,
+  readSecretByRef: async () => null,
 };
 
 function mockFetchTitle(title: string): void {
@@ -86,7 +88,30 @@ describe('maybeAutoNameSession', () => {
       type: 'session/name-updated',
       sessionId: 's1',
       name: 'Fix login bug',
-      nameSource: 'auto',
+      nameSource: 'llm',
+    });
+  });
+
+  it('upgrades an existing text fallback to an llm title', async () => {
+    const root = await makeRoot();
+    await seedSession(root, { id: 's1', name: 'Fix login bug', nameSource: 'text', messageCount: 4 });
+    mockFetchTitle('Login bug fix');
+    const pushes: HostPush[] = [];
+    await maybeAutoNameSession({
+      piwinRoot: root,
+      sessionId: 's1',
+      firstMessage: 'Fix the login bug',
+      assistantReply: 'I will fix it',
+      modelRef: { protocol: 'openai-compatible', providerId: 'openai', modelId: 'gpt-4o-mini' },
+      providers: [provider],
+      secretResolver,
+      push: (msg) => pushes.push(msg),
+    });
+    expect(pushes).toContainEqual({
+      type: 'session/name-updated',
+      sessionId: 's1',
+      name: 'Login bug fix',
+      nameSource: 'llm',
     });
   });
 
@@ -125,7 +150,7 @@ describe('maybeAutoNameSession', () => {
       type: 'session/name-updated',
       sessionId: 's1',
       name: 'Refactor the auth module',
-      nameSource: 'auto',
+      nameSource: 'text',
     });
   });
 
@@ -163,7 +188,7 @@ describe('maybeAutoNameSession', () => {
       type: 'session/name-updated',
       sessionId: 's1',
       name: 'Debug the parser issue',
-      nameSource: 'auto',
+      nameSource: 'text',
     });
   });
 });

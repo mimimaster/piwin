@@ -109,6 +109,35 @@ describe('config-store', () => {
     expect(loaded.permissions).toEqual({ mode: 'bypass', preset: 'yolo' });
   });
 
+  it('round-trips model effort and capability configuration', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-model-editor-'));
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'provider',
+        protocol: 'openai-compatible',
+        name: 'Provider',
+        baseUrl: 'https://example.test/v1',
+        models: [
+          {
+            id: 'model',
+            contextWindow: 200_000,
+            maxOutputTokens: 32_000,
+            thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
+            thinkingLevel: 'max',
+            input: ['text', 'image'],
+            reasoning: true,
+            capabilities: ['image-generation'],
+            routes: { 'image-generation': { path: '/images/generations' } },
+          },
+        ],
+      },
+    ];
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.providers[0]?.models[0]).toEqual(config.providers[0]?.models[0]);
+  });
+
   it('falls back to auto when permissions.mode is missing or invalid', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-perm-config-invalid-'));
     const config = createDefaultPiwinConfig();

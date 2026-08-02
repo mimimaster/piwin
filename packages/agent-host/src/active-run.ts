@@ -9,6 +9,11 @@ import type {
   SessionRunPhase,
   SessionRunTerminalCode,
 } from '@piwin/contracts';
+import type { RunAbortReason } from './run-abort-reason.js';
+import {
+  createHostShutdownAbortReason,
+  createUserStopAbortReason,
+} from './run-abort-reason.js';
 
 export type ActiveRun = {
   runId: string;
@@ -34,8 +39,12 @@ export type ActiveRunRegistry = {
    * Returns the removed run or undefined.
    */
   clear: (sessionId: string, runId?: string) => ActiveRun | undefined;
-  /** Request cancellation; returns false if no matching active run. */
-  requestCancel: (sessionId: string, runId?: string) => ActiveRun | undefined;
+  /** Request cancellation; returns undefined if no matching active run. */
+  requestCancel: (
+    sessionId: string,
+    runId?: string,
+    reason?: RunAbortReason,
+  ) => ActiveRun | undefined;
   /** Derive phase transition from a normalized AgentEvent, if any. */
   noteAgentEvent: (sessionId: string, event: AgentEvent) => SessionRunPhase | null;
   /** Cancel and clear every active run (shutdown). */
@@ -90,7 +99,11 @@ export function createActiveRunRegistry(): ActiveRunRegistry {
     return run;
   }
 
-  function requestCancel(sessionId: string, runId?: string): ActiveRun | undefined {
+  function requestCancel(
+    sessionId: string,
+    runId?: string,
+    reason?: RunAbortReason,
+  ): ActiveRun | undefined {
     const run = runs.get(sessionId);
     if (!run || run.terminalEmitted) {
       return undefined;
@@ -99,7 +112,8 @@ export function createActiveRunRegistry(): ActiveRunRegistry {
       return undefined;
     }
     run.phase = 'cancelling';
-    run.abortController.abort();
+    // AbortSignal.reason is read by gated tools (bash) for model-facing copy.
+    run.abortController.abort(reason ?? createUserStopAbortReason());
     return run;
   }
 
@@ -148,7 +162,7 @@ export function createActiveRunRegistry(): ActiveRunRegistry {
     for (const run of runs.values()) {
       if (!run.terminalEmitted) {
         run.phase = 'cancelling';
-        run.abortController.abort();
+        run.abortController.abort(createHostShutdownAbortReason());
         cancelled.push(run);
       }
     }

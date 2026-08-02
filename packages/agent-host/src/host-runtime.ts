@@ -144,6 +144,7 @@ import { createAgentHost } from './create-host.js';
 import { loadPiwinConfig, savePiwinConfig } from './config-store.js';
 import { maybeAutoNameSession } from './session-naming-service.js';
 import { createSecretResolver } from './secret-resolver.js';
+import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
 import {
   getPiwinMediaDir,
   getPiwinProjectsPath,
@@ -166,14 +167,9 @@ import {
 import type { HostCommandContext } from './commands/host-command-context.js';
 import {
   handleWalkthroughCancel,
-  startWalkthroughGeneration,
-  resolveGenerationModel,
   WalkthroughGenerationRegistry,
   type WalkthroughCommandContext,
 } from './commands/walkthrough-commands.js';
-import { isWalkthroughEligibleMessage, isAutoWalkthroughEligible } from './walkthrough-source.js';
-import { loadWalkthrough } from './walkthrough-store.js';
-import { createDefaultWalkthroughConfig } from '@piwin/contracts';
 import { RunEventCorrelator } from './run-event-correlator.js';
 import { createEventEnvelopeGenerator } from './event-map.js';
 
@@ -345,6 +341,10 @@ export class HostRuntime {
       },
       onLog: (message, level) => {
         this.push({ type: 'host/log', level, message });
+      },
+      // ADR 0025: model plan tools write plan.json then notify Desktop PlanCard.
+      onPlanUpdated: (sessionId, plan) => {
+        this.push({ type: 'plan/updated', sessionId, plan });
       },
       onSpawnSubagent: async (spawnInput) => {
         const result = await this.handleCommand({
@@ -1078,7 +1078,7 @@ export class HostRuntime {
 
     if (delegate?.model) {
       const visionRef = delegate.model;
-      const visionProvider = config.providers.find((item) => item.id === visionRef.providerId);
+      const visionProvider = findEnabledProvider(config, visionRef.providerId);
       if (!visionProvider) {
         this.push({
           type: 'host/log',
@@ -1586,7 +1586,8 @@ export class HostRuntime {
       // The registry rejects overlapping registration, so there is no separate
       // host-side replacement transition to mark here.
       registerActiveRun: (sessionId) => this.activeRuns.register(sessionId),
-      requestCancelActiveRun: (sessionId, runId) => this.activeRuns.requestCancel(sessionId, runId),
+      requestCancelActiveRun: (sessionId, runId, reason) =>
+        this.activeRuns.requestCancel(sessionId, runId, reason),
       markActiveRunTerminal: (sessionId, runId) => this.activeRuns.markTerminal(sessionId, runId),
       clearActiveRun: (sessionId, runId) => this.activeRuns.clear(sessionId, runId),
       emitRunPhase: (sessionId, runId, phase, detail) => {
@@ -1619,15 +1620,7 @@ export class HostRuntime {
             const detail = error instanceof Error ? error.message : String(error);
             this.push({ type: 'host/log', level: 'warn', message: `auto-name failed: ${detail}` });
           });
-          // CE-WALK: auto-walkthrough after completed run (fire-and-forget).
-          void this.maybeTriggerAutoWalkthrough(sessionId, runId).catch((error: unknown) => {
-            const detail = error instanceof Error ? error.message : String(error);
-            this.push({
-              type: 'host/log',
-              level: 'warn',
-              message: `auto-walkthrough failed: ${detail}`,
-            });
-          });
+          // ADR 0026: auto-walkthrough after runs retired (no maybeTriggerAutoWalkthrough).
         }
         const recorder = this.transcriptRecorders.get(sessionId);
         if (recorder) {
@@ -2348,7 +2341,10 @@ export class HostRuntime {
     await upsertSessionRecord(indexPath, record);
   }
 
-  /** CE-NAME: auto-name after each completed exchange until one succeeds. */
+  /**
+   * CE-NAME: auto-name after each completed exchange until a terminal name
+   * (`llm` or `user`) lands.
+   */
   private async maybeTriggerAutoName(sessionId: string): Promise<void> {
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const indexPath = getPiwinSessionIndexPath(rootDir);
@@ -2363,107 +2359,39 @@ export class HostRuntime {
     if (record.messageCount < 1) {
       return;
     }
-    // Never overwrite a user-set name.
-    if (record.nameSource === 'user') {
+    // `user` (manual) and `llm` (generated) names are terminal for
+    // auto-naming. A `text` fallback may still be upgraded to an LLM title on
+    // a later completed exchange, and a `default` placeholder is always
+    // eligible, so keep retrying until a terminal name lands.
+    if (record.nameSource === 'user' || record.nameSource === 'llm') {
       return;
     }
-    // Only trigger once: if we already have an auto name, do not re-run.
-    if (record.nameSource === 'auto' && record.name) {
+    // Read the transcript instead of in-memory maps: the maps drift when the
+    // first exchange fails to name (a later retry would see a later prompt
+    // instead of the first user message) and are empty after a host restart.
+    const messages = await this.loadTranscriptMessages(sessionId);
+    const firstUserMessage = messages.find((message) => message.role === 'user');
+    if (!firstUserMessage?.text) {
       return;
     }
-    const firstMessage = this.sessionLastPromptText.get(sessionId) ?? '';
-    if (!firstMessage) {
-      return;
-    }
+    const lastAssistantMessage = [...messages]
+      .reverse()
+      .find((message) => message.role === 'assistant');
+    const assistantReply = lastAssistantMessage?.text ?? '';
+    // Prefer the model snapshot from the transcript; fall back to the last
+    // prompt's model for legacy transcripts that omit it.
+    const modelRef = lastAssistantMessage?.model ?? this.sessionModels.get(sessionId);
     const config = await loadPiwinConfig(rootDir);
-    const modelRef = this.sessionModels.get(sessionId);
-    // Give the LLM title generator the latest assistant reply as context so
-    // the summary reflects the exchange, not just the prompt.
-    const assistantReply = this.sessionLastAssistantReply.get(sessionId) ?? '';
     await maybeAutoNameSession({
       piwinRoot: this.options.piwinRoot ?? rootDir,
       sessionId,
-      firstMessage,
+      firstMessage: firstUserMessage.text,
       ...(assistantReply ? { assistantReply } : {}),
       ...(modelRef ? { modelRef } : {}),
-      providers: config.providers ?? [],
+      providers: getEnabledProviders(config),
       secretResolver: createSecretResolver(),
       push: (message) => this.push(message),
     });
-  }
-
-  /**
-   * Auto-generate a walkthrough after a completed run (spec §4.3).
-   *
-   * Fire-and-forget: errors are logged to the host log, not propagated.
-   * Only triggers when:
-   * - walkthrough is enabled AND autoGenerate is true
-   * - the run's final assistant message is eligible
-   * - the run used at least one tool (coding task, not pure Q&A)
-   * - no ready walkthrough artifact already exists for this message
-   */
-  private async maybeTriggerAutoWalkthrough(sessionId: string, runId: string): Promise<void> {
-    const rootDir = getPiwinRoot(this.options.piwinRoot);
-    const config = await loadPiwinConfig(rootDir);
-    const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
-    if (!walkthrough.enabled || !walkthrough.autoGenerate) {
-      return;
-    }
-
-    // Load transcript and find the final assistant message for this run.
-    const messages = await this.loadTranscriptMessages(sessionId);
-    const runMessages = messages.filter((m) => m.runId === runId && m.role === 'assistant');
-    if (runMessages.length === 0) {
-      return;
-    }
-    const finalAssistant = runMessages[runMessages.length - 1]!;
-
-    // Check basic eligibility.
-    if (!isWalkthroughEligibleMessage(finalAssistant, messages)) {
-      return;
-    }
-
-    // Check auto-eligibility: must have used at least one tool.
-    if (!isAutoWalkthroughEligible(messages, runId)) {
-      return;
-    }
-
-    // Check if a ready artifact already exists for this message.
-    const existing = await loadWalkthrough(rootDir, sessionId, finalAssistant.id);
-    if (existing?.status === 'ready') {
-      return;
-    }
-
-    // Resolve model, provider, and mode.
-    const context = this.buildWalkthroughContext();
-    const resolved = resolveGenerationModel(
-      { type: 'walkthrough/generate', sessionId, messageId: finalAssistant.id },
-      finalAssistant,
-      context,
-      config,
-    );
-    if (resolved.error || !resolved.model || !resolved.provider) {
-      this.push({
-        type: 'host/log',
-        level: 'warn',
-        message: `auto-walkthrough: model resolution failed for ${sessionId}:${runId} — ${resolved.error?.code ?? 'model-unavailable'}`,
-      });
-      return;
-    }
-
-    // Start the generation.
-    await startWalkthroughGeneration(
-      sessionId,
-      finalAssistant.id,
-      resolved.model,
-      resolved.provider,
-      resolved.mode,
-      walkthrough,
-      finalAssistant,
-      messages,
-      context,
-      this.walkthroughRegistry,
-    );
   }
 
   private async ensureLiveSession(sessionId: string): Promise<SessionHandle> {

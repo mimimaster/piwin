@@ -73,6 +73,24 @@ describe('createPetStateStore', () => {
     expect(snap.pet.activity?.toolName).toBe('read_file');
   });
 
+  it('forwards presentation detail/actionVerb into activity', () => {
+    const store = createPetStateStore({ basePet });
+    store.reduce({
+      type: 'tool/start',
+      toolCallId: 't1',
+      toolName: 'read',
+      presentation: {
+        kind: 'filesystem',
+        title: 'read',
+        actionVerb: 'Read',
+        summary: 'apps/desktop/src/App.tsx',
+      },
+    } as AgentEvent);
+    const activity = store.snapshot().pet.activity;
+    expect(activity?.detail).toBe('apps/desktop/src/App.tsx');
+    expect(activity?.actionVerb).toBe('Read');
+  });
+
   it('omits activity when idle', () => {
     const store = createPetStateStore({ basePet });
     expect(store.snapshot().pet.activity).toBeUndefined();

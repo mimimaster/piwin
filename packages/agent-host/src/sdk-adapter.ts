@@ -56,6 +56,7 @@ import {
   type PiModelRuntime,
   type PiModelRegistration,
 } from './pi-model-runtime.js';
+import { getEnabledProviders, resolveDefaultModelRef } from './provider-helpers.js';
 import { loadPromptImages } from './prompt-images.js';
 import { listProjects } from '@piwin/project';
 import { loadMergedPermissionRules } from './permission-rule-loader.js';
@@ -165,6 +166,15 @@ export type PiSdkAdapterOptions = {
   onMergeSubagent?: (
     childSessionId: string,
   ) => Promise<{ summaryPreview?: string; alreadyMerged?: boolean }>;
+  /**
+   * Session plan create/step tools persist plan.json then call this so HostRuntime
+   * can push `plan/updated` to Desktop (PlanCard). Without it, progress stays on disk only.
+   * See ADR 0025.
+   */
+  onPlanUpdated?: (
+    sessionId: string,
+    plan: import('@piwin/contracts').SessionPlan,
+  ) => void;
   /**
    * Host-owned browser session (ADR 0020). When present, `browser_*` tools are
    * appended to the coding/agent tool set. Lazily provided so HostRuntime can
@@ -563,11 +573,25 @@ async function createPiSdkSession(
   const planTool = createPlanStepTool({
     sessionId,
     planPath: getPiwinSessionPlanPath(rootDir, sessionId),
+    ...(adapterOptions.onPlanUpdated
+      ? {
+          onUpdated: (plan: import('@piwin/contracts').SessionPlan) => {
+            adapterOptions.onPlanUpdated?.(sessionId, plan);
+          },
+        }
+      : {}),
   });
   const planCreateTool = createPlanCreateTool({
     sessionId,
     projectPath: agentCwd,
     planPath: getPiwinSessionPlanPath(rootDir, sessionId),
+    ...(adapterOptions.onPlanUpdated
+      ? {
+          onUpdated: (plan: import('@piwin/contracts').SessionPlan) => {
+            adapterOptions.onPlanUpdated?.(sessionId, plan);
+          },
+        }
+      : {}),
   });
   // Subagent delegation tool: only when host injected spawn/merge seams and
   // this session is not itself a readonly subagent (depth max 1, no nesting).
@@ -855,16 +879,7 @@ async function createPiSdkSession(
   };
 
   const modelRuntime = await createPiModelRuntime(piModule, config, agentDir);
-  const requestedModel =
-    input.model ??
-    (config.defaultProviderId && config.defaultModelId
-      ? {
-          protocol: config.providers.find((provider) => provider.id === config.defaultProviderId)
-            ?.protocol,
-          providerId: config.defaultProviderId,
-          modelId: config.defaultModelId,
-        }
-      : undefined);
+  const requestedModel = input.model ?? resolveDefaultModelRef(config);
   if (requestedModel?.protocol) {
     const selectedModel = modelRuntime.getModel(requestedModel.providerId, requestedModel.modelId);
     if (!selectedModel) {
@@ -947,7 +962,7 @@ async function createPiModelRuntime(
   });
   const secretResolver = createSecretResolver();
 
-  for (const provider of config.providers) {
+  for (const provider of getEnabledProviders(config)) {
     let apiKey: string | undefined;
     try {
       const resolved = await secretResolver.resolveProviderSecret(provider);
@@ -965,7 +980,7 @@ async function createPiModelRuntime(
 }
 
 function applyProviderEnv(config: Awaited<ReturnType<typeof loadPiwinConfig>>): void {
-  for (const provider of config.providers) {
+  for (const provider of getEnabledProviders(config)) {
     if (provider.apiKeyEnv && process.env[provider.apiKeyEnv]) {
       // env already set by user
       continue;
@@ -979,9 +994,10 @@ function applyProviderEnv(config: Awaited<ReturnType<typeof loadPiwinConfig>>): 
     }
   }
 
+  const enabledProviders = getEnabledProviders(config);
   const hasOpenAi =
     Boolean(process.env.OPENAI_API_KEY) ||
-    config.providers.some(
+    enabledProviders.some(
       (provider) =>
         provider.protocol === 'openai-compatible' &&
         provider.apiKeyEnv &&
@@ -989,14 +1005,14 @@ function applyProviderEnv(config: Awaited<ReturnType<typeof loadPiwinConfig>>): 
     );
   const hasAnthropic =
     Boolean(process.env.ANTHROPIC_API_KEY) ||
-    config.providers.some(
+    enabledProviders.some(
       (provider) =>
         provider.protocol === 'anthropic-compatible' &&
         provider.apiKeyEnv &&
         Boolean(process.env[provider.apiKeyEnv]),
     );
 
-  if (!hasOpenAi && !hasAnthropic && config.providers.length === 0) {
+  if (!hasOpenAi && !hasAnthropic && enabledProviders.length === 0) {
     throw new Error(
       'No provider API keys found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY, ' +
         'or add providers[] with apiKeyEnv in ~/.piwin/config.json',

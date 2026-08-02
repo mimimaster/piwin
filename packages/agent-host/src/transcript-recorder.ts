@@ -299,20 +299,32 @@ export function createTranscriptRecorder(options: {
             if (!assistantId) break;
             updateMessage(assistantId, (message) => ({
               ...message,
-              tools: (message.tools ?? []).map((tool) =>
-                tool.toolCallId === event.toolCallId &&
-                (event.runId === undefined ||
-                  tool.runId === undefined ||
-                  tool.runId === event.runId)
-                  ? {
-                      ...tool,
-                      status: event.isError ? ('error' as const) : ('done' as const),
-                      ...(event.presentation
-                        ? { presentation: { ...tool.presentation, ...event.presentation } }
-                        : {}),
-                    }
-                  : tool,
-              ),
+              tools: (message.tools ?? []).map((tool) => {
+                if (
+                  tool.toolCallId !== event.toolCallId ||
+                  (event.runId !== undefined &&
+                    tool.runId !== undefined &&
+                    tool.runId !== event.runId)
+                ) {
+                  return tool;
+                }
+                const mergedPresentation = event.presentation
+                  ? { ...tool.presentation, ...event.presentation }
+                  : tool.presentation;
+                // Prefer final presentation output (Pi custom tools often only
+                // emit tool/end with AgentToolResult content, no tool/update).
+                const finalOutput =
+                  mergedPresentation?.output?.text !== undefined &&
+                  mergedPresentation.output.text.length > 0
+                    ? mergedPresentation.output.text
+                    : tool.output;
+                return {
+                  ...tool,
+                  status: event.isError ? ('error' as const) : ('done' as const),
+                  output: finalOutput,
+                  ...(mergedPresentation ? { presentation: mergedPresentation } : {}),
+                };
+              }),
             }));
             await persistDocument();
             break;

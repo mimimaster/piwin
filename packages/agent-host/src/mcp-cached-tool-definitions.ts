@@ -1,6 +1,7 @@
 import type { McpToolMetadata, PermissionRuleSet } from '@piwin/contracts';
 import { createDefaultMcpExposurePolicy } from '@piwin/contracts';
 import {
+  formatMcpCallResult,
   formatMcpExposedName,
   listEnabledServers,
   loadMcpConfig,
@@ -90,7 +91,7 @@ function buildDirectHostTool(
         args,
         signal,
       );
-      return typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+      return formatMcpCallResult(result);
     },
   };
 }

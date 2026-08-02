@@ -11,10 +11,11 @@ import type { SecretResolver } from './secret-resolver.js';
  * 1. Check `PiwinConfig.session.autoName` (default true); skip when false.
  * 2. Attempt LLM title generation via the session's current model + provider.
  * 3. On LLM failure, fall back to a text-derived name from the first message.
- * 4. Write via `setSessionAutoName` (respects `nameSource: 'user'` guard).
+ * 4. Write via `setSessionAutoName` (respects the `nameSource` guard, dedupes).
  * 5. Push `session/name-updated` so the desktop list refreshes.
  *
- * Never throws — all failures are swallowed (caller wraps in fire-and-forget).
+ * Never throws — failures are logged as `host/log` warn and swallowed so a
+ * naming hiccup can never fail a turn.
  */
 export async function maybeAutoNameSession(input: {
   piwinRoot: string;
@@ -38,6 +39,9 @@ export async function maybeAutoNameSession(input: {
     push,
     signal,
   } = input;
+  const warn = (message: string): void => {
+    push({ type: 'host/log', level: 'warn', message: `auto-name: ${message}` });
+  };
   try {
     const rootDir = getPiwinRoot(piwinRoot);
     const config = await loadPiwinConfig(rootDir);
@@ -65,26 +69,33 @@ export async function maybeAutoNameSession(input: {
               ...(signal ? { signal } : {}),
             });
           }
-        } catch {
-          // Fall through to text fallback below.
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          warn(`LLM title failed for ${sessionId}: ${detail}`);
         }
       }
     }
 
+    // An LLM title upgrades a `default` or `text` name to `llm`; the text
+    // fallback only ever fills a `default` name (see setSessionAutoName).
+    const source = llmTitle ? 'llm' : 'text';
     const finalName = llmTitle ?? deriveDefaultNameFromMessage(firstMessage);
     if (!finalName) {
+      warn(`no usable name derived for ${sessionId}`);
       return;
     }
-    const updated = await setSessionAutoName(indexPath, sessionId, finalName);
+    const updated = await setSessionAutoName(indexPath, sessionId, finalName, source);
     if (updated) {
       push({
         type: 'session/name-updated',
         sessionId,
         name: updated.name ?? finalName,
-        nameSource: 'auto',
+        nameSource: source,
       });
     }
-  } catch {
-    // Best-effort: never fail a turn due to naming.
+  } catch (error) {
+    // Best-effort: never fail a turn due to naming, but surface why.
+    const detail = error instanceof Error ? error.message : String(error);
+    warn(`naming failed for ${sessionId}: ${detail}`);
   }
 }

@@ -1,4 +1,5 @@
 import {
+  formatMcpCallResult,
   formatMcpExposedName,
   listEnabledServers,
   loadMcpConfig,
@@ -196,7 +197,7 @@ export function buildMcpGatewayToolDefinition(
           toolArguments,
           signal,
         );
-        return typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+        return formatMcpCallResult(result);
       }
 
       throw new Error(

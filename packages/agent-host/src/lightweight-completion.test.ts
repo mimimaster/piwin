@@ -96,4 +96,31 @@ describe('generateTitleViaProvider', () => {
     expect(title!.length).toBeLessThanOrEqual(80);
     expect(title!.endsWith('…')).toBe(true);
   });
+
+  it('rejects punctuation/emoji-only titles', async () => {
+    for (const junk of ['!!!', '...', '😀', '...', '—', '???']) {
+      mockFetch({ choices: [{ message: { content: junk } }] });
+      const title = await generateTitleViaProvider({
+        provider: openaiProvider, modelId: 'gpt-4o-mini', apiKey: 'sk-test', userPrompt: 'hello',
+      });
+      expect(title, `expected ${JSON.stringify(junk)} to be rejected`).toBeNull();
+    }
+  });
+
+  it('rejects titles containing newlines or tabs', async () => {
+    mockFetch({ choices: [{ message: { content: 'Fix login bug\nand auth' } }] });
+    const title = await generateTitleViaProvider({
+      provider: openaiProvider, modelId: 'gpt-4o-mini', apiKey: 'sk-test', userPrompt: 'hello',
+    });
+    expect(title).toBeNull();
+  });
+
+  it('rejects word-dump titles beyond the word cap', async () => {
+    const dump = Array.from({ length: 20 }, (_, index) => `word${index}`).join(' ');
+    mockFetch({ choices: [{ message: { content: dump } }] });
+    const title = await generateTitleViaProvider({
+      provider: openaiProvider, modelId: 'gpt-4o-mini', apiKey: 'sk-test', userPrompt: 'hello',
+    });
+    expect(title).toBeNull();
+  });
 });

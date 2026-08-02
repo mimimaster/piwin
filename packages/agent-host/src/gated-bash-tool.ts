@@ -6,6 +6,7 @@ import type { PermissionDecision, PermissionMode, PermissionRuleSet } from '@piw
 import { commandInBashAllowlist, getBashAllowlist } from '@piwin/project';
 import { evaluateBashPermission, resolveNonInteractiveDecision } from './permission-policy.js';
 import type { SessionAllowlist } from './session-allowlist.js';
+import { formatRunAbortReason } from './run-abort-reason.js';
 
 export type GatedBashPermissionRequest = {
   action: string;
@@ -109,17 +110,49 @@ export async function buildGatedBashToolDefinition(
   const rules = options.rules;
   const sessionAllowlist = options.sessionAllowlist;
 
+  /**
+   * Run local bash, rewriting bare Pi "aborted" errors into a model-readable
+   * cancel reason (user-stop / superseded / etc.) from AbortSignal.reason.
+   */
+  async function execWithCancelReason(
+    command: string,
+    cwd: string,
+    execOptions: {
+      onData: (data: Buffer) => void;
+      signal?: AbortSignal;
+      timeout?: number;
+      env?: NodeJS.ProcessEnv;
+    },
+  ): Promise<{ exitCode: number | null }> {
+    try {
+      return await localOps.exec(command, cwd, execOptions);
+    } catch (error) {
+      const signal = execOptions.signal;
+      const message = error instanceof Error ? error.message : String(error);
+      const looksAborted =
+        signal?.aborted === true ||
+        message === 'aborted' ||
+        message === 'Command aborted' ||
+        message.startsWith('Command aborted');
+      if (!looksAborted) {
+        throw error;
+      }
+      const detail = formatRunAbortReason(signal?.reason);
+      throw new Error(`Command aborted: ${detail}`);
+    }
+  }
+
   return createBashToolDefinition(options.cwd, {
     operations: {
       exec: async (command, cwd, execOptions) => {
         // Remembered approvals short-circuit before the evaluator / prompt.
         if (allowlist.length > 0 && commandInBashAllowlist(command, allowlist)) {
-          return localOps.exec(command, cwd, execOptions);
+          return execWithCancelReason(command, cwd, execOptions);
         }
 
         // Session-scoped approvals (ADR 0024 §4): in-memory, per-session only.
         if (sessionAllowlist?.hasBashCommand(command)) {
-          return localOps.exec(command, cwd, execOptions);
+          return execWithCancelReason(command, cwd, execOptions);
         }
 
         const effectiveMode = getMode ? getMode() : staticMode;
@@ -145,7 +178,7 @@ export async function buildGatedBashToolDefinition(
           return { exitCode: 1 };
         }
 
-        return localOps.exec(command, cwd, execOptions);
+        return execWithCancelReason(command, cwd, execOptions);
       },
     },
   });

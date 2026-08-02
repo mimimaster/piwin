@@ -15,6 +15,7 @@ import type {
   VisionDelegationConfig,
 } from '@piwin/contracts';
 import { formatTextModelImageInjection } from '@piwin/contracts';
+import { findEnabledProvider, resolveDefaultModelRef } from './provider-helpers.js';
 
 export const DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT =
   'Describe this image in detail for a coding agent. Include text in the image verbatim.';
@@ -45,7 +46,7 @@ export function resolvePrimaryModelInput(
 ): readonly ModelInputModality[] | undefined {
   const ref = resolvePrimaryModelRef(input, config);
   if (!ref) return undefined;
-  const provider = config.providers.find((item) => item.id === ref.providerId);
+  const provider = findEnabledProvider(config, ref.providerId);
   const model = provider?.models.find((item) => item.id === ref.modelId);
   return model?.input;
 }
@@ -55,20 +56,13 @@ export function resolvePrimaryModelRef(
   config: PiwinConfig,
 ): ModelRef | undefined {
   if (input.model) {
+    const provider = findEnabledProvider(config, input.model.providerId);
+    if (!provider || !provider.models.some((m) => m.id === input.model?.modelId)) {
+      return undefined;
+    }
     return input.model;
   }
-  if (!config.defaultProviderId || !config.defaultModelId) {
-    return undefined;
-  }
-  const provider = config.providers.find((item) => item.id === config.defaultProviderId);
-  if (!provider) {
-    return undefined;
-  }
-  return {
-    protocol: provider.protocol,
-    providerId: provider.id,
-    modelId: config.defaultModelId,
-  };
+  return resolveDefaultModelRef(config);
 }
 
 export function formatVisionDescriptionInjection(params: {

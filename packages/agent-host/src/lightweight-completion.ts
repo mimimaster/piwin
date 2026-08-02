@@ -3,8 +3,31 @@ import type { ModelProviderConfig } from '@piwin/contracts';
 /** Max chars for an LLM-generated session title. */
 const MAX_TITLE_CHARS = 80;
 
+/** Loosest plausible title size; anything longer is almost certainly a summary dump. */
+const MAX_TITLE_WORDS = 12;
+
 const TITLE_SYSTEM_PROMPT =
   'Generate a concise, descriptive title (3-7 words) for this coding session from the user message and optional assistant reply. Return ONLY the title text, no quotes, no markdown, no trailing punctuation.';
+
+/**
+ * Gate an LLM title before it is persisted. Rejects empty/punctuation-only
+ * text, embedded newlines/control chars, and word dumps — anything that
+ * fails the gate falls back to the text-derived name.
+ */
+function isAcceptableTitle(title: string): boolean {
+  if (title.length === 0 || title.length > MAX_TITLE_CHARS) {
+    return false;
+  }
+  if (/[\r\n\t]/.test(title)) {
+    return false;
+  }
+  // Pure punctuation, symbols, or whitespace (incl. emoji-only) is not a title.
+  if (/^[\p{P}\p{S}\s]+$/u.test(title)) {
+    return false;
+  }
+  const wordCount = title.trim().split(/\s+/).length;
+  return wordCount >= 1 && wordCount <= MAX_TITLE_WORDS;
+}
 
 export async function generateTitleViaProvider(input: {
   provider: ModelProviderConfig;
@@ -96,6 +119,9 @@ async function fetchAnthropicCompatible(
 function cleanTitle(raw: string | undefined): string | null {
   if (!raw || typeof raw !== 'string') return null;
   let title = raw.trim();
+  // Reject embedded control characters (newlines, tabs) before whitespace
+  // collapse hides them; a title must be a single clean line.
+  if (/[\r\n\t]/.test(title)) return null;
   const jsonMatch = title.match(/\{[^}]*"title"\s*:\s*"([^"]+)"/);
   if (jsonMatch) title = jsonMatch[1] ?? '';
   title = title.replace(/^["'`]+|["'`]+$/g, '');
@@ -103,7 +129,7 @@ function cleanTitle(raw: string | undefined): string | null {
   title = title.replace(/\*\*(.+?)\*\*/g, '$1');
   title = title.replace(/[.!?]+$/, '');
   title = title.replace(/\s+/g, ' ').trim();
-  if (title.length === 0) return null;
   if (title.length > MAX_TITLE_CHARS) title = `${title.slice(0, MAX_TITLE_CHARS - 1).trimEnd()}…`;
+  if (!isAcceptableTitle(title)) return null;
   return title;
 }

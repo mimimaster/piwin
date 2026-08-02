@@ -41,6 +41,7 @@ import type { VisionDelegateResult } from '@piwin/contracts';
 import { fail, ok } from '../response-helpers.js';
 import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { createSecretResolver } from '../secret-resolver.js';
+import { findEnabledProvider } from '../provider-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
 
 /**
@@ -440,7 +441,7 @@ export async function handleCatalogCommand(
           );
         }
         const visionRef = visionConfig.model;
-        const visionProvider = config.providers.find((item) => item.id === visionRef.providerId);
+        const visionProvider = findEnabledProvider(config, visionRef.providerId);
         if (!visionProvider) {
           return fail(
             requestId,
