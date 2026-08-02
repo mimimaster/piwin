@@ -62,3 +62,12 @@ export type {
   ApplyWorktreeInput,
   ApplyWorktreeResult,
 } from './worktree.js';
+
+export {
+  integrateWorktreeChanges,
+  isWorktreeBaseClean,
+} from './worktree-integration.js';
+export type {
+  WorktreeIntegrationInput,
+  WorktreeIntegrationResult,
+} from './worktree-integration.js';

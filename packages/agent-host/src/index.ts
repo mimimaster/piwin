@@ -263,3 +263,19 @@ export type {
   SubagentOrchestratorOptions,
   ActiveRun as SubagentOrchestratorActiveRun,
 } from './subagent-orchestrator.js';
+export { createSubagentWorkspaceService } from './subagent-workspace-service.js';
+export type { SubagentWorkspaceServiceOptions } from './subagent-workspace-service.js';
+export { RpcSdkWorkerClient, createWorkerTaskRunner } from './rpc-sdk-worker-client.js';
+export type { WorkerClientOptions } from './rpc-sdk-worker-client.js';
+export {
+  parseWorkerFrame,
+  serializeWorkerRequest,
+} from './rpc-sdk-worker-protocol.js';
+export type {
+  WorkerRequest,
+  WorkerResponse,
+  WorkerEvent,
+  WorkerFrame,
+  WorkerRequestMethod,
+  WorkerRequestPayload,
+} from './rpc-sdk-worker-protocol.js';
