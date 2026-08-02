@@ -1967,6 +1967,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         path: absolutePath,
                       });
                     }}
+                    locale={desktopLocale}
                   />
                 }
                 canvasContent={<CanvasPanel />}

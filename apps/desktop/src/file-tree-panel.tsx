@@ -9,6 +9,7 @@ import { Button, EmptyState, IconButton, Notice, Spinner } from '@piwin/ui-kit';
 import { IconChevronDown, IconChevronRight, IconRefresh } from './shell-icons';
 import { FileTypeIcon } from './file-type-icon';
 import { filterTreeNodes, type FileTreeNodeState } from './file-tree-model';
+import type { DesktopLocale } from './desktop-locale';
 
 export type FileTreeRequest =
   | {
@@ -30,6 +31,8 @@ export type FileTreePanelProps = {
   onInsertPath?: (absolutePath: string, relativePath: string) => void;
   /** Open file in DocPreview (App handleOpenDocument). */
   onOpenFile?: (absolutePath: string, relativePath: string) => void;
+  /** Desktop locale for locale-aware UI strings. */
+  locale?: DesktopLocale;
 };
 
 function entryToNode(entry: ProjectDirEntry): FileTreeNodeState {
@@ -188,8 +191,8 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
           className="file-tree-filter"
           value={filterQuery}
           onChange={(e) => setFilterQuery(e.target.value)}
-          placeholder="Filter loaded files…"
-          aria-label="Filter files"
+          placeholder={props.locale === 'zh-CN' ? '筛选已加载文件…' : 'Filter loaded files…'}
+          aria-label={props.locale === 'zh-CN' ? '筛选文件' : 'Filter files'}
         />
         {loading ? (
           <div className="file-tree-loading">
