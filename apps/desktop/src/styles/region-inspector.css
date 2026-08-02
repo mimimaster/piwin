@@ -681,6 +681,13 @@
   padding: 6px 0 12px;
   overflow: auto;
   flex: 1;
+  /* Keyboard nav lives on the list itself; suppress the default focus outline
+     and show a subtle ring only for keyboard focus. */
+  outline: none;
+}
+
+.file-tree-list:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--focus-ring, var(--accent-ring));
 }
 
 .file-tree-row {

@@ -3,12 +3,24 @@
  * Lazy-loads children via host project/list-dir.
  * File click → opens document preview via onOpenFile; drag / Insert path → composer.
  */
-import { useCallback, useEffect, useState, type DragEvent, type ReactElement } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type DragEvent,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
 import type { HostResponse, ProjectDirEntry, ProjectListDirData } from '@piwin/contracts';
 import { Button, EmptyState, IconButton, Notice, Spinner } from '@piwin/ui-kit';
 import { IconChevronDown, IconChevronRight, IconRefresh } from './shell-icons';
 import { FileTypeIcon } from './file-type-icon';
-import { filterTreeNodes, type FileTreeNodeState } from './file-tree-model';
+import {
+  filterTreeNodes,
+  flattenVisibleRows,
+  keyboardMove,
+  type FileTreeNodeState,
+} from './file-tree-model';
 import type { DesktopLocale } from './desktop-locale';
 
 export type FileTreeRequest =
@@ -94,9 +106,13 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     void reloadRoot();
   }, [reloadRoot]);
 
-  async function toggleNode(
+  // Recursively set a directory node's expanded state. When expanding a
+  // directory whose children are not yet loaded, fetch them first. Used by both
+  // the click toggle (flips) and keyboard nav (explicit expand/collapse).
+  async function updateNodeExpanded(
     nodes: FileTreeNodeState[],
     relativePath: string,
+    nextExpanded: boolean,
   ): Promise<FileTreeNodeState[]> {
     const next: FileTreeNodeState[] = [];
     for (const node of nodes) {
@@ -104,7 +120,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
         if (node.children && node.children.length > 0) {
           next.push({
             ...node,
-            children: await toggleNode(node.children, relativePath),
+            children: await updateNodeExpanded(node.children, relativePath, nextExpanded),
           });
         } else {
           next.push(node);
@@ -115,14 +131,17 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
         next.push(node);
         continue;
       }
-      if (node.expanded) {
+      // Collapsing is always cheap — no child fetch needed.
+      if (!nextExpanded) {
         next.push({ ...node, expanded: false });
         continue;
       }
+      // Expanding: if children already loaded, just flip the flag.
       if (node.children) {
         next.push({ ...node, expanded: true });
         continue;
       }
+      // Expanding a never-loaded directory: fetch children, then expand.
       next.push({ ...node, loading: true, error: null, expanded: true });
       try {
         const entries = await loadDirectory(node.entry.relativePath);
@@ -146,9 +165,43 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     return next;
   }
 
-  async function handleToggle(relativePath: string): Promise<void> {
-    const next = await toggleNode(rootNodes, relativePath);
+  async function setExpanded(relativePath: string, expanded: boolean): Promise<void> {
+    const next = await updateNodeExpanded(rootNodes, relativePath, expanded);
     setRootNodes(next);
+  }
+
+  async function handleToggle(relativePath: string): Promise<void> {
+    // Click toggles: flip current expanded state.
+    const target = findNode(rootNodes, relativePath);
+    const nextExpanded = target ? !target.expanded : true;
+    await setExpanded(relativePath, nextExpanded);
+  }
+
+  function findNode(nodes: FileTreeNodeState[], relativePath: string): FileTreeNodeState | null {
+    for (const node of nodes) {
+      if (node.entry.relativePath === relativePath) return node;
+      if (node.children) {
+        const found = findNode(node.children, relativePath);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  function handleTreeKeyDown(event: KeyboardEvent<HTMLUListElement>): void {
+    const displayNodes = filterTreeNodes(rootNodes, filterQuery);
+    const visibleRows = flattenVisibleRows(displayNodes);
+    const result = keyboardMove(visibleRows, selectedPath, event.key);
+    // Unrecognized keys (typing, modifiers) are left to the browser.
+    if (!result) return;
+    event.preventDefault();
+    setSelectedPath(result.nextPath);
+    if (result.expandPath) void setExpanded(result.expandPath, true);
+    if (result.collapsePath) void setExpanded(result.collapsePath, false);
+    if (result.activatePath) {
+      const abs = absoluteFor(result.activatePath);
+      props.onOpenFile?.(abs, result.activatePath);
+    }
   }
 
   function absoluteFor(relativePath: string): string {
@@ -200,7 +253,13 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
             <span className="muted">Loading…</span>
           </div>
         ) : (
-          <ul className="file-tree-list" role="tree" aria-label="Project files">
+          <ul
+            className="file-tree-list"
+            role="tree"
+            aria-label="Project files"
+            tabIndex={0}
+            onKeyDown={handleTreeKeyDown}
+          >
             {rootNodes.length === 0 ? (
               <li className="muted file-tree-empty">Empty directory</li>
             ) : (
