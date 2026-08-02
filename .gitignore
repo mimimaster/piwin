@@ -39,3 +39,6 @@ pelican-riding-bicycle-2.svg
 # icon generation backups (not source)
 apps/desktop/public/icon-backup-2026-07-31/
 apps/desktop/src-tauri/icons-backup-2026-07-31/
+
+# unpadded icon source backup (regeneration intermediate)
+apps/desktop/src-tauri/icons/icon-source-1024.unpadded-backup.png
