@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import {
   evaluateCodeFence,
   normalizeStreamingArtifactFences,
@@ -9,6 +9,7 @@ import {
   type TableAlignment,
 } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
+import { useHighlight, TokenSpans, normalizeLanguage, type TokenLine } from './syntax-highlight';
 import { fileNameFromPath, PathChip } from './path-chip';
 import { ArtifactFrame } from './ArtifactFrame';
 import { isFlashcardArtifactSource } from './flashcard-artifact';
@@ -20,6 +21,9 @@ import {
   renderKatex,
   tokenizeInlineWithMath,
 } from './markdown-math';
+import { parseUnifiedDiff } from './diff-view';
+import { computeDiffLineNumbers } from './diff-line-numbers';
+import { CollapsibleContentBlock } from './collapsible-content-block';
 
 /** C5: explicit rendering phases for coding-agent transcript policy. */
 export type MarkdownRenderingPhase = 'streaming' | 'completed' | 'explicit-artifact-review';
@@ -66,7 +70,16 @@ type MarkdownViewProps = {
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
 };
 
-const SHELL_LANGUAGES = new Set(['bash', 'sh', 'zsh', 'shell', 'console', 'terminal', 'cmd', 'powershell']);
+const SHELL_LANGUAGES = new Set([
+  'bash',
+  'sh',
+  'zsh',
+  'shell',
+  'console',
+  'terminal',
+  'cmd',
+  'powershell',
+]);
 
 function isShellLanguage(lang?: string): boolean {
   return lang ? SHELL_LANGUAGES.has(lang.trim().toLowerCase()) : false;
@@ -75,6 +88,93 @@ function isShellLanguage(lang?: string): boolean {
 function getTextAlign(alignment?: TableAlignment): 'left' | 'center' | 'right' | undefined {
   if (!alignment || alignment === 'default') return undefined;
   return alignment;
+}
+
+/** Collapsed height for long code fences (~11–12 lines at 13px / 1.35 lh). */
+const CODE_FENCE_COLLAPSED_HEIGHT_PX = 200;
+
+/**
+ * Line-numbered, syntax-highlighted code body for transcript code fences.
+ * Falls back to plain text while shiki is loading. Diff language gets
+ * GitHub-style old/new gutters (from hunk headers) plus add/delete backgrounds.
+ * Non-diff fences keep sequential 1…n numbering of the fence body.
+ * Tall fences auto-collapse behind a gradient mask + expand toggle.
+ */
+function CodeBodyWithLineNumbers({
+  source,
+  language,
+  defaultCollapsed = true,
+}: {
+  source: string;
+  language: string;
+  /** When false (e.g. streaming), keep expanded so new lines stay visible. */
+  defaultCollapsed?: boolean;
+}): ReactElement {
+  const normalizedLang = normalizeLanguage(language);
+  const isDiff = normalizedLang === 'diff';
+  const lines = useMemo(() => source.split('\n'), [source]);
+  const tokenLines = useHighlight(source, normalizedLang);
+  const diffLineNumbers = useMemo(() => {
+    if (!isDiff) return null;
+    return computeDiffLineNumbers(parseUnifiedDiff(source));
+  }, [isDiff, source]);
+
+  const body = (
+    <pre className={`md-code${isDiff ? ' md-code-diff' : ''}`}>
+      <div className="md-code-content" data-language={language || undefined}>
+        {lines.map((line, index) => {
+          const tokens: TokenLine | null = tokenLines?.[index] ?? null;
+          let lineClass = 'md-code-line';
+          if (isDiff) {
+            const marker = line.charAt(0);
+            if (marker === '+') lineClass += ' diff-line-add';
+            else if (marker === '-') lineClass += ' diff-line-delete';
+            else lineClass += ' diff-line-context';
+          }
+
+          let gutter: ReactNode;
+          if (diffLineNumbers) {
+            const nums = diffLineNumbers[index];
+            gutter = (
+              <>
+                <span className="md-code-line-num md-code-line-num-old" aria-hidden>
+                  {nums?.old ?? ''}
+                </span>
+                <span className="md-code-line-num md-code-line-num-new" aria-hidden>
+                  {nums?.new ?? ''}
+                </span>
+              </>
+            );
+          } else {
+            gutter = (
+              <span className="md-code-line-num" aria-hidden>
+                {index + 1}
+              </span>
+            );
+          }
+
+          return (
+            <div key={index} className={lineClass}>
+              {gutter}
+              <span className="md-code-line-text">
+                {tokens ? <TokenSpans tokens={tokens} /> : line}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </pre>
+  );
+
+  return (
+    <CollapsibleContentBlock
+      maxCollapsedHeight={CODE_FENCE_COLLAPSED_HEIGHT_PX}
+      defaultCollapsed={defaultCollapsed}
+      className="md-code-collapsible"
+    >
+      {body}
+    </CollapsibleContentBlock>
+  );
 }
 
 /**
@@ -146,12 +246,7 @@ export function MarkdownView({
         }
         if (block.type === 'heading') {
           const HeadingTag = `h${Math.min(6, Math.max(1, block.level))}` as
-            | 'h1'
-            | 'h2'
-            | 'h3'
-            | 'h4'
-            | 'h5'
-            | 'h6';
+            'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
           return (
             <HeadingTag key={index} className={`md-h md-h${block.level}`}>
               {renderInline(block.text, onOpenDocument)}
@@ -197,9 +292,7 @@ export function MarkdownView({
                 <div className="md-callout-header">
                   <span className="md-callout-badge">{block.kind.toUpperCase()}</span>
                 </div>
-                <div className="md-callout-body">
-                  {renderInline(block.text, onOpenDocument)}
-                </div>
+                <div className="md-callout-body">{renderInline(block.text, onOpenDocument)}</div>
               </div>
             );
           }
@@ -311,13 +404,21 @@ function CodeFenceView(props: {
       >
         <div className="md-code-header">
           <div className="md-code-header-title">
-            {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
-            <span className="md-code-lang muted">{props.language || (isShell ? 'bash' : 'code')}</span>
+            {isShell ? (
+              <span className="md-code-shell-icon" aria-hidden="true">
+                $
+              </span>
+            ) : null}
+            <span className="md-code-lang muted">
+              {props.language || (isShell ? 'bash' : 'code')}
+            </span>
           </div>
         </div>
-        <pre className="md-code">
-          <code data-language={props.language || undefined}>{props.source}</code>
-        </pre>
+        <CodeBodyWithLineNumbers
+          source={props.source}
+          language={props.language}
+          defaultCollapsed={false}
+        />
       </div>
     );
   }
@@ -369,14 +470,18 @@ function CodeFenceView(props: {
         >
           <div className="md-code-header">
             <div className="md-code-header-title">
-              {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
-              <span className="md-code-lang muted">{props.language || (isShell ? 'bash' : 'code')}</span>
+              {isShell ? (
+                <span className="md-code-shell-icon" aria-hidden="true">
+                  $
+                </span>
+              ) : null}
+              <span className="md-code-lang muted">
+                {props.language || (isShell ? 'bash' : 'code')}
+              </span>
             </div>
             <CopyCodeButton text={props.source} />
           </div>
-          <pre className="md-code">
-            <code data-language={props.language || undefined}>{props.source}</code>
-          </pre>
+          <CodeBodyWithLineNumbers source={props.source} language={props.language} />
         </div>
       );
     }
@@ -393,14 +498,16 @@ function CodeFenceView(props: {
           >
             <div className="md-code-header">
               <div className="md-code-header-title">
-                {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
+                {isShell ? (
+                  <span className="md-code-shell-icon" aria-hidden="true">
+                    $
+                  </span>
+                ) : null}
                 <span className="md-code-lang muted">{props.language || 'html'}</span>
               </div>
               <CopyCodeButton text={props.source} />
             </div>
-            <pre className="md-code">
-              <code data-language={props.language || undefined}>{props.source}</code>
-            </pre>
+            <CodeBodyWithLineNumbers source={props.source} language={props.language} />
           </div>
           <div className="artifact-blocked muted" data-testid="artifact-blocked" role="status">
             Artifact blocked
@@ -441,7 +548,11 @@ function CodeFenceView(props: {
           >
             <div className="md-code-header">
               <div className="md-code-header-title">
-                {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
+                {isShell ? (
+                  <span className="md-code-shell-icon" aria-hidden="true">
+                    $
+                  </span>
+                ) : null}
                 <span className="md-code-lang muted">{props.language || 'html'}</span>
               </div>
               <div className="md-code-header-actions">
@@ -456,9 +567,7 @@ function CodeFenceView(props: {
                 </Button>
               </div>
             </div>
-            <pre className="md-code">
-              <code data-language={props.language || undefined}>{props.source}</code>
-            </pre>
+            <CodeBodyWithLineNumbers source={props.source} language={props.language} />
           </div>
         )}
       </div>
@@ -473,14 +582,21 @@ function CodeFenceView(props: {
     >
       <div className="md-code-header">
         <div className="md-code-header-title">
-          {isShell ? <span className="md-code-shell-icon" aria-hidden="true">$</span> : null}
-          <span className="md-code-lang muted">{decision.language || (isShell ? 'bash' : 'code')}</span>
+          {isShell ? (
+            <span className="md-code-shell-icon" aria-hidden="true">
+              $
+            </span>
+          ) : null}
+          <span className="md-code-lang muted">
+            {decision.language || (isShell ? 'bash' : 'code')}
+          </span>
         </div>
         <CopyCodeButton text={decision.source} />
       </div>
-      <pre className="md-code">
-        <code data-language={decision.language || undefined}>{decision.source}</code>
-      </pre>
+      <CodeBodyWithLineNumbers
+        source={decision.source}
+        language={decision.language ?? props.language}
+      />
     </div>
   );
 }
@@ -517,9 +633,7 @@ function FlashcardPreviewCard(props: {
             </Button>
           </div>
         </div>
-        <pre className="md-code">
-          <code data-language={props.language || undefined}>{props.source}</code>
-        </pre>
+        <CodeBodyWithLineNumbers source={props.source} language={props.language} />
       </div>
     );
   }

@@ -59,6 +59,7 @@ function createContextValue(
     requestSkills: noopRequest,
     requestMcp: noopRequest,
     requestExtensions: noopRequest,
+    requestPlugins: noopRequest,
     requestPrompts: noopRequest,
     requestTheme: noopRequest,
     requestPet: noopRequest,
@@ -189,14 +190,18 @@ describe('SettingsShell', () => {
     });
     expect(container.querySelector('[data-testid="settings-models"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-settings"]')).not.toBeNull();
-    // Model directory row with inline-expandable runtime limits.
-    expect(container.querySelector('[data-testid="model-dir-row"]')).not.toBeNull();
-    const row = container.querySelector<HTMLButtonElement>('[data-testid="model-dir-row"]');
+    // Open the provider drawer; model directory only lives inside the drawer now.
+    const providerRow = container.querySelector<HTMLElement>(
+      '[data-testid="provider-row-deepseek"]',
+    );
+    expect(providerRow).not.toBeNull();
     act(() => {
-      row?.click();
+      providerRow?.click();
     });
-    expect(container.querySelector('[data-testid="model-edit-context"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="model-edit-output"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="provider-drawer"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="provider-model-list"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="provider-model-row"]')).not.toBeNull();
+    expect(container.querySelector('.provider-editor-modal')).not.toBeNull();
   });
 
   it('renders Wave-2 sections through the registry, not the legacy fallback', async () => {

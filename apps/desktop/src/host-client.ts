@@ -48,6 +48,9 @@ function getHostRequestTimeoutMs(command: HostCommand): number {
     case 'mcp/stop':
     case 'skills/install':
     case 'extensions/install':
+    case 'plugins/install':
+    case 'plugins/uninstall':
+    case 'plugins/registry/list':
     case 'theme/install-local':
     case 'pet/install-local':
     case 'pet/install-registry':

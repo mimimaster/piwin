@@ -1117,7 +1117,8 @@
 
 .thinking-effort-popover.ultra-active .thinking-effort-chip.is-active {
   background: var(--violet);
-  color: #fff;
+  /* Violet is mid-luminance on both themes — force light ink for contrast. */
+  color: #ffffff;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--violet) 35%, transparent);
 }
 

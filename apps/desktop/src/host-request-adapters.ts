@@ -9,6 +9,7 @@ import type {
   McpServerConfig,
   ModelProviderConfig,
   PiwinConfig,
+  PluginInstallSource,
 } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 
@@ -70,6 +71,18 @@ export type HostRequestAdapters = {
     enabled?: boolean;
     source?: InstallSource;
     name?: string;
+  }) => Promise<HostResponse>;
+  requestPlugins: (command: {
+    type:
+      | 'plugins/list'
+      | 'plugins/install'
+      | 'plugins/uninstall'
+      | 'plugins/registry/list'
+      | 'plugins/secrets/collect';
+    source?: PluginInstallSource;
+    pluginId?: string;
+    secrets?: Record<string, string>;
+    registryUrl?: string;
   }) => Promise<HostResponse>;
   requestPrompts: (command: {
     type: 'prompts/list' | 'prompts/set_enabled';
@@ -326,6 +339,46 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         extensionId: command.extensionId ?? '',
         enabled: command.enabled === true,
       });
+    },
+    requestPlugins: async (command) => {
+      if (command.type === 'plugins/list') {
+        return hostClient.request({ type: 'plugins/list' });
+      }
+      if (command.type === 'plugins/registry/list') {
+        const payload: { type: 'plugins/registry/list'; registryUrl?: string } = {
+          type: 'plugins/registry/list',
+        };
+        if (command.registryUrl) payload.registryUrl = command.registryUrl;
+        return hostClient.request(payload);
+      }
+      if (command.type === 'plugins/secrets/collect') {
+        return hostClient.request({
+          type: 'plugins/secrets/collect',
+          pluginId: command.pluginId ?? '',
+          secrets: command.secrets ?? {},
+        });
+      }
+      if (command.type === 'plugins/uninstall') {
+        return hostClient.request({
+          type: 'plugins/uninstall',
+          pluginId: command.pluginId ?? '',
+        });
+      }
+      if (!command.source) {
+        return {
+          type: 'response',
+          command: 'plugins/install',
+          success: false,
+          error: 'missing install source',
+        };
+      }
+      const payload: {
+        type: 'plugins/install';
+        source: PluginInstallSource;
+        secrets?: Record<string, string>;
+      } = { type: 'plugins/install', source: command.source };
+      if (command.secrets) payload.secrets = command.secrets;
+      return hostClient.request(payload);
     },
     requestPrompts: async (command) => {
       if (command.type === 'prompts/list') {

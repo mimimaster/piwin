@@ -105,6 +105,8 @@ export function PetPanel(props: PetPanelProps) {
   const [registryResults, setRegistryResults] = useState<PetStoreQueryResult[]>([]);
   const [registryQuery, setRegistryQuery] = useState('');
   const [registryBusy, setRegistryBusy] = useState(false);
+  /** CodexPetHub slug for one-shot install (npx codexpethub install <slug>). */
+  const [slugInput, setSlugInput] = useState('');
   /** Request id of the in-flight registry install, so the Cancel button can
    * target it with `pet/cancel`. Cleared on completion (success or failure). */
   const [installRequestId, setInstallRequestId] = useState<string | null>(null);
@@ -130,25 +132,25 @@ export function PetPanel(props: PetPanelProps) {
     setRegistryBusy(true);
     setError(null);
     setInfo(null);
-    // The registry provider accepts a JSON-encoded catalog entry (carrying
-    // sha256/size for verification) or a bare URL. We send the full entry so
-    // the download step can verify checksum + size without re-querying.
-    const entry = JSON.stringify({
-      id: result.petId,
-      displayName: result.displayName,
-      ...(result.description ? { description: result.description } : {}),
-      ...(result.version ? { version: result.version } : {}),
-      url: result.location,
-      sha256: result.sha256 ?? '',
-      sizeBytes: result.sizeBytes ?? 0,
-    });
-    // Pre-generate the request id so the Cancel button can cancel this exact
-    // install via `pet/cancel` while it is still in flight.
+    // Prefer slug install-manifest when we only have an id; otherwise send the
+    // full catalog entry for legacy zip registries.
+    const payload =
+      result.location && result.sha256
+        ? JSON.stringify({
+            id: result.petId,
+            displayName: result.displayName,
+            ...(result.description ? { description: result.description } : {}),
+            ...(result.version ? { version: result.version } : {}),
+            url: result.location,
+            sha256: result.sha256,
+            sizeBytes: result.sizeBytes ?? 0,
+          })
+        : result.petId;
     const requestId = `pet-install-${++installIdCounter.current}`;
     setInstallRequestId(requestId);
     const response = await props.request({
       type: 'pet/install-registry',
-      url: entry,
+      url: payload,
       id: requestId,
     });
     setInstallRequestId(null);
@@ -160,7 +162,40 @@ export function PetPanel(props: PetPanelProps) {
     const data = response.data as { petId: string; path: string };
     setInfo(isChinese ? `已安装 ${data.petId}` : `Installed ${data.petId}`);
     await reload();
-    await handleQueryRegistry();
+    if (registryResults.length > 0) await handleQueryRegistry();
+  }
+
+  async function handleInstallBySlug(): Promise<void> {
+    const slug = slugInput.trim();
+    if (!slug) {
+      setError(isChinese ? '请输入宠物 id（例如 blankie）。' : 'Enter a pet id (e.g. blankie).');
+      return;
+    }
+    setRegistryBusy(true);
+    setError(null);
+    setInfo(null);
+    const requestId = `pet-install-${++installIdCounter.current}`;
+    setInstallRequestId(requestId);
+    // Bare slug → host uses CodexPetHub install-manifest API.
+    const response = await props.request({
+      type: 'pet/install-registry',
+      url: slug,
+      id: requestId,
+    });
+    setInstallRequestId(null);
+    setRegistryBusy(false);
+    if (!response.success) {
+      setError(response.error);
+      return;
+    }
+    const data = response.data as { petId: string; path: string };
+    setInfo(
+      isChinese
+        ? `已安装 ${data.petId}（可在上方列表中激活）`
+        : `Installed ${data.petId} — activate it from the list above`,
+    );
+    setSlugInput('');
+    await reload();
   }
 
   async function handleCancelInstall(): Promise<void> {
@@ -264,11 +299,57 @@ export function PetPanel(props: PetPanelProps) {
 
         <div className="settings-section">
           <PageTitle
+            title={isChinese ? '按 ID 安装' : 'Install by ID'}
+            description={
+              isChinese
+                ? '对齐 npx codex-pets add / npx codexpethub install：输入宠物 id，自动从 CodexPetHub 或 codex-pets.net 下载校验安装。'
+                : 'Same as npx codex-pets add / npx codexpethub install: enter a pet id to download + verify from CodexPetHub or codex-pets.net.'
+            }
+          />
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ flex: 1 }}>
+              <input
+                value={slugInput}
+                onChange={(e) => setSlugInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleInstallBySlug();
+                }}
+                placeholder={
+                  isChinese ? '例如 blankie、round-puff-pink' : 'e.g. blankie, round-puff-pink'
+                }
+                data-testid="pet-slug-input"
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--line-soft)',
+                  background: 'var(--surface-raised)',
+                  color: 'var(--text)',
+                }}
+              />
+            </div>
+            <Button
+              disabled={registryBusy || !slugInput.trim()}
+              onClick={() => void handleInstallBySlug()}
+              data-testid="pet-slug-install"
+            >
+              {isChinese ? '安装' : 'Install'}
+            </Button>
+            {registryBusy && installRequestId ? (
+              <Button variant="ghost" onClick={() => void handleCancelInstall()}>
+                {isChinese ? '取消' : 'Cancel'}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <PageTitle
             title={isChinese ? '远程仓库' : 'Registry'}
             description={
               isChinese
-                ? '从 CodexPetHub 浏览并安装伙伴。'
-                : 'Browse and install companions from CodexPetHub.'
+                ? '从 CodexPetHub 浏览并安装伙伴（catalog 可用时）。'
+                : 'Browse and install companions from CodexPetHub when catalog is available.'
             }
           />
           <div style={{ display: 'flex', gap: '12px' }}>

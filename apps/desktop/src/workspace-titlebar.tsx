@@ -59,16 +59,25 @@ function startNativeWindowDrag(): void {
 
 export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
+  const isEnglish = props.locale === 'en';
   const canGoBack = props.canGoBack === true;
   const canGoForward = props.canGoForward === true;
   const workPanelOpen = props.workPanelOpen === true;
   const workPanelLabel = workPanelOpen
-    ? props.locale === 'en'
+    ? isEnglish
       ? 'Collapse workspace panel'
       : '收起右侧工作面板'
-    : props.locale === 'en'
+    : isEnglish
       ? 'Expand workspace panel'
       : '展开右侧工作面板';
+  const themeToggleLabel =
+    props.appearanceMode === 'light'
+      ? isEnglish
+        ? 'Switch to dark theme'
+        : '切换到深色主题'
+      : isEnglish
+        ? 'Switch to light theme'
+        : '切换到浅色主题';
 
   const sessionName = props.sessionName?.trim() ?? '';
   const projectName = props.projectName?.trim() || undefined;
@@ -180,6 +189,19 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
       />
 
       <div className="titlebar-actions" role="toolbar" aria-label="Tools">
+        {props.onToggleAppearance ? (
+          <IconButton
+            className="titlebar-theme-toggle"
+            data-testid="titlebar-theme-toggle"
+            label={themeToggleLabel}
+            title={themeToggleLabel}
+            aria-pressed={props.appearanceMode === 'dark'}
+            onClick={() => props.onToggleAppearance?.()}
+          >
+            {props.appearanceMode === 'light' ? <IconMoon /> : <IconSun />}
+          </IconButton>
+        ) : null}
+
         <div className="more-menu-wrap">
           <DropdownMenu
             label="More tools"
@@ -197,13 +219,6 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
             </DropdownMenuItem>
             <DropdownMenuItem testId="more-mcp" onSelect={() => props.onOpenMcp?.()}>
               <IconMcp width={16} height={16} /> MCP
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              testId="more-appearance"
-              onSelect={() => props.onToggleAppearance?.()}
-            >
-              {props.appearanceMode === 'light' ? <IconMoon /> : <IconSun />}{' '}
-              {props.appearanceMode === 'light' ? 'Dark mode' : 'Light mode'}
             </DropdownMenuItem>
             {props.onOpenSettings ? (
               <DropdownMenuItem testId="more-settings" onSelect={() => props.onOpenSettings?.()}>

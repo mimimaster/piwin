@@ -16,17 +16,59 @@
 }
 
 .sidebar {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
   gap: 0;
   padding: 10px 8px;
   background: var(--sidebar);
-  border-right: none;
+  /* Quiet column divider — matches Cursor-style workbench chrome. */
+  border-right: 1px solid var(--column-divider, var(--border));
   transition:
     opacity 200ms ease,
     transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
   backface-visibility: hidden;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.sidebar.is-resizing {
+  transition: none;
+  will-change: width;
+  user-select: none;
+}
+
+/* Right-edge drag handle for desktop navigator width. */
+.sidebar-resize-handle {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  right: -6px;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.sidebar-resize-handle::after {
+  position: absolute;
+  top: 50%;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  height: 42px;
+  border-radius: 1px;
+  background: transparent;
+  content: '';
+  transform: translateY(-50%);
+  transition: background 120ms ease;
+}
+
+.sidebar-resize-handle:hover::after,
+.sidebar.is-resizing .sidebar-resize-handle::after {
+  background: var(--accent);
 }
 
 /* Compact layout: sidebar is a left drawer over the stage. */
@@ -74,8 +116,6 @@
   margin-bottom: 8px;
 }
 
-
-
 .sidebar-new-agent {
   display: flex;
   align-items: center;
@@ -88,29 +128,33 @@
   border: none;
   border-radius: 8px;
   /* Paper/Noir reversal: accent=coral/white, accent-fg=white/black.
-     Light → coral button w/ white text; Noir → white button w/ black text. */
+     Light → coral button w/ white text; Noir → soft light button w/ dark text.
+     Avoid heavy glow — pure white + large shadow reads as "glare" on dark. */
   background: var(--accent);
   color: var(--accent-fg);
   cursor: pointer;
   font-size: 12.5px;
   font-weight: 600;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 24%, transparent);
+  box-shadow: none;
   transition:
     transform 140ms ease,
     filter 140ms ease,
-    box-shadow 140ms ease;
+    background 140ms ease;
 }
 
 .sidebar-new-agent:hover:not(:disabled) {
-  filter: brightness(1.06);
+  filter: brightness(1.04);
   transform: translateY(-0.5px);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
 .sidebar-new-agent:active:not(:disabled) {
   filter: brightness(0.96);
   transform: scale(0.985);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* Dark: slightly dim the solid accent fill so the CTA is clear but not glaring. */
+html[data-theme-mode='dark'] .sidebar-new-agent {
+  background: color-mix(in srgb, var(--accent) 88%, var(--panel));
 }
 
 .sidebar-new-agent:disabled {
@@ -136,7 +180,9 @@
   border-radius: 7px;
   background: color-mix(in srgb, var(--text) 5%, var(--sidebar));
   font-size: 12px;
-  transition: box-shadow 140ms ease, background 140ms ease;
+  transition:
+    box-shadow 140ms ease,
+    background 140ms ease;
 }
 
 .search-field:focus-within {
@@ -282,10 +328,34 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 6px;
   padding: 0 4px;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-folder-tree:hover {
+  scrollbar-color: color-mix(in srgb, var(--text) 20%, transparent) transparent;
+}
+
+.sidebar-folder-tree::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar-folder-tree::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-folder-tree::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.sidebar-folder-tree:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 20%, transparent);
 }
 
 .tree-header-row {
@@ -317,7 +387,9 @@
   color: var(--muted);
   font-size: 12.5px;
   font-weight: 550;
-  transition: background 120ms ease, color 120ms ease;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
 }
 
 .tree-folder-summary::-webkit-details-marker {
@@ -354,6 +426,11 @@
 
 .tree-folder-summary:hover .tree-folder-icon,
 .tree-folder-summary.active .tree-folder-icon {
+  color: var(--text);
+}
+
+html[data-theme-mode='light'] .tree-folder-summary:hover .tree-folder-icon,
+html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
   color: var(--accent);
 }
 
@@ -368,7 +445,10 @@
   color: var(--faint);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 120ms ease, background 120ms ease, color 120ms ease;
+  transition:
+    opacity 120ms ease,
+    background 120ms ease,
+    color 120ms ease;
 }
 
 .tree-folder-summary:hover .tree-folder-add-btn {
@@ -380,9 +460,11 @@
   color: var(--text);
 }
 
+/* Project + Conversations session rows share the same indent/typography
+   so nested project sessions match the Conversations list below. */
 .tree-session-list {
   list-style: none;
-  margin: 3px 0 6px 18px;
+  margin: 3px 0 6px 4px;
   padding: 0;
   border-left: none;
   display: flex;
@@ -395,28 +477,48 @@
 }
 
 .see-all-row {
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .sidebar-see-all-btn {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   width: 100%;
-  padding: 5px 10px;
+  padding: 6px 10px;
   border: none;
   border-radius: 6px;
-  background: transparent;
+  /* Readable action, not a second primary CTA — avoid pure accent glare on dark. */
+  background: color-mix(in srgb, var(--text) 6%, transparent);
   color: var(--muted);
   font-size: 12.5px;
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   cursor: pointer;
   text-align: left;
-  transition: background var(--motion-quick, 120ms) ease, color var(--motion-quick, 120ms) ease;
+  transition:
+    background var(--motion-quick, 120ms) ease,
+    color var(--motion-quick, 120ms) ease;
 }
 
 .sidebar-see-all-btn:hover {
-  background: var(--hover);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
   color: var(--text);
+}
+
+.sidebar-see-all-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--text) 28%, transparent);
+  outline-offset: 1px;
+}
+
+html[data-theme-mode='light'] .sidebar-see-all-btn {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+}
+
+html[data-theme-mode='light'] .sidebar-see-all-btn:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
 }
 
 /* ── Sessions list ────────────────────────────────────────────────── */
@@ -425,7 +527,31 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-sessions:hover {
+  scrollbar-color: color-mix(in srgb, var(--text) 20%, transparent) transparent;
+}
+
+.sidebar-sessions::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-sessions::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-sessions::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.sidebar-sessions:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 20%, transparent);
 }
 
 .sessions-empty {
@@ -438,7 +564,6 @@
   flex-direction: column;
   gap: 10px;
   padding: 0 1px;
-  overflow: auto;
   flex: 1;
   min-height: 0;
 }
@@ -453,7 +578,6 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  overflow: auto;
   flex: 1;
   min-height: 0;
 }
@@ -480,7 +604,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease, padding-right 140ms ease;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease,
+    padding-right 140ms ease;
 }
 
 .session-row:hover .session-item,
@@ -495,7 +623,12 @@
 
 .session-item.active {
   background: var(--selected);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  /* No bright accent ring — that read as "glare" on dark sidebars. */
+  box-shadow: none;
+}
+
+html[data-theme-mode='light'] .session-item.active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .session-item-body {
@@ -548,7 +681,9 @@
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
   opacity: 0.75;
-  transition: opacity 140ms ease, color 140ms ease;
+  transition:
+    opacity 140ms ease,
+    color 140ms ease;
   pointer-events: none;
 }
 
@@ -584,7 +719,9 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: opacity 120ms ease, visibility 120ms ease;
+  transition:
+    opacity 120ms ease,
+    visibility 120ms ease;
 }
 
 .session-row:hover .session-row-actions,
@@ -607,7 +744,9 @@
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: color 0.12s ease, background 0.12s ease;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
 }
 
 .session-action-btn:hover,
@@ -619,8 +758,6 @@
 .session-action-btn.active {
   color: var(--accent, #3b82f6);
 }
-
-
 
 /* ── Projects (collapsible details) ───────────────────────────────── */
 
@@ -707,6 +844,10 @@
 }
 
 .repository-row.active > svg {
+  color: var(--text);
+}
+
+html[data-theme-mode='light'] .repository-row.active > svg {
   color: var(--accent);
 }
 
@@ -838,15 +979,14 @@
 
 /* ── Proto-aligned extras: avatar + live indicator ─────────────────── */
 
-/* User avatar circle in the footer (proto .sb-foot .who .avatar).
-   #fff is intentional — text is always white on the accent fill. */
+/* User avatar circle in the footer (proto .sb-foot .who .avatar). */
 .sidebar-footer .avatar {
   display: grid;
   place-items: center;
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  color: #fff;
+  color: var(--accent-fg, #ffffff);
   background: var(--accent);
   font-size: 10px;
   font-weight: 600;

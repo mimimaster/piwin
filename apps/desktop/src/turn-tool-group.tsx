@@ -23,6 +23,7 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
     (tool) => tool.status === 'running' || tool.status === 'error',
   );
   const completed = tools.filter((tool) => tool.status === 'done');
+  // Keep 1–2 tool cards visible (Command-style). Only batch-collapse longer runs.
   const shouldCollapse = tools.length >= 3 && completed.length === tools.length;
 
   const [expanded, setExpanded] = useState(!shouldCollapse);

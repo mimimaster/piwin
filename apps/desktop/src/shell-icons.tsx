@@ -198,15 +198,26 @@ export function IconSkill(props: IconProps): ReactElement {
   );
 }
 
-/** Model Context Protocol server node network vector icon */
+/**
+ * Official Model Context Protocol mark (chain-link glyph).
+ * Source: modelcontextprotocol favicon / simple-icons `modelcontextprotocol`.
+ * Filled path so it stays crisp at 14–16px nav sizes.
+ */
 export function IconMcp(props: IconProps): ReactElement {
   return (
-    <IconBase {...props}>
-      <rect x="4" y="4" width="5.5" height="5.5" rx="1.5" />
-      <rect x="14.5" y="4" width="5.5" height="5.5" rx="1.5" />
-      <rect x="9.25" y="14.5" width="5.5" height="5.5" rx="1.5" />
-      <path d="M6.75 9.5v2a2 2 0 0 0 2 2h6.5a2 2 0 0 0 2-2V9.5M12 13.5V14.5" />
-    </IconBase>
+    <svg
+      viewBox="0 0 24 24"
+      width="1em"
+      height="1em"
+      fill="currentColor"
+      stroke="none"
+      aria-hidden
+      {...props}
+    >
+      {/* Official MCP logo — interlocking chain links */}
+      <path d="M15.688 2.343a2.588 2.588 0 0 0-3.61 0l-9.626 9.44a.863.863 0 0 1-1.203 0 .823.823 0 0 1 0-1.18l9.626-9.44a4.313 4.313 0 0 1 6.016 0 4.116 4.116 0 0 1 1.204 3.54 4.3 4.3 0 0 1 3.609 1.18l.05.05a4.115 4.115 0 0 1 0 5.9l-8.706 8.537a.274.274 0 0 0 0 .393l1.788 1.754a.823.823 0 0 1 0 1.18.863.863 0 0 1-1.203 0l-1.788-1.753a1.92 1.92 0 0 1 0-2.754l8.706-8.538a2.47 2.47 0 0 0 0-3.54l-.05-.049a2.588 2.588 0 0 0-3.607-.003l-7.172 7.034-.002.002-.098.097a.863.863 0 0 1-1.204 0 .823.823 0 0 1 0-1.18l7.273-7.133a2.47 2.47 0 0 0-.003-3.537z" />
+      <path d="M14.485 4.703a.823.823 0 0 0 0-1.18.863.863 0 0 0-1.204 0l-7.119 6.982a4.115 4.115 0 0 0 0 5.9 4.314 4.314 0 0 0 6.016 0l7.12-6.982a.823.823 0 0 0 0-1.18.863.863 0 0 0-1.204 0l-7.119 6.982a2.588 2.588 0 0 1-3.61 0 2.47 2.47 0 0 1 0-3.54l7.12-6.982z" />
+    </svg>
   );
 }
 
@@ -342,6 +353,14 @@ export function IconChevronDown(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
       <path d="M6.5 9.5l5.5 5.5 5.5-5.5" />
+    </IconBase>
+  );
+}
+
+export function IconChevronUp(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M6.5 14.5l5.5-5.5 5.5 5.5" />
     </IconBase>
   );
 }
@@ -515,6 +534,16 @@ export function IconChevronRight(props: IconProps): ReactElement {
   );
 }
 
+/** Pencil / edit glyph (lucide Pencil path) for row actions. */
+export function IconEdit(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+      <path d="m15 5 4 4" />
+    </IconBase>
+  );
+}
+
 export function IconNote(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
@@ -610,13 +639,18 @@ export function IconExpand(props: IconProps): ReactElement {
   );
 }
 
-/** Brain / thinking icon for thought summary. */
+/**
+ * Brain / thinking icon (lucide-style outline).
+ * Only use for model reasoning / thoughts — never for tool/bash rows.
+ */
 export function IconBrain(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
-      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
-      <path d="M12 5v13" />
+      <path d="M12 18V5" />
+      <path d="M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4" />
+      <path d="M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5" />
+      <path d="M17.997 5.125a4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18" />
+      <path d="M6.003 5.125a4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18" />
     </IconBase>
   );
 }

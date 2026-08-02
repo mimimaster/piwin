@@ -97,7 +97,8 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
           <IconFile className="files-changed-bar-icon" />
           <span className="files-changed-bar-count">{countLabel}</span>
           {singleFile && !expanded ? (
-            <span className="files-changed-bar-file-pill" title={singleFile.path}>
+            <span className="files-changed-bar-file-inline" title={singleFile.path}>
+              <IconFile className="files-changed-bar-file-inline-icon" />
               <span className="files-changed-bar-file-name">{singleFile.name}</span>
             </span>
           ) : null}

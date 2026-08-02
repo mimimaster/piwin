@@ -77,16 +77,14 @@
    to compact. */
 @media (max-width: 1050px) {
   .app-shell[data-layout='desktop'] {
-    grid-template-columns: minmax(220px, var(--sidebar-width)) minmax(0, 1fr);
+    /* Use the live --sidebar-width (user-resizable); do not re-cap at 220. */
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
     grid-template-areas:
       'topbar topbar'
       'nav stage';
   }
   .app-shell[data-layout='desktop'].has-right-panel {
-    grid-template-columns: minmax(220px, var(--sidebar-width)) minmax(0, 1fr) var(
-        --right-panel-width,
-        320px
-      );
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
     grid-template-areas:
       'topbar topbar topbar'
       'nav stage signal';
@@ -165,7 +163,6 @@ html[data-theme-mode='light'] .workspace {
   padding: 0;
   overflow: hidden;
 }
-
 
 /* ── App-level error boundary ─────────────────────────────────────── */
 

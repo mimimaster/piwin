@@ -33,6 +33,21 @@ describe('petToActivityInput', () => {
     expect(result?.activeToolName).toBe('read_file');
   });
 
+  it('forwards detail and actionVerb for the bubble work line', () => {
+    const pet = createPet({
+      state: 'running',
+      activity: {
+        toolName: 'read',
+        phase: 'tool-running',
+        detail: 'packages/pet/src/index.ts',
+        actionVerb: 'Read',
+      },
+    });
+    const result = petToActivityInput(pet, 'en');
+    expect(result?.detail).toBe('packages/pet/src/index.ts');
+    expect(result?.actionVerb).toBe('Read');
+  });
+
   it('maps waiting state to waiting-permission', () => {
     const pet = createPet({
       state: 'waiting',

@@ -1,9 +1,10 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { Button } from '@piwin/ui-kit';
 import { PathChip } from './path-chip';
 import { MermaidBlock } from './MermaidBlock';
 import { renderKatex, isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
 import { IconCommentAction } from './shell-icons';
+import { useHighlight, TokenSpans, normalizeLanguage, type TokenLine } from './syntax-highlight';
 
 export type LineCommentItem = {
   id: string;
@@ -659,6 +660,9 @@ function CodeBlockView({
   const FOLD_THRESHOLD = 16;
   const isLong = lines.length > FOLD_THRESHOLD;
   const visibleLines = isLong && !expanded ? lines.slice(0, FOLD_THRESHOLD) : lines;
+  const visibleSource = useMemo(() => visibleLines.join('\n'), [visibleLines]);
+  const highlightLang = isDiff ? 'diff' : normalizeLanguage(language);
+  const tokenLines = useHighlight(visibleSource, highlightLang);
 
   return (
     <div className={`enhanced-code-block${isLong && !expanded ? ' folded' : ''}`}>
@@ -685,6 +689,7 @@ function CodeBlockView({
                 : isDel
                   ? 'diff-line-delete'
                   : 'diff-line-context';
+              const tokens: TokenLine | null = tokenLines?.[idx] ?? null;
 
               return (
                 <LineCommentWrapper
@@ -698,7 +703,12 @@ function CodeBlockView({
                   onCommentLine={onCommentLine}
                   className={`diff-line ${lineClass}`}
                 >
-                  <span className="code-line-text">{line}</span>
+                  <span className="code-line-num" aria-hidden>
+                    {idx + 1}
+                  </span>
+                  <span className="code-line-text">
+                    {tokens ? <TokenSpans tokens={tokens} /> : line}
+                  </span>
                 </LineCommentWrapper>
               );
             })}

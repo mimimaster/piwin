@@ -61,7 +61,11 @@ export function ThemePanel(props: ThemePanelProps) {
   async function handleInstall(): Promise<void> {
     const sourcePath = installPath.trim();
     if (!sourcePath) {
-      setError(isChinese ? '请提供包含 theme.json 的本地目录。' : 'Provide a local directory containing theme.json.');
+      setError(
+        isChinese
+          ? '请提供包含 theme.json 的本地目录。'
+          : 'Provide a local directory containing theme.json.',
+      );
       return;
     }
     setBusy(true);
@@ -81,17 +85,30 @@ export function ThemePanel(props: ThemePanelProps) {
 
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
-      <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
+      <div
+        className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}
+      >
         <div className="theme-panel-header">
           <div>
             <h3>{isChinese ? '主题' : 'Themes'}</h3>
             <p className="muted">
-              {isChinese
-                ? <>主题包仅包含 token（颜色、圆角、字体），不执行 CSS 或 JavaScript，存储于 ~/.piwin/themes。</>
-                : <>Token packages only (colors/radius/font). No executable CSS/JS. Stored under ~/.piwin/themes.</>}
+              {isChinese ? (
+                <>
+                  主题包仅包含 token（颜色、圆角、字体），不执行 CSS 或 JavaScript，存储于
+                  ~/.piwin/themes。
+                </>
+              ) : (
+                <>
+                  Token packages only (colors/radius/font). No executable CSS/JS. Stored under
+                  ~/.piwin/themes.
+                </>
+              )}
             </p>
           </div>
-          <div className="theme-panel-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div
+            className="theme-panel-actions"
+            style={{ display: 'flex', gap: 8, alignItems: 'center' }}
+          >
             <Button
               size="compact"
               variant="ghost"
@@ -101,14 +118,19 @@ export function ThemePanel(props: ThemePanelProps) {
               {common.refresh}
             </Button>
             {props.variant !== 'inline' ? (
-              <Button size="compact" variant="ghost" onClick={props.onClose} data-testid="theme-close">
+              <Button
+                size="compact"
+                variant="ghost"
+                onClick={props.onClose}
+                data-testid="theme-close"
+              >
                 {common.close}
               </Button>
             ) : null}
           </div>
         </div>
 
-        {(error || info) ? (
+        {error || info ? (
           <div className="ui-feedback-host" aria-live="polite">
             {error ? <Notice tone="error">{error}</Notice> : null}
             {info ? <Notice tone="info">{info}</Notice> : null}
@@ -132,7 +154,6 @@ export function ThemePanel(props: ThemePanelProps) {
                 </div>
               </div>
               <Button
-                variant="primary"
                 data-testid={`theme-apply-${theme.id}`}
                 disabled={busy || theme.id === activeId}
                 onClick={() => void handleActivate(theme.id)}
@@ -143,7 +164,11 @@ export function ThemePanel(props: ThemePanelProps) {
           ))}
         </ul>
 
-        <div className="settings-section" data-testid="theme-install-section" style={{ paddingTop: 8 }}>
+        <div
+          className="settings-section"
+          data-testid="theme-install-section"
+          style={{ paddingTop: 8 }}
+        >
           <button
             type="button"
             className="settings-collapsible-trigger"
@@ -191,12 +216,18 @@ export function ThemePanel(props: ThemePanelProps) {
                   }
                 }}
               />
-              <Button disabled={busy} onClick={() => void handleInstall()} data-testid="theme-install-submit">
+              <Button
+                disabled={busy}
+                onClick={() => void handleInstall()}
+                data-testid="theme-install-submit"
+              >
                 {common.install}
               </Button>
             </div>
             <p className="muted" style={{ margin: '6px 0 0', fontSize: '12.5px' }}>
-              {isChinese ? '包含 theme.json 的目录绝对路径。' : 'Absolute path to a directory containing theme.json.'}
+              {isChinese
+                ? '包含 theme.json 的目录绝对路径。'
+                : 'Absolute path to a directory containing theme.json.'}
             </p>
           </Collapse>
         </div>

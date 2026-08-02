@@ -4,7 +4,7 @@
  */
 
 import { useState, type ReactElement } from 'react';
-import { IconCopy, IconRefresh } from './shell-icons';
+import { IconCopy, IconEdit, IconRefresh } from './shell-icons';
 
 export type MessageActionsProps = {
   text: string;
@@ -57,7 +57,7 @@ export function MessageActions(props: MessageActionsProps): ReactElement {
           aria-label="Edit and resend message"
           data-testid="message-edit-btn"
         >
-          <span aria-hidden>✎</span>
+          <IconEdit width={14} height={14} />
           <span className="sr-only">Edit</span>
         </button>
       ) : null}

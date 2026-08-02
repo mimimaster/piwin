@@ -42,39 +42,33 @@ afterEach(() => {
 describe('clampRightPanelWidth', () => {
   it('keeps values inside the absolute band', () => {
     expect(clampRightPanelWidth(320)).toBe(320);
-    expect(clampRightPanelWidth(RIGHT_PANEL_MIN_WIDTH_PX - 40)).toBe(
-      RIGHT_PANEL_MIN_WIDTH_PX,
-    );
-    expect(clampRightPanelWidth(RIGHT_PANEL_MAX_WIDTH_PX + 80)).toBe(
-      RIGHT_PANEL_MAX_WIDTH_PX,
-    );
+    expect(clampRightPanelWidth(RIGHT_PANEL_MIN_WIDTH_PX - 40)).toBe(RIGHT_PANEL_MIN_WIDTH_PX);
+    expect(clampRightPanelWidth(RIGHT_PANEL_MAX_WIDTH_PX + 80)).toBe(RIGHT_PANEL_MAX_WIDTH_PX);
   });
 
   it('rounds and rejects non-finite input', () => {
     expect(clampRightPanelWidth(333.7)).toBe(334);
     expect(clampRightPanelWidth(Number.NaN)).toBe(RIGHT_PANEL_DEFAULT_WIDTH_PX);
-    expect(clampRightPanelWidth(Number.POSITIVE_INFINITY)).toBe(
-      RIGHT_PANEL_DEFAULT_WIDTH_PX,
-    );
+    expect(clampRightPanelWidth(Number.POSITIVE_INFINITY)).toBe(RIGHT_PANEL_DEFAULT_WIDTH_PX);
   });
 });
 
 describe('clampRightPanelWidthForViewport', () => {
   it('does not steal stage below the minimum budget', () => {
-    // viewport 900, reserved chrome 260, min stage 360 → max panel 280
+    // viewport 900, reserved chrome 260, min stage 280 → max panel 360
     expect(
       clampRightPanelWidthForViewport(500, 900, {
         reservedChromePx: 260,
-        minStagePx: 360,
+        minStagePx: 280,
       }),
-    ).toBe(280);
+    ).toBe(360);
   });
 
   it('still respects absolute min when viewport is tight', () => {
     expect(
-      clampRightPanelWidthForViewport(200, 500, {
+      clampRightPanelWidthForViewport(100, 500, {
         reservedChromePx: 260,
-        minStagePx: 360,
+        minStagePx: 280,
       }),
     ).toBe(RIGHT_PANEL_MIN_WIDTH_PX);
   });

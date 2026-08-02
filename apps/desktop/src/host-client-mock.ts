@@ -32,7 +32,7 @@ export class MockHostBackend {
       events: AgentEvent[];
       transcript: SessionTranscriptMessage[];
       name?: string;
-      nameSource?: 'default' | 'auto' | 'user';
+      nameSource?: 'default' | 'text' | 'llm' | 'user';
       isPinned?: boolean;
       pinnedAt?: string;
       isArchived?: boolean;
@@ -1567,6 +1567,51 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             targetPath: '/mock/.piwin/extensions/mock-extension.ts',
           },
         };
+      case 'plugins/list':
+        return {
+          id,
+          type: 'response',
+          command: 'plugins/list',
+          success: true,
+          data: { plugins: [] },
+        };
+      case 'plugins/install':
+        return {
+          id,
+          type: 'response',
+          command: 'plugins/install',
+          success: true,
+          data: {
+            pluginId: 'mock-plugin',
+            installedSkills: [],
+            mcpServerIds: [],
+            secretRefs: [],
+          },
+        };
+      case 'plugins/uninstall':
+        return {
+          id,
+          type: 'response',
+          command: 'plugins/uninstall',
+          success: true,
+          data: { pluginId: command.pluginId ?? '', removed: null },
+        };
+      case 'plugins/registry/list':
+        return {
+          id,
+          type: 'response',
+          command: 'plugins/registry/list',
+          success: true,
+          data: { index: { version: 1, plugins: [] } },
+        };
+      case 'plugins/secrets/collect':
+        return {
+          id,
+          type: 'response',
+          command: 'plugins/secrets/collect',
+          success: true,
+          data: { pluginId: command.pluginId ?? '', secretRefs: [] },
+        };
       case 'prompts/list':
         return {
           id,
@@ -2951,12 +2996,12 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       return;
     }
     session.name = name;
-    session.nameSource = 'auto';
+    session.nameSource = 'text';
     this.emitPush({
       type: 'session/name-updated',
       sessionId,
       name,
-      nameSource: 'auto',
+      nameSource: 'text',
     });
   }
 

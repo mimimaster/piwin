@@ -81,7 +81,10 @@ import { SessionArchivedBanner } from './session-archived-banner';
 import { StatusBar } from './status-bar';
 
 import { useRightPanelResize } from './hooks/use-right-panel-resize';
+import { useSidebarResize } from './hooks/use-sidebar-resize';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
+import { SIDEBAR_DEFAULT_WIDTH_PX } from './sidebar-width';
+import { resolveThinkingLevelForModel } from './model-thinking-policy';
 
 type ModelOption = {
   providerId: string;
@@ -90,7 +93,10 @@ type ModelOption = {
   label: string;
   contextWindow?: number;
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+  thinkingLevels?: readonly import('@piwin/contracts').ThinkingLevel[];
+  reasoning?: boolean;
   supportsImage?: boolean;
+  supportsImageGeneration?: boolean;
 };
 
 function modelsFromConfig(config: PiwinConfig | null): ModelOption[] {
@@ -107,7 +113,12 @@ function modelsFromConfig(config: PiwinConfig | null): ModelOption[] {
         label: `${provider.name} / ${model.label ?? model.id}`,
         ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),
         ...(model.thinkingLevel ? { thinkingLevel: model.thinkingLevel } : {}),
+        ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
+        ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
         ...(model.input?.includes('image') ? { supportsImage: true } : {}),
+        ...(model.capabilities?.includes('image-generation')
+          ? { supportsImageGeneration: true }
+          : {}),
       });
     }
   }
@@ -137,6 +148,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     requestSubAgent,
     requestSkills,
     requestExtensions,
+    requestPlugins,
     requestPrompts,
     requestMcp,
     requestGit,
@@ -167,16 +179,25 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     layoutMode,
   } = shell;
   const isOverlayPresentation = layoutMode === 'compact';
-  // Panel width only drives CSS --right-panel-width (in-flow stage reflow).
+  // Panel widths only drive CSS vars (in-flow stage reflow).
   // No OS setSize — that path re-rasters the whole shell on every toggle.
-  const rightPanelResizeOptions = useMemo(
-    () => ({
-      layoutMode,
-      navDrawerOpen,
-    }),
-    [layoutMode, navDrawerOpen],
-  );
-  const rightPanelResize = useRightPanelResize(rightPanelResizeOptions);
+  // Cross-panel clamp: right panel reads live sidebar width; sidebar reads a
+  // ref of the right panel width (one-frame lag is fine for clamp only).
+  const rightPanelWidthRef = useRef(RIGHT_PANEL_DEFAULT_WIDTH_PX);
+  const sidebarResize = useSidebarResize({
+    layoutMode,
+    rightPanelOpen,
+    rightPanelWidthPx: rightPanelWidthRef.current,
+  });
+  const rightPanelResize = useRightPanelResize({
+    layoutMode,
+    navDrawerOpen,
+    sidebarWidthPx: sidebarResize.widthPx,
+  });
+  // Keep ref in sync for the next render's sidebar clamp.
+  if (rightPanelWidthRef.current !== rightPanelResize.widthPx) {
+    rightPanelWidthRef.current = rightPanelResize.widthPx;
+  }
   const [, setHostLogEntries] = useState<HostLogEntry[]>([]);
   const [ptyOutput, setPtyOutputBase] = useState<PtyOutputLine[]>([]);
   /** Quiet workbench: terminal produced output while directory home / panel collapsed. */
@@ -353,9 +374,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     () =>
       ({
         ...preferencesStyle,
+        '--sidebar-width': `${sidebarResize.widthPx}px`,
         '--right-panel-width': `${rightPanelResize.widthPx}px`,
       }) as React.CSSProperties,
-    [preferencesStyle, rightPanelResize.widthPx],
+    [preferencesStyle, sidebarResize.widthPx, rightPanelResize.widthPx],
   );
   const [desktopLocale, setDesktopLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
@@ -856,14 +878,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     const resolvedKey = resolved ? `${resolved.providerId}::${resolved.modelId}` : '';
     setSelectedModelKey(resolvedKey);
 
-    // Apply per-model default thinking level only when the composer profile
-    // does not carry an explicit thinkingLevel. An explicit profile value wins
-    // so the user's last manual choice survives model switches.
-    if (composerProfile?.thinkingLevel) {
-      setThinkingLevel(composerProfile.thinkingLevel);
-    } else if (resolved?.thinkingLevel) {
-      setThinkingLevel(resolved.thinkingLevel);
-    }
+    const requestedThinking =
+      composerProfile?.thinkingLevel ?? resolved?.thinkingLevel ?? 'off';
+    const resolvedThinking = resolveThinkingLevelForModel(
+      resolved,
+      requestedThinking,
+      config?.thinking?.ultraEnabled === true,
+    );
+    setThinkingLevel(resolvedThinking ?? 'off');
   }, [
     config?.desktop?.composerProfile,
     config?.defaultProviderId,
@@ -916,10 +938,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
 
   const handleSelectModel = useCallback(
     (nextModelKey: string): void => {
+      const nextModel = modelOptions.find(
+        (model) => `${model.providerId}::${model.modelId}` === nextModelKey,
+      );
+      const nextThinkingLevel =
+        resolveThinkingLevelForModel(
+          nextModel,
+          thinkingLevel,
+          config?.thinking?.ultraEnabled === true,
+        ) ?? 'off';
       setSelectedModelKey(nextModelKey);
-      persistComposerProfile(nextModelKey, thinkingLevel);
+      setThinkingLevel(nextThinkingLevel);
+      persistComposerProfile(nextModelKey, nextThinkingLevel);
     },
-    [persistComposerProfile, thinkingLevel],
+    [config?.thinking?.ultraEnabled, modelOptions, persistComposerProfile, thinkingLevel],
   );
 
   const handleThinkingLevelChange = useCallback(
@@ -1113,13 +1145,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }
 
   async function handleToggleAppearance(): Promise<void> {
-    // Cycle through the three builtin themes: Noir → Paper → 橙白 → Noir.
-    const cycle: Record<string, string> = {
-      'piwin-dark': 'piwin-light',
-      'piwin-light': 'piwin-orange-white',
-      'piwin-orange-white': 'piwin-dark',
-    };
-    const nextId = cycle[activeTheme.id] ?? 'piwin-dark';
+    // Quick toggle: dark ↔ light (black / white). Full theme list stays in Settings.
+    const nextId = activeTheme.mode === 'light' ? 'piwin-dark' : 'piwin-light';
     const response = await hostClient.request({ type: 'theme/set-active', themeId: nextId });
     if (!response.success) {
       dispatch({ type: 'error', message: response.error });
@@ -1670,6 +1697,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               isOverlayPresentation={isOverlayPresentation}
               onCloseOverlay={() => shell.closeOverlay()}
               locale={desktopLocale}
+              sidebarWidthPx={sidebarResize.widthPx}
+              isResizing={sidebarResize.isResizing}
+              onResizePointerDown={sidebarResize.onResizePointerDown}
+              onResizeReset={() => sidebarResize.setWidthPx(SIDEBAR_DEFAULT_WIDTH_PX)}
             />
           }
           contextBar={
@@ -1822,7 +1853,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     subagentStreams={state.subagentStreams}
                     walkthroughsByMessageId={state.walkthroughsByMessageId}
                     walkthroughEnabled={config?.walkthrough?.enabled !== false}
-                    walkthroughAutoGenerate={config?.walkthrough?.autoGenerate === true}
+                    walkthroughAutoGenerate={false}
                     onGenerateWalkthrough={handleGenerateWalkthrough}
                     onCancelWalkthrough={handleCancelWalkthrough}
                   />
@@ -2204,6 +2235,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             requestSkills={requestSkills}
             requestMcp={requestMcp}
             requestExtensions={requestExtensions}
+            requestPlugins={requestPlugins}
             requestPrompts={requestPrompts}
             requestTheme={requestTheme}
             requestPet={requestPet}

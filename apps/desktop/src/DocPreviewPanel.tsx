@@ -12,7 +12,18 @@ import {
 } from './shell-icons';
 import { FileTypeIcon } from './file-type-icon';
 import { EnhancedMarkdownView, type LineCommentItem } from './EnhancedMarkdownView';
+import { CodePreviewView } from './code-preview-view';
 import type { DesktopLocale } from './desktop-locale';
+
+/** Markdown / plaintext files render through the enhanced Markdown viewer.
+ *  Everything else (HTML, TS, JSON, CSS, …) renders as code with line numbers. */
+const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'mdx', 'txt', 'text']);
+
+function isMarkdownPath(path: string): boolean {
+  const extMatch = /\.([a-zA-Z0-9]+)$/.exec(path);
+  const ext = extMatch && extMatch[1] ? extMatch[1].toLowerCase() : '';
+  return ext === '' || MARKDOWN_EXTENSIONS.has(ext);
+}
 
 export type SessionDocItem = {
   id: string;
@@ -196,17 +207,21 @@ export function DocPreviewPanel({
         ) : null}
 
         <div className="doc-preview-body">
-          <EnhancedMarkdownView
-            text={defaultContent}
-            docTitle={displayTitle}
-            filePath={targetPath}
-            onOpenFile={onOpenFile}
-            comments={comments}
-            onAddComment={onAddComment}
-            onEditComment={onEditComment}
-            onDeleteComment={onDeleteComment}
-            onCommentLine={onCommentLine}
-          />
+          {isMarkdownPath(targetPath) ? (
+            <EnhancedMarkdownView
+              text={defaultContent}
+              docTitle={displayTitle}
+              filePath={targetPath}
+              onOpenFile={onOpenFile}
+              comments={comments}
+              onAddComment={onAddComment}
+              onEditComment={onEditComment}
+              onDeleteComment={onDeleteComment}
+              onCommentLine={onCommentLine}
+            />
+          ) : (
+            <CodePreviewView code={defaultContent} filePath={targetPath} />
+          )}
         </div>
       </div>
     </div>

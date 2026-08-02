@@ -27,8 +27,9 @@ import {
   parseComposerSlashSubmit,
 } from '../slash';
 import { PIWIN_PATH_MIME } from '../file-tree-panel';
-import { deriveDefaultNameFromMessage } from '@piwin/session';
+import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
 import { isPlaceholderSessionName } from '../title-display';
+import { canUseThinkingLevel } from '../model-thinking-policy';
 
 export type UseComposerMediaArgs = {
   hostClient: HostClient;
@@ -55,6 +56,8 @@ export type UseComposerMediaArgs = {
     providerId: string;
     modelId: string;
     supportsImage?: boolean;
+    thinkingLevels?: readonly import('@piwin/contracts').ThinkingLevel[];
+    reasoning?: boolean;
   }>;
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   /**
@@ -330,13 +333,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     async (overrideText?: string): Promise<void> => {
       const text = (overrideText ?? composer).trim();
       const attachments = pendingAttachments.map((item) => item.attachment);
-      if (
-        (!text && attachments.length === 0) ||
-        args.state.streaming ||
-        promptSubmissionInProgress.current
-      ) {
+      if ((!text && attachments.length === 0) || promptSubmissionInProgress.current) {
         return;
       }
+      // Streaming is allowed: host supersedes the in-flight run when a newer
+      // message arrives (session/prompt interrupt). Users no longer need to
+      // press Stop first.
 
       const hasMedia = attachments.some((item) => item.kind === 'media');
       if (hasMedia) {
@@ -434,7 +436,14 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
             if (modeModel) {
               modeInput.model = modeModel;
             }
-            if (args.thinkingLevel) {
+            const modeSelectedOption = args.modelOptions?.find(
+              (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
+            );
+            if (
+              modeSelectedOption &&
+              args.thinkingLevel &&
+              canUseThinkingLevel(modeSelectedOption, args.thinkingLevel, true)
+            ) {
               modeInput.thinkingLevel = args.thinkingLevel;
             }
             const modeResponse = await args.hostClient.request({
@@ -481,7 +490,14 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
             if (skillModel) {
               skillInput.model = skillModel;
             }
-            if (args.thinkingLevel) {
+            const skillSelectedOption = args.modelOptions?.find(
+              (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
+            );
+            if (
+              skillSelectedOption &&
+              args.thinkingLevel &&
+              canUseThinkingLevel(skillSelectedOption, args.thinkingLevel, true)
+            ) {
               skillInput.thinkingLevel = args.thinkingLevel;
             }
             const skillResponse = await args.hostClient.request({
@@ -527,7 +543,14 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         if (model) {
           input.model = model;
         }
-        if (args.thinkingLevel) {
+        const selectedOption = args.modelOptions?.find(
+          (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
+        );
+        if (
+          selectedOption &&
+          args.thinkingLevel &&
+          canUseThinkingLevel(selectedOption, args.thinkingLevel, true)
+        ) {
           input.thinkingLevel = args.thinkingLevel;
         }
         const response = await args.hostClient.request({

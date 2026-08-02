@@ -47,7 +47,11 @@ describe('MarkdownView artifact preview policy', () => {
 
   it('capability off: artifact-html fence stays ordinary source code when artifactPreviewEnabled is false', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
+      <MarkdownView
+        text={ARTIFACT_HTML_FENCE}
+        renderingPhase="completed"
+        artifactPreviewEnabled={false}
+      />,
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
@@ -55,7 +59,11 @@ describe('MarkdownView artifact preview policy', () => {
 
   it('capability off: plain html fence renders as ordinary code, no Preview', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={PLAIN_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
+      <MarkdownView
+        text={PLAIN_HTML_FENCE}
+        renderingPhase="completed"
+        artifactPreviewEnabled={false}
+      />,
     );
     expect(container.querySelector('[data-testid="artifact-preview-toggle"]')).toBeNull();
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
@@ -85,7 +93,11 @@ describe('MarkdownView artifact preview policy', () => {
 
   it('capability off + flashcard source: shows Preview card affordance', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={FLASHCARD_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
+      <MarkdownView
+        text={FLASHCARD_FENCE}
+        renderingPhase="completed"
+        artifactPreviewEnabled={false}
+      />,
     );
     expect(container.querySelector('[data-testid="flashcard-preview-card"]')).not.toBeNull();
   });
@@ -99,7 +111,11 @@ describe('MarkdownView artifact preview policy', () => {
 
   it('mermaid still renders (mounts MermaidBlock) when capability off', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={MERMAID_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
+      <MarkdownView
+        text={MERMAID_FENCE}
+        renderingPhase="completed"
+        artifactPreviewEnabled={false}
+      />,
     );
     // MermaidBlock is mounted (not the streaming source fallback).
     expect(container.querySelector('[data-testid="mermaid-stream-source"]')).toBeNull();
@@ -134,7 +150,11 @@ describe('MarkdownView artifact preview policy', () => {
   it('byte-stability: artifact-html language label identical in both modes', () => {
     // Capability off: renders code-fence-source with normalized language.
     const off = renderMarkdown(
-      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactPreviewEnabled={false} />,
+      <MarkdownView
+        text={ARTIFACT_HTML_FENCE}
+        renderingPhase="completed"
+        artifactPreviewEnabled={false}
+      />,
     );
     const offLang = off.container.querySelector('[data-testid="code-fence-source"] .md-code-lang');
     const offText = offLang?.textContent ?? '';
@@ -208,6 +228,42 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
   });
+
+  it('diff fences use old/new file line numbers from hunk headers', () => {
+    const diffFence = [
+      '```diff',
+      '--- a/src/utils.ts',
+      '+++ b/src/utils.ts',
+      '@@ -1,3 +1,4 @@',
+      '-old line',
+      '+new line a',
+      '+new line b',
+      ' keep',
+      '```',
+    ].join('\n');
+    const { container } = renderMarkdown(
+      <MarkdownView text={diffFence} renderingPhase="completed" />,
+    );
+    expect(container.querySelector('.md-code-diff')).not.toBeNull();
+    const oldNums = [...container.querySelectorAll('.md-code-line-num-old')].map(
+      (el) => el.textContent ?? '',
+    );
+    const newNums = [...container.querySelectorAll('.md-code-line-num-new')].map(
+      (el) => el.textContent ?? '',
+    );
+    // meta/hunk rows have empty gutters; content rows track real file lines.
+    expect(oldNums).toEqual(['', '', '', '1', '', '', '2']);
+    expect(newNums).toEqual(['', '', '', '', '1', '2', '3']);
+  });
+
+  it('non-diff fences keep sequential line numbers', () => {
+    const fence = '```ts\nconst a = 1;\nconst b = 2;\n```';
+    const { container } = renderMarkdown(<MarkdownView text={fence} renderingPhase="completed" />);
+    const nums = [...container.querySelectorAll('.md-code-line-num')].map(
+      (el) => el.textContent ?? '',
+    );
+    expect(nums).toEqual(['1', '2']);
+  });
 });
 
 describe('MarkdownView path chips', () => {
@@ -222,7 +278,9 @@ describe('MarkdownView path chips', () => {
     );
     const chip = container.querySelector<HTMLElement>('.md-doc-chip');
     expect(chip).not.toBeNull();
-    expect(chip?.textContent).toBe('自我介绍.md');
+    expect(chip?.querySelector('.chip-text')?.textContent ?? chip?.textContent).toContain(
+      '自我介绍.md',
+    );
     expect(chip?.getAttribute('title')).toBe(fullPath);
     expect(chip?.getAttribute('data-full-path')).toBe(fullPath);
   });
@@ -258,7 +316,9 @@ describe('MarkdownView path chips', () => {
     );
     const chip = container.querySelector<HTMLElement>('.md-doc-chip');
     expect(chip).not.toBeNull();
-    expect(chip?.textContent).toBe('README.md');
+    expect(chip?.querySelector('.chip-text')?.textContent ?? chip?.textContent).toContain(
+      'README.md',
+    );
     expect(chip?.getAttribute('data-full-path')).toBe(fullPath);
   });
 
@@ -274,7 +334,9 @@ describe('MarkdownView path chips', () => {
     );
     const chip = container.querySelector<HTMLElement>('.md-doc-chip');
     expect(chip).not.toBeNull();
-    expect(chip?.textContent).toBe('My Notes');
+    expect(chip?.querySelector('.chip-text')?.textContent ?? chip?.textContent).toContain(
+      'My Notes',
+    );
     expect(chip?.getAttribute('data-full-path')).toBe(fullPath);
     act(() => {
       chip?.click();
