@@ -742,6 +742,38 @@
   font-family: inherit;
 }
 
+.file-tree-git {
+  margin-left: auto;
+  font-family: var(--font-sans, var(--font));
+  font-size: 11px;
+  font-weight: 600;
+  padding-right: 4px;
+}
+
+.file-tree-git--modified {
+  color: #e2b340;
+}
+
+.file-tree-git--added,
+.file-tree-git--untracked {
+  color: var(--ok, #3ecf8e);
+}
+
+.file-tree-git--deleted,
+.file-tree-git--conflicted {
+  color: var(--danger, #eb3946);
+}
+
+.file-tree-git--renamed,
+.file-tree-git--copied {
+  color: var(--accent, #3b82f6);
+}
+
+.file-tree-git--typechange,
+.file-tree-git--unknown {
+  color: var(--muted);
+}
+
 .file-tree-children {
   list-style: none;
   margin: 0;
