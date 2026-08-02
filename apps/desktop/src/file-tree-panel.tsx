@@ -11,13 +11,21 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
-import type { HostResponse, ProjectDirEntry, ProjectListDirData } from '@piwin/contracts';
+import type {
+  GitFileStatusCode,
+  GitStatusData,
+  HostResponse,
+  ProjectDirEntry,
+  ProjectListDirData,
+} from '@piwin/contracts';
 import { Button, EmptyState, IconButton, Notice, Spinner } from '@piwin/ui-kit';
 import { IconChevronDown, IconChevronRight, IconRefresh } from './shell-icons';
 import { FileTypeIcon } from './file-type-icon';
 import {
+  buildGitStatusByPath,
   filterTreeNodes,
   flattenVisibleRows,
+  gitStatusForPath,
   keyboardMove,
   type FileTreeNodeState,
 } from './file-tree-model';
@@ -34,6 +42,10 @@ export type FileTreeRequest =
       projectPath: string;
       relativePath: string;
       maxBytes?: number;
+    }
+  | {
+      type: 'git/status';
+      projectPath: string;
     };
 
 export type FileTreePanelProps = {
@@ -59,12 +71,26 @@ function entryToNode(entry: ProjectDirEntry): FileTreeNodeState {
 
 export const PIWIN_PATH_MIME = 'application/x-piwin-workspace-path';
 
+/** Single-letter glyph for a git file status code (VS Code SCM style). */
+const GIT_STATUS_LETTER: Record<GitFileStatusCode, string> = {
+  modified: 'M',
+  added: 'A',
+  untracked: 'U',
+  deleted: 'D',
+  conflicted: 'C',
+  renamed: 'R',
+  copied: 'R',
+  typechange: 'T',
+  unknown: '?',
+};
+
 export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   const [rootNodes, setRootNodes] = useState<FileTreeNodeState[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
+  const [gitStatusMap, setGitStatusMap] = useState<Map<string, GitFileStatusCode>>(() => new Map());
 
   const loadDirectory = useCallback(
     async (relativePath: string): Promise<ProjectDirEntry[]> => {
@@ -83,24 +109,52 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     [props],
   );
 
+  // Fetch git status for the workspace. Failures (e.g. not a git repo) are
+  // swallowed silently — the tree simply renders without status badges.
+  const loadGitStatus = useCallback(async (): Promise<void> => {
+    if (!props.projectPath) {
+      setGitStatusMap(new Map());
+      return;
+    }
+    try {
+      const response = await props.request({
+        type: 'git/status',
+        projectPath: props.projectPath,
+      });
+      if (!response.success) {
+        setGitStatusMap(new Map());
+        return;
+      }
+      const data = response.data as GitStatusData;
+      setGitStatusMap(buildGitStatusByPath(data.snapshot.changedFiles));
+    } catch {
+      // Not a repository / git unavailable: leave the map empty.
+      setGitStatusMap(new Map());
+    }
+  }, [props]);
+
   const reloadRoot = useCallback(async () => {
     if (!props.projectPath) {
       setRootNodes([]);
       setError(null);
+      setGitStatusMap(new Map());
       return;
     }
     setLoading(true);
     setError(null);
-    try {
-      const entries = await loadDirectory('');
-      setRootNodes(entries.map(entryToNode));
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
+    // Load the directory listing and git status in parallel; a git failure
+    // must never block the tree from rendering.
+    const [dirResult] = await Promise.allSettled([loadDirectory(''), loadGitStatus()]);
+    if (dirResult.status === 'fulfilled') {
+      setRootNodes(dirResult.value.map(entryToNode));
+    } else {
+      setError(
+        dirResult.reason instanceof Error ? dirResult.reason.message : String(dirResult.reason),
+      );
       setRootNodes([]);
-    } finally {
-      setLoading(false);
     }
-  }, [loadDirectory, props.projectPath]);
+    setLoading(false);
+  }, [loadDirectory, loadGitStatus, props.projectPath]);
 
   useEffect(() => {
     void reloadRoot();
@@ -269,6 +323,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                   node={node}
                   depth={0}
                   selectedPath={selectedPath}
+                  gitStatusMap={gitStatusMap}
                   onSelectFile={(relativePath) => {
                     setSelectedPath(relativePath);
                     props.onOpenFile?.(absoluteFor(relativePath), relativePath);
@@ -300,6 +355,7 @@ function FileTreeNodeView(props: {
   node: FileTreeNodeState;
   depth: number;
   selectedPath: string | null;
+  gitStatusMap: Map<string, GitFileStatusCode>;
   onSelectFile: (path: string) => void;
   onToggle: (path: string) => void;
   onDragStart: (event: DragEvent, relativePath: string) => void;
@@ -307,6 +363,7 @@ function FileTreeNodeView(props: {
   const { node, depth } = props;
   const isDir = node.entry.kind === 'directory';
   const selected = props.selectedPath === node.entry.relativePath;
+  const status = gitStatusForPath(props.gitStatusMap, node.entry.relativePath, node.entry.kind);
 
   return (
     <li
@@ -344,6 +401,15 @@ function FileTreeNodeView(props: {
           <FileTypeIcon filePathOrExt={isDir ? `${node.entry.name}/` : node.entry.name} />
         </span>
         <span className="file-tree-name">{node.entry.name}</span>
+        {status ? (
+          <span
+            className={`file-tree-git file-tree-git--${status}`}
+            data-testid={`file-tree-git-${node.entry.relativePath}`}
+            title={status}
+          >
+            {GIT_STATUS_LETTER[status]}
+          </span>
+        ) : null}
       </button>
       {node.loading ? (
         <div className="file-tree-nested muted" style={{ paddingLeft: 24 + depth * 14 }}>
@@ -363,6 +429,7 @@ function FileTreeNodeView(props: {
               node={child}
               depth={depth + 1}
               selectedPath={props.selectedPath}
+              gitStatusMap={props.gitStatusMap}
               onSelectFile={props.onSelectFile}
               onToggle={props.onToggle}
               onDragStart={props.onDragStart}

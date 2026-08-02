@@ -12,7 +12,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { FileTreePanel, type FileTreeRequest } from './file-tree-panel';
-import type { HostResponse, ProjectListDirData } from '@piwin/contracts';
+import type { GitStatusData, HostResponse, ProjectListDirData } from '@piwin/contracts';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -205,5 +205,83 @@ describe('FileTreePanel', () => {
 
     expect(onOpenFile).toHaveBeenCalledTimes(1);
     expect(onOpenFile).toHaveBeenCalledWith('/proj/README.md', 'README.md');
+  });
+
+  it('shows M badge for a modified file from git/status', async () => {
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }]);
+      }
+      if (cmd.type === 'git/status') {
+        const data: GitStatusData = {
+          snapshot: {
+            repository: { rootPath: '/proj', isRepository: true },
+            branch: null,
+            changedFiles: [{ path: 'a.ts', status: 'modified', staged: false, unstaged: true }],
+            truncated: false,
+            totalChangedFiles: 1,
+          },
+        };
+        return {
+          id: '2',
+          type: 'response',
+          command: 'git/status',
+          success: true,
+          data,
+        };
+      }
+      return {
+        id: '0',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request });
+
+    // Wait for the async list-dir + git/status to flush into the DOM.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const badge = queryByTestId('file-tree-git-a.ts');
+    expect(badge).toBeTruthy();
+    expect(badge?.textContent).toBe('M');
+    expect(badge?.className).toContain('file-tree-git--modified');
+  });
+
+  it('leaves git status map empty when git/status fails (not a repo)', async () => {
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'a.ts', relativePath: 'a.ts', kind: 'file' }]);
+      }
+      if (cmd.type === 'git/status') {
+        return {
+          id: '2',
+          type: 'response',
+          command: 'git/status',
+          success: false,
+          error: 'not a git repository',
+        };
+      }
+      return {
+        id: '0',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // No badge should render when git status is unavailable.
+    expect(queryByTestId('file-tree-git-a.ts')).toBeNull();
   });
 });
