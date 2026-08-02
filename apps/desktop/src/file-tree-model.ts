@@ -51,11 +51,12 @@ export function gitStatusForPath(
   if (kind === 'file') {
     return map.get(key) ?? null;
   }
-  // Folder: any changed path under prefix
+  // Folder: any changed path under prefix. When key === '' (root), every map
+  // entry is a descendant so the folder tint fires for any changed file.
   const prefix = key === '' ? '' : `${key}/`;
   let found: GitFileStatusCode | null = null;
   for (const [path, status] of map) {
-    if (path === key || (prefix && path.startsWith(prefix))) {
+    if (path === key || prefix === '' || path.startsWith(prefix)) {
       if (status === 'conflicted') return 'conflicted';
       if (status === 'modified' || status === 'added' || status === 'untracked') {
         found = status;
@@ -67,10 +68,7 @@ export function gitStatusForPath(
   return found;
 }
 
-export function filterTreeNodes(
-  nodes: FileTreeNodeState[],
-  query: string,
-): FileTreeNodeState[] {
+export function filterTreeNodes(nodes: FileTreeNodeState[], query: string): FileTreeNodeState[] {
   const q = query.trim().toLowerCase();
   if (!q) return nodes;
 
@@ -97,10 +95,7 @@ export function filterTreeNodes(
   return nodes.map(filterNode).filter((n): n is FileTreeNodeState => n !== null);
 }
 
-export function flattenVisibleRows(
-  nodes: FileTreeNodeState[],
-  depth = 0,
-): FlatTreeRow[] {
+export function flattenVisibleRows(nodes: FileTreeNodeState[], depth = 0): FlatTreeRow[] {
   const rows: FlatTreeRow[] = [];
   for (const node of nodes) {
     rows.push({
@@ -125,9 +120,7 @@ export function keyboardMove(
   key: string,
 ): KeyboardMoveResult | null {
   if (rows.length === 0) return null;
-  const index = selectedPath
-    ? rows.findIndex((r) => r.relativePath === selectedPath)
-    : -1;
+  const index = selectedPath ? rows.findIndex((r) => r.relativePath === selectedPath) : -1;
 
   if (key === 'Home') {
     const first = rows[0];
