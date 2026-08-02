@@ -2,8 +2,9 @@
 
 import type { ThemeManifest } from '@piwin/contracts';
 
+/** UI sans — system first (Cursor uses SF Pro / -apple-system; Inter is optional fallback). */
 const SHARED_FONT =
-  'Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif';
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Inter, sans-serif';
 
 const SHARED_MONO =
   '"JetBrains Mono", "Fira Code", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
