@@ -656,6 +656,25 @@
   border-bottom: 1px solid var(--line-soft);
 }
 
+.file-tree-filter {
+  width: calc(100% - 20px);
+  height: 28px;
+  margin: 8px 10px;
+  padding: 0 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--panel2, var(--control));
+  color: var(--text);
+  font-family: var(--font-sans, var(--font));
+  font-size: 12px;
+  box-sizing: border-box;
+}
+.file-tree-filter:focus {
+  outline: none;
+  border-color: var(--border-interactive, var(--accent));
+  box-shadow: 0 0 0 2px var(--focus-ring, var(--accent-ring));
+}
+
 .file-tree-list {
   list-style: none;
   margin: 0;

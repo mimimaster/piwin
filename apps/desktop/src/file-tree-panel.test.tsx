@@ -123,4 +123,47 @@ describe('FileTreePanel', () => {
     expect(onOpenFile).toHaveBeenCalledTimes(1);
     expect(onOpenFile).toHaveBeenCalledWith('/proj/README.md', 'README.md');
   });
+
+  it('filters visible names by query', async () => {
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([
+          { name: 'README.md', relativePath: 'README.md', kind: 'file' },
+          { name: 'src', relativePath: 'src', kind: 'directory' },
+        ]);
+      }
+      return {
+        id: '1',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request });
+
+    // Wait for the async list-dir to flush into the DOM.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const filter = queryByTestId('file-tree-filter') as HTMLInputElement;
+    expect(filter).toBeTruthy();
+
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype,
+        'value',
+      )?.set;
+      setter?.call(filter, 'readme');
+      filter.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row'));
+    const readmeRow = rows.find((row) => row.textContent?.includes('README.md'));
+    const srcRow = rows.find((row) => row.textContent?.includes('src'));
+    expect(readmeRow).toBeTruthy();
+    expect(srcRow).toBeUndefined();
+  });
 });
