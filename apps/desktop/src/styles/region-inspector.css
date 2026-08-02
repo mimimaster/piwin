@@ -795,13 +795,6 @@
   font-size: 12px;
 }
 
-.file-tree-panel-split {
-  display: grid;
-  grid-template-rows: minmax(132px, 44%) minmax(132px, 1fr);
-  height: 100%;
-  min-height: 0;
-}
-
 .file-tree-main {
   display: flex;
   flex-direction: column;
