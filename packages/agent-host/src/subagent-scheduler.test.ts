@@ -188,12 +188,24 @@ describe('deriveBatchStatus', () => {
     expect(deriveBatchStatus(state)).toBe('failed');
   });
 
-  it('returns cancelled when any task was cancelled', () => {
+  it('returns cancelled when tasks were cancelled without any failure', () => {
     const state = initSchedulerState(
       makeBatch([makeTask({ id: 'a' }), makeTask({ id: 'b' })]),
     );
     markTaskSettled(state, 'a', 'completed');
     markTaskSettled(state, 'b', 'cancelled');
     expect(deriveBatchStatus(state)).toBe('cancelled');
+  });
+
+  it('returns failed when a task failed even if dependents were cancelled', () => {
+    const state = initSchedulerState(
+      makeBatch([
+        makeTask({ id: 'a' }),
+        makeTask({ id: 'b', dependsOn: ['a'] }),
+      ]),
+    );
+    markTaskSettled(state, 'a', 'failed');
+    // 'b' is cancelled as a side effect of 'a' failing.
+    expect(deriveBatchStatus(state)).toBe('failed');
   });
 });
