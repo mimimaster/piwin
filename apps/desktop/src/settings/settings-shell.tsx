@@ -6,7 +6,7 @@
  * Markup intentionally mirrors the previous SettingsPanel layout (same CSS
  * classes and data-testids) — R3 owns any CSS restructuring.
  */
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { IconButton } from '@piwin/ui-kit';
 import { IconClose } from '../shell-icons';
 import { getDesktopCopy } from '../desktop-locale';
@@ -83,6 +83,21 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <path d="M12 2v10" />
       <path d="M18.4 6.9A9 9 0 1 1 5.6 6.9" />
       <path d="M12 22V12" />
+    </svg>
+  ),
+  vision: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   ),
   'image-generation': (
@@ -184,6 +199,23 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <circle cx="7" cy="7" r="3" />
     </svg>
   ),
+  plugins: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 3v6a6 6 0 0 0 12 0V3" />
+      <path d="M6 3h12" />
+      <path d="M10 21h4" />
+      <path d="M12 15v6" />
+    </svg>
+  ),
   prompts: (
     <svg
       width="14"
@@ -264,6 +296,7 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
   const { locale, translator } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
   const copy = getDesktopCopy(locale);
+  const mainScrollRef = useRef<HTMLDivElement | null>(null);
 
   const activeMeta = SETTINGS_GROUPS.flatMap((group) => sectionsForGroup(group.id)).find(
     (section) => section.id === activeSection,
@@ -271,6 +304,13 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
   const PageComponent = getSettingsSection(activeSection);
 
   const query = searchQuery.trim().toLowerCase();
+
+  // Clicking a nav icon/section should always land at the top of the page.
+  useEffect(() => {
+    const node = mainScrollRef.current;
+    if (!node) return;
+    node.scrollTop = 0;
+  }, [activeSection]);
 
   return (
     <div
@@ -292,7 +332,23 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
         <aside className="settings-nav">
           <div className="settings-nav-brand">
             <span className="settings-nav-mark" aria-hidden>
-              π
+              {/* Light theme → black alpaca; dark theme → white alpaca (CSS toggles). */}
+              <img
+                className="settings-nav-mark-img settings-nav-mark-img--for-light"
+                src="/ui/alpaca-mark-black.png"
+                alt=""
+                width={18}
+                height={18}
+                draggable={false}
+              />
+              <img
+                className="settings-nav-mark-img settings-nav-mark-img--for-dark"
+                src="/ui/alpaca-mark-white.png"
+                alt=""
+                width={18}
+                height={18}
+                draggable={false}
+              />
             </span>
             <strong>{copy.settings}</strong>
           </div>
@@ -325,7 +381,9 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
                 if (!query) return true;
                 const label = translator.settings.nav[item.labelKey]?.toLowerCase() ?? '';
                 const groupLabel = translator.settings[group.labelKey]?.toLowerCase() ?? '';
-                return label.includes(query) || groupLabel.includes(query) || item.id.includes(query);
+                return (
+                  label.includes(query) || groupLabel.includes(query) || item.id.includes(query)
+                );
               });
               if (groupSections.length === 0) return null;
               return (
@@ -364,7 +422,7 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
             {copy.localConfiguration}
           </div>
         </aside>
-        <div className="settings-main">
+        <div className="settings-main" ref={mainScrollRef} data-testid="settings-main-scroll">
           <header className="settings-main-header">
             <h2>{activeMeta ? translator.settings.nav[activeMeta.labelKey] : copy.settings}</h2>
             {onClose ? (

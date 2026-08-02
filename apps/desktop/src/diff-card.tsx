@@ -7,6 +7,15 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import type { GitFileDiff, HostResponse } from '@piwin/contracts';
 import { parseUnifiedDiff } from './diff-view';
+import { computeDiffLineNumbers } from './diff-line-numbers';
+import {
+  useHighlightLines,
+  languageFromPath,
+  TokenSpans,
+  type TokenLine,
+} from './syntax-highlight';
+
+import { CollapsibleContentBlock } from './collapsible-content-block';
 
 /**
  * Same request signature injected into ChangesPanel (changes-panel.tsx:38).
@@ -77,6 +86,19 @@ export function DiffCard(props: {
 
   const patch = state.kind === 'ready' ? state.fileDiff.patch : '';
   const lines = useMemo(() => parseUnifiedDiff(patch), [patch]);
+  const lineNumbers = useMemo(() => computeDiffLineNumbers(lines), [lines]);
+  const sourceLang = useMemo(
+    () => (props.path ? languageFromPath(props.path) : 'typescript'),
+    [props.path],
+  );
+  const contentTexts = useMemo(
+    () =>
+      lines.map((line) =>
+        line.kind === 'context' || line.kind === 'add' || line.kind === 'del' ? line.text : '',
+      ),
+    [lines],
+  );
+  const tokenMap = useHighlightLines(contentTexts, sourceLang);
   const stats = diffLineStats(patch);
 
   return (
@@ -135,25 +157,38 @@ export function DiffCard(props: {
         </div>
       )}
       {state.kind === 'ready' && !state.fileDiff.isBinary && (
-        <div className="diff-body">
-          {lines
-            .filter((line) => line.kind !== 'meta' && line.kind !== 'hunk')
-            .map((line, index) => (
-              <div
-                key={index}
-                className={`ln ${line.kind === 'add' ? 'add' : line.kind === 'del' ? 'del' : 'ctx'}`}
-              >
-                <span className="g">{index + 1}</span>
-                {line.text}
+        <CollapsibleContentBlock maxCollapsedHeight={140} defaultCollapsed={true}>
+          <div className="diff-body">
+            {lines.map((line, originalIndex) => {
+              if (line.kind === 'meta' || line.kind === 'hunk') return null;
+              const nums = lineNumbers[originalIndex];
+              const tokens: TokenLine | null = tokenMap?.get(originalIndex) ?? null;
+              return (
+                <div
+                  key={originalIndex}
+                  className={`ln ${line.kind === 'add' ? 'add' : line.kind === 'del' ? 'del' : 'ctx'}`}
+                >
+                  <span className="g old" aria-hidden>
+                    {nums?.old ?? ''}
+                  </span>
+                  <span className="g new" aria-hidden>
+                    {nums?.new ?? ''}
+                  </span>
+                  <span className="ln-text">
+                    {tokens ? <TokenSpans tokens={tokens} /> : line.text}
+                  </span>
+                </div>
+              );
+            })}
+            {state.fileDiff.truncated && (
+              <div className="ln ctx">
+                <span className="g old" />
+                <span className="g new" />
+                <span className="ln-text">diff 过长已截断</span>
               </div>
-            ))}
-          {state.fileDiff.truncated && (
-            <div className="ln ctx">
-              <span className="g" />
-              // diff 过长已截断
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        </CollapsibleContentBlock>
       )}
     </div>
   );

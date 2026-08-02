@@ -56,9 +56,7 @@ export function petToActivityInput(
   locale: 'zh-CN' | 'en',
 ): RunActivityInput | null {
   const activity = pet.activity;
-  const kind = activity?.phase
-    ? phaseToKind(activity.phase)
-    : stateToKind(pet.state);
+  const kind = activity?.phase ? phaseToKind(activity.phase) : stateToKind(pet.state);
 
   if (kind === 'idle') return null;
 
@@ -67,5 +65,7 @@ export function petToActivityInput(
     locale,
     ...(activity?.toolName ? { activeToolName: activity.toolName } : {}),
     ...(activity?.permissionAction ? { actionCategory: 'ask' as const } : {}),
+    ...(activity?.detail ? { detail: activity.detail } : {}),
+    ...(activity?.actionVerb ? { actionVerb: activity.actionVerb } : {}),
   };
 }

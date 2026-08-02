@@ -265,3 +265,179 @@
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
+
+/* ── Discover models picker (DiscoverModelsDialog) ─────────────── */
+
+.discover-models-dialog .piwin-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+
+.model-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+.model-pick-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 24px;
+}
+
+.model-pick-select-all {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.model-pick-select-all:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.model-pick-select-all:disabled {
+  color: var(--content-muted);
+  cursor: not-allowed;
+}
+
+.model-pick-count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.model-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: min(420px, 52vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.model-pick-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-height-large, 36px);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-bottom: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--content-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.model-pick-row:last-child {
+  border-bottom: 0;
+}
+
+.model-pick-row:hover {
+  background: var(--surface-hover);
+}
+
+.model-pick-row--selected {
+  background: var(--accent-soft, color-mix(in srgb, var(--accent) 10%, transparent));
+}
+
+.model-pick-row--selected:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.model-pick-checkbox {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.model-pick-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.model-pick-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.3;
+  color: var(--content-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-pick-id {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--mono, ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--content-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-pick-badge {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-hover);
+  color: var(--content-secondary);
+  font-size: 10.5px;
+  font-weight: 550;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.model-pick-empty {
+  margin: 0;
+  padding: var(--space-4);
+  text-align: center;
+  font-size: 12.5px;
+}
+
+.model-pick-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+}
+
+.model-pick-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}

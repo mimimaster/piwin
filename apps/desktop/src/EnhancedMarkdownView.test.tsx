@@ -94,6 +94,15 @@ describe('EnhancedMarkdownView', () => {
     expect(elem.querySelector('.diff-line-delete')).not.toBeNull();
   });
 
+  it('renders line-number gutters in fenced code blocks', () => {
+    const md = `\`\`\`ts\nconst a = 1;\nconst b = 2;\n\`\`\``;
+    const elem = renderView(md);
+    const nums = elem.querySelectorAll('.code-line-num');
+    expect(nums.length).toBe(2);
+    expect(nums[0]?.textContent).toBe('1');
+    expect(nums[1]?.textContent).toBe('2');
+  });
+
   it('parses ordered lists as ordered-list blocks', () => {
     const elem = renderView('1. First\n2. Second\n');
     expect(elem.textContent).toContain('First');

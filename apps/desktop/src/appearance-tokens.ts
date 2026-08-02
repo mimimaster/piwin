@@ -9,22 +9,29 @@ const SHARED_FONT =
 const SHARED_MONO =
   '"JetBrains Mono", "Fira Code", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
-/** Product dark — Noir pure monochrome field with inverted white accent. */
+/**
+ * Product dark — Noir charcoal workbench (Cursor-like).
+ * Soft layered grays + quiet dividers; monochrome inverted accent.
+ */
 export const PIWIN_APPEARANCE_DARK: ThemeManifest = {
   id: 'piwin-dark',
   name: 'Noir',
-  version: '6.0.0',
-  description: 'Noir pure monochrome field with inverted white accent for piwin shell + artifacts',
+  version: '6.2.0',
+  description:
+    'Noir charcoal workbench with quiet column dividers and soft monochrome accent for piwin shell + artifacts',
   mode: 'dark',
   tokens: {
-    bg: '#000000',
-    panel: '#0f0f0f',
-    panel2: '#171717',
-    border: 'rgba(255, 255, 255, 0.08)',
-    text: '#f5f5f5',
-    muted: '#a3a3a3',
-    accent: '#f5f5f5',
-    accent2: '#ffffff',
+    // Charcoal field (not pure black) — closer to Cursor/IDE dark shells.
+    bg: '#141414',
+    panel: '#1a1a1a',
+    panel2: '#222222',
+    // Base border; column dividers use a stronger --column-divider.
+    border: 'rgba(255, 255, 255, 0.10)',
+    text: '#e0e0e3',
+    muted: '#8a8a92',
+    // Soft light accent — not pure white (avoids "glare" CTAs on dark).
+    accent: '#d8d8dc',
+    accent2: '#ececef',
     danger: '#eb3946',
     ok: '#3ecf8e',
     radius: '10px',
@@ -32,11 +39,11 @@ export const PIWIN_APPEARANCE_DARK: ThemeManifest = {
   },
   artifact: {
     bg: 'transparent',
-    surface: 'rgba(15, 15, 15, 0.98)',
-    text: '#f5f5f5',
-    muted: '#a3a3a3',
-    accent: '#f5f5f5',
-    border: 'rgba(255, 255, 255, 0.10)',
+    surface: 'rgba(26, 26, 26, 0.98)',
+    text: '#e0e0e3',
+    muted: '#8a8a92',
+    accent: '#d8d8dc',
+    border: 'rgba(255, 255, 255, 0.12)',
     radius: '0.625rem',
     font: SHARED_FONT,
   },
@@ -178,7 +185,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.style.setProperty('--surface', tokens.panel2);
 
   /** Raised surface — menus, tooltips, dropdown overlays. */
-  root.style.setProperty('--surface-raised', isLight ? '#ffffff' : '#26222b');
+  root.style.setProperty('--surface-raised', isLight ? '#ffffff' : '#2a2a2a');
   /** Hover state fill for interactive row/item components. */
   root.style.setProperty(
     '--surface-hover',
@@ -219,7 +226,10 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Selection highlight on rows and list items. */
   root.style.setProperty(
     '--surface-selected',
-    `color-mix(in srgb, ${tokens.accent} ${isLight ? 13 : 15}%, ${tokens.panel})`,
+    isLight
+      ? `color-mix(in srgb, ${tokens.accent} 13%, ${tokens.panel})`
+      : // Dark: quiet charcoal lift — never a bright white/accent wash.
+        `color-mix(in srgb, ${tokens.text} 8%, ${tokens.panel})`,
   );
 
   // Semantic surface aliases used by older CSS
@@ -248,12 +258,16 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Alias of --faint for semantic readers. */
   root.style.setProperty(
     '--content-muted',
-    isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#595959',
+    isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#6e6e76',
   );
   /** Disabled control labels and icons. */
-  root.style.setProperty('--content-disabled', isLight ? '#b9b0a2' : '#5f5a64');
-  /** Text on solid accent fills — deep roast on bright coral, white on tangerine. */
-  root.style.setProperty('--content-on-accent', isLight ? '#ffffff' : '#2b1508');
+  root.style.setProperty('--content-disabled', isLight ? '#b9b0a2' : '#5a5a62');
+  /**
+   * Text/icon on solid accent fills.
+   * Must invert with accent luminance: white on blue/orange (light themes),
+   * black on Noir's near-white accent. Keep in lockstep with --accent-fg.
+   */
+  root.style.setProperty('--content-on-accent', isLight ? '#ffffff' : '#141414');
 
   // Borders and strokes
 
@@ -263,15 +277,36 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.style.setProperty('--line', tokens.border);
   /** Alias of --border for semantic readers. */
   root.style.setProperty('--border-default', tokens.border);
+  /**
+   * Column / band chrome dividers (sidebar | stage | right panel | titleband).
+   * Stronger than --border so the workbench columns read clearly without
+   * relying on pure-white accent fills.
+   */
+  root.style.setProperty(
+    '--column-divider',
+    isLight
+      ? isWarmLight
+        ? 'rgba(80, 60, 40, 0.12)'
+        : 'rgba(0, 0, 0, 0.10)'
+      : 'rgba(255, 255, 255, 0.16)',
+  );
   /** Soft / de-emphasized divider line. */
   root.style.setProperty(
     '--line-soft',
-    isLight ? 'rgba(80, 60, 40, 0.06)' : 'rgba(255, 238, 220, 0.045)',
+    isLight
+      ? isWarmLight
+        ? 'rgba(80, 60, 40, 0.06)'
+        : 'rgba(0, 0, 0, 0.05)'
+      : 'rgba(255, 255, 255, 0.05)',
   );
   /** Alias of --line-soft for semantic readers. */
   root.style.setProperty(
     '--border-subtle',
-    isLight ? 'rgba(80, 60, 40, 0.06)' : 'rgba(255, 238, 220, 0.045)',
+    isLight
+      ? isWarmLight
+        ? 'rgba(80, 60, 40, 0.06)'
+        : 'rgba(0, 0, 0, 0.05)'
+      : 'rgba(255, 255, 255, 0.05)',
   );
   /** Interactive border that highlights when focused or active. */
   root.style.setProperty(
@@ -415,24 +450,24 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
 
   // ── Paper/Noir/橙白 derived ramp (§1.2 of docs/plans/2026-07-30-paper-noir-theme-implementation.md)
   // isWarmLight branches restore the original Daybreak warm-paper derived values.
-  root.style.setProperty('--card', isLight ? (isWarmLight ? tokens.panel : '#ffffff') : '#0f0f0f');
+  root.style.setProperty('--card', isLight ? (isWarmLight ? tokens.panel : '#ffffff') : '#1a1a1a');
   root.style.setProperty(
     '--control',
-    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#171717',
+    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#222222',
   );
   root.style.setProperty(
     '--sunken',
-    isLight ? (isWarmLight ? tokens.panel2 : '#f0f0f2') : '#050505',
+    isLight ? (isWarmLight ? tokens.panel2 : '#f0f0f2') : '#101010',
   );
   root.style.setProperty('--sidebar', isLight ? (isWarmLight ? tokens.bg : '#f2f2f4') : tokens.bg);
   root.style.setProperty(
     '--user-bubble',
-    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#171717',
+    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#222222',
   );
-  root.style.setProperty('--term-bg', isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#050505');
+  root.style.setProperty('--term-bg', isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#101010');
   root.style.setProperty(
     '--term-text',
-    isLight ? (isWarmLight ? '#6b6358' : '#b0b6c0') : '#b3b3b3',
+    isLight ? (isWarmLight ? '#6b6358' : '#b0b6c0') : '#a8a8b0',
   );
   root.style.setProperty(
     '--hover',
@@ -448,18 +483,19 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
       ? isWarmLight
         ? 'rgba(232, 93, 31, 0.10)'
         : 'rgba(0, 0, 0, 0.06)'
-      : 'rgba(255, 255, 255, 0.10)',
+      : // Match Cursor-like quiet selection (subtle lift, not a bright pill).
+        'rgba(255, 255, 255, 0.055)',
   );
-  root.style.setProperty('--faint', isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#595959');
+  root.style.setProperty('--faint', isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#6e6e76');
   root.style.setProperty(
     '--line-strong',
     isLight
       ? isWarmLight
         ? 'rgba(80, 60, 40, 0.22)'
         : 'rgba(0, 0, 0, 0.14)'
-      : 'rgba(255, 255, 255, 0.15)',
+      : 'rgba(255, 255, 255, 0.14)',
   );
-  root.style.setProperty('--accent-fg', isLight ? '#ffffff' : '#000000');
+  root.style.setProperty('--accent-fg', isLight ? '#ffffff' : '#141414');
   root.style.setProperty('--accent-soft', `color-mix(in srgb, ${tokens.accent} 10%, transparent)`);
   root.style.setProperty('--accent-ring', `color-mix(in srgb, ${tokens.accent} 18%, transparent)`);
   root.style.setProperty('--warn', isLight ? '#b25000' : '#f5b83d');
@@ -479,12 +515,12 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   );
   root.style.setProperty('--del-text', isLight ? '#c13a36' : '#f08a92');
   // PlanCard done-step checkmark foreground on the --ok (green) background
-  root.style.setProperty('--ok-fg', isLight ? '#ffffff' : '#000000');
+  root.style.setProperty('--ok-fg', isLight ? '#ffffff' : '#141414');
   // legacy --wb-* aliases repointed at the new ramp (existing CSS still reads them)
   root.style.setProperty(
     '--wb-term-bg',
-    isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#050505',
+    isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#101010',
   );
-  root.style.setProperty('--wb-dim', isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#595959');
-  root.style.setProperty('--wb-send-fg', isLight ? '#ffffff' : '#000000');
+  root.style.setProperty('--wb-dim', isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#6e6e76');
+  root.style.setProperty('--wb-send-fg', isLight ? '#ffffff' : '#141414');
 }

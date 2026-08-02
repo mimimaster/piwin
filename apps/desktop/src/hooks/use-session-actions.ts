@@ -13,20 +13,22 @@ import type {
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
-import { pushError, pushSuccess } from '../notification-queue';
-import { pushInfo } from '../notification-queue';
+import { pushError, pushInfo, pushSuccess } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import { applyAgentModeToPrompt, type AgentModeId } from '../agent-mode';
 import type { SessionRowMenuAction } from '../session-row-menu';
 import { isDesktopShellRuntime, pickProjectDirectory } from '../pick-project-directory';
 import { mapSummariesToListItems, summaryToListItem } from './session-list-item';
 import { resolveSessionOutline } from '../transcript-outline';
+import { canUseThinkingLevel } from '../model-thinking-policy';
 
 export type ModelOption = {
   providerId: string;
   protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
   modelId: string;
   label: string;
+  thinkingLevels?: readonly import('@piwin/contracts').ThinkingLevel[];
+  reasoning?: boolean;
 };
 
 export type UseSessionActionsArgs = {
@@ -83,6 +85,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       providerId: option.providerId,
       modelId: option.modelId,
     };
+  }, [modelOptions, selectedModelKey]);
+
+  const selectedModelOption = useCallback(() => {
+    return modelOptions.find(
+      (item) => `${item.providerId}::${item.modelId}` === selectedModelKey,
+    );
   }, [modelOptions, selectedModelKey]);
 
   const hydrateSessions = useCallback(
@@ -873,7 +881,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (editModel) {
         editInput.model = editModel;
       }
-      if (thinkingLevel) {
+      const option = selectedModelOption();
+      if (thinkingLevel && option && canUseThinkingLevel(option, thinkingLevel, true)) {
         editInput.thinkingLevel = thinkingLevel;
       }
       const response = await hostClient.request({
@@ -906,6 +915,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       state.projectTrusted,
       state.streaming,
       thinkingLevel,
+      selectedModelOption,
     ],
   );
 
@@ -962,7 +972,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       if (retryModel) {
         input.model = retryModel;
       }
-      if (thinkingLevel) {
+      const retryOption = selectedModelOption();
+      if (thinkingLevel && retryOption && canUseThinkingLevel(retryOption, thinkingLevel, true)) {
         input.thinkingLevel = thinkingLevel;
       }
       const response = await hostClient.request({
@@ -995,6 +1006,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       state.projectTrusted,
       state.streaming,
       thinkingLevel,
+      selectedModelOption,
     ],
   );
 
@@ -1010,8 +1022,24 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     });
     if (!response.success) {
       dispatch({ type: 'error', message: response.error });
+      return;
     }
-  }, [dispatch, hostClient, state.activeRunId, state.activeSessionId, state.runPhase]);
+    const data = response.data as { cancelled?: boolean; reason?: string } | undefined;
+    if (data?.cancelled === true) {
+      dispatchNotification(
+        pushInfo(
+          'Run stopped — in-flight tools were cancelled. The model should re-run them if needed.',
+        ),
+      );
+    }
+  }, [
+    dispatch,
+    dispatchNotification,
+    hostClient,
+    state.activeRunId,
+    state.activeSessionId,
+    state.runPhase,
+  ]);
 
   const handleCompact = useCallback(
     async (customInstructions?: string): Promise<void> => {

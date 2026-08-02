@@ -60,20 +60,39 @@ export function PermissionsPage(): ReactElement {
               : 'Auto — low friction inside sandbox; Ask — confirm almost everything; YOLO — no sandbox, skip routine prompts.'
           }
         >
-          <Select
-            value={currentPreset}
-            testId="settings-permission-mode-select"
-            aria-label={isChinese ? '运行模式' : 'Run mode'}
-            data={PRESET_ORDER.map((preset) => ({
-              value: preset,
-              label: presetLabel(preset, isChinese),
-            }))}
-            onChange={(event) => {
-              void handlePresetChange(event.currentTarget.value as PermissionPreset);
-            }}
-            disabled={saving || config === null}
-            style={{ minWidth: 180 }}
-          />
+          <div className="permission-mode-selector" data-testid="settings-permission-mode-group">
+            <Select
+              value={currentPreset}
+              testId="settings-permission-mode-select"
+              aria-label={isChinese ? '运行模式' : 'Run mode'}
+              data={PRESET_ORDER.map((preset) => ({
+                value: preset,
+                label: presetLabel(preset, isChinese),
+              }))}
+              onChange={(event) => {
+                void handlePresetChange(event.currentTarget.value as PermissionPreset);
+              }}
+              disabled={saving || config === null}
+              style={{ display: 'none' }}
+            />
+            <div className="permission-mode-pills">
+              {PRESET_ORDER.map((preset) => {
+                const isActive = currentPreset === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    className={`permission-mode-pill ${isActive ? 'is-active' : ''} mode-${preset}`}
+                    onClick={() => void handlePresetChange(preset)}
+                    disabled={saving || config === null}
+                  >
+                    <span className="mode-pill-dot" />
+                    <span className="mode-pill-label">{presetLabel(preset, isChinese)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </FieldRow>
 
         <div

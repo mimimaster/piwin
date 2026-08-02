@@ -14,6 +14,7 @@ import { createDefaultWebConfig } from '@piwin/contracts';
 import type { SkillsPanelProps } from './SkillsPanel';
 import type { McpPanelProps } from './McpPanel';
 import type { ExtensionsPanelProps } from './ExtensionsPanel';
+import type { PluginsPanelProps } from './PluginsPanel';
 import type { PromptsPanelProps } from './PromptsPanel';
 import type { ThemePanelProps } from './ThemePanel';
 import type { PetPanelProps } from './PetPanel';
@@ -37,6 +38,7 @@ type SettingsPanelProps = {
   requestSkills: SkillsPanelProps['request'];
   requestMcp: McpPanelProps['request'];
   requestExtensions: ExtensionsPanelProps['request'];
+  requestPlugins: PluginsPanelProps['request'];
   requestPrompts: PromptsPanelProps['request'];
   requestTheme: ThemePanelProps['request'];
   requestPet: PetPanelProps['request'];
@@ -64,6 +66,7 @@ export function SettingsPanel({
   requestSkills,
   requestMcp,
   requestExtensions,
+  requestPlugins,
   requestPrompts,
   requestTheme,
   requestPet,
@@ -258,6 +261,7 @@ export function SettingsPanel({
       requestSkills,
       requestMcp,
       requestExtensions,
+      requestPlugins,
       requestPrompts,
       requestTheme,
       requestPet,
@@ -290,6 +294,7 @@ export function SettingsPanel({
       requestSkills,
       requestMcp,
       requestExtensions,
+      requestPlugins,
       requestPrompts,
       requestTheme,
       requestPet,

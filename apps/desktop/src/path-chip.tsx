@@ -1,6 +1,6 @@
 import { useState, type ReactElement } from 'react';
 import { ContextMenu, ContextMenuItem } from '@piwin/ui-kit';
-import { IconDocument } from './shell-icons';
+import { FileTypeIcon } from './file-type-icon';
 
 export type PathChipProps = {
   fullPath: string;
@@ -26,7 +26,7 @@ async function writePathToClipboard(path: string): Promise<boolean> {
 }
 
 /**
- * Renders a file path as a compact chip showing only the file name.
+ * Renders a file path as a compact chip with distinct file-type icons & colors.
  * Left click opens the file; right click offers "Copy Path" for the full path.
  */
 export function PathChip({
@@ -69,8 +69,8 @@ export function PathChip({
           onOpen();
         }}
       >
-        {showIcon ? <IconDocument width={14} height={14} /> : null}
-        {displayText}
+        {showIcon ? <FileTypeIcon filePathOrExt={fullPath} /> : null}
+        <span className="chip-text">{displayText}</span>
       </a>
     </ContextMenu>
   );

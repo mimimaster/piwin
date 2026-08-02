@@ -108,6 +108,11 @@ export type ProjectSessionSidebarProps = {
   isOverlayPresentation?: boolean;
   onCloseOverlay?: () => void;
   locale?: DesktopLocale;
+  /** Desktop: live sidebar width for aria + resize handle. */
+  sidebarWidthPx?: number;
+  isResizing?: boolean;
+  onResizePointerDown?: (event: React.PointerEvent<HTMLElement>) => void;
+  onResizeReset?: () => void;
 };
 
 function SessionRowItem({
@@ -298,8 +303,32 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     return sortByPinnedThenUpdated(props.generalSessions);
   }, [props.generalSessions, sortBy]);
 
+  const showResizeHandle =
+    !props.isOverlayPresentation && typeof props.onResizePointerDown === 'function';
+
   return (
-    <aside className="sidebar" ref={sidebarRef} aria-label={copy.workspace}>
+    <aside
+      className={`sidebar${props.isResizing ? ' is-resizing' : ''}`}
+      ref={sidebarRef}
+      aria-label={copy.workspace}
+    >
+      {showResizeHandle ? (
+        <div
+          className="sidebar-resize-handle"
+          data-testid="sidebar-resize-handle"
+          role="separator"
+          aria-label={props.locale === 'zh-CN' ? '调整侧栏宽度' : 'Resize sidebar'}
+          aria-orientation="vertical"
+          aria-valuenow={props.sidebarWidthPx}
+          title={
+            props.locale === 'zh-CN'
+              ? '拖动调整宽度，双击恢复默认'
+              : 'Drag to resize. Double-click to reset.'
+          }
+          onPointerDown={props.onResizePointerDown}
+          onDoubleClick={props.onResizeReset}
+        />
+      ) : null}
       <div className="sidebar-top">
         {props.isOverlayPresentation ? (
           <div className="sidebar-overlay-header">

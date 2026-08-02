@@ -15,7 +15,7 @@
   min-height: var(--topbar-height);
   height: var(--topbar-height);
   padding: 0 0 0 12px;
-  border-bottom: 1px solid transparent;
+  border-bottom: 1px solid var(--column-divider, var(--border));
   background: var(--canvas);
   box-shadow: none;
   flex-shrink: 0;
@@ -118,6 +118,21 @@
 
 .app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button:hover {
   color: var(--text);
+  background: var(--hover);
+}
+
+/* Active/pressed state (e.g. dark theme toggle, right panel toggle) should not
+   show a persistent halo in the titleband; only the hover fill above. */
+.app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button.active,
+.app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button[aria-pressed='true'] {
+  color: var(--accent);
+  background: transparent;
+}
+
+.app-shell[data-layout='desktop'] > .workbench-topbar .piwin-icon-button.active:hover,
+.app-shell[data-layout='desktop']
+  > .workbench-topbar
+  .piwin-icon-button[aria-pressed='true']:hover {
   background: var(--hover);
 }
 

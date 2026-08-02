@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PetAnimationState, PetRuntimeSnapshot } from '@piwin/contracts';
 import {
   CODEX_PET_FRAME_COUNTS_BY_ROW,
@@ -9,6 +9,11 @@ import {
   PET_SPRITE_ROWS,
 } from '@piwin/contracts';
 import { PetBubble } from './PetBubble';
+import {
+  PET_BUBBLE_MAX_WIDTH_PX,
+  PET_OVERLAY_PAD_Y_PX,
+  resolvePetDisplaySize,
+} from './pet-display-size.js';
 import './pet-sprite.css';
 
 export type PetSpriteProps = {
@@ -21,6 +26,8 @@ export type PetSpriteProps = {
   hidden?: boolean;
   /** Overlay mode: center in window instead of fixed bottom-right (system overlay). */
   overlay?: boolean;
+  /** Bubble locale; defaults to zh-CN. */
+  locale?: 'zh-CN' | 'en';
 };
 
 const IDLE_INTERVAL_MS = 4000;
@@ -191,11 +198,12 @@ export function PetSprite(props: PetSpriteProps) {
     // mousedown → startDragging(). Skip internal DOM drag to avoid conflict.
     if (props.overlay) return;
     setDragging(true);
+    const display = resolvePetDisplaySize(petRef.current.cellWidth, petRef.current.cellHeight);
     dragStart.current = {
       x: e.clientX,
       y: e.clientY,
-      px: pos?.x ?? window.innerWidth - 112,
-      py: pos?.y ?? window.innerHeight - 120,
+      px: pos?.x ?? window.innerWidth - display.width - 16,
+      py: pos?.y ?? window.innerHeight - display.height - 16,
     };
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
@@ -243,14 +251,26 @@ export function PetSprite(props: PetSpriteProps) {
     props.onToggleOverlay?.();
   }
 
-  const style: React.CSSProperties = pos
-    ? { left: `${pos.x}px`, top: `${pos.y}px`, bottom: 'auto', right: 'auto' }
-    : {};
+  const displaySize = useMemo(
+    () => resolvePetDisplaySize(props.pet.cellWidth, props.pet.cellHeight),
+    [props.pet.cellWidth, props.pet.cellHeight],
+  );
+
+  const style: React.CSSProperties = {
+    // CSS custom props drive width/height so the hit box matches the cell aspect.
+    ['--pet-display-w' as string]: `${displaySize.width}px`,
+    ['--pet-display-h' as string]: `${displaySize.height}px`,
+    ['--pet-bubble-max-w' as string]: `${PET_BUBBLE_MAX_WIDTH_PX}px`,
+    ['--pet-overlay-pad-y' as string]: `${PET_OVERLAY_PAD_Y_PX}px`,
+    ...(pos ? { left: `${pos.x}px`, top: `${pos.y}px`, bottom: 'auto', right: 'auto' } : {}),
+  };
 
   return (
     <div
       className={`pet-sprite-root${props.overlay ? ' overlay' : ''}${dragging ? ' dragging' : ''}${props.hidden ? ' hidden' : ''}`}
       style={style}
+      data-pet-display-w={displaySize.width}
+      data-pet-display-h={displaySize.height}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -259,7 +279,7 @@ export function PetSprite(props: PetSpriteProps) {
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <PetBubble pet={props.pet} />
+      <PetBubble pet={props.pet} locale={props.locale ?? 'zh-CN'} />
       <canvas ref={canvasRef} />
     </div>
   );

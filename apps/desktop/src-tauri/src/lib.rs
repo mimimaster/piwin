@@ -10,7 +10,10 @@ use host_bridge::{
     host_is_running, host_request, host_request_blocking, host_start, host_stop,
     observe_host_process_blocking, HostBridgeState, HostObservability,
 };
-use pet_overlay::{ensure_pet_overlay_window, pet_overlay_hide, pet_overlay_show, pet_overlay_toggle};
+use pet_overlay::{
+    ensure_pet_overlay_window, pet_overlay_hide, pet_overlay_show, pet_overlay_toggle,
+    raise_main_window, show_main_window,
+};
 use pty_host::{
     pty_close, pty_close_all, pty_open, pty_resize, pty_write, snapshot_pty_sessions_blocking,
     PtyHostState, PtyShutdownSnapshot,
@@ -165,7 +168,8 @@ pub fn run() {
             pty_close_all,
             pet_overlay_show,
             pet_overlay_hide,
-            pet_overlay_toggle
+            pet_overlay_toggle,
+            show_main_window
         ])
         .setup(|application| {
             // macOS may fall back to productName for an empty config title.
@@ -309,8 +313,20 @@ pub fn run() {
                 let _ = window.close();
             });
         })
-        .run(tauri::generate_context!())
-        .expect("error while running piwin desktop");
+        .build(tauri::generate_context!())
+        .expect("error while building piwin desktop")
+        .run(|app_handle, event| {
+            // macOS Dock icon click. The floating pet-overlay is always "visible"
+            // (and skip_taskbar), so has_visible_windows is often true even when
+            // the main window is minimized or buried — always raise main.
+            if let tauri::RunEvent::Reopen {
+                has_visible_windows: _,
+                ..
+            } = event
+            {
+                let _ = raise_main_window(app_handle);
+            }
+        });
 }
 
 /// Best-effort ISO timestamp using system time. Not available in core Rust

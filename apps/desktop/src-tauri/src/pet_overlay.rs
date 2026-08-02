@@ -25,11 +25,11 @@ pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         tauri::WebviewUrl::App("index.html".into()),
     )
     .title("")
-    // Width/height leave room for the speech bubble that floats above the
-    // sprite (96×104) when the agent is active. On macOS the transparent
-    // pixels are click-through; on other platforms the transparent band is
-    // wider, which is an accepted trade-off for showing the activity text.
-    .inner_size(200.0, 176.0)
+    // Initial size matches an idle Codex-scale sprite (96×104) + padding.
+    // The webview resizes tightly via setSize when the pet cell geometry or
+    // speech bubble band changes (see pet-overlay-app.tsx). On macOS fully
+    // transparent pixels are click-through.
+    .inner_size(120.0, 120.0)
     .position(100.0, 100.0)
     .decorations(false)
     .transparent(true)
@@ -82,4 +82,32 @@ pub fn pet_overlay_toggle(app: tauri::AppHandle) -> Result<bool, String> {
         ensure_pet_overlay_window(&app).map_err(|e| e.to_string())?;
         Ok(true)
     }
+}
+
+/// Raise the main app window: unminimize, show, and focus.
+/// Shared by the pet-overlay click path and macOS Dock reopen.
+pub fn raise_main_window(app: &tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+    // Best-effort unminimize — some platforms return Err when not minimized.
+    let _ = window.unminimize();
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())?;
+
+    // On macOS, focusing a window does not always activate the app when the
+    // click originated from a separate always-on-top overlay window, or when
+    // Dock reactivation only surfaces the pet-overlay as the "visible" window.
+    #[cfg(target_os = "macos")]
+    {
+        let _ = app.show();
+    }
+
+    Ok(())
+}
+
+/// IPC entry for the pet overlay (and any other webview) to raise main.
+#[tauri::command]
+pub fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    raise_main_window(&app)
 }

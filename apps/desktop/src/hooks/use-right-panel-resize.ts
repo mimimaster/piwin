@@ -56,15 +56,13 @@ export function useRightPanelResize(
 
   const resolveClamp = useCallback(
     (candidate: number): number => {
-      const viewport =
-        typeof window !== 'undefined' ? window.innerWidth : 1280;
+      const viewport = typeof window !== 'undefined' ? window.innerWidth : 1280;
       const reserved =
-        options.layoutMode === 'desktop' && options.navDrawerOpen
-          ? sidebarWidthPx
-          : 0;
+        options.layoutMode === 'desktop' && options.navDrawerOpen ? sidebarWidthPx : 0;
       return clampRightPanelWidthForViewport(candidate, viewport, {
         reservedChromePx: reserved,
-        minStagePx: options.layoutMode === 'compact' ? 0 : 360,
+        // Keep a usable chat column, but don't over-constrain the panel.
+        minStagePx: options.layoutMode === 'compact' ? 0 : 280,
       });
     },
     [options.layoutMode, options.navDrawerOpen, sidebarWidthPx],
@@ -81,26 +79,23 @@ export function useRightPanelResize(
     [resolveClamp],
   );
 
-  const onResizePointerDown = useCallback(
-    (event: React.PointerEvent<HTMLElement>) => {
-      if (event.button !== 0) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-      const target = event.currentTarget;
-      target.setPointerCapture(event.pointerId);
-      dragRef.current = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startWidth: widthRef.current,
-      };
-      setIsResizing(true);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    },
-    [],
-  );
+  const onResizePointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: widthRef.current,
+    };
+    setIsResizing(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
 
   useEffect(() => {
     if (!isResizing) {

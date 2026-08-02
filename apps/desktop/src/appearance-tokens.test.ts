@@ -33,6 +33,7 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--border-subtle',
   '--canvas',
   '--card',
+  '--column-divider',
   '--content-disabled',
   '--content-muted',
   '--content-on-accent',
@@ -265,14 +266,19 @@ describe('applyAppearanceToDocument Paper/Noir projection', () => {
   it('projects Noir dark derived ramp with inverted accent', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_DARK);
     const s = document.documentElement.style;
-    expect(s.getPropertyValue('--canvas').trim()).toBe('#000000');
-    expect(s.getPropertyValue('--card').trim()).toBe('#0f0f0f');
-    expect(s.getPropertyValue('--sidebar').trim()).toBe('#000000');
-    expect(s.getPropertyValue('--sunken').trim()).toBe('#050505');
-    expect(s.getPropertyValue('--faint').trim()).toBe('#595959');
-    expect(s.getPropertyValue('--accent').trim()).toBe('#f5f5f5');
-    // Noir: accent 是白，accent 上的字必须是黑
-    expect(s.getPropertyValue('--accent-fg').trim()).toBe('#000000');
+    expect(s.getPropertyValue('--canvas').trim()).toBe('#141414');
+    expect(s.getPropertyValue('--card').trim()).toBe('#1a1a1a');
+    expect(s.getPropertyValue('--sidebar').trim()).toBe('#141414');
+    expect(s.getPropertyValue('--sunken').trim()).toBe('#101010');
+    expect(s.getPropertyValue('--faint').trim()).toBe('#6e6e76');
+    expect(s.getPropertyValue('--text').trim()).toBe('#e0e0e3');
+    expect(s.getPropertyValue('--muted').trim()).toBe('#8a8a92');
+    expect(s.getPropertyValue('--accent').trim()).toBe('#d8d8dc');
+    expect(s.getPropertyValue('--border').trim()).toBe('rgba(255, 255, 255, 0.10)');
+    // Column chrome is intentionally stronger than card borders.
+    expect(s.getPropertyValue('--column-divider').trim()).toBe('rgba(255, 255, 255, 0.16)');
+    // Noir: accent 是浅灰，accent 上的字必须是近黑
+    expect(s.getPropertyValue('--accent-fg').trim()).toBe('#141414');
     expect(s.getPropertyValue('--warn').trim()).toBe('#f5b83d');
     expect(s.getPropertyValue('--add-text').trim()).toBe('#6fdcab');
     expect(s.getPropertyValue('--del-text').trim()).toBe('#f08a92');

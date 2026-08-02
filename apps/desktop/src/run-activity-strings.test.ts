@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildBasePhrases, buildTakingTooLongPhrases, buildActivityPhrases } from './run-activity-strings.js';
+import {
+  buildBasePhrases,
+  buildTakingTooLongPhrases,
+  buildActivityPhrases,
+} from './run-activity-strings.js';
 import type { RunActivityInput } from './run-activity-types.js';
 
 const en = (overrides: Partial<RunActivityInput> = {}): RunActivityInput => ({
@@ -18,6 +22,29 @@ describe('buildBasePhrases', () => {
   it('includes tool name for working with activeToolName', () => {
     const phrases = buildBasePhrases(en({ kind: 'working', activeToolName: 'bash' }));
     expect(phrases[0]).toContain('bash');
+  });
+
+  it('prefers presentation detail + actionVerb for the primary work line', () => {
+    const phrases = buildBasePhrases(
+      en({
+        kind: 'working',
+        activeToolName: 'read',
+        actionVerb: 'Read',
+        detail: 'apps/desktop/src/App.tsx',
+      }),
+    );
+    expect(phrases[0]).toBe('Read apps/desktop/src/App.tsx');
+  });
+
+  it('localizes actionVerb for zh-CN work lines', () => {
+    const phrases = buildBasePhrases({
+      kind: 'working',
+      locale: 'zh-CN',
+      activeToolName: 'read',
+      actionVerb: 'Read',
+      detail: 'packages/pet/src/index.ts',
+    });
+    expect(phrases[0]).toBe('读取 packages/pet/src/index.ts');
   });
 
   it('includes plan step for planning', () => {

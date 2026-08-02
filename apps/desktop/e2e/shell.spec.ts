@@ -49,7 +49,9 @@ test.describe('desktop shell (vite + host mock)', () => {
     await expect(page.getByTestId('settings-panel')).toHaveCount(0);
   });
 
-  test('persists the Desktop language selection and uses locale-stable controls', async ({ page }) => {
+  test('persists the Desktop language selection and uses locale-stable controls', async ({
+    page,
+  }) => {
     await page.goto('/');
     await waitForHostReady(page);
     await page.getByTestId('settings-open-btn').click();
@@ -75,16 +77,18 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.getByTestId('settings-nav-extensions').click();
     await expect(page.getByTestId('extensions-panel')).toBeVisible();
     await expect(page.getByTestId('extensions-security-banner')).toBeVisible();
-    await expect(page.getByTestId('extension-item').filter({ hasText: 'path-guard' })).toBeVisible();
+    await expect(
+      page.getByTestId('extension-item').filter({ hasText: 'path-guard' }),
+    ).toBeVisible();
 
     await page
       .getByTestId('extension-item')
       .filter({ hasText: 'path-guard' })
       .getByTestId('extension-toggle-btn')
       .click();
-    await expect(page.getByTestId('extension-item').filter({ hasText: 'path-guard' })).toContainText(
-      'off',
-    );
+    await expect(
+      page.getByTestId('extension-item').filter({ hasText: 'path-guard' }),
+    ).toContainText('off');
 
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('settings-panel')).toHaveCount(0);
@@ -97,12 +101,12 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.getByTestId('settings-nav-models').click();
     await expect(page.getByTestId('provider-settings')).toBeVisible();
     await page.getByTestId('provider-add-open').click();
-    await page.getByTestId('provider-add-type').selectOption('openai');
-    await page.getByTestId('provider-add-confirm').click();
-    await expect(page.getByTestId('provider-tab').filter({ hasText: 'OpenAI' })).toBeVisible();
+    await page.getByTestId('provider-preset-openai').click();
+    await expect(page.getByTestId('provider-drawer')).toBeVisible();
     await expect(page.getByTestId('provider-baseurl-input')).toHaveValue(/api\.openai\.com/);
     await expect(page.getByTestId('model-workbench')).toBeVisible();
-    await page.keyboard.press('Escape');
+    await page.getByTestId('provider-save-btn').click();
+    await expect(page.getByTestId('provider-row-openai')).toBeVisible();
   });
 
   test('Models settings can add Google Gemini protocol preset', async ({ page }) => {
@@ -112,19 +116,16 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.getByTestId('settings-nav-models').click();
     await expect(page.getByTestId('provider-settings')).toBeVisible();
     await page.getByTestId('provider-add-open').click();
-    await page.getByTestId('provider-add-type').selectOption('gemini');
-    await page.getByTestId('provider-add-confirm').click();
-    await expect(page.getByTestId('provider-tab').filter({ hasText: 'Google Gemini' })).toBeVisible();
+    await page.getByTestId('provider-preset-gemini').click();
+    await expect(page.getByTestId('provider-drawer')).toBeVisible();
     await expect(page.getByTestId('provider-baseurl-input')).toHaveValue(
       /generativelanguage\.googleapis\.com/,
     );
     await expect(page.getByTestId('model-workbench')).toBeVisible();
-    await page.getByTestId('provider-apikey-env-input').fill('GEMINI_API_KEY');
-    // Auto-save (debounced) stores the env var in config and clears the input.
-    await expect(page.getByTestId('provider-apikey-env-input')).toHaveValue('', {
-      timeout: 10_000,
-    });
-    await page.keyboard.press('Escape');
+    await page.getByTestId('provider-apikey-env-input').fill('fake-gemini-key');
+    await page.getByTestId('provider-save-btn').click();
+    await expect(page.getByTestId('provider-row-gemini')).toBeVisible();
+    await expect(page.getByTestId('provider-drawer')).toHaveCount(0);
   });
 
   test('open project → session ready for chat', async ({ page }) => {
@@ -189,9 +190,11 @@ test.describe('desktop shell (vite + host mock)', () => {
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-status-region');
 
-    await page.getByTestId('composer-input').fill(
-      'please stream a fairly long reply so the run is still active while we count status regions',
-    );
+    await page
+      .getByTestId('composer-input')
+      .fill(
+        'please stream a fairly long reply so the run is still active while we count status regions',
+      );
     await page.getByTestId('send-btn').click();
 
     // Stop being visible proves the run has not settled yet.
@@ -203,7 +206,9 @@ test.describe('desktop shell (vite + host mock)', () => {
     await expect(page.locator('[data-testid="workspace-context-header"]')).toHaveCount(1);
   });
 
-  test('renderer stress keeps history, input, and Stop usable during bursty streaming', async ({ page }) => {
+  test('renderer stress keeps history, input, and Stop usable during bursty streaming', async ({
+    page,
+  }) => {
     await page.goto('/');
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-render-stress');
@@ -345,9 +350,11 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.goto('/');
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-abort');
-    await page.getByTestId('composer-input').fill(
-      'please stream a fairly long reply so we can abort mid way through the mock host chunks',
-    );
+    await page
+      .getByTestId('composer-input')
+      .fill(
+        'please stream a fairly long reply so we can abort mid way through the mock host chunks',
+      );
     await page.getByTestId('send-btn').click();
     await expect(page.getByTestId('stop-btn')).toBeVisible({ timeout: 5000 });
     // Force/evaluate avoids actionability races while the stream still animates layout.
@@ -375,7 +382,10 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.goto('/');
     await waitForHostReady(page);
     await page.getByTestId('settings-open-btn').click();
-    await page.getByTestId('settings-panel').getByRole('button', { name: /自动化/ }).click();
+    await page
+      .getByTestId('settings-panel')
+      .getByRole('button', { name: /自动化/ })
+      .click();
     await expect(page.getByTestId('automation-panel')).toBeVisible();
     await expect(page.getByTestId('automation-enabled')).toBeVisible();
     await page.getByTestId('automation-enabled').check();
@@ -449,7 +459,9 @@ test.describe('desktop shell (vite + host mock)', () => {
     await expect(page.getByTestId('shell-preview-pill')).toHaveCount(0);
     await page.getByTestId('settings-open-btn').click();
     await expect(page.getByTestId('capability-matrix')).toBeVisible();
-    await expect(page.getByTestId('capability-row-pty')).toContainText(/交互终端|Interactive terminal/);
+    await expect(page.getByTestId('capability-row-pty')).toContainText(
+      /交互终端|Interactive terminal/,
+    );
     await expect(page.getByTestId('capability-row-pty')).toHaveClass(/unavailable/);
     await expect(page.getByTestId('capability-row-sessionLifecycle')).toHaveClass(/available/);
   });
@@ -488,12 +500,14 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.goto('/');
     await waitForHostReady(page);
     await page.getByTestId('settings-open-btn').click();
-    await page.getByTestId('settings-panel').getByRole('button', { name: /自动化/ }).click();
+    await page
+      .getByTestId('settings-panel')
+      .getByRole('button', { name: /自动化/ })
+      .click();
     await expect(page.getByTestId('automation-panel')).toBeVisible();
     await expect(page.getByTestId('automation-host-banner')).toBeVisible();
     await expect(page.getByTestId('hooks-post-event-note')).toBeVisible();
   });
-
 
   test('open workspace auto-trusts and creates session; subagent activity card appears', async ({
     page,
@@ -509,7 +523,10 @@ test.describe('desktop shell (vite + host mock)', () => {
 
     await page.getByTestId('settings-open-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
-    await page.getByTestId('settings-panel').getByRole('button', { name: /子代理/ }).click();
+    await page
+      .getByTestId('settings-panel')
+      .getByRole('button', { name: /子代理/ })
+      .click();
     await page.getByTestId('subagent-task-input').fill('Inspect the module map');
     await page.getByTestId('subagent-spawn-btn').click();
     await page.keyboard.press('Escape');
@@ -553,7 +570,9 @@ test.describe('desktop shell (vite + host mock)', () => {
     await composer.press('Enter');
     // Compaction may complete quickly in mock; accept progress or result notice.
     await expect(
-      page.getByTestId('compaction-progress-notice').or(page.getByTestId('compaction-result-notice')),
+      page
+        .getByTestId('compaction-progress-notice')
+        .or(page.getByTestId('compaction-result-notice')),
     ).toBeVisible({ timeout: 10_000 });
   });
 });

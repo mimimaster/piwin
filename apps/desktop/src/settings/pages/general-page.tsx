@@ -82,7 +82,7 @@ export function GeneralPage(): ReactElement {
         <PageTitle
           title={locale === 'zh-CN' ? '基础与运行' : 'General & Runtime'}
           description={
-            locale === 'zh-CN' ? '管理 piwin 界面显示语言。' : 'Manage piwin display language.'
+            locale === 'zh-CN' ? '管理界面显示语言。' : 'Manage display language.'
           }
         />
         <FieldRow label={copy.language} description={copy.languageDescription}>

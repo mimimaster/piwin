@@ -64,8 +64,16 @@ export type ComposerModelOption = {
   modelId: string;
   label: string;
   contextWindow?: number;
+  /** Configured thinking level default for this model. */
+  thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+  /** Configured thinking effort levels supported by this model. */
+  thinkingLevels?: readonly import('@piwin/contracts').ThinkingLevel[];
+  /** True when model.reasoning is enabled. */
+  reasoning?: boolean;
   /** True when model.input includes image. */
   supportsImage?: boolean;
+  /** True when model.capabilities includes image-generation. */
+  supportsImageGeneration?: boolean;
 };
 
 export type ComposerDockProps = {
@@ -143,7 +151,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     key: `${model.providerId}::${model.modelId}`,
     label: model.label,
     protocol: model.protocol,
+    ...(model.thinkingLevels !== undefined ? { thinkingLevels: model.thinkingLevels } : {}),
+    ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
     ...(model.supportsImage ? { supportsImage: true } : {}),
+    ...(model.supportsImageGeneration ? { supportsImageGeneration: true } : {}),
   }));
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -700,9 +711,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           <ThinkingEffortControl
             disabled={isStreamingRun || !props.onThinkingLevelChange}
             modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? 'Model'}
-            protocol={selectedModel?.protocol ?? null}
             ultraEnabled={props.ultraThinkingEnabled ?? false}
-            value={props.thinkingLevel ?? 'medium'}
+            value={props.thinkingLevel ?? 'off'}
             onChange={(level) => props.onThinkingLevelChange?.(level)}
             models={thinkingModels}
             selectedModelKey={props.selectedModelKey}

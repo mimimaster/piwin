@@ -16,9 +16,11 @@ export type SettingsSectionId =
   | 'appearance'
   | 'permissions'
   | 'models'
+  | 'vision'
   | 'image-generation'
   | 'skills'
   | 'extensions'
+  | 'plugins'
   | 'prompts'
   | 'tools'
   | 'web'
@@ -52,12 +54,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'permissions', group: 'application', labelKey: 'permissions' },
   { id: 'appearance', group: 'application', labelKey: 'appearance' },
   { id: 'models', group: 'agent', labelKey: 'models' },
+  { id: 'vision', group: 'agent', labelKey: 'vision' },
   { id: 'image-generation', group: 'agent', labelKey: 'imageGeneration' },
   { id: 'session', group: 'agent', labelKey: 'sessions' },
   { id: 'skills', group: 'integrations', labelKey: 'skills' },
   { id: 'web', group: 'integrations', labelKey: 'web' },
   { id: 'tools', group: 'integrations', labelKey: 'tools' },
   { id: 'extensions', group: 'integrations', labelKey: 'extensions', beta: true },
+  { id: 'plugins', group: 'integrations', labelKey: 'plugins', beta: true },
   { id: 'prompts', group: 'integrations', labelKey: 'prompts' },
   { id: 'automation', group: 'system', labelKey: 'automation', beta: true },
   { id: 'usage', group: 'system', labelKey: 'usage' },

@@ -19,7 +19,8 @@
   z-index: 1;
 }
 
-/* Small-range progressive bottom blur fade overlay: only 28px height right above composer dock */
+/* Small-range progressive bottom blur fade overlay: 28px above composer dock.
+   chat-stream ends at the overlay top so the scrollbar stays above the blur layer. */
 .transcript-viewport::after {
   content: '';
   position: absolute;
@@ -266,7 +267,8 @@
   width: 100%;
   min-width: 0;
   min-height: 0;
-  height: 100%;
+  box-sizing: border-box;
+  height: calc(100% - 28px);
   /* Horizontal padding is handled by the .chat-stage parent.
      Keep padding-top 0 so sticky user message headers freeze flush at top:0 without gaps. */
   overflow-y: auto;
@@ -354,6 +356,7 @@
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
+  height: 100%;
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -466,9 +469,9 @@
 }
 
 .empty-state-cta-button:hover {
-  background: color-mix(in srgb, var(--accent) 25%, var(--panel));
+  background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
+  color: var(--accent-fg, #ffffff);
   transform: translateY(-1px);
   box-shadow: 0 6px 24px color-mix(in srgb, var(--accent) 30%, transparent);
 }
@@ -484,7 +487,7 @@
 
 .empty-state-cta-button:hover .empty-state-cta-icon {
   transform: scale(1.15);
-  color: #ffffff;
+  color: var(--accent-fg, #ffffff);
 }
 
 .empty-state-sub-cta {
@@ -631,7 +634,7 @@
   border: none;
   border-radius: 6px;
   background: linear-gradient(135deg, var(--accent), var(--accent-2, var(--accent)));
-  color: var(--content-on-accent, #2b1508);
+  color: var(--accent-fg, var(--content-on-accent, #ffffff));
   content: 'P';
   font-size: 9px;
   font-weight: 760;
@@ -835,25 +838,33 @@
   font-weight: 550;
 }
 
-.files-changed-bar-file-pill {
+.files-changed-bar-file-inline {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   min-width: 0;
-  max-width: 42%;
-  padding: 1px 7px;
-  border-radius: 6px;
-  background: var(--surface-inset, var(--panel2));
-  border: 1px solid var(--line-soft, var(--line));
+  max-width: 55%;
+  padding: 0 4px;
   font-family: var(--mono, ui-monospace, monospace);
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 500;
-  color: var(--muted);
+  color: var(--accent, #3b82f6);
+  background: transparent;
+  border: none;
+}
+
+.files-changed-bar-file-inline-icon {
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  color: var(--accent, #3b82f6);
 }
 
 .files-changed-bar-file-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--accent, #3b82f6);
 }
 
 .files-changed-bar-stat {
@@ -885,25 +896,27 @@
 
 .files-changed-bar-review {
   flex-shrink: 0;
-  height: 26px;
-  padding: 0 11px;
-  border-radius: 7px;
-  border: 1px solid var(--line-strong, var(--line));
-  background: var(--control, var(--surface-inset));
-  color: var(--muted);
+  height: auto;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--accent, #3b82f6);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition:
     color 120ms ease,
-    border-color 120ms ease,
-    background 120ms ease;
+    filter 120ms ease,
+    text-shadow 120ms ease;
 }
 
 .files-changed-bar-review:hover {
-  color: var(--text);
-  border-color: var(--faint, var(--muted));
-  background: var(--surface-hover, var(--panel2));
+  color: var(--accent, #3b82f6);
+  background: transparent;
+  border: none;
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.45));
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
 }
 
 .files-changed-bar-list {
@@ -1233,10 +1246,10 @@
   stroke-width: 1.7;
 }
 
-/* Verb label (Searched / Analyzed / Edited / Ran command …) */
+/* Verb label (Searched / Read / Edited / Ran command …) — quieter than path/query */
 .tool-call-action-verb {
   font-weight: 500;
-  color: var(--muted);
+  color: var(--faint);
   font-size: 12.5px;
   letter-spacing: -0.01em;
   flex: none;
@@ -1275,7 +1288,7 @@
   font-size: 12px;
 }
 
-/* Mono path — proto .tool-head .path */
+/* Mono path / query — proto .tool-head .path */
 .tool-call-preview {
   font-family: var(--mono);
   font-size: 11.5px;
@@ -1285,6 +1298,11 @@
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+}
+
+/* Search / explore / fetch / command query emphasis */
+.tool-call-preview.is-query {
+  color: color-mix(in srgb, var(--text) 88%, var(--accent));
 }
 
 .tool-call-card.is-expanded .tool-call-preview {
@@ -1504,11 +1522,15 @@
 
 .turn-work-details {
   max-width: var(--chat-max, 760px);
-  margin: 4px auto 10px;
+  margin: 2px auto 4px;
   padding: 0;
   border: none;
   background: transparent;
   font-size: 12.5px;
+}
+
+.chat-message-row.role-assistant + .chat-message-row.role-assistant {
+  margin-top: -4px;
 }
 
 /* Think row: collapsible reasoning indicator (proto .think).
@@ -1517,9 +1539,9 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 26px;
-  padding: 0 9px;
-  margin: 2px 0 6px;
+  height: 24px;
+  padding: 0 8px;
+  margin: 1px 0 2px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -1532,6 +1554,13 @@
   transition:
     background var(--motion-quick, 120ms) var(--motion-ease, ease),
     color var(--motion-quick, 120ms) var(--motion-ease, ease);
+}
+
+.turn-summary-brain-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+  flex-shrink: 0;
 }
 
 .turn-work-details-summary:hover {
@@ -1916,8 +1945,80 @@
   border: 1px solid var(--border);
   overflow: auto;
   font-size: var(--code-font-size, 13px);
+  line-height: 1.35;
   overflow-wrap: var(--code-wrap, unset);
   word-break: var(--code-wrap, unset);
+}
+
+.md-code-content {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+/* Long code fences: hide inner scroll while collapsed so the mask gradient wins. */
+.md-code-collapsible.is-collapsed .md-code {
+  overflow: hidden;
+  margin-bottom: 0;
+}
+
+.md-code-collapsible .collapsible-content-toggle {
+  bottom: 8px;
+}
+
+.md-code-line {
+  display: flex;
+  align-items: flex-start;
+  font-family: var(--mono);
+  line-height: 1.35;
+}
+
+.md-code-line-num {
+  flex: 0 0 auto;
+  min-width: 2.5ch;
+  box-sizing: content-box;
+  text-align: right;
+  padding-right: 12px;
+  margin-right: 4px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  opacity: 0.6;
+}
+
+/* Diff fences: two-column old/new gutters (GitHub-style). */
+.md-code-diff .md-code-line-num {
+  min-width: 2.5ch;
+  padding-right: 6px;
+  margin-right: 0;
+}
+
+.md-code-diff .md-code-line-num-old {
+  padding-right: 4px;
+}
+
+.md-code-diff .md-code-line-num-new {
+  padding-right: 10px;
+  margin-right: 4px;
+}
+
+.md-code-line-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
+}
+
+.md-code-line.diff-line-add {
+  background: rgba(52, 211, 153, 0.12);
+}
+
+.md-code-line.diff-line-delete {
+  background: rgba(244, 63, 94, 0.12);
+}
+
+.md-code-line.diff-line-context {
+  background: transparent;
 }
 
 .md-inline-code {
@@ -1991,6 +2092,7 @@
   font-size: var(--code-font-size, 13px);
   overflow-wrap: var(--code-wrap, unset);
   word-break: var(--code-wrap, unset);
+  white-space: normal;
 }
 
 /* ─── Markdown Tables ───────────────────────────────────────────────── */
@@ -2835,24 +2937,44 @@
 .diff-body {
   font-family: var(--mono);
   font-size: 11.5px;
-  line-height: 1.7;
+  line-height: 1.4;
   padding: 8px 0;
   background: var(--sunken);
 }
 
 .diff-body .ln {
   display: flex;
+  align-items: flex-start;
   padding: 0 12px;
   white-space: pre;
+  line-height: 1.35;
 }
 
 .diff-body .ln .g {
-  width: 26px;
-  flex: none;
+  flex: 0 0 auto;
+  min-width: 2.5ch;
+  box-sizing: content-box;
   color: var(--faint);
   text-align: right;
-  padding-right: 12px;
+  padding-right: 6px;
+  white-space: nowrap;
   user-select: none;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.diff-body .ln .g.old {
+  padding-right: 4px;
+}
+
+.diff-body .ln .g.new {
+  padding-right: 10px;
+}
+
+.diff-body .ln .ln-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
 }
 
 .diff-body .ln.add {
@@ -2871,6 +2993,88 @@
 
 .diff-card.accepted .diff-body {
   opacity: 0.45;
+}
+
+/* ─── Collapsible content block (bash output / diff / overflow blocks) ─── */
+.collapsible-content-block {
+  position: relative;
+  width: 100%;
+}
+
+.collapsible-content-block.has-overflow.is-collapsed {
+  cursor: pointer;
+}
+
+.collapsible-content-block.is-collapsed .collapsible-content-inner {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 45%,
+    rgba(0, 0, 0, 0.25) 75%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    #000 0%,
+    #000 45%,
+    rgba(0, 0, 0, 0.25) 75%,
+    transparent 100%
+  );
+  transition: max-height 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.collapsible-content-block.is-expanded .collapsible-content-inner {
+  overflow: visible;
+  max-height: none !important;
+  -webkit-mask-image: none;
+  mask-image: none;
+  transition: max-height 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+/* Center toggle button floating on bottom blur overlay */
+.collapsible-content-toggle {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 20px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  background: color-mix(in srgb, var(--panel, #1c1c1e) 82%, transparent);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.collapsible-content-toggle:hover {
+  background: color-mix(in srgb, var(--panel, #1c1c1e) 95%, var(--text));
+  border-color: color-mix(in srgb, var(--text) 25%, transparent);
+  transform: translateX(-50%) scale(1.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.collapsible-toggle-icon {
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+}
+
+.collapsible-content-toggle:hover .collapsible-toggle-icon {
+  color: var(--text);
 }
 
 /* ─── Inline plan card (plan-card.tsx) ─────────────────────────────── */
@@ -3040,7 +3244,7 @@
 .plan-btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--ok-fg);
+  color: var(--accent-fg, #ffffff);
 }
 
 .plan-btn-primary:hover:not(:disabled) {

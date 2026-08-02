@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { WorkspaceTitlebar } from './workspace-titlebar';
@@ -65,5 +65,45 @@ describe('WorkspaceTitlebar identity', () => {
     });
     expect(container.querySelector('.titlebar-project-name')).toBeNull();
     expect(container.querySelector('.titlebar-session-name')?.textContent).toBe('General chat');
+  });
+
+  it('shows theme toggle and invokes onToggleAppearance', () => {
+    const onToggleAppearance = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <WorkspaceTitlebar
+            appearanceMode="dark"
+            onToggleAppearance={onToggleAppearance}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const toggle = container.querySelector(
+      '[data-testid="titlebar-theme-toggle"]',
+    ) as HTMLButtonElement | null;
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute('title')).toBe('切换到浅色主题');
+    act(() => {
+      toggle?.click();
+    });
+    expect(onToggleAppearance).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows moon icon affordance when already in light mode', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <WorkspaceTitlebar
+            appearanceMode="light"
+            onToggleAppearance={() => undefined}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+    const toggle = container.querySelector('[data-testid="titlebar-theme-toggle"]');
+    expect(toggle?.getAttribute('title')).toBe('Switch to dark theme');
   });
 });

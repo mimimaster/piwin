@@ -19,7 +19,8 @@
   margin: 0;
   background: var(--sidebar);
   border: 0;
-  border-left: none;
+  /* Quiet column divider — matches Cursor-style workbench chrome. */
+  border-left: 1px solid var(--column-divider, var(--border));
   box-shadow: none;
   overflow: hidden;
   /* Instant show/hide — opacity/transform open felt like a full-shell flash. */
@@ -80,13 +81,15 @@
 
 .right-panel-resize-handle {
   position: absolute;
-  z-index: 1;
+  z-index: 5;
   top: 0;
   bottom: 0;
-  left: -6px;
-  width: 12px;
+  left: -8px;
+  width: 16px;
   cursor: col-resize;
   touch-action: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .right-panel-resize-handle::after {
@@ -570,9 +573,10 @@
   background: var(--canvas);
 }
 
+/* Keep column divider visible — do not reset border-left to transparent. */
 .right-panel {
   background: var(--canvas);
-  border-left: 1px solid transparent;
+  border-left: 1px solid var(--column-divider, var(--border));
   transition:
     width var(--motion-large, 260ms) var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1)),
     opacity var(--motion-standard, 200ms) ease,
@@ -1638,6 +1642,30 @@
   color: var(--faint);
 }
 
+.diff-lineno {
+  width: 3ch;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 6px;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  opacity: 0.7;
+}
+
+.diff-lineno.old {
+  padding-right: 4px;
+}
+
+.diff-lineno.new {
+  padding-right: 8px;
+}
+
+.diff-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .diff-line.kind-add {
   background: color-mix(in srgb, #34d399 16%, transparent); /* diff green */
   color: #a7f3d0; /* diff green text */
@@ -2368,6 +2396,40 @@
   line-height: 1.6;
 }
 
+/* ── Code preview (non-Markdown files) ─────────────────────────── */
+
+.code-preview-view {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.code-preview-row {
+  display: flex;
+  white-space: pre;
+  padding: 0 8px;
+}
+
+.code-preview-lineno {
+  flex-shrink: 0;
+  width: calc(var(--code-gutter-ch, 4ch) + 12px);
+  padding-right: 12px;
+  text-align: right;
+  color: var(--faint);
+  user-select: none;
+  border-right: 1px solid var(--line-soft);
+  margin-right: 8px;
+}
+
+.code-preview-text {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Enhanced Markdown Content Formatting */
 
 /* Enhanced Markdown Content Formatting (Editorial-grade Typography & Spacing) */
@@ -2757,6 +2819,29 @@
   color: var(--text, #e2e8f0);
 }
 
+.code-line-num {
+  display: inline-block;
+  width: 3.5ch;
+  flex: none;
+  margin-right: 12px;
+  text-align: right;
+  color: var(--faint, #64748b);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  opacity: 0.6;
+}
+
+.enhanced-code .diff-line {
+  display: flex;
+  align-items: baseline;
+}
+
+.code-line-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre;
+}
+
 .enhanced-details {
   margin: 12px 0;
   border-radius: 8px;
@@ -2939,9 +3024,8 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  /* Image 1: solid accent blue + white icon */
   background: var(--accent, #3b82f6);
-  color: #ffffff;
+  color: var(--accent-fg, #ffffff);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
   transition:
     opacity 0.15s ease,
@@ -2968,10 +3052,10 @@
   visibility: visible;
 }
 
-/* Light theme: keep same blue (high contrast on light paper) */
-[data-theme='light'] .line-comment-btn {
-  background: #3b82f6;
-  color: #ffffff;
+/* Prefer theme accent; keep readable on-accent ink via --accent-fg. */
+[data-theme-mode='light'] .line-comment-btn {
+  background: var(--accent, #3b82f6);
+  color: var(--accent-fg, #ffffff);
 }
 
 .line-comment-popover-anchor {
@@ -3046,7 +3130,7 @@
 .popover-btn-submit {
   background: var(--accent, #38bdf8);
   border: none;
-  color: #ffffff;
+  color: var(--accent-fg, #ffffff);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -3342,7 +3426,7 @@
 
 .usage-panel-scope-switch button.active {
   background: var(--accent, #3b82f6);
-  color: #ffffff;
+  color: var(--accent-fg, #ffffff);
   font-weight: 600;
 }
 
@@ -3645,7 +3729,7 @@
 
 .usage-chart-tab.active {
   background: var(--accent, #3b82f6);
-  color: #ffffff;
+  color: var(--accent-fg, #ffffff);
 }
 
 .usage-chart-big-stat {

@@ -1,129 +1,61 @@
 /**
- * Settings → Sessions page (Wave 1 migration from SettingsPanel).
- * Auto-compaction default for new sessions + Walkthrough generation config.
+ * Settings → WalkThrough page (ADR 0026).
+ * - enabled: master generation switch
+ * - custom.prompt: editable generation instructions
+ * - no autoGenerate, no model picker, no custom mode
  */
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
   createDefaultWalkthroughConfig,
-  DEFAULT_CONCISE_PROMPT,
-  DEFAULT_CONCISE_PROMPT_ZH,
-  MAX_WALKTHROUGH_PROMPT_BYTES,
+  DEFAULT_WALKTHROUGH_PROMPT,
   validateWalkthroughConfig,
-  type ModelRef,
   type PiwinConfig,
   type WalkthroughConfig,
-  type WalkthroughConfigIssue,
-  type WalkthroughMode,
 } from '@piwin/contracts';
-import { Button, Collapse, Select, Switch, TextArea } from '@piwin/ui-kit';
+import { Button, Field, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 
-/** Flatten all providers' models into Select options: `<name> / <label ?? id>`. */
-function buildModelOptions(
-  providers: PiwinConfig['providers'],
-): { value: string; label: string; ref: ModelRef }[] {
-  const options: { value: string; label: string; ref: ModelRef }[] = [];
-  for (const provider of providers) {
-    for (const model of provider.models) {
-      const ref: ModelRef = {
-        protocol: provider.protocol,
-        providerId: provider.id,
-        modelId: model.id,
-      };
-      options.push({
-        value: JSON.stringify(ref),
-        label: `${provider.name} / ${model.label ?? model.id}`,
-        ref,
-      });
-    }
-  }
-  return options;
-}
-
-function issueFor(
-  issues: WalkthroughConfigIssue[],
-  path: string,
-): WalkthroughConfigIssue | undefined {
-  return issues.find((issue) => issue.path === path);
-}
-
 export function SessionPage(): ReactElement {
   const { locale } = useDesktopLocale();
+  const isZh = locale === 'zh-CN';
   const { config, saveConfig, setInfo } = useSettings();
-
   const walkthrough = config?.walkthrough ?? createDefaultWalkthroughConfig();
 
-  // Draft state mirrors the persisted walkthrough block; edits stay local
-  // until the user presses Save so switching modes never loses a prompt draft.
   const [enabled, setEnabled] = useState<boolean>(walkthrough.enabled);
-  const [autoGenerate, setAutoGenerate] = useState<boolean>(walkthrough.autoGenerate);
-  const [concisePrompt, setConcisePrompt] = useState<string>(walkthrough.concisePrompt);
-  const [mode, setMode] = useState<WalkthroughMode>(walkthrough.mode);
-  const [modelValue, setModelValue] = useState<string>(
-    walkthrough.custom.model ? JSON.stringify(walkthrough.custom.model) : '',
-  );
   const [prompt, setPrompt] = useState<string>(walkthrough.custom.prompt);
 
-  // Re-sync draft when the persisted config changes (e.g. external save).
   useEffect(() => {
     setEnabled(walkthrough.enabled);
-    setAutoGenerate(walkthrough.autoGenerate);
-    setConcisePrompt(walkthrough.concisePrompt);
-    setMode(walkthrough.mode);
-    setModelValue(walkthrough.custom.model ? JSON.stringify(walkthrough.custom.model) : '');
     setPrompt(walkthrough.custom.prompt);
   }, [walkthrough]);
 
-  const modelOptions = useMemo(() => (config ? buildModelOptions(config.providers) : []), [config]);
-
-  const draft: WalkthroughConfig = useMemo(() => {
-    const selected = modelOptions.find((option) => option.value === modelValue);
-    return {
+  const draft: WalkthroughConfig = useMemo(
+    () => ({
+      ...createDefaultWalkthroughConfig(),
       enabled,
-      autoGenerate,
-      concisePrompt,
-      mode,
+      autoGenerate: false,
+      mode: 'default',
       custom: {
-        model: selected ? selected.ref : null,
+        model: null,
         prompt,
       },
-    };
-  }, [enabled, autoGenerate, concisePrompt, mode, modelValue, prompt, modelOptions]);
+    }),
+    [enabled, prompt],
+  );
 
   const issues = useMemo(() => validateWalkthroughConfig(draft), [draft]);
-  const promptIssue = issueFor(issues, 'walkthrough.custom.prompt');
-  const modelIssue = issueFor(issues, 'walkthrough.custom.model');
+  const promptIssue = issues.find((issue) => issue.path === 'walkthrough.custom.prompt');
 
-  const hasNoModels = modelOptions.length === 0;
-
-  async function handleToggleAutoCompact(autoEnabledDefault: boolean): Promise<void> {
-    if (!config) return;
-    const next: PiwinConfig = {
-      ...config,
-      compaction: {
-        autoEnabledDefault,
-        writeTranscriptNote: config.compaction?.writeTranscriptNote === true,
-      },
-    };
-    if (await saveConfig(next)) {
-      setInfo(
-        locale === 'zh-CN'
-          ? '已保存自动压缩默认值；新会话将继承此设置。'
-          : 'Auto-compaction default saved. New sessions will inherit it.',
-      );
-    }
-  }
-
-  async function handleSaveWalkthrough(): Promise<void> {
+  async function handleSave(): Promise<void> {
     if (!config) return;
     if (issues.length > 0) {
       setInfo(
-        locale === 'zh-CN'
-          ? '保存失败：请检查提示词或模型配置项是否填全且合法。'
-          : 'Save failed: Please check validation issues in model or prompt fields.',
+        isZh
+          ? '保存失败：请检查生成提示词是否填全且未超长。'
+          : 'Save failed: Check that the generation prompt is non-empty and within size limits.',
       );
       return;
     }
@@ -132,219 +64,83 @@ export function SessionPage(): ReactElement {
       walkthrough: draft,
     };
     if (await saveConfig(next)) {
-      setInfo(locale === 'zh-CN' ? '已保存 Walkthrough 设置。' : 'Walkthrough settings saved.');
+      setInfo(isZh ? '已保存 WalkThrough 设置。' : 'WalkThrough settings saved.');
     } else {
-      setInfo(
-        locale === 'zh-CN'
-          ? '保存失败：无法写入配置文件。'
-          : 'Save failed: Failed to write configuration file.',
-      );
+      setInfo(isZh ? '保存失败：无法写入配置文件。' : 'Save failed: could not write config.');
     }
   }
 
-  const modeOptions: { value: string; label: string }[] = [
-    { value: 'default', label: locale === 'zh-CN' ? '默认' : 'Default' },
-    { value: 'custom', label: locale === 'zh-CN' ? '自定义' : 'Custom' },
-  ];
-
   return (
     <div className="settings-card">
-      <div className="settings-section settings-section-card">
-        <PageTitle
-          title={locale === 'zh-CN' ? '会话与上下文管理' : 'Sessions & Context'}
-          description={
-            locale === 'zh-CN'
-              ? '管理新会话创建时的默认上下文压缩策略与恢复行为。'
-              : 'Configure context compaction strategies and defaults for new sessions.'
-          }
-        />
-        {config ? (
-          <FieldRow
-            label={locale === 'zh-CN' ? '自动上下文压缩默认值' : 'Auto-compaction default'}
-            description={
-              locale === 'zh-CN'
-                ? '新创建的会话默认开启上下文自动压缩，有助于长会话节省 Token 与加速响应。'
-                : 'Enable context compaction by default for newly spawned sessions to optimize token usage.'
-            }
-          >
-            <Switch
-              checked={config.compaction?.autoEnabledDefault !== false}
-              onCheckedChange={(checked) => void handleToggleAutoCompact(checked)}
-              aria-label={locale === 'zh-CN' ? '自动上下文压缩' : 'Auto-compaction'}
-            />
-          </FieldRow>
-        ) : null}
-      </div>
-
       <div className="settings-section settings-section-card" data-testid="walkthrough-section">
         <PageTitle
-          title={locale === 'zh-CN' ? 'Walkthrough' : 'Walkthrough'}
+          title="WalkThrough"
           description={
-            locale === 'zh-CN'
-              ? '配置 Walkthrough 生成能力。默认开启，生成由用户主动触发。'
-              : 'Configure Walkthrough generation. Enabled by default; generation is user-triggered.'
+            isZh
+              ? '可选：自定义 Walkthrough 生成提示词。默认关闭，不会在发消息/跑测试后自动生成。'
+              : 'Optional: customize the walkthrough generation prompt. Off by default; never auto-runs after chat turns.'
           }
         />
         {config ? (
           <>
             <FieldRow
-              label={locale === 'zh-CN' ? '启用 Walkthrough' : 'Enable Walkthrough'}
+              label={isZh ? '启用 WalkThrough' : 'Enable WalkThrough'}
               description={
-                locale === 'zh-CN'
-                  ? '开启后在最终 Assistant 消息上提供生成 Walkthrough 的操作。'
-                  : 'When enabled, a Generate Walkthrough action appears on the final assistant message.'
+                isZh
+                  ? '默认关闭。开启后仅允许手动/CLI 生成；聊天轮次与计划完成都不会自动生成。'
+                  : 'Off by default. When on, only manual/CLI generation is allowed; chat turns and plan completion never auto-generate.'
               }
               testId="walkthrough-enabled-row"
             >
               <Switch
                 checked={enabled}
                 onCheckedChange={(checked) => setEnabled(checked)}
-                aria-label={locale === 'zh-CN' ? '启用 Walkthrough' : 'Enable Walkthrough'}
+                aria-label={isZh ? '启用 WalkThrough' : 'Enable WalkThrough'}
                 testId="walkthrough-enabled-switch"
               />
             </FieldRow>
 
-            <FieldRow
-              label={locale === 'zh-CN' ? '自动生成' : 'Auto-generate'}
+            <Field
+              label={isZh ? '生成提示词' : 'Generation prompt'}
               description={
-                locale === 'zh-CN'
-                  ? '开启后，当一轮对话使用了工具并结束时，自动生成简洁的 Walkthrough 摘要，无需手动点击。'
-                  : 'When on, a concise Walkthrough summary is generated automatically after a turn that used tools ends — no manual button press needed.'
+                isZh
+                  ? '生成 WalkThrough 时发给模型的说明。使用当前会话/消息模型，不单独选模型。'
+                  : 'Instructions sent when generating a walkthrough. Uses the session/message model (no separate model picker).'
               }
-              testId="walkthrough-auto-generate-row"
+              testId="walkthrough-prompt-field"
             >
-              <Switch
-                checked={autoGenerate}
-                onCheckedChange={(checked) => setAutoGenerate(checked)}
-                aria-label={locale === 'zh-CN' ? '自动生成' : 'Auto-generate'}
-                testId="walkthrough-auto-generate-switch"
+              <textarea
+                className="mcp-raw-editor"
+                rows={12}
+                value={prompt}
+                onChange={(event) => setPrompt(event.currentTarget.value)}
+                style={{ resize: 'vertical' }}
+                data-testid="walkthrough-prompt-textarea"
+                disabled={!enabled}
               />
-            </FieldRow>
-
-            <Collapse expanded={autoGenerate} testId="walkthrough-concise-collapse">
-              <div className="walkthrough-custom-body">
-                <div data-testid="walkthrough-concise-prompt-field">
-                  <TextArea
-                    label={locale === 'zh-CN' ? '简洁提示词' : 'Concise prompt'}
-                    description={
-                      locale === 'zh-CN'
-                        ? '当自动生成开启且正在执行计划时，注入到模型上下文中的提示词，引导模型生成简洁的聊天内摘要。'
-                        : 'Injected into the model context when auto-generate is on and a plan is active, guiding the model to produce a brief in-chat summary.'
-                    }
-                    testId="walkthrough-concise-prompt-textarea"
-                    value={concisePrompt}
-                    onChange={(value) => setConcisePrompt(value)}
-                    rows={6}
-                  />
-                </div>
-                <div className="ui-field-row-control" style={{ justifyContent: 'flex-end' }}>
-                  <Button
-                    variant="ghost"
-                    data-testid="walkthrough-concise-reset-button"
-                    onClick={() => setConcisePrompt(locale === 'zh-CN' ? DEFAULT_CONCISE_PROMPT_ZH : DEFAULT_CONCISE_PROMPT)}
-                  >
-                    {locale === 'zh-CN' ? '恢复默认' : 'Reset to default'}
-                  </Button>
-                </div>
-              </div>
-            </Collapse>
-
-            <FieldRow
-              label={locale === 'zh-CN' ? '生成模式' : 'Generation mode'}
-              description={
-                locale === 'zh-CN'
-                  ? '默认使用 Antigravity 公开结构；自定义可编辑提示词并选择生成模型。'
-                  : 'Default uses the Antigravity public structure; Custom lets you edit the prompt and pick the generation model.'
-              }
-              testId="walkthrough-mode-row"
-            >
-              <Select
-                value={mode}
-                testId="walkthrough-mode-select"
-                aria-label={locale === 'zh-CN' ? '生成模式' : 'Generation mode'}
-                data={modeOptions}
-                onChange={(event) => setMode(event.currentTarget.value as WalkthroughMode)}
-                style={{ minWidth: 160 }}
-              />
-            </FieldRow>
-
-            <Collapse expanded={mode === 'custom'} testId="walkthrough-custom-collapse">
-              <div className="walkthrough-custom-body">
-                {hasNoModels ? (
-                  <p className="muted" data-testid="walkthrough-no-models-guide">
-                    {locale === 'zh-CN'
-                      ? '请先在 设置 → 模型 中添加一个模型。'
-                      : 'Add a model in Settings → Models first.'}
-                  </p>
-                ) : (
-                  <FieldRow
-                    label={locale === 'zh-CN' ? '生成模型' : 'Generation model'}
-                    description={
-                      locale === 'zh-CN'
-                        ? '从已配置的 Provider 模型中选择生成模型。'
-                        : 'Pick a configured provider model to generate walkthroughs.'
-                    }
-                    testId="walkthrough-model-row"
-                  >
-                    <div
-                      style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 240 }}
-                    >
-                      <Select
-                        value={modelValue}
-                        testId="walkthrough-model-select"
-                        aria-label={locale === 'zh-CN' ? '生成模型' : 'Generation model'}
-                        data={modelOptions.map((option) => ({
-                          value: option.value,
-                          label: option.label,
-                        }))}
-                        onChange={(event) => setModelValue(event.currentTarget.value)}
-                      />
-                      {modelIssue ? (
-                        <p
-                          className="ui-field-error"
-                          role="alert"
-                          data-testid="walkthrough-model-error"
-                        >
-                          {modelIssue.message}
-                        </p>
-                      ) : null}
-                    </div>
-                  </FieldRow>
-                )}
-
-                <div data-testid="walkthrough-prompt-field">
-                  <TextArea
-                    label={locale === 'zh-CN' ? '提示词' : 'Prompt'}
-                    description={
-                      locale === 'zh-CN'
-                        ? `最大 ${MAX_WALKTHROUGH_PROMPT_BYTES} 字节（UTF-8）。切换回默认模式会保留草稿。`
-                        : `Max ${MAX_WALKTHROUGH_PROMPT_BYTES} bytes (UTF-8). Switching back to Default keeps your draft.`
-                    }
-                    testId="walkthrough-prompt-textarea"
-                    value={prompt}
-                    onChange={(value) => setPrompt(value)}
-                    rows={10}
-                    error={promptIssue ? promptIssue.message : null}
-                  />
-                </div>
-              </div>
-            </Collapse>
-
-            {/* Save button lives outside the Collapse so it stays visible in
-                both Default and Custom modes — otherwise toggling the enabled
-                switch or switching Custom → Default could never be persisted. */}
-            <div className="ui-field-row-control" style={{ justifyContent: 'flex-end' }}>
+            </Field>
+            {promptIssue ? (
+              <p className="muted" data-testid="walkthrough-prompt-error">
+                {promptIssue.message}
+              </p>
+            ) : null}
+            <div className="ui-field-row-control" style={{ justifyContent: 'flex-end', gap: 8 }}>
               <Button
-                variant="primary"
-                data-testid="walkthrough-save-button"
-                onClick={() => void handleSaveWalkthrough()}
-                disabled={issues.length > 0}
+                variant="ghost"
+                data-testid="walkthrough-prompt-reset-button"
+                onClick={() => setPrompt(DEFAULT_WALKTHROUGH_PROMPT)}
+                disabled={!enabled}
               >
-                {locale === 'zh-CN' ? '保存' : 'Save'}
+                {isZh ? '恢复默认提示词' : 'Reset prompt'}
+              </Button>
+              <Button data-testid="walkthrough-save-button" onClick={() => void handleSave()}>
+                {isZh ? '保存' : 'Save'}
               </Button>
             </div>
           </>
-        ) : null}
+        ) : (
+          <p className="muted">{isZh ? '正在加载配置…' : 'Loading config…'}</p>
+        )}
       </div>
     </div>
   );

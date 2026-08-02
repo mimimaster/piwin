@@ -66,6 +66,7 @@ export type DesktopTranslator = {
       appearance: string;
       permissions: string;
       models: string;
+      vision: string;
       imageGeneration: string;
       sessions: string;
       rules: string;
@@ -73,6 +74,7 @@ export type DesktopTranslator = {
       tools: string;
       web: string;
       extensions: string;
+      plugins: string;
       prompts: string;
       automation: string;
       agents: string;
@@ -85,13 +87,14 @@ export type DesktopTranslator = {
       empty: string;
       addProvider: string;
       addProviderTitle: string;
+      addProviderDesc: string;
       providerNameField: string;
       providerNamePlaceholder: string;
       providerTypeField: string;
       default: string;
       models: (count: number) => string;
       selectOrAdd: string;
-      keysDescription: string;
+      connectionHint: string;
       setDefault: string;
       providerId: string;
       displayName: string;
@@ -104,6 +107,26 @@ export type DesktopTranslator = {
       apiKeyStoredKeychain: string;
       apiKeyStoredEnv: (envName: string) => string;
       apiKeyPasteHint: string;
+      enableProvider: string;
+      providerEnabledHint: string;
+      providerDisabledHint: string;
+      searchPlaceholder: string;
+      filterAll: string;
+      filterOn: string;
+      filterOff: string;
+      noProviders: string;
+      noMatchingProviders: string;
+      addProviderHint: string;
+      statusOk: string;
+      statusFail: string;
+      statusUntested: string;
+      statusOff: string;
+      testConnection: string;
+      testing: string;
+      testOk: (count: number, duration: number) => string;
+      saveAndAdd: string;
+      providerName: string;
+      modelsWithCount: (count: number) => string;
       apiKeyEnvironment: string;
       apiKeyEnvironmentDescription: string;
       keychainReference: string;
@@ -123,6 +146,8 @@ export type DesktopTranslator = {
       headerValue: string;
       addHeader: string;
       apiAddress: string;
+      connectionEdit: string;
+      connectionDefaultEndpoint: string;
       endpointPreview: string;
       advanced: string;
       saveProvider: string;
@@ -200,7 +225,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     general: '通用',
     advanced: '高级',
     language: '语言',
-    languageDescription: '切换 piwin Desktop 界面显示语言。',
+    languageDescription: '切换界面显示语言。',
     chinese: '简体中文',
     english: 'English',
     backToWorkspace: '返回工作区',
@@ -222,7 +247,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     general: 'General',
     advanced: 'Advanced',
     language: 'Language',
-    languageDescription: 'Change the display language for piwin Desktop.',
+    languageDescription: 'Change the application display language.',
     chinese: 'Simplified Chinese',
     english: 'English',
     backToWorkspace: 'Back to workspace',
@@ -277,13 +302,15 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         appearance: isChinese ? '外观' : 'Appearance',
         permissions: isChinese ? '权限' : 'Permissions',
         models: isChinese ? '模型' : 'Models',
+        vision: isChinese ? '视觉' : 'Vision',
         imageGeneration: isChinese ? '图像生成' : 'Image Generation',
-        sessions: isChinese ? '会话' : 'Sessions',
+        sessions: 'WalkThrough',
         rules: isChinese ? '规则' : 'Rules',
         skills: 'Skills',
         tools: 'MCP',
         web: isChinese ? 'Web 工具' : 'Web tools',
         extensions: isChinese ? '扩展' : 'Extensions',
+        plugins: isChinese ? '插件' : 'Plugins',
         prompts: isChinese ? 'Prompt 模板' : 'Prompt templates',
         automation: isChinese ? '自动化' : 'Automation',
         agents: isChinese ? 'Agent' : 'Sub-agents',
@@ -294,8 +321,11 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         search: isChinese ? '搜索提供商…' : 'Search providers…',
         configuredHeading: isChinese ? '已配置' : 'Configured',
         empty: isChinese ? '暂无提供商，点击下方添加。' : 'No providers yet — add one below.',
-        addProvider: isChinese ? '添加' : 'Add',
+        addProvider: isChinese ? '添加提供商' : 'Add provider',
         addProviderTitle: isChinese ? '添加提供商' : 'Add provider',
+        addProviderDesc: isChinese
+          ? '选择要接入的模型服务商，或添加任意 OpenAI 兼容接口'
+          : 'Pick a model vendor, or add any OpenAI-compatible endpoint',
         providerNameField: isChinese ? '提供商名称' : 'Provider name',
         providerNamePlaceholder: isChinese ? '例如 OpenAI' : 'e.g. OpenAI',
         providerTypeField: isChinese ? '提供商类型' : 'Provider type',
@@ -305,7 +335,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         selectOrAdd: isChinese
           ? '从左侧选择提供商，或点击添加。'
           : 'Select a provider on the left, or add one.',
-        keysDescription: isChinese
+        connectionHint: isChinese
           ? '密钥通过环境变量或钥匙串管理，绝不写入配置文件。'
           : 'Keys stay in env / keychain — never store raw secrets in config.',
         setDefault: isChinese ? '设为默认' : 'Set default',
@@ -333,6 +363,36 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         apiKeyPasteHint: isChinese
           ? '粘贴 API 密钥后获取模型列表或保存。密钥存入本机钥匙串，绝不写入配置文件。'
           : 'Paste your API key, then Fetch models or Save. Keys go to the local keychain — never into config files.',
+        enableProvider: isChinese ? '启用此提供商' : 'Enable provider',
+        providerEnabledHint: isChinese ? '已加入全局模型列表' : 'Included in the global model list',
+        providerDisabledHint: isChinese
+          ? '停用后其模型不可被选择'
+          : 'Models cannot be selected while disabled',
+        searchPlaceholder: isChinese ? '搜索提供商或模型…' : 'Search providers or models…',
+        filterAll: isChinese ? '全部' : 'All',
+        filterOn: isChinese ? '已启用' : 'Enabled',
+        filterOff: isChinese ? '已停用' : 'Disabled',
+        noProviders: isChinese ? '暂无提供商' : 'No providers',
+        noMatchingProviders: isChinese
+          ? '没有匹配的提供商，试试调整搜索或筛选'
+          : 'No matching providers. Try adjusting search or filters.',
+        addProviderHint: isChinese
+          ? '支持 OpenAI、Anthropic 等常见厂商，或任意 OpenAI 兼容接口'
+          : 'Supports OpenAI, Anthropic, and any OpenAI-compatible endpoint',
+        statusOk: isChinese ? '正常' : 'OK',
+        statusFail: isChinese ? '连接失败' : 'Connection failed',
+        statusUntested: isChinese ? '未测试' : 'Untested',
+        statusOff: isChinese ? '已停用' : 'Disabled',
+        testConnection: isChinese ? '测试连接' : 'Test connection',
+        testing: isChinese ? '测试中…' : 'Testing…',
+        testOk: (count, duration) =>
+          isChinese
+            ? `已连接 · ${count} 个模型 · ${duration}ms`
+            : `Connected · ${count} models · ${duration}ms`,
+        saveAndAdd: isChinese ? '添加并保存' : 'Add and save',
+        providerName: isChinese ? '提供商名称' : 'Provider name',
+        modelsWithCount: (count) =>
+          isChinese ? `${count} 个模型` : `${count} model${count === 1 ? '' : 's'}`,
         apiKeyEnvironment: isChinese ? 'API Key 环境变量名' : 'API key environment variable',
         apiKeyEnvironmentDescription: isChinese
           ? '填写环境变量名，不写入配置文件。本地无鉴权端点可留空。切勿直接粘贴原始密钥。'
@@ -359,6 +419,8 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         headerValue: isChinese ? '值' : 'Value',
         addHeader: isChinese ? '添加请求头' : 'Add header',
         apiAddress: isChinese ? 'API 地址' : 'API address',
+        connectionEdit: isChinese ? '编辑连接' : 'Edit connection',
+        connectionDefaultEndpoint: isChinese ? '默认地址' : 'Default endpoint',
         endpointPreview: isChinese ? '预览' : 'Preview',
         advanced: isChinese ? '高级' : 'Advanced',
         saveProvider: isChinese ? '保存' : 'Save',
@@ -372,7 +434,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
           ? '该提供商配置将从产品配置中移除。'
           : 'The provider configuration will be removed from product config.',
         deleteProvider: isChinese ? '删除提供商' : 'Delete provider',
-        modelsHeading: isChinese ? '模型' : 'Models',
+        modelsHeading: isChinese ? '模型服务' : 'Model providers',
         modelsEmpty: isChinese
           ? '暂无模型，获取列表或手动添加。'
           : 'No models yet. Fetch the list or add one.',
