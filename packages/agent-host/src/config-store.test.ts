@@ -122,4 +122,122 @@ describe('config-store', () => {
     const loaded = await loadPiwinConfig(rootDir);
     expect(loaded.permissions).toEqual({ mode: 'auto', preset: 'auto' });
   });
+
+  it('uses safe subagents defaults when block is missing', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-subagents-missing-'));
+    const config = createDefaultPiwinConfig();
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.subagents).toBeDefined();
+    expect(loaded.subagents?.profiles).toEqual([]);
+    expect(loaded.subagents?.maxConcurrency).toBe(4);
+    expect(loaded.subagents?.processIsolation).toBe('required');
+  });
+
+  it('round-trips subagents profiles and limits', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-subagents-roundtrip-'));
+    const config = createDefaultPiwinConfig();
+    config.subagents = {
+      profiles: [
+        {
+          id: 'fast-explorer',
+          description: 'Fast read-only exploration',
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'cpa',
+            modelId: 'deepseek-v4-flash',
+          },
+          thinkingLevel: 'low',
+          capabilities: ['read'],
+          skillIds: [],
+          isolation: 'readonly',
+        },
+      ],
+      defaultProfileId: 'fast-explorer',
+      maxConcurrency: 2,
+      maxTasksPerRun: 4,
+      maxParallelWriteTasks: 2,
+      processIsolation: 'best-effort',
+      parallelWritePolicy: 'disabled',
+      requireCleanBaseForParallelWrites: false,
+    };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.subagents?.profiles).toHaveLength(1);
+    expect(loaded.subagents?.profiles[0]?.id).toBe('fast-explorer');
+    expect(loaded.subagents?.defaultProfileId).toBe('fast-explorer');
+    expect(loaded.subagents?.maxConcurrency).toBe(2);
+    expect(loaded.subagents?.processIsolation).toBe('best-effort');
+    expect(loaded.subagents?.parallelWritePolicy).toBe('disabled');
+    expect(loaded.subagents?.requireCleanBaseForParallelWrites).toBe(false);
+  });
+
+  it('drops invalid profile entries (missing id or description)', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-subagents-invalid-'));
+    const config = createDefaultPiwinConfig();
+    // Save raw JSON with an invalid profile (no id) to test normalization.
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        ...config,
+        subagents: {
+          profiles: [
+            { description: 'no id', isolation: 'readonly' },
+            { id: 'good', description: 'valid', isolation: 'readonly' },
+          ],
+          maxConcurrency: 4,
+          maxTasksPerRun: 8,
+          maxParallelWriteTasks: 4,
+          processIsolation: 'required',
+          parallelWritePolicy: 'worktree-only',
+          requireCleanBaseForParallelWrites: true,
+        },
+      }),
+      'utf8',
+    );
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.subagents?.profiles).toHaveLength(1);
+    expect(loaded.subagents?.profiles[0]?.id).toBe('good');
+  });
+
+  it('does not duplicate provider/model definitions when saving profiles', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-subagents-no-provider-dup-'));
+    const config = createDefaultPiwinConfig();
+    config.providers = [
+      {
+        id: 'cpa',
+        protocol: 'openai-compatible',
+        name: 'CPA',
+        baseUrl: 'http://localhost:1234/v1',
+        models: [{ id: 'deepseek-v4-flash' }],
+      },
+    ];
+    config.subagents = {
+      profiles: [
+        {
+          id: 'fast-explorer',
+          description: 'Fast',
+          model: {
+            protocol: 'openai-compatible',
+            providerId: 'cpa',
+            modelId: 'deepseek-v4-flash',
+          },
+          capabilities: ['read'],
+          isolation: 'readonly',
+        },
+      ],
+      maxConcurrency: 4,
+      maxTasksPerRun: 8,
+      maxParallelWriteTasks: 4,
+      processIsolation: 'required',
+      parallelWritePolicy: 'worktree-only',
+      requireCleanBaseForParallelWrites: true,
+    };
+    await savePiwinConfig(config, rootDir);
+    const raw = await readFile(join(rootDir, 'config.json'), 'utf8');
+    const parsed = JSON.parse(raw) as { providers: unknown[]; subagents: { profiles: unknown[] } };
+    expect(parsed.providers).toHaveLength(1);
+    // Profile references the model; it does not define a new provider.
+    expect(parsed.subagents.profiles).toHaveLength(1);
+  });
 });

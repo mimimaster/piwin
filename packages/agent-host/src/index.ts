@@ -211,3 +211,28 @@ export {
   WalkthroughGenerationRegistry,
 } from './commands/walkthrough-commands.js';
 export type { WalkthroughCommandContext } from './commands/walkthrough-commands.js';
+
+// CE-SUB-PROF: subagent profile resolution
+export {
+  BUILTIN_SUBAGENT_PROFILES,
+  BUILTIN_SUBAGENT_PROFILE_IDS,
+} from './subagent-profile-defaults.js';
+export {
+  resolveSubagentProfiles,
+  resolveSubagentProfile,
+  resolveSubagentModel,
+  resolveSubagentThinking,
+  resolveSubagentIsolation,
+  resolveSubagentCapabilities,
+  resolveSubagentSkillIds,
+  buildSubagentRuntimeSnapshot,
+  validateProfileModel,
+  validateProfileCapabilities,
+} from './subagent-profile-resolver.js';
+export type { ResolveProfileIssue, ResolveProfileResult } from './subagent-profile-resolver.js';
+export {
+  resolveSubagentCapabilitiesToTools,
+  isPiToolAllowed,
+  isCustomToolAllowed,
+} from './subagent-capability-resolver.js';
+export type { SubagentToolAllowlist } from './subagent-capability-resolver.js';
