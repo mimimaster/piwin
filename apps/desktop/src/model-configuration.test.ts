@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ModelCatalogEntry } from '@piwin/contracts';
 import {
   applyModelConfigurationDraft,
   createModelConfigurationDraft,
@@ -16,8 +17,10 @@ describe('model configuration', () => {
       maxOutputTokens: 64_000,
       tooltipMarkdown: 'High-reasoning model.',
       thinkingLevel: 'high',
+      thinkingLevels: ['off', 'low', 'medium', 'high'],
       input: ['text', 'image'],
       reasoning: true,
+      capabilities: ['image-generation'],
     });
 
     expect(createModelConfigurationEntry(draft)).toEqual({
@@ -27,8 +30,10 @@ describe('model configuration', () => {
       maxOutputTokens: 64_000,
       tooltipMarkdown: 'High-reasoning model.',
       thinkingLevel: 'high',
+      thinkingLevels: ['off', 'low', 'medium', 'high'],
       input: ['text', 'image'],
       reasoning: true,
+      capabilities: ['image-generation'],
     });
   });
 
@@ -41,7 +46,9 @@ describe('model configuration', () => {
         maxOutputTokens: 'not-a-number',
         tooltipMarkdown: '   ',
         thinkingLevel: '',
+        thinkingLevels: [],
         supportsImage: false,
+        supportsImageGeneration: false,
         reasoning: true,
       }),
     ).toEqual({
@@ -95,10 +102,76 @@ describe('model configuration', () => {
         maxOutputTokens: '',
         tooltipMarkdown: '',
         thinkingLevel: '',
+        thinkingLevels: [],
         supportsImage: false,
+        supportsImageGeneration: false,
         reasoning: true,
       }),
     ).toBeNull();
+  });
+
+  it('uses catalog limits and modalities only when the model omitted them', () => {
+    const catalog: ModelCatalogEntry = {
+      catalogProviderId: 'openai',
+      modelId: 'gpt-test',
+      name: 'GPT Test',
+      input: ['text', 'image'],
+      reasoning: true,
+      contextWindow: 200_000,
+      maxTokens: 32_000,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    };
+    const draft = createModelConfigurationDraft({ id: 'gpt-test' }, catalog);
+    expect(draft.contextWindow).toBe('200000');
+    expect(draft.maxOutputTokens).toBe('32000');
+    expect(draft.supportsImage).toBe(true);
+    expect(draft.reasoning).toBe(true);
+  });
+
+  it('round-trips max effort and image-generation capability while preserving its route', () => {
+    const models = [
+      {
+        id: 'image-reasoner',
+        routes: {
+          'image-generation': { path: '/images/custom', timeoutMs: 90_000 },
+        },
+      },
+    ];
+    const next = applyModelConfigurationDraft(models, 'image-reasoner', {
+      ...createModelConfigurationDraft({ id: 'image-reasoner' }),
+      thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
+      thinkingLevel: 'max',
+      supportsImage: true,
+      supportsImageGeneration: true,
+      reasoning: true,
+    });
+    expect(next).toEqual([
+      {
+        id: 'image-reasoner',
+        contextWindow: 128_000,
+        maxOutputTokens: 8_192,
+        input: ['text', 'image'],
+        reasoning: true,
+        thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
+        thinkingLevel: 'max',
+        capabilities: ['image-generation'],
+        routes: {
+          'image-generation': { path: '/images/custom', timeoutMs: 90_000 },
+        },
+      },
+    ]);
+  });
+
+  it('removes image-generation when the capability is unchecked', () => {
+    const next = applyModelConfigurationDraft(
+      [{ id: 'image-model', capabilities: ['image-generation'] }],
+      'image-model',
+      {
+        ...createModelConfigurationDraft({ id: 'image-model' }),
+        supportsImageGeneration: false,
+      },
+    );
+    expect(next?.[0]?.capabilities).toBeUndefined();
   });
 
   it('imports discovered models with catalog-enriched input fields', () => {
@@ -132,5 +205,30 @@ describe('model configuration', () => {
     expect(modelSupportsImage(undefined)).toBe(false);
     expect(modelSupportsImage({ input: ['text'] })).toBe(false);
     expect(modelSupportsImage({ input: ['text', 'image'] })).toBe(true);
+  });
+
+  it('defaults thinking levels based on protocol when none are configured', () => {
+    const openaiDraft = createModelConfigurationDraft(
+      { id: 'gpt-4o', reasoning: true },
+      undefined,
+      'openai-compatible',
+    );
+    expect(openaiDraft.thinkingLevels).toEqual(['low', 'medium', 'high', 'xhigh']);
+
+    const anthropicDraft = createModelConfigurationDraft(
+      { id: 'claude', reasoning: true },
+      undefined,
+      'anthropic-compatible',
+    );
+    expect(anthropicDraft.thinkingLevels).toEqual(['low', 'medium', 'high', 'max']);
+  });
+
+  it('prefers explicit thinkingLevels over protocol defaults in the draft', () => {
+    const draft = createModelConfigurationDraft(
+      { id: 'gpt-4o', reasoning: true, thinkingLevels: ['off', 'high'] },
+      undefined,
+      'openai-compatible',
+    );
+    expect(draft.thinkingLevels).toEqual(['off', 'high']);
   });
 });

@@ -20,8 +20,13 @@ export function ImageGenerationPage(): ReactElement {
   }
 
   return (
-    <div className="settings-card" data-testid="settings-image-generation">
-      <ImageGenerationSettings />
+    <div className="settings-models-page" data-testid="settings-image-generation">
+      <div
+        className="settings-card settings-card-flush"
+        data-testid="settings-image-generation-card"
+      >
+        <ImageGenerationSettings />
+      </div>
     </div>
   );
 }

@@ -1,40 +1,50 @@
 /**
  * Settings → Image Generation.
  *
- * Lists image-generation-capable providers from `config.providers` (same data
- * store as the chat model settings), then per selected provider shows a
- * read-only connection summary (base URL, API key status) and an editable list
- * of image models. Model route overrides (request path, timeout) live in
- * `provider.models[].routes['image-generation']`; label/description live on the
- * model entry itself. Edits auto-save (debounced), matching ProviderSettings.
+ * Mirrors Models page patterns:
+ *   - pick a real provider from `config.providers` (same channels as Models)
+ *   - DiscoverModelsDialog multi-select import (same picker as provider drawer)
+ *   - manual add/edit form for route path / timeout / label
+ *   - list of image-capable models with set-default / remove
+ *
+ * Models live on `config.providers[].models` with
+ * `capabilities: ['image-generation']` and optional
+ * `routes['image-generation']` path/timeout.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Button, Field, Spinner } from '@piwin/ui-kit';
 import type {
+  DiscoveredModel,
   ModelConfigEntry,
   ModelProviderConfig,
   ModelRouteConfig,
   PiwinConfig,
 } from '@piwin/contracts';
-import { useDesktopLocale } from './desktop-locale-context';
-import { useSettings } from './settings/settings-context';
-import { PageTitle } from './settings/page-title';
+import { DiscoverModelsDialog } from './DiscoverModelsDialog.js';
+import { useDesktopLocale } from './desktop-locale-context.js';
+import { ProviderIcon } from './provider-icons.js';
+import { useSettings } from './settings/settings-context.js';
+import { PageTitle } from './settings/page-title.js';
 
-/** A model is treated as image-capable when it declares the capability or omits the field (backward compat). */
-function isImageGenerationModel(model: ModelConfigEntry): boolean {
-  return !model.capabilities || model.capabilities.includes('image-generation');
+/** Image-capable when it declares the capability or has an image-generation route. */
+export function isImageGenerationModel(model: ModelConfigEntry): boolean {
+  if (model.capabilities?.includes('image-generation')) {
+    return true;
+  }
+  return model.routes?.['image-generation'] !== undefined;
 }
 
-/** Providers that expose at least one image-generation model. */
-function imageGenerationProviders(
-  providers: readonly ModelProviderConfig[],
-): ModelProviderConfig[] {
-  return providers.filter((provider) => provider.models.some(isImageGenerationModel));
+/** Protocol-aware default request path (matches host image_gen fallbacks). */
+export function defaultImageGenPath(protocol: ModelProviderConfig['protocol']): string {
+  if (protocol === 'google-gemini') {
+    return '';
+  }
+  return '/images/generations';
 }
 
 /** Normalize a custom request path: require leading `/`, reject absolute URLs. */
-function normalizeRequestPath(value: string): string {
+export function normalizeRequestPath(value: string): string {
   const trimmed = value.trim();
   if (!trimmed || /^https?:\/\//i.test(trimmed)) {
     return '';
@@ -42,8 +52,8 @@ function normalizeRequestPath(value: string): string {
   return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
 }
 
-/** Parse a timeout field in seconds; returns ms-scale seconds or undefined when unset/invalid. */
-function parseTimeoutSeconds(value: string): number | undefined {
+/** Parse a timeout field in seconds; returns seconds or undefined when unset/invalid. */
+export function parseTimeoutSeconds(value: string): number | undefined {
   const trimmed = value.trim();
   if (!trimmed) {
     return undefined;
@@ -55,211 +65,185 @@ function parseTimeoutSeconds(value: string): number | undefined {
   return seconds;
 }
 
-/** Editable fields of the expanded model row. */
-type ModelEditDraft = {
+type ImageModelRow = {
+  provider: ModelProviderConfig;
+  model: ModelConfigEntry;
+};
+
+export function collectImageModels(providers: readonly ModelProviderConfig[]): ImageModelRow[] {
+  const rows: ImageModelRow[] = [];
+  for (const provider of providers) {
+    for (const model of provider.models) {
+      if (isImageGenerationModel(model)) {
+        rows.push({ provider, model });
+      }
+    }
+  }
+  return rows;
+}
+
+function buildImageRoute(path: string, timeoutSeconds: string): ModelRouteConfig {
+  const normalizedPath = normalizeRequestPath(path);
+  const timeout = parseTimeoutSeconds(timeoutSeconds);
+  return {
+    ...(normalizedPath ? { path: normalizedPath } : {}),
+    ...(timeout !== undefined ? { timeoutMs: timeout * 1000 } : {}),
+  };
+}
+
+export function buildImageModelEntry(input: {
+  id: string;
   path: string;
   timeoutSeconds: string;
   label: string;
   description: string;
-};
-
-function modelToDraft(model: ModelConfigEntry): ModelEditDraft {
-  const route = model.routes?.['image-generation'];
+}): ModelConfigEntry {
+  const label = input.label.trim();
+  const description = input.description.trim();
+  const route = buildImageRoute(input.path, input.timeoutSeconds);
   return {
-    path: route?.path ?? '',
-    timeoutSeconds: route?.timeoutMs !== undefined ? String(route.timeoutMs / 1000) : '',
-    label: model.label ?? '',
-    description: model.tooltipMarkdown ?? '',
+    id: input.id.trim(),
+    capabilities: ['image-generation'],
+    ...(label ? { label } : {}),
+    ...(description ? { tooltipMarkdown: description } : {}),
+    routes: { 'image-generation': route },
   };
 }
 
-/** Apply an edited draft back onto a model's image-generation route + identity fields. */
-function applyEditToModel(model: ModelConfigEntry, draft: ModelEditDraft): ModelConfigEntry {
-  const route: ModelRouteConfig = { ...model.routes?.['image-generation'] };
-  const path = normalizeRequestPath(draft.path);
-  if (path) {
-    route.path = path;
-  } else {
-    delete route.path;
+/**
+ * Import discovered models as image-generation entries, preserving existing
+ * chat models on the same provider. Existing image models keep their routes.
+ */
+export function mergeDiscoveredImageModels(
+  configuredModels: readonly ModelConfigEntry[],
+  selectedModels: readonly DiscoveredModel[],
+  routeDefaults: { path: string; timeoutSeconds: string },
+): ModelConfigEntry[] {
+  const modelsById = new Map(configuredModels.map((model) => [model.id, model]));
+  const route = buildImageRoute(routeDefaults.path, routeDefaults.timeoutSeconds);
+
+  for (const discovered of selectedModels) {
+    const modelId = discovered.id.trim();
+    if (!modelId) continue;
+
+    const existing = modelsById.get(modelId);
+    if (existing) {
+      // Upgrade an existing entry to image-capable without dropping other fields.
+      const capabilities = new Set(existing.capabilities ?? []);
+      capabilities.add('image-generation');
+      modelsById.set(modelId, {
+        ...existing,
+        capabilities: [...capabilities],
+        routes: {
+          ...existing.routes,
+          'image-generation': existing.routes?.['image-generation'] ?? route,
+        },
+      });
+      continue;
+    }
+
+    const model: ModelConfigEntry = {
+      id: modelId,
+      capabilities: ['image-generation'],
+      routes: { 'image-generation': route },
+    };
+    if (discovered.label?.trim() && discovered.label !== modelId) {
+      model.label = discovered.label.trim();
+    }
+    if (discovered.input) {
+      model.input = discovered.input;
+    }
+    if (discovered.reasoning !== undefined) {
+      model.reasoning = discovered.reasoning;
+    }
+    if (discovered.contextWindow !== undefined) {
+      model.contextWindow = discovered.contextWindow;
+    }
+    if (discovered.maxOutputTokens !== undefined) {
+      model.maxOutputTokens = discovered.maxOutputTokens;
+    }
+    modelsById.set(modelId, model);
   }
-  const timeout = parseTimeoutSeconds(draft.timeoutSeconds);
-  if (timeout !== undefined) {
-    route.timeoutMs = timeout * 1000;
-  } else {
-    delete route.timeoutMs;
-  }
-  const next: ModelConfigEntry = {
-    ...model,
-    routes: { ...model.routes, 'image-generation': route },
-  };
-  const label = draft.label.trim();
-  if (label) {
-    next.label = label;
-  } else {
-    delete next.label;
-  }
-  const description = draft.description.trim();
-  if (description) {
-    next.tooltipMarkdown = description;
-  } else {
-    delete next.tooltipMarkdown;
-  }
-  return next;
+
+  return [...modelsById.values()];
 }
 
 export function ImageGenerationSettings(): ReactElement {
   const { config, saveConfig, discoverProviderModels, setError } = useSettings();
-  const { translator } = useDesktopLocale();
+  const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.imageGeneration;
+  const common = translator.common;
 
-  const providerList = useMemo(
-    () => (config ? imageGenerationProviders(config.providers) : []),
-    [config],
-  );
-  // Fall back to all providers when none have an image-generation model yet.
-  const dropdownProviders = useMemo(
-    () => (config ? (providerList.length > 0 ? providerList : config.providers) : []),
-    [config, providerList],
-  );
+  const allProviders = useMemo(() => config?.providers ?? [], [config]);
+  const imageRows = useMemo(() => (config ? collectImageModels(config.providers) : []), [config]);
 
-  const [selectedProviderId, setSelectedProviderId] = useState<string>(() => {
-    const preferred = config?.defaultProviderId;
-    if (preferred && dropdownProviders.some((p) => p.id === preferred)) {
-      return preferred;
-    }
-    return dropdownProviders[0]?.id ?? '';
-  });
-
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [edit, setEdit] = useState<ModelEditDraft | null>(null);
-  const [dirty, setDirty] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [addModelId, setAddModelId] = useState('');
-  const [addModelPath, setAddModelPath] = useState('');
+  const [addModelPath, setAddModelPath] = useState('/images/generations');
   const [addModelTimeout, setAddModelTimeout] = useState('');
   const [addModelLabel, setAddModelLabel] = useState('');
   const [addModelDescription, setAddModelDescription] = useState('');
   const [discovering, setDiscovering] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [discoverModels, setDiscoverModels] = useState<DiscoveredModel[]>([]);
 
-  const saveInFlightRef = useRef(false);
-  const [saveAttempt, setSaveAttempt] = useState(0);
+  // Prefer default chat provider, else first configured provider.
+  useEffect(() => {
+    if (selectedProviderId && allProviders.some((p) => p.id === selectedProviderId)) {
+      return;
+    }
+    const preferred = config?.defaultProviderId;
+    if (preferred && allProviders.some((p) => p.id === preferred)) {
+      setSelectedProviderId(preferred);
+      return;
+    }
+    setSelectedProviderId(allProviders[0]?.id ?? '');
+  }, [allProviders, config?.defaultProviderId, selectedProviderId]);
+
+  // When editing, pin the form to the model's original provider.
+  const effectiveProviderId = useMemo(() => {
+    const editingProviderId = editingKey?.split(':')[0];
+    if (editingProviderId && allProviders.some((p) => p.id === editingProviderId)) {
+      return editingProviderId;
+    }
+    return selectedProviderId;
+  }, [allProviders, editingKey, selectedProviderId]);
 
   const selectedProvider = useMemo(
-    () =>
-      dropdownProviders.find((p) => p.id === selectedProviderId) ?? dropdownProviders[0] ?? null,
-    [dropdownProviders, selectedProviderId],
+    () => allProviders.find((p) => p.id === effectiveProviderId) ?? null,
+    [allProviders, effectiveProviderId],
   );
 
-  const imageModels = useMemo(
-    () => (selectedProvider ? selectedProvider.models.filter(isImageGenerationModel) : []),
-    [selectedProvider],
-  );
-
-  const saveEdit = useCallback(
-    async (modelId: string, snapshot: ModelEditDraft, revision: number): Promise<boolean> => {
-      if (!config || !selectedProvider) {
-        return false;
-      }
-      const nextProviders = config.providers.map((provider) =>
-        provider.id === selectedProvider.id
-          ? {
-              ...provider,
-              models: provider.models.map((model) =>
-                model.id === modelId ? applyEditToModel(model, snapshot) : model,
-              ),
-            }
-          : provider,
-      );
-      const ok = await saveConfig({ ...config, providers: nextProviders });
-      if (ok) {
-        setDirty((current) => (saveAttempt === revision ? false : current));
-      }
-      return ok;
-    },
-    [config, saveConfig, saveAttempt, selectedProvider],
-  );
-
-  // Debounced auto-save for expanded-model edits (mirrors ProviderSettings).
-  useEffect(() => {
-    if (!dirty || !edit || !expandedId || saveInFlightRef.current) {
-      return;
-    }
-    const snapshot = edit;
-    const snapshotId = expandedId;
-    const revision = saveAttempt;
-
-    const timer = window.setTimeout(() => {
-      saveInFlightRef.current = true;
-      void saveEdit(snapshotId, snapshot, revision).finally(() => {
-        saveInFlightRef.current = false;
-        setSaveAttempt((current) => current + 1);
-      });
-    }, 700);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [dirty, edit, expandedId, saveAttempt, saveEdit]);
-
-  function handleProviderChange(nextId: string): void {
-    setSelectedProviderId(nextId);
-    setExpandedId(null);
-    setEdit(null);
-    setDirty(false);
-  }
-
-  function toggleExpand(modelId: string): void {
-    if (expandedId === modelId) {
-      setExpandedId(null);
-      setEdit(null);
-      setDirty(false);
-      return;
-    }
-    const model = imageModels.find((m) => m.id === modelId);
-    if (!model) {
-      return;
-    }
-    setExpandedId(modelId);
-    setEdit(modelToDraft(model));
-    setDirty(false);
-  }
-
-  function patchEdit(patch: Partial<ModelEditDraft>): void {
-    setEdit((current) => (current ? { ...current, ...patch } : current));
-    setDirty(true);
-  }
-
-  function handleSetDefault(modelId: string): void {
-    if (!config || !selectedProvider) {
-      return;
-    }
-    const next: PiwinConfig = {
-      ...config,
-      imageGeneration: {
-        ...config.imageGeneration,
-        defaultModel: {
-          protocol: selectedProvider.protocol,
-          providerId: selectedProvider.id,
-          modelId,
-        },
-      },
-    };
-    void saveConfig(next);
-  }
-
-  function handleRemoveModel(modelId: string): void {
-    if (!config || !selectedProvider) {
-      return;
-    }
-    const nextProviders = config.providers.map((provider) =>
-      provider.id === selectedProvider.id
-        ? { ...provider, models: provider.models.filter((model) => model.id !== modelId) }
-        : provider,
+  const resetAddForm = useCallback(() => {
+    setEditingKey(null);
+    setAddModelId('');
+    setAddModelPath(
+      selectedProvider ? defaultImageGenPath(selectedProvider.protocol) : '/images/generations',
     );
-    void saveConfig({ ...config, providers: nextProviders });
-    if (expandedId === modelId) {
-      setExpandedId(null);
-      setEdit(null);
-      setDirty(false);
+    setAddModelTimeout('');
+    setAddModelLabel('');
+    setAddModelDescription('');
+  }, [selectedProvider]);
+
+  function handleProviderChange(providerId: string): void {
+    setSelectedProviderId(providerId);
+    if (editingKey) return;
+    const provider = allProviders.find((p) => p.id === providerId);
+    if (provider) {
+      setAddModelPath(defaultImageGenPath(provider.protocol));
     }
+  }
+
+  function handleStartEdit(provider: ModelProviderConfig, model: ModelConfigEntry): void {
+    setEditingKey(`${provider.id}:${model.id}`);
+    setSelectedProviderId(provider.id);
+    const route = model.routes?.['image-generation'];
+    setAddModelId(model.id);
+    setAddModelPath(route?.path ?? defaultImageGenPath(provider.protocol));
+    setAddModelTimeout(route?.timeoutMs !== undefined ? String(route.timeoutMs / 1000) : '');
+    setAddModelLabel(model.label ?? '');
+    setAddModelDescription(model.tooltipMarkdown ?? '');
   }
 
   async function handleAddModel(): Promise<void> {
@@ -270,34 +254,69 @@ export function ImageGenerationSettings(): ReactElement {
     if (!id) {
       return;
     }
-    const path = normalizeRequestPath(addModelPath);
-    const timeout = parseTimeoutSeconds(addModelTimeout);
-    const label = addModelLabel.trim();
-    const description = addModelDescription.trim();
-    const model: ModelConfigEntry = {
+
+    const updatedModel = buildImageModelEntry({
       id,
-      capabilities: ['image-generation'],
-      ...(label ? { label } : {}),
-      ...(description ? { tooltipMarkdown: description } : {}),
-      routes: {
-        'image-generation': {
-          ...(path ? { path } : {}),
-          ...(timeout !== undefined ? { timeoutMs: timeout * 1000 } : {}),
-        },
-      },
-    };
-    const nextProviders = config.providers.map((provider) =>
-      provider.id === selectedProvider.id
-        ? { ...provider, models: [...provider.models, model] }
-        : provider,
-    );
-    // Clear the form synchronously (values already captured above) so repeated
-    // adds start fresh; the submitted snapshot drives the save below.
-    setAddModelId('');
-    setAddModelPath('');
-    setAddModelTimeout('');
-    setAddModelLabel('');
-    setAddModelDescription('');
+      path: addModelPath,
+      timeoutSeconds: addModelTimeout,
+      label: addModelLabel,
+      description: addModelDescription,
+    });
+
+    let nextProviders: ModelProviderConfig[];
+
+    if (editingKey) {
+      const [origProviderId, origModelId] = editingKey.split(':');
+      nextProviders = config.providers.map((p) => {
+        let models = p.models;
+        if (p.id === origProviderId) {
+          models = models.filter((m) => m.id !== origModelId);
+        }
+        if (p.id === selectedProvider.id) {
+          models = [...models.filter((m) => m.id !== id), updatedModel];
+        }
+        return { ...p, models };
+      });
+    } else {
+      if (selectedProvider.models.some((model) => model.id === id)) {
+        // If the model already exists, upgrade it to image-capable in place.
+        nextProviders = config.providers.map((provider) => {
+          if (provider.id !== selectedProvider.id) return provider;
+          return {
+            ...provider,
+            models: provider.models.map((model): ModelConfigEntry => {
+              if (model.id !== id) return model;
+              const capabilities = new Set(model.capabilities ?? []);
+              capabilities.add('image-generation');
+              // Start from existing chat model, overlay image route/label fields.
+              // exactOptionalPropertyTypes: only set optional keys when defined.
+              const merged: ModelConfigEntry = {
+                ...model,
+                id: updatedModel.id,
+                capabilities: [...capabilities],
+                routes: {
+                  ...model.routes,
+                  ...updatedModel.routes,
+                },
+              };
+              if (updatedModel.label) merged.label = updatedModel.label;
+              if (updatedModel.tooltipMarkdown) {
+                merged.tooltipMarkdown = updatedModel.tooltipMarkdown;
+              }
+              return merged;
+            }),
+          };
+        });
+      } else {
+        nextProviders = config.providers.map((provider) =>
+          provider.id === selectedProvider.id
+            ? { ...provider, models: [...provider.models, updatedModel] }
+            : provider,
+        );
+      }
+    }
+
+    resetAddForm();
     await saveConfig({ ...config, providers: nextProviders });
   }
 
@@ -308,10 +327,8 @@ export function ImageGenerationSettings(): ReactElement {
     setDiscovering(true);
     try {
       const result = await discoverProviderModels(selectedProvider);
-      const discovered = result.models[0]?.id;
-      if (discovered) {
-        setAddModelId((current) => (current.trim() ? current : discovered));
-      }
+      setDiscoverModels(result.models);
+      setDiscoverOpen(true);
     } catch {
       setError(copy.discoveryError);
     } finally {
@@ -319,10 +336,56 @@ export function ImageGenerationSettings(): ReactElement {
     }
   }
 
+  async function handleImportDiscovered(selected: DiscoveredModel[]): Promise<void> {
+    if (!config || !selectedProvider || selected.length === 0) {
+      return;
+    }
+    const nextModels = mergeDiscoveredImageModels(selectedProvider.models, selected, {
+      path: addModelPath,
+      timeoutSeconds: addModelTimeout,
+    });
+    const nextProviders = config.providers.map((provider) =>
+      provider.id === selectedProvider.id ? { ...provider, models: nextModels } : provider,
+    );
+    setDiscoverOpen(false);
+    await saveConfig({ ...config, providers: nextProviders });
+  }
+
+  function handleSetDefault(provider: ModelProviderConfig, modelId: string): void {
+    if (!config) {
+      return;
+    }
+    const next: PiwinConfig = {
+      ...config,
+      imageGeneration: {
+        ...config.imageGeneration,
+        defaultModel: {
+          protocol: provider.protocol,
+          providerId: provider.id,
+          modelId,
+        },
+      },
+    };
+    void saveConfig(next);
+  }
+
+  function handleRemoveModel(providerId: string, modelId: string): void {
+    if (!config) {
+      return;
+    }
+    // Drop the model entry entirely (same as Models page remove).
+    const nextProviders = config.providers.map((provider) =>
+      provider.id === providerId
+        ? { ...provider, models: provider.models.filter((model) => model.id !== modelId) }
+        : provider,
+    );
+    void saveConfig({ ...config, providers: nextProviders });
+  }
+
   if (!config) {
     return (
       <p className="muted" data-testid="image-gen-loading">
-        {translator.common.loading}
+        {common.loading}
       </p>
     );
   }
@@ -337,271 +400,294 @@ export function ImageGenerationSettings(): ReactElement {
     <div className="image-generation-settings" data-testid="image-generation-settings">
       <PageTitle title={copy.pageTitle} description={copy.pageDescription} />
 
-      {dropdownProviders.length === 0 ? (
-        <p className="muted">{copy.noModels}</p>
-      ) : (
-        <>
-          {/* Provider + connection summary */}
-          <section className="provider-section">
-            <Field label={copy.provider}>
-              <div data-testid="image-gen-provider-select">
-                <select
-                  className="mcp-raw-editor"
-                  style={{ height: 'auto', padding: '8px 12px' }}
-                  value={selectedProviderId}
-                  onChange={(event) => handleProviderChange(event.target.value)}
+      <div className="settings-section settings-section-card">
+        <PageTitle
+          title={
+            editingKey
+              ? locale === 'zh-CN'
+                ? '编辑图片模型'
+                : 'Edit image model'
+              : locale === 'zh-CN'
+                ? '添加图片模型'
+                : 'Add image model'
+          }
+        />
+        {allProviders.length === 0 ? (
+          <p className="muted" style={{ marginTop: 8 }}>
+            {locale === 'zh-CN'
+              ? '请先在「模型」中添加接口通道。'
+              : 'Add a provider under Models first.'}
+          </p>
+        ) : (
+          <div className="image-gen-form" style={{ marginTop: 16 }}>
+            <div className="image-gen-section-group">
+              <div
+                className="ui-field-label"
+                style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600, marginBottom: 12 }}
+              >
+                {locale === 'zh-CN' ? '接口通道与模型 ID' : 'Channel & Model ID'}
+              </div>
+
+              {/* Real provider channel (same list as Models page) */}
+              <div
+                className="image-gen-form-row image-gen-form-row--full"
+                data-testid="image-gen-provider-select"
+              >
+                <Field label={locale === 'zh-CN' ? '* 接口通道' : '* Provider channel'}>
+                  <select
+                    className="mcp-raw-editor"
+                    style={{
+                      height: 'auto',
+                      padding: '9px 12px',
+                      width: '100%',
+                      borderRadius: 8,
+                      fontSize: 13.5,
+                    }}
+                    data-testid="image-gen-provider-select-control"
+                    value={effectiveProviderId}
+                    disabled={Boolean(editingKey)}
+                    onChange={(event) => handleProviderChange(event.target.value)}
+                  >
+                    {allProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name || provider.id}
+                        {provider.enabled === false
+                          ? locale === 'zh-CN'
+                            ? '（已关闭）'
+                            : ' (off)'
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+                <div
+                  className="image-gen-provider-meta muted"
+                  style={{ marginTop: 6, fontSize: 12, display: 'flex', gap: 12, flexWrap: 'wrap' }}
                 >
-                  {dropdownProviders.map((provider) => (
-                    <option key={provider.id} value={provider.id}>
-                      {provider.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </Field>
-            {selectedProvider ? (
-              <div className="mcp-form-grid">
-                <div>
-                  <div className="ui-field-label">{copy.apiEndpoint}</div>
-                  <div
-                    className="muted"
-                    data-testid="image-gen-baseurl"
-                    style={{ fontFamily: 'var(--mono)', fontSize: '13px', marginTop: 4 }}
-                  >
-                    {selectedProvider.baseUrl}
-                  </div>
-                </div>
-                <div>
-                  <div className="ui-field-label">{copy.apiKey}</div>
-                  <div
-                    className="muted"
-                    data-testid="image-gen-apikey-status"
-                    style={{ marginTop: 4 }}
-                  >
-                    {apiKeyStatus}
-                  </div>
+                  <span data-testid="image-gen-baseurl">{selectedProvider?.baseUrl ?? '—'}</span>
+                  <span data-testid="image-gen-apikey-status">{apiKeyStatus}</span>
                 </div>
               </div>
-            ) : null}
-          </section>
 
-          {/* Model list */}
-          <section className="provider-section">
-            <PageTitle title={copy.modelsHeading} />
-            <div className="ext-list" style={{ marginTop: 12 }}>
-              {imageModels.length === 0 ? (
-                <li className="muted" style={{ textAlign: 'center', padding: '32px' }}>
-                  {copy.noModels}
-                </li>
-              ) : (
-                imageModels.map((model) => {
-                  const isExpanded = expandedId === model.id;
-                  const route = model.routes?.['image-generation'];
-                  return (
-                    <div
-                      key={model.id}
-                      className={isExpanded ? 'ext-list-item active' : 'ext-list-item'}
-                      style={{ flexDirection: 'column', alignItems: 'stretch', padding: '4px' }}
+              {/* Model ID + discover (same DiscoverModelsDialog as Models) */}
+              <div
+                className="image-gen-form-row image-gen-form-row--full"
+                style={{ marginTop: 12 }}
+              >
+                <div className="ui-field">
+                  <label className="ui-field-label" htmlFor="image-add-model-id">
+                    <span style={{ color: 'var(--danger, #ef4444)', marginRight: 4 }}>*</span>
+                    {copy.modelId}
+                  </label>
+                  <div
+                    className="ui-field-control"
+                    style={{ display: 'flex', gap: 8, alignItems: 'center' }}
+                  >
+                    <input
+                      id="image-add-model-id"
+                      list={imageRows.length > 0 ? 'image-model-ids' : undefined}
+                      className="mcp-raw-editor"
+                      style={{ height: 'auto', padding: '8px 12px', flex: 1 }}
+                      data-testid="image-add-model-id"
+                      value={addModelId}
+                      onChange={(event) => setAddModelId(event.target.value)}
+                      placeholder="dall-e-3"
+                      spellCheck={false}
+                      disabled={Boolean(editingKey)}
+                    />
+                    <datalist id="image-model-ids">
+                      {imageRows.map((row) => (
+                        <option key={`${row.provider.id}:${row.model.id}`} value={row.model.id}>
+                          {row.model.label ?? row.model.id}
+                        </option>
+                      ))}
+                    </datalist>
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      disabled={discovering || !selectedProvider || Boolean(editingKey)}
+                      onClick={() => void handleDiscoverModels()}
+                      data-testid="image-gen-discover-btn"
                     >
-                      <div
-                        data-testid="image-model-row"
-                        onClick={() => toggleExpand(model.id)}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          padding: '10px 12px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <strong style={{ fontFamily: 'var(--mono)', fontSize: '13.5px' }}>
-                            {model.id}
-                          </strong>
-                          <div className="muted" style={{ fontSize: '11.5px', marginTop: 2 }}>
-                            {route?.path ?? '—'}
-                            {route?.timeoutMs !== undefined
-                              ? ` · ${route.timeoutMs / 1000}${copy.timeoutUnitSeconds}`
-                              : ''}
-                          </div>
-                        </div>
-                        <div className="muted" style={{ fontSize: '12px', opacity: 0.5 }}>
-                          {isExpanded ? '↑' : '↓'}
-                        </div>
-                      </div>
+                      {discovering ? <Spinner /> : copy.discoverModels}
+                    </Button>
+                  </div>
+                </div>
+              </div>
 
-                      {isExpanded && edit ? (
-                        <div
-                          style={{
-                            padding: '20px 12px 12px',
-                            borderTop: '1px solid var(--line-soft)',
-                            background: 'var(--surface-inset)',
-                            borderRadius: '0 0 8px 8px',
-                          }}
-                        >
-                          <div className="mcp-form-grid">
-                            <Field label={copy.requestPath}>
-                              <input
-                                className="mcp-raw-editor"
-                                style={{ height: 'auto', padding: '8px 12px' }}
-                                data-testid="image-model-path"
-                                value={edit.path}
-                                onChange={(event) => patchEdit({ path: event.target.value })}
-                                spellCheck={false}
-                              />
-                            </Field>
-                            <Field label={`${copy.timeout} (${copy.timeoutUnitSeconds})`}>
-                              <input
-                                className="mcp-raw-editor"
-                                style={{ height: 'auto', padding: '8px 12px' }}
-                                data-testid="image-model-timeout"
-                                value={edit.timeoutSeconds}
-                                onChange={(event) =>
-                                  patchEdit({ timeoutSeconds: event.target.value })
-                                }
-                                inputMode="numeric"
-                              />
-                            </Field>
-                          </div>
-                          <div className="mcp-form-grid" style={{ marginTop: 16 }}>
-                            <Field label={copy.modelLabel}>
-                              <input
-                                className="mcp-raw-editor"
-                                style={{ height: 'auto', padding: '8px 12px' }}
-                                data-testid="image-model-label"
-                                value={edit.label}
-                                onChange={(event) => patchEdit({ label: event.target.value })}
-                                spellCheck={false}
-                              />
-                            </Field>
-                            <Field label={copy.modelDescription}>
-                              <input
-                                className="mcp-raw-editor"
-                                style={{ height: 'auto', padding: '8px 12px' }}
-                                data-testid="image-model-description"
-                                value={edit.description}
-                                onChange={(event) => patchEdit({ description: event.target.value })}
-                                spellCheck={false}
-                              />
-                            </Field>
-                          </div>
-                          <div
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'flex-end',
-                              gap: '8px',
-                              marginTop: 16,
-                            }}
-                          >
-                            <Button
-                              size="compact"
-                              variant="ghost"
-                              data-testid="image-model-set-default"
-                              onClick={() => handleSetDefault(model.id)}
-                            >
-                              {copy.setDefault}
-                            </Button>
-                            <Button
-                              size="compact"
-                              variant="ghost"
-                              data-testid="image-model-remove"
-                              onClick={() => handleRemoveModel(model.id)}
-                              style={{ color: 'var(--danger)' }}
-                            >
-                              {copy.removeModel}
-                            </Button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </section>
-
-          {/* Add image model */}
-          <section className="provider-section">
-            <PageTitle title={copy.addModel} />
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <Field label={copy.modelId}>
+              <div className="image-gen-form-row" style={{ marginTop: 12 }}>
+                <Field
+                  label={locale === 'zh-CN' ? '自定义请求路径' : copy.requestPath}
+                  description={
+                    locale === 'zh-CN'
+                      ? '不同模型服务商的接口路径可能不同。这里仅填写请求路径，不填写完整域名。留空时系统使用当前通道默认路径。'
+                      : copy.requestPathHint
+                  }
+                >
                   <input
                     className="mcp-raw-editor"
                     style={{ height: 'auto', padding: '8px 12px' }}
-                    data-testid="image-add-model-id"
-                    value={addModelId}
-                    onChange={(event) => setAddModelId(event.target.value)}
+                    data-testid="image-add-model-path"
+                    value={addModelPath}
+                    onChange={(event) => setAddModelPath(event.target.value)}
+                    placeholder="/images/generations"
+                    spellCheck={false}
+                  />
+                </Field>
+                <Field label={`${copy.timeout} (${copy.timeoutUnitSeconds})`}>
+                  <input
+                    className="mcp-raw-editor"
+                    style={{ height: 'auto', padding: '8px 12px' }}
+                    data-testid="image-add-model-timeout"
+                    value={addModelTimeout}
+                    onChange={(event) => setAddModelTimeout(event.target.value)}
+                    placeholder="300"
+                    inputMode="numeric"
+                  />
+                </Field>
+              </div>
+
+              <div className="image-gen-form-row" style={{ marginTop: 12 }}>
+                <Field label={locale === 'zh-CN' ? '模型备注' : copy.modelLabel}>
+                  <input
+                    className="mcp-raw-editor"
+                    style={{ height: 'auto', padding: '8px 12px' }}
+                    data-testid="image-add-model-label"
+                    value={addModelLabel}
+                    onChange={(event) => setAddModelLabel(event.target.value)}
+                    placeholder="SiliconFlow FLUX"
+                    spellCheck={false}
+                  />
+                </Field>
+                <Field
+                  label={locale === 'zh-CN' ? '模型介绍' : copy.modelDescription}
+                  {...(locale === 'zh-CN'
+                    ? { description: '填写后会同步到前台对应模型的输入框默认提示' }
+                    : {})}
+                >
+                  <input
+                    className="mcp-raw-editor"
+                    style={{ height: 'auto', padding: '8px 12px' }}
+                    data-testid="image-add-model-description"
+                    value={addModelDescription}
+                    onChange={(event) => setAddModelDescription(event.target.value)}
                     spellCheck={false}
                   />
                 </Field>
               </div>
-              <Button
-                size="compact"
-                variant="ghost"
-                disabled={discovering}
-                onClick={() => void handleDiscoverModels()}
-              >
-                {discovering ? <Spinner /> : copy.discoverModels}
-              </Button>
+
+              <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                {editingKey ? (
+                  <Button size="compact" variant="ghost" onClick={resetAddForm}>
+                    {locale === 'zh-CN' ? '取消编辑' : 'Cancel'}
+                  </Button>
+                ) : null}
+                <Button
+                  size="compact"
+                  data-testid="image-add-model-submit"
+                  disabled={!addModelId.trim() || !selectedProvider}
+                  onClick={() => void handleAddModel()}
+                >
+                  {editingKey
+                    ? locale === 'zh-CN'
+                      ? '保存模型修改'
+                      : 'Update Model'
+                    : copy.addModel}
+                </Button>
+              </div>
             </div>
-            <div className="mcp-form-grid" style={{ marginTop: 16 }}>
-              <Field label={copy.requestPath}>
-                <input
-                  className="mcp-raw-editor"
-                  style={{ height: 'auto', padding: '8px 12px' }}
-                  data-testid="image-add-model-path"
-                  value={addModelPath}
-                  onChange={(event) => setAddModelPath(event.target.value)}
-                  placeholder="/images/generations"
-                  spellCheck={false}
-                />
-              </Field>
-              <Field label={`${copy.timeout} (${copy.timeoutUnitSeconds})`}>
-                <input
-                  className="mcp-raw-editor"
-                  style={{ height: 'auto', padding: '8px 12px' }}
-                  data-testid="image-add-model-timeout"
-                  value={addModelTimeout}
-                  onChange={(event) => setAddModelTimeout(event.target.value)}
-                  inputMode="numeric"
-                />
-              </Field>
-            </div>
-            <div className="mcp-form-grid" style={{ marginTop: 16 }}>
-              <Field label={copy.modelLabel}>
-                <input
-                  className="mcp-raw-editor"
-                  style={{ height: 'auto', padding: '8px 12px' }}
-                  data-testid="image-add-model-label"
-                  value={addModelLabel}
-                  onChange={(event) => setAddModelLabel(event.target.value)}
-                  spellCheck={false}
-                />
-              </Field>
-              <Field label={copy.modelDescription}>
-                <input
-                  className="mcp-raw-editor"
-                  style={{ height: 'auto', padding: '8px 12px' }}
-                  data-testid="image-add-model-description"
-                  value={addModelDescription}
-                  onChange={(event) => setAddModelDescription(event.target.value)}
-                  spellCheck={false}
-                />
-              </Field>
-            </div>
-            <div style={{ marginTop: 16 }}>
-              <Button
-                size="compact"
-                data-testid="image-add-model-submit"
-                onClick={() => void handleAddModel()}
-              >
-                {copy.addModel}
-              </Button>
-            </div>
-          </section>
-        </>
-      )}
+          </div>
+        )}
+      </div>
+
+      <div className="settings-section settings-section-card" style={{ marginTop: 16 }}>
+        <PageTitle title={copy.modelsHeading} />
+        {imageRows.length === 0 ? (
+          <p className="muted" style={{ marginTop: 8 }} data-testid="image-gen-empty">
+            {copy.noModels}
+          </p>
+        ) : (
+          <ul className="image-gen-model-list" style={{ marginTop: 12 }}>
+            {imageRows.map(({ provider, model }) => {
+              const route = model.routes?.['image-generation'];
+              const isDefault =
+                config.imageGeneration?.defaultModel?.modelId === model.id &&
+                config.imageGeneration?.defaultModel?.providerId === provider.id;
+              const isEditing = editingKey === `${provider.id}:${model.id}`;
+              return (
+                <li
+                  key={`${provider.id}:${model.id}`}
+                  className={`image-gen-model-item ${isEditing ? 'is-editing' : ''}`}
+                  data-testid="image-model-row"
+                >
+                  <ProviderIcon id={provider.id} size={28} />
+                  <div className="image-gen-model-item-body">
+                    <div className="image-gen-model-item-title">
+                      <span className="image-gen-model-item-id">{model.id}</span>
+                      {model.label ? (
+                        <span className="muted" style={{ fontSize: 12 }}>
+                          {model.label}
+                        </span>
+                      ) : null}
+                      {isDefault ? (
+                        <span className="image-gen-default-badge">
+                          {locale === 'zh-CN' ? '默认' : 'Default'}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="image-gen-model-item-meta">
+                      <strong style={{ color: 'var(--text)' }}>{provider.name}</strong>
+                      {' · '}
+                      {route?.path ?? '—'}
+                      {route?.timeoutMs !== undefined
+                        ? ` · ${route.timeoutMs / 1000}${copy.timeoutUnitSeconds}`
+                        : ''}
+                    </div>
+                  </div>
+                  <div className="image-gen-model-item-actions">
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      onClick={() => handleStartEdit(provider, model)}
+                    >
+                      {locale === 'zh-CN' ? '编辑' : 'Edit'}
+                    </Button>
+                    {!isDefault ? (
+                      <Button
+                        size="compact"
+                        variant="ghost"
+                        data-testid="image-model-set-default"
+                        onClick={() => handleSetDefault(provider, model.id)}
+                      >
+                        {copy.setDefault}
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="compact"
+                      variant="ghost"
+                      data-testid="image-model-remove"
+                      onClick={() => handleRemoveModel(provider.id, model.id)}
+                      style={{ color: 'var(--danger)' }}
+                    >
+                      {copy.removeModel}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <DiscoverModelsDialog
+        open={discoverOpen}
+        provider={selectedProvider}
+        models={discoverModels}
+        onOpenChange={setDiscoverOpen}
+        onImport={(selected) => {
+          void handleImportDiscovered(selected);
+        }}
+      />
     </div>
   );
 }

@@ -1,9 +1,18 @@
+import {
+  DEFAULT_MODEL_CONTEXT_WINDOW,
+  DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+  THINKING_LEVEL_OPTIONS,
+} from '@piwin/contracts';
 import type {
   DiscoveredModel,
+  ModelCapability,
+  ModelCatalogEntry,
   ModelConfigEntry,
   ModelInputModality,
+  ModelProviderConfig,
   ThinkingLevel,
 } from '@piwin/contracts';
+import { getDefaultThinkingLevelsForProtocol } from './model-thinking-policy.js';
 
 export type ModelConfigurationDraft = {
   id: string;
@@ -12,23 +21,66 @@ export type ModelConfigurationDraft = {
   maxOutputTokens: string;
   tooltipMarkdown: string;
   thinkingLevel: ThinkingLevel | '';
+  thinkingLevels: ThinkingLevel[];
   /** Maps to `input` including `image`. */
   supportsImage: boolean;
+  /** Maps to `capabilities` including `image-generation`. */
+  supportsImageGeneration: boolean;
   /** Maps to `reasoning`. */
   reasoning: boolean;
 };
 
-export function createModelConfigurationDraft(model: ModelConfigEntry): ModelConfigurationDraft {
+export function mergeModelCatalogDefaults(
+  model: ModelConfigEntry,
+  catalog: ModelCatalogEntry | undefined,
+): ModelConfigEntry {
+  if (!catalog) return { ...model };
   return {
-    id: model.id,
-    label: model.label ?? '',
-    contextWindow: model.contextWindow === undefined ? '' : String(model.contextWindow),
-    maxOutputTokens: model.maxOutputTokens === undefined ? '' : String(model.maxOutputTokens),
-    tooltipMarkdown: model.tooltipMarkdown ?? '',
-    thinkingLevel: model.thinkingLevel ?? '',
-    supportsImage: model.input?.includes('image') ?? false,
-    // Default true matches host registration when field is omitted.
-    reasoning: model.reasoning ?? true,
+    ...model,
+    ...(model.label === undefined && catalog.name !== model.id
+      ? { label: catalog.name }
+      : {}),
+    ...(model.contextWindow === undefined
+      ? { contextWindow: catalog.contextWindow }
+      : {}),
+    ...(model.maxOutputTokens === undefined
+      ? { maxOutputTokens: catalog.maxTokens }
+      : {}),
+    ...(model.input === undefined ? { input: catalog.input } : {}),
+    ...(model.reasoning === undefined ? { reasoning: catalog.reasoning } : {}),
+  };
+}
+
+export function createModelConfigurationDraft(
+  model: ModelConfigEntry,
+  catalog?: ModelCatalogEntry,
+  protocol?: ModelProviderConfig['protocol'],
+): ModelConfigurationDraft {
+  const effective = mergeModelCatalogDefaults(model, catalog);
+  const configuredThinkingLevels = effective.thinkingLevels ?? [];
+  const protocolDefaults = configuredThinkingLevels.length === 0
+    ? getDefaultThinkingLevelsForProtocol(protocol)
+    : [];
+  const thinkingLevels = [...configuredThinkingLevels, ...protocolDefaults].filter(
+    (level, index, values) =>
+      THINKING_LEVEL_OPTIONS.includes(level) && values.indexOf(level) === index,
+  );
+
+  return {
+    id: effective.id,
+    label: effective.label ?? '',
+    contextWindow: String(effective.contextWindow ?? DEFAULT_MODEL_CONTEXT_WINDOW),
+    maxOutputTokens: String(effective.maxOutputTokens ?? DEFAULT_MODEL_MAX_OUTPUT_TOKENS),
+    tooltipMarkdown: effective.tooltipMarkdown ?? '',
+    thinkingLevel:
+      effective.thinkingLevel && thinkingLevels.includes(effective.thinkingLevel)
+        ? effective.thinkingLevel
+        : '',
+    thinkingLevels,
+    supportsImage: effective.input?.includes('image') ?? false,
+    supportsImageGeneration:
+      effective.capabilities?.includes('image-generation') ?? false,
+    reasoning: effective.reasoning ?? true,
   };
 }
 
@@ -58,14 +110,43 @@ export function createModelConfigurationEntry(
   if (tooltipMarkdown) {
     model.tooltipMarkdown = tooltipMarkdown;
   }
-  if (draft.thinkingLevel) {
-    model.thinkingLevel = draft.thinkingLevel;
+  if (draft.thinkingLevels.length > 0) {
+    model.thinkingLevels = draft.thinkingLevels;
+    if (draft.thinkingLevel && draft.thinkingLevels.includes(draft.thinkingLevel)) {
+      model.thinkingLevel = draft.thinkingLevel;
+    }
   }
   model.input = draft.supportsImage
     ? (['text', 'image'] as const satisfies readonly ModelInputModality[])
     : (['text'] as const satisfies readonly ModelInputModality[]);
   model.reasoning = draft.reasoning;
+  if (draft.supportsImageGeneration) {
+    model.capabilities = ['image-generation'] satisfies ModelCapability[];
+  }
   return model;
+}
+
+export function validateModelConfigurationDraft(
+  draft: ModelConfigurationDraft,
+): string | null {
+  if (!draft.id.trim()) return 'Model ID is required.';
+  for (const [label, value] of [
+    ['context window', draft.contextWindow],
+    ['max output tokens', draft.maxOutputTokens],
+  ] as const) {
+    if (!value.trim()) continue;
+    const parsed = Number(value.trim());
+    if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+      return `${label} must be a positive integer.`;
+    }
+  }
+  if (draft.thinkingLevel && !draft.thinkingLevels.includes(draft.thinkingLevel)) {
+    return 'The default thinking effort must be one of the supported levels.';
+  }
+  if (draft.thinkingLevels.some((level) => !THINKING_LEVEL_OPTIONS.includes(level))) {
+    return 'Thinking levels contain an unsupported value.';
+  }
+  return null;
 }
 
 /**
@@ -78,11 +159,29 @@ export function applyModelConfigurationDraft(
   originalId: string,
   draft: ModelConfigurationDraft,
 ): ModelConfigEntry[] | null {
+  const original = models.find((model) => model.id === originalId);
+  if (!original) return [...models];
   const entry = createModelConfigurationEntry(draft);
   if (!entry) {
     return null;
   }
-  return models.map((model) => (model.id === originalId ? entry : model));
+  const updated: ModelConfigEntry = { ...original, ...entry };
+  if (!draft.contextWindow.trim()) delete updated.contextWindow;
+  if (!draft.maxOutputTokens.trim()) delete updated.maxOutputTokens;
+  if (!draft.label.trim() || draft.label.trim() === updated.id) delete updated.label;
+  if (!draft.tooltipMarkdown.trim()) delete updated.tooltipMarkdown;
+  if (!draft.supportsImageGeneration) {
+    const remaining = (original.capabilities ?? []).filter(
+      (capability) => capability !== 'image-generation',
+    );
+    if (remaining.length > 0) updated.capabilities = remaining;
+    else delete updated.capabilities;
+  }
+  if (draft.thinkingLevels.length === 0) {
+    delete updated.thinkingLevels;
+    delete updated.thinkingLevel;
+  }
+  return models.map((model) => (model.id === originalId ? updated : model));
 }
 
 export function mergeDiscoveredModels(

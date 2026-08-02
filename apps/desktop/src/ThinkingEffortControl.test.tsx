@@ -21,13 +21,22 @@ function createBaseProps(overrides: Partial<ControlProps> = {}): ControlProps {
   return {
     disabled: false,
     modelLabel: 'Acme / gpt-test',
-    protocol: 'openai-compatible',
     ultraEnabled: false,
     value: 'medium',
     onChange: vi.fn(),
     models: [
-      { key: 'acme:gpt-test', label: 'Acme / gpt-test' },
-      { key: 'acme:gpt-mini', label: 'Acme / gpt-mini' },
+      {
+        key: 'acme:gpt-test',
+        label: 'Acme / gpt-test',
+        thinkingLevels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+        reasoning: true,
+      },
+      {
+        key: 'acme:gpt-mini',
+        label: 'Acme / gpt-mini',
+        thinkingLevels: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'],
+        reasoning: true,
+      },
     ],
     selectedModelKey: 'acme:gpt-test',
     onSelectModel: vi.fn(),
@@ -135,22 +144,55 @@ describe('ThinkingEffortControl', () => {
     ).toBe('true');
   });
 
-  it('adds the ultra level when ultra mode is enabled', () => {
-    render(createBaseProps({ ultraEnabled: true }), root);
+  it('adds the ultra level when ultra mode is enabled and configured', () => {
+    render(
+      createBaseProps({
+        ultraEnabled: true,
+        models: [
+          {
+            key: 'acme:gpt-test',
+            label: 'Acme / gpt-test',
+            thinkingLevels: ['off', 'low', 'medium', 'high', 'ultra'],
+            reasoning: true,
+          },
+          {
+            key: 'acme:gpt-mini',
+            label: 'Acme / gpt-mini',
+            thinkingLevels: ['off', 'low', 'medium', 'high', 'ultra'],
+            reasoning: true,
+          },
+        ],
+      }),
+      root,
+    );
     activateTrigger();
 
     expect(document.querySelector('[data-testid="thinking-level-ultra"]')).not.toBeNull();
   });
 
-  it('lists anthropic levels for anthropic-compatible models', () => {
+  it('lists exactly the configured effort levels, including max when configured', () => {
     render(
-      createBaseProps({ protocol: 'anthropic-compatible', value: 'high' }),
+      createBaseProps({
+        value: 'high',
+        models: [
+          {
+            key: 'acme:claude',
+            label: 'Acme / claude',
+            thinkingLevels: ['off', 'low', 'medium', 'high', 'max'],
+            reasoning: true,
+          },
+        ],
+        selectedModelKey: 'acme:claude',
+      }),
       root,
     );
     activateTrigger();
 
-    expect(document.querySelector('[data-testid="thinking-level-max"]')).not.toBeNull();
+    for (const level of ['off', 'low', 'medium', 'high', 'max']) {
+      expect(document.querySelector(`[data-testid="thinking-level-${level}"]`)).not.toBeNull();
+    }
     expect(document.querySelector('[data-testid="thinking-level-minimal"]')).toBeNull();
+    expect(document.querySelector('[data-testid="thinking-level-xhigh"]')).toBeNull();
   });
 
   it('moves focus across level chips with the keyboard and selects one', () => {
