@@ -8,7 +8,7 @@ import type { HostResponse, ProjectDirEntry, ProjectListDirData } from '@piwin/c
 import { Button, EmptyState, IconButton, Notice, Spinner } from '@piwin/ui-kit';
 import { IconChevronDown, IconChevronRight, IconRefresh } from './shell-icons';
 import { FileTypeIcon } from './file-type-icon';
-import type { FileTreeNodeState } from './file-tree-model';
+import { filterTreeNodes, type FileTreeNodeState } from './file-tree-model';
 
 export type FileTreeRequest =
   | {
@@ -49,6 +49,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [filterQuery, setFilterQuery] = useState('');
 
   const loadDirectory = useCallback(
     async (relativePath: string): Promise<ProjectDirEntry[]> => {
@@ -181,6 +182,15 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
           </IconButton>
         </header>
         {error ? <Notice tone="error">{error}</Notice> : null}
+        <input
+          type="search"
+          data-testid="file-tree-filter"
+          className="file-tree-filter"
+          value={filterQuery}
+          onChange={(e) => setFilterQuery(e.target.value)}
+          placeholder="Filter loaded files…"
+          aria-label="Filter files"
+        />
         {loading ? (
           <div className="file-tree-loading">
             <Spinner />
@@ -191,7 +201,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
             {rootNodes.length === 0 ? (
               <li className="muted file-tree-empty">Empty directory</li>
             ) : (
-              rootNodes.map((node) => (
+              filterTreeNodes(rootNodes, filterQuery).map((node) => (
                 <FileTreeNodeView
                   key={node.entry.relativePath}
                   node={node}
