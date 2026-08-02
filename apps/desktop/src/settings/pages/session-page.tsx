@@ -1,9 +1,10 @@
 /**
  * Settings → WalkThrough page (ADR 0026).
- * - enabled: master generation switch
- * - custom.prompt: editable generation instructions
- * - no autoGenerate, no model picker, no custom mode
+ * - enabled: opt-in for CLI/IPC generation only (no Desktop Generate button)
+ * - custom.prompt: editable generation instructions for CLI generation
+ * - no autoGenerate, no model picker, no custom mode, no chat/plan auto-trigger
  */
+
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
   createDefaultWalkthroughConfig,
@@ -77,8 +78,8 @@ export function SessionPage(): ReactElement {
           title="WalkThrough"
           description={
             isZh
-              ? '可选：自定义 Walkthrough 生成提示词。默认关闭，不会在发消息/跑测试后自动生成。'
-              : 'Optional: customize the walkthrough generation prompt. Off by default; never auto-runs after chat turns.'
+              ? '可编辑生成提示词。默认关闭；桌面端不会自动生成，也没有生成按钮。'
+              : 'Edit the generation prompt. Off by default; Desktop never auto-generates and has no Generate button.'
           }
         />
         {config ? (
@@ -87,8 +88,8 @@ export function SessionPage(): ReactElement {
               label={isZh ? '启用 WalkThrough' : 'Enable WalkThrough'}
               description={
                 isZh
-                  ? '默认关闭。开启后仅允许手动/CLI 生成；聊天轮次与计划完成都不会自动生成。'
-                  : 'Off by default. When on, only manual/CLI generation is allowed; chat turns and plan completion never auto-generate.'
+                  ? '默认关闭。开启后仅 CLI（piwin walkthrough generate）可生成；聊天与计划完成都不会自动生成，桌面也没有生成按钮。已有文档仍可查看。'
+                  : 'Off by default. When on, only CLI (piwin walkthrough generate) can create new ones; chat turns and plan completion never auto-generate, and Desktop has no Generate button. Existing artifacts remain viewable.'
               }
               testId="walkthrough-enabled-row"
             >
@@ -104,8 +105,8 @@ export function SessionPage(): ReactElement {
               label={isZh ? '生成提示词' : 'Generation prompt'}
               description={
                 isZh
-                  ? '生成 WalkThrough 时发给模型的说明。使用当前会话/消息模型，不单独选模型。'
-                  : 'Instructions sent when generating a walkthrough. Uses the session/message model (no separate model picker).'
+                  ? 'CLI 生成时发给模型的说明。使用当前会话/消息模型，不单独选模型。'
+                  : 'Instructions used when CLI generates a walkthrough. Uses the session/message model (no separate model picker).'
               }
               testId="walkthrough-prompt-field"
             >
