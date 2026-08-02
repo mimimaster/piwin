@@ -15,20 +15,39 @@
   font-weight: 550;
   letter-spacing: 0;
 }
-.piwin-button--compact { min-height: var(--control-height-compact); }
+.piwin-button--compact {
+  min-height: var(--control-height-compact);
+}
 .piwin-button--primary {
   box-shadow: none;
-  color: var(--bg, #000000);
+  /* On-accent ink: white on blue/orange, black on Noir white accent. */
+  color: var(--accent-fg, var(--content-on-accent, #ffffff));
 }
 .piwin-button--primary .mantine-Button-label {
-  color: var(--bg, #000000);
+  color: var(--accent-fg, var(--content-on-accent, #ffffff));
 }
 .piwin-button--primary svg {
-  color: var(--bg, #000000);
+  color: var(--accent-fg, var(--content-on-accent, #ffffff));
   stroke: currentColor;
 }
-.piwin-button--ghost { color: var(--muted); }
-.piwin-button--danger { color: var(--danger); }
+.piwin-button--secondary {
+  color: var(--text);
+  background: var(--surface-control, var(--panel2, var(--panel)));
+  border-color: var(--line, var(--border));
+}
+.piwin-button--secondary:hover:not(:disabled) {
+  background: var(--surface-control-hover, var(--surface-hover));
+  color: var(--text);
+}
+.piwin-button--ghost {
+  color: var(--muted);
+}
+.piwin-button--ghost:hover:not(:disabled) {
+  color: var(--text);
+}
+.piwin-button--danger {
+  color: var(--danger);
+}
 
 /* ── IconButton (Mantine ActionIcon wrapper) — ghost by default ──── */
 
@@ -68,9 +87,19 @@
 
 /* ── Field / FieldCheckbox ────────────────────────────────── */
 
-.ui-field { margin-bottom: 10px; }
-.ui-field-label { display: block; margin-bottom: 4px; font-size: 12px; }
-.ui-field-error { color: var(--danger); font-size: 12px; margin: 4px 0 0; }
+.ui-field {
+  margin-bottom: 10px;
+}
+.ui-field-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.ui-field-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
 
 /* Bare native controls only — TextInput/Select bring their own chrome. */
 .ui-field-control > input:not([class*='piwin-']),
@@ -136,8 +165,12 @@
   border-radius: var(--radius-surface);
   background: var(--panel);
 }
-.piwin-surface--raised { background: var(--surface-raised); }
-.piwin-surface--inset { background: var(--surface-control); }
+.piwin-surface--raised {
+  background: var(--surface-raised);
+}
+.piwin-surface--inset {
+  background: var(--surface-control);
+}
 .piwin-surface--selected {
   border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
   background: var(--surface-selected);
@@ -158,7 +191,10 @@
   cursor: pointer;
   font: inherit;
   text-align: left;
-  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
 }
 .piwin-list-row:hover:not(:disabled) {
   border-color: var(--line-soft);
@@ -168,11 +204,19 @@
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   background: var(--surface-selected);
 }
-.piwin-list-row.is-compact { min-height: var(--control-height-default); padding-block: 5px; }
-.piwin-list-row:disabled { cursor: not-allowed; opacity: 0.5; }
+.piwin-list-row.is-compact {
+  min-height: var(--control-height-default);
+  padding-block: 5px;
+}
+.piwin-list-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .piwin-list-row { transition: none; }
+  .piwin-list-row {
+    transition: none;
+  }
 }
 
 /* ── StatusBadge ───────────────────────────────────────────── */
@@ -192,10 +236,18 @@
   background: var(--faint);
 }
 
-.ui-status-badge.tone-running .ui-status-dot { background: var(--accent); }
-.ui-status-badge.tone-success .ui-status-dot { background: var(--ok); }
-.ui-status-badge.tone-warning .ui-status-dot { background: var(--state-warning); }
-.ui-status-badge.tone-danger .ui-status-dot { background: var(--danger); }
+.ui-status-badge.tone-running .ui-status-dot {
+  background: var(--accent);
+}
+.ui-status-badge.tone-success .ui-status-dot {
+  background: var(--ok);
+}
+.ui-status-badge.tone-warning .ui-status-dot {
+  background: var(--state-warning);
+}
+.ui-status-badge.tone-danger .ui-status-dot {
+  background: var(--danger);
+}
 
 /* ── Notice ────────────────────────────────────────────────── */
 
@@ -241,12 +293,18 @@
 }
 
 @keyframes piwin-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ── Tabs ──────────────────────────────────────────────────── */
 
-.ui-tabs-list { display: flex; gap: 6px; margin-bottom: 10px; }
+.ui-tabs-list {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
 
 .ui-tabs-trigger {
   border: 1px solid var(--line-soft);
@@ -321,8 +379,14 @@
 }
 
 @keyframes overlay-pop-in {
-  from { opacity: 0; transform: translateY(4px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -371,6 +435,17 @@
   --mantine-primary-color-filled-hover: var(--accent-2);
   --mantine-primary-color-light: var(--accent-soft);
   --mantine-primary-color-light-hover: color-mix(in srgb, var(--accent) 23%, var(--panel));
+  /* Ensure filled primary labels use on-accent ink (not Mantine white). */
+  --mantine-color-white: var(--accent-fg, #ffffff);
+}
+
+/* Filled primary: force on-accent contrast across Paper / Noir / 橙白. */
+.mantine-Button-root[data-variant='filled']:not([data-color]) {
+  color: var(--accent-fg, #ffffff);
+}
+.mantine-Button-root[data-variant='filled']:not([data-color]) .mantine-Button-label,
+.mantine-Button-root[data-variant='filled']:not([data-color]) svg {
+  color: inherit;
 }
 
 /* ── Switch ─────────────────────────────────────────────────────── */
@@ -396,8 +471,7 @@
   background-color: var(--faint);
   border: none;
   cursor: pointer;
-  transition:
-    background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
+  transition: background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
 }
 
 .piwin-switch-input:checked + .piwin-switch-track.piwin-switch-track {
@@ -455,6 +529,12 @@
 
 .piwin-modal-body {
   padding: var(--space-3) var(--space-4);
+}
+
+/* Combobox dropdowns inside modals (e.g. add-model catalog) must not be clipped. */
+.piwin-modal-content.add-model-dialog,
+.piwin-modal-content.add-model-dialog .piwin-modal-body {
+  overflow: visible;
 }
 
 .piwin-modal-header {
