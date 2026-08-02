@@ -3,7 +3,8 @@
  * Sub-agents are merged into Automation as a separate section until a tabbed
  * refactor lands in Phase 5.
  */
-import type { ReactElement } from 'react';
+import { useMemo, type ReactElement } from 'react';
+import { BUILTIN_SUBAGENT_PROFILE_SUMMARIES, type SubagentProfile } from '@piwin/contracts';
 import { AutomationPanel } from '../../AutomationPanel';
 import { SubAgentPanel } from '../../SubAgentPanel';
 import { useDesktopLocale } from '../../desktop-locale-context';
@@ -19,12 +20,31 @@ export function AutomationPage(): ReactElement {
     activeSessionId,
     subagentChildren,
     onOpenSubagentSession,
+    config,
   } = useSettings();
 
   const liveChildren =
     activeSessionId && subagentChildren
       ? Object.values(subagentChildren).filter((child) => child.parentSessionId === activeSessionId)
       : undefined;
+
+  // CE-SUB-PROF: merge built-in profile summaries with Settings overrides by id.
+  const profiles = useMemo<SubagentProfile[]>(() => {
+    const settingsProfiles = config?.subagents?.profiles ?? [];
+    const byId = new Map<string, SubagentProfile>();
+    for (const builtin of BUILTIN_SUBAGENT_PROFILE_SUMMARIES) {
+      byId.set(builtin.id, {
+        id: builtin.id,
+        description: builtin.description,
+        isolation: 'readonly',
+        source: 'builtin',
+      });
+    }
+    for (const settingsProfile of settingsProfiles) {
+      byId.set(settingsProfile.id, { ...settingsProfile, source: 'settings' });
+    }
+    return [...byId.values()];
+  }, [config]);
 
   return (
     <div className="settings-card">
@@ -42,6 +62,7 @@ export function AutomationPage(): ReactElement {
             variant="embedded"
             onOpenSession={(sessionId) => onOpenSubagentSession?.(sessionId)}
             {...(liveChildren ? { children: liveChildren } : {})}
+            profiles={profiles}
           />
         </div>
       )}

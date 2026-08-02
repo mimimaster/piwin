@@ -25,6 +25,12 @@ export function indexRecordToSummary(
     | 'pinnedAt'
     | 'isArchived'
     | 'archivedAt'
+    | 'subagentMode'
+    | 'subagentApplyPolicy'
+    | 'worktreePath'
+    | 'worktreeBranch'
+    | 'subagentRuntime'
+    | 'subagentLifecycle'
   >,
 ): SessionSummary {
   const scope: SessionScope = scopeFromIndexRecord(record);
@@ -51,5 +57,24 @@ export function indexRecordToSummary(
   if (record.pinnedAt) summary.pinnedAt = record.pinnedAt;
   if (record.isArchived === true) summary.isArchived = true;
   if (record.archivedAt) summary.archivedAt = record.archivedAt;
+  if (record.subagentMode) summary.subagentMode = record.subagentMode;
+  if (record.subagentApplyPolicy) summary.subagentApplyPolicy = record.subagentApplyPolicy;
+  if (record.worktreePath) summary.worktreePath = record.worktreePath;
+  if (record.worktreeBranch) summary.worktreeBranch = record.worktreeBranch;
+  // CE-SUB-PROF: safe projection of runtime snapshot (no secrets/skill bodies).
+  const snapshot = record.subagentRuntime;
+  if (snapshot) {
+    if (snapshot.profileId) summary.subagentProfileId = snapshot.profileId;
+    if (snapshot.model) summary.subagentModel = snapshot.model;
+    if (snapshot.thinkingLevel) summary.subagentThinkingLevel = snapshot.thinkingLevel;
+    if (!summary.subagentMode) summary.subagentMode = snapshot.isolation;
+  }
+  // CE-SUB-LIFE: orthogonal state axes.
+  const lifecycle = record.subagentLifecycle;
+  if (lifecycle) {
+    summary.subagentExecutionStatus = lifecycle.executionStatus;
+    summary.subagentSummaryStatus = lifecycle.summaryStatus;
+    summary.subagentIntegrationStatus = lifecycle.integrationStatus;
+  }
   return summary;
 }

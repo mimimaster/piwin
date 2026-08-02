@@ -56,6 +56,7 @@ import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
+import { planSubagentSpawn, buildSubagentSeedPrompt } from '../subagent-lifecycle-service.js';
 import {
   getPiwinRoot,
   getPiwinSessionDir,
@@ -104,6 +105,10 @@ export type SessionLiveContext = {
       subagentRole?: string;
       worktreePath?: string;
       worktreeBranch?: string;
+      /** CE-SUB-PROF: immutable runtime snapshot (source of truth for resume). */
+      subagentRuntime?: import('@piwin/contracts').SubagentRuntimeSnapshot;
+      /** CE-SUB-LIFE: orthogonal execution/summary/integration state axes. */
+      subagentLifecycle?: import('@piwin/contracts').SubagentLifecycleState;
     },
   ) => Promise<void>;
   loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
@@ -356,26 +361,38 @@ export async function handleSessionLiveCommand(
           `Unknown parent session: ${command.parentSessionId}`,
         );
       }
-      if (parent.kind === 'subagent' || (parent.depth ?? 0) >= 1) {
-        return fail(
-          requestId,
-          'session/spawn',
-          'sub-agent depth max is 1 (cannot nest sub-agents)',
-        );
+      const config = await context.loadConfig();
+      const plan = planSubagentSpawn({
+        config,
+        request: {
+          parentSessionId: command.parentSessionId,
+          task: command.task,
+          ...(command.sessionName ? { sessionName: command.sessionName } : {}),
+          selector: {
+            ...(command.profileId ? { profileId: command.profileId } : {}),
+            ...(command.model ? { model: command.model } : {}),
+            ...(command.thinkingLevel ? { thinkingLevel: command.thinkingLevel } : {}),
+          },
+          ...(command.mode ? { mode: command.mode } : {}),
+          ...(command.applyPolicy ? { applyPolicy: command.applyPolicy } : {}),
+          ...(command.allowedOutputPaths ? { allowedOutputPaths: command.allowedOutputPaths } : {}),
+          ...(command.retainWorktree ? { retainWorktree: command.retainWorktree } : {}),
+          ...(command.role ? { role: command.role } : {}),
+        },
+        parentDepth: parent.depth ?? 0,
+        parentKind: parent.kind,
+        workingDirectory: parent.workingDirectory ?? parent.projectPath,
+        enabledSkillIds: [],
+      });
+      if ('error' in plan) {
+        return fail(requestId, 'session/spawn', plan.error);
       }
       const task = command.task.trim();
-      if (!task) {
-        return fail(requestId, 'session/spawn', 'task is required');
-      }
       const childName =
         command.sessionName?.trim() || `subagent-${task.slice(0, 32).replace(/\s+/g, '-')}`;
-      const mode: import('@piwin/contracts').SubagentIsolationMode =
-        command.mode === 'worktree' ? 'worktree' : 'readonly';
-      const applyPolicy: import('@piwin/contracts').SubagentApplyPolicy =
-        command.applyPolicy === 'auto' || command.applyPolicy === 'explicit'
-          ? command.applyPolicy
-          : 'none';
-      const retainWorktree = command.retainWorktree === true;
+      const mode = plan.snapshot.isolation;
+      const applyPolicy = plan.spawnOptions.applyPolicy ?? 'none';
+      const retainWorktree = plan.spawnOptions.retainWorktree === true;
       let worktreePath: string | undefined;
       let worktreeBranch: string | undefined;
       if (mode === 'worktree') {
@@ -386,20 +403,18 @@ export async function handleSessionLiveCommand(
         worktreePath = wt.worktreePath;
         worktreeBranch = wt.branch;
       }
-      const subagent: import('@piwin/contracts').SubagentSpawnOptions = {
-        mode,
-        applyPolicy,
-        retainWorktree,
-        ...(command.allowedOutputPaths ? { allowedOutputPaths: command.allowedOutputPaths } : {}),
-        ...(command.role ? { role: command.role } : {}),
-      };
       const child = await context.createSession({
         projectPath: parent.projectPath,
         sessionName: childName,
         parentSessionId: parent.id,
         task,
-        subagent,
+        subagent: plan.createInput.subagent,
+        ...(plan.createInput.model ? { model: plan.createInput.model } : {}),
+        ...(plan.createInput.thinkingLevel
+          ? { thinkingLevel: plan.createInput.thinkingLevel }
+          : {}),
         ...(worktreePath ? { cwd: worktreePath } : {}),
+        runtimeSnapshot: plan.snapshot,
       });
       await context.bindSession(child, parent.projectPath, childName, {
         parentSessionId: parent.id,
@@ -416,15 +431,12 @@ export async function handleSessionLiveCommand(
         ...(command.role ? { subagentRole: command.role } : {}),
         ...(worktreePath ? { worktreePath } : {}),
         ...(worktreeBranch ? { worktreeBranch } : {}),
+        subagentRuntime: plan.snapshot,
+        subagentLifecycle: plan.lifecycle,
       });
       // Seed task into child session (best-effort).
       try {
-        const seed =
-          mode === 'readonly'
-            ? `[READONLY sub-agent] Do not modify files or run destructive commands.\n\n${task}`
-            : mode === 'worktree'
-              ? `[WORKTREE sub-agent] Work only under ${worktreePath}.\n\n${task}`
-              : task;
+        const seed = buildSubagentSeedPrompt(task, plan.snapshot);
         await context.recordUserPrompt(child.id, { text: seed });
         await child.prompt({ text: seed });
         await context.touchSession(child.id, task);
@@ -450,6 +462,7 @@ export async function handleSessionLiveCommand(
         mode,
         applyPolicy,
         ...(worktreePath ? { worktreePath } : {}),
+        ...(plan.snapshot.profileId ? { profileId: plan.snapshot.profileId } : {}),
       });
     }
     case 'session/list-children': {

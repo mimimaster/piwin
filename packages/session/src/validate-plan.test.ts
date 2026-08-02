@@ -107,4 +107,80 @@ describe('validateSessionPlan', () => {
     });
     expect(result.ok).toBe(false);
   });
+
+  it('accepts valid dependsOn and parallelGroup', () => {
+    const result = validateSessionPlan({
+      ...sample,
+      steps: [
+        { id: '1', title: 'A', status: 'pending' },
+        { id: '2', title: 'B', status: 'pending', dependsOn: ['1'], parallelGroup: 'g1' },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.steps[1]?.dependsOn).toEqual(['1']);
+      expect(result.plan.steps[1]?.parallelGroup).toBe('g1');
+    }
+  });
+
+  it('accepts profileId on steps', () => {
+    const result = validateSessionPlan({
+      ...sample,
+      steps: [{ id: '1', title: 'A', status: 'pending', profileId: 'explorer' }],
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.plan.steps[0]?.profileId).toBe('explorer');
+    }
+  });
+
+  it('rejects self-dependency', () => {
+    const result = validateSessionPlan({
+      ...sample,
+      steps: [{ id: '1', title: 'A', status: 'pending', dependsOn: ['1'] }],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.message.includes('self-dependency'))).toBe(true);
+    }
+  });
+
+  it('rejects unknown dependency ids', () => {
+    const result = validateSessionPlan({
+      ...sample,
+      steps: [
+        { id: '1', title: 'A', status: 'pending', dependsOn: ['nonexistent'] },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.message.includes('unknown step id'))).toBe(true);
+    }
+  });
+
+  it('rejects dependency cycles', () => {
+    const result = validateSessionPlan({
+      ...sample,
+      steps: [
+        { id: '1', title: 'A', status: 'pending', dependsOn: ['2'] },
+        { id: '2', title: 'B', status: 'pending', dependsOn: ['1'] },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues.some((i) => i.message.includes('cycle'))).toBe(true);
+    }
+  });
+
+  it('keeps legacy plans valid without dependsOn', () => {
+    const result = validateSessionPlan({
+      ...sample,
+      steps: [
+        { id: '1', title: 'A', status: 'pending' },
+        { id: '2', title: 'B', status: 'pending' },
+      ],
+      independentSteps: ['1', '2'],
+    });
+    expect(result.ok).toBe(true);
+  });
 });

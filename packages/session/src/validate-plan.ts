@@ -139,7 +139,63 @@ export function validateSessionPlan(value: unknown): PlanValidationResult {
     if (detail) {
       step.detail = detail;
     }
+    // CE-SUB-PROF: optional profileId
+    const profileId = asNonEmptyString(stepRecord.profileId);
+    if (profileId) step.profileId = profileId;
+    // CE-SUB-ORCH: optional parallelGroup
+    const parallelGroup = asNonEmptyString(stepRecord.parallelGroup);
+    if (parallelGroup) step.parallelGroup = parallelGroup;
+    // CE-SUB-ORCH: optional dependsOn (validated after all step ids are known)
+    const dependsOnRaw = stepRecord.dependsOn;
+    if (dependsOnRaw !== undefined) {
+      if (!Array.isArray(dependsOnRaw)) {
+        issues.push({ path: `steps[${index}].dependsOn`, message: 'dependsOn must be an array' });
+      } else {
+        const deps: string[] = [];
+        for (let depIndex = 0; depIndex < dependsOnRaw.length; depIndex += 1) {
+          const depId = asNonEmptyString(dependsOnRaw[depIndex]);
+          if (!depId) {
+            issues.push({
+              path: `steps[${index}].dependsOn[${depIndex}]`,
+              message: 'must be a non-empty string',
+            });
+            continue;
+          }
+          if (depId === stepId) {
+            issues.push({
+              path: `steps[${index}].dependsOn[${depIndex}]`,
+              message: 'self-dependency is not allowed',
+            });
+            continue;
+          }
+          deps.push(depId);
+        }
+        if (deps.length > 0) step.dependsOn = deps;
+      }
+    }
     steps.push(step);
+  }
+
+  // CE-SUB-ORCH: validate that all dependsOn reference known step ids and
+  // detect cycles. Self-dependencies are already caught above.
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = steps[index]!;
+    if (!step.dependsOn) continue;
+    for (const depId of step.dependsOn) {
+      if (!seenStepIds.has(depId)) {
+        issues.push({
+          path: `steps[${index}].dependsOn`,
+          message: `unknown step id: ${depId}`,
+        });
+      }
+    }
+  }
+  // Cycle detection via DFS.
+  if (issues.length === 0) {
+    const cycleErrors = detectPlanCycles(steps);
+    for (const error of cycleErrors) {
+      issues.push({ path: 'steps', message: error });
+    }
   }
 
   // Optional metadata: skillId, complexity, independentSteps, execution.
@@ -285,4 +341,47 @@ function validateExecutionState(value: unknown): ExecutionValidationResult {
   if (startedAt) state.startedAt = startedAt;
   if (endedAt) state.endedAt = endedAt;
   return { ok: true, state };
+}
+
+/**
+ * CE-SUB-ORCH: detect cycles in the plan step dependency graph.
+ * Returns an array of error messages (empty if no cycles).
+ */
+function detectPlanCycles(steps: PlanStep[]): string[] {
+  const errors: string[] = [];
+  const stepMap = new Map<string, PlanStep>();
+  for (const step of steps) stepMap.set(step.id, step);
+
+  const WHITE = 0; // unvisited
+  const GRAY = 1; // in progress (on current DFS path)
+  const BLACK = 2; // fully processed
+  const color = new Map<string, number>();
+  for (const step of steps) color.set(step.id, WHITE);
+
+  function dfs(stepId: string, path: string[]): boolean {
+    color.set(stepId, GRAY);
+    const step = stepMap.get(stepId);
+    if (step?.dependsOn) {
+      for (const dep of step.dependsOn) {
+        const depColor = color.get(dep);
+        if (depColor === GRAY) {
+          errors.push(`dependency cycle detected: ${[...path, stepId, dep].join(' → ')}`);
+          return true;
+        }
+        if (depColor === WHITE) {
+          if (dfs(dep, [...path, stepId])) return true;
+        }
+      }
+    }
+    color.set(stepId, BLACK);
+    return false;
+  }
+
+  for (const step of steps) {
+    if (color.get(step.id) === WHITE) {
+      dfs(step.id, []);
+    }
+  }
+
+  return errors;
 }

@@ -21,6 +21,8 @@ export type {
   ListSessionsForProjectOptions,
   SessionAutoNameSource,
 } from './session-index-store.js';
+export { createSubagentRunStore } from './subagent-run-store.js';
+export type { SubagentRunStore, SubagentRunManifest, SubagentRunStoreOptions } from './subagent-run-store.js';
 export { deriveDefaultNameFromMessage } from './derive-default-name.js';
 
 export {

@@ -12,6 +12,23 @@ export type PlanStep = {
   title: string;
   detail?: string;
   status: PlanStepStatus;
+  /**
+   * CE-SUB-PROF: optional subagent profile id for this step. When present,
+   * plan execution passes it to spawnSubagent so the Host resolves the
+   * profile's model/thinking/capabilities/isolation/skills. When absent,
+   * plan execution uses its default (worktree + explicit apply).
+   */
+  profileId?: string;
+  /**
+   * CE-SUB-ORCH: task ids that must complete before this step can start.
+   * The scheduler uses this to build a DAG; absent means no dependencies.
+   */
+  dependsOn?: string[];
+  /**
+   * CE-SUB-ORCH: optional grouping key; steps in the same group may be
+   * scheduled together by the orchestrator.
+   */
+  parallelGroup?: string;
 };
 
 export type SessionPlan = {

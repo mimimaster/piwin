@@ -1,6 +1,12 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { SessionIndexDocument, SessionIndexRecord, SessionScope } from '@piwin/contracts';
+import type {
+  SessionIndexDocument,
+  SessionIndexRecord,
+  SessionScope,
+  SubagentLifecycleState,
+  SubagentRuntimeSnapshot,
+} from '@piwin/contracts';
 
 /** Serializes read-modify-write cycles per index file (single-writer). */
 const indexWriteQueues = new Map<string, Promise<unknown>>();
@@ -200,6 +206,10 @@ export function createSessionRecord(input: {
   subagentRole?: string;
   worktreePath?: string;
   worktreeBranch?: string;
+  /** CE-SUB-PROF: immutable runtime snapshot (source of truth for resume). */
+  subagentRuntime?: SubagentRuntimeSnapshot;
+  /** CE-SUB-LIFE: orthogonal execution/summary/integration state axes. */
+  subagentLifecycle?: SubagentLifecycleState;
 }): SessionIndexRecord {
   const timestamp = nowIso();
   const resolvedScope: SessionScope = input.scope ?? {
@@ -258,6 +268,12 @@ export function createSessionRecord(input: {
   }
   if (input.worktreeBranch) {
     record.worktreeBranch = input.worktreeBranch;
+  }
+  if (input.subagentRuntime) {
+    record.subagentRuntime = input.subagentRuntime;
+  }
+  if (input.subagentLifecycle) {
+    record.subagentLifecycle = input.subagentLifecycle;
   }
   return record;
 }

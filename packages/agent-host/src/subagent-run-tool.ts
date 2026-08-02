@@ -12,7 +12,12 @@
  * Depth max is 1: a readonly/worktree subagent does not receive this tool,
  * preventing nested subagent spawning (consistent with session/spawn guard).
  */
-import type { SubagentApplyPolicy, SubagentIsolationMode } from '@piwin/contracts';
+import type {
+  SubagentApplyPolicy,
+  SubagentIsolationMode,
+  ModelRef,
+  ThinkingLevel,
+} from '@piwin/contracts';
 import type { HostToolDefinition } from '@piwin/tools-web';
 
 export type SubagentRunSeam = {
@@ -23,6 +28,12 @@ export type SubagentRunSeam = {
     mode?: SubagentIsolationMode;
     applyPolicy?: SubagentApplyPolicy;
     sessionName?: string;
+    /** CE-SUB-PROF: profile id resolved by the Host. */
+    profileId?: string;
+    /** CE-SUB-PROF: per-call model override (must reference a configured model). */
+    model?: ModelRef;
+    /** CE-SUB-PROF: per-call thinking level override. */
+    thinkingLevel?: ThinkingLevel;
   }) => Promise<{ childSessionId: string }>;
   /** Merge a completed child session's summary into its parent. */
   merge: (childSessionId: string) => Promise<{
@@ -77,6 +88,29 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
             'or "auto"/"explicit" (apply changed files back to the parent branch on merge). ' +
             'Only relevant when mode is "worktree".',
         },
+        profileId: {
+          type: 'string',
+          description:
+            'Optional subagent profile id (e.g. "explorer", "reviewer", "implementer", "tester"). ' +
+            "When set, the Host resolves the profile's model, thinking level, capabilities, skills, " +
+            'and isolation. The profile cannot be widened by this call.',
+        },
+        model: {
+          type: 'object',
+          description:
+            'Optional per-call model override. Must reference a provider/model already configured ' +
+            'in Settings. Overrides the profile model; cannot widen capabilities or isolation.',
+          properties: {
+            protocol: { type: 'string' },
+            providerId: { type: 'string' },
+            modelId: { type: 'string' },
+          },
+        },
+        thinkingLevel: {
+          type: 'string',
+          enum: ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'],
+          description: 'Optional per-call thinking level override.',
+        },
       },
       required: ['task'],
     },
@@ -97,6 +131,33 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       const applyPolicy =
         applyPolicyRaw === 'auto' || applyPolicyRaw === 'explicit' ? applyPolicyRaw : 'none';
 
+      const profileIdRaw = String(args.profileId ?? '').trim();
+      const profileId = profileIdRaw || undefined;
+
+      const modelRaw = args.model as
+        { protocol?: string; providerId?: string; modelId?: string } | undefined;
+      const model: ModelRef | undefined =
+        modelRaw &&
+        typeof modelRaw === 'object' &&
+        modelRaw.protocol &&
+        modelRaw.providerId &&
+        modelRaw.modelId
+          ? {
+              protocol: modelRaw.protocol as ModelRef['protocol'],
+              providerId: modelRaw.providerId,
+              modelId: modelRaw.modelId,
+            }
+          : undefined;
+
+      const thinkingLevelRaw = String(args.thinkingLevel ?? '').trim();
+      const thinkingLevel: ThinkingLevel | undefined =
+        thinkingLevelRaw &&
+        ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'].includes(
+          thinkingLevelRaw,
+        )
+          ? (thinkingLevelRaw as ThinkingLevel)
+          : undefined;
+
       if (signal?.aborted) return 'error: aborted before spawn';
 
       let spawnResult: { childSessionId: string };
@@ -107,6 +168,9 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           mode,
           ...(sessionName ? { sessionName } : {}),
           ...(applyPolicy !== 'none' ? { applyPolicy } : {}),
+          ...(profileId ? { profileId } : {}),
+          ...(model ? { model } : {}),
+          ...(thinkingLevel ? { thinkingLevel } : {}),
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

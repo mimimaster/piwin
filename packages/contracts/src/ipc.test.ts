@@ -89,6 +89,44 @@ describe('ipc types', () => {
     expect(revoke.type).toBe('project/permissions-revoke');
   });
 
+  it('accepts session/spawn with profileId, model, and thinkingLevel', () => {
+    const spawn: HostCommand = {
+      type: 'session/spawn',
+      parentSessionId: 's1',
+      task: 'explore the auth module',
+      profileId: 'explorer',
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'local-provider',
+        modelId: 'fast-coder',
+      },
+      thinkingLevel: 'low',
+    };
+    expect(spawn.type).toBe('session/spawn');
+    if (spawn.type === 'session/spawn') {
+      expect(spawn.profileId).toBe('explorer');
+      expect(spawn.model?.modelId).toBe('fast-coder');
+      expect(spawn.thinkingLevel).toBe('low');
+    }
+  });
+
+  it('accepts legacy session/spawn without profile fields (backward compat)', () => {
+    const spawn: HostCommand = {
+      type: 'session/spawn',
+      parentSessionId: 's1',
+      task: 'do a thing',
+      mode: 'worktree',
+      applyPolicy: 'auto',
+    };
+    expect(spawn.type).toBe('session/spawn');
+    if (spawn.type === 'session/spawn') {
+      expect(spawn.profileId).toBeUndefined();
+      expect(spawn.model).toBeUndefined();
+      expect(spawn.thinkingLevel).toBeUndefined();
+      expect(spawn.mode).toBe('worktree');
+    }
+  });
+
   it('accepts session/aborted AgentEvent via HostPush', () => {
     const abortedPush: HostPush = {
       type: 'event',

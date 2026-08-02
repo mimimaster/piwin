@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { THINKING_LEVEL_OPTIONS } from './config.js';
+import { createDefaultSubagentConfig, THINKING_LEVEL_OPTIONS } from './config.js';
 import type {
   ModelConfigEntry,
   ModelCapability,
-  ModelRouteConfig,
-  PiwinConfig,
-  ImageGenerationConfig,
+  type ModelRouteConfig,
+  type PiwinConfig,
+  type ImageGenerationConfig,
+  type SubagentConfig,
 } from './config.js';
 
 describe('ModelConfigEntry capabilities + routes', () => {
@@ -83,5 +84,65 @@ describe('PiwinConfig.imageGeneration', () => {
       },
     };
     expect(config.imageGeneration?.defaultModel?.modelId).toBe('glm-image');
+  });
+});
+
+describe('PiwinConfig.subagents', () => {
+  it('accepts a subagents block with profiles and limits', () => {
+    const config: PiwinConfig = {
+      hostMode: 'sdk',
+      providers: [],
+      media: { maxPasteBytes: 0, allowedMimeTypes: [] },
+      artifact: { maxBytes: 0, htmlUiModeDefault: false },
+      subagents: {
+        profiles: [
+          {
+            id: 'fast-explorer',
+            description: 'Fast read-only codebase exploration',
+            model: {
+              protocol: 'openai-compatible',
+              providerId: 'local-provider',
+              modelId: 'fast-coder',
+            },
+            thinkingLevel: 'low',
+            capabilities: ['read'],
+            skillIds: [],
+            isolation: 'readonly',
+          },
+        ],
+        defaultProfileId: 'fast-explorer',
+        maxConcurrency: 4,
+        maxTasksPerRun: 8,
+        maxParallelWriteTasks: 4,
+        processIsolation: 'required',
+        parallelWritePolicy: 'worktree-only',
+        requireCleanBaseForParallelWrites: true,
+      },
+    };
+    expect(config.subagents?.profiles[0]?.id).toBe('fast-explorer');
+    expect(config.subagents?.defaultProfileId).toBe('fast-explorer');
+  });
+
+  it('createDefaultSubagentConfig returns safe defaults', () => {
+    const defaults = createDefaultSubagentConfig();
+    expect(defaults.profiles).toEqual([]);
+    expect(defaults.maxConcurrency).toBe(4);
+    expect(defaults.processIsolation).toBe('required');
+    expect(defaults.parallelWritePolicy).toBe('worktree-only');
+    expect(defaults.requireCleanBaseForParallelWrites).toBe(true);
+  });
+
+  it('SubagentConfig type accepts empty profiles', () => {
+    const cfg: SubagentConfig = {
+      profiles: [],
+      maxConcurrency: 2,
+      maxTasksPerRun: 4,
+      maxParallelWriteTasks: 2,
+      processIsolation: 'best-effort',
+      parallelWritePolicy: 'disabled',
+      requireCleanBaseForParallelWrites: false,
+    };
+    expect(cfg.profiles).toHaveLength(0);
+    expect(cfg.processIsolation).toBe('best-effort');
   });
 });

@@ -13,6 +13,7 @@ import type { PermissionConfig } from './permission.js';
 import type { WalkthroughConfig } from './walkthrough.js';
 import { THINKING_LEVEL_OPTIONS } from './host.js';
 import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
+import type { SubagentProfileSettings } from './subagent-profile.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
 export type ModelCapability = 'chat' | 'image-generation';
@@ -167,6 +168,46 @@ export type ThinkingConfig = {
   ultraEnabled: boolean;
 };
 
+/**
+ * Settings-backed subagent configuration stored under `PiwinConfig.subagents`.
+ *
+ * Profiles reference `ModelRef` values already configured in
+ * `PiwinConfig.providers`; they never define providers or models. Parallel
+ * execution limits and isolation policy live here so there is no second
+ * parallelism configuration store.
+ */
+export type SubagentConfig = {
+  /** User-authored profiles. Built-ins are merged by the Host at resolution time. */
+  profiles: SubagentProfileSettings[];
+  /** Default profile id used when a caller omits `profileId`. */
+  defaultProfileId?: string;
+  /** Hard ceiling on concurrently running children in one batch. */
+  maxConcurrency: number;
+  /** Hard ceiling on total tasks in one batch request. */
+  maxTasksPerRun: number;
+  /** Hard ceiling on parallel write (worktree) tasks in one batch. */
+  maxParallelWriteTasks: number;
+  /** Whether process isolation is required for parallel runs. */
+  processIsolation: 'required' | 'best-effort';
+  /** Whether parallel writes are allowed (worktree-only) or disabled. */
+  parallelWritePolicy: 'worktree-only' | 'disabled';
+  /** When true, parallel writes require a clean parent working tree. */
+  requireCleanBaseForParallelWrites: boolean;
+};
+
+/** Safe defaults for `PiwinConfig.subagents` when absent or partial. */
+export function createDefaultSubagentConfig(): SubagentConfig {
+  return {
+    profiles: [],
+    maxConcurrency: 4,
+    maxTasksPerRun: 8,
+    maxParallelWriteTasks: 4,
+    processIsolation: 'required',
+    parallelWritePolicy: 'worktree-only',
+    requireCleanBaseForParallelWrites: true,
+  };
+}
+
 /** Restorable desktop navigation state, stored with the product config. */
 export type DesktopComposerProfile = {
   /** Per-next-turn model selection for the Desktop composer only. */
@@ -259,6 +300,8 @@ export type PiwinConfig = {
   permissions?: PermissionConfig;
   /** Walkthrough generation settings (spec §6.1). */
   walkthrough?: WalkthroughConfig;
+  /** Settings-backed subagent profiles and parallel execution limits. */
+  subagents?: SubagentConfig;
 };
 
 export function createDefaultCompactionConfig(): CompactionConfig {

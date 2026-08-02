@@ -211,3 +211,71 @@ export {
   WalkthroughGenerationRegistry,
 } from './commands/walkthrough-commands.js';
 export type { WalkthroughCommandContext } from './commands/walkthrough-commands.js';
+
+// CE-SUB-PROF: subagent profile resolution
+export {
+  BUILTIN_SUBAGENT_PROFILES,
+  BUILTIN_SUBAGENT_PROFILE_IDS,
+} from './subagent-profile-defaults.js';
+export {
+  resolveSubagentProfiles,
+  resolveSubagentProfile,
+  resolveSubagentModel,
+  resolveSubagentThinking,
+  resolveSubagentIsolation,
+  resolveSubagentCapabilities,
+  resolveSubagentSkillIds,
+  buildSubagentRuntimeSnapshot,
+  validateProfileModel,
+  validateProfileCapabilities,
+} from './subagent-profile-resolver.js';
+export type { ResolveProfileIssue, ResolveProfileResult } from './subagent-profile-resolver.js';
+export {
+  resolveSubagentCapabilitiesToTools,
+  isPiToolAllowed,
+  isCustomToolAllowed,
+} from './subagent-capability-resolver.js';
+export type { SubagentToolAllowlist } from './subagent-capability-resolver.js';
+export {
+  planSubagentSpawn,
+  buildSubagentSeedPrompt,
+  transitionExecutionStatus,
+  transitionSummaryStatus,
+  transitionIntegrationStatus,
+} from './subagent-lifecycle-service.js';
+export type { SubagentSpawnRequest, SubagentSpawnPlan } from './subagent-lifecycle-service.js';
+export {
+  initSchedulerState,
+  nextReadyBatch,
+  markTaskRunning,
+  markTaskSettled,
+  cancelAll,
+  isBatchSettled,
+  deriveBatchStatus,
+} from './subagent-scheduler.js';
+export type { SchedulerState, SchedulerTaskStatus } from './subagent-scheduler.js';
+export { SubagentOrchestrator } from './subagent-orchestrator.js';
+export type {
+  SubagentTaskRunner,
+  SubagentWorkspaceService,
+  SubagentIntegrationPort,
+  SubagentRunStorePort,
+  SubagentOrchestratorOptions,
+  ActiveRun as SubagentOrchestratorActiveRun,
+} from './subagent-orchestrator.js';
+export { createSubagentWorkspaceService } from './subagent-workspace-service.js';
+export type { SubagentWorkspaceServiceOptions } from './subagent-workspace-service.js';
+export { RpcSdkWorkerClient, createWorkerTaskRunner } from './rpc-sdk-worker-client.js';
+export type { WorkerClientOptions } from './rpc-sdk-worker-client.js';
+export {
+  parseWorkerFrame,
+  serializeWorkerRequest,
+} from './rpc-sdk-worker-protocol.js';
+export type {
+  WorkerRequest,
+  WorkerResponse,
+  WorkerEvent,
+  WorkerFrame,
+  WorkerRequestMethod,
+  WorkerRequestPayload,
+} from './rpc-sdk-worker-protocol.js';
