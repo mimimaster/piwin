@@ -1961,6 +1961,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                           : absolutePath,
                       );
                     }}
+                    onOpenFile={(absolutePath, relativePath) => {
+                      handleOpenDocument({
+                        title: relativePath.split(/[\\/]/).pop() || relativePath,
+                        path: absolutePath,
+                      });
+                    }}
                   />
                 }
                 canvasContent={<CanvasPanel />}

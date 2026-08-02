@@ -669,14 +669,14 @@
   align-items: center;
   gap: 6px;
   width: 100%;
-  height: 26px;
+  height: 24px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 4px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-family: var(--mono, ui-monospace, 'SF Mono', Menlo, monospace);
-  font-size: 11px;
+  font-family: var(--font-sans, var(--font));
+  font-size: 12px;
   text-align: left;
 }
 
@@ -713,6 +713,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: inherit;
 }
 
 .file-tree-children {
@@ -746,55 +747,10 @@
 .file-tree-main {
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  border-bottom: 1px solid var(--line-soft);
-  overflow: hidden;
-}
-
-.file-tree-preview {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--panel) 64%, var(--canvas));
-}
-
-.file-tree-preview-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--line-soft);
-  font-size: 12px;
-}
-
-.file-tree-preview-header strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-tree-preview-code {
   flex: 1;
-  margin: 0;
-  padding: 8px 10px;
-  overflow: auto;
-  font-family: var(--mono);
-  font-size: 11.5px;
-  line-height: 1.45;
-  white-space: pre;
-}
-
-.file-tree-preview-meta {
-  padding: 4px 10px 8px;
-  font-size: 11px;
-}
-
-.file-tree-preview-actions {
-  display: flex;
-  gap: 6px;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* ── Review sub-tabs ──────────────────────────────────────────────── */

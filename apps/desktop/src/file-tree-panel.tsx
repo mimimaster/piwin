@@ -1,23 +1,14 @@
 /**
  * Workspace file tree (right inspector Files tab).
  * Lazy-loads children via host project/list-dir.
- * File click → text preview; drag / Insert path → composer.
+ * File click → opens document preview via onOpenFile; drag / Insert path → composer.
  */
-import {
-  useCallback,
-  useEffect,
-  useState,
-  type DragEvent,
-  type ReactElement,
-} from 'react';
-import type {
-  HostResponse,
-  ProjectDirEntry,
-  ProjectListDirData,
-  ProjectReadFileData,
-} from '@piwin/contracts';
+import { useCallback, useEffect, useState, type DragEvent, type ReactElement } from 'react';
+import type { HostResponse, ProjectDirEntry, ProjectListDirData } from '@piwin/contracts';
 import { Button, EmptyState, IconButton, Notice, Spinner } from '@piwin/ui-kit';
-import { IconChevronDown, IconChevronRight, IconFile, IconFolder, IconRefresh } from './shell-icons';
+import { IconChevronDown, IconChevronRight, IconRefresh } from './shell-icons';
+import { FileTypeIcon } from './file-type-icon';
+import type { FileTreeNodeState } from './file-tree-model';
 
 export type FileTreeRequest =
   | {
@@ -37,17 +28,11 @@ export type FileTreePanelProps = {
   request: (command: FileTreeRequest) => Promise<HostResponse>;
   /** Insert absolute/relative path into composer (text models). */
   onInsertPath?: (absolutePath: string, relativePath: string) => void;
+  /** Open file in DocPreview (App handleOpenDocument). */
+  onOpenFile?: (absolutePath: string, relativePath: string) => void;
 };
 
-type TreeNodeState = {
-  entry: ProjectDirEntry;
-  expanded: boolean;
-  loading: boolean;
-  children: TreeNodeState[] | null;
-  error: string | null;
-};
-
-function entryToNode(entry: ProjectDirEntry): TreeNodeState {
+function entryToNode(entry: ProjectDirEntry): FileTreeNodeState {
   return {
     entry,
     expanded: false,
@@ -60,13 +45,10 @@ function entryToNode(entry: ProjectDirEntry): TreeNodeState {
 export const PIWIN_PATH_MIME = 'application/x-piwin-workspace-path';
 
 export function FileTreePanel(props: FileTreePanelProps): ReactElement {
-  const [rootNodes, setRootNodes] = useState<TreeNodeState[]>([]);
+  const [rootNodes, setRootNodes] = useState<FileTreeNodeState[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [preview, setPreview] = useState<ProjectReadFileData | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const loadDirectory = useCallback(
     async (relativePath: string): Promise<ProjectDirEntry[]> => {
@@ -89,7 +71,6 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     if (!props.projectPath) {
       setRootNodes([]);
       setError(null);
-      setPreview(null);
       return;
     }
     setLoading(true);
@@ -109,33 +90,11 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     void reloadRoot();
   }, [reloadRoot]);
 
-  const openFilePreview = useCallback(
-    async (relativePath: string): Promise<void> => {
-      if (!props.projectPath) return;
-      setSelectedPath(relativePath);
-      setPreviewLoading(true);
-      setPreviewError(null);
-      const response = await props.request({
-        type: 'project/read-file',
-        projectPath: props.projectPath,
-        relativePath,
-      });
-      setPreviewLoading(false);
-      if (!response.success) {
-        setPreview(null);
-        setPreviewError(response.error);
-        return;
-      }
-      setPreview(response.data as ProjectReadFileData);
-    },
-    [props],
-  );
-
   async function toggleNode(
-    nodes: TreeNodeState[],
+    nodes: FileTreeNodeState[],
     relativePath: string,
-  ): Promise<TreeNodeState[]> {
-    const next: TreeNodeState[] = [];
+  ): Promise<FileTreeNodeState[]> {
+    const next: FileTreeNodeState[] = [];
     for (const node of nodes) {
       if (node.entry.relativePath !== relativePath) {
         if (node.children && node.children.length > 0) {
@@ -194,43 +153,30 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     return `${base}/${relativePath}`;
   }
 
-  function handleDragStart(
-    event: DragEvent,
-    relativePath: string,
-  ): void {
+  function handleDragStart(event: DragEvent, relativePath: string): void {
     const absolutePath = absoluteFor(relativePath);
     event.dataTransfer.setData('text/plain', absolutePath);
-    event.dataTransfer.setData(
-      PIWIN_PATH_MIME,
-      JSON.stringify({ absolutePath, relativePath }),
-    );
+    event.dataTransfer.setData(PIWIN_PATH_MIME, JSON.stringify({ absolutePath, relativePath }));
     event.dataTransfer.effectAllowed = 'copy';
   }
 
   if (!props.projectPath) {
     return (
       <div className="file-tree-panel" data-testid="file-tree-panel">
-        <EmptyState
-          title="No workspace"
-          description="Open a workspace to browse project files."
-        />
+        <EmptyState title="No workspace" description="Open a workspace to browse project files." />
       </div>
     );
   }
 
   return (
-    <div className="file-tree-panel file-tree-panel-split" data-testid="file-tree-panel">
+    <div className="file-tree-panel" data-testid="file-tree-panel">
       <div className="file-tree-main">
         <header className="file-tree-header">
           <div>
             <span className="inspector-kicker">Workspace</span>
             <strong>Files</strong>
           </div>
-          <IconButton
-            title="Refresh"
-            label="Refresh file tree"
-            onClick={() => void reloadRoot()}
-          >
+          <IconButton title="Refresh" label="Refresh file tree" onClick={() => void reloadRoot()}>
             <IconRefresh />
           </IconButton>
         </header>
@@ -252,7 +198,8 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                   depth={0}
                   selectedPath={selectedPath}
                   onSelectFile={(relativePath) => {
-                    void openFilePreview(relativePath);
+                    setSelectedPath(relativePath);
+                    props.onOpenFile?.(absoluteFor(relativePath), relativePath);
                   }}
                   onToggle={(path) => void handleToggle(path)}
                   onDragStart={handleDragStart}
@@ -262,67 +209,23 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
           </ul>
         )}
       </div>
-
-      <div className="file-tree-preview" data-testid="file-tree-preview">
-        <header className="file-tree-preview-header">
-          <strong>{selectedPath ?? 'Preview'}</strong>
-          {preview && !preview.isBinary ? (
-            <div className="file-tree-preview-actions">
-              <Button
-                size="compact"
-                data-testid="file-insert-path-btn"
-                onClick={() =>
-                  props.onInsertPath?.(preview.absolutePath, preview.relativePath)
-                }
-              >
-                Insert path
-              </Button>
-            </div>
-          ) : null}
-        </header>
-        {previewLoading ? (
-          <div className="file-tree-loading">
-            <Spinner />
-          </div>
-        ) : previewError ? (
-          <Notice tone="error">{previewError}</Notice>
-        ) : !selectedPath ? (
-          <div className="muted file-tree-empty">
-            Click a file to preview. Drag a file onto the composer to insert its path.
-          </div>
-        ) : preview?.isBinary ? (
-          <div className="muted file-tree-empty">
-            Binary file ({preview.byteSize.toLocaleString()} bytes). Drag to insert path only.
-            <div className="file-tree-preview-actions" style={{ marginTop: 8 }}>
-              <Button
-                size="compact"
-                onClick={() =>
-                  props.onInsertPath?.(preview.absolutePath, preview.relativePath)
-                }
-              >
-                Insert path
-              </Button>
-            </div>
-          </div>
-        ) : preview ? (
-          <>
-            <pre className="file-tree-preview-code" data-testid="file-preview-content">
-              {preview.content}
-            </pre>
-            {preview.truncated ? (
-              <div className="muted file-tree-preview-meta">
-                Truncated preview · {preview.byteSize.toLocaleString()} bytes on disk
-              </div>
-            ) : null}
-          </>
-        ) : null}
-      </div>
+      {props.onInsertPath && selectedPath ? (
+        <footer className="file-tree-footer">
+          <Button
+            size="compact"
+            data-testid="file-insert-path-btn"
+            onClick={() => props.onInsertPath?.(absoluteFor(selectedPath), selectedPath)}
+          >
+            Insert path
+          </Button>
+        </footer>
+      ) : null}
     </div>
   );
 }
 
 function FileTreeNodeView(props: {
-  node: TreeNodeState;
+  node: FileTreeNodeState;
   depth: number;
   selectedPath: string | null;
   onSelectFile: (path: string) => void;
@@ -366,7 +269,7 @@ function FileTreeNodeView(props: {
           ) : null}
         </span>
         <span className="file-tree-icon" aria-hidden>
-          {isDir ? <IconFolder width={14} height={14} /> : <IconFile width={14} height={14} />}
+          <FileTypeIcon filePathOrExt={isDir ? `${node.entry.name}/` : node.entry.name} />
         </span>
         <span className="file-tree-name">{node.entry.name}</span>
       </button>
