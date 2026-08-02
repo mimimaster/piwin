@@ -16,6 +16,7 @@ import {
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import { DropdownMenu, DropdownMenuItem, IconButton } from '@piwin/ui-kit';
+import { buildTitlebarTooltip } from './title-display';
 
 export type WorkspaceTitlebarProps = {
   appearanceMode?: 'light' | 'dark';
@@ -33,8 +34,10 @@ export type WorkspaceTitlebarProps = {
   workPanelOpen?: boolean;
   onToggleWorkPanel?: () => void;
   locale?: DesktopLocale;
-  /** Session identity rendered inside titlebar */
-  sessionTitle?: string;
+  /** Project basename when a project is open; omit for general scope. */
+  projectName?: string;
+  /** Active session display name (auto / user / placeholder). */
+  sessionName?: string;
   scopeLabel?: string;
   permissionMode?: import('@piwin/contracts').PermissionPreset | null;
   onOpenPermissions?: () => void;
@@ -66,6 +69,11 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
     : props.locale === 'en'
       ? 'Expand workspace panel'
       : '展开右侧工作面板';
+
+  const sessionName = props.sessionName?.trim() ?? '';
+  const projectName = props.projectName?.trim() || undefined;
+  const showIdentity = sessionName.length > 0 || Boolean(projectName);
+  const tooltip = buildTitlebarTooltip(projectName, sessionName || projectName || '');
 
   return (
     <header className="titlebar workbench-topbar" data-testid="workbench-topbar">
@@ -113,21 +121,23 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
       </div>
 
       {/* Session Title & Badges in Titlebar */}
-      {props.sessionTitle ? (
-        <div className="titlebar-session-identity">
-          {props.sessionTitle.includes(' / ') ? (
+      {showIdentity ? (
+        <div
+          className="titlebar-session-identity"
+          data-testid="titlebar-session-identity"
+          title={tooltip}
+        >
+          {projectName ? (
             <>
-              <span className="titlebar-project-name">{props.sessionTitle.split(' / ')[0]}</span>
-              <span className="titlebar-sep">/</span>
-              <span className="titlebar-session-name">
-                {props.sessionTitle.split(' / ').slice(1).join(' / ')}
-              </span>
+              <span className="titlebar-project-name">{projectName}</span>
+              {sessionName ? (
+                <span className="titlebar-sep" aria-hidden="true">
+                  /
+                </span>
+              ) : null}
             </>
-          ) : (
-            <span className="titlebar-session-title" title={props.sessionTitle}>
-              {props.sessionTitle}
-            </span>
-          )}
+          ) : null}
+          {sessionName ? <span className="titlebar-session-name">{sessionName}</span> : null}
           {props.scopeLabel ? (
             <span className="titlebar-scope-pill">{props.scopeLabel}</span>
           ) : null}
