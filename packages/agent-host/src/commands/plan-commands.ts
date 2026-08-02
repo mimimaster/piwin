@@ -346,12 +346,15 @@ async function runPlanExecution(
       const directive = buildSubagentTaskDirective(plan, stepId);
       if (!directive) continue;
       await markRunning(stepId);
+      // CE-SUB-PROF: pass per-step profileId when the plan step specifies one.
+      const step = plan.steps.find((s) => s.id === stepId);
       const spawned = await seam.spawnSubagent({
         parentSessionId: sessionId,
         task: directive.promptText,
         sessionName: `plan-${plan.id}-step-${stepId}`,
         mode: 'worktree',
         applyPolicy: 'explicit',
+        ...(step?.profileId ? { profileId: step.profileId } : {}),
       });
       childIds.push(spawned.childSessionId);
       state = { ...state, childSessionIds: [...state.childSessionIds, spawned.childSessionId] };
