@@ -37,6 +37,8 @@ export type CreateAgentHostOptions = AgentHostFactoryOptions & {
   /** Subagent delegation seam for piwin_subagent_run tool (SDK mode only). */
   onSpawnSubagent?: PiSdkAdapterOptions['onSpawnSubagent'];
   onMergeSubagent?: PiSdkAdapterOptions['onMergeSubagent'];
+  /** Plan tool progress → HostRuntime `plan/updated` push (ADR 0025). */
+  onPlanUpdated?: PiSdkAdapterOptions['onPlanUpdated'];
   /** Host-owned browser session getter (ADR 0020). */
   getBrowserSession?: PiSdkAdapterOptions['getBrowserSession'];
   /** ADR 0024 §4: per-session in-memory allowlist provider. */
@@ -85,6 +87,9 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
     if (options.getPermissionMode) {
       rpcOptions.getPermissionMode = options.getPermissionMode;
     }
+    if (options.onPlanUpdated) {
+      rpcOptions.onPlanUpdated = options.onPlanUpdated;
+    }
     return new PiRpcAdapter(rpcOptions);
   }
 
@@ -127,6 +132,9 @@ export function createAgentHost(options: CreateAgentHostOptions): AgentHost {
   }
   if (options.getPermissionMode) {
     sdkOptions.getPermissionMode = options.getPermissionMode;
+  }
+  if (options.onPlanUpdated) {
+    sdkOptions.onPlanUpdated = options.onPlanUpdated;
   }
   return new PiSdkAdapter(sdkOptions);
 }

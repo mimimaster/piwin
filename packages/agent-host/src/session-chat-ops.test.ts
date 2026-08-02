@@ -255,17 +255,26 @@ describe('CE-CHAT session ops', () => {
     if (!prompt1.success) throw new Error(prompt1.error);
     await waitForTerminal(pushes, sessionId, 0);
 
+    // Auto-naming is fire-and-forget; wait for it to finish.
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const found = pushes.find(
+        (push) => push.type === 'session/name-updated' && push.sessionId === sessionId,
+      );
+      if (found) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
     const nameUpdated = pushes.find(
       (push) => push.type === 'session/name-updated' && push.sessionId === sessionId,
     );
     expect(nameUpdated).toBeTruthy();
     if (nameUpdated && nameUpdated.type === 'session/name-updated') {
-      expect(nameUpdated.nameSource).toBe('auto');
+      expect(nameUpdated.nameSource).toBe('text');
       expect(nameUpdated.name.length).toBeGreaterThan(0);
     }
     const indexPath = getPiwinSessionIndexPath(rootDir);
     const record = await getSessionRecord(indexPath, sessionId);
-    expect(record?.nameSource).toBe('auto');
+    expect(record?.nameSource).toBe('text');
     expect(record?.name?.length).toBeGreaterThan(0);
 
     // A user-set name must never be overwritten by a later exchange.
@@ -305,6 +314,7 @@ describe('CE-CHAT session ops', () => {
             name: 'LLM Title',
             baseUrl: 'https://llm-title.example/v1',
             apiKeyEnv: 'PIWIN_TEST_LLM_KEY',
+            enabled: true,
             models: [{ id: 'title-model' }],
           },
         ],
@@ -361,6 +371,16 @@ describe('CE-CHAT session ops', () => {
       },
     });
     await waitForTerminal(pushes, sessionId, 0);
+
+    // Wait for the LLM title generator to complete (and name to be persisted)
+    // before asserting on the request body, because auto-naming is fire-and-forget.
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const named = pushes.find(
+        (push) => push.type === 'session/name-updated' && push.sessionId === sessionId,
+      );
+      if (named) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
 
     // The host must include the mock assistant reply as context for the title.
     const lastBody = requestBodies[requestBodies.length - 1];

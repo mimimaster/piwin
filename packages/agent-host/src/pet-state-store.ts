@@ -39,16 +39,25 @@ function buildActivity(context: PetAgentContext): PetActivityInfo | undefined {
   if (context.activeToolName) activity.toolName = context.activeToolName;
   if (context.permissionAction) activity.permissionAction = context.permissionAction;
   if (context.runPhase) activity.phase = context.runPhase;
+  if (context.toolDetail) activity.detail = context.toolDetail;
+  if (context.toolActionVerb) activity.actionVerb = context.toolActionVerb;
   return activity;
 }
 
 /**
  * A compact signature of the fields that affect the bubble text, used to
  * decide whether to push an update (the animation state alone is not enough
- * — the tool name can change while state stays "running").
+ * — the tool name / detail can change while state stays "running").
  */
 function activitySignature(context: PetAgentContext): string {
-  return `${context.state}:${context.activeToolName ?? ''}:${context.permissionAction ?? ''}:${context.runPhase ?? ''}`;
+  return [
+    context.state,
+    context.activeToolName ?? '',
+    context.permissionAction ?? '',
+    context.runPhase ?? '',
+    context.toolDetail ?? '',
+    context.toolActionVerb ?? '',
+  ].join(':');
 }
 
 export function createPetStateStore(options: PetStateStoreOptions): PetStateStore {

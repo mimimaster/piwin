@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_MODEL_MAX_OUTPUT_TOKENS } from '@piwin/contracts';
 import type { ModelProviderConfig } from '@piwin/contracts';
 import { buildPiProviderRegistration, resolvePiApiForProvider } from './pi-model-runtime.js';
 
@@ -23,6 +24,7 @@ describe('pi-model-runtime', () => {
           label: 'Grok 4.5',
           contextWindow: 128_000,
           maxOutputTokens: 8_192,
+          thinkingLevels: ['low', 'medium', 'high'],
         },
       ],
     };
@@ -48,6 +50,19 @@ describe('pi-model-runtime', () => {
         maxTokens: 8_192,
       }),
     ]);
+    expect(registration.models[0]).not.toHaveProperty('thinkingLevels');
+  });
+
+  it('defaults omitted maxOutputTokens to the shared product default', () => {
+    const provider: ModelProviderConfig = {
+      id: 'plain',
+      protocol: 'openai-compatible',
+      name: 'Plain',
+      baseUrl: 'https://api.example.test/v1',
+      models: [{ id: 'text-only-model' }],
+    };
+    const registration = buildPiProviderRegistration(provider);
+    expect(registration.models[0]?.maxTokens).toBe(DEFAULT_MODEL_MAX_OUTPUT_TOKENS);
   });
 
   it('passes through model input and reasoning from config', () => {

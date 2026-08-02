@@ -37,6 +37,31 @@ describe('validateProviders', () => {
     expect(issues.some((issue) => issue.path.includes('apiKeyEnv'))).toBe(true);
   });
 
+  it('rejects duplicate or out-of-list thinking defaults', () => {
+    const issues = validateProviders([
+      {
+        id: 'thinking-provider',
+        protocol: 'openai-compatible',
+        name: 'Thinking provider',
+        baseUrl: 'https://example.test/v1',
+        models: [
+          {
+            id: 'model',
+            thinkingLevels: ['low', 'low'],
+            thinkingLevel: 'medium',
+          },
+        ],
+      },
+    ]);
+
+    expect(issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        'providers[0].models[0].thinkingLevels[1]',
+        'providers[0].models[0].thinkingLevel',
+      ]),
+    );
+  });
+
   it('accepts Google Gemini and validates model-specific runtime limits', () => {
     const validGoogleProvider: ModelProviderConfig = {
       id: 'company-gemini',

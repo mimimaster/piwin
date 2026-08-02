@@ -23,6 +23,12 @@ import type {
   SessionTranscriptMessage,
 } from '@piwin/contracts';
 import type { ActiveRun } from '../active-run.js';
+import type { RunAbortReason } from '../run-abort-reason.js';
+import {
+  createSupersededByNewPromptAbortReason,
+  createUserStopAbortReason,
+  formatRunAbortReason,
+} from '../run-abort-reason.js';
 import { createWorktree, removeWorktree, applyWorktreeToMain } from '@piwin/git';
 import {
   appendTranscriptMessage,
@@ -121,7 +127,11 @@ export type SessionLiveContext = {
   /** ADR 0015: foreground run lifecycle. */
   getActiveRun: (sessionId: string) => ActiveRun | undefined;
   registerActiveRun: (sessionId: string) => ActiveRun;
-  requestCancelActiveRun: (sessionId: string, runId?: string) => ActiveRun | undefined;
+  requestCancelActiveRun: (
+    sessionId: string,
+    runId?: string,
+    reason?: RunAbortReason,
+  ) => ActiveRun | undefined;
   markActiveRunTerminal: (sessionId: string, runId: string) => boolean;
   clearActiveRun: (sessionId: string, runId?: string) => ActiveRun | undefined;
   emitRunPhase: (sessionId: string, runId: string, phase: SessionRunPhase, detail?: string) => void;
@@ -273,20 +283,7 @@ async function preparePromptInput(
     promptInput.text = `${filesTouched}\n\n${promptInput.text}`;
   }
 
-  // When walkthrough autoGenerate is enabled, inject the concise prompt so the
-  // model keeps its inline response brief — a detailed walkthrough will be
-  // generated separately. This applies regardless of plan state, aligning with
-  // Google Antigravity's behavior of always keeping chat concise when a
-  // walkthrough will be auto-generated.
-  try {
-    const config = await context.loadConfig();
-    const walkthrough = config.walkthrough;
-    if (walkthrough?.enabled && walkthrough?.autoGenerate && walkthrough.concisePrompt) {
-      promptInput.text = `${walkthrough.concisePrompt}\n\n${promptInput.text}`;
-    }
-  } catch {
-    // Best-effort: config load failure should not block the prompt.
-  }
+  // ADR 0026: concisePrompt injection retired with walkthrough generation.
   throwIfPromptPreparationAborted(run);
   context.sessionLastPromptText.set(command.sessionId, command.input.text);
   if (command.input.model) {
@@ -693,13 +690,34 @@ export async function handleSessionLiveCommand(
       });
     }
     case 'session/prompt': {
-      // ADR 0015: one foreground run per session; reject concurrent prompts.
-      if (context.getActiveRun(command.sessionId)) {
-        return fail(
-          requestId,
-          'session/prompt',
-          `run-active: session ${command.sessionId} already has a foreground run`,
+      // Product: a newer user message supersedes an in-flight run (Stop is
+      // optional). Still one *registered* foreground run after this block.
+      const existingRun = context.getActiveRun(command.sessionId);
+      if (existingRun) {
+        const supersedeReason = createSupersededByNewPromptAbortReason();
+        context.emitRunPhase(
+          command.sessionId,
+          existingRun.runId,
+          'cancelling',
+          'Superseded by a newer user message',
         );
+        context.requestCancelActiveRun(
+          command.sessionId,
+          existingRun.runId,
+          supersedeReason,
+        );
+        context.settlePendingPermissionsForSession(command.sessionId);
+        // Close ownership immediately so the new run can register. The
+        // cancelled background prompt may call emitRunTerminal again; that
+        // path is idempotent when runId no longer matches.
+        context.emitRunTerminal(
+          command.sessionId,
+          existingRun.runId,
+          'cancelled',
+          'cancelled',
+          formatRunAbortReason(supersedeReason),
+        );
+        scheduleAbortCleanup(context, command.sessionId);
       }
 
       // Validate the session before registering ownership. Everything after
@@ -814,8 +832,12 @@ export async function handleSessionLiveCommand(
         });
       }
 
-      context.emitRunPhase(command.sessionId, active.runId, 'cancelling');
-      const cancellationRequested = context.requestCancelActiveRun(command.sessionId, active.runId);
+      context.emitRunPhase(command.sessionId, active.runId, 'cancelling', 'User stopped the run');
+      const cancellationRequested = context.requestCancelActiveRun(
+        command.sessionId,
+        active.runId,
+        createUserStopAbortReason(),
+      );
       if (!cancellationRequested) {
         return ok(requestId, 'session/abort', {
           sessionId: command.sessionId,

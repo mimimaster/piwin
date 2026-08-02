@@ -4,6 +4,7 @@ import {
   buildRunTerminalEvent,
   createActiveRunRegistry,
 } from './active-run.js';
+import { createUserStopAbortReason } from './run-abort-reason.js';
 
 describe('createActiveRunRegistry', () => {
   it('registers a run and rejects a second foreground run', () => {
@@ -24,6 +25,15 @@ describe('createActiveRunRegistry', () => {
     expect(cancelled?.runId).toBe(run.runId);
     expect(run.abortController.signal.aborted).toBe(true);
     expect(run.phase).toBe('cancelling');
+    expect(run.abortController.signal.reason).toEqual(createUserStopAbortReason());
+  });
+
+  it('requestCancel attaches a custom abort reason for tools', () => {
+    const registry = createActiveRunRegistry();
+    const run = registry.register('session-1');
+    const reason = createUserStopAbortReason();
+    registry.requestCancel('session-1', run.runId, reason);
+    expect(run.abortController.signal.reason).toEqual(reason);
   });
 
   it('requestCancel with mismatched runId is a no-op', () => {

@@ -7,6 +7,7 @@
 import type { PiwinConfig, RerankProvider } from '@piwin/contracts';
 import { createLlmRerank } from '@piwin/notes';
 import { createSecretResolver } from './secret-resolver.js';
+import { getEnabledProviders } from './provider-helpers.js';
 
 export async function buildNotesRerankProvider(
   config: PiwinConfig,
@@ -14,12 +15,12 @@ export async function buildNotesRerankProvider(
   if (config.notes?.rerank?.enabled !== true) {
     return null;
   }
+  const enabled = getEnabledProviders(config);
   const provider =
-    config.providers.find(
+    enabled.find(
       (candidate) =>
-        candidate.id === config.defaultProviderId &&
-        candidate.protocol === 'openai-compatible',
-    ) ?? config.providers.find((candidate) => candidate.protocol === 'openai-compatible');
+        candidate.id === config.defaultProviderId && candidate.protocol === 'openai-compatible',
+    ) ?? enabled.find((candidate) => candidate.protocol === 'openai-compatible');
   if (!provider || provider.models.length === 0) {
     return null;
   }

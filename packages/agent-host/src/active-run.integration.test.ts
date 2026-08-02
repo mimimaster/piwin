@@ -42,24 +42,40 @@ describe('ADR 0015 ActiveRun integration', () => {
     // Acceptance must not wait for the mock stream (typically >40ms).
     expect(ackMs).toBeLessThan(250);
 
-    // Second concurrent prompt is rejected.
+    // Second concurrent prompt supersedes the first run (product interrupt).
     const second = await runtime.handleCommand({
       type: 'session/prompt',
       sessionId,
-      input: { text: 'should fail' },
+      input: { text: 'should supersede' },
     });
-    expect(second.success).toBe(false);
-    if (!second.success) {
-      expect(second.error).toMatch(/run-active/);
+    expect(second.success).toBe(true);
+    if (!second.success) throw new Error(second.error);
+    const secondData = second.data as { runId: string };
+    expect(secondData.runId).toBeTruthy();
+    expect(secondData.runId).not.toBe(data.runId);
+
+    // First run should be cancelled as superseded.
+    const firstTerminal = pushes.find(
+      (push) =>
+        push.type === 'event' &&
+        push.event.type === 'run/terminal' &&
+        push.event.runId === data.runId,
+    );
+    expect(firstTerminal).toBeTruthy();
+    if (firstTerminal && firstTerminal.type === 'event' && firstTerminal.event.type === 'run/terminal') {
+      expect(firstTerminal.event.outcome).toBe('cancelled');
+      expect(String(firstTerminal.event.message ?? '').toLowerCase()).toMatch(
+        /newer user message|interrupted/,
+      );
     }
 
-    // Wait for first turn to complete so dispose is clean.
+    // Wait for second turn to complete so dispose is clean.
     for (let attempt = 0; attempt < 100; attempt += 1) {
       const terminal = pushes.find(
         (push) =>
           push.type === 'event' &&
           push.event.type === 'run/terminal' &&
-          push.event.runId === data.runId,
+          push.event.runId === secondData.runId,
       );
       if (terminal) break;
       await new Promise((resolve) => setTimeout(resolve, 20));

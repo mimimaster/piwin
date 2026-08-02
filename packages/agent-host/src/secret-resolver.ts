@@ -22,6 +22,10 @@ export type SecretResolver = {
   writeProviderSecret: (providerId: string, secret: string) => Promise<string>;
   /** Read raw secret for key management (never log). Multi-line = multiple keys. */
   readProviderSecret: (providerId: string) => Promise<string | null>;
+  /** Write a secret to an explicit keychain ref (e.g. keychain:piwin-plugin-...). */
+  writeSecretByRef: (ref: string, secret: string) => Promise<void>;
+  /** Read a secret from an explicit keychain ref. Returns null if not found. */
+  readSecretByRef: (ref: string) => Promise<string | null>;
 };
 
 export type CreateSecretResolverOptions = {
@@ -32,9 +36,7 @@ export type CreateSecretResolverOptions = {
   writeKeychain?: (ref: string, secret: string) => Promise<void>;
 };
 
-export function createSecretResolver(
-  options: CreateSecretResolverOptions = {},
-): SecretResolver {
+export function createSecretResolver(options: CreateSecretResolverOptions = {}): SecretResolver {
   const env = options.env ?? process.env;
   const readKeychain = options.readKeychain ?? defaultReadKeychain;
   const writeKeychain = options.writeKeychain ?? defaultWriteKeychain;
@@ -90,9 +92,7 @@ export function createSecretResolver(
     return readKeychain(apiKeyRef);
   }
 
-  async function reportProviderSecret(
-    provider: ModelProviderConfig,
-  ): Promise<SecretResolveReport> {
+  async function reportProviderSecret(provider: ModelProviderConfig): Promise<SecretResolveReport> {
     try {
       if (provider.apiKeyRef?.trim()) {
         const fromRef = await readKeychain(provider.apiKeyRef.trim());
@@ -125,7 +125,34 @@ export function createSecretResolver(
     }
   }
 
-  return { resolveProviderSecret, reportProviderSecret, writeProviderSecret, readProviderSecret };
+  async function writeSecretByRef(ref: string, secret: string): Promise<void> {
+    const trimmedRef = ref.trim();
+    const trimmedSecret = secret.trim();
+    if (!trimmedRef) {
+      throw new Error('keychain ref is required to store a secret');
+    }
+    if (!trimmedSecret) {
+      throw new Error('secret is required');
+    }
+    await writeKeychain(trimmedRef, trimmedSecret);
+  }
+
+  async function readSecretByRef(ref: string): Promise<string | null> {
+    const trimmedRef = ref.trim();
+    if (!trimmedRef) {
+      return null;
+    }
+    return readKeychain(trimmedRef);
+  }
+
+  return {
+    resolveProviderSecret,
+    reportProviderSecret,
+    writeProviderSecret,
+    readProviderSecret,
+    writeSecretByRef,
+    readSecretByRef,
+  };
 }
 
 /**
@@ -166,7 +193,7 @@ async function defaultReadKeychain(ref: string): Promise<string | null> {
  * macOS keychain write via `security add-generic-password -U`.
  * Other platforms: throw (env-only MVP until cross-platform secret store ships).
  */
-async function defaultWriteKeychain(ref: string, secret: string): Promise<void> {
+export async function defaultWriteKeychain(ref: string, secret: string): Promise<void> {
   if (process.platform !== 'darwin') {
     throw new Error(
       'Storing API keys requires macOS keychain in this build. Use an environment variable name instead.',

@@ -724,6 +724,31 @@ describe('assembleSystemPrompt', () => {
     expect(prompt).toContain('Return Markdown only');
     expect(prompt).toContain('<piwin-walkthrough-evidence>');
   });
+
+  it('requires the rich-text delivery formats so custom mode keeps them too', () => {
+    const prompt = assembleSystemPrompt();
+    // 1. action badges with language tag + path
+    expect(prompt).toContain('[MODIFY] TS src/utils.ts');
+    expect(prompt).toContain('[NEW] TS src/logger.ts');
+    // 2. diff fence with +/- prefixed lines
+    expect(prompt).toContain('`diff`');
+    expect(prompt).toContain('`+ `');
+    expect(prompt).toContain('`- `');
+    // 3. long code sample targeting the >16-line fold
+    expect(prompt).toContain('20+ lines');
+    // 4. HTML <details> collapsible for logs
+    expect(prompt).toContain('<details>');
+    expect(prompt).toContain('<summary>');
+    expect(prompt).toContain('</details>');
+    // 5. task checklist markers
+    expect(prompt).toContain('- [x]');
+    expect(prompt).toContain('- [ ]');
+    // 6. GitHub-style callouts
+    expect(prompt).toContain('> [!NOTE]');
+    expect(prompt).toContain('> [!TIP]');
+    // The formatting layer must not be removable via the user prompt.
+    expect(prompt).toContain('regardless of what the user prompt asks for');
+  });
 });
 
 describe('assembleUserPrompt', () => {

@@ -94,6 +94,54 @@ describe('TranscriptRecorder', () => {
     expect(await listTranscriptMessages(transcriptPath)).toEqual([]);
   });
 
+  it('persists tool/end presentation output when no tool/update was streamed', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-recorder-mcp-end-'));
+    const transcriptPath = join(rootDir, 'transcript.json');
+    const recorder = createTranscriptRecorder({
+      transcriptPath,
+      sessionId: 'session-1',
+      projectPath: '/tmp/project',
+    });
+
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-1',
+      role: 'assistant',
+    });
+    await recorder.recordEvent({
+      type: 'tool/start',
+      toolCallId: 'tool-mcp',
+      toolName: 'mcp__agent-memory__agent_memory_get_context',
+      presentation: {
+        kind: 'mcp',
+        title: 'agent-memory / agent_memory_get_context',
+        inputPreview: '{"project":"piwin"}',
+        actionVerb: 'MCP (agent-memory)',
+        summary: '{"project":"piwin"}',
+      },
+    });
+    // Custom MCP tools typically only emit tool/end with AgentToolResult text
+    // in presentation.output — no intermediate tool/update deltas.
+    await recorder.recordEvent({
+      type: 'tool/end',
+      toolCallId: 'tool-mcp',
+      isError: false,
+      presentation: {
+        kind: 'mcp',
+        title: 'agent-memory / agent_memory_get_context',
+        output: { text: '(项目: piwin) 找到 2 条记忆' },
+      },
+    });
+    await recorder.recordEvent({ type: 'message/end', messageId: 'assistant-1' });
+    await recorder.flush();
+
+    const messages = await listTranscriptMessages(transcriptPath);
+    const tool = messages.find((message) => message.id === 'assistant-1')?.tools?.[0];
+    expect(tool?.status).toBe('done');
+    expect(tool?.output).toBe('(项目: piwin) 找到 2 条记忆');
+    expect(tool?.presentation?.output?.text).toBe('(项目: piwin) 找到 2 条记忆');
+  });
+
   it('retains a bounded tool output with a visible truncation marker', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-recorder-tool-'));
     const transcriptPath = join(rootDir, 'transcript.json');

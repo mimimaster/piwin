@@ -29,6 +29,8 @@ export type PiRpcAdapterOptions = {
   /** Host-owned browser session getter (ADR 0020). */
   getBrowserSession?: PiSdkAdapterOptions['getBrowserSession'];
   getPermissionMode?: PiSdkAdapterOptions['getPermissionMode'];
+  /** Plan tool progress → `plan/updated` (ADR 0025; SDK fallback path). */
+  onPlanUpdated?: PiSdkAdapterOptions['onPlanUpdated'];
   /**
    * When true (default), real sessions use PiSdkAdapter so extensions/tools load.
    * Stock `pi --mode rpc` cannot register custom tools (ADR 0008 / D-EXT-07).
@@ -202,6 +204,9 @@ export class PiRpcAdapter implements AgentHost {
       }
       if (this.options.getPermissionMode) {
         sdkOptions.getPermissionMode = this.options.getPermissionMode;
+      }
+      if (this.options.onPlanUpdated) {
+        sdkOptions.onPlanUpdated = this.options.onPlanUpdated;
       }
       this.sdkBackend = new PiSdkAdapter(sdkOptions);
     }

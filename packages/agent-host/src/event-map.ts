@@ -98,8 +98,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
       const type = typeof record.type === 'string' ? record.type : '';
       if (type === 'message_start') {
         const explicitMessageId = readString(record.messageId) ?? readNestedId(record, 'message');
-        activeMessageId =
-          explicitMessageId ?? `pi-message-${++generatedMessageSequence}`;
+        activeMessageId = explicitMessageId ?? `pi-message-${++generatedMessageSequence}`;
       }
 
       const mappedEvents = mapPiSessionEvent(raw, activeMessageId).map((event) => {
@@ -115,7 +114,7 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
               ? rawEvent.delta
               : typeof rawEvent.output === 'string'
                 ? rawEvent.output
-                : event.delta;
+                : (extractToolResultText(rawEvent.partialResult) ?? event.delta);
           const fullOutput = `${rawToolOutputById.get(event.toolCallId) ?? ''}${rawDelta}`;
           // Keep the cross-chunk redaction buffer bounded. This still preserves
           // enough cumulative context to catch secrets split across chunks,
@@ -132,8 +131,27 @@ export function createPiSessionEventMapper(): PiSessionEventMapper {
           };
         }
         if (event.type === 'tool/end') {
+          const toolName = toolNamesById.get(event.toolCallId) ?? 'unknown';
+          const accumulated = rawToolOutputById.get(event.toolCallId) ?? '';
           toolNamesById.delete(event.toolCallId);
           rawToolOutputById.delete(event.toolCallId);
+          // Pi custom tools often emit only tool_execution_end (no streaming
+          // updates). Prefer presentation.output from mapPiSessionEvent; fall
+          // back to any accumulated update buffer.
+          const existingOutput = event.presentation?.output?.text;
+          if (existingOutput && existingOutput.length > 0) {
+            return event;
+          }
+          if (accumulated.length > 0) {
+            return {
+              ...event,
+              presentation: buildToolPresentation({
+                toolName,
+                isError: event.isError,
+                outputText: accumulated,
+              }),
+            };
+          }
         }
         return event;
       });
@@ -203,7 +221,12 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
     }
     case 'tool_execution_update': {
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
-      const rawDelta = readString(event.delta) ?? readString(event.output) ?? '';
+      // Pi streams partialResult as AgentToolResult; older shapes used delta/output strings.
+      const rawDelta =
+        readString(event.delta) ??
+        readString(event.output) ??
+        extractToolResultText(event.partialResult) ??
+        '';
       const delta = boundToolOutput(rawDelta).text;
       return [{ type: 'tool/update', toolCallId, delta }];
     }
@@ -211,9 +234,13 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
       const toolCallId = readString(event.toolCallId) ?? readString(event.id) ?? 'unknown';
       const isError = Boolean(event.isError ?? event.error);
       const toolName = readString(event.toolName) ?? readString(event.name) ?? 'unknown';
+      // Pi 0.80: tool_execution_end.result is AgentToolResult
+      // ({ content: TextContent[], details }), not a plain string. Custom MCP
+      // tools typically only emit end (no tool_execution_update), so we must
+      // extract text from result.content or UI shows "No output".
       const outputText =
         readString(event.output) ??
-        readString(event.result) ??
+        extractToolResultText(event.result) ??
         readString(event.delta) ??
         undefined;
       const exitCode =
@@ -271,10 +298,9 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
  * Map Pi compaction_end (+ host-enriched fields) into AgentEvent.
  * Never invents token counts — only maps numbers when present.
  */
-export function mapCompactionEndEvent(event: Record<string, unknown>): Extract<
-  AgentEvent,
-  { type: 'compaction/end' }
-> {
+export function mapCompactionEndEvent(
+  event: Record<string, unknown>,
+): Extract<AgentEvent, { type: 'compaction/end' }> {
   const endEvent: Extract<AgentEvent, { type: 'compaction/end' }> = {
     type: 'compaction/end',
   };
@@ -291,9 +317,7 @@ export function mapCompactionEndEvent(event: Record<string, unknown>): Extract<
   }
 
   const msg =
-    readString(event.message) ??
-    readString(event.errorMessage) ??
-    readString(event.error);
+    readString(event.message) ?? readString(event.errorMessage) ?? readString(event.error);
   if (msg) {
     endEvent.message = msg;
   } else if (aborted) {
@@ -352,6 +376,45 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * Extract display/model text from a Pi tool result payload.
+ *
+ * Pi `tool_execution_end.result` is `AgentToolResult`:
+ * `{ content: Array<{ type: 'text', text: string } | ImageContent>, details }`.
+ * Also accepts a plain string (legacy / host-normalized shapes).
+ */
+export function extractToolResultText(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return value.length > 0 ? value : undefined;
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const content = record.content;
+  if (Array.isArray(content)) {
+    const parts: string[] = [];
+    for (const item of content) {
+      const part = asRecord(item);
+      if (!part) {
+        continue;
+      }
+      if (part.type === 'text' && typeof part.text === 'string' && part.text.length > 0) {
+        parts.push(part.text);
+      }
+    }
+    if (parts.length > 0) {
+      return parts.join('\n');
+    }
+  }
+  // Some adapters put the whole payload under `text`.
+  const directText = readString(record.text);
+  if (directText) {
+    return directText;
+  }
+  return undefined;
 }
 
 function readNumber(value: unknown): number | undefined {

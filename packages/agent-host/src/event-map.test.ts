@@ -21,9 +21,7 @@ describe('mapPiSessionEvent', () => {
       messageId: 'm1',
       assistantMessageEvent: { type: 'text_delta', delta: 'hello' },
     });
-    expect(events).toEqual([
-      { type: 'message/text_delta', messageId: 'm1', delta: 'hello' },
-    ]);
+    expect(events).toEqual([{ type: 'message/text_delta', messageId: 'm1', delta: 'hello' }]);
   });
 
   it('keeps separate SDK messages distinct when Pi omits message ids', () => {
@@ -46,12 +44,10 @@ describe('mapPiSessionEvent', () => {
       ...unwrap({ type: 'message_end' }),
     ];
 
-    const firstMessageId = firstMessage[0]?.type === 'message/start'
-      ? firstMessage[0].messageId
-      : undefined;
-    const secondMessageId = secondMessage[0]?.type === 'message/start'
-      ? secondMessage[0].messageId
-      : undefined;
+    const firstMessageId =
+      firstMessage[0]?.type === 'message/start' ? firstMessage[0].messageId : undefined;
+    const secondMessageId =
+      secondMessage[0]?.type === 'message/start' ? secondMessage[0].messageId : undefined;
 
     expect(firstMessageId).toMatch(/^pi-message-/);
     expect(secondMessageId).toMatch(/^pi-message-/);
@@ -101,8 +97,52 @@ describe('mapPiSessionEvent', () => {
       presentation: {
         kind: 'shell',
         exitCode: 0,
+        output: { text: 'hi' },
       },
     });
+  });
+
+  it('extracts text from Pi AgentToolResult on tool_execution_end', () => {
+    // Pi 0.80 custom tools (including MCP) emit result as AgentToolResult,
+    // not a plain string. Without content extraction the UI shows "No output".
+    const endEvents = mapPiSessionEvent({
+      type: 'tool_execution_end',
+      toolCallId: 'call_mcp_1',
+      toolName: 'mcp__agent-memory__agent_memory_get_context',
+      isError: false,
+      result: {
+        content: [{ type: 'text', text: '(项目: piwin) 找到 3 条记忆:\n\n[1] architecture...' }],
+        details: { toolName: 'mcp__agent-memory__agent_memory_get_context' },
+      },
+    });
+    expect(endEvents).toHaveLength(1);
+    expect(endEvents[0]).toMatchObject({
+      type: 'tool/end',
+      toolCallId: 'call_mcp_1',
+      isError: false,
+      presentation: {
+        kind: 'mcp',
+        output: {
+          text: '(项目: piwin) 找到 3 条记忆:\n\n[1] architecture...',
+        },
+      },
+    });
+  });
+
+  it('extracts text from partialResult on tool_execution_update', () => {
+    const updateEvents = mapPiSessionEvent({
+      type: 'tool_execution_update',
+      toolCallId: 't-stream',
+      toolName: 'bash',
+      args: {},
+      partialResult: {
+        content: [{ type: 'text', text: 'partial line\n' }],
+        details: {},
+      },
+    });
+    expect(updateEvents).toEqual([
+      { type: 'tool/update', toolCallId: 't-stream', delta: 'partial line\n' },
+    ]);
   });
 
   it('maps errors', () => {

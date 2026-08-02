@@ -42,6 +42,7 @@ import {
 import { listWalkthroughs, loadWalkthrough, saveWalkthrough } from '../walkthrough-store.js';
 import { getPiwinRoot } from '../paths.js';
 import { fail, ok } from '../response-helpers.js';
+import { findEnabledProvider, resolveConfiguredDefaultModelRef } from '../provider-helpers.js';
 
 /* ------------------------------------------------------------------ */
 /* §11.1 Command context seam                                          */
@@ -207,7 +208,7 @@ function resolveProviderForModel(
   model: ModelRef,
   config: PiwinConfig,
 ): { provider: ModelProviderConfig } | { provider?: undefined; error: WalkthroughErrorCode } {
-  const provider = config.providers.find((p) => p.id === model.providerId);
+  const provider = findEnabledProvider(config, model.providerId);
   if (!provider) {
     return { error: 'provider-not-found' };
   }
@@ -237,41 +238,16 @@ export function resolveGenerationModel(
   mode: WalkthroughMode;
   error?: WalkthroughError;
 } {
-  const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
-  const mode = walkthrough.mode;
-
-  if (mode === 'custom') {
-    const customModel = walkthrough.custom.model;
-    if (!customModel) {
-      return {
-        mode,
-        error: walkthroughError(
-          'model-not-configured',
-          'Custom walkthrough mode requires a configured model.',
-        ),
-      };
-    }
-    const resolved = resolveProviderForModel(customModel, config);
-    if ('error' in resolved) {
-      return {
-        mode,
-        error: walkthroughError(
-          resolved.error,
-          `Custom walkthrough model is no longer available (${resolved.error}).`,
-        ),
-      };
-    }
-    return { model: customModel, provider: resolved.provider, mode };
-  }
-
-  // default mode (§4.3)
+  // ADR 0026: always use session/message/config default model.
+  // No separate walkthrough model picker; custom.prompt is applied in assembleUserPrompt.
+  const mode: WalkthroughMode = 'default';
   const model = resolveDefaultModeModelRef(targetMessage, command.sessionId, context, config);
   if (!model) {
     return {
       mode,
       error: walkthroughError(
         'model-unavailable',
-        'No model is available for this message. Configure a provider model or use custom mode.',
+        'No model is available for this message. Configure a provider model for the session.',
       ),
     };
   }

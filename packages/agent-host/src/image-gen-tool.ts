@@ -13,6 +13,7 @@ import type { SecretResolver } from './secret-resolver.js';
 import type { ToolPermissionGate } from './session-tools.js';
 import { resolveNonInteractiveDecision } from './permission-policy.js';
 import { findMatchingRule } from './permission-rule-engine.js';
+import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
 
 export class ImageGenConfigError extends Error {
   readonly name = 'ImageGenConfigError';
@@ -32,7 +33,7 @@ export function resolveImageProvider(
   >,
   modelId?: string,
 ): ResolvedImageProvider {
-  const providers = config.providers ?? [];
+  const providers = getEnabledProviders(config);
   const requested = modelId?.trim();
 
   // 1. Explicit model name
@@ -49,7 +50,7 @@ export function resolveImageProvider(
   // 2. Image-generation default model
   const imageGenDefault = config.imageGeneration?.defaultModel;
   if (imageGenDefault) {
-    const provider = providers.find((p) => p.id === imageGenDefault.providerId);
+    const provider = findEnabledProvider(config, imageGenDefault.providerId);
     const model = provider?.models?.find((m) => m.id === imageGenDefault.modelId);
     if (provider && model) {
       return { provider, model };
@@ -58,10 +59,12 @@ export function resolveImageProvider(
   }
 
   // 3. Chat default (backward compat)
-  const defaultProvider = providers.find((p) => p.id === config.defaultProviderId);
-  const defaultModel = defaultProvider?.models?.find((m) => m.id === config.defaultModelId);
-  if (defaultProvider && defaultModel) {
-    return { provider: defaultProvider, model: defaultModel };
+  if (config.defaultProviderId && config.defaultModelId) {
+    const provider = findEnabledProvider(config, config.defaultProviderId);
+    const defaultModel = provider?.models?.find((m) => m.id === config.defaultModelId);
+    if (provider && defaultModel) {
+      return { provider, model: defaultModel };
+    }
   }
 
   throw new ImageGenConfigError(

@@ -427,6 +427,9 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     provider === 'duckduckgo' ||
     provider === 'brave' ||
     provider === 'tavily' ||
+    provider === 'searxng' ||
+    provider === 'cli' ||
+    provider === 'aggregate' ||
     provider === 'none'
       ? provider
       : defaults.searchProvider;
@@ -437,13 +440,25 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     fetchProviderRaw === 'firecrawl'
       ? fetchProviderRaw
       : defaults.fetchProvider;
-  return {
+  const searchApiKeyEnv =
+    typeof record.searchApiKeyEnv === 'string' && record.searchApiKeyEnv.length > 0
+      ? record.searchApiKeyEnv
+      : defaults.searchApiKeyEnv;
+  const searchSources = normalizeSearchSources(
+    record.searchSources,
     searchProvider,
-    searchApiKeyEnv:
-      typeof record.searchApiKeyEnv === 'string' && record.searchApiKeyEnv.length > 0
-        ? record.searchApiKeyEnv
-        : defaults.searchApiKeyEnv,
+    searchApiKeyEnv,
+    defaults.searchSources,
+  );
+  const searchStrategy = normalizeSearchStrategy(record.searchStrategy, defaults.searchStrategy);
+  const mirroredProvider = mirrorSearchProviderFromSources(searchSources, searchProvider);
+  return {
+    searchProvider: mirroredProvider,
+    searchApiKeyEnv,
     searchMaxResults: asPositiveNumber(record.searchMaxResults) ?? defaults.searchMaxResults,
+    searchTimeoutMs: asPositiveNumber(record.searchTimeoutMs) ?? defaults.searchTimeoutMs,
+    searchSources,
+    searchStrategy,
     fetchProvider,
     fetchApiKeyEnv:
       typeof record.fetchApiKeyEnv === 'string' && record.fetchApiKeyEnv.length > 0
@@ -454,6 +469,145 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     fetchBlockedUrlPrefixes:
       asStringArray(record.fetchBlockedUrlPrefixes) ?? defaults.fetchBlockedUrlPrefixes,
   };
+}
+
+function normalizeSearchStrategy(
+  value: unknown,
+  defaults: WebConfig['searchStrategy'],
+): WebConfig['searchStrategy'] {
+  const record = asRecord(value);
+  if (!record) {
+    return defaults;
+  }
+  const mode =
+    record.mode === 'ordered-fallback' || record.mode === 'parallel'
+      ? record.mode
+      : defaults.mode;
+  return {
+    mode,
+    perSourceTimeoutMs:
+      asPositiveNumber(record.perSourceTimeoutMs) ?? defaults.perSourceTimeoutMs,
+  };
+}
+
+function normalizeSearchSources(
+  value: unknown,
+  legacyProvider: WebConfig['searchProvider'],
+  legacyApiKeyEnv: string,
+  defaults: WebConfig['searchSources'],
+): WebConfig['searchSources'] {
+  if (Array.isArray(value)) {
+    const parsed = value
+      .map((item) => normalizeOneSearchSource(item))
+      .filter((item): item is NonNullable<typeof item> => item !== null);
+    if (parsed.length > 0) {
+      return parsed;
+    }
+  }
+  // Migrate legacy single-provider configs that predate searchSources.
+  return migrateLegacySearchSources(legacyProvider, legacyApiKeyEnv, defaults);
+}
+
+function migrateLegacySearchSources(
+  provider: WebConfig['searchProvider'],
+  apiKeyEnv: string,
+  defaults: WebConfig['searchSources'],
+): WebConfig['searchSources'] {
+  if (provider === 'none') {
+    return [];
+  }
+  if (provider === 'brave') {
+    return [
+      {
+        id: 'brave',
+        kind: 'brave',
+        enabled: true,
+        apiKeyEnv: apiKeyEnv || 'BRAVE_API_KEY',
+      },
+    ];
+  }
+  if (provider === 'tavily') {
+    return [
+      {
+        id: 'tavily',
+        kind: 'tavily',
+        enabled: true,
+        apiKeyEnv: apiKeyEnv || 'TAVILY_API_KEY',
+      },
+    ];
+  }
+  if (provider === 'searxng') {
+    return [{ id: 'searxng', kind: 'searxng', enabled: true }];
+  }
+  if (provider === 'cli') {
+    return [{ id: 'cli', kind: 'cli', enabled: true }];
+  }
+  if (provider === 'aggregate') {
+    return defaults.length > 0 ? defaults : [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }];
+  }
+  if (provider === 'duckduckgo') {
+    return [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }];
+  }
+  return defaults;
+}
+
+function normalizeOneSearchSource(
+  value: unknown,
+): WebConfig['searchSources'][number] | null {
+  const record = asRecord(value);
+  if (!record) {
+    return null;
+  }
+  const kind = record.kind;
+  if (
+    kind !== 'duckduckgo' &&
+    kind !== 'brave' &&
+    kind !== 'tavily' &&
+    kind !== 'searxng' &&
+    kind !== 'cli'
+  ) {
+    return null;
+  }
+  const id =
+    typeof record.id === 'string' && record.id.trim()
+      ? record.id.trim()
+      : kind;
+  const source: WebConfig['searchSources'][number] = {
+    id,
+    kind,
+    enabled: record.enabled !== false,
+  };
+  if (typeof record.label === 'string' && record.label.trim()) {
+    source.label = record.label.trim();
+  }
+  if (typeof record.apiKeyEnv === 'string' && record.apiKeyEnv.trim()) {
+    source.apiKeyEnv = record.apiKeyEnv.trim();
+  }
+  if (typeof record.baseUrl === 'string' && record.baseUrl.trim()) {
+    source.baseUrl = record.baseUrl.trim();
+  }
+  if (typeof record.command === 'string' && record.command.trim()) {
+    source.command = record.command.trim();
+  }
+  if (Array.isArray(record.args)) {
+    source.args = record.args.filter((item): item is string => typeof item === 'string');
+  }
+  return source;
+}
+
+function mirrorSearchProviderFromSources(
+  sources: WebConfig['searchSources'],
+  fallback: WebConfig['searchProvider'],
+): WebConfig['searchProvider'] {
+  const enabled = sources.filter((source) => source.enabled);
+  if (enabled.length === 0) {
+    return 'none';
+  }
+  if (enabled.length > 1) {
+    return 'aggregate';
+  }
+  const only = enabled[0];
+  return only?.kind ?? fallback;
 }
 
 function normalizeSkillsConfig(value: unknown, defaults: SkillsConfig): SkillsConfig {

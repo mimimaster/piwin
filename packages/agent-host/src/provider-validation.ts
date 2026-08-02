@@ -3,7 +3,7 @@
  * Never logs secret values.
  */
 import type { ModelProviderConfig, PiwinConfig } from '@piwin/contracts';
-import { createDefaultWalkthroughConfig, validateWalkthroughConfig } from '@piwin/contracts';
+import { createDefaultWalkthroughConfig, isThinkingLevel, validateWalkthroughConfig } from '@piwin/contracts';
 
 export type ProviderValidationIssue = {
   path: string;
@@ -88,6 +88,42 @@ export function validateProviders(
             path: `${base}.models[${modelIndex}].maxOutputTokens`,
             message: 'maxOutputTokens must be a positive integer',
           });
+        }
+        if (model.thinkingLevels !== undefined) {
+          if (
+            !Array.isArray(model.thinkingLevels) ||
+            model.thinkingLevels.length === 0
+          ) {
+            issues.push({
+              path: `${base}.models[${modelIndex}].thinkingLevels`,
+              message: 'thinkingLevels must be a non-empty array when provided',
+            });
+          } else {
+            const seenLevels = new Set<string>();
+            for (const [levelIndex, level] of model.thinkingLevels.entries()) {
+              if (!isThinkingLevel(level)) {
+                issues.push({
+                  path: `${base}.models[${modelIndex}].thinkingLevels[${levelIndex}]`,
+                  message: 'thinkingLevels contains an unsupported value',
+                });
+              } else if (seenLevels.has(level)) {
+                issues.push({
+                  path: `${base}.models[${modelIndex}].thinkingLevels[${levelIndex}]`,
+                  message: 'thinkingLevels must not contain duplicates',
+                });
+              }
+              seenLevels.add(String(level));
+            }
+            if (
+              model.thinkingLevel !== undefined &&
+              !model.thinkingLevels.includes(model.thinkingLevel)
+            ) {
+              issues.push({
+                path: `${base}.models[${modelIndex}].thinkingLevel`,
+                message: 'thinkingLevel must be included in thinkingLevels',
+              });
+            }
+          }
         }
         if (model.tooltipMarkdown !== undefined && model.tooltipMarkdown.length > 4096) {
           issues.push({
