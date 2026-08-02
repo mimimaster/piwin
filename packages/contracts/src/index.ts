@@ -28,6 +28,7 @@ export * from './doc-rag.js';
 export * from './subagent.js';
 export * from './subagent-profile.js';
 export * from './subagent-lifecycle.js';
+export * from './subagent-orchestration.js';
 export * from './compaction-fileops.js';
 export * from './pty.js';
 export * from './automation.js';

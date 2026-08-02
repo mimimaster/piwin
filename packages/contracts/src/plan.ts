@@ -19,6 +19,16 @@ export type PlanStep = {
    * plan execution uses its default (worktree + explicit apply).
    */
   profileId?: string;
+  /**
+   * CE-SUB-ORCH: task ids that must complete before this step can start.
+   * The scheduler uses this to build a DAG; absent means no dependencies.
+   */
+  dependsOn?: string[];
+  /**
+   * CE-SUB-ORCH: optional grouping key; steps in the same group may be
+   * scheduled together by the orchestrator.
+   */
+  parallelGroup?: string;
 };
 
 export type SessionPlan = {

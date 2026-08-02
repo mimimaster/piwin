@@ -34,6 +34,11 @@ import type { ThemeManifest, ThemeSummary } from './theme.js';
 import type { PlanStatus, PlanStepStatus, SessionPlan } from './plan.js';
 import type { PlanExecutionRequest, PlanExecutionState } from './plan-execution.js';
 import type { SubagentSpawnOptions } from './subagent.js';
+import type {
+  SubagentBatchRequest,
+  SubagentBatchResult,
+  SubagentTaskResult,
+} from './subagent-orchestration.js';
 import type { ModelRef, ThinkingLevel } from './host.js';
 import type { PtyOpenInput } from './pty.js';
 import type { CronJob, HookDefinition, SessionTodoList } from './automation.js';
@@ -162,6 +167,13 @@ export type HostCommand =
       childSessionId: string;
       force?: boolean;
     }
+  | {
+      id?: string;
+      type: 'subagent/batch-start';
+      request: SubagentBatchRequest;
+    }
+  | { id?: string; type: 'subagent/batch-status'; runId: string }
+  | { id?: string; type: 'subagent/batch-cancel'; runId: string }
   | { id?: string; type: 'session/resume'; sessionId: string }
   | { id?: string; type: 'session/messages'; sessionId: string }
   | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
@@ -499,6 +511,18 @@ export type HostPush =
       child: SessionSummary;
     }
   | { type: 'subagent/merged'; parentSessionId: string; childSessionId: string; messageId: string }
+  | {
+      type: 'subagent/batch-updated';
+      runId: string;
+      parentSessionId: string;
+      result: SubagentBatchResult;
+    }
+  | {
+      type: 'subagent/task-updated';
+      runId: string;
+      parentSessionId: string;
+      result: SubagentTaskResult;
+    }
   | {
       type: 'subagent/stream';
       parentSessionId: string;
