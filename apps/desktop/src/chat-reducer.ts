@@ -11,6 +11,8 @@ import type {
   SessionSummary,
   SessionTranscriptMessage,
   SubagentActivityView,
+  SubagentBatchResult,
+  SubagentTaskResult,
   ToolPresentation,
   WalkthroughArtifact,
 } from '@piwin/contracts';
@@ -179,6 +181,10 @@ export type ChatUiState = {
   subagentStreams: Record<string, SubagentStreamState>;
   /** Latest child session summaries keyed by childSessionId (live list sync). */
   subagentChildren: Record<string, SessionSummary>;
+  /** CE-SUB-ORCH: batch results keyed by runId (parallel subagent visibility). */
+  subagentBatches: Record<string, SubagentBatchResult>;
+  /** CE-SUB-ORCH: latest per-task results keyed by `${runId}:${taskId}`. */
+  subagentTaskResults: Record<string, SubagentTaskResult>;
   /**
    * Walkthrough artifacts keyed by owning assistant messageId (spec §5.1).
    * Cleared on session switch so stale artifacts never leak across sessions.
@@ -238,6 +244,18 @@ export type ChatUiAction =
     }
   | { type: 'subagent/clear-stream'; childSessionId: string }
   | { type: 'subagent/updated'; parentSessionId: string; child: SessionSummary }
+  | {
+      type: 'subagent/batch-updated';
+      runId: string;
+      parentSessionId: string;
+      result: SubagentBatchResult;
+    }
+  | {
+      type: 'subagent/task-updated';
+      runId: string;
+      parentSessionId: string;
+      result: SubagentTaskResult;
+    }
   | { type: 'walkthrough/hydrate'; artifacts: WalkthroughArtifact[] }
   | { type: 'walkthrough/updated'; artifact: WalkthroughArtifact }
   | { type: 'walkthrough/remove'; messageId: string };
@@ -279,6 +297,8 @@ export function createInitialChatUiState(): ChatUiState {
     runRecordsById: {},
     subagentStreams: {},
     subagentChildren: {},
+    subagentBatches: {},
+    subagentTaskResults: {},
     walkthroughsByMessageId: {},
   };
 }
@@ -787,6 +807,17 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       const child = action.child;
       const nextChildren = { ...state.subagentChildren, [child.id]: child };
       return { ...state, subagentChildren: nextChildren };
+    }
+    case 'subagent/batch-updated': {
+      if (state.activeSessionId !== action.parentSessionId) return state;
+      const nextBatches = { ...state.subagentBatches, [action.runId]: action.result };
+      return { ...state, subagentBatches: nextBatches };
+    }
+    case 'subagent/task-updated': {
+      if (state.activeSessionId !== action.parentSessionId) return state;
+      const key = `${action.runId}:${action.result.taskId}`;
+      const nextTaskResults = { ...state.subagentTaskResults, [key]: action.result };
+      return { ...state, subagentTaskResults: nextTaskResults };
     }
     case 'subagent/clear-stream': {
       if (!(action.childSessionId in state.subagentStreams)) {

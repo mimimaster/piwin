@@ -13,6 +13,10 @@ import type {
   PromptsConfig,
   SessionConfig,
   SkillsConfig,
+  SubagentConfig,
+  SubagentProfileSettings,
+  SubagentCapability,
+  SubagentIsolationMode,
   ThinkingConfig,
   ThinkingLevel,
   WebConfig,
@@ -28,11 +32,13 @@ import {
   createDefaultPromptsConfig,
   createDefaultSessionConfig,
   createDefaultSkillsConfig,
+  createDefaultSubagentConfig,
   createDefaultWalkthroughConfig,
   createDefaultWebConfig,
   modeToPreset,
   normalizeWalkthroughConfig,
   resolvePreset,
+  SUBAGENT_CAPABILITIES,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from './paths.js';
 import { sanitizeProvidersForSave, validatePiwinConfig } from './provider-validation.js';
@@ -59,6 +65,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     automation: createDefaultAutomationConfig(),
     marketplace: createDefaultMarketplaceConfig(),
     walkthrough: createDefaultWalkthroughConfig(),
+    subagents: createDefaultSubagentConfig(),
   };
 }
 
@@ -206,6 +213,7 @@ function normalizeConfig(value: unknown): PiwinConfig {
   );
   normalized.permissions = normalizePermissionConfig(record.permissions);
   normalized.walkthrough = normalizeWalkthroughConfig(record.walkthrough);
+  normalized.subagents = normalizeSubagentConfig(record.subagents);
   return normalized;
 }
 
@@ -713,6 +721,103 @@ function normalizeMarketplaceConfig(
     mcpRegistrySources: normalizeRegistrySources(record.mcpRegistrySources) ??
       defaults.mcpRegistrySources ?? ['static'],
   };
+}
+
+/**
+ * Normalize the `subagents` block (CE-SUB-PROF). Missing or partial values
+ * fall back to safe defaults. Invalid profile entries are dropped (with a
+ * diagnostic logged by the caller if needed); limits are clamped to >= 1.
+ * Saving profile changes must not rewrite provider/model definitions.
+ */
+function normalizeSubagentConfig(value: unknown): SubagentConfig {
+  const record = asRecord(value);
+  if (!record) {
+    return createDefaultSubagentConfig();
+  }
+  const defaults = createDefaultSubagentConfig();
+  const rawProfiles = Array.isArray(record.profiles) ? record.profiles : [];
+  const profiles: SubagentProfileSettings[] = [];
+  const seenIds = new Set<string>();
+  for (const raw of rawProfiles) {
+    const profile = normalizeSubagentProfile(raw);
+    if (!profile) continue;
+    if (seenIds.has(profile.id)) continue;
+    seenIds.add(profile.id);
+    profiles.push(profile);
+  }
+  const config: SubagentConfig = {
+    profiles,
+    maxConcurrency: asPositiveInteger(record.maxConcurrency) ?? defaults.maxConcurrency,
+    maxTasksPerRun: asPositiveInteger(record.maxTasksPerRun) ?? defaults.maxTasksPerRun,
+    maxParallelWriteTasks:
+      asPositiveInteger(record.maxParallelWriteTasks) ?? defaults.maxParallelWriteTasks,
+    processIsolation:
+      record.processIsolation === 'best-effort' ? 'best-effort' : defaults.processIsolation,
+    parallelWritePolicy:
+      record.parallelWritePolicy === 'disabled' ? 'disabled' : defaults.parallelWritePolicy,
+    requireCleanBaseForParallelWrites:
+      typeof record.requireCleanBaseForParallelWrites === 'boolean'
+        ? record.requireCleanBaseForParallelWrites
+        : defaults.requireCleanBaseForParallelWrites,
+  };
+  if (typeof record.defaultProfileId === 'string' && record.defaultProfileId.trim()) {
+    config.defaultProfileId = record.defaultProfileId;
+  }
+  return config;
+}
+
+function normalizeSubagentProfile(value: unknown): SubagentProfileSettings | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const id = typeof record.id === 'string' ? record.id.trim() : '';
+  const description = typeof record.description === 'string' ? record.description.trim() : '';
+  if (!id || !description) return undefined;
+  const isolation = normalizeSubagentIsolation(record.isolation);
+  if (!isolation) return undefined;
+  const profile: SubagentProfileSettings = {
+    id,
+    description,
+    isolation,
+  };
+  const model = normalizeSubagentModelRef(record.model);
+  if (model) profile.model = model;
+  if (isThinkingLevel(record.thinkingLevel)) {
+    profile.thinkingLevel = record.thinkingLevel;
+  }
+  const capabilities = normalizeSubagentCapabilities(record.capabilities);
+  if (capabilities) profile.capabilities = capabilities;
+  const skillIds = asStringArray(record.skillIds);
+  if (skillIds) profile.skillIds = skillIds;
+  return profile;
+}
+
+function normalizeSubagentIsolation(value: unknown): SubagentIsolationMode | undefined {
+  if (value === 'readonly' || value === 'worktree') return value;
+  return undefined;
+}
+
+function normalizeSubagentModelRef(value: unknown): SubagentProfileSettings['model'] | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const protocol = record.protocol;
+  if (
+    protocol !== 'openai-compatible' &&
+    protocol !== 'anthropic-compatible' &&
+    protocol !== 'google-gemini'
+  ) {
+    return undefined;
+  }
+  const providerId = typeof record.providerId === 'string' ? record.providerId.trim() : '';
+  const modelId = typeof record.modelId === 'string' ? record.modelId.trim() : '';
+  if (!providerId || !modelId) return undefined;
+  return { protocol, providerId, modelId };
+}
+
+function normalizeSubagentCapabilities(value: unknown): SubagentCapability[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const allowed = new Set<SubagentCapability>(SUBAGENT_CAPABILITIES);
+  const caps = value.filter((cap): cap is SubagentCapability => allowed.has(cap));
+  return caps.length > 0 ? caps : undefined;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

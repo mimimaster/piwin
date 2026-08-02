@@ -451,7 +451,13 @@ must not be claimed:
    [ADR 0017](./adr/0017-host-sidecar-bundling.md).
 2. **ADR 0012 true RPC worker isolation:** SDK fallback remains compatible but
    is not process isolation. The worker strategy needs separate contracts,
-   lifecycle design, and failure semantics.
+   lifecycle design, and failure semantics. **Update (ADR 0026):** the
+   piwin-owned SDK worker is now the product isolation path for parallel
+   subagent execution. See
+   [ADR 0026](./adr/0026-safe-parallel-subagent-execution.md) for the full
+   design: one `SubagentOrchestrator` for batch scheduling, worktree-only
+   parallel writes, serialized three-way integration, and conflict retention.
+   Pi RPC fallback is explicitly **not** process isolation.
 3. **Follow-up turn lifecycle:** `session/follow_up` now validates run
    ownership, but a distinct foreground lifecycle is not introduced here.
    Decide in a separate ADR/plan whether it appends to an existing run or

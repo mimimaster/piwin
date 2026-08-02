@@ -107,6 +107,8 @@ Usage:
   piwin walkthrough list <session-id>
   piwin walkthrough generate <session-id> <message-id>
   piwin walkthrough export <session-id> <message-id> [--output <path>]
+  piwin subagent status <runId>
+  piwin subagent cancel <runId>
 
 Host modes: sdk | rpc
 Offline: --mock or PIWIN_MOCK=1
@@ -2275,6 +2277,81 @@ async function commandWalkthrough(argv: string[]): Promise<void> {
 }
 
 /**
+ * CE-SUB-ORCH: CLI subagent batch observation and cancellation.
+ * Usage: piwin subagent status <runId> | cancel <runId>
+ */
+async function commandSubagent(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? '';
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+
+  if (sub === 'status') {
+    const runId = argv[2];
+    if (!runId || runId.startsWith('--')) {
+      console.error('Usage: piwin subagent status <runId> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = createWalkthroughHostClient(mode, mock);
+    try {
+      const response = await client.handleCommand({
+        type: 'subagent/batch-status',
+        runId,
+      });
+      if (!response.success) {
+        console.error(response.error);
+        process.exitCode = 1;
+      } else {
+        const result = response.data as { runId: string; status: string; results: Array<{ taskId: string; executionStatus: string; error?: string }> };
+        console.log(`Batch ${result.runId}: ${result.status}`);
+        for (const task of result.results) {
+          const errorSuffix = task.error ? ` — ${task.error}` : '';
+          console.log(`  [${task.taskId}] ${task.executionStatus}${errorSuffix}`);
+        }
+      }
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'cancel') {
+    const runId = argv[2];
+    if (!runId || runId.startsWith('--')) {
+      console.error('Usage: piwin subagent cancel <runId> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = createWalkthroughHostClient(mode, mock);
+    try {
+      const response = await client.handleCommand({
+        type: 'subagent/batch-cancel',
+        runId,
+      });
+      if (!response.success) {
+        console.error(response.error);
+        process.exitCode = 1;
+      } else {
+        console.log(`Batch ${runId} cancellation requested.`);
+      }
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  console.error(`Unknown subagent subcommand: ${sub || '(none)'}`);
+  console.error('Usage: piwin subagent status|cancel <runId>');
+  process.exitCode = 1;
+}
+
+/**
  * Build a {@link WalkthroughHostClient} backed by a real {@link HostRuntime}.
  * The runtime's `onPush` is bridged into the client's `onPush` registry so
  * `generate` can wait for `walkthrough/updated` pushes.
@@ -2385,6 +2462,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'walkthrough') {
     await commandWalkthrough(argv);
+    return;
+  }
+  if (command === 'subagent') {
+    await commandSubagent(argv);
     return;
   }
 

@@ -26,6 +26,7 @@ Call the piwin plan-create capability with:
   - a short title;
   - `detail` covering affected area, acceptance criteria, and the verification command;
   - **no shell commands, scripts, or hooks as step fields** — plans are reviewable artifacts, not executables;
+  - `profileId` (optional): a subagent profile id (e.g. `explorer`, `reviewer`, `implementer`, `tester`) to use when this step runs in subagent-driven mode. Omit when the default worktree+explicit profile is sufficient.
 - `source: 'skill'` and `skillId: 'writing-plans'`;
 - `independentSteps`: list step ids **only** when the work can safely run in an isolated child session without touching the same files as another step. Omit it when steps must run sequentially in one session.
 

@@ -11,6 +11,10 @@ import type {
   SessionTranscriptMessage,
   SubagentIsolationMode,
   SubagentApplyPolicy,
+  ModelRef,
+  ThinkingLevel,
+  SubagentBatchRequest,
+  SubagentBatchResult,
 } from '@piwin/contracts';
 import type { McpLifecycleManager } from '@piwin/mcp';
 import type { ProcessRegistry } from '@piwin/process';
@@ -35,6 +39,12 @@ export type PlanExecutionSeam = {
     sessionName?: string;
     mode?: SubagentIsolationMode;
     applyPolicy?: SubagentApplyPolicy;
+    /** CE-SUB-PROF: profile id for plan step execution. */
+    profileId?: string;
+    /** CE-SUB-PROF: per-step model override. */
+    model?: ModelRef;
+    /** CE-SUB-PROF: per-step thinking level override. */
+    thinkingLevel?: ThinkingLevel;
   }) => Promise<{ childSessionId: string }>;
   /** Merge a completed child session into its parent. */
   mergeSubagent: (childSessionId: string) => Promise<{ ok: boolean; message?: string }>;
@@ -42,6 +52,12 @@ export type PlanExecutionSeam = {
   promptSession: (sessionId: string, text: string) => Promise<void>;
   /** Abort a running session (used by plan/abort). */
   abortSession: (sessionId: string) => Promise<void>;
+  /**
+   * CE-SUB-ORCH: optional batch orchestration seam. When present and the plan
+   * has steps with dependsOn/parallelGroup, plan execution routes through
+   * this instead of the sequential spawnSubagent loop.
+   */
+  runBatch?: (request: SubagentBatchRequest) => Promise<SubagentBatchResult>;
 };
 
 export type HostCommandContext = {

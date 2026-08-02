@@ -65,3 +65,37 @@ Keep it concise. Point the user to the walkthrough artifact for details.
 - Do not skip verification — the parent must confirm the merged state.
 - Respect architecture boundaries (see `AGENTS.md`).
 - Abort paths must be implemented for long-running child sessions.
+
+## 7. Subagent profiles (CE-SUB-PROF)
+
+Use **configured profiles** from Settings → Sub-agent profiles instead of
+inventing role semantics. Built-in profiles:
+
+- `explorer` — read-only codebase exploration (readonly isolation)
+- `reviewer` — read-only code review and analysis (readonly isolation)
+- `implementer` — isolated implementation with write + execute (worktree)
+- `tester` — isolated test execution and fixture writes (worktree)
+
+Assign a `profileId` per plan step when the step's role differs from the
+default. Assign different models at child creation time when useful (e.g.
+a cheaper model for exploration, a stronger model for implementation).
+
+## 8. Parallel groups (CE-SUB-ORCH)
+
+Mark `parallelGroup` on plan steps **only** when tasks have no data, file,
+or external-resource dependency. Use `dependsOn` to declare explicit
+dependencies between steps.
+
+Rules:
+
+- Use **readonly** profiles for exploration/review tasks.
+- Use **worktree** profiles for write tasks.
+- **Never** request shared-cwd parallel writes — the host rejects them.
+- Expect **serialized integration**: the host integrates successful
+  worktree results one at a time and stops on conflicts.
+- Let the **host decide** whether process isolation is available; the
+  skill is guidance, not a security boundary.
+- A failed or conflicted child worktree is **retained** for inspection;
+  the host never silently discards unintegrated changes.
+- Do not automatically retry failed write children — create a new task
+  with a fresh child id instead.

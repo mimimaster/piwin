@@ -17,6 +17,7 @@ import { ExtensionsPage } from './extensions-page';
 import { PluginsPage } from './plugins-page';
 import { PromptsPage } from './prompts-page';
 import { AutomationPage } from './automation-page';
+import { SubagentProfilesPage } from './subagents-page';
 import { PetsPage } from './pets-page';
 import { UsagePage } from './usage-page';
 
@@ -34,5 +35,6 @@ registerSettingsSection('extensions', ExtensionsPage);
 registerSettingsSection('plugins', PluginsPage);
 registerSettingsSection('prompts', PromptsPage);
 registerSettingsSection('automation', AutomationPage);
+registerSettingsSection('subagents', SubagentProfilesPage);
 registerSettingsSection('pets', PetsPage);
 registerSettingsSection('usage', UsagePage);

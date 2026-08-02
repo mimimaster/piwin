@@ -23,15 +23,19 @@ export type CreatePiResourceLoaderOptions = {
   disabledExtensionIds?: string[];
   extraPromptPaths?: string[];
   disabledPromptIds?: string[];
+  /**
+   * CE-SUB-PROF: profile skill allowlist. When present, filter discovered
+   * enabled skills to this allowlist after applying global disabled ids.
+   * When absent, preserve current global skill behavior.
+   */
+  allowedSkillIds?: string[];
 };
 
 /**
  * Build a Pi DefaultResourceLoader that maps piwin skill/extension/prompt dirs.
  * Call reload() before createAgentSession.
  */
-export async function createPiResourceLoader(
-  options: CreatePiResourceLoaderOptions,
-): Promise<{
+export async function createPiResourceLoader(options: CreatePiResourceLoaderOptions): Promise<{
   resourceLoader: unknown;
   skillPaths: string[];
   extensionPaths: string[];
@@ -45,14 +49,10 @@ export async function createPiResourceLoader(
   }
 
   const projectLocalPath =
-    options.scope?.kind === 'general'
-      ? undefined
-      : options.projectPath?.trim() || undefined;
+    options.scope?.kind === 'general' ? undefined : options.projectPath?.trim() || undefined;
 
   const skillPaths = collectSkillPaths(options);
-  const disabled = new Set(
-    (options.disabledSkillIds ?? []).map((id) => id.toLowerCase()),
-  );
+  const disabled = new Set((options.disabledSkillIds ?? []).map((id) => id.toLowerCase()));
 
   await ensureBundledExtensionsInstalled(options.piwinRoot);
   await ensureBundledPromptsInstalled(options.piwinRoot);
@@ -92,22 +92,24 @@ export async function createPiResourceLoader(
     cwd: options.cwd,
     agentDir: options.agentDir,
     additionalSkillPaths: skillPaths,
-    ...(extensionPaths.length > 0
-      ? { additionalExtensionPaths: extensionPaths }
-      : {}),
-    ...(promptPaths.length > 0
-      ? { additionalPromptTemplatePaths: promptPaths }
-      : {}),
+    ...(extensionPaths.length > 0 ? { additionalExtensionPaths: extensionPaths } : {}),
+    ...(promptPaths.length > 0 ? { additionalPromptTemplatePaths: promptPaths } : {}),
   };
 
-  if (disabled.size > 0) {
+  if (disabled.size > 0 || (options.allowedSkillIds ?? []).length > 0) {
+    const allowedSkillSet = new Set((options.allowedSkillIds ?? []).map((id) => id.toLowerCase()));
+    const hasAllowlist = allowedSkillSet.size > 0;
     loaderOptions.skillsOverride = (base: {
       skills: Array<{ name?: string; id?: string }>;
       diagnostics: unknown[];
     }) => ({
       skills: base.skills.filter((skill) => {
         const key = (skill.name ?? skill.id ?? '').toLowerCase();
-        return key.length === 0 || !disabled.has(key);
+        if (key.length === 0) return true;
+        if (disabled.has(key)) return false;
+        // CE-SUB-PROF: when a profile allowlist is set, only keep skills in it.
+        if (hasAllowlist && !allowedSkillSet.has(key)) return false;
+        return true;
       }),
       diagnostics: base.diagnostics,
     });
@@ -181,13 +183,19 @@ export function extensionIdFromPath(filePath: string): string {
     const parent = parts[parts.length - 2] ?? 'extension';
     return parent.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
   }
-  return base.replace(/\.ts$/i, '').toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  return base
+    .replace(/\.ts$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-');
 }
 
 export function promptIdFromPath(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/');
   const base = normalized.split('/').pop() ?? '';
-  return base.replace(/\.md$/i, '').toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  return base
+    .replace(/\.md$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-');
 }
 
 export type { ExtensionSummary };

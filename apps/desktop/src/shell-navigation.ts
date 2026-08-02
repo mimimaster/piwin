@@ -22,6 +22,7 @@ export type ShellSettingsSection =
   | 'image-generation'
   | 'pets'
   | 'automation'
+  | 'subagents'
   | 'session'
   | 'usage'
   // Legacy deep links preserved for backward compatibility; consumers should
