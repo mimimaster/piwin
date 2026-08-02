@@ -341,7 +341,75 @@ async function runPlanExecution(
       return;
     }
 
+    // CE-SUB-ORCH: if steps declare dependsOn/parallelGroup and the seam
+    // exposes runBatch, route through the orchestrator for DAG scheduling.
     const childIds: string[] = [];
+    const hasDagMetadata = plan.steps.some(
+      (s) => s.dependsOn !== undefined || s.parallelGroup !== undefined,
+    );
+    if (hasDagMetadata && seam.runBatch) {
+      await markRunning();
+      const tasks = stepIds
+        .map((stepId) => {
+          const step = plan.steps.find((s) => s.id === stepId);
+          const directive = buildSubagentTaskDirective(plan, stepId);
+          if (!directive || !step) return undefined;
+          return {
+            id: stepId,
+            parentSessionId: sessionId,
+            task: directive.promptText,
+            ...(step.profileId ? { profileId: step.profileId } : {}),
+            ...(step.dependsOn ? { dependsOn: step.dependsOn } : {}),
+            ...(step.parallelGroup ? { parallelGroup: step.parallelGroup } : {}),
+          };
+        })
+        .filter((t): t is NonNullable<typeof t> => t !== undefined);
+
+      const batchResult = await seam.runBatch({
+        parentSessionId: sessionId,
+        tasks,
+      });
+
+      // Record child session ids from successful results.
+      for (const result of batchResult.results) {
+        if (result.childSessionId) {
+          childIds.push(result.childSessionId);
+        }
+      }
+      state = { ...state, childSessionIds: [...state.childSessionIds, ...childIds] };
+      const withChildren = await loadSessionPlan(planPath);
+      if (withChildren) {
+        const updated: SessionPlan = {
+          ...withChildren,
+          execution: state,
+          updatedAt: new Date().toISOString(),
+        };
+        await saveSessionPlan(planPath, updated);
+        context.push({ type: 'plan/updated', sessionId, plan: updated });
+        context.push({ type: 'plan/execution-updated', state });
+      }
+
+      if (batchResult.status !== 'completed') {
+        await markFailed(`batch ${batchResult.status}`);
+        return;
+      }
+
+      // Parent runs final verification and posts the walkthrough.
+      await markRunning();
+      const verifyDirective = buildSubagentVerificationDirective(plan);
+      await seam.promptSession(sessionId, verifyDirective.promptText);
+
+      const latest = await loadSessionPlan(planPath);
+      if (
+        latest &&
+        latest.steps.every((step) => step.status === 'done' || step.status === 'skipped')
+      ) {
+        await markCompleted();
+      }
+      return;
+    }
+
+    // Legacy sequential path (no DAG metadata or no runBatch seam).
     for (const stepId of stepIds) {
       const directive = buildSubagentTaskDirective(plan, stepId);
       if (!directive) continue;

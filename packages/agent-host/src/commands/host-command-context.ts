@@ -13,6 +13,8 @@ import type {
   SubagentApplyPolicy,
   ModelRef,
   ThinkingLevel,
+  SubagentBatchRequest,
+  SubagentBatchResult,
 } from '@piwin/contracts';
 import type { McpLifecycleManager } from '@piwin/mcp';
 import type { ProcessRegistry } from '@piwin/process';
@@ -50,6 +52,12 @@ export type PlanExecutionSeam = {
   promptSession: (sessionId: string, text: string) => Promise<void>;
   /** Abort a running session (used by plan/abort). */
   abortSession: (sessionId: string) => Promise<void>;
+  /**
+   * CE-SUB-ORCH: optional batch orchestration seam. When present and the plan
+   * has steps with dependsOn/parallelGroup, plan execution routes through
+   * this instead of the sequential spawnSubagent loop.
+   */
+  runBatch?: (request: SubagentBatchRequest) => Promise<SubagentBatchResult>;
 };
 
 export type HostCommandContext = {
