@@ -33,6 +33,14 @@ import type { PromptAttachment } from '@piwin/contracts';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { loadMcpConfig, saveMcpConfig, tryValidateMcpConfig, listEnabledServers } from '@piwin/mcp';
 import { installSkill, installExtension, RECOMMENDED_SKILLS } from '@piwin/marketplace';
+import {
+  installPlugin,
+  loadInstalledPlugins,
+  removeInstalledPlugin,
+  fetchPluginRegistry,
+  DEFAULT_PLUGIN_REGISTRY_URL,
+} from '@piwin/marketplace';
+import { pluginSecretRef, type PluginInstallSource } from '@piwin/contracts';
 import { createMediaService } from '@piwin/media';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createCliExtensionUiRequestHandler } from './extension-ui-cli.js';
@@ -72,6 +80,10 @@ Usage:
   piwin mcp list
   piwin mcp validate [path]
   piwin mcp add <id> --command <cmd> [--args a,b] [--env KEY=VAL]
+  piwin plugin list
+  piwin plugin install --local <dir> | --git <url> | --registry <id> [--secret KEY=VAL...]
+  piwin plugin uninstall <id>
+  piwin plugin registry [--url <url>]
   piwin notes add <content> --title <t> [--collection c] [--tags a,b]
   piwin notes list [--collection c]
   piwin notes search <query> [--collection c] [--limit n] [--search-mode auto|fts|vector|hybrid]
@@ -295,7 +307,15 @@ async function commandDoctor(): Promise<void> {
       `  · ${provider.id} (${provider.protocol}) models=${provider.models.length} key=${report.status}${report.source ? ` via ${report.source}` : ''}${report.detail ? ` (${report.detail})` : ''}`,
     );
   }
-  console.log(`- web searchProvider: ${config.web?.searchProvider ?? '(default)'}`);
+  const web = config.web;
+  const enabledSources = web?.searchSources?.filter((source) => source.enabled) ?? [];
+  const sourceSummary =
+    enabledSources.length === 0
+      ? 'none'
+      : enabledSources.map((source) => source.id).join('+');
+  console.log(
+    `- web search: ${web?.searchProvider ?? '(default)'} [${sourceSummary}] strategy=${web?.searchStrategy?.mode ?? 'parallel'}`,
+  );
   try {
     const { scanSkills, ensureBundledSkillsInstalled } = await import('@piwin/skills');
     await ensureBundledSkillsInstalled(root);
@@ -1053,6 +1073,153 @@ async function commandMcp(argv: string[]): Promise<void> {
   }
 
   console.error(`Unknown mcp subcommand: ${sub}`);
+  process.exitCode = 1;
+}
+
+async function commandPlugin(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? 'list';
+  const root = getPiwinRoot();
+
+  if (sub === 'list') {
+    const plugins = await loadInstalledPlugins(root);
+    if (plugins.length === 0) {
+      console.log('(no plugins installed)');
+      return;
+    }
+    for (const plugin of plugins) {
+      console.log(
+        `${plugin.id}\tv${plugin.version}\t${plugin.name}\tskills:${plugin.skills.length}\tmcp:${plugin.mcpServerIds.length}`,
+      );
+    }
+    return;
+  }
+
+  if (sub === 'install') {
+    const localPath = readOption(argv, '--local');
+    const gitUrl = readOption(argv, '--git');
+    const registryId = readOption(argv, '--registry');
+    const secretArgs = argv.filter((a) => a.startsWith('--secret='));
+    const secrets: Record<string, string> = {};
+    for (const arg of secretArgs) {
+      const eq = arg.indexOf('=');
+      if (eq > 0) {
+        const key = arg.slice('--secret='.length, eq);
+        const value = arg.slice(eq + 1);
+        if (key && value) {
+          secrets[key] = value;
+        }
+      }
+    }
+
+    let source: PluginInstallSource;
+    if (localPath) {
+      source = { kind: 'local', path: resolve(localPath) };
+    } else if (gitUrl) {
+      source = { kind: 'git', url: gitUrl };
+    } else if (registryId) {
+      source = { kind: 'registry', registryId };
+    } else {
+      console.error('plugin install requires --local <dir>, --git <url>, or --registry <id>');
+      process.exitCode = 1;
+      return;
+    }
+
+    const secretResolver = createSecretResolver();
+    try {
+      const result = await installPlugin({
+        piwinRoot: root,
+        source,
+        ...(Object.keys(secrets).length > 0 ? { secrets } : {}),
+        writeSecret: async (ref, value) => {
+          await secretResolver.writeSecretByRef(ref, value);
+        },
+        mergeMcpServer: async (serverId, config) => {
+          const doc = await loadMcpConfig(root);
+          doc.mcpServers[serverId] = config;
+          await saveMcpConfig(root, doc);
+        },
+        ...(registryId
+          ? {
+              resolveRegistrySource: async (id: string) => {
+                const index = await fetchPluginRegistry(DEFAULT_PLUGIN_REGISTRY_URL);
+                const entry = index.plugins.find((p) => p.id === id);
+                if (!entry) {
+                  throw new Error(`Plugin "${id}" not found in registry`);
+                }
+                return entry.source;
+              },
+            }
+          : {}),
+      });
+      console.log(
+        `installed ${result.pluginId}: ${result.installedSkills.length} skills, ${result.mcpServerIds.length} MCP servers, ${result.secretRefs.length} secrets`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`plugin install failed: ${message}`);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (sub === 'uninstall') {
+    const pluginId = argv[2];
+    if (!pluginId) {
+      console.error('plugin uninstall requires a plugin id');
+      process.exitCode = 1;
+      return;
+    }
+    try {
+      const removed = await removeInstalledPlugin(root, pluginId);
+      if (!removed) {
+        console.error(`Plugin "${pluginId}" is not installed`);
+        process.exitCode = 1;
+        return;
+      }
+      // Remove owned skills.
+      for (const skillId of removed.skills) {
+        const skillPath = resolve(root, 'skills', skillId);
+        await import('node:fs/promises').then((fs) =>
+          fs.rm(skillPath, { recursive: true, force: true }).catch(() => undefined),
+        );
+      }
+      // Remove owned MCP servers.
+      if (removed.mcpServerIds.length > 0) {
+        const doc = await loadMcpConfig(root);
+        for (const serverId of removed.mcpServerIds) {
+          delete doc.mcpServers[serverId];
+        }
+        await saveMcpConfig(root, doc);
+      }
+      console.log(`uninstalled ${removed.id}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`plugin uninstall failed: ${message}`);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (sub === 'registry') {
+    const url = readOption(argv, '--url') ?? DEFAULT_PLUGIN_REGISTRY_URL;
+    try {
+      const index = await fetchPluginRegistry(url);
+      if (index.plugins.length === 0) {
+        console.log('(registry is empty)');
+        return;
+      }
+      for (const entry of index.plugins) {
+        console.log(`${entry.id}\tv${entry.version}\t${entry.name}\t${entry.source.kind}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`registry fetch failed: ${message}`);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  console.error(`Unknown plugin subcommand: ${sub}`);
   process.exitCode = 1;
 }
 
@@ -2182,6 +2349,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'mcp') {
     await commandMcp(argv);
+    return;
+  }
+  if (command === 'plugin') {
+    await commandPlugin(argv);
     return;
   }
   if (command === 'process') {
