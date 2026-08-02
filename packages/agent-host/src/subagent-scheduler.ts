@@ -163,8 +163,9 @@ export function isBatchSettled(state: SchedulerState): boolean {
 /**
  * Derive the batch-level status from the scheduler state. The batch is:
  * - 'completed' when all tasks completed
- * - 'failed' when any task failed (and none were cancelled)
- * - 'cancelled' when any task was cancelled
+ * - 'failed' when any task failed (cascaded cancellations from failures
+ *   do not override this — the root cause is the failure, not user cancel)
+ * - 'cancelled' when tasks were cancelled without any failure (user abort)
  * - 'needs-integration' is set by the orchestrator when integration
  *   conflicts are detected (not derivable from scheduler state alone)
  */
@@ -175,7 +176,9 @@ export function deriveBatchStatus(state: SchedulerState): 'completed' | 'failed'
     if (status === 'failed') hasFailed = true;
     if (status === 'cancelled') hasCancelled = true;
   }
-  if (hasCancelled) return 'cancelled';
+  // Failures take precedence over cascaded cancellations (dependents of
+  // failed tasks are cancelled, but the batch is still 'failed').
   if (hasFailed) return 'failed';
+  if (hasCancelled) return 'cancelled';
   return 'completed';
 }

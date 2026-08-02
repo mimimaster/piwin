@@ -254,3 +254,12 @@ export {
   deriveBatchStatus,
 } from './subagent-scheduler.js';
 export type { SchedulerState, SchedulerTaskStatus } from './subagent-scheduler.js';
+export { SubagentOrchestrator } from './subagent-orchestrator.js';
+export type {
+  SubagentTaskRunner,
+  SubagentWorkspaceService,
+  SubagentIntegrationPort,
+  SubagentRunStorePort,
+  SubagentOrchestratorOptions,
+  ActiveRun as SubagentOrchestratorActiveRun,
+} from './subagent-orchestrator.js';
