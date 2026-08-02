@@ -26,6 +26,8 @@ export * from './notes.js';
 export * from './flashcards.js';
 export * from './doc-rag.js';
 export * from './subagent.js';
+export * from './subagent-profile.js';
+export * from './subagent-lifecycle.js';
 export * from './compaction-fileops.js';
 export * from './pty.js';
 export * from './automation.js';

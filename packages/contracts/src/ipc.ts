@@ -34,6 +34,7 @@ import type { ThemeManifest, ThemeSummary } from './theme.js';
 import type { PlanStatus, PlanStepStatus, SessionPlan } from './plan.js';
 import type { PlanExecutionRequest, PlanExecutionState } from './plan-execution.js';
 import type { SubagentSpawnOptions } from './subagent.js';
+import type { ModelRef, ThinkingLevel } from './host.js';
 import type { PtyOpenInput } from './pty.js';
 import type { CronJob, HookDefinition, SessionTodoList } from './automation.js';
 import type { McpServerConfig } from './mcp.js';
@@ -133,6 +134,12 @@ export type HostCommand =
       allowedOutputPaths?: string[];
       retainWorktree?: boolean;
       role?: string;
+      /** CE-SUB-PROF: profile id resolved by the Host before child creation. */
+      profileId?: string;
+      /** CE-SUB-PROF: per-call model override (must reference a configured model). */
+      model?: ModelRef;
+      /** CE-SUB-PROF: per-call thinking level override. */
+      thinkingLevel?: ThinkingLevel;
     }
   | {
       id?: string;
