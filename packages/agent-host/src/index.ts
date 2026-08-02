@@ -244,3 +244,13 @@ export {
   transitionIntegrationStatus,
 } from './subagent-lifecycle-service.js';
 export type { SubagentSpawnRequest, SubagentSpawnPlan } from './subagent-lifecycle-service.js';
+export {
+  initSchedulerState,
+  nextReadyBatch,
+  markTaskRunning,
+  markTaskSettled,
+  cancelAll,
+  isBatchSettled,
+  deriveBatchStatus,
+} from './subagent-scheduler.js';
+export type { SchedulerState, SchedulerTaskStatus } from './subagent-scheduler.js';
