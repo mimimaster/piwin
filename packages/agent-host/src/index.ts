@@ -236,3 +236,11 @@ export {
   isCustomToolAllowed,
 } from './subagent-capability-resolver.js';
 export type { SubagentToolAllowlist } from './subagent-capability-resolver.js';
+export {
+  planSubagentSpawn,
+  buildSubagentSeedPrompt,
+  transitionExecutionStatus,
+  transitionSummaryStatus,
+  transitionIntegrationStatus,
+} from './subagent-lifecycle-service.js';
+export type { SubagentSpawnRequest, SubagentSpawnPlan } from './subagent-lifecycle-service.js';
