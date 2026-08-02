@@ -13,6 +13,64 @@ export type DiscoverModelsDialogProps = {
 };
 
 /**
+ * Rank + filter discovered models for the picker search box.
+ * - Empty query: original order
+ * - Tokens (whitespace-split) must all match id or label (case-insensitive)
+ * - Prefix hits on id rank above prefix on label, then substring matches
+ */
+export function filterDiscoveredModels(
+  models: readonly DiscoveredModel[],
+  query: string,
+): DiscoveredModel[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) {
+    return [...models];
+  }
+
+  const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) {
+    return [...models];
+  }
+
+  type Ranked = { model: DiscoveredModel; rank: number };
+  const ranked: Ranked[] = [];
+
+  for (const model of models) {
+    const id = model.id.toLowerCase();
+    const label = (model.label ?? '').toLowerCase();
+    const haystack = `${id} ${label}`.trim();
+
+    if (!tokens.every((token) => haystack.includes(token))) {
+      continue;
+    }
+
+    // Lower rank = better. Prefer id prefix, then label prefix, then substring.
+    const primary = tokens[0] ?? '';
+    let rank = 40;
+    if (primary && id.startsWith(primary)) {
+      rank = 0;
+    } else if (primary && label.startsWith(primary)) {
+      rank = 10;
+    } else if (primary && id.includes(primary)) {
+      rank = 20;
+    } else if (primary && label.includes(primary)) {
+      rank = 30;
+    }
+
+    ranked.push({ model, rank });
+  }
+
+  ranked.sort((left, right) => {
+    if (left.rank !== right.rank) {
+      return left.rank - right.rank;
+    }
+    return left.model.id.localeCompare(right.model.id);
+  });
+
+  return ranked.map((entry) => entry.model);
+}
+
+/**
  * Success-path model picker only.
  * Fetch + errors belong on the provider form (inline), not in a modal that says "close me".
  */
@@ -23,16 +81,20 @@ export function DiscoverModelsDialog({
   onOpenChange,
   onImport,
 }: DiscoverModelsDialogProps): ReactElement | null {
-  const { translator } = useDesktopLocale();
+  const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.provider;
   const common = translator.common;
+  const isChinese = locale === 'zh-CN';
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
 
-  const configuredIds = useMemo(
-    () => new Set(provider?.models.map((model) => model.id) ?? []),
-    [provider],
-  );
+  // Depend on model id list content, not the provider object identity —
+  // parents often pass a freshly built provider each render.
+  const configuredIdsKey = (provider?.models ?? []).map((model) => model.id).join('\0');
+  const configuredIds = useMemo(() => {
+    if (!configuredIdsKey) return new Set<string>();
+    return new Set(configuredIdsKey.split('\0').filter(Boolean));
+  }, [configuredIdsKey]);
 
   useEffect(() => {
     if (!open) {
@@ -40,20 +102,17 @@ export function DiscoverModelsDialog({
     }
     setQuery('');
     setSelectedIds(new Set());
-  }, [open, models, configuredIds]);
+    // Reset only when the picker opens or the discovered list is replaced —
+    // not on every parent re-render / configuredIds Set identity change.
+  }, [open, models]);
 
-  const visibleModels = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) {
-      return models;
-    }
-    return models.filter((model) =>
-      `${model.id} ${model.label ?? ''}`.toLowerCase().includes(normalizedQuery),
-    );
-  }, [models, query]);
+  const visibleModels = useMemo(() => filterDiscoveredModels(models, query), [models, query]);
 
   const selectedModels = models.filter((model) => selectedIds.has(model.id));
   const newModelCount = selectedModels.filter((model) => !configuredIds.has(model.id)).length;
+
+  const allVisibleSelected =
+    visibleModels.length > 0 && visibleModels.every((model) => selectedIds.has(model.id));
 
   function toggleModel(modelId: string): void {
     setSelectedIds((currentIds) => {
@@ -62,6 +121,22 @@ export function DiscoverModelsDialog({
         nextIds.delete(modelId);
       } else {
         nextIds.add(modelId);
+      }
+      return nextIds;
+    });
+  }
+
+  function toggleSelectVisible(): void {
+    setSelectedIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+      if (allVisibleSelected) {
+        for (const model of visibleModels) {
+          nextIds.delete(model.id);
+        }
+      } else {
+        for (const model of visibleModels) {
+          nextIds.add(model.id);
+        }
       }
       return nextIds;
     });
@@ -78,42 +153,98 @@ export function DiscoverModelsDialog({
       onOpenChange={onOpenChange}
       testId="discover-models-dialog"
       size="lg"
+      className="discover-models-dialog"
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/*
+        Mantine portals this tree to document.body, but React still bubbles
+        synthetic events through ancestors (provider editor / settings shell).
+        Stop propagation so a click on the search field cannot dismiss parents.
+      */}
+      <div
+        className="model-pick"
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => event.stopPropagation()}
+      >
         <TextInput
           value={query}
           onChange={(event) => setQuery(event.currentTarget.value)}
           placeholder={copy.searchDiscovered}
-          data-testid="discover-models-search"
+          testId="discover-models-search"
           autoFocus
         />
-        <div className="cherry-model-pick-list" data-testid="discover-models-list">
+
+        <div className="model-pick-toolbar">
+          <button
+            type="button"
+            className="model-pick-select-all"
+            onClick={toggleSelectVisible}
+            disabled={visibleModels.length === 0}
+            data-testid="discover-models-select-visible"
+          >
+            {allVisibleSelected
+              ? isChinese
+                ? '取消全选'
+                : 'Deselect visible'
+              : isChinese
+                ? '全选可见'
+                : 'Select visible'}
+          </button>
+          <span className="model-pick-count muted">
+            {visibleModels.length}/{models.length}
+          </span>
+        </div>
+
+        <div
+          className="model-pick-list"
+          data-testid="discover-models-list"
+          role="listbox"
+          aria-multiselectable="true"
+        >
           {visibleModels.map((model) => {
             const alreadyConfigured = configuredIds.has(model.id);
+            const selected = selectedIds.has(model.id);
+            const displayName = model.label?.trim() || model.id;
+            const showIdSecondary = Boolean(model.label?.trim() && model.label.trim() !== model.id);
+
             return (
-              <label key={model.id} className="cherry-model-pick-row">
+              <label
+                key={model.id}
+                className={selected ? 'model-pick-row model-pick-row--selected' : 'model-pick-row'}
+                role="option"
+                aria-selected={selected}
+              >
                 <input
                   type="checkbox"
-                  checked={selectedIds.has(model.id)}
+                  className="model-pick-checkbox"
+                  checked={selected}
                   onChange={() => toggleModel(model.id)}
                 />
-                <span className="cherry-model-pick-copy">
-                  <strong>{model.label ?? model.id}</strong>
-                  {model.label ? <code>{model.id}</code> : null}
+                <span className="model-pick-copy">
+                  <span className="model-pick-name" title={displayName}>
+                    {displayName}
+                  </span>
+                  {showIdSecondary ? (
+                    <code className="model-pick-id" title={model.id}>
+                      {model.id}
+                    </code>
+                  ) : null}
                 </span>
-                {alreadyConfigured ? <small>{copy.configured}</small> : null}
+                {alreadyConfigured ? (
+                  <span className="model-pick-badge">{copy.configured}</span>
+                ) : null}
               </label>
             );
           })}
-          {visibleModels.length === 0 ? <p className="muted">{copy.noMatchingModels}</p> : null}
+          {visibleModels.length === 0 ? (
+            <p className="model-pick-empty muted">{copy.noMatchingModels}</p>
+          ) : null}
         </div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
+
+      <div className="model-pick-footer">
         <span className="muted">{copy.selectedModels(selectedModels.length, newModelCount)}</span>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <Button onClick={() => onOpenChange(false)}>
-            {common.cancel}
-          </Button>
+        <div className="model-pick-footer-actions">
+          <Button onClick={() => onOpenChange(false)}>{common.cancel}</Button>
           <Button
             variant="primary"
             disabled={selectedModels.length === 0}

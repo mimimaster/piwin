@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactElement } from 'react';
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { Button, Field, Modal, TextInput } from '@piwin/ui-kit';
 import type { ModelCatalogEntry, ModelConfigEntry } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -12,6 +12,12 @@ export type AddModelDialogProps = {
   searchCatalog?: (query: string) => Promise<ModelCatalogEntry[]>;
 };
 
+function formatTokenCount(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}K`;
+  return String(value);
+}
+
 export function AddModelDialog({
   open,
   onOpenChange,
@@ -23,6 +29,7 @@ export function AddModelDialog({
   const copy = translator.settings.provider;
   const common = translator.common;
   const isChinese = locale === 'zh-CN';
+  const listboxId = useId();
   const [modelId, setModelId] = useState('');
   const [label, setLabel] = useState('');
   const [groupName, setGroupName] = useState('');
@@ -33,7 +40,11 @@ export function AddModelDialog({
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<ModelCatalogEntry[]>([]);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSeq = useRef(0);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -49,6 +60,9 @@ export function AddModelDialog({
     setError(null);
     setSuggestions([]);
     setCatalogOpen(false);
+    setSearching(false);
+    setHighlightIndex(-1);
+    searchSeq.current += 1;
   }, [open]);
 
   useEffect(() => {
@@ -59,6 +73,22 @@ export function AddModelDialog({
     };
   }, []);
 
+  useEffect(() => {
+    if (!catalogOpen) {
+      return;
+    }
+    function onPointerDown(event: MouseEvent): void {
+      const root = rootRef.current;
+      if (!root) return;
+      if (event.target instanceof Node && !root.contains(event.target)) {
+        setCatalogOpen(false);
+        setHighlightIndex(-1);
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [catalogOpen]);
+
   function applyCatalogEntry(entry: ModelCatalogEntry): void {
     setModelId(entry.modelId);
     setLabel(entry.name !== entry.modelId ? entry.name : '');
@@ -68,33 +98,85 @@ export function AddModelDialog({
     setReasoning(entry.reasoning);
     setCatalogOpen(false);
     setSuggestions([]);
+    setHighlightIndex(-1);
+    setError(null);
   }
 
-  function onModelIdChange(value: string): void {
-    setModelId(value);
+  function runCatalogSearch(query: string): void {
     if (!searchCatalog) {
       return;
     }
     if (searchTimer.current) {
       clearTimeout(searchTimer.current);
     }
-    const query = value.trim();
-    if (query.length < 2) {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      searchSeq.current += 1;
       setSuggestions([]);
       setCatalogOpen(false);
+      setSearching(false);
+      setHighlightIndex(-1);
       return;
     }
+    const seq = ++searchSeq.current;
+    setSearching(true);
     searchTimer.current = setTimeout(() => {
-      void searchCatalog(query)
+      void searchCatalog(trimmed)
         .then((entries) => {
-          setSuggestions(entries.slice(0, 8));
-          setCatalogOpen(entries.length > 0);
+          if (seq !== searchSeq.current) return;
+          const next = entries.slice(0, 8);
+          setSuggestions(next);
+          setCatalogOpen(next.length > 0);
+          setHighlightIndex(next.length > 0 ? 0 : -1);
+          setSearching(false);
         })
-        .catch(() => {
+        .catch((err: unknown) => {
+          if (seq !== searchSeq.current) return;
+          console.warn('[AddModelDialog] catalog search failed', err);
           setSuggestions([]);
           setCatalogOpen(false);
+          setHighlightIndex(-1);
+          setSearching(false);
         });
     }, 200);
+  }
+
+  function onModelIdChange(value: string): void {
+    setModelId(value);
+    setError(null);
+    runCatalogSearch(value);
+  }
+
+  function onModelIdKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (!catalogOpen || suggestions.length === 0) {
+      if (event.key === 'Escape') {
+        setCatalogOpen(false);
+      }
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setHighlightIndex((index) => (index + 1) % suggestions.length);
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setHighlightIndex((index) => (index <= 0 ? suggestions.length - 1 : index - 1));
+      return;
+    }
+    if (event.key === 'Enter' && highlightIndex >= 0) {
+      const entry = suggestions[highlightIndex];
+      if (entry) {
+        event.preventDefault();
+        applyCatalogEntry(entry);
+      }
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setCatalogOpen(false);
+      setHighlightIndex(-1);
+    }
   }
 
   function submit(): void {
@@ -132,6 +214,8 @@ export function AddModelDialog({
     onOpenChange(false);
   }
 
+  const showSuggestions = catalogOpen && suggestions.length > 0;
+
   return (
     <Modal
       title={copy.addModelTitle}
@@ -139,67 +223,80 @@ export function AddModelDialog({
       onOpenChange={onOpenChange}
       testId="add-model-dialog"
       size="md"
+      className="add-model-dialog"
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div ref={rootRef} className="add-model-dialog-body">
         <Field label={copy.modelId} required error={error}>
-          <div style={{ position: 'relative' }}>
+          <div className="add-model-id-combobox">
             <TextInput
               value={modelId}
               onChange={(event) => onModelIdChange(event.currentTarget.value)}
+              onKeyDown={onModelIdKeyDown}
               placeholder={copy.modelIdPlaceholder}
               spellCheck={false}
-              data-testid="add-model-id-input"
+              testId="add-model-id-input"
               autoFocus
+              role="combobox"
+              aria-expanded={showSuggestions}
+              aria-controls={showSuggestions ? listboxId : undefined}
+              aria-autocomplete="list"
+              aria-activedescendant={
+                showSuggestions && highlightIndex >= 0
+                  ? `${listboxId}-option-${highlightIndex}`
+                  : undefined
+              }
               onFocus={() => {
                 if (suggestions.length > 0) setCatalogOpen(true);
               }}
             />
-            {catalogOpen && suggestions.length > 0 ? (
-              <ul
-                data-testid="add-model-catalog-suggestions"
-                style={{
-                  position: 'absolute',
-                  zIndex: 20,
-                  left: 0,
-                  right: 0,
-                  top: '100%',
-                  margin: 0,
-                  padding: '4px 0',
-                  listStyle: 'none',
-                  background: 'var(--surface, #1a1d24)',
-                  border: '1px solid var(--line-soft)',
-                  borderRadius: 8,
-                  maxHeight: 220,
-                  overflow: 'auto',
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
-                }}
+            {searching ? (
+              <div
+                className="add-model-catalog-status muted"
+                data-testid="add-model-catalog-searching"
               >
-                {suggestions.map((entry) => (
-                  <li key={`${entry.catalogProviderId}:${entry.modelId}`}>
-                    <button
-                      type="button"
-                      onClick={() => applyCatalogEntry(entry)}
-                      style={{
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '8px 12px',
-                        background: 'transparent',
-                        border: 0,
-                        color: 'var(--text)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{ fontFamily: 'var(--mono)', fontSize: 12.5 }}>
-                        {entry.modelId}
-                      </div>
-                      <div className="muted" style={{ fontSize: 11 }}>
-                        {entry.catalogProviderId}
-                        {entry.input.includes('image') ? ' · vision' : ''}
-                        {entry.reasoning ? ' · reasoning' : ''}
-                      </div>
-                    </button>
-                  </li>
-                ))}
+                {isChinese ? '正在匹配模型目录…' : 'Searching model catalog…'}
+              </div>
+            ) : null}
+            {showSuggestions ? (
+              <ul
+                id={listboxId}
+                role="listbox"
+                className="add-model-catalog-suggestions"
+                data-testid="add-model-catalog-suggestions"
+              >
+                {suggestions.map((entry, index) => {
+                  const active = index === highlightIndex;
+                  return (
+                    <li key={`${entry.catalogProviderId}:${entry.modelId}`} role="presentation">
+                      <button
+                        type="button"
+                        id={`${listboxId}-option-${index}`}
+                        role="option"
+                        aria-selected={active}
+                        className={
+                          active ? 'add-model-catalog-option is-active' : 'add-model-catalog-option'
+                        }
+                        onMouseEnter={() => setHighlightIndex(index)}
+                        onMouseDown={(event) => {
+                          // Keep input focus; apply before blur closes the list.
+                          event.preventDefault();
+                          applyCatalogEntry(entry);
+                        }}
+                      >
+                        <div className="add-model-catalog-option-id">{entry.modelId}</div>
+                        <div className="add-model-catalog-option-meta muted">
+                          <span>{entry.catalogProviderId}</span>
+                          <span>
+                            {formatTokenCount(entry.contextWindow)} ctx ·{' '}
+                            {formatTokenCount(entry.maxTokens)} out
+                          </span>
+                          {entry.input.includes('image') ? <span>vision</span> : null}
+                          {entry.reasoning ? <span>reasoning</span> : null}
+                        </div>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             ) : null}
           </div>
@@ -209,7 +306,7 @@ export function AddModelDialog({
             value={label}
             onChange={(event) => setLabel(event.currentTarget.value)}
             placeholder={copy.modelNamePlaceholder}
-            data-testid="add-model-label-input"
+            testId="add-model-label-input"
           />
         </Field>
         <Field label={copy.modelTooltipLabel}>
@@ -217,35 +314,35 @@ export function AddModelDialog({
             value={groupName}
             onChange={(event) => setGroupName(event.currentTarget.value)}
             placeholder={copy.modelTooltipPlaceholder}
-            data-testid="add-model-tooltip-input"
+            testId="add-model-tooltip-input"
           />
         </Field>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <div style={{ flex: 1 }}>
+        <div className="add-model-limits-row">
+          <div className="add-model-limits-col">
             <Field label={copy.contextLimit}>
               <TextInput
                 value={contextWindow}
                 onChange={(event) => setContextWindow(event.currentTarget.value)}
                 placeholder="128000"
                 spellCheck={false}
-                data-testid="add-model-context-input"
+                testId="add-model-context-input"
               />
             </Field>
           </div>
-          <div style={{ flex: 1 }}>
+          <div className="add-model-limits-col">
             <Field label={copy.outputLimit}>
               <TextInput
                 value={maxOutputTokens}
                 onChange={(event) => setMaxOutputTokens(event.currentTarget.value)}
                 placeholder="16384"
                 spellCheck={false}
-                data-testid="add-model-output-input"
+                testId="add-model-output-input"
               />
             </Field>
           </div>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+        <div className="add-model-flags">
+          <label className="add-model-flag">
             <input
               type="checkbox"
               checked={supportsImage}
@@ -254,7 +351,7 @@ export function AddModelDialog({
             />
             {isChinese ? '支持图像输入（Vision）' : 'Supports image input (Vision)'}
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <label className="add-model-flag">
             <input
               type="checkbox"
               checked={reasoning}
@@ -264,8 +361,15 @@ export function AddModelDialog({
             {isChinese ? '支持推理 / Thinking' : 'Supports reasoning / thinking'}
           </label>
         </div>
+        {searchCatalog ? (
+          <p className="add-model-catalog-hint muted">
+            {isChinese
+              ? '输入模型 ID 前缀（≥2 字符）可从内置目录联想，并自动带出上下文窗口与最大输出。'
+              : 'Type a model ID prefix (≥2 chars) to search the built-in catalog and auto-fill context / max output.'}
+          </p>
+        ) : null}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+      <div className="add-model-dialog-actions">
         <Button onClick={() => onOpenChange(false)}>{common.cancel}</Button>
         <Button variant="primary" onClick={submit} data-testid="add-model-submit">
           {copy.addModelAction}

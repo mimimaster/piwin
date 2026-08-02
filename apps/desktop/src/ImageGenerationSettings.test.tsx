@@ -1,11 +1,7 @@
 // @vitest-environment happy-dom
 /**
- * ImageGenerationSettings coverage — renders providers from config, lists
- * image-generation models (capability-filtered), and auto-saves edits into
- * config.providers[].models[].routes['image-generation'].
- *
- * Uses the same happy-dom + createRoot + act() pattern as SkillsPanel.test.tsx
- * and the settings-shell.test.tsx SettingsProvider stub.
+ * ImageGenerationSettings coverage — form-first add flow, compact model list,
+ * set-default / remove, and capability-tagged image-generation routes.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
@@ -89,6 +85,7 @@ function createContextValue(
     requestSkills: noopRequest,
     requestMcp: noopRequest,
     requestExtensions: noopRequest,
+    requestPlugins: noopRequest,
     requestPrompts: noopRequest,
     requestTheme: noopRequest,
     requestPet: noopRequest,
@@ -150,7 +147,7 @@ describe('ImageGenerationSettings', () => {
     container = undefined;
   });
 
-  it('renders the provider dropdown, image model row, and request path', async () => {
+  it('renders the real provider channel select, image model row, and request path', async () => {
     const config = makeConfig();
     ({ root, container } = renderSettings(
       config,
@@ -160,11 +157,13 @@ describe('ImageGenerationSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
+    // Uses real config.providers (same channels as Models), not a fake vendor list.
     const select = container!.querySelector<HTMLSelectElement>(
-      '[data-testid="image-gen-provider-select"] select',
+      '[data-testid="image-gen-provider-select-control"]',
     );
     expect(select).not.toBeNull();
     expect(select?.value).toBe('zhipu');
+    expect(select?.textContent ?? '').toContain('Zhipu');
 
     const row = container!.querySelector('[data-testid="image-model-row"]');
     expect(row).not.toBeNull();
@@ -177,46 +176,6 @@ describe('ImageGenerationSettings', () => {
     const keyStatus =
       container!.querySelector('[data-testid="image-gen-apikey-status"]')?.textContent ?? '';
     expect(keyStatus).toContain('••••••••');
-  });
-
-  it('auto-saves an edited request path into routes.image-generation', async () => {
-    const config = makeConfig();
-    const saved: PiwinConfig[] = [];
-    const saveConfig = vi.fn(async (next: PiwinConfig) => {
-      saved.push(next);
-      return true;
-    });
-    ({ root, container } = renderSettings(config, saveConfig));
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    // Expand the model row to reveal the inline editor.
-    const row = container!.querySelector<HTMLDivElement>('[data-testid="image-model-row"]');
-    act(() => {
-      row?.click();
-    });
-
-    const pathInput = container!.querySelector<HTMLInputElement>(
-      '[data-testid="image-model-path"]',
-    );
-    expect(pathInput).not.toBeNull();
-    expect(pathInput?.value).toBe('/images/generations');
-
-    act(() => {
-      setInputValue(pathInput, '/v1/images/generations');
-    });
-
-    // Flush the 700ms debounce and the async save.
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-    });
-
-    expect(saved.length).toBeGreaterThan(0);
-    const last = saved[saved.length - 1];
-    expect(last?.providers[0]?.models[0]?.routes?.['image-generation']?.path).toBe(
-      '/v1/images/generations',
-    );
   });
 
   it('adds an image model with capabilities and an image-generation route', async () => {
@@ -281,11 +240,6 @@ describe('ImageGenerationSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const row = container!.querySelector<HTMLDivElement>('[data-testid="image-model-row"]');
-    act(() => {
-      row?.click();
-    });
-
     const button = container!.querySelector<HTMLButtonElement>(
       '[data-testid="image-model-set-default"]',
     );
@@ -315,11 +269,6 @@ describe('ImageGenerationSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const row = container!.querySelector<HTMLDivElement>('[data-testid="image-model-row"]');
-    act(() => {
-      row?.click();
-    });
-
     const removeButton = container!.querySelector<HTMLButtonElement>(
       '[data-testid="image-model-remove"]',
     );
@@ -331,5 +280,87 @@ describe('ImageGenerationSettings', () => {
     expect(saved.length).toBeGreaterThan(0);
     const last = saved[saved.length - 1];
     expect(last?.providers[0]?.models).toHaveLength(0);
+  });
+
+  it('opens DiscoverModelsDialog and imports selected models as image-capable', async () => {
+    // Same multi-select discover flow as Models → provider drawer.
+    const config = makeConfig();
+    const saved: PiwinConfig[] = [];
+    const saveConfig = vi.fn(async (next: PiwinConfig) => {
+      saved.push(next);
+      return true;
+    });
+    const discoverProviderModels = vi.fn(async () => ({
+      providerId: 'zhipu',
+      protocol: 'openai-compatible' as const,
+      models: [
+        { id: 'cogview-3', label: 'CogView 3' },
+        { id: 'cogview-4', label: 'CogView 4' },
+      ],
+    }));
+
+    const containerEl = document.createElement('div');
+    document.body.appendChild(containerEl);
+    const reactRoot = createRoot(containerEl);
+    root = reactRoot;
+    container = containerEl;
+
+    const base = createContextValue(config, saveConfig);
+    act(() => {
+      reactRoot.render(
+        (
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+              <SettingsProvider value={{ ...base, discoverProviderModels }}>
+                <ImageGenerationSettings />
+              </SettingsProvider>
+            </DesktopLocaleProvider>
+          </PiwinUiProvider>
+        ) as ReactElement,
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const discoverBtn = containerEl.querySelector<HTMLButtonElement>(
+      '[data-testid="image-gen-discover-btn"]',
+    );
+    expect(discoverBtn).not.toBeNull();
+    await act(async () => {
+      discoverBtn?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(discoverProviderModels).toHaveBeenCalled();
+
+    // Dialog is portaled; query document.
+    const list = document.querySelector('[data-testid="discover-models-list"]');
+    expect(list).not.toBeNull();
+    expect(list?.textContent ?? '').toContain('cogview-3');
+
+    // Select first option via its checkbox.
+    const checkbox = list?.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    expect(checkbox).not.toBeNull();
+    act(() => {
+      checkbox?.click();
+    });
+
+    const importBtn = document.querySelector<HTMLButtonElement>(
+      '[data-testid="discover-models-import"]',
+    );
+    expect(importBtn).not.toBeNull();
+    await act(async () => {
+      importBtn?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(saved.length).toBeGreaterThan(0);
+    const last = saved[saved.length - 1];
+    const imported = last?.providers[0]?.models.find((model) => model.id === 'cogview-3');
+    expect(imported).toBeDefined();
+    expect(imported?.capabilities).toContain('image-generation');
+    expect(imported?.routes?.['image-generation']).toBeDefined();
+    // Existing image model is preserved.
+    expect(last?.providers[0]?.models.some((model) => model.id === 'glm-image')).toBe(true);
   });
 });

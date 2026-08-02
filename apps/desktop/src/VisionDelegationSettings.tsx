@@ -2,7 +2,7 @@
  * Settings → Models → Vision Delegation (text-only primary models).
  */
 import { useMemo, useState, type ReactElement } from 'react';
-import { Button, Field } from '@piwin/ui-kit';
+import { Button, Field, FieldCheckbox } from '@piwin/ui-kit';
 import type {
   ModelRef,
   PiwinConfig,
@@ -125,26 +125,28 @@ export function VisionDelegationSettings(): ReactElement {
       />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 12 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-          <input
-            type="checkbox"
-            checked={enabled}
-            disabled={saving}
-            data-testid="vision-delegation-enabled"
-            onChange={(event) => {
-              void patch({
-                enabled: event.currentTarget.checked,
-                ...(current?.model ? { model: current.model } : {}),
-                ...(current?.systemPrompt ? { systemPrompt: current.systemPrompt } : {}),
-                ...(current?.timeoutMs !== undefined ? { timeoutMs: current.timeoutMs } : {}),
-                ...(current?.cacheEnabled !== undefined
-                  ? { cacheEnabled: current.cacheEnabled }
-                  : {}),
-              });
-            }}
-          />
-          {isChinese ? '启用视觉委派（默认关闭）' : 'Enable vision delegation (default off)'}
-        </label>
+        <FieldCheckbox
+          label={isChinese ? '启用视觉委派' : 'Enable vision delegation'}
+          description={
+            isChinese
+              ? '开启后，主模型仅支持文本时会用视觉模型描述图片并注入主对话。'
+              : 'When on, a vision model describes images before the turn when the primary model is text-only.'
+          }
+          checked={enabled}
+          disabled={saving}
+          onCheckedChange={(checked) => {
+            void patch({
+              enabled: checked,
+              ...(current?.model ? { model: current.model } : {}),
+              ...(current?.systemPrompt ? { systemPrompt: current.systemPrompt } : {}),
+              ...(current?.timeoutMs !== undefined ? { timeoutMs: current.timeoutMs } : {}),
+              ...(current?.cacheEnabled !== undefined
+                ? { cacheEnabled: current.cacheEnabled }
+                : {}),
+            });
+          }}
+          data-testid="vision-delegation-enabled"
+        />
 
         <Field label={isChinese ? '视觉模型' : 'Vision model'}>
           <select

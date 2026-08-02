@@ -1,33 +1,34 @@
 /**
- * Models / providers settings — two-level layout:
- *   provider pills (top) + connection form + model table
- *   Auto-saves draft changes; secrets stay in keychain refs only.
+ * Models / providers settings — BYOK list + drawer layout:
+ *   - provider rows with search, filter, status pill, and enable switch
+ *   - drawer for editing connection, testing, and managing models
+ *   - provider add dialog with preset grid
+ *
+ * Manual save in the drawer; the enable switch in the list persists immediately.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import {
-  Button,
-  Collapse,
-  DropdownMenu,
-  DropdownMenuItem,
-  IconButton,
-  Modal,
-  TextInput,
-} from '@piwin/ui-kit';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import type {
   ModelConfigEntry,
   ModelDiscoveryResult,
   ModelProviderConfig,
   PiwinConfig,
 } from '@piwin/contracts';
-import { ModelWorkbench } from './ModelWorkbench';
-import { ProviderKeyManagerDialog } from './ProviderKeyManagerDialog';
-import { useDesktopLocale } from './desktop-locale-context';
-import { useConfirmDialog } from './use-confirm-dialog';
-import { PROVIDER_PRESETS, type ProviderPreset, type ProviderProtocol } from './provider-presets';
-import { IconClose, IconSettings, IconStar } from './shell-icons';
-import { PageTitle } from './settings/page-title';
-import { FieldRow } from './settings/field-row';
+import { ProviderAddDialog } from './provider-add-dialog.js';
+import { ProviderDrawer } from './provider-drawer.js';
+import { ProviderKeyManagerDialog } from './ProviderKeyManagerDialog.js';
+import { ProviderList, type ModelTestState } from './provider-list.js';
+import type { ProviderPreset } from './provider-presets.js';
+import type { ProviderTestStatus } from './provider-status.js';
+import { useDesktopLocale } from './desktop-locale-context.js';
+import { useConfirmDialog } from './use-confirm-dialog.js';
+import {
+  draftToProvider,
+  oneShotApiKeyFromDraft,
+  providerToDraft,
+  resolveDefaultAfterProviderChange,
+  type ProviderDraft,
+} from './provider-draft.js';
 
 export type DiscoverModelsOptions = {
   apiKey?: string;
@@ -55,109 +56,6 @@ export type ProviderSettingsProps = {
   searchCatalog?: (query: string) => Promise<import('@piwin/contracts').ModelCatalogEntry[]>;
 };
 
-type HeaderDraftRow = {
-  id: string;
-  name: string;
-  value: string;
-};
-
-type ProviderDraft = {
-  id: string;
-  protocol: ProviderProtocol;
-  name: string;
-  baseUrl: string;
-  /**
-   * Field the user edits. Empty means "keep stored secret / none".
-   * May be a raw secret or an ENV_VAR_NAME (ALL_CAPS).
-   */
-  apiKeyInput: string;
-  /** Saved env var name from config (if any). */
-  storedApiKeyEnv: string;
-  /** Saved keychain ref from config (if any). */
-  storedApiKeyRef: string;
-  headerRows: HeaderDraftRow[];
-  models: ModelConfigEntry[];
-};
-
-function createHeaderRow(name = '', value = ''): HeaderDraftRow {
-  return {
-    id: `hdr-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-    name,
-    value,
-  };
-}
-
-function headersToRows(headers: Record<string, string> | undefined): HeaderDraftRow[] {
-  if (!headers) {
-    return [];
-  }
-  return Object.entries(headers).map(([name, value]) => createHeaderRow(name, value));
-}
-
-function rowsToHeaders(rows: readonly HeaderDraftRow[]): Record<string, string> | undefined {
-  const result: Record<string, string> = {};
-  for (const row of rows) {
-    const name = row.name.trim();
-    const value = row.value.trim();
-    if (!name || !value) {
-      continue;
-    }
-    result[name] = value;
-  }
-  return Object.keys(result).length > 0 ? result : undefined;
-}
-
-function providerToDraft(provider: ModelProviderConfig): ProviderDraft {
-  return {
-    id: provider.id,
-    protocol: provider.protocol,
-    name: provider.name,
-    baseUrl: provider.baseUrl,
-    apiKeyInput: '',
-    storedApiKeyEnv: provider.apiKeyEnv ?? '',
-    storedApiKeyRef: provider.apiKeyRef ?? '',
-    headerRows: headersToRows(provider.headers),
-    models: provider.models,
-  };
-}
-
-function draftToProvider(draft: ProviderDraft): ModelProviderConfig {
-  const config: ModelProviderConfig = {
-    id: draft.id.trim(),
-    protocol: draft.protocol,
-    name: draft.name.trim(),
-    baseUrl: draft.baseUrl.trim(),
-    models: draft.models,
-  };
-  const headers = rowsToHeaders(draft.headerRows);
-  if (headers) {
-    config.headers = headers;
-  }
-  if (draft.storedApiKeyEnv) {
-    config.apiKeyEnv = draft.storedApiKeyEnv;
-  }
-  if (draft.storedApiKeyRef) {
-    config.apiKeyRef = draft.storedApiKeyRef;
-  }
-  return config;
-}
-
-function hasKeychainSecret(draft: ProviderDraft): boolean {
-  return !!draft.storedApiKeyRef;
-}
-
-function oneShotApiKeyFromDraft(draft: ProviderDraft): string | undefined {
-  const input = draft.apiKeyInput.trim();
-  if (!input) {
-    return undefined;
-  }
-  // If it's an ENV_VAR_NAME, it's not a one-shot secret to be persisted.
-  if (/^[A-Z0-9_]+$/.test(input)) {
-    return undefined;
-  }
-  return input;
-}
-
 export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const {
     config,
@@ -174,233 +72,91 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.provider;
   const common = translator.common;
+  const isChinese = locale === 'zh-CN';
   const confirmDialog = useConfirmDialog();
 
-  const [selectedId, setSelectedId] = useState<string | null>(
-    config.defaultProviderId ?? config.providers[0]?.id ?? null,
-  );
-  const [draft, setDraft] = useState<ProviderDraft | null>(null);
-  const [dirty, setDirty] = useState(false);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | 'on' | 'off'>('all');
+  const [drawer, setDrawer] = useState<{ draft: ProviderDraft; isNew: boolean } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [keyManagerOpen, setKeyManagerOpen] = useState(false);
+  const [testStatus, setTestStatus] = useState<Record<string, ProviderTestStatus>>({});
+  const [testingId, setTestingId] = useState<string | null>(null);
+  const testInFlightRef = useRef(false);
+  const [listModelTestStatus, setListModelTestStatus] = useState<
+    Record<string, ModelTestState>
+  >({});
+  const [listTestingModelKey, setListTestingModelKey] = useState<string | null>(null);
 
-  // 'pending' | 'saving' | 'saved' | 'error'
-  const [autoSaveStatus, setAutoSaveStatus] = useState<string>('');
-  const [autoSaveAttempt, setAutoSaveAttempt] = useState(0);
-  const autoSaveInFlightRef = useRef(false);
-  const lastSelectedIdRef = useRef<string | null>(null);
-  const lastAddedHeaderIdRef = useRef<string | null>(null);
-  const headerNameInputRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
-
-  // Focus the newly-added header input without scrolling the viewport,
-  // preventing the "jump" when clicking "+ Add header".
-  useEffect(() => {
-    const newId = lastAddedHeaderIdRef.current;
-    if (!newId) return;
-    const input = headerNameInputRefs.current.get(newId);
-    if (input) {
-      input.focus({ preventScroll: true });
-    }
-    lastAddedHeaderIdRef.current = null;
-  }, [draft?.headerRows]);
-
-  const selectedProvider = useMemo(
-    () => config.providers.find((p) => p.id === selectedId) ?? null,
-    [config.providers, selectedId],
-  );
-
-  // Sync draft to selection, but not on every config auto-save; that would
-  // recreate header rows and lose focus/scroll position.
-  useEffect(() => {
-    if (selectedProvider && lastSelectedIdRef.current !== selectedId) {
-      setDraft(providerToDraft(selectedProvider));
-      setDirty(false);
-      setAutoSaveStatus('');
-    } else if (!selectedProvider) {
-      setDraft(null);
-    }
-    lastSelectedIdRef.current = selectedId;
-  }, [selectedId, selectedProvider]);
-
-  const markDraft = useCallback((next: ProviderDraft) => {
-    setDraft(next);
-    setDirty(true);
-    setAutoSaveStatus('pending');
-  }, []);
-
-  const saveDraftSnapshot = useCallback(
-    async (snapshot: ProviderDraft, revision: number): Promise<boolean> => {
-      const provider = draftToProvider(snapshot);
-
-      // If there's a one-shot key, it will be handled by the next save (persistence
-      // logic in discover/test). For auto-save, we only update other fields.
-      const nextProviders = config.providers.map((p) => (p.id === snapshot.id ? provider : p));
-      const next: PiwinConfig = {
-        ...config,
-        providers: nextProviders,
-      };
-
-      const ok = await onSave(next);
-      if (ok) {
-        // Clear dirty bit only if no newer changes happened during our request.
-        setDirty((current) => (autoSaveAttempt === revision ? false : current));
-        setAutoSaveStatus((current) => (autoSaveAttempt === revision ? 'saved' : current));
-      }
-      return ok;
-    },
-    [config, onSave, autoSaveAttempt],
-  );
-
-  // Debounced auto-save.
-  useEffect(() => {
-    if (!dirty || !draft || autoSaveInFlightRef.current) {
-      return;
-    }
-    const snapshot = draft;
-    const snapshotRevision = autoSaveAttempt;
-
-    const timer = window.setTimeout(() => {
-      autoSaveInFlightRef.current = true;
-      setAutoSaveStatus('saving');
-      void saveDraftSnapshot(snapshot, snapshotRevision)
-        .then((ok) => {
-          if (!ok) {
-            setAutoSaveStatus('error');
-          }
-        })
-        .finally(() => {
-          autoSaveInFlightRef.current = false;
-          // A change made while saving needs a fresh debounce after this request completes.
-          setAutoSaveAttempt((currentAttempt) => currentAttempt + 1);
-        });
-    }, 700);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [autoSaveAttempt, dirty, draft, saveDraftSnapshot]);
-
-  async function handleDelete(): Promise<void> {
-    if (!selectedId) {
-      return;
-    }
-    const ok = await confirmDialog.confirm({
-      title: copy.removeProviderTitle,
-      description: copy.removeProviderDescription,
-      affectedObject: selectedId,
-      confirmLabel: common.remove,
-      tone: 'danger',
+  const filteredProviders = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return config.providers.filter((provider) => {
+      if (filter === 'on' && provider.enabled === false) return false;
+      if (filter === 'off' && provider.enabled !== false) return false;
+      if (!q) return true;
+      const hay =
+        `${provider.name} ${provider.id} ${provider.baseUrl} ${provider.models.map((m) => m.id).join(' ')}`.toLowerCase();
+      return hay.includes(q);
     });
-    if (!ok) {
-      return;
+  }, [config.providers, filter, query]);
+
+  const enabledCount = config.providers.filter((p) => p.enabled !== false).length;
+  const modelCount = config.providers.reduce((sum, p) => sum + p.models.length, 0);
+
+  function getProviderStatus(provider: ModelProviderConfig): ProviderTestStatus {
+    if (provider.enabled === false) {
+      return { tone: 'off', message: copy.statusOff };
     }
-    const nextProviders = config.providers.filter((item) => item.id !== selectedId);
-    const nextDefault =
-      config.defaultProviderId === selectedId ? nextProviders[0]?.id : config.defaultProviderId;
-    const nextDefaultModel =
-      config.defaultProviderId === selectedId
-        ? nextProviders[0]?.models[0]?.id
-        : config.defaultModelId;
-    const next: PiwinConfig = {
-      ...config,
-      providers: nextProviders,
-    };
-    if (nextDefault) {
-      next.defaultProviderId = nextDefault;
-    } else {
-      delete next.defaultProviderId;
-    }
-    if (nextDefaultModel) {
-      next.defaultModelId = nextDefaultModel;
-    } else {
-      delete next.defaultModelId;
-    }
-    if (await onSave(next)) {
-      setSelectedId(nextProviders[0]?.id ?? null);
-      onInfo(locale === 'zh-CN' ? '已移除提供商。' : 'Provider removed.');
-    }
+    const test = testStatus[provider.id];
+    if (test) return test;
+    return { tone: 'warn', message: copy.statusUntested };
   }
 
-  async function handleSetDefaultModel(modelId: string): Promise<void> {
-    if (!selectedProvider) {
-      return;
-    }
-    const next: PiwinConfig = {
-      ...config,
-      defaultProviderId: selectedProvider.id,
-      defaultModelId: modelId,
-    };
-    if (await onSave(next)) {
-      onInfo(
-        locale === 'zh-CN'
-          ? `默认模型：${selectedProvider.name} / ${modelId}`
-          : `Default: ${selectedProvider.name} / ${modelId}`,
-      );
-    }
+  function markDraft(next: ProviderDraft): void {
+    if (!drawer) return;
+    setDrawer({ ...drawer, draft: next });
   }
 
-  async function persistOneShotKeyIfNeeded(
-    oneShot: string | undefined,
-  ): Promise<ProviderDraft | null> {
-    if (!draft || !oneShot) {
-      return draft;
-    }
+  async function storeOneShotKeyIfNeeded(draft: ProviderDraft): Promise<ProviderDraft> {
+    const oneShot = oneShotApiKeyFromDraft(draft);
+    if (!oneShot) return draft;
     const apiKeyRef = await onStoreSecret(draft.id.trim(), oneShot);
-    const nextDraft: ProviderDraft = {
-      ...draft,
-      apiKeyInput: '',
-      storedApiKeyEnv: '',
-      storedApiKeyRef: apiKeyRef,
-    };
-    setDraft(nextDraft);
-    // Persist keychain ref into config so reloads keep working.
-    const provider = draftToProvider(nextDraft);
-    const previousId = selectedId;
-    const nextProviders = config.providers
-      .filter((item) => item.id !== previousId && item.id !== provider.id)
-      .concat([provider]);
-    const next: PiwinConfig = {
-      ...config,
-      agentMock: false,
-      providers: nextProviders,
-      defaultProviderId:
-        config.defaultProviderId === previousId || !config.defaultProviderId
-          ? provider.id
-          : config.defaultProviderId,
-    };
-    if (config.defaultModelId) {
-      next.defaultModelId = config.defaultModelId;
-    } else if (provider.models[0]?.id) {
-      next.defaultModelId = provider.models[0].id;
-    }
-    await onSave(next);
-    return nextDraft;
+    return { ...draft, apiKeyInput: '', storedApiKeyEnv: '', storedApiKeyRef: apiKeyRef };
   }
 
   async function discoverWithDraft(provider: ModelProviderConfig): Promise<ModelDiscoveryResult> {
-    if (!draft) {
-      return onDiscoverModels(provider);
+    if (!drawer) return onDiscoverModels(provider);
+    let current = drawer.draft;
+    const oneShot = oneShotApiKeyFromDraft(current);
+    if (oneShot) {
+      current = await storeOneShotKeyIfNeeded(current);
+      markDraft(current);
     }
-    const oneShot = oneShotApiKeyFromDraft(draft);
-    const result = await onDiscoverModels(
-      draftToProvider(draft),
+    return onDiscoverModels(draftToProvider(current), oneShot ? { apiKey: oneShot } : undefined);
+  }
+
+  async function testModelWithDraft(
+    provider: ModelProviderConfig,
+    modelId: string,
+  ): Promise<{ durationMs: number }> {
+    if (!drawer) return onTestModel(provider, modelId);
+    let current = drawer.draft;
+    const oneShot = oneShotApiKeyFromDraft(current);
+    if (oneShot) {
+      current = await storeOneShotKeyIfNeeded(current);
+      markDraft(current);
+    }
+    return onTestModel(
+      draftToProvider(current),
+      modelId,
       oneShot ? { apiKey: oneShot } : undefined,
     );
-    if (oneShot) {
-      try {
-        await persistOneShotKeyIfNeeded(oneShot);
-      } catch {
-        // Discovery already succeeded; keychain persist failure is non-fatal here.
-      }
-    }
-    return result;
   }
 
   async function testManagedKey(apiKey: string): Promise<{ ok: boolean; message: string }> {
-    if (!draft) {
-      return { ok: false, message: copy.detectFail };
-    }
+    if (!drawer) return { ok: false, message: copy.detectFail };
     try {
-      const result = await onDiscoverModels(draftToProvider(draft), { apiKey });
+      const result = await onDiscoverModels(draftToProvider(drawer.draft), { apiKey });
       return { ok: true, message: copy.detectOk(result.models.length) };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -408,37 +164,182 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     }
   }
 
-  async function testModelWithDraft(
-    provider: ModelProviderConfig,
-    modelId: string,
-  ): Promise<{ durationMs: number }> {
-    if (!draft) {
-      return onTestModel(provider, modelId);
-    }
-    const oneShot = oneShotApiKeyFromDraft(draft);
-    const result = await onTestModel(
-      draftToProvider(draft),
-      modelId,
-      oneShot ? { apiKey: oneShot } : undefined,
-    );
-    if (oneShot) {
-      try {
-        await persistOneShotKeyIfNeeded(oneShot);
-      } catch {
-        // A successful live probe is still useful if keychain persistence fails.
+  async function handleTestConnection(): Promise<void> {
+    if (!drawer || testInFlightRef.current) return;
+    const id = drawer.draft.id;
+    testInFlightRef.current = true;
+    setTestingId(id);
+    const start = performance.now();
+    try {
+      let current = drawer.draft;
+      const oneShot = oneShotApiKeyFromDraft(current);
+      if (oneShot) {
+        current = await storeOneShotKeyIfNeeded(current);
+        markDraft(current);
       }
+      const result = await onDiscoverModels(
+        draftToProvider(current),
+        oneShot ? { apiKey: oneShot } : undefined,
+      );
+      const duration = Math.round(performance.now() - start);
+      const nextStatus: ProviderTestStatus = {
+        tone: 'ok',
+        message: copy.testOk(result.models.length, duration),
+        durationMs: duration,
+      };
+      setTestStatus((prev) => ({ ...prev, [id]: nextStatus }));
+      onInfo(copy.testOk(result.models.length, duration));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const nextStatus: ProviderTestStatus = {
+        tone: 'err',
+        message: `${copy.statusFail}: ${message}`,
+      };
+      setTestStatus((prev) => ({ ...prev, [id]: nextStatus }));
+      onError(`${copy.statusFail}: ${message}`);
+    } finally {
+      testInFlightRef.current = false;
+      setTestingId(null);
     }
-    return result;
   }
 
-  function openAddDialog() {
+  function applyDefaultToConfig(
+    next: PiwinConfig,
+    nextDefault: { defaultProviderId?: string; defaultModelId?: string },
+  ): void {
+    if (nextDefault.defaultProviderId) {
+      next.defaultProviderId = nextDefault.defaultProviderId;
+    } else {
+      delete next.defaultProviderId;
+    }
+    if (nextDefault.defaultModelId) {
+      next.defaultModelId = nextDefault.defaultModelId;
+    } else {
+      delete next.defaultModelId;
+    }
+  }
+
+  async function handleSave(opts?: {
+    keepOpen?: boolean;
+    default?: { providerId: string; modelId: string };
+  }): Promise<boolean> {
+    if (!drawer) return false;
+    const { draft, isNew } = drawer;
+    if (!draft.name.trim()) {
+      onError(isChinese ? '请填写提供商名称。' : 'Provider name is required.');
+      return false;
+    }
+    if (!draft.baseUrl.trim()) {
+      onError(isChinese ? '请填写 API 地址。' : 'API address is required.');
+      return false;
+    }
+
+    let current = draft;
+    const oneShot = oneShotApiKeyFromDraft(draft);
+    if (oneShot) {
+      current = await storeOneShotKeyIfNeeded(current);
+      markDraft(current);
+    }
+
+    const provider = draftToProvider(current);
+    if (isNew && config.providers.find((p) => p.id === provider.id)) {
+      onError(isChinese ? '提供商 ID 已存在。' : 'Provider ID already exists.');
+      return false;
+    }
+
+    const nextProviders = isNew
+      ? [...config.providers, provider]
+      : config.providers.map((p) => (p.id === provider.id ? provider : p));
+
+    const next: PiwinConfig = { ...config, providers: nextProviders };
+    const defaultSource = opts?.default ?? {
+      providerId: config.defaultProviderId,
+      modelId: config.defaultModelId,
+    };
+    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, defaultSource);
+    applyDefaultToConfig(next, nextDefault);
+
+    const ok = await onSave(next);
+    if (ok) {
+      onInfo(isChinese ? '已保存。' : 'Saved.');
+      if (opts?.keepOpen) {
+        setDrawer({ draft: providerToDraft(provider), isNew: false });
+      } else {
+        setDrawer(null);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  async function handleSetDefaultModel(modelId: string): Promise<void> {
+    if (!drawer) return;
+    await handleSave({ keepOpen: true, default: { providerId: drawer.draft.id, modelId } });
+  }
+
+  async function handleDeleteFromDrawer(): Promise<void> {
+    if (!drawer) return;
+    const confirmed = await confirmDialog.confirm({
+      title: copy.removeProviderTitle,
+      description: copy.removeProviderDescription,
+      affectedObject: drawer.draft.name,
+      confirmLabel: common.delete,
+      tone: 'danger',
+    });
+    if (!confirmed) return;
+
+    const id = drawer.draft.id;
+    const nextProviders = config.providers.filter((p) => p.id !== id);
+    const next: PiwinConfig = { ...config, providers: nextProviders };
+    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, {
+      ...(config.defaultProviderId !== undefined ? { providerId: config.defaultProviderId } : {}),
+      ...(config.defaultModelId !== undefined ? { modelId: config.defaultModelId } : {}),
+    });
+    applyDefaultToConfig(next, nextDefault);
+
+    if (await onSave(next)) {
+      setDrawer(null);
+      onInfo(isChinese ? '已移除提供商。' : 'Provider removed.');
+    }
+  }
+
+  async function handleToggleFromList(id: string): Promise<void> {
+    const provider = config.providers.find((p) => p.id === id);
+    if (!provider) return;
+    const nextEnabled = provider.enabled === false;
+    const nextProvider = { ...provider, enabled: nextEnabled };
+    const nextProviders = config.providers.map((p) => (p.id === id ? nextProvider : p));
+    const next: PiwinConfig = { ...config, providers: nextProviders };
+    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, {
+      ...(config.defaultProviderId !== undefined ? { providerId: config.defaultProviderId } : {}),
+      ...(config.defaultModelId !== undefined ? { modelId: config.defaultModelId } : {}),
+    });
+    applyDefaultToConfig(next, nextDefault);
+
+    if (await onSave(next)) {
+      onInfo(
+        nextEnabled
+          ? isChinese
+            ? '已启用提供商。'
+            : 'Provider enabled.'
+          : isChinese
+            ? '已停用提供商。'
+            : 'Provider disabled.',
+      );
+      if (drawer?.draft.id === id) {
+        setDrawer({ ...drawer, draft: { ...drawer.draft, enabled: nextEnabled } });
+      }
+    }
+  }
+
+  function openAddDialog(): void {
     setAddOpen(true);
   }
 
-  async function handleAddFromPreset(preset: ProviderPreset) {
+  function handleAddFromPreset(preset: ProviderPreset): void {
     const id = preset.id;
     if (config.providers.find((p) => p.id === id)) {
-      onError(locale === 'zh-CN' ? '提供商已存在。' : 'Provider already exists.');
+      onError(isChinese ? '提供商已存在。' : 'Provider already exists.');
       return;
     }
     const provider: ModelProviderConfig = {
@@ -446,6 +347,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
       protocol: preset.protocol,
       name: preset.name,
       baseUrl: preset.baseUrl,
+      enabled: true,
       models: preset.models.map((model) => ({
         id: model.id,
         ...(model.label ? { label: model.label } : {}),
@@ -454,347 +356,163 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     if (preset.apiKeyEnv.trim()) {
       provider.apiKeyEnv = preset.apiKeyEnv.trim();
     }
-    const nextProviders = [...config.providers, provider];
-    const next: PiwinConfig = { ...config, providers: nextProviders };
-    if (await onSave(next)) {
-      setSelectedId(id);
-      setAddOpen(false);
+    setAddOpen(false);
+    setDrawer({ draft: providerToDraft(provider), isNew: true });
+  }
+
+  function handleOpenDrawer(provider: ModelProviderConfig): void {
+    setDrawer({ draft: providerToDraft(provider), isNew: false });
+  }
+
+  function handleModelsChange(models: ModelConfigEntry[]): void {
+    if (drawer) {
+      markDraft({ ...drawer.draft, models });
     }
+  }
+
+  async function handleUpdateProviderModelsFromList(
+    providerId: string,
+    models: ModelConfigEntry[],
+  ): Promise<void> {
+    const nextProviders = config.providers.map((p) =>
+      p.id === providerId ? { ...p, models } : p,
+    );
+    const next: PiwinConfig = { ...config, providers: nextProviders };
+    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, {
+      ...(config.defaultProviderId !== undefined ? { providerId: config.defaultProviderId } : {}),
+      ...(config.defaultModelId !== undefined ? { modelId: config.defaultModelId } : {}),
+    });
+    applyDefaultToConfig(next, nextDefault);
+    await onSave(next);
+  }
+
+  async function handleTestProviderModelFromList(
+    providerId: string,
+    modelId: string,
+  ): Promise<void> {
+    const key = `${providerId}::${modelId}`;
+    setListTestingModelKey(key);
+    setListModelTestStatus((prev) => ({
+      ...prev,
+      [key]: { tone: 'busy', message: isChinese ? '检测中…' : 'Testing…' },
+    }));
+    try {
+      const provider = config.providers.find((p) => p.id === providerId);
+      if (!provider) throw new Error('provider not found');
+      const result = await onTestModel(provider, modelId);
+      const seconds = (result.durationMs / 1000).toFixed(1);
+      setListModelTestStatus((prev) => ({
+        ...prev,
+        [key]: {
+          tone: 'ok',
+          message: isChinese ? `可用 · ${seconds}s` : `OK · ${seconds}s`,
+        },
+      }));
+    } catch {
+      setListModelTestStatus((prev) => ({
+        ...prev,
+        [key]: { tone: 'error', message: isChinese ? '失败' : 'Fail' },
+      }));
+    } finally {
+      setListTestingModelKey(null);
+    }
+  }
+
+  async function handleSetDefaultModelFromList(
+    providerId: string,
+    modelId: string,
+  ): Promise<void> {
+    const next: PiwinConfig = {
+      ...config,
+      defaultProviderId: providerId,
+      defaultModelId: modelId,
+    };
+    await onSave(next);
   }
 
   return (
     <>
       {confirmDialog.dialog}
 
-      <div className="provider-settings" data-testid="provider-settings">
-        {/* Provider selection row */}
-        <div className="segmented-control" style={{ marginBottom: 32 }}>
-          {config.providers.map((provider) => (
-            <button
-              key={provider.id}
-              type="button"
-              className="segmented-control-item"
-              data-state={selectedId === provider.id ? 'active' : 'inactive'}
-              onClick={() => setSelectedId(provider.id)}
-            >
-              {provider.name}
-              {provider.id === config.defaultProviderId && (
-                <IconStar width={10} height={10} style={{ marginLeft: 6, opacity: 0.6 }} />
-              )}
-            </button>
-          ))}
-          {config.providers.length < 20 && (
-            <button
-              type="button"
-              className="segmented-control-item"
-              onClick={openAddDialog}
-              title={copy.addProvider}
-            >
-              +
-            </button>
-          )}
-          {selectedId && (
-            <DropdownMenu
-              align="end"
-              side="bottom"
-              label={locale === 'zh-CN' ? '提供商操作' : 'Provider actions'}
-              trigger={
-                <button
-                  type="button"
-                  className="segmented-control-item"
-                  aria-label={locale === 'zh-CN' ? '提供商操作' : 'Provider actions'}
-                >
-                  ⋮
-                </button>
-              }
-            >
-              <DropdownMenuItem danger onSelect={() => void handleDelete()}>
-                {copy.deleteProvider}
-              </DropdownMenuItem>
-            </DropdownMenu>
-          )}
-        </div>
+      <ProviderList
+        config={config}
+        filteredProviders={filteredProviders}
+        providerCount={config.providers.length}
+        enabledCount={enabledCount}
+        modelCount={modelCount}
+        query={query}
+        setQuery={setQuery}
+        filter={filter}
+        setFilter={setFilter}
+        isChinese={isChinese}
+        saving={saving}
+        copy={copy}
+        getProviderStatus={getProviderStatus}
+        onOpenProvider={handleOpenDrawer}
+        onToggleProvider={(id) => void handleToggleFromList(id)}
+        onAddOpen={openAddDialog}
+        onUpdateProviderModels={(providerId, models) =>
+          void handleUpdateProviderModelsFromList(providerId, models)
+        }
+        onTestProviderModel={(providerId, modelId) =>
+          void handleTestProviderModelFromList(providerId, modelId)
+        }
+        onSetDefaultModel={(providerId, modelId) =>
+          void handleSetDefaultModelFromList(providerId, modelId)
+        }
+        modelTestStatus={listModelTestStatus}
+        testingModelKey={listTestingModelKey}
+        {...(searchCatalog ? { searchCatalog } : {})}
+      />
 
-        {/* Detail panel */}
-        {!draft ? (
-          <div className="provider-detail-empty muted" data-testid="provider-detail-empty">
-            {copy.selectOrAdd}
-          </div>
-        ) : (
-          <div className="provider-content">
-            {/* Connection */}
-            <section className="provider-section">
-              <PageTitle
-                title={locale === 'zh-CN' ? '连接' : 'Connection'}
-                trailing={
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <span
-                      className={
-                        autoSaveStatus === 'error'
-                          ? 'provider-autosave-status provider-autosave-status--error'
-                          : 'provider-autosave-status'
-                      }
-                      style={{
-                        fontSize: '11.5px',
-                        color: autoSaveStatus === 'error' ? 'var(--danger)' : 'var(--faint)',
-                      }}
-                    >
-                      {autoSaveStatus === 'pending'
-                        ? locale === 'zh-CN'
-                          ? '待保存…'
-                          : 'Pending…'
-                        : autoSaveStatus === 'saving' || saving
-                          ? locale === 'zh-CN'
-                            ? '保存中…'
-                            : 'Saving…'
-                          : autoSaveStatus === 'saved'
-                            ? locale === 'zh-CN'
-                              ? '已保存'
-                              : 'Saved'
-                            : autoSaveStatus === 'error'
-                              ? locale === 'zh-CN'
-                                ? '保存失败'
-                                : 'Save failed'
-                              : ''}
-                    </span>
-                  </div>
-                }
-              />
+      {drawer && (
+        <ProviderDrawer
+          draft={drawer.draft}
+          isNew={drawer.isNew}
+          config={config}
+          saving={saving}
+          testingId={testingId}
+          testStatus={testStatus}
+          isChinese={isChinese}
+          copy={copy}
+          common={common}
+          searchCatalog={searchCatalog}
+          onClose={() => setDrawer(null)}
+          onSave={handleSave}
+          onDelete={handleDeleteFromDrawer}
+          onDraftChange={markDraft}
+          onTestConnection={handleTestConnection}
+          onSetDefaultModel={handleSetDefaultModel}
+          onModelsChange={handleModelsChange}
+          onOpenKeyManager={() => setKeyManagerOpen(true)}
+          onLoadSecret={onLoadSecret}
+          discoverWithDraft={discoverWithDraft}
+          testModelWithDraft={testModelWithDraft}
+        />
+      )}
 
-              <FieldRow
-                label={copy.apiKeyLabel}
-                description={
-                  hasKeychainSecret(draft) ? copy.apiKeyStoredPlaceholder : copy.apiKeyPlaceholder
-                }
-              >
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <TextInput
-                    type="password"
-                    data-testid="provider-apikey-env-input"
-                    value={draft.apiKeyInput}
-                    onChange={(event) => {
-                      markDraft({ ...draft, apiKeyInput: event.currentTarget.value });
-                    }}
-                    placeholder={hasKeychainSecret(draft) ? '••••••••' : '...'}
-                    spellCheck={false}
-                    autoComplete="off"
-                    style={{ width: '220px' }}
-                  />
-                  <IconButton
-                    label={copy.keyManager}
-                    title={copy.keyManager}
-                    onClick={() => setKeyManagerOpen(true)}
-                    data-testid="provider-key-manager-btn"
-                  >
-                    <IconSettings width={14} height={14} />
-                  </IconButton>
-                </div>
-              </FieldRow>
-
-              <FieldRow label={copy.apiAddress}>
-                <TextInput
-                  data-testid="provider-baseurl-input"
-                  value={draft.baseUrl}
-                  onChange={(event) => markDraft({ ...draft, baseUrl: event.currentTarget.value })}
-                  spellCheck={false}
-                  placeholder="https://api.example.com/v1"
-                  style={{ width: '320px' }}
-                />
-              </FieldRow>
-
-              <div
-                className="provider-field"
-                data-testid="provider-headers"
-                style={{ marginTop: 8 }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 12,
-                  }}
-                >
-                  <label className="ui-field-row-label" style={{ marginBottom: 0 }}>
-                    {copy.requestHeaders}
-                  </label>
-                  <Button
-                    size="compact"
-                    variant="ghost"
-                    onClick={() => {
-                      const row = createHeaderRow();
-                      lastAddedHeaderIdRef.current = row.id;
-                      markDraft({
-                        ...draft,
-                        headerRows: [...draft.headerRows, row],
-                      });
-                    }}
-                    data-testid="provider-header-add"
-                  >
-                    + {copy.addHeader}
-                  </Button>
-                </div>
-                <Collapse expanded={draft.headerRows.length > 0}>
-                  <ul
-                    className="provider-header-list"
-                    style={{
-                      listStyle: 'none',
-                      padding: 0,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                    }}
-                  >
-                    {draft.headerRows.map((row) => (
-                      <li
-                        key={row.id}
-                        className="provider-header-row"
-                        style={{ display: 'flex', gap: '8px' }}
-                      >
-                        <TextInput
-                          value={row.name}
-                          onChange={(event) =>
-                            markDraft({
-                              ...draft,
-                              headerRows: draft.headerRows.map((item) =>
-                                item.id === row.id
-                                  ? { ...item, name: event.currentTarget.value }
-                                  : item,
-                              ),
-                            })
-                          }
-                          placeholder={copy.headerName}
-                          spellCheck={false}
-                          data-testid="provider-header-name"
-                          ref={(el: HTMLInputElement | null) => {
-                            headerNameInputRefs.current.set(row.id, el);
-                          }}
-                          style={{ flex: 1 }}
-                        />
-                        <TextInput
-                          value={row.value}
-                          onChange={(event) =>
-                            markDraft({
-                              ...draft,
-                              headerRows: draft.headerRows.map((item) =>
-                                item.id === row.id
-                                  ? { ...item, value: event.currentTarget.value }
-                                  : item,
-                              ),
-                            })
-                          }
-                          placeholder={copy.headerValue}
-                          spellCheck={false}
-                          data-testid="provider-header-value"
-                          style={{ flex: 1 }}
-                        />
-                        <IconButton
-                          label={common.remove}
-                          onClick={() =>
-                            markDraft({
-                              ...draft,
-                              headerRows: draft.headerRows.filter((item) => item.id !== row.id),
-                            })
-                          }
-                        >
-                          <IconClose width={12} height={12} />
-                        </IconButton>
-                      </li>
-                    ))}
-                  </ul>
-                </Collapse>
-                {draft.headerRows.length === 0 && (
-                  <p className="muted" style={{ fontSize: '12.5px', marginTop: -4 }}>
-                    {copy.requestHeadersHint}
-                  </p>
-                )}
-              </div>
-            </section>
-
-            {/* Model workbench */}
-            <div
-              className="provider-models-section"
-              style={{ marginTop: 40, paddingTop: 32, borderTop: '1px solid var(--line-soft)' }}
-            >
-              <ModelWorkbench
-                provider={draftToProvider(draft)}
-                disabled={saving}
-                defaultModelId={
-                  config.defaultProviderId === selectedId ? (config.defaultModelId ?? null) : null
-                }
-                onModelsChange={(models) => markDraft({ ...draft, models })}
-                onSetDefaultModel={(modelId) => void handleSetDefaultModel(modelId)}
-                onDiscoverModels={discoverWithDraft}
-                onTestModel={testModelWithDraft}
-                {...(searchCatalog ? { searchCatalog } : {})}
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      <Modal
-        title={copy.addProviderTitle}
+      <ProviderAddDialog
         open={addOpen}
         onOpenChange={setAddOpen}
-        testId="provider-add-dialog"
-        size="md"
-      >
-        <ul
-          className="provider-preset-list"
-          style={{
-            listStyle: 'none',
-            padding: 0,
-            margin: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-          }}
-        >
-          {PROVIDER_PRESETS.map((preset) => (
-            <li key={preset.id}>
-              <button
-                type="button"
-                className="provider-preset-item"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  borderRadius: '10px',
-                  border: '1px solid var(--line-soft)',
-                  background: 'var(--surface-raised)',
-                  color: 'var(--text)',
-                  textAlign: 'left',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  cursor: 'pointer',
-                }}
-                onClick={() => void handleAddFromPreset(preset)}
-              >
-                <span style={{ fontSize: '20px' }}>{preset.icon || '🤖'}</span>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <strong style={{ fontSize: '14.5px' }}>{preset.name}</strong>
-                  <span className="muted" style={{ fontSize: '12px' }}>
-                    {preset.protocol}
-                  </span>
-                </div>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </Modal>
+        isChinese={isChinese}
+        copy={{
+          addProviderTitle: copy.addProviderTitle,
+          addProviderDesc: copy.addProviderDesc,
+        }}
+        onAdd={handleAddFromPreset}
+      />
 
       <ProviderKeyManagerDialog
         open={keyManagerOpen}
         onOpenChange={setKeyManagerOpen}
-        providerId={draft?.id ?? ''}
-        providerName={draft?.name ?? ''}
+        providerId={drawer?.draft.id ?? ''}
+        providerName={drawer?.draft.name ?? ''}
         loadSecret={onLoadSecret}
         saveSecret={onStoreSecret}
         testKey={testManagedKey}
         onSaved={(apiKeyRef) => {
-          if (draft) {
-            markDraft({ ...draft, storedApiKeyRef: apiKeyRef, apiKeyInput: '' });
+          if (drawer) {
+            markDraft({ ...drawer.draft, storedApiKeyRef: apiKeyRef, apiKeyInput: '' });
           }
         }}
       />

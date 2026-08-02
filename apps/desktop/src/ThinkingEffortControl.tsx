@@ -3,36 +3,34 @@
  * Opens a clean popover with labeled effort chips and a custom model list
  * (no native <select>, no unlabeled "Advanced" slider).
  */
-import { useEffect, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Popover } from '@piwin/ui-kit';
-import type { ModelRef, ThinkingLevel } from '@piwin/contracts';
+import type { ModelProviderConfig, ThinkingLevel } from '@piwin/contracts';
 import { IconSpark } from './shell-icons';
+import { getSupportedThinkingLevels } from './model-thinking-policy';
 
 type ThinkingEffortControlProps = {
   disabled: boolean;
   modelLabel: string;
-  protocol: ModelRef['protocol'] | null;
   ultraEnabled: boolean;
   value: ThinkingLevel;
   onChange: (level: ThinkingLevel) => void;
   models?: Array<{
     key: string;
     label: string;
-    protocol?: ModelRef['protocol'];
+    protocol?: ModelProviderConfig['protocol'];
+    thinkingLevels?: readonly ThinkingLevel[];
+    reasoning?: boolean;
     supportsImage?: boolean;
+    supportsImageGeneration?: boolean;
   }>;
   selectedModelKey?: string;
   onSelectModel?: (key: string) => void;
 };
 
-const OPENAI_LEVELS: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'];
-const ANTHROPIC_LEVELS: ThinkingLevel[] = ['off', 'low', 'medium', 'high', 'max'];
-const GEMINI_LEVELS: ThinkingLevel[] = ['off', 'low', 'medium', 'high'];
-
 export function ThinkingEffortControl({
   disabled,
   modelLabel,
-  protocol,
   ultraEnabled,
   value,
   onChange,
@@ -41,18 +39,23 @@ export function ThinkingEffortControl({
   onSelectModel,
 }: ThinkingEffortControlProps): ReactElement {
   const [open, setOpen] = useState(false);
-  const levels = getThinkingLevels(protocol, ultraEnabled);
-  const effectiveValue = levels.includes(value) ? value : getDefaultThinkingLevel(protocol);
+  const selectedModel = useMemo(
+    () => models.find((model) => model.key === selectedModelKey),
+    [models, selectedModelKey],
+  );
+  const levels = getSupportedThinkingLevels(selectedModel, ultraEnabled);
+  const effectiveValue = levels.includes(value) ? value : (levels[0] ?? 'off');
   const shortModelLabel = shortenModelLabel(modelLabel);
   const effortLabel = formatThinkingLabel(effectiveValue);
   const isUltra = effectiveValue === 'ultra';
+  const showThinking = levels.length > 0;
 
   useEffect(() => {
     if (!levels.includes(value) && value !== effectiveValue) {
       onChange(effectiveValue);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- levels derived from protocol/ultra
-  }, [effectiveValue, onChange, protocol, ultraEnabled, value]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- levels derived from selectedModel/ultra
+  }, [effectiveValue, onChange, value, levels]);
 
   // Radix owns outside-pointer dismissal, Escape, and focus return to the trigger.
   return (
@@ -72,44 +75,50 @@ export function ThinkingEffortControl({
             type="button"
             className="thinking-effort-trigger"
             disabled={disabled}
-            aria-label={`Model ${modelLabel}, thinking ${effortLabel}`}
+            aria-label={`Model ${modelLabel}${showThinking ? `, thinking ${effortLabel}` : ''}`}
             data-testid="thinking-effort-trigger"
           >
             <span className="thinking-effort-model">{shortModelLabel}</span>
-            <span className="thinking-effort-sep" aria-hidden>
-              ·
-            </span>
-            <span className="thinking-effort-value">{effortLabel}</span>
+            {showThinking ? (
+              <>
+                <span className="thinking-effort-sep" aria-hidden>
+                  ·
+                </span>
+                <span className="thinking-effort-value">{effortLabel}</span>
+              </>
+            ) : null}
             <span className="thinking-effort-chevron" aria-hidden />
           </button>
         }
       >
-        {/* Thinking / Reasoning Effort Section */}
-        <section className="thinking-effort-section">
-          <header className="thinking-effort-section-title">
-            <span>Thinking</span>
-            <span className="thinking-effort-active-tag">{effortLabel}</span>
-          </header>
-          <div className="thinking-effort-chip-row" role="radiogroup" aria-label="Thinking effort">
-            {levels.map((level) => {
-              const isActive = level === effectiveValue;
-              return (
-                <button
-                  key={level}
-                  type="button"
-                  role="radio"
-                  aria-checked={isActive}
-                  className={isActive ? 'thinking-effort-chip is-active' : 'thinking-effort-chip'}
-                  disabled={disabled}
-                  onClick={() => onChange(level)}
-                  data-testid={`thinking-level-${level}`}
-                >
-                  {formatThinkingLabel(level)}
-                </button>
-              );
-            })}
-          </div>
-        </section>
+        {showThinking ? (
+          /* Thinking / Reasoning Effort Section */
+          <section className="thinking-effort-section">
+            <header className="thinking-effort-section-title">
+              <span>Thinking</span>
+              <span className="thinking-effort-active-tag">{effortLabel}</span>
+            </header>
+            <div className="thinking-effort-chip-row" role="radiogroup" aria-label="Thinking effort">
+              {levels.map((level) => {
+                const isActive = level === effectiveValue;
+                return (
+                  <button
+                    key={level}
+                    type="button"
+                    role="radio"
+                    aria-checked={isActive}
+                    className={isActive ? 'thinking-effort-chip is-active' : 'thinking-effort-chip'}
+                    disabled={disabled}
+                    onClick={() => onChange(level)}
+                    data-testid={`thinking-level-${level}`}
+                  >
+                    {formatThinkingLabel(level)}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
 
         {/* Model Selection Section */}
         <section className="thinking-effort-section">
@@ -163,6 +172,26 @@ export function ThinkingEffortControl({
                             · vision
                           </span>
                         ) : null}
+                        {model.reasoning ? (
+                          <span
+                            className="thinking-effort-model-reason-tag"
+                            data-testid={`model-reason-tag-${model.key}`}
+                            title="Reasoning"
+                          >
+                            {' '}
+                            · reason
+                          </span>
+                        ) : null}
+                        {model.supportsImageGeneration ? (
+                          <span
+                            className="thinking-effort-model-image-gen-tag"
+                            data-testid={`model-image-gen-tag-${model.key}`}
+                            title="Image generation"
+                          >
+                            {' '}
+                            · image-gen
+                          </span>
+                        ) : null}
                       </span>
                       {provider ? (
                         <span className="thinking-effort-model-provider-badge">{provider}</span>
@@ -182,23 +211,6 @@ export function ThinkingEffortControl({
       </Popover>
     </div>
   );
-}
-
-function getThinkingLevels(
-  protocol: ModelRef['protocol'] | null,
-  ultraEnabled: boolean,
-): ThinkingLevel[] {
-  const baseLevels =
-    protocol === 'anthropic-compatible'
-      ? ANTHROPIC_LEVELS
-      : protocol === 'google-gemini'
-        ? GEMINI_LEVELS
-        : OPENAI_LEVELS;
-  return ultraEnabled ? [...baseLevels, 'ultra'] : baseLevels;
-}
-
-function getDefaultThinkingLevel(protocol: ModelRef['protocol'] | null): ThinkingLevel {
-  return protocol === 'anthropic-compatible' ? 'high' : 'medium';
 }
 
 function formatThinkingLabel(level: ThinkingLevel): string {
