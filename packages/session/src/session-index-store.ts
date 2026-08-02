@@ -2,6 +2,29 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { SessionIndexDocument, SessionIndexRecord, SessionScope } from '@piwin/contracts';
 
+/** Serializes read-modify-write cycles per index file (single-writer). */
+const indexWriteQueues = new Map<string, Promise<unknown>>();
+
+/**
+ * Run a mutation against the index file behind a per-file lock so concurrent
+ * mutations (e.g. auto-naming two sessions at once) never clobber each
+ * other's writes. The queue entry swallows rejection so a failed operation
+ * does not poison later ones; callers still observe the original error via
+ * the returned promise.
+ */
+function withIndexWriteLock<T>(filePath: string, operation: () => Promise<T>): Promise<T> {
+  const previous = indexWriteQueues.get(filePath) ?? Promise.resolve();
+  const next = previous.then(operation, operation);
+  indexWriteQueues.set(
+    filePath,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return next;
+}
+
 function emptyDoc(): SessionIndexDocument {
   return { version: 2, sessions: [] };
 }
@@ -85,15 +108,17 @@ export async function upsertSessionRecord(
   filePath: string,
   record: SessionIndexRecord,
 ): Promise<SessionIndexRecord> {
-  const document = await loadSessionIndex(filePath);
-  const index = document.sessions.findIndex((item) => item.id === record.id);
-  if (index === -1) {
-    document.sessions.unshift(record);
-  } else {
-    document.sessions[index] = record;
-  }
-  await saveSessionIndex(filePath, document);
-  return record;
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const index = document.sessions.findIndex((item) => item.id === record.id);
+    if (index === -1) {
+      document.sessions.unshift(record);
+    } else {
+      document.sessions[index] = record;
+    }
+    await saveSessionIndex(filePath, document);
+    return record;
+  });
 }
 
 export type ListSessionsForProjectOptions = {
@@ -251,30 +276,34 @@ export async function pinSessionRecord(
   filePath: string,
   sessionId: string,
 ): Promise<SessionIndexRecord | undefined> {
-  const document = await loadSessionIndex(filePath);
-  const record = document.sessions.find((item) => item.id === sessionId);
-  if (!record) {
-    return undefined;
-  }
-  record.isPinned = true;
-  record.pinnedAt = nowIso();
-  await saveSessionIndex(filePath, document);
-  return record;
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const record = document.sessions.find((item) => item.id === sessionId);
+    if (!record) {
+      return undefined;
+    }
+    record.isPinned = true;
+    record.pinnedAt = nowIso();
+    await saveSessionIndex(filePath, document);
+    return record;
+  });
 }
 
 export async function unpinSessionRecord(
   filePath: string,
   sessionId: string,
 ): Promise<SessionIndexRecord | undefined> {
-  const document = await loadSessionIndex(filePath);
-  const record = document.sessions.find((item) => item.id === sessionId);
-  if (!record) {
-    return undefined;
-  }
-  record.isPinned = false;
-  delete record.pinnedAt;
-  await saveSessionIndex(filePath, document);
-  return record;
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const record = document.sessions.find((item) => item.id === sessionId);
+    if (!record) {
+      return undefined;
+    }
+    record.isPinned = false;
+    delete record.pinnedAt;
+    await saveSessionIndex(filePath, document);
+    return record;
+  });
 }
 
 const MAX_SESSION_NAME_CHARS = 120;
@@ -299,79 +328,126 @@ export async function renameSessionRecord(
   if (normalized.length === 0) {
     return undefined;
   }
-  const document = await loadSessionIndex(filePath);
-  const record = document.sessions.find((item) => item.id === sessionId);
-  if (!record) {
-    return undefined;
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const record = document.sessions.find((item) => item.id === sessionId);
+    if (!record) {
+      return undefined;
+    }
+    record.name = normalized;
+    record.nameSource = 'user';
+    // Rename is metadata-only; do not bump updatedAt so sort order stays stable.
+    await saveSessionIndex(filePath, document);
+    return record;
+  });
+}
+
+/** Origin of an auto-derived name: `text` (fallback) or `llm` (model title). */
+export type SessionAutoNameSource = 'text' | 'llm';
+
+/**
+ * Pick a name for `sessionId` that is not already used by any other active
+ * session, appending ` - 2`, ` - 3`, … as needed so the session list stays
+ * distinguishable.
+ */
+function uniqueAutoName(
+  sessions: SessionIndexRecord[],
+  sessionId: string,
+  baseName: string,
+): string {
+  const taken = new Set(
+    sessions
+      .filter((item) => item.id !== sessionId && item.isArchived !== true && item.name)
+      .map((item) => item.name),
+  );
+  if (!taken.has(baseName)) {
+    return baseName;
   }
-  record.name = normalized;
-  record.nameSource = 'user';
-  // Rename is metadata-only; do not bump updatedAt so sort order stays stable.
-  await saveSessionIndex(filePath, document);
-  return record;
+  let counter = 2;
+  while (taken.has(`${baseName} - ${counter}`)) {
+    counter += 1;
+  }
+  return `${baseName} - ${counter}`;
 }
 
 /**
- * Write an auto-derived name to a session record, but ONLY when the current
- * `nameSource` is not `'user'`. A user-manual rename is permanent and must
- * never be overwritten by auto-naming. Returns the updated record, or
- * `undefined` when the session is missing or the name was user-set.
+ * Write an auto-derived name to a session record subject to the overwrite
+ * policy:
+ * - `user` names are permanent and never overwritten.
+ * - `llm` names are terminal and never re-run.
+ * - a `text` source only fills a `default` name; it never rewrites an
+ *   existing `text` fallback (nothing to upgrade to).
+ * - an `llm` source upgrades a `default` or `text` name.
+ * With `dedupe: true` (default), the name is made unique among active
+ * sessions before writing. Returns the updated record, or `undefined` when
+ * nothing was written.
  */
 export async function setSessionAutoName(
   filePath: string,
   sessionId: string,
   name: string,
+  source: SessionAutoNameSource,
+  options?: { dedupe?: boolean },
 ): Promise<SessionIndexRecord | undefined> {
   const normalized = normalizeSessionName(name);
   if (normalized.length === 0) {
     return undefined;
   }
-  const document = await loadSessionIndex(filePath);
-  const record = document.sessions.find((item) => item.id === sessionId);
-  if (!record) {
-    return undefined;
-  }
-  if (record.nameSource === 'user') {
-    return undefined;
-  }
-  record.name = normalized;
-  record.nameSource = 'auto';
-  // Auto-name is metadata-only; do not bump updatedAt so sort order stays stable.
-  await saveSessionIndex(filePath, document);
-  return record;
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const record = document.sessions.find((item) => item.id === sessionId);
+    if (!record) {
+      return undefined;
+    }
+    if (record.nameSource === 'user' || record.nameSource === 'llm') {
+      return undefined;
+    }
+    if (source === 'text' && record.nameSource === 'text') {
+      return undefined;
+    }
+    record.name = options?.dedupe === false ? normalized : uniqueAutoName(document.sessions, sessionId, normalized);
+    record.nameSource = source;
+    // Auto-name is metadata-only; do not bump updatedAt so sort order stays stable.
+    await saveSessionIndex(filePath, document);
+    return record;
+  });
 }
 
 export async function archiveSessionRecord(
   filePath: string,
   sessionId: string,
 ): Promise<SessionIndexRecord | undefined> {
-  const document = await loadSessionIndex(filePath);
-  const record = document.sessions.find((item) => item.id === sessionId);
-  if (!record) {
-    return undefined;
-  }
-  record.isArchived = true;
-  record.archivedAt = nowIso();
-  // Archived sessions drop pin so they do not reappear as pinned when restored unexpectedly.
-  record.isPinned = false;
-  delete record.pinnedAt;
-  await saveSessionIndex(filePath, document);
-  return record;
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const record = document.sessions.find((item) => item.id === sessionId);
+    if (!record) {
+      return undefined;
+    }
+    record.isArchived = true;
+    record.archivedAt = nowIso();
+    // Archived sessions drop pin so they do not reappear as pinned when restored unexpectedly.
+    record.isPinned = false;
+    delete record.pinnedAt;
+    await saveSessionIndex(filePath, document);
+    return record;
+  });
 }
 
 export async function unarchiveSessionRecord(
   filePath: string,
   sessionId: string,
 ): Promise<SessionIndexRecord | undefined> {
-  const document = await loadSessionIndex(filePath);
-  const record = document.sessions.find((item) => item.id === sessionId);
-  if (!record) {
-    return undefined;
-  }
-  record.isArchived = false;
-  delete record.archivedAt;
-  await saveSessionIndex(filePath, document);
-  return record;
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const record = document.sessions.find((item) => item.id === sessionId);
+    if (!record) {
+      return undefined;
+    }
+    record.isArchived = false;
+    delete record.archivedAt;
+    await saveSessionIndex(filePath, document);
+    return record;
+  });
 }
 
 /**
@@ -382,14 +458,16 @@ export async function deleteSessionRecord(
   filePath: string,
   sessionId: string,
 ): Promise<SessionIndexRecord | undefined> {
-  const document = await loadSessionIndex(filePath);
-  const index = document.sessions.findIndex((item) => item.id === sessionId);
-  if (index === -1) {
-    return undefined;
-  }
-  const [removed] = document.sessions.splice(index, 1);
-  await saveSessionIndex(filePath, document);
-  return removed;
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const index = document.sessions.findIndex((item) => item.id === sessionId);
+    if (index === -1) {
+      return undefined;
+    }
+    const [removed] = document.sessions.splice(index, 1);
+    await saveSessionIndex(filePath, document);
+    return removed;
+  });
 }
 
 /**

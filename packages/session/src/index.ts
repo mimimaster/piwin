@@ -17,7 +17,10 @@ export {
   listAllSessionRecords,
   sortSessionRecords,
 } from './session-index-store.js';
-export type { ListSessionsForProjectOptions } from './session-index-store.js';
+export type {
+  ListSessionsForProjectOptions,
+  SessionAutoNameSource,
+} from './session-index-store.js';
 export { deriveDefaultNameFromMessage } from './derive-default-name.js';
 
 export {
