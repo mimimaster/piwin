@@ -29,6 +29,7 @@ import {
   keyboardMove,
   type FileTreeNodeState,
 } from './file-tree-model';
+import { loadExpandedPaths, saveExpandedPaths } from './file-tree-expand-memory';
 import type { DesktopLocale } from './desktop-locale';
 
 export type FileTreeRequest =
@@ -67,6 +68,79 @@ function entryToNode(entry: ProjectDirEntry): FileTreeNodeState {
     children: entry.kind === 'directory' ? null : [],
     error: null,
   };
+}
+
+/**
+ * Recursively collect the `relativePath` of every directory node currently
+ * marked `expanded`. Used to persist the expand set after each tree mutation.
+ */
+function collectExpanded(nodes: readonly FileTreeNodeState[]): string[] {
+  const out: string[] = [];
+  function walk(list: readonly FileTreeNodeState[]): void {
+    for (const node of list) {
+      if (node.entry.kind === 'directory' && node.expanded) {
+        out.push(node.entry.relativePath);
+      }
+      if (node.children) walk(node.children);
+    }
+  }
+  walk(nodes);
+  return out;
+}
+
+/**
+ * Depth-first restore of remembered expanded directories. For each directory
+ * node whose `relativePath` is in `paths`: load its children if not yet
+ * loaded, mark it expanded, then recurse into the (now-loaded) children to
+ * restore deeper paths. Nodes not in `paths` are still recursed into when
+ * their children are already loaded, so a remembered deep path under a
+ * previously-expanded ancestor can be restored. Returns a new node tree.
+ */
+async function restoreExpanded(
+  nodes: readonly FileTreeNodeState[],
+  paths: Set<string>,
+  loadDir: (relativePath: string) => Promise<ProjectDirEntry[]>,
+): Promise<FileTreeNodeState[]> {
+  const next: FileTreeNodeState[] = [];
+  for (const node of nodes) {
+    if (node.entry.kind !== 'directory') {
+      next.push(node);
+      continue;
+    }
+    const shouldExpand = paths.has(node.entry.relativePath);
+    let children = node.children;
+    let expanded = node.expanded;
+    let loading = node.loading;
+    let error = node.error;
+    if (shouldExpand && children === null) {
+      // Fetch children before expanding so deeper remembered paths can be
+      // restored in the recursive pass below.
+      loading = true;
+      error = null;
+      try {
+        const entries = await loadDir(node.entry.relativePath);
+        children = entries.map(entryToNode);
+        expanded = true;
+        loading = false;
+      } catch (loadError) {
+        children = [];
+        expanded = true;
+        loading = false;
+        error = loadError instanceof Error ? loadError.message : String(loadError);
+        next.push({ ...node, expanded, loading, children, error });
+        continue;
+      }
+    } else if (shouldExpand) {
+      expanded = true;
+    }
+    // Recurse into whatever children we have to restore deeper remembered
+    // paths. Only recurse when there is something to restore below.
+    if (children && children.length > 0) {
+      children = await restoreExpanded(children, paths, loadDir);
+    }
+    next.push({ ...node, expanded, loading, children, error });
+  }
+  return next;
 }
 
 export const PIWIN_PATH_MIME = 'application/x-piwin-workspace-path';
@@ -146,7 +220,16 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     // must never block the tree from rendering.
     const [dirResult] = await Promise.allSettled([loadDirectory(''), loadGitStatus()]);
     if (dirResult.status === 'fulfilled') {
-      setRootNodes(dirResult.value.map(entryToNode));
+      const baseNodes = dirResult.value.map(entryToNode);
+      setRootNodes(baseNodes);
+      // Restore previously-expanded directories for this project. The walk is
+      // async because remembered directories may need their children fetched.
+      // An empty path set (fresh localStorage, e.g. in tests) is a no-op.
+      const remembered = loadExpandedPaths(props.projectPath);
+      if (remembered.size > 0) {
+        const restored = await restoreExpanded(baseNodes, remembered, loadDirectory);
+        setRootNodes(restored);
+      }
     } else {
       setError(
         dirResult.reason instanceof Error ? dirResult.reason.message : String(dirResult.reason),
@@ -159,6 +242,13 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   useEffect(() => {
     void reloadRoot();
   }, [reloadRoot]);
+
+  // Persist the current set of expanded relative paths whenever the tree
+  // changes. Best-effort: localStorage may be unavailable.
+  useEffect(() => {
+    if (!props.projectPath) return;
+    saveExpandedPaths(props.projectPath, collectExpanded(rootNodes));
+  }, [rootNodes, props.projectPath]);
 
   // Recursively set a directory node's expanded state. When expanding a
   // directory whose children are not yet loaded, fetch them first. Used by both
