@@ -177,6 +177,24 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         });
         return;
       }
+      if (message.type === 'subagent/batch-updated') {
+        dispatch({
+          type: 'subagent/batch-updated',
+          runId: message.runId,
+          parentSessionId: message.parentSessionId,
+          result: message.result,
+        });
+        return;
+      }
+      if (message.type === 'subagent/task-updated') {
+        dispatch({
+          type: 'subagent/task-updated',
+          runId: message.runId,
+          parentSessionId: message.parentSessionId,
+          result: message.result,
+        });
+        return;
+      }
       if (message.type === 'permission/request') {
         dispatch({
           type: 'permission/show',
