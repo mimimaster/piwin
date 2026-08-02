@@ -1,11 +1,80 @@
-/** Max length for a text-derived default session name (titlebar-friendly). */
+/**
+ * Max length for a text-derived default session name. Kept titlebar-friendly:
+ * the Desktop chrome shows it next to the project name in a single line.
+ */
 const MAX_DEFAULT_NAME_CHARS = 32;
 
 /**
+ * Minimum length for the first sentence to stand alone; when the opening
+ * sentence is shorter we append following sentences so short instructions
+ * like "修复 bug" do not collapse into a bare fragment.
+ */
+const MIN_FIRST_SENTENCE_CHARS = 8;
+
+/**
+ * Polite/instructional openers that carry no identifying content for a
+ * session title. Stripped once from the front (never in the middle).
+ * Chinese forms cover stacked openers ("请帮我") and English forms tolerate
+ * `please fix` and `please, fix` alike.
+ */
+const NOISE_PREFIX_PATTERN =
+  /^(?:请帮我|请你帮我|请(?:你|您)?|麻烦(?:你|您)?|帮我|拜托(?:你)?|please(?:\s|,)+|plz(?:\s|,)+|could\s+(?:you|u)(?:\s|,)+|can\s+(?:you|u)(?:\s|,)+|would\s+(?:you|u)(?:\s|,)+|do\s+(?:you|u)(?:\s|,)+)\s*/i;
+
+/** Split into sentences on CJK/Latin sentence terminators and newlines. */
+function splitSentences(text: string): string[] {
+  return text
+    .split(/[。！？!?\n.]+/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+}
+
+/** First sentence, extended with following sentences when it is too short. */
+function takeLeadingSentence(text: string): string {
+  const sentences = splitSentences(text);
+  if (sentences.length === 0) {
+    return '';
+  }
+  let result = sentences[0] ?? '';
+  for (let index = 1; index < sentences.length && result.length < MIN_FIRST_SENTENCE_CHARS; index += 1) {
+    const nextSentence = sentences[index];
+    if (nextSentence === undefined) {
+      break;
+    }
+    result = `${result} ${nextSentence}`;
+  }
+  return result;
+}
+
+/**
+ * Truncate on word boundaries via `Intl.Segmenter` so CJK and Latin both cut
+ * cleanly. A single over-long word/run hard-cuts as a last resort.
+ */
+function truncateAtWordBoundary(text: string): string {
+  if (text.length <= MAX_DEFAULT_NAME_CHARS) {
+    return text;
+  }
+  const segmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
+  const limit = MAX_DEFAULT_NAME_CHARS - 1; // room for the ellipsis
+  let result = '';
+  for (const segment of segmenter.segment(text)) {
+    if ((result + segment.segment).length > limit) {
+      break;
+    }
+    result += segment.segment;
+  }
+  const trimmed = result.trimEnd();
+  if (trimmed.length === 0) {
+    return `${text.slice(0, limit)}…`;
+  }
+  return `${trimmed}…`;
+}
+
+/**
  * Derive a human-readable fallback session name from the first user message.
- * Pure: no FS, no network. Strips markdown, URLs, collapses whitespace,
- * truncates on a word boundary (Latin) or hard cut (CJK) with an ellipsis.
- * Returns '' when nothing meaningful remains (caller keeps existing placeholder).
+ * Pure: no FS, no network. Cleans markdown/URLs/injected walkthrough context,
+ * takes the leading sentence (extended when short), strips polite openers,
+ * and truncates on a word boundary (CJK-aware) with an ellipsis.
+ * Returns '' when nothing meaningful remains (caller keeps placeholder).
  */
 export function deriveDefaultNameFromMessage(text: string): string {
   let cleaned = text;
@@ -31,14 +100,21 @@ export function deriveDefaultNameFromMessage(text: string): string {
   if (cleaned.length === 0) {
     return '';
   }
-  if (cleaned.length <= MAX_DEFAULT_NAME_CHARS) {
-    return cleaned;
-  }
 
-  const limit = MAX_DEFAULT_NAME_CHARS - 1; // room for …
-  const slice = cleaned.slice(0, limit);
-  // Prefer space boundary for Latin; for CJK (no space) cut at limit.
-  const lastSpace = slice.lastIndexOf(' ');
-  const cut = lastSpace > Math.floor(limit * 0.5) ? lastSpace : slice.length;
-  return `${cleaned.slice(0, cut).trimEnd()}…`;
+  const leading = takeLeadingSentence(cleaned);
+  let strippedOpener = false;
+  const deNoised = leading.replace(NOISE_PREFIX_PATTERN, () => {
+    strippedOpener = true;
+    return '';
+  }).trim();
+  if (deNoised.length === 0) {
+    return '';
+  }
+  // Stripping an opener ("please fix…") leaves a lowercase verb; restore a
+  // title-like initial capital only then, so untouched messages keep their
+  // original casing. CJK is unaffected either way.
+  const restoredCase = strippedOpener
+    ? deNoised.charAt(0).toUpperCase() + deNoised.slice(1)
+    : deNoised;
+  return truncateAtWordBoundary(restoredCase);
 }

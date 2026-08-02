@@ -10,6 +10,11 @@
       "types": "./src/index.ts",
       "import": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./derive-default-name": {
+      "types": "./src/derive-default-name.ts",
+      "import": "./src/derive-default-name.ts",
+      "default": "./src/derive-default-name.ts"
     }
   },
   "scripts": {

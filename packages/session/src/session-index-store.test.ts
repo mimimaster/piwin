@@ -376,7 +376,7 @@ describe('session-index-store', () => {
   });
 
   describe('setSessionAutoName', () => {
-    it('writes name + nameSource=auto when nameSource is default', async () => {
+    it('writes text fallback name when nameSource is default', async () => {
       const dir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-'));
       const indexPath = join(dir, 'index.json');
       await saveSessionIndex(indexPath, {
@@ -392,13 +392,13 @@ describe('session-index-store', () => {
           },
         ],
       });
-      const updated = await setSessionAutoName(indexPath, 's1', 'Fix login bug');
+      const updated = await setSessionAutoName(indexPath, 's1', 'Fix login bug', 'text');
       expect(updated?.name).toBe('Fix login bug');
-      expect(updated?.nameSource).toBe('auto');
+      expect(updated?.nameSource).toBe('text');
     });
 
-    it('overwrites an existing auto name', async () => {
-      const dir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-overwrite-'));
+    it('upgrades an existing text fallback to an llm title', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-upgrade-'));
       const indexPath = join(dir, 'index.json');
       await saveSessionIndex(indexPath, {
         version: 2,
@@ -410,14 +410,64 @@ describe('session-index-store', () => {
             createdAt: '2026-01-01T00:00:00.000Z',
             updatedAt: '2026-01-01T00:00:00.000Z',
             messageCount: 2,
-            name: 'old auto name',
-            nameSource: 'auto',
+            name: 'Fix login bug',
+            nameSource: 'text',
           },
         ],
       });
-      const updated = await setSessionAutoName(indexPath, 's1', 'New auto name');
-      expect(updated?.name).toBe('New auto name');
-      expect(updated?.nameSource).toBe('auto');
+      const updated = await setSessionAutoName(indexPath, 's1', 'Login bug fix', 'llm');
+      expect(updated?.name).toBe('Login bug fix');
+      expect(updated?.nameSource).toBe('llm');
+    });
+
+    it('does NOT rewrite an existing text fallback with another text name', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-text-stable-'));
+      const indexPath = join(dir, 'index.json');
+      await saveSessionIndex(indexPath, {
+        version: 2,
+        sessions: [
+          {
+            id: 's1',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            messageCount: 2,
+            name: 'Fix login bug',
+            nameSource: 'text',
+          },
+        ],
+      });
+      const updated = await setSessionAutoName(indexPath, 's1', 'Another text name', 'text');
+      expect(updated).toBeUndefined();
+      const doc = await loadSessionIndex(indexPath);
+      expect(doc.sessions[0]?.name).toBe('Fix login bug');
+      expect(doc.sessions[0]?.nameSource).toBe('text');
+    });
+
+    it('does NOT overwrite an llm name with a text fallback', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-llm-stable-'));
+      const indexPath = join(dir, 'index.json');
+      await saveSessionIndex(indexPath, {
+        version: 2,
+        sessions: [
+          {
+            id: 's1',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            messageCount: 2,
+            name: 'Login bug fix',
+            nameSource: 'llm',
+          },
+        ],
+      });
+      const updated = await setSessionAutoName(indexPath, 's1', 'fallback attempt', 'text');
+      expect(updated).toBeUndefined();
+      const doc = await loadSessionIndex(indexPath);
+      expect(doc.sessions[0]?.name).toBe('Login bug fix');
+      expect(doc.sessions[0]?.nameSource).toBe('llm');
     });
 
     it('does NOT overwrite a user-set name', async () => {
@@ -438,11 +488,54 @@ describe('session-index-store', () => {
           },
         ],
       });
-      const updated = await setSessionAutoName(indexPath, 's1', 'auto attempt');
+      const updated = await setSessionAutoName(indexPath, 's1', 'auto attempt', 'llm');
       expect(updated).toBeUndefined();
       const doc = await loadSessionIndex(indexPath);
       expect(doc.sessions[0]?.name).toBe('my custom name');
       expect(doc.sessions[0]?.nameSource).toBe('user');
+    });
+
+    it('dedupes duplicate names among active sessions', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-auto-name-dedupe-'));
+      const indexPath = join(dir, 'index.json');
+      await saveSessionIndex(indexPath, {
+        version: 2,
+        sessions: [
+          {
+            id: 's1',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            messageCount: 2,
+            name: 'Fix login bug',
+            nameSource: 'llm',
+          },
+          {
+            id: 's2',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            messageCount: 2,
+          },
+          {
+            id: 's3',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            messageCount: 2,
+            name: 'Fix login bug',
+            nameSource: 'llm',
+            isArchived: true,
+          },
+        ],
+      });
+      const updated = await setSessionAutoName(indexPath, 's2', 'Fix login bug', 'llm');
+      // Archived duplicate is ignored; active duplicate forces " - 2".
+      expect(updated?.name).toBe('Fix login bug - 2');
+      expect(updated?.nameSource).toBe('llm');
     });
   });
 
@@ -461,7 +554,7 @@ describe('session-index-store', () => {
             updatedAt: '2026-01-01T00:00:00.000Z',
             messageCount: 0,
             name: 'auto name',
-            nameSource: 'auto',
+            nameSource: 'text',
           },
         ],
       });
