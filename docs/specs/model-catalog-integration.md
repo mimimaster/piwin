@@ -516,3 +516,25 @@ CLI 已通过 `attachments` 走 adapter 原生传图（2026-08-01）。
 | 前置检查文案「将仅路径注入」 | 改为「原生附件可能被 text-only 忽略/报错」+ 引导 delegation |
 | `input` 字段只是标签 | 明确：现为 D1 分流与 extension 的硬依赖 |
 | 与 Spec 2 关系 | Spec 1 = 能力元数据；Spec 2 = text-only 时如何处理已传入的图 |
+
+### Amendment (2026-08-03): model edit Popover and explicit thinking levels
+
+`ModelConfigEntry.thinkingLevels` is an optional ordered list of supported
+`ThinkingLevel` values. `thinkingLevel` is the default selected value and must
+belong to that list when the list is present. The Desktop composer reads this
+list from the selected configured model; it does not infer levels from provider
+protocol. A missing/empty list hides the effort controls while keeping the model
+picker available.
+
+Settings → Models adds a pencil edit icon to each configured model row. The
+anchored editor reads missing context/output/input/reasoning values from the
+existing Pi catalog search result, falls back to the host defaults
+(128000 context and 8192 output), and never overwrites configured user values.
+Vision maps to `input: ['text', 'image']`; image generation maps to
+`capabilities: ['image-generation']`; reasoning maps to `reasoning`. The
+provider drawer's existing footer Save remains the persistence boundary.
+
+The send / edit / retry paths in `use-composer-media` and `use-session-actions`
+gate `PromptInput.thinkingLevel` through `canUseThinkingLevel` against the
+selected model's explicit `thinkingLevels`, so a stale effort value from a
+previous model selection is never transmitted.

@@ -79,3 +79,27 @@
 2. **脱敏保护**：所有证据进入模型前经过 `redactToolText()` 处理，过滤 API Key、Token 和密码。
 3. **数据隔离界定符**：证据包裹在 `<piwin-walkthrough-evidence>` 中，System Prompt 规定该区块内容纯属数据，禁止模型将证据中的命令视作指令执行。
 4. **渲染安全**：Walkthrough Markdown 渲染时，默认关闭 Artifact iframe 预览，防止非受信任 HTML 脚本执行。
+
+---
+
+## 5. 交付文档富文本格式（Rich-Text Delivery Format）
+
+Walkthrough 的目标是生成一份**详细的交付文档**，其 Markdown 由 `EnhancedMarkdownView` 渲染为富文本组件。
+生成侧（`WALKTHROUGH_SYSTEM_PROMPT` + `DEFAULT_WALKTHROUGH_PROMPT`）要求输出必须包含以下格式：
+
+| # | 格式 | 渲染效果 | 生成要求 |
+| :--- | :--- | :--- | :--- |
+| 1 | 文件变动说明 `[MODIFY] TS src/utils.ts` / `[NEW] TS src/logger.ts` | 动作徽章 + 语言标签 + 可点击路径（`PathChip`） | 每个变更文件独占一行，使用 `[MODIFY]` / `[NEW]` / `[DELETE]` |
+| 2 | `diff` 代码块 | `+` 新增行绿色（`diff-line-add`）、`-` 删除行红色（`diff-line-delete`） | 使用 `diff` 语言围栏；新增行前缀 `+ `、删除行前缀 `- `，上下文行无前缀 |
+| 3 | 20+ 行长代码块 | 超过 16 行自动折叠，显示 `Expand (N lines)` 按钮 | 证据支持时至少包含一个代表性代码块（如新增类/重构函数） |
+| 4 | HTML `<details><summary>` 折叠块 | 点击展开/收起（`enhanced-details`） | 构建/测试日志不得内联粘贴，须包裹在 `<details><summary>…</summary>…</details>` 中 |
+| 5 | 任务清单 `- [x]` / `- [ ]` | 只读复选框（`enhanced-checkbox`） | 已完成用 `- [x]`，待处理用 `- [ ]` |
+| 6 | 提示框 `> [!NOTE]` / `> [!TIP]` | 彩色 callout 卡片（支持 NOTE/TIP/IMPORTANT/WARNING/CAUTION） | GitHub 风格 callout 语法 |
+
+分层保证：
+
+- `WALKTHROUGH_SYSTEM_PROMPT`（Host 常量，始终注入）包含“Formatting requirements”，因此**即使 Custom 模式**也无法通过用户 Prompt 移除这些格式要求。
+- `DEFAULT_WALKTHROUGH_PROMPT`（Contracts 常量）提供完整的格式示例，是 Default 模式的生成模板。
+
+安全边界不变：所有格式输出仍必须由证据支持，禁止捏造文件、命令、测试或日志。
+
