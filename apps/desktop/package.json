@@ -23,6 +23,7 @@
     "@piwin/contracts": "workspace:*",
     "@piwin/doc-rag": "workspace:*",
     "@piwin/pet": "workspace:*",
+    "@piwin/session": "workspace:*",
     "@piwin/ui-kit": "workspace:*",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.2",
