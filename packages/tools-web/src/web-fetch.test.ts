@@ -91,4 +91,26 @@ describe('webFetch', () => {
       }),
     ).rejects.toThrow(/too large|cap/);
   });
+
+  it('caps oversized HTML before parsing so a giant page cannot stall', async () => {
+    const paragraphs = '<p>' + 'lorem ipsum dolor '.repeat(25) + '</p>';
+    const html = `<html><head><title>Giant page</title></head><body>${paragraphs}</body></html>`;
+    // fetchMaxBytes=200 → hard cap 800, parse cap 400. Body ~500 chars stays under
+    // the stream cap but above the parse cap, so the parser sees a truncated page.
+    const result = await webFetch('https://example.com/giant', {
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      fetchImpl: async () =>
+        new Response(html, {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        }),
+      config: {
+        fetchMaxBytes: 200,
+        fetchTimeoutMs: 5000,
+        fetchBlockedUrlPrefixes: [],
+      },
+    });
+    expect(result.title).toBe('Giant page');
+    expect(result.text.length).toBeGreaterThan(0);
+  });
 });
