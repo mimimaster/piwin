@@ -166,4 +166,44 @@ describe('FileTreePanel', () => {
     expect(readmeRow).toBeTruthy();
     expect(srcRow).toBeUndefined();
   });
+
+  it('ArrowDown then Enter opens file via onOpenFile', async () => {
+    const onOpenFile = vi.fn();
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([
+          { name: 'README.md', relativePath: 'README.md', kind: 'file' },
+          { name: 'main.ts', relativePath: 'main.ts', kind: 'file' },
+        ]);
+      }
+      return {
+        id: '1',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request, onOpenFile });
+
+    // Wait for the async list-dir to flush into the DOM.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const list = container.querySelector('[role="tree"]') as HTMLUListElement;
+    expect(list).toBeTruthy();
+
+    act(() => {
+      list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    });
+
+    act(() => {
+      list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+
+    expect(onOpenFile).toHaveBeenCalledTimes(1);
+    expect(onOpenFile).toHaveBeenCalledWith('/proj/README.md', 'README.md');
+  });
 });
