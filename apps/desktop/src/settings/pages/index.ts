@@ -15,6 +15,7 @@ import { SkillsPage } from './skills-page';
 import { ExtensionsPage } from './extensions-page';
 import { PromptsPage } from './prompts-page';
 import { AutomationPage } from './automation-page';
+import { SubagentProfilesPage } from './subagents-page';
 import { PetsPage } from './pets-page';
 import { UsagePage } from './usage-page';
 
@@ -30,5 +31,6 @@ registerSettingsSection('skills', SkillsPage);
 registerSettingsSection('extensions', ExtensionsPage);
 registerSettingsSection('prompts', PromptsPage);
 registerSettingsSection('automation', AutomationPage);
+registerSettingsSection('subagents', SubagentProfilesPage);
 registerSettingsSection('pets', PetsPage);
 registerSettingsSection('usage', UsagePage);

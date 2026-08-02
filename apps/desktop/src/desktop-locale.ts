@@ -76,6 +76,7 @@ export type DesktopTranslator = {
       prompts: string;
       automation: string;
       agents: string;
+      subagents: string;
       pets: string;
       usage: string;
     };
@@ -287,6 +288,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         prompts: isChinese ? 'Prompt 模板' : 'Prompt templates',
         automation: isChinese ? '自动化' : 'Automation',
         agents: isChinese ? 'Agent' : 'Sub-agents',
+        subagents: isChinese ? '子代理配置' : 'Sub-agent profiles',
         pets: isChinese ? '宠物' : 'Companion',
         usage: isChinese ? '用量统计' : 'Usage',
       },

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { HostResponse, SessionSummary } from '@piwin/contracts';
+import type { HostResponse, SessionSummary, SubagentProfile } from '@piwin/contracts';
 import { Button, Notice, Spinner, IconButton } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
@@ -13,6 +13,8 @@ type SubAgentRequest =
       mode?: 'readonly' | 'worktree';
       applyPolicy?: 'none' | 'auto' | 'explicit';
       retainWorktree?: boolean;
+      /** CE-SUB-PROF: profile id resolved from Settings. */
+      profileId?: string;
     }
   | { type: 'session/list-children'; parentSessionId: string }
   | { type: 'session/cancel-subagent'; sessionId: string }
@@ -29,6 +31,8 @@ export type SubAgentPanelProps = {
   variant?: 'drawer' | 'embedded';
   /** Live child list from host pushes; when provided, supersedes local reload. */
   children?: SessionSummary[];
+  /** CE-SUB-PROF: resolved profiles available for selection in the spawn form. */
+  profiles?: SubagentProfile[];
 };
 
 export function SubAgentPanel(props: SubAgentPanelProps) {
@@ -64,6 +68,7 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
   const [task, setTask] = useState('');
   const [mode, setMode] = useState<'readonly' | 'worktree'>('readonly');
   const [applyPolicy, setApplyPolicy] = useState<'none' | 'auto' | 'explicit'>('none');
+  const [profileId, setProfileId] = useState<string>('');
   const [children, setChildren] = useState<SessionSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -102,6 +107,7 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
       mode,
       applyPolicy,
       retainWorktree: false,
+      ...(profileId ? { profileId } : {}),
     });
     setBusy(false);
     if (!response.success) {
@@ -109,6 +115,7 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
       return;
     }
     setTask('');
+    setProfileId('');
     await reload();
   }
 
@@ -219,6 +226,30 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
             />
           </div>
           <div style={{ display: 'flex', gap: '16px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600 }}>
+                {isChinese ? '配置' : 'Profile'}
+              </label>
+              <select
+                value={profileId}
+                onChange={(e) => setProfileId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--line-soft)',
+                  background: 'var(--surface-raised)',
+                  color: 'var(--text)',
+                }}
+              >
+                <option value="">{isChinese ? '无（手动模式）' : 'None (manual mode)'}</option>
+                {(props.profiles ?? []).map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.id} — {profile.description}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600 }}>{copy.mode}</label>
               <select

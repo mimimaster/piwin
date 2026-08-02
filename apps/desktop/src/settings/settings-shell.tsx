@@ -215,6 +215,22 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <path d="M22 2 11 13" />
     </svg>
   ),
+  subagents: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="8" r="3" />
+      <path d="M5 21v-1a7 7 0 0 1 14 0v1" />
+      <path d="M12 11v3" />
+    </svg>
+  ),
   pets: (
     <svg
       width="14"
@@ -325,7 +341,9 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
                 if (!query) return true;
                 const label = translator.settings.nav[item.labelKey]?.toLowerCase() ?? '';
                 const groupLabel = translator.settings[group.labelKey]?.toLowerCase() ?? '';
-                return label.includes(query) || groupLabel.includes(query) || item.id.includes(query);
+                return (
+                  label.includes(query) || groupLabel.includes(query) || item.id.includes(query)
+                );
               });
               if (groupSections.length === 0) return null;
               return (
