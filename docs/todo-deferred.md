@@ -189,7 +189,7 @@
 | CE-HUB-MCP-01..03 | MCP registry cards + install draft | W3 | same | **Partial 2026-07-21** — Configured/Registry tabs + install draft |
 | CE-CRON-01..03 | Cron prompt/bash/http | W3 | same | **Partial 2026-07-21** — Settings Automation UI + prompt cron; bash/http later |
 | CE-HOOK-01..02 | Lifecycle hooks runner | W3 | same | **Partial 2026-07-21** — Settings hooks UI + store; host arm on events residual |
-| CE-TODO-01 | Session todo tool + Execution panel | W3 | same | **Partial 2026-07-21** — todo/get|set IPC + store; tool+panel deferred |
+| CE-TODO-01 | Session todo tool + Execution panel | W3 | same | **Partial 2026-07-21** — todo/get|set IPC + store; tool+panel deferred. **Note 2026-08-03:** PlanCard live progress uses SessionPlan + ADR 0025 (`onPlanUpdated`); do not merge Todo into PlanCard. |
 | CE-SHARE-01 | Local session export MD/HTML | W4 | [`w4-remote-gateway.md`](./specs/w4-remote-gateway.md) | Queued |
 | CE-GW-01..04 | Personal gateway + WebUI + reconnect | W4 | same | Future (ADR first) |
 | CE-TUN-01 | Tunnel manager | W4 | same | Future |
