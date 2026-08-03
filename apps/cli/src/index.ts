@@ -44,8 +44,8 @@ import { pluginSecretRef, type PluginInstallSource } from '@piwin/contracts';
 import { createMediaService } from '@piwin/media';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createCliExtensionUiRequestHandler } from './extension-ui-cli.js';
-import { createJsonlWriter } from './host-serve-jsonl-writer.js';
 import { createHostServeStreamBatcher } from './host-serve-stream-batcher.js';
+import { createJsonlStdioTransport } from './host-serve-transport.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
 import {
   runWalkthroughList,
@@ -312,9 +312,7 @@ async function commandDoctor(): Promise<void> {
   const web = config.web;
   const enabledSources = web?.searchSources?.filter((source) => source.enabled) ?? [];
   const sourceSummary =
-    enabledSources.length === 0
-      ? 'none'
-      : enabledSources.map((source) => source.id).join('+');
+    enabledSources.length === 0 ? 'none' : enabledSources.map((source) => source.id).join('+');
   console.log(
     `- web search: ${web?.searchProvider ?? '(default)'} [${sourceSummary}] strategy=${web?.searchStrategy?.mode ?? 'parallel'}`,
   );
@@ -1997,9 +1995,9 @@ async function commandHostServe(argv: string[]): Promise<void> {
   const mock = parseMock(argv);
   const testFixture = parseHostServeTestFixture(argv);
   const permissionModeOverride = resolvePermissionModeOverride(argv);
-  const writer = createJsonlWriter(process.stdout);
+  const transport = createJsonlStdioTransport();
   const streamBatcher = createHostServeStreamBatcher({
-    write: (message) => writer.write(message),
+    write: (message) => transport.send(message),
   });
   const runtimeOptions: ConstructorParameters<typeof HostRuntime>[0] = {
     mode,
@@ -2016,23 +2014,20 @@ async function commandHostServe(argv: string[]): Promise<void> {
   }
   const runtime = new HostRuntime(runtimeOptions);
 
-  await writer.write({
+  await transport.send({
     type: 'host/status',
     mode: runtime.getMode(),
     ready: true,
     mock,
   });
 
-  const readlineInterface = createInterface({
-    input: process.stdin,
-    crlfDelay: Infinity,
-  });
-
   // ADR 0015: control-lane commands (abort, permission resolve, …) bypass
   // the serialized mutation queue so Stop can reach an in-flight turn.
+  // ADR 0027: dispatcher is transport-agnostic — it takes a `send` function,
+  // so a future WebSocketTransport/GatewayDialTransport reuses it unchanged.
   const dispatcher = createHostServeDispatcher({
     runtime,
-    writer,
+    send: (message) => transport.send(message),
     commandTimeoutMs: 45_000,
   });
 
@@ -2044,7 +2039,7 @@ async function commandHostServe(argv: string[]): Promise<void> {
     shutdownPromise = (async (): Promise<void> => {
       // Stop reading first so EOF and SIGINT cannot admit more commands while
       // the existing command and stream work is being drained.
-      readlineInterface.close();
+      await transport.stop();
       await dispatcher.drain();
       await streamBatcher.flush();
       await runtime.dispose();
@@ -2056,26 +2051,9 @@ async function commandHostServe(argv: string[]): Promise<void> {
     void shutdown().then(() => process.exit(0));
   });
 
-  for await (const line of readlineInterface) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-    let command: HostCommand;
-    try {
-      command = JSON.parse(trimmed) as HostCommand;
-    } catch {
-      await writer.write({
-        type: 'response',
-        command: 'parse',
-        success: false,
-        error: 'invalid JSON command line',
-      });
-      continue;
-    }
-
+  await transport.start((command) => {
     dispatcher.dispatch(command);
-  }
+  });
 
   await shutdown();
 }
@@ -2302,7 +2280,11 @@ async function commandSubagent(argv: string[]): Promise<void> {
         console.error(response.error);
         process.exitCode = 1;
       } else {
-        const result = response.data as { runId: string; status: string; results: Array<{ taskId: string; executionStatus: string; error?: string }> };
+        const result = response.data as {
+          runId: string;
+          status: string;
+          results: Array<{ taskId: string; executionStatus: string; error?: string }>;
+        };
         console.log(`Batch ${result.runId}: ${result.status}`);
         for (const task of result.results) {
           const errorSuffix = task.error ? ` — ${task.error}` : '';
