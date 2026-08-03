@@ -19,7 +19,9 @@ import type {
   WorkerRequestPayload,
   WorkerResponse,
   WorkerToolCallFrame,
+  WorkerToolResultFrame,
 } from '../rpc-sdk-worker-protocol.js';
+import { buildWorkerProxyTools, type ToolProxyCall } from './worker-proxy-tool-factory.js';
 
 /** Minimal Pi-like session surface the worker runtime needs. */
 export type WorkerPiSessionLike = {
@@ -38,6 +40,12 @@ export type CreateWorkerPiSessionInput = {
   productSessionId: string;
   blueprint: SerializableBlueprint;
   providers?: SerializableProviderRuntime[];
+  /**
+   * Proxy tool definitions to register with the Pi session (WP4).
+   * The factory injects these as `customTools` so the model can call them;
+   * their executors call back to the parent via the tool proxy.
+   */
+  proxyTools?: import('../pi-tool-adapter.js').PiCustomToolDefinition[];
 };
 
 export type WorkerSessionRuntimeOptions = {
@@ -47,6 +55,13 @@ export type WorkerSessionRuntimeOptions = {
   createPiSession: (input: CreateWorkerPiSessionInput) => Promise<WorkerPiSessionLike>;
   /** Optional custom event mapper (defaults to the product Pi mapper). */
   eventMapper?: PiSessionEventMapper;
+  /**
+   * When true, the runtime builds proxy tools for the blueprint's
+   * customToolNames and injects them into the Pi session (WP4). The proxy
+   * executor sends a `tool-call` frame via `sendFrame` and awaits the
+   * matching `tool-result` via `handleToolResult`.
+   */
+  enableToolProxy?: boolean;
 };
 
 type RuntimeSession = {
@@ -54,10 +69,18 @@ type RuntimeSession = {
   unsubscribe: () => void;
 };
 
+type PendingToolCall = {
+  resolve: (
+    result: { ok: true; output: string } | { ok: false; code: string; message: string },
+  ) => void;
+  reject: (error: Error) => void;
+};
+
 export class WorkerSessionRuntime {
   private readonly sessions = new Map<string, RuntimeSession>();
   private readonly options: WorkerSessionRuntimeOptions;
   private readonly eventMapper: PiSessionEventMapper;
+  private readonly pendingToolCalls = new Map<string, PendingToolCall>();
 
   constructor(options: WorkerSessionRuntimeOptions) {
     this.options = options;
@@ -114,13 +137,54 @@ export class WorkerSessionRuntime {
       { method: 'session/create'; blueprint: SerializableBlueprint }
     >,
   ): Promise<void> {
+    // Build proxy tools for the blueprint's custom tool names (WP4).
+    // The proxy executor sends a tool-call frame and awaits a tool-result.
+    const proxyTools = this.buildProxyTools(payload.blueprint, payload.productSessionId);
     const handle = await this.options.createPiSession({
       productSessionId: payload.productSessionId,
       blueprint: payload.blueprint,
       ...(payload.providers ? { providers: payload.providers } : {}),
+      ...(proxyTools.length > 0 ? { proxyTools } : {}),
     });
     this.attachSession(payload.productSessionId, handle);
     this.sendResponse(id, true, { sessionId: handle.id });
+  }
+
+  /**
+   * Build proxy tools that call back to the parent via the tool proxy.
+   * Each tool call is correlated by a unique id prefixed with the session id
+   * so `handleDrop` can cancel outstanding calls for a dropped session.
+   */
+  private buildProxyTools(
+    blueprint: SerializableBlueprint,
+    sessionId: string,
+  ): import('../pi-tool-adapter.js').PiCustomToolDefinition[] {
+    if (!this.options.enableToolProxy || blueprint.tools.customToolNames.length === 0) {
+      return [];
+    }
+    return buildWorkerProxyTools(blueprint, (sid, toolName, args, signal) => {
+      const toolCallId = `${sid}|${toolName}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      const frame: WorkerToolCallFrame = {
+        type: 'tool-call',
+        id: toolCallId,
+        sessionId: sid,
+        toolName,
+        args,
+      };
+      this.options.sendFrame(frame);
+      return new Promise((resolve, reject) => {
+        this.pendingToolCalls.set(toolCallId, { resolve, reject });
+        if (signal) {
+          signal.addEventListener('abort', () => {
+            const pending = this.pendingToolCalls.get(toolCallId);
+            if (pending) {
+              this.pendingToolCalls.delete(toolCallId);
+              resolve({ ok: false, code: 'aborted', message: 'tool proxy aborted' });
+            }
+          });
+        }
+      });
+    });
   }
 
   private async handleCreateLegacy(
@@ -196,7 +260,37 @@ export class WorkerSessionRuntime {
       session.unsubscribe();
       this.sessions.delete(payload.sessionId);
     }
+    // Reject any pending tool calls for this session so proxy executors don't hang.
+    for (const [toolCallId, pending] of this.pendingToolCalls) {
+      if (toolCallId.startsWith(`${payload.sessionId}|`)) {
+        this.pendingToolCalls.delete(toolCallId);
+        pending.reject(new Error(`session dropped: ${payload.sessionId}`));
+      }
+    }
     this.sendResponse(id, true, {});
+  }
+
+  /**
+   * Handle a `tool-result` frame from the parent (WP4). Resolves the
+   * pending tool-call promise by correlation id.
+   */
+  handleToolResult(frame: WorkerToolResultFrame): void {
+    const pending = this.pendingToolCalls.get(frame.id);
+    if (!pending) {
+      return;
+    }
+    this.pendingToolCalls.delete(frame.id);
+    if (frame.ok) {
+      const output =
+        typeof frame.result === 'string' ? frame.result : JSON.stringify(frame.result ?? '');
+      pending.resolve({ ok: true, output });
+    } else {
+      pending.resolve({
+        ok: false,
+        code: frame.code ?? 'tool-not-available',
+        message: frame.error ?? 'tool proxy failed',
+      });
+    }
   }
 
   private attachSession(sessionId: string, handle: WorkerPiSessionLike): void {

@@ -67,7 +67,8 @@ export type WorkerToolCallFrame = {
 
 /**
  * Parent → worker: tool call resolution (via stdin response channel).
- * The worker correlates by the frame `id`.
+ * The worker correlates by the frame `id`. The `code` field carries the
+ * stable `HostToolErrorCode` so the worker can map it to model-facing text.
  */
 export type WorkerToolResultFrame = {
   type: 'tool-result';
@@ -75,6 +76,7 @@ export type WorkerToolResultFrame = {
   ok: boolean;
   result?: unknown;
   error?: string;
+  code?: 'tool-not-available' | 'tool-disabled' | 'permission-denied' | 'aborted';
 };
 
 /** Worker → parent: startup handshake advertising protocol/capabilities. */

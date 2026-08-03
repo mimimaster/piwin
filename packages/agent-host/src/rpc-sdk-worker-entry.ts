@@ -11,7 +11,7 @@
  */
 
 import { createInterface } from 'node:readline';
-import type { WorkerRequest } from './rpc-sdk-worker-protocol.js';
+import type { WorkerRequest, WorkerToolResultFrame } from './rpc-sdk-worker-protocol.js';
 import { WorkerSessionRuntime } from './rpc/worker-session-runtime.js';
 import { createWorkerPiSessionFactory } from './rpc/worker-pi-session-factory.js';
 
@@ -30,6 +30,10 @@ writeLine({
 const runtime = new WorkerSessionRuntime({
   sendFrame: (frame) => writeLine(frame),
   createPiSession: createWorkerPiSessionFactory(),
+  // WP4: enable tool proxy so the runtime builds proxy tools for the
+  // blueprint's customToolNames. Proxy executors send tool-call frames
+  // via sendFrame and are resolved by handleToolResult from stdin.
+  enableToolProxy: true,
 });
 
 const rl = createInterface({ input: process.stdin, terminal: false });
@@ -38,7 +42,13 @@ rl.on('line', (line: string) => {
   const trimmed = line.trim();
   if (!trimmed) return;
   try {
-    const request = JSON.parse(trimmed) as WorkerRequest;
+    const parsed = JSON.parse(trimmed) as { type?: string };
+    if (parsed.type === 'tool-result') {
+      // Parent → worker: tool result for a pending proxy call.
+      runtime.handleToolResult(parsed as WorkerToolResultFrame);
+      return;
+    }
+    const request = parsed as WorkerRequest;
     if (request && request.type === 'request' && request.id) {
       void runtime.handleRequest(request).catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);

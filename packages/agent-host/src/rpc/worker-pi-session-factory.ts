@@ -22,6 +22,7 @@ import {
   type PiModelRuntime,
   type PiProviderApi,
 } from '../pi-model-runtime.js';
+import type { PiCustomToolDefinition } from '../pi-tool-adapter.js';
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
@@ -33,6 +34,8 @@ export type WorkerPiSessionFactoryInput = {
   productSessionId: string;
   blueprint: SerializableBlueprint;
   providers?: SerializableProviderRuntime[];
+  /** Proxy tools to register as Pi customTools (WP4). */
+  proxyTools?: PiCustomToolDefinition[];
 };
 
 /** Options for the factory builder. */
@@ -101,7 +104,10 @@ export function registerWorkerProviders(
 ): void {
   for (const provider of providers) {
     const apiKey = resolveWorkerProviderApiKey(provider);
-    modelRuntime.registerProvider(provider.providerId, buildWorkerProviderRegistration(provider, apiKey));
+    modelRuntime.registerProvider(
+      provider.providerId,
+      buildWorkerProviderRegistration(provider, apiKey),
+    );
   }
 }
 
@@ -176,10 +182,8 @@ export function createWorkerPiSessionFactory(
   const agentDir = options.agentDir ?? join(homedir(), '.pi', 'agent');
 
   return async (input) => {
-    const piModule =
-      options.piModule ?? (await import('@earendil-works/pi-coding-agent'));
-    const createAgentSession = (piModule as { createAgentSession?: unknown })
-      .createAgentSession;
+    const piModule = options.piModule ?? (await import('@earendil-works/pi-coding-agent'));
+    const createAgentSession = (piModule as { createAgentSession?: unknown }).createAgentSession;
     if (typeof createAgentSession !== 'function') {
       throw new Error('createAgentSession export missing from @earendil-works/pi-coding-agent');
     }
@@ -193,7 +197,8 @@ export function createWorkerPiSessionFactory(
     );
 
     const modelRuntime =
-      options.modelRuntime ?? (await createWorkerModelRuntime(piModule as Record<string, unknown>, agentDir));
+      options.modelRuntime ??
+      (await createWorkerModelRuntime(piModule as Record<string, unknown>, agentDir));
     if (providers && providers.length > 0) {
       registerWorkerProviders(modelRuntime, providers);
     }
@@ -205,6 +210,12 @@ export function createWorkerPiSessionFactory(
       resourceLoader,
       modelRuntime,
     };
+
+    // Inject proxy tools as Pi customTools (WP4). The worker does NOT
+    // import tool executors — proxy tools call back to the parent.
+    if (input.proxyTools && input.proxyTools.length > 0) {
+      sessionOptions.customTools = input.proxyTools;
+    }
 
     // Apply model override from the blueprint (parent-compiled).
     if (blueprint.model) {
@@ -252,7 +263,10 @@ export function createWorkerPiSessionFactory(
 /** Pi session shape we need from `createAgentSession` inside the worker. */
 type WorkerPiSessionHandle = {
   sessionId?: string;
-  prompt: (text: string, options?: { images?: Array<{ data: string; mimeType: string }> }) => Promise<void>;
+  prompt: (
+    text: string,
+    options?: { images?: Array<{ data: string; mimeType: string }> },
+  ) => Promise<void>;
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;
   abort?: () => Promise<void>;
