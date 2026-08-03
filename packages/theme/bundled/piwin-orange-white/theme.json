@@ -5,7 +5,7 @@
   "description": "Daybreak warm paper field with tangerine accent for piwin shell + artifacts",
   "mode": "light",
   "tokens": {
-    "bg": "#f7f3ed",
+    "bg": "#fffdfa",
     "panel": "#fffdfa",
     "panel2": "#f2ede5",
     "border": "rgba(80, 60, 40, 0.10)",
