@@ -15,6 +15,11 @@
       "types": "./src/derive-default-name.ts",
       "import": "./src/derive-default-name.ts",
       "default": "./src/derive-default-name.ts"
+    },
+    "./session-display-name": {
+      "types": "./src/session-display-name.ts",
+      "import": "./src/session-display-name.ts",
+      "default": "./src/session-display-name.ts"
     }
   },
   "scripts": {

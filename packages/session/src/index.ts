@@ -24,6 +24,13 @@ export type {
 export { createSubagentRunStore } from './subagent-run-store.js';
 export type { SubagentRunStore, SubagentRunManifest, SubagentRunStoreOptions } from './subagent-run-store.js';
 export { deriveDefaultNameFromMessage } from './derive-default-name.js';
+export {
+  filterListableSessions,
+  isPlaceholderSessionName,
+  sessionHasListName,
+} from './session-display-name.js';
+export type { SessionNameFields, SessionNameSource } from './session-display-name.js';
+
 
 export {
   buildDuplicateSessionName,

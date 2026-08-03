@@ -69,5 +69,23 @@ describe('message-store', () => {
     expect(result.remainingCount).toBe(2);
     const messages = await listTranscriptMessages(filePath);
     expect(messages.map((item) => item.id)).toEqual(['u1', 'a1']);
+    expect(result.found).toBe(true);
+  });
+
+  it('reports found=false when messageId is missing without rewriting', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-msg-store-miss-'));
+    const filePath = join(dir, 'transcript.json');
+    await appendTranscriptMessage(
+      filePath,
+      's1',
+      '/tmp/proj',
+      createUserTranscriptMessage({ id: 'u1', text: 'one' }),
+    );
+    const result = await truncateTranscriptFrom(filePath, 'missing-id');
+    expect(result.found).toBe(false);
+    expect(result.removedCount).toBe(0);
+    expect(result.remainingCount).toBe(1);
+    const messages = await listTranscriptMessages(filePath);
+    expect(messages.map((item) => item.id)).toEqual(['u1']);
   });
 });

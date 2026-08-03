@@ -222,14 +222,20 @@ export function appendToolCard(
 export async function truncateTranscriptFrom(
   filePath: string,
   messageId: string,
-): Promise<{ removedCount: number; remainingCount: number; document: SessionTranscriptDocument | null }> {
+): Promise<{
+  found: boolean;
+  removedCount: number;
+  remainingCount: number;
+  document: SessionTranscriptDocument | null;
+}> {
   const document = await loadSessionTranscript(filePath);
   if (!document) {
-    return { removedCount: 0, remainingCount: 0, document: null };
+    return { found: false, removedCount: 0, remainingCount: 0, document: null };
   }
   const cutIndex = document.messages.findIndex((item) => item.id === messageId);
   if (cutIndex === -1) {
     return {
+      found: false,
       removedCount: 0,
       remainingCount: document.messages.length,
       document,
@@ -240,6 +246,7 @@ export async function truncateTranscriptFrom(
   document.updatedAt = nowIso();
   await saveSessionTranscript(filePath, document);
   return {
+    found: true,
     removedCount,
     remainingCount: document.messages.length,
     document,
