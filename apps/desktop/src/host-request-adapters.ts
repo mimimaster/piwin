@@ -30,7 +30,9 @@ export type HostRequestAdapters = {
       | 'web/test-search-source'
       | 'project/permissions-list'
       | 'project/permissions-revoke'
-      | 'usage/get-rollup';
+      | 'usage/get-rollup'
+      | 'session/runtime-status'
+      | 'session/reload-runtime';
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
     apiKey?: string;
@@ -43,6 +45,9 @@ export type HostRequestAdapters = {
     projectPath?: string;
     window?: { from?: string; to?: string };
     topSessions?: number;
+    sessionId?: string;
+    expectedSettingsRevision?: string;
+    when?: 'now' | 'after-current-run';
     input?:
       | import('@piwin/contracts').ModelCatalogSearchRequest
       | import('@piwin/contracts').VisionDelegateInput;
@@ -341,6 +346,28 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         if (command.window) payload.window = command.window;
         if (command.topSessions !== undefined) payload.topSessions = command.topSessions;
         return hostClient.request(payload);
+      }
+      if (command.type === 'session/runtime-status') {
+        return hostClient.request({
+          type: 'session/runtime-status',
+          sessionId: command.sessionId ?? '',
+        });
+      }
+      if (command.type === 'session/reload-runtime') {
+        if (!command.sessionId || !command.expectedSettingsRevision) {
+          return {
+            type: 'response',
+            command: 'session/reload-runtime',
+            success: false,
+            error: 'sessionId and expectedSettingsRevision are required',
+          };
+        }
+        return hostClient.request({
+          type: 'session/reload-runtime',
+          sessionId: command.sessionId,
+          expectedSettingsRevision: command.expectedSettingsRevision,
+          when: command.when ?? 'now',
+        });
       }
       if (!command.config) {
         return {
