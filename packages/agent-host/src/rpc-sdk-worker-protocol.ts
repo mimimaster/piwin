@@ -1,14 +1,22 @@
 /**
- * CE-SUB-ORCH: JSONL protocol for the piwin-owned isolated SDK worker.
+ * CE-SUB-ORCH / Phase 7: JSONL protocol for the piwin-owned isolated SDK worker.
  *
  * The worker runs as a child process (Node.js) with stdin/stdout JSONL.
  * The parent (worker client) owns the child process, request map, abort
  * propagation, exit handling, and cleanup. The worker maps Pi-native
  * events to normalized `AgentEvent` before emission — Pi-native payloads
  * never cross the parent boundary.
+ *
+ * Phase 7 plan §4: custom tool execution is proxied to the parent Host via
+ * `tool-call` / `tool-result` frames. The worker never re-implements web,
+ * MCP, process, browser, notes, flashcards, or image generation executors.
  */
 
 import type { AgentEvent } from '@piwin/contracts';
+import type {
+  SerializableBlueprint,
+  SerializableProviderRuntime,
+} from './rpc/serializable-blueprint.js';
 
 /** Worker request methods. */
 export type WorkerRequestMethod =
@@ -43,13 +51,60 @@ export type WorkerEvent = {
   event: AgentEvent;
 };
 
+/**
+ * Worker → parent: a custom tool invocation that requires parent authority
+ * (permission/MCP/process/browser/secrets). Phase 7 plan §7.
+ */
+export type WorkerToolCallFrame = {
+  type: 'tool-call';
+  id: string;
+  sessionId: string;
+  toolName: string;
+  args: unknown;
+  /** Optional parent-side abort correlation id. */
+  signalId?: string;
+};
+
+/**
+ * Parent → worker: tool call resolution (via stdin response channel).
+ * The worker correlates by the frame `id`.
+ */
+export type WorkerToolResultFrame = {
+  type: 'tool-result';
+  id: string;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+};
+
+/** Worker → parent: startup handshake advertising protocol/capabilities. */
+export type WorkerHelloFrame = {
+  type: 'hello';
+  protocolVersion: 1;
+  workerPid: number;
+  capabilities: {
+    toolProxy: true;
+    steer: true;
+    followUp: true;
+    preparedPrompt: true;
+  };
+};
+
 /** Union of all worker → parent frames. */
-export type WorkerFrame = WorkerResponse | WorkerEvent;
+export type WorkerFrame = WorkerResponse | WorkerEvent | WorkerToolCallFrame | WorkerHelloFrame;
 
 /** Payload variants for worker requests. */
 export type WorkerRequestPayload =
   | {
       method: 'session/create';
+      /** Blueprint-first product path (Phase 7). */
+      productSessionId: string;
+      blueprint: SerializableBlueprint;
+      providers?: SerializableProviderRuntime[];
+    }
+  | {
+      method: 'session/create';
+      /** Legacy subagent-task path (isolated task runner). */
       projectPath: string;
       workingDirectory: string;
       profileId?: string;
@@ -64,7 +119,12 @@ export type WorkerRequestPayload =
   | {
       method: 'session/prompt';
       sessionId: string;
+      /** Prepared prompt text (parent owns PromptPreparation; no path injection). */
       text: string;
+      /** Native image content parts (base64 over stdio). */
+      images?: Array<{ mimeType: string; dataBase64: string }>;
+      thinkingLevel?: string;
+      model?: { providerId: string; modelId: string };
     }
   | {
       method: 'session/abort';
@@ -95,6 +155,16 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
       }
       if (parsed.type === 'event' && typeof parsed.sessionId === 'string') {
         return parsed as WorkerEvent;
+      }
+      if (
+        parsed.type === 'tool-call' &&
+        typeof parsed.id === 'string' &&
+        typeof parsed.toolName === 'string'
+      ) {
+        return parsed as WorkerToolCallFrame;
+      }
+      if (parsed.type === 'hello' && parsed.protocolVersion === 1) {
+        return parsed as WorkerHelloFrame;
       }
     }
     return undefined;
