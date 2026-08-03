@@ -20,19 +20,48 @@ describe('assertSafeFetchUrl DNS', () => {
   });
 
   it('allows hostnames that resolve to public IPs', async () => {
-    const url = await assertSafeFetchUrl(
-      'https://example.com/',
-      [],
-      async () => ['93.184.216.34'],
-    );
+    const url = await assertSafeFetchUrl('https://example.com/', [], async () => ['93.184.216.34']);
     expect(url).toContain('example.com');
   });
 });
 
 describe('webFetch', () => {
+  it('uses a host-resolved Firecrawl credential without an environment variable', async () => {
+    const previousKey = process.env.FIRECRAWL_API_KEY;
+    delete process.env.FIRECRAWL_API_KEY;
+    let authorizationHeader = '';
+    try {
+      const result = await webFetch('https://example.com/article', {
+        apiKey: 'keychain-firecrawl-secret',
+        fetchImpl: async (_input, init) => {
+          authorizationHeader = String(
+            (init?.headers as Record<string, string> | undefined)?.Authorization ?? '',
+          );
+          return new Response(
+            JSON.stringify({
+              success: true,
+              data: { markdown: '# Article\nBody', metadata: { title: 'Article' } },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        },
+        config: {
+          fetchProvider: 'firecrawl',
+          fetchApiKeyRef: 'keychain:piwin-web-fetch-firecrawl',
+          fetchBlockedUrlPrefixes: [],
+        },
+      });
+      expect(authorizationHeader).toBe('Bearer keychain-firecrawl-secret');
+      expect(result.title).toBe('Article');
+    } finally {
+      if (previousKey !== undefined) {
+        process.env.FIRECRAWL_API_KEY = previousKey;
+      }
+    }
+  });
+
   it('extracts text from html via mock fetch', async () => {
-    const html =
-      '<html><head><title>Hello</title></head><body><p>World article</p></body></html>';
+    const html = '<html><head><title>Hello</title></head><body><p>World article</p></body></html>';
     const result = await webFetch('https://example.com/post', {
       fetchImpl: async () =>
         new Response(html, {

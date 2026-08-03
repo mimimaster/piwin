@@ -3,25 +3,22 @@ import type { SearchHit, WebSearchSource } from '@piwin/contracts';
 
 export type SearchProvider = {
   id: string;
-  search(
-    query: string,
-    options: { limit: number; signal?: AbortSignal },
-  ): Promise<SearchHit[]>;
+  search(query: string, options: { limit: number; signal?: AbortSignal }): Promise<SearchHit[]>;
 };
 
 /**
  * Build a SearchProvider for one configured source.
  * Throws only on misconfiguration; network failures surface from search().
  */
-export function createProviderForSource(source: WebSearchSource): SearchProvider {
+export function createProviderForSource(source: WebSearchSource, apiKey?: string): SearchProvider {
   if (source.kind === 'duckduckgo') {
     return createDuckDuckGoProvider(source.id);
   }
   if (source.kind === 'brave') {
-    return createBraveProvider(source);
+    return createBraveProvider(source, apiKey);
   }
   if (source.kind === 'tavily') {
-    return createTavilyProvider(source);
+    return createTavilyProvider(source, apiKey);
   }
   if (source.kind === 'searxng') {
     return createSearxngProvider(source);
@@ -29,16 +26,14 @@ export function createProviderForSource(source: WebSearchSource): SearchProvider
   return createCliProvider(source);
 }
 
-function createBraveProvider(source: WebSearchSource): SearchProvider {
+function createBraveProvider(source: WebSearchSource, runtimeApiKey?: string): SearchProvider {
   const apiKeyEnv = source.apiKeyEnv?.trim() || 'BRAVE_API_KEY';
   return {
     id: source.id,
     async search(query, options) {
-      const apiKey = process.env[apiKeyEnv] ?? process.env.BRAVE_API_KEY;
+      const apiKey = runtimeApiKey ?? process.env[apiKeyEnv] ?? process.env.BRAVE_API_KEY;
       if (!apiKey) {
-        throw new Error(
-          `Missing API key env ${apiKeyEnv} (or BRAVE_API_KEY) for Brave Search`,
-        );
+        throw new Error(`Missing API key env ${apiKeyEnv} (or BRAVE_API_KEY) for Brave Search`);
       }
       const url = new URL('https://api.search.brave.com/res/v1/web/search');
       url.searchParams.set('q', query);
@@ -71,16 +66,14 @@ function createBraveProvider(source: WebSearchSource): SearchProvider {
   };
 }
 
-function createTavilyProvider(source: WebSearchSource): SearchProvider {
+function createTavilyProvider(source: WebSearchSource, runtimeApiKey?: string): SearchProvider {
   const apiKeyEnv = source.apiKeyEnv?.trim() || 'TAVILY_API_KEY';
   return {
     id: source.id,
     async search(query, options) {
-      const apiKey = process.env[apiKeyEnv] ?? process.env.TAVILY_API_KEY;
+      const apiKey = runtimeApiKey ?? process.env[apiKeyEnv] ?? process.env.TAVILY_API_KEY;
       if (!apiKey) {
-        throw new Error(
-          `Missing API key env ${apiKeyEnv} (or TAVILY_API_KEY) for Tavily`,
-        );
+        throw new Error(`Missing API key env ${apiKeyEnv} (or TAVILY_API_KEY) for Tavily`);
       }
       const requestInit: RequestInit = {
         method: 'POST',
@@ -181,11 +174,7 @@ function createCliProvider(source: WebSearchSource): SearchProvider {
   };
 }
 
-function runCliCapture(
-  command: string,
-  argv: string[],
-  signal?: AbortSignal,
-): Promise<string> {
+function runCliCapture(command: string, argv: string[], signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, argv, {
       shell: false,
@@ -266,9 +255,7 @@ function parseCliSearchHits(stdout: string, sourceId: string, limit: number): Se
     if (!title || !url) continue;
     const snippet = typeof record.snippet === 'string' ? record.snippet : '';
     const source =
-      typeof record.source === 'string' && record.source.trim()
-        ? record.source.trim()
-        : sourceId;
+      typeof record.source === 'string' && record.source.trim() ? record.source.trim() : sourceId;
     hits.push({ title, url, snippet, source });
     if (hits.length >= max) break;
   }
