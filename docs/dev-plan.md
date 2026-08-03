@@ -26,10 +26,16 @@ live Agent Runtime 的统一改造，以以下 Spec 为执行权威：
 
 - [`docs/specs/settings-capability-runtime-refactor.md`](./specs/settings-capability-runtime-refactor.md)
 
+Phase 7（RPC worker 对等）的深入可执行计划：
+
+- [`docs/specs/phase7-rpc-worker-parity-plan.md`](./specs/phase7-rpc-worker-parity-plan.md)
+
 该计划优先于在现有 `sdk-adapter.ts` / `host-runtime.ts` 上继续添加零散开关判断。
 实施顺序固定为：版本化 Settings 控制面 → Resource/Trust → Capability/Tool
 Manifest → Prompt Preparation → Runtime 生效语义 → Settings 产品整合 → RPC
-worker 对等。各阶段必须完成旧路径删除门槛后才算结束。
+worker 对等。各阶段必须完成旧路径删除门槛后才算结束。Phase 7 必须按
+deep plan 的 WP0–WP7 顺序推进，且仅在 conformance 全绿后删除 SDK fallback /
+stock RPC 路径。
 
 ---
 
