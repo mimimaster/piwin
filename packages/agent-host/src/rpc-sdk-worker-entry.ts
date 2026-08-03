@@ -1,85 +1,51 @@
 /**
- * CE-SUB-ORCH: worker entry point for the piwin-owned isolated SDK worker.
+ * Phase 7: worker entry point for the piwin-owned isolated SDK worker.
  *
  * Runs inside a child process. Reads JSONL requests on stdin, writes
  * responses/events to stdout, and sends diagnostics to stderr (no secrets).
- * Creates a PiSdkAdapter and session services inside the child process.
  *
- * This entry is intentionally minimal: it wires the existing PiSdkAdapter
- * to the JSONL protocol. The parent (RpcSdkWorkerClient) owns the process.
+ * The worker does NOT load `~/.piwin/config.json` for capability decisions;
+ * it receives exact SerializableBlueprint per session (Phase 7 plan §5).
+ * Custom tool execution is proxied to the parent (WP4); this entry wires the
+ * session runtime and streams normalized AgentEvent only.
  */
 
 import { createInterface } from 'node:readline';
-import {
-  serializeWorkerRequest,
-  type WorkerRequest,
-  type WorkerResponse,
-} from './rpc-sdk-worker-protocol.js';
+import type { WorkerRequest } from './rpc-sdk-worker-protocol.js';
+import { WorkerSessionRuntime } from './rpc/worker-session-runtime.js';
+import { createWorkerPiSessionFactory } from './rpc/worker-pi-session-factory.js';
 
-// Worker entry: read JSONL from stdin, process, write JSONL to stdout.
+function writeLine(frame: unknown): void {
+  process.stdout.write(`${JSON.stringify(frame)}\n`);
+}
+
+// Startup handshake (Phase 7 plan §4.1).
+writeLine({
+  type: 'hello',
+  protocolVersion: 1,
+  workerPid: process.pid,
+  capabilities: { toolProxy: true, steer: true, followUp: true, preparedPrompt: true },
+});
+
+const runtime = new WorkerSessionRuntime({
+  sendFrame: (frame) => writeLine(frame),
+  createPiSession: createWorkerPiSessionFactory(),
+});
+
 const rl = createInterface({ input: process.stdin, terminal: false });
 
-function send(frame: WorkerResponse): void {
-  process.stdout.write(JSON.stringify(frame) + '\n');
-}
-
-function sendError(id: string, message: string): void {
-  send({ type: 'response', id, success: false, error: message });
-}
-
-async function handleRequest(request: WorkerRequest): Promise<void> {
-  const { id, method, payload } = request;
-  try {
-    switch (method) {
-      case 'session/create': {
-        // TODO: Create a PiSdkAdapter session inside this process.
-        // For now, return a stub session id. The real implementation will
-        // call createPiSdkSession with the payload fields.
-        const sessionId = `worker-session-${id.slice(0, 8)}`;
-        send({ type: 'response', id, success: true, data: { sessionId } });
-        break;
-      }
-      case 'session/prompt': {
-        // TODO: Prompt the session and stream events.
-        send({ type: 'response', id, success: true, data: {} });
-        break;
-      }
-      case 'session/abort': {
-        // TODO: Abort the running prompt.
-        send({ type: 'response', id, success: true, data: {} });
-        break;
-      }
-      case 'session/steer': {
-        // TODO: Steer the in-flight run with a new user message.
-        send({ type: 'response', id, success: true, data: {} });
-        break;
-      }
-      case 'session/follow-up': {
-        // TODO: Follow up on the completed run.
-        send({ type: 'response', id, success: true, data: {} });
-        break;
-      }
-      case 'session/drop': {
-        // TODO: Clean up the session.
-        send({ type: 'response', id, success: true, data: {} });
-        break;
-      }
-      default:
-        sendError(id, `unknown method: ${method}`);
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    sendError(id, message);
-  }
-}
-
 rl.on('line', (line: string) => {
+  const trimmed = line.trim();
+  if (!trimmed) return;
   try {
-    const request = JSON.parse(line) as WorkerRequest;
+    const request = JSON.parse(trimmed) as WorkerRequest;
     if (request && request.type === 'request' && request.id) {
-      void handleRequest(request);
+      void runtime.handleRequest(request).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        process.stderr.write(`[worker] handler error: ${message}\n`);
+      });
     } else {
-      process.stderr.write(`[worker] malformed request: ${line}\n`);
+      process.stderr.write(`[worker] malformed request frame\n`);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -91,5 +57,4 @@ rl.on('close', () => {
   process.exit(0);
 });
 
-// Keep the process alive until stdin closes.
 process.stdin.resume();
