@@ -16,6 +16,7 @@ import type {
 } from '@piwin/contracts';
 import { formatTextModelImageInjection } from '@piwin/contracts';
 import { findEnabledProvider, resolveDefaultModelRef } from './provider-helpers.js';
+import { buildProviderRequestHeaders } from './provider-model-discovery.js';
 
 export const DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT =
   'Describe this image in detail for a coding agent. Include text in the image verbatim.';
@@ -164,14 +165,12 @@ async function describeOpenAiCompatible(params: {
   signal: AbortSignal;
   fetchImpl: typeof fetch;
 }): Promise<string> {
-  const url = `${params.provider.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const url = buildOpenAiCompatibleChatCompletionsUrl(params.provider.baseUrl);
+  const headers = await buildProviderRequestHeaders(params.provider, async () => params.apiKey);
+  headers.set('content-type', 'application/json');
   const response = await params.fetchImpl(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${params.apiKey}`,
-      ...params.provider.headers,
-    },
+    headers,
     signal: params.signal,
     body: JSON.stringify({
       model: params.modelId,
@@ -190,10 +189,11 @@ async function describeOpenAiCompatible(params: {
       ],
       max_tokens: 1024,
       temperature: 0.2,
+      stream: false,
     }),
   });
   if (!response.ok) {
-    throw new Error(`vision delegation failed (${response.status} ${response.statusText})`);
+    throw await createVisionDelegationHttpError(response);
   }
   const data = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
@@ -215,15 +215,12 @@ async function describeAnthropicCompatible(params: {
   signal: AbortSignal;
   fetchImpl: typeof fetch;
 }): Promise<string> {
-  const url = `${params.provider.baseUrl.replace(/\/+$/, '')}/messages`;
+  const url = buildAnthropicMessagesUrl(params.provider.baseUrl);
+  const headers = await buildProviderRequestHeaders(params.provider, async () => params.apiKey);
+  headers.set('content-type', 'application/json');
   const response = await params.fetchImpl(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': params.apiKey,
-      'anthropic-version': '2023-06-01',
-      ...params.provider.headers,
-    },
+    headers,
     signal: params.signal,
     body: JSON.stringify({
       model: params.modelId,
@@ -248,7 +245,7 @@ async function describeAnthropicCompatible(params: {
     }),
   });
   if (!response.ok) {
-    throw new Error(`vision delegation failed (${response.status} ${response.statusText})`);
+    throw await createVisionDelegationHttpError(response);
   }
   const data = (await response.json()) as {
     content?: Array<{ type: string; text?: string }>;
@@ -272,13 +269,11 @@ async function describeGoogleGemini(params: {
 }): Promise<string> {
   const base = params.provider.baseUrl.replace(/\/+$/, '');
   const url = `${base}/models/${encodeURIComponent(params.modelId)}:generateContent`;
+  const headers = await buildProviderRequestHeaders(params.provider, async () => params.apiKey);
+  headers.set('content-type', 'application/json');
   const response = await params.fetchImpl(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': params.apiKey,
-      ...params.provider.headers,
-    },
+    headers,
     signal: params.signal,
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: params.systemPrompt }] },
@@ -295,7 +290,7 @@ async function describeGoogleGemini(params: {
     }),
   });
   if (!response.ok) {
-    throw new Error(`vision delegation failed (${response.status} ${response.statusText})`);
+    throw await createVisionDelegationHttpError(response);
   }
   const data = (await response.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -308,6 +303,87 @@ async function describeGoogleGemini(params: {
     throw new Error('vision delegation returned empty description');
   }
   return text;
+}
+
+function buildOpenAiCompatibleChatCompletionsUrl(baseUrl: string): string {
+  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '');
+  return normalizedBaseUrl.endsWith('/v1')
+    ? `${normalizedBaseUrl}/chat/completions`
+    : `${normalizedBaseUrl}/v1/chat/completions`;
+}
+
+function buildAnthropicMessagesUrl(baseUrl: string): string {
+  const normalizedBaseUrl = baseUrl.trim().replace(/\/+$/, '');
+  return normalizedBaseUrl.endsWith('/v1')
+    ? `${normalizedBaseUrl}/messages`
+    : `${normalizedBaseUrl}/v1/messages`;
+}
+
+async function createVisionDelegationHttpError(response: Response): Promise<Error> {
+  const responseBody = await response.text();
+  const providerMessage = extractProviderErrorMessage(responseBody);
+  const statusText = response.statusText || 'request rejected';
+  const detail = providerMessage ? `: ${providerMessage}` : '';
+  return new Error(`vision delegation failed (${response.status} ${statusText})${detail}`);
+}
+
+function extractProviderErrorMessage(responseBody: string): string | undefined {
+  const normalizedBody = responseBody.trim();
+  if (!normalizedBody) {
+    return undefined;
+  }
+
+  try {
+    const parsedBody: unknown = JSON.parse(normalizedBody);
+    const parsedMessage = readProviderMessage(parsedBody);
+    if (parsedMessage) {
+      return parsedMessage;
+    }
+  } catch {
+    // Some gateways return plain text for errors. The compacted body below is
+    // still useful and is bounded so a proxy cannot flood the settings toast.
+  }
+
+  return compactProviderErrorMessage(normalizedBody);
+}
+
+function readProviderMessage(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    return compactProviderErrorMessage(value);
+  }
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const directMessage = value.message;
+  if (typeof directMessage === 'string' && directMessage.trim()) {
+    return compactProviderErrorMessage(directMessage);
+  }
+
+  const errorValue = value.error;
+  if (typeof errorValue === 'string') {
+    return compactProviderErrorMessage(errorValue);
+  }
+  if (isRecord(errorValue)) {
+    const nestedMessage = errorValue.message;
+    if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+      return compactProviderErrorMessage(nestedMessage);
+    }
+  }
+
+  return undefined;
+}
+
+function compactProviderErrorMessage(message: string): string | undefined {
+  const compactedMessage = message.replace(/\s+/g, ' ').trim();
+  if (!compactedMessage) {
+    return undefined;
+  }
+  return compactedMessage.slice(0, 500);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 /** In-memory LRU for successful vision descriptions. */

@@ -10,6 +10,7 @@ export function indexRecordToSummary(
     | 'scope'
     | 'workingDirectory'
     | 'name'
+    | 'nameSource'
     | 'updatedAt'
     | 'messageCount'
     | 'lastPreview'
@@ -44,6 +45,7 @@ export function indexRecordToSummary(
     messageCount: record.messageCount,
   };
   if (record.name) summary.name = record.name;
+  if (record.nameSource) summary.nameSource = record.nameSource;
   if (record.lastPreview) summary.lastPreview = record.lastPreview;
   if (record.parentSessionId) summary.parentSessionId = record.parentSessionId;
   if (typeof record.depth === 'number') summary.depth = record.depth;

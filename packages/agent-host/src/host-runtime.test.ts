@@ -1,8 +1,8 @@
-import { mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { MediaSaveData } from '@piwin/contracts';
+import type { HostPush, MediaSaveData } from '@piwin/contracts';
 import {
   allowNetworkFetchHost,
   allowNetworkWebSearch,
@@ -18,6 +18,72 @@ import {
 import { getSessionRecord, listSessionsForProject } from '@piwin/session';
 
 describe('HostRuntime', () => {
+  it('ADR 0027: fans out pushes to multiple sinks and isolates sink errors', async () => {
+    const legacyPushes: string[] = [];
+    const remotePushes: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      onPush: (message) => {
+        legacyPushes.push(message.type);
+      },
+    });
+
+    // Attach a second sink (the remote gateway connector seam).
+    const detach = runtime.attachPushSink({
+      id: 'remote-test',
+      push: (message) => {
+        remotePushes.push(message.type);
+      },
+    });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'hello multi-sink' },
+    });
+    expect(prompted, JSON.stringify(prompted)).toMatchObject({ success: true });
+
+    // Both sinks see the same event stream.
+    expect(legacyPushes).toContain('event');
+    expect(remotePushes).toContain('event');
+    expect(remotePushes).toEqual(legacyPushes);
+
+    // Detach the remote sink; the legacy sink keeps working.
+    detach();
+    runtime.detachPushSink('remote-test');
+    remotePushes.length = 0;
+    legacyPushes.length = 0;
+
+    await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'after detach' },
+    });
+    expect(legacyPushes).toContain('event');
+    expect(remotePushes).toEqual([]);
+
+    // The legacy sink id cannot be removed via detachPushSink.
+    runtime.detachPushSink('local-sidecar');
+    legacyPushes.length = 0;
+    await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'legacy stays' },
+    });
+    expect(legacyPushes).toContain('event');
+
+    await runtime.dispose();
+  });
+
   it('handles ping and mock session prompt', async () => {
     const pushes: string[] = [];
     const runtime = new HostRuntime({
@@ -991,6 +1057,79 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('stop resolves a pending extension UI request and emits a terminal event', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-extui-stop-'));
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      testFixture: 'hang-until-abort',
+      onPush: (message) => pushes.push(message),
+    });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/extui-stop-project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'start a cancellable run' },
+    });
+    expect(prompted.success).toBe(true);
+    if (!prompted.success) throw new Error(prompted.error);
+    const runId = (prompted.data as { runId: string }).runId;
+
+    const pendingUi = runtime.requestExtensionUi({
+      sessionId,
+      requestId: 'ext-stop-1',
+      kind: 'select',
+      title: 'Choose an option',
+      options: ['one', 'two'],
+    });
+
+    const aborted = await runtime.handleCommand({
+      type: 'session/abort',
+      sessionId,
+      runId,
+    });
+    expect(aborted).toMatchObject({
+      success: true,
+      data: { cancelled: true, runId },
+    });
+    await expect(pendingUi).resolves.toEqual({ kind: 'select', cancelled: true });
+
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const terminal = pushes.find(
+        (push) =>
+          push.type === 'event' &&
+          push.sessionId === sessionId &&
+          push.event.type === 'run/terminal' &&
+          push.event.runId === runId,
+      );
+      if (terminal) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    expect(
+      pushes.some(
+        (push) =>
+          push.type === 'event' &&
+          push.sessionId === sessionId &&
+          push.event.type === 'run/terminal' &&
+          push.event.runId === runId &&
+          push.event.outcome === 'cancelled',
+      ),
+    ).toBe(true);
+
+    await runtime.dispose();
+  });
+
   it('cron/run respects automation.enabled and cronEnabled gates', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-cron-gate-'));
     const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
@@ -1098,8 +1237,16 @@ describe('HostRuntime', () => {
       ).data.sessions.some((item) => item.id === sessionId && item.isArchived === true),
     ).toBe(true);
 
+    // Seed session media vault — permanent delete must remove it with the session.
+    const mediaSessionDir = join(rootDir, 'media', sessionId);
+    await mkdir(mediaSessionDir, { recursive: true });
+    await writeFile(join(mediaSessionDir, 'seed.png'), Buffer.from('png'));
+    expect((await stat(join(mediaSessionDir, 'seed.png'))).isFile()).toBe(true);
+
     const deleted = await runtime.handleCommand({ type: 'session/delete', sessionId });
     expect(deleted.success).toBe(true);
+
+    await expect(stat(mediaSessionDir)).rejects.toMatchObject({ code: 'ENOENT' });
 
     const finalList = await runtime.handleCommand({
       type: 'session/list',

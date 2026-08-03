@@ -174,4 +174,43 @@ describe('TranscriptRecorder', () => {
     expect(output).toContain('[output truncated: retention limit reached]');
     expect(Buffer.byteLength(output ?? '', 'utf8')).toBeLessThanOrEqual(64);
   });
+
+  it('dispose abandons pending flushes so truncate cannot be overwritten', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-recorder-dispose-'));
+    const transcriptPath = join(rootDir, 'transcript.json');
+    const recorder = createTranscriptRecorder({
+      transcriptPath,
+      sessionId: 'session-1',
+      projectPath: '/tmp/project',
+      flushIntervalMs: 60_000,
+    });
+
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-1',
+      role: 'assistant',
+    });
+    await recorder.recordEvent({
+      type: 'message/text_delta',
+      messageId: 'assistant-1',
+      delta: 'stale',
+    });
+    // Simulate truncate: external writer cut the file, then dispose the old recorder.
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(
+      transcriptPath,
+      JSON.stringify({
+        version: 1,
+        sessionId: 'session-1',
+        projectPath: '/tmp/project',
+        messages: [],
+        updatedAt: new Date().toISOString(),
+      }),
+      'utf8',
+    );
+    recorder.dispose();
+    await recorder.flush();
+
+    expect(await listTranscriptMessages(transcriptPath)).toEqual([]);
+  });
 });

@@ -51,8 +51,10 @@ import { createCardStore } from '@piwin/flashcards';
 import { buildFlashcardTools } from './flashcard-tools.js';
 import { createBrowserToolDefinitions } from './browser-tools.js';
 import { createSecretResolver } from './secret-resolver.js';
+import { resolveWebRuntimeCredentials } from './web-credentials.js';
 import {
   buildPiProviderRegistration,
+  ensureModelAcceptsImages,
   type PiModelRuntime,
   type PiModelRegistration,
 } from './pi-model-runtime.js';
@@ -171,10 +173,7 @@ export type PiSdkAdapterOptions = {
    * can push `plan/updated` to Desktop (PlanCard). Without it, progress stays on disk only.
    * See ADR 0025.
    */
-  onPlanUpdated?: (
-    sessionId: string,
-    plan: import('@piwin/contracts').SessionPlan,
-  ) => void;
+  onPlanUpdated?: (sessionId: string, plan: import('@piwin/contracts').SessionPlan) => void;
   /**
    * Host-owned browser session (ADR 0020). When present, `browser_*` tools are
    * appended to the coding/agent tool set. Lazily provided so HostRuntime can
@@ -438,7 +437,8 @@ export class PiSdkAdapter implements AgentHost {
       projectPath: indexProjectPathForScope(scope),
       scope,
       workingDirectory,
-      name: sessionName ?? `session-${sessionId.slice(0, 8)}`,
+      // Unnamed until first user message assigns a text title (sidebar policy).
+      ...(sessionName ? { name: sessionName } : {}),
     });
     // best-effort index write — surface failure so users see why a
     // session may be missing from the list (corrupt index, permissions).
@@ -499,6 +499,10 @@ async function createPiSdkSession(
   };
   if (config.web) {
     toolBuildOptions.webConfig = config.web;
+    toolBuildOptions.webCredentials = await resolveWebRuntimeCredentials(
+      config.web,
+      createSecretResolver(),
+    );
   }
   if (requestPermission) {
     toolBuildOptions.requestPermission = requestPermission;
@@ -1070,6 +1074,10 @@ function wrapPiSession(
   return {
     id: sessionId,
     async prompt(promptInput) {
+      // Load images first so we can force vision capability on the model before
+      // Pi's transform-messages strips ImageContent for text-only registrations.
+      const images = await loadPromptImages(promptInput.attachments);
+
       // Apply per-turn profile when the installed SDK exposes setters.
       if (promptInput.thinkingLevel && piSession.setThinkingLevel) {
         await piSession.setThinkingLevel(
@@ -1078,7 +1086,7 @@ function wrapPiSession(
       }
       if (promptInput.model && piSession.setModel) {
         try {
-          const model = modelRuntime.getModel(
+          let model = modelRuntime.getModel(
             promptInput.model.providerId,
             promptInput.model.modelId,
           );
@@ -1086,6 +1094,16 @@ function wrapPiSession(
             throw new Error(
               `Configured model is unavailable: ${promptInput.model.providerId}/${promptInput.model.modelId}`,
             );
+          }
+          if (images.length > 0) {
+            const before = model.input?.includes('image') === true;
+            model = ensureModelAcceptsImages(model);
+            if (!before) {
+              console.warn(
+                `[piwin] model ${promptInput.model.providerId}/${promptInput.model.modelId} ` +
+                  `had no image input; forced vision so native attachments are not stripped`,
+              );
+            }
           }
           await piSession.setModel(model);
         } catch (error) {
@@ -1096,8 +1114,6 @@ function wrapPiSession(
         // Product history is re-injected by session-live-commands; continue without silent drop.
         // Callers that require a hard switch must rebuild the live handle (ensureLiveSession).
       }
-      // ADR 0005 (2026-08-01): media attachments → native ImageContent, not path text.
-      const images = await loadPromptImages(promptInput.attachments);
       if (images.length > 0) {
         const options: { images: typeof images; streamingBehavior?: 'steer' | 'followUp' } = {
           images,
@@ -1107,6 +1123,14 @@ function wrapPiSession(
         }
         await piSession.prompt(promptInput.text, options);
         return;
+      }
+      const mediaAttachmentCount =
+        promptInput.attachments?.filter((attachment) => attachment.kind === 'media').length ?? 0;
+      if (mediaAttachmentCount > 0) {
+        // Host intended native vision (attachments kept), but load failed — fail loud.
+        throw new Error(
+          `Failed to load ${mediaAttachmentCount} media attachment(s) as image content`,
+        );
       }
       await piSession.prompt(promptInput.text);
     },

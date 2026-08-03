@@ -20,7 +20,10 @@ import type {
   PromptInput,
   SessionHandle,
   AgentEventEnvelope,
+  PushSink,
+  RemoteSinkId,
 } from '@piwin/contracts';
+import { LEGACY_LOCAL_SINK_ID } from '@piwin/contracts';
 import { formatTextModelWebElementInjection } from '@piwin/contracts';
 import { assertInsideMediaRoot, createMediaService } from '@piwin/media';
 import {
@@ -99,8 +102,11 @@ import {
 
 import {
   createSessionRecord,
+  deriveDefaultNameFromMessage,
+  isPlaceholderSessionName,
   getSessionRecord,
   listTranscriptMessages,
+  setSessionAutoName,
   upsertSessionRecord,
   buildSessionOutline,
   loadSessionPlan,
@@ -276,6 +282,7 @@ export class HostRuntime {
     {
       resolve: (response: import('./extension-ui-bridge.js').ExtensionUiResponse) => void;
       kind: import('./extension-ui-bridge.js').ExtensionUiKind;
+      sessionId: string;
     }
   >();
   private readonly transcriptRecorders = new Map<
@@ -298,10 +305,22 @@ export class HostRuntime {
     searchOptions: import('@piwin/notes').SearchNotesOptions;
   } | null = null;
   private readonly options: HostRuntimeOptions;
+  /**
+   * ADR 0027: push sinks. The legacy `onPush` option is registered under
+   * {@link LEGACY_LOCAL_SINK_ID} so existing single-sink callers keep working.
+   * A future remote gateway connector attaches as an additional sink.
+   */
+  private readonly pushSinks = new Map<RemoteSinkId, PushSink>();
   private ready = true;
 
   constructor(options: HostRuntimeOptions) {
     this.options = options;
+    if (options.onPush) {
+      this.pushSinks.set(LEGACY_LOCAL_SINK_ID, {
+        id: LEGACY_LOCAL_SINK_ID,
+        push: options.onPush,
+      });
+    }
     // Single process owner for Desktop UI lifecycle + SDK session tools.
     const rootDir = getPiwinRoot(options.piwinRoot);
     const mcpManager = createMcpLifecycleManager(rootDir);
@@ -916,6 +935,7 @@ export class HostRuntime {
       this.pendingExtensionUi.set(input.requestId, {
         resolve,
         kind: input.kind,
+        sessionId: input.sessionId,
       });
       const pushMessage: {
         type: 'extension/ui_request';
@@ -944,6 +964,23 @@ export class HostRuntime {
       }
       this.push(pushMessage);
     });
+  }
+
+  /**
+   * Resolve every Extension UI wait owned by a session.
+   *
+   * Pi's Extension UI methods are promise-based and are not necessarily
+   * connected to the foreground run AbortSignal. Stop therefore has to
+   * explicitly settle these promises before aborting the live session.
+   */
+  private settlePendingExtensionUiForSession(sessionId: string): void {
+    for (const [requestId, pending] of this.pendingExtensionUi.entries()) {
+      if (pending.sessionId !== sessionId) {
+        continue;
+      }
+      pending.resolve(createCancelledExtensionUiResponse(pending.kind));
+      this.pendingExtensionUi.delete(requestId);
+    }
   }
 
   private async rememberProjectPermission(
@@ -1062,9 +1099,27 @@ export class HostRuntime {
 
     if (supportsImage) {
       // D2: native images via adapter loadPromptImages
+      this.push({
+        type: 'host/log',
+        level: 'info',
+        message: `Sending ${media.length} image(s) as native vision content to the primary model`,
+      });
+      // Also list absolute paths so the model can `read` them if the gateway
+      // drops image_url (observed with some OpenAI-compatible proxies).
+      // Distinct from text-only `[attached image]` path-inject fallback.
+      const pathInventory = media
+        .map(
+          (attachment) =>
+            `- ${attachment.path} (${attachment.mimeType}, ${attachment.byteSize} bytes)`,
+        )
+        .join('\n');
+      const visionPathNote = [
+        '[user attached image(s) — also available via read tool if vision is unavailable]',
+        pathInventory,
+      ].join('\n');
       return {
         ...input,
-        text: [input.text, ...webInjections].filter(Boolean).join('\n\n'),
+        text: [input.text, ...webInjections, visionPathNote].filter(Boolean).join('\n\n'),
         attachments: safeAttachments,
       };
     }
@@ -1173,6 +1228,12 @@ export class HostRuntime {
     }
 
     // Path fallback (D1 off or vision provider/secret unavailable).
+    this.push({
+      type: 'host/log',
+      level: 'warn',
+      message:
+        'Primary model is text-only (or vision input is unset). Images will be path-injected — the model cannot see pixels. Switch to a vision model or enable vision delegation.',
+    });
     for (const mediaAttachment of media) {
       mediaInjections.push(pathInjectMediaAttachment(mediaAttachment));
     }
@@ -1647,9 +1708,12 @@ export class HostRuntime {
           }
         }
       },
+      settlePendingExtensionUiForSession: (sessionId) =>
+        this.settlePendingExtensionUiForSession(sessionId),
       setSessionPermissionOverride: (sessionId, mode) =>
         this.setSessionPermissionOverride(sessionId, mode),
       clearSessionPermissionOverride: (sessionId) => this.clearSessionPermissionOverride(sessionId),
+      resetSessionEventState: (sessionId) => this.resetSessionEventState(sessionId),
     };
   }
 
@@ -1835,7 +1899,9 @@ export class HostRuntime {
           const recordInput: Parameters<typeof createSessionRecord>[0] = {
             id: session.id,
             projectPath,
-            name: sessionName ?? `session-${session.id.slice(0, 8)}`,
+            // No placeholder name: unnamed sessions stay off the sidebar until
+            // the first user message assigns a text title.
+            ...(sessionName ? { name: sessionName } : {}),
           };
           if (!projectPath) {
             recordInput.scope = { kind: 'general' };
@@ -2315,6 +2381,18 @@ export class HostRuntime {
     if (recorder) {
       await recorder.recordUserPrompt(input);
     }
+    // Await text naming so name-updated is ordered with the user turn and the
+    // session becomes listable before the model stream starts.
+    try {
+      await this.maybeAssignTextNameFromPrompt(sessionId, input.text);
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `interim session name failed: ${detail}`,
+      });
+    }
   }
 
   private async loadTranscriptMessages(sessionId: string): Promise<SessionTranscriptMessage[]> {
@@ -2338,11 +2416,59 @@ export class HostRuntime {
     const record = createSessionRecord({
       id: sessionId,
       projectPath,
-      name: `session-${sessionId.slice(0, 8)}`,
+      // Leave unnamed; first-prompt text naming fills the list title.
     });
     record.messageCount = 1;
     record.lastPreview = preview.slice(0, 160);
     await upsertSessionRecord(indexPath, record);
+  }
+
+  /**
+   * Drop run-correlation state after truncate/dispose so a rebuilt shell does
+   * not inherit stale ownership from an aborted live handle.
+   */
+  private resetSessionEventState(sessionId: string): void {
+    this.runEventCorrelator.clear(sessionId);
+    this.terminalRunIdsBySession.delete(sessionId);
+  }
+
+  /**
+   * Naming pipeline step 1 (immediate): first user message → truncated text
+   * title so the session becomes listable without waiting on the model.
+   * Step 2 (LLM upgrade) runs from maybeTriggerAutoName after completed turns.
+   */
+  private async maybeAssignTextNameFromPrompt(sessionId: string, text: string): Promise<void> {
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const record = await getSessionRecord(indexPath, sessionId);
+    if (!record) {
+      return;
+    }
+    // Never overwrite user renames, LLM titles, prior text names, or legacy auto.
+    if (
+      record.nameSource === 'user' ||
+      record.nameSource === 'llm' ||
+      record.nameSource === 'text' ||
+      (record.nameSource as string | undefined) === 'auto'
+    ) {
+      return;
+    }
+    if (!isPlaceholderSessionName(record.name)) {
+      return;
+    }
+    const interimName = deriveDefaultNameFromMessage(text);
+    if (!interimName) {
+      return;
+    }
+    const updated = await setSessionAutoName(indexPath, sessionId, interimName, 'text');
+    if (updated) {
+      this.push({
+        type: 'session/name-updated',
+        sessionId,
+        name: updated.name ?? interimName,
+        nameSource: 'text',
+      });
+    }
   }
 
   /**
@@ -2360,14 +2486,15 @@ export class HostRuntime {
     // value >= 1 means at least one exchange is finished. We attempt naming on
     // every completed exchange; a failure leaves nameSource as 'default', so
     // the next exchange retries until naming succeeds.
-    if (record.messageCount < 1) {
+    // `user` (manual) and `llm` (generated) names are terminal for auto-naming.
+    // A `text` fallback may still be upgraded to an LLM title on a later
+    // completed exchange. messageCount is best-effort (touchSession); still
+    // attempt when the session is only text-named so a failed touch cannot
+    // block the model title forever.
+    if (record.nameSource === 'user' || record.nameSource === 'llm') {
       return;
     }
-    // `user` (manual) and `llm` (generated) names are terminal for
-    // auto-naming. A `text` fallback may still be upgraded to an LLM title on
-    // a later completed exchange, and a `default` placeholder is always
-    // eligible, so keep retrying until a terminal name lands.
-    if (record.nameSource === 'user' || record.nameSource === 'llm') {
+    if (record.messageCount < 1 && record.nameSource !== 'text') {
       return;
     }
     // Read the transcript instead of in-memory maps: the maps drift when the
@@ -2491,6 +2618,7 @@ export class HostRuntime {
   }
 
   private async abortLiveSession(sessionId: string): Promise<void> {
+    this.settlePendingExtensionUiForSession(sessionId);
     const live = this.sessions.get(sessionId);
     if (!live) {
       return;
@@ -2503,6 +2631,7 @@ export class HostRuntime {
   }
 
   private async disposeLiveSession(sessionId: string): Promise<void> {
+    this.settlePendingExtensionUiForSession(sessionId);
     const live = this.sessions.get(sessionId);
     const activeRun = this.activeRuns.get(sessionId);
     if (activeRun) {
@@ -2534,8 +2663,10 @@ export class HostRuntime {
       } catch {
         // best-effort
       }
+      recorder.dispose();
       this.transcriptRecorders.delete(sessionId);
     }
+    this.resetSessionEventState(sessionId);
     // §11.3: abort in-flight walkthrough generations for the disposed session.
     this.walkthroughRegistry.abortSession(sessionId);
   }
@@ -2591,17 +2722,51 @@ export class HostRuntime {
   }
 
   private push(message: HostPush): void {
+    let outgoing: HostPush = message;
     if (message.type === 'event') {
       const generator =
         this.eventEnvelopeGenerators.get(message.sessionId) ?? createEventEnvelopeGenerator();
       this.eventEnvelopeGenerators.set(message.sessionId, generator);
       const envelope: AgentEventEnvelope = generator.next(readEventRunId(message.event));
-      this.options.onPush?.({ ...message, envelope });
+      outgoing = { ...message, envelope };
+    }
+    // ADR 0027: fan out to every attached sink. The legacy onPush sink is just
+    // another entry in pushSinks, so the single-sink path is unchanged when no
+    // remote sink is attached. Sink errors are isolated so one bad sink cannot
+    // starve the local sidecar.
+    for (const sink of this.pushSinks.values()) {
+      try {
+        sink.push(outgoing);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        // Log to the legacy sink only, not back through the fan-out (avoid recursion).
+        this.options.onPush?.({
+          type: 'host/log',
+          level: 'error',
+          message: `push sink ${sink.id} threw: ${detail}`,
+        });
+      }
+    }
+  }
+
+  /**
+   * ADR 0027: attach a secondary push sink (e.g. a remote gateway connector).
+   * The legacy local sidecar remains attached under {@link LEGACY_LOCAL_SINK_ID}.
+   * Returns an unsubscribe handle.
+   */
+  attachPushSink(sink: PushSink): () => void {
+    this.pushSinks.set(sink.id, sink);
+    return () => {
+      this.pushSinks.delete(sink.id);
+    };
+  }
+
+  /** ADR 0027: detach a push sink by id. The legacy sink id cannot be removed. */
+  detachPushSink(id: RemoteSinkId): void {
+    if (id === LEGACY_LOCAL_SINK_ID) {
       return;
     }
-    if (this.options.onPush) {
-      this.options.onPush(message);
-    }
+    this.pushSinks.delete(id);
   }
 
   private rememberTerminalRun(sessionId: string, runId: string): void {

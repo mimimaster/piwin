@@ -1,5 +1,9 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  delegateImageToVisionModel,
   formatVisionDescriptionInjection,
   primaryModelSupportsImage,
   shouldDelegateVision,
@@ -80,5 +84,78 @@ describe('vision-delegation helpers', () => {
     expect(cache.get('b')).toBeUndefined();
     expect(cache.get('a')).toBe('1');
     expect(cache.get('c')).toBe('3');
+  });
+
+  it('uses the OpenAI-compatible v1 route and returns the model description', async () => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), 'piwin-vision-test-'));
+    const imagePath = join(temporaryDirectory, 'sample.png');
+    await writeFile(imagePath, Buffer.from([137, 80, 78, 71]));
+
+    try {
+      let requestUrl = '';
+      const description = await delegateImageToVisionModel({
+        imagePath,
+        mimeType: 'image/png',
+        provider: {
+          id: 'gateway',
+          protocol: 'openai-compatible',
+          name: 'Gateway',
+          baseUrl: 'http://gateway.test',
+          models: [{ id: 'vision-model', input: ['text', 'image'] }],
+        },
+        modelId: 'vision-model',
+        apiKey: 'test-key',
+        fetchImpl: async (input) => {
+          requestUrl = String(input);
+          return new Response(
+            JSON.stringify({ choices: [{ message: { content: 'A test description.' } }] }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          );
+        },
+      });
+
+      expect(requestUrl).toBe('http://gateway.test/v1/chat/completions');
+      expect(description).toBe('A test description.');
+    } finally {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it('includes the provider error message when image input is rejected', async () => {
+    const temporaryDirectory = await mkdtemp(join(tmpdir(), 'piwin-vision-error-test-'));
+    const imagePath = join(temporaryDirectory, 'sample.png');
+    await writeFile(imagePath, Buffer.from([137, 80, 78, 71]));
+
+    try {
+      await expect(
+        delegateImageToVisionModel({
+          imagePath,
+          mimeType: 'image/png',
+          provider: {
+            id: 'gateway',
+            protocol: 'openai-compatible',
+            name: 'Gateway',
+            baseUrl: 'http://gateway.test/v1',
+            models: [{ id: 'text-only-model', input: ['text', 'image'] }],
+          },
+          modelId: 'text-only-model',
+          apiKey: 'test-key',
+          fetchImpl: async () =>
+            new Response(
+              JSON.stringify({
+                error: {
+                  code: '1210',
+                  message: "messages.content.type 参数非法，取值范围 ['text']",
+                },
+              }),
+              { status: 400, statusText: 'Bad Request' },
+            ),
+        }),
+      ).rejects.toThrow(
+        "vision delegation failed (400 Bad Request): messages.content.type 参数非法，取值范围 ['text']",
+      );
+    } finally {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
   });
 });

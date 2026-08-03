@@ -42,6 +42,8 @@ import { fail, ok } from '../response-helpers.js';
 import { getPiwinMediaDir, getPiwinRoot } from '../paths.js';
 import { createSecretResolver } from '../secret-resolver.js';
 import { findEnabledProvider } from '../provider-helpers.js';
+import { resolveWebRuntimeCredentials } from '../web-credentials.js';
+import { testSearchSource } from '@piwin/tools-web';
 import type { HostCommandContext } from './host-command-context.js';
 
 /**
@@ -83,6 +85,7 @@ const TYPES = new Set<HostCommand['type']>([
   'vision/cache/clear',
   'secrets/set',
   'secrets/get',
+  'web/test-search-source',
 ]);
 
 export function isCatalogCommand(command: HostCommand): boolean {
@@ -566,6 +569,36 @@ export async function handleCatalogCommand(
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return fail(requestId, 'secrets/get', message);
+      }
+    }
+    case 'web/test-search-source': {
+      try {
+        const config = await loadPiwinConfig(getPiwinRoot(context.piwinRoot));
+        const source = config.web?.searchSources.find(
+          (candidate) => candidate.id === command.input.sourceId,
+        );
+        if (!source) {
+          return fail(
+            requestId,
+            'web/test-search-source',
+            `Web search source not found: ${command.input.sourceId}`,
+          );
+        }
+        if (source.kind !== command.input.kind) {
+          return fail(
+            requestId,
+            'web/test-search-source',
+            `Web search source kind changed: expected ${command.input.kind}, got ${source.kind}`,
+          );
+        }
+        if (!config.web) {
+          return fail(requestId, 'web/test-search-source', 'Web tools are not configured');
+        }
+        const credentials = await resolveWebRuntimeCredentials(config.web, createSecretResolver());
+        return ok(requestId, 'web/test-search-source', await testSearchSource(source, credentials));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return fail(requestId, 'web/test-search-source', message);
       }
     }
     default:

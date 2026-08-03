@@ -372,17 +372,21 @@ describe('CE-CHAT session ops', () => {
     });
     await waitForTerminal(pushes, sessionId, 0);
 
-    // Wait for the LLM title generator to complete (and name to be persisted)
-    // before asserting on the request body, because auto-naming is fire-and-forget.
+    // Wait for the LLM title generator (not just interim text naming on send).
+    // Interim text name also emits session/name-updated with nameSource "text".
     for (let attempt = 0; attempt < 100; attempt += 1) {
-      const named = pushes.find(
-        (push) => push.type === 'session/name-updated' && push.sessionId === sessionId,
+      const llmNamed = pushes.find(
+        (push) =>
+          push.type === 'session/name-updated' &&
+          push.sessionId === sessionId &&
+          push.nameSource === 'llm',
       );
-      if (named) break;
+      if (llmNamed || requestBodies.length > 0) break;
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
     // The host must include the mock assistant reply as context for the title.
+    expect(requestBodies.length).toBeGreaterThan(0);
     const lastBody = requestBodies[requestBodies.length - 1];
     const bodyString = typeof lastBody === 'string' ? lastBody : JSON.stringify(lastBody);
     expect(bodyString).toContain('Assistant:');

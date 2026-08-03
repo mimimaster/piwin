@@ -89,6 +89,7 @@ export type HostCommandContext = {
     {
       resolve: (response: ExtensionUiResponse) => void;
       kind: ExtensionUiKind;
+      sessionId: string;
     }
   >;
   rememberProjectPermission: (

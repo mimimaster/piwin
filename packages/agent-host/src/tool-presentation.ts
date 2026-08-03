@@ -187,7 +187,9 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     presentation.summary = clipSummary(presentation.command);
   } else if (presentation.targetPaths && presentation.targetPaths.length > 0) {
     presentation.summary = formatPathsSummary(presentation.targetPaths);
-  } else if (presentation.inputPreview) {
+  } else if (presentation.inputPreview && family !== 'mcp') {
+    // MCP args stay in inputPreview for the expanded body; dumping raw JSON into
+    // the header summary makes the title look broken (same class of bug as shell).
     presentation.summary = clipSummary(presentation.inputPreview);
   } else if (presentation.output?.text) {
     presentation.summary = clipSummary(presentation.output.text.replace(/\s+/g, ' ').trim());
@@ -553,9 +555,11 @@ function extractActionDetails(input: {
     case 'mcp': {
       const parts = toolName.replace(/^mcp__?/, '').split('__');
       const server = parts[0];
-      const tool = parts.slice(1).join(' / ') || parts[0];
+      // Only the segments after the server are the tool name; do not fall back to
+      // the server id (that left summary empty → raw JSON args in the header).
+      const tool = parts.slice(1).filter(Boolean).join(' / ');
       actionVerb = server ? `MCP (${server})` : 'Called MCP';
-      if (tool && tool !== server) summary = tool;
+      if (tool) summary = tool;
       break;
     }
     case 'image': {
