@@ -19,6 +19,20 @@
 
 ---
 
+## 1.1 Active cross-cutting architecture program
+
+Settings、Project Trust、Pi resources、Host custom tools、图片 prompt 路由与
+live Agent Runtime 的统一改造，以以下 Spec 为执行权威：
+
+- [`docs/specs/settings-capability-runtime-refactor.md`](./specs/settings-capability-runtime-refactor.md)
+
+该计划优先于在现有 `sdk-adapter.ts` / `host-runtime.ts` 上继续添加零散开关判断。
+实施顺序固定为：版本化 Settings 控制面 → Resource/Trust → Capability/Tool
+Manifest → Prompt Preparation → Runtime 生效语义 → Settings 产品整合 → RPC
+worker 对等。各阶段必须完成旧路径删除门槛后才算结束。
+
+---
+
 ## 2. Current baseline (done)
 
 - [x] Repo scaffold monorepo (`apps/*`, `packages/*`)
