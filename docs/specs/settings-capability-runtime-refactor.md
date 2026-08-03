@@ -1746,23 +1746,36 @@ Exit:
 
 ### Phase 7 - Real RPC worker parity
 
-Create/update:
+**Execution authority for Phase 7 is the deep plan:**
+
+- [`docs/specs/phase7-rpc-worker-parity-plan.md`](./phase7-rpc-worker-parity-plan.md)
+
+That document expands this phase into work packages WP0–WP7 covering:
+
+- authority matrix (parent vs worker)
+- serializable blueprint completeness
+- tool-proxy protocol frames
+- `PiSessionBackend` dual implementations
+- rollout flags and deletion gates
+- conformance suite requirements
+
+High-level create/update list (details in the deep plan):
 
 - worker protocol/client/entry/proxy files
 - shared `PiSessionBackend`
 - SDK/RPC conformance fixtures
 - ADR 0011/0012 final state
 
-Steps:
+Steps (summary; follow deep plan order):
 
-1. Define serializable blueprint projection.
+1. Define/complete serializable blueprint projection.
 2. Implement worker session creation and normalized events.
 3. Implement parent-owned tool execution proxy.
 4. Implement abort/steer/follow-up.
-5. Implement extension UI proxy.
+5. Implement extension UI proxy (or documented honesty degradation).
 6. Run conformance suite against SDK and worker.
-7. Switch RPC product mode.
-8. Delete fallback/stock paths and temporary environment switches.
+7. Switch RPC product mode to worker.
+8. Delete fallback/stock paths and temporary environment switches **only after** conformance is green.
 
 Required conformance assertions:
 
@@ -1778,6 +1791,7 @@ Required conformance assertions:
 Exit:
 
 - Dual host modes are real and consume one architecture.
+- Isolation claims are honest; fallback is not the product default.
 
 ---
 
