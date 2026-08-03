@@ -14,6 +14,7 @@ import type { WalkthroughConfig } from './walkthrough.js';
 import { THINKING_LEVEL_OPTIONS } from './host.js';
 import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 import type { SubagentProfileSettings } from './subagent-profile.js';
+import type { RemoteConfig } from './remote.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
 export type ModelCapability = 'chat' | 'image-generation';
@@ -302,6 +303,8 @@ export type PiwinConfig = {
   walkthrough?: WalkthroughConfig;
   /** Settings-backed subagent profiles and parallel execution limits. */
   subagents?: SubagentConfig;
+  /** Personal remote gateway (ADR 0027). Default off; W4 future. */
+  remote?: RemoteConfig;
 };
 
 export function createDefaultCompactionConfig(): CompactionConfig {

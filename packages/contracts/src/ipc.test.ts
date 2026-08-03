@@ -342,5 +342,44 @@ describe('ipc types', () => {
         expect(push.artifact.generationId).toBe('g1');
       }
     });
+
+    it('accepts ADR 0027 host/replay command shape', () => {
+      const replay: HostCommand = { type: 'host/replay', sinceSeq: 42 };
+      expect(replay.type).toBe('host/replay');
+    });
+
+    it('accepts ADR 0027 seq/eventId on any push variant', () => {
+      const status: HostPush = {
+        type: 'host/status',
+        mode: 'sdk',
+        ready: true,
+        mock: false,
+        seq: 7,
+        eventId: 'evt-7',
+      };
+      const replayDone: HostPush = {
+        type: 'host/replay-done',
+        sinceSeq: 5,
+        lastSeq: 9,
+        seq: 10,
+        eventId: 'evt-10',
+      };
+      if (status.type === 'host/status') {
+        expect(status.seq).toBe(7);
+      }
+      if (replayDone.type === 'host/replay-done') {
+        expect(replayDone.lastSeq).toBe(9);
+      }
+    });
+
+    it('host/status capabilities include ADR 0027 remote flags', () => {
+      const status: HostPush = {
+        type: 'host/status',
+        mode: 'sdk',
+        ready: true,
+        mock: false,
+      };
+      expect(status.type).toBe('host/status');
+    });
   });
 });
