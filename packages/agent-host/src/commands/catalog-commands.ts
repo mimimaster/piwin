@@ -2,6 +2,7 @@
  * Host IPC handlers: catalog.
  */
 import type { HostCommand, HostResponse, MediaSaveData } from '@piwin/contracts';
+import { SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
 import { createMediaService } from '@piwin/media';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { installSkill, installExtension, listSkillStoreEntries } from '@piwin/marketplace';
@@ -78,6 +79,8 @@ const TYPES = new Set<HostCommand['type']>([
   'pet/cancel',
   'config/get',
   'config/set',
+  'settings/get',
+  'settings/apply',
   'models/discover',
   'models/catalog/search',
   'models/test',
@@ -353,6 +356,23 @@ export async function handleCatalogCommand(
       const configRoot = getPiwinRoot(context.piwinRoot);
       const config = await loadPiwinConfig(configRoot);
       return ok(requestId, 'config/get', { config, root: configRoot });
+    }
+    case 'settings/get': {
+      const settingsService = new SettingsService({ piwinRoot: context.piwinRoot });
+      const snapshot = await settingsService.getSnapshot();
+      return ok(requestId, 'settings/get', { snapshot, root: getPiwinRoot(context.piwinRoot) });
+    }
+    case 'settings/apply': {
+      const settingsService = new SettingsService({ piwinRoot: context.piwinRoot });
+      try {
+        const result = await settingsService.apply(command.input);
+        return ok(requestId, 'settings/apply', result);
+      } catch (error) {
+        if (error instanceof SettingsRevisionConflictError) {
+          return fail(requestId, 'settings/apply', 'settings-revision-conflict');
+        }
+        throw error;
+      }
     }
     case 'config/set': {
       const configRoot = getPiwinRoot(context.piwinRoot);
