@@ -2,11 +2,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  allowNetworkFetchHost,
-  allowNetworkWebSearch,
-  openOrCreateProject,
-} from '@piwin/project';
+import { allowNetworkFetchHost, allowNetworkWebSearch, openOrCreateProject } from '@piwin/project';
 import { buildSessionTools } from './session-tools.js';
 
 describe('buildSessionTools permission gate', () => {
@@ -33,6 +29,15 @@ describe('buildSessionTools permission gate', () => {
         fetchProvider: 'supermarkdown',
         fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
         searchApiKeyEnv: 'MISSING_BRAVE_KEY_FOR_TEST',
+        searchSources: [
+          {
+            id: 'brave',
+            kind: 'brave',
+            enabled: true,
+            apiKeyEnv: 'MISSING_BRAVE_KEY_FOR_TEST',
+          },
+        ],
+        searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 800 },
         searchMaxResults: 3,
         searchTimeoutMs: 1000,
         fetchMaxBytes: 1000,
@@ -75,6 +80,15 @@ describe('buildSessionTools permission gate', () => {
       webConfig: {
         searchProvider: 'brave',
         searchApiKeyEnv: 'MISSING_BRAVE_KEY_FOR_TEST',
+        searchSources: [
+          {
+            id: 'brave',
+            kind: 'brave',
+            enabled: true,
+            apiKeyEnv: 'MISSING_BRAVE_KEY_FOR_TEST',
+          },
+        ],
+        searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 800 },
         searchMaxResults: 3,
         searchTimeoutMs: 1000,
         fetchProvider: 'supermarkdown',

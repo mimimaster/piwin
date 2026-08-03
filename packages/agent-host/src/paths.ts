@@ -51,6 +51,14 @@ export function getPiwinMediaDir(rootDir: string): string {
   return join(rootDir, 'media');
 }
 
+/**
+ * Per-session media vault (`~/.piwin/media/<sessionId>/`).
+ * Must stay under {@link getPiwinMediaDir}; deleted with permanent session delete.
+ */
+export function getPiwinSessionMediaDir(rootDir: string, sessionId: string): string {
+  return join(getPiwinMediaDir(rootDir), sessionId);
+}
+
 /** Product-owned General session workspace (not a user project root). */
 export function getPiwinGeneralWorkspacePath(rootDir: string): string {
   return join(rootDir, 'workspace');

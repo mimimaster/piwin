@@ -1,11 +1,7 @@
-import type {
-  PermissionDecision,
-  ProjectNetworkPolicy,
-  WebConfig,
-} from '@piwin/contracts';
+import type { PermissionDecision, ProjectNetworkPolicy, WebConfig } from '@piwin/contracts';
 import { createEmptyNetworkPolicy } from '@piwin/contracts';
 import { createWebToolDefinitions } from '@piwin/tools-web';
-import type { HostToolDefinition } from '@piwin/tools-web';
+import type { HostToolDefinition, WebRuntimeCredentials } from '@piwin/tools-web';
 import { getProjectNetworkPolicy } from '@piwin/project';
 import {
   evaluateWebPermission,
@@ -26,6 +22,8 @@ export type ToolPermissionGate = (input: {
 
 export type BuildSessionToolsOptions = {
   webConfig?: WebConfig;
+  /** Host-resolved secrets kept in memory and never written into WebConfig. */
+  webCredentials?: WebRuntimeCredentials;
   /**
    * Interactive gate (Desktop via HostRuntime). When omitted, ask→deny.
    */
@@ -42,6 +40,7 @@ function isBuildOptions(value: unknown): value is BuildSessionToolsOptions {
   }
   return (
     'webConfig' in value ||
+    'webCredentials' in value ||
     'requestPermission' in value ||
     'projectPath' in value ||
     'projectsFilePath' in value
@@ -57,11 +56,13 @@ export function buildSessionTools(
 ): SessionToolRegistration {
   let webConfig: WebConfig | undefined;
   let requestPermission: ToolPermissionGate | undefined;
+  let webCredentials: WebRuntimeCredentials | undefined;
   let projectPath: string | undefined;
   let projectsFilePath: string | undefined;
 
   if (isBuildOptions(options)) {
     if (options.webConfig) webConfig = options.webConfig;
+    if (options.webCredentials) webCredentials = options.webCredentials;
     if (options.requestPermission) requestPermission = options.requestPermission;
     if (options.projectPath) projectPath = options.projectPath;
     if (options.projectsFilePath) projectsFilePath = options.projectsFilePath;
@@ -69,7 +70,7 @@ export function buildSessionTools(
     webConfig = options as WebConfig;
   }
 
-  const bare = createWebToolDefinitions(webConfig);
+  const bare = createWebToolDefinitions(webConfig, webCredentials);
   const tools = bare.map((tool) =>
     wrapWebToolWithPermission(tool, {
       ...(requestPermission ? { requestPermission } : {}),
@@ -95,8 +96,7 @@ function wrapWebToolWithPermission(
   return {
     ...tool,
     async execute(args, signal) {
-      const target =
-        action === 'web_search' ? String(args.query ?? '') : String(args.url ?? '');
+      const target = action === 'web_search' ? String(args.query ?? '') : String(args.url ?? '');
       const evaluation = evaluateWebPermission(action, target);
       let decision: PermissionDecision = evaluation.decision;
 
@@ -173,9 +173,7 @@ export function attachToolsToPiSession(
   const sessionRecord = piSession as Record<string, unknown>;
 
   if (typeof sessionRecord.registerTool === 'function') {
-    const registerTool = sessionRecord.registerTool as (
-      tool: Record<string, unknown>,
-    ) => void;
+    const registerTool = sessionRecord.registerTool as (tool: Record<string, unknown>) => void;
     for (const tool of tools) {
       registerTool({
         name: tool.name,
@@ -191,9 +189,7 @@ export function attachToolsToPiSession(
   if (agent && typeof agent === 'object') {
     const agentRecord = agent as Record<string, unknown>;
     if (typeof agentRecord.registerTool === 'function') {
-      const registerTool = agentRecord.registerTool as (
-        tool: Record<string, unknown>,
-      ) => void;
+      const registerTool = agentRecord.registerTool as (tool: Record<string, unknown>) => void;
       for (const tool of tools) {
         registerTool({
           name: tool.name,

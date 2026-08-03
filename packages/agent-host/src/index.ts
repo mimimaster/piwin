@@ -59,6 +59,7 @@ export {
   getPiwinRoot,
   getPiwinConfigPath,
   getPiwinMediaDir,
+  getPiwinSessionMediaDir,
   getPiwinGeneralWorkspacePath,
   getPiwinLogsDir,
   getPiwinProjectsPath,

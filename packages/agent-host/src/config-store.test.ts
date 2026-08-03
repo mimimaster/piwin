@@ -29,6 +29,19 @@ describe('config-store', () => {
     expect(second.created).toBe(false);
   });
 
+  it('normalizes legacy ordered-fallback search strategy to parallel', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-legacy-strategy-'));
+    const raw = JSON.stringify({
+      web: {
+        searchStrategy: { mode: 'ordered-fallback', perSourceTimeoutMs: 9000 },
+      },
+    });
+    await writeFile(join(rootDir, 'config.json'), raw, 'utf8');
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.web?.searchStrategy.mode).toBe('parallel');
+    expect(loaded.web?.searchStrategy.perSourceTimeoutMs).toBe(9000);
+  });
+
   it('preserves empty disabledIds and extraPaths arrays', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-empty-'));
     const config = createDefaultPiwinConfig();
@@ -49,6 +62,52 @@ describe('config-store', () => {
     await savePiwinConfig(config, rootDir);
     const loaded = await loadPiwinConfig(rootDir);
     expect(loaded.compaction?.autoEnabledDefault).toBe(false);
+  });
+
+  it('round-trips visionDelegation and imageGeneration', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-vision-'));
+    const config = createDefaultPiwinConfig();
+    config.visionDelegation = {
+      enabled: true,
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'custom-openai',
+        modelId: 'glm-4.7-flash',
+      },
+      systemPrompt: 'Describe the image briefly.',
+      timeoutMs: 15_000,
+      cacheEnabled: false,
+    };
+    config.imageGeneration = {
+      defaultModel: {
+        protocol: 'openai-compatible',
+        providerId: 'custom-openai',
+        modelId: 'image-gen',
+      },
+    };
+
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+
+    expect(loaded.visionDelegation).toEqual(config.visionDelegation);
+    expect(loaded.imageGeneration).toEqual(config.imageGeneration);
+  });
+
+  it('preserves visionDelegation.enabled=false when model is set', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-vision-off-'));
+    const config = createDefaultPiwinConfig();
+    config.visionDelegation = {
+      enabled: false,
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'cpa',
+        modelId: 'vision-model',
+      },
+    };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.visionDelegation?.enabled).toBe(false);
+    expect(loaded.visionDelegation?.model?.modelId).toBe('vision-model');
   });
 
   it('round-trips desktop model, effort, and session restoration preferences', async () => {

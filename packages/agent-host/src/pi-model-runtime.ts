@@ -89,3 +89,22 @@ export function buildPiProviderRegistration(
   }
   return registration;
 }
+
+/**
+ * Pi strips ImageContent when `model.input` lacks `"image"` (see pi-ai
+ * `downgradeUnsupportedImages`). If the host is about to send native images,
+ * force-vision on the Model object passed to `setModel` so pixels are not
+ * replaced with "(image omitted: model does not support images)".
+ */
+export function ensureModelAcceptsImages<T extends { input?: Array<'text' | 'image'> }>(
+  model: T,
+): T {
+  const currentInput = model.input ?? (['text'] as Array<'text' | 'image'>);
+  if (currentInput.includes('image')) {
+    return model;
+  }
+  const nextInput: Array<'text' | 'image'> = currentInput.includes('text')
+    ? ['text', 'image']
+    : [...currentInput, 'image'];
+  return { ...model, input: nextInput };
+}

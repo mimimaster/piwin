@@ -25,6 +25,7 @@ import {
   unarchiveSessionRecord,
   unpinSessionRecord,
   upsertSessionRecord,
+  filterListableSessions,
 } from '@piwin/session';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
@@ -32,6 +33,7 @@ import {
   getPiwinRoot,
   getPiwinSessionDir,
   getPiwinSessionIndexPath,
+  getPiwinSessionMediaDir,
   getPiwinSessionTranscriptPath,
 } from '../paths.js';
 import { resolveListFilter } from '../session-scope.js';
@@ -94,7 +96,8 @@ export async function handleSessionProductCommand(
       const indexed = await listSessionsForProject(indexPath, filter, {
         includeArchived: command.includeArchived === true,
       });
-      const sessions = indexed.map((item) => indexRecordToSummary(item));
+      // Sidebar policy: never list sessions that still lack a real display name.
+      const sessions = filterListableSessions(indexed).map((item) => indexRecordToSummary(item));
       return ok(requestId, 'session/list', { sessions });
     }
     case 'session/pin': {
@@ -207,6 +210,14 @@ export async function handleSessionProductCommand(
         await rm(sessionDir, { recursive: true, force: true });
       } catch {
         // Index already cleaned; leftover files are non-fatal.
+      }
+      // Product media vault is per-session — permanent delete removes it too
+      // (not archive). Missing dir is fine (session never pasted images).
+      const mediaSessionDir = getPiwinSessionMediaDir(rootDir, command.sessionId);
+      try {
+        await rm(mediaSessionDir, { recursive: true, force: true });
+      } catch {
+        // Non-fatal: index + session dir already gone.
       }
       return ok(requestId, 'session/delete', {
         sessionId: command.sessionId,

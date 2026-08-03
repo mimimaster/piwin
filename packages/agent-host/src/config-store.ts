@@ -5,6 +5,7 @@ import type {
   CompactionConfig,
   DesktopRestoreConfig,
   ExtensionsConfig,
+  ImageGenerationConfig,
   MarketplaceConfig,
   PermissionConfig,
   PermissionMode,
@@ -19,6 +20,7 @@ import type {
   SubagentIsolationMode,
   ThinkingConfig,
   ThinkingLevel,
+  VisionDelegationConfig,
   WebConfig,
   PermissionPreset,
 } from '@piwin/contracts';
@@ -214,6 +216,14 @@ function normalizeConfig(value: unknown): PiwinConfig {
   normalized.permissions = normalizePermissionConfig(record.permissions);
   normalized.walkthrough = normalizeWalkthroughConfig(record.walkthrough);
   normalized.subagents = normalizeSubagentConfig(record.subagents);
+  const imageGeneration = normalizeImageGenerationConfig(record.imageGeneration);
+  if (imageGeneration) {
+    normalized.imageGeneration = imageGeneration;
+  }
+  const visionDelegation = normalizeVisionDelegationConfig(record.visionDelegation);
+  if (visionDelegation) {
+    normalized.visionDelegation = visionDelegation;
+  }
   return normalized;
 }
 
@@ -229,6 +239,50 @@ function normalizeSessionConfig(value: unknown, defaults: SessionConfig): Sessio
     config.autoName = defaults.autoName;
   }
   return config;
+}
+
+/**
+ * Image generation default model (optional). Missing/invalid → omitted.
+ */
+function normalizeImageGenerationConfig(value: unknown): ImageGenerationConfig | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const defaultModel = normalizeModelRef(record.defaultModel);
+  if (!defaultModel) {
+    return undefined;
+  }
+  return { defaultModel };
+}
+
+/**
+ * Vision delegation (text-only primary → describe images). Default off when
+ * missing; when present, always surface `enabled` so UI/host agree with disk.
+ */
+function normalizeVisionDelegationConfig(value: unknown): VisionDelegationConfig | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const normalized: VisionDelegationConfig = {
+    enabled: record.enabled === true,
+  };
+  const model = normalizeModelRef(record.model);
+  if (model) {
+    normalized.model = model;
+  }
+  if (typeof record.systemPrompt === 'string' && record.systemPrompt.trim()) {
+    normalized.systemPrompt = record.systemPrompt;
+  }
+  const timeoutMs = asPositiveNumber(record.timeoutMs);
+  if (timeoutMs !== undefined) {
+    normalized.timeoutMs = timeoutMs;
+  }
+  if (typeof record.cacheEnabled === 'boolean') {
+    normalized.cacheEnabled = record.cacheEnabled;
+  }
+  return normalized;
 }
 
 /**
@@ -460,7 +514,7 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
   );
   const searchStrategy = normalizeSearchStrategy(record.searchStrategy, defaults.searchStrategy);
   const mirroredProvider = mirrorSearchProviderFromSources(searchSources, searchProvider);
-  return {
+  const normalized: WebConfig = {
     searchProvider: mirroredProvider,
     searchApiKeyEnv,
     searchMaxResults: asPositiveNumber(record.searchMaxResults) ?? defaults.searchMaxResults,
@@ -477,6 +531,10 @@ function normalizeWebConfig(value: unknown, defaults: WebConfig): WebConfig {
     fetchBlockedUrlPrefixes:
       asStringArray(record.fetchBlockedUrlPrefixes) ?? defaults.fetchBlockedUrlPrefixes,
   };
+  if (typeof record.fetchApiKeyRef === 'string' && record.fetchApiKeyRef.trim()) {
+    normalized.fetchApiKeyRef = record.fetchApiKeyRef.trim();
+  }
+  return normalized;
 }
 
 function normalizeSearchStrategy(
@@ -487,14 +545,10 @@ function normalizeSearchStrategy(
   if (!record) {
     return defaults;
   }
-  const mode =
-    record.mode === 'ordered-fallback' || record.mode === 'parallel'
-      ? record.mode
-      : defaults.mode;
+  // Multi-source search is always parallel; legacy ordered-fallback normalizes here.
   return {
-    mode,
-    perSourceTimeoutMs:
-      asPositiveNumber(record.perSourceTimeoutMs) ?? defaults.perSourceTimeoutMs,
+    mode: 'parallel',
+    perSourceTimeoutMs: asPositiveNumber(record.perSourceTimeoutMs) ?? defaults.perSourceTimeoutMs,
   };
 }
 
@@ -551,7 +605,9 @@ function migrateLegacySearchSources(
     return [{ id: 'cli', kind: 'cli', enabled: true }];
   }
   if (provider === 'aggregate') {
-    return defaults.length > 0 ? defaults : [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }];
+    return defaults.length > 0
+      ? defaults
+      : [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }];
   }
   if (provider === 'duckduckgo') {
     return [{ id: 'duckduckgo', kind: 'duckduckgo', enabled: true }];
@@ -559,9 +615,7 @@ function migrateLegacySearchSources(
   return defaults;
 }
 
-function normalizeOneSearchSource(
-  value: unknown,
-): WebConfig['searchSources'][number] | null {
+function normalizeOneSearchSource(value: unknown): WebConfig['searchSources'][number] | null {
   const record = asRecord(value);
   if (!record) {
     return null;
@@ -576,10 +630,7 @@ function normalizeOneSearchSource(
   ) {
     return null;
   }
-  const id =
-    typeof record.id === 'string' && record.id.trim()
-      ? record.id.trim()
-      : kind;
+  const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : kind;
   const source: WebConfig['searchSources'][number] = {
     id,
     kind,
@@ -590,6 +641,9 @@ function normalizeOneSearchSource(
   }
   if (typeof record.apiKeyEnv === 'string' && record.apiKeyEnv.trim()) {
     source.apiKeyEnv = record.apiKeyEnv.trim();
+  }
+  if (typeof record.apiKeyRef === 'string' && record.apiKeyRef.trim()) {
+    source.apiKeyRef = record.apiKeyRef.trim();
   }
   if (typeof record.baseUrl === 'string' && record.baseUrl.trim()) {
     source.baseUrl = record.baseUrl.trim();
@@ -797,6 +851,10 @@ function normalizeSubagentIsolation(value: unknown): SubagentIsolationMode | und
 }
 
 function normalizeSubagentModelRef(value: unknown): SubagentProfileSettings['model'] | undefined {
+  return normalizeModelRef(value);
+}
+
+function normalizeModelRef(value: unknown): SubagentProfileSettings['model'] | undefined {
   const record = asRecord(value);
   if (!record) return undefined;
   const protocol = record.protocol;

@@ -41,8 +41,28 @@ export function createProductShellSession(
     }
   };
 
+  /**
+   * Pipe live Pi events into product listeners. Keep this attached for the
+   * lifetime of `live`: host rebind briefly drops product listeners, and
+   * tearing down the live subscription mid-prompt is what made assistant
+   * tokens land in Pi JSONL while product transcript/UI saw only user rows.
+   */
+  const attachLiveSubscription = (handle: SessionHandle): void => {
+    if (liveUnsubscribe) {
+      liveUnsubscribe();
+      liveUnsubscribe = null;
+    }
+    liveUnsubscribe = handle.subscribe((event) => {
+      emit(event);
+    });
+  };
+
   const ensureLive = async (): Promise<SessionHandle> => {
     if (live) {
+      // Recover a torn-down pipe if an older shell still has a live handle.
+      if (!liveUnsubscribe) {
+        attachLiveSubscription(live);
+      }
       return live;
     }
     const createInput: CreateSessionInput = {
@@ -60,9 +80,7 @@ export function createProductShellSession(
     }
     const created = await options.createLiveSession(createInput);
     live = created;
-    liveUnsubscribe = created.subscribe((event) => {
-      emit(event);
-    });
+    attachLiveSubscription(created);
     return created;
   };
 
@@ -145,12 +163,14 @@ export function createProductShellSession(
     },
     subscribe(listener: Listener): () => void {
       listeners.add(listener);
+      // If host re-subscribes after a rebind gap, restore the live pipe.
+      if (live && !liveUnsubscribe) {
+        attachLiveSubscription(live);
+      }
       return () => {
         listeners.delete(listener);
-        if (listeners.size === 0 && liveUnsubscribe) {
-          liveUnsubscribe();
-          liveUnsubscribe = null;
-        }
+        // Intentionally keep `liveUnsubscribe` while `live` exists so an
+        // in-flight prompt cannot orphan Pi events during host rebind.
       };
     },
   };

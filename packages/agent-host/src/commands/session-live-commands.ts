@@ -148,11 +148,18 @@ export type SessionLiveContext = {
     message?: string,
   ) => boolean;
   settlePendingPermissionsForSession: (sessionId: string) => void;
+  /** Resolve Extension UI waits so Stop cannot leave a Pi prompt suspended. */
+  settlePendingExtensionUiForSession: (sessionId: string) => void;
   setSessionPermissionOverride: (
     sessionId: string,
     mode: import('@piwin/contracts').PermissionMode,
   ) => void;
   clearSessionPermissionOverride: (sessionId: string) => void;
+  /**
+   * Clear run correlator / terminal-run memory for a session after truncate so
+   * rebuilt shells do not inherit stale ownership from the aborted handle.
+   */
+  resetSessionEventState?: (sessionId: string) => void;
 };
 
 const TYPES = new Set<HostCommand['type']>([
@@ -608,6 +615,13 @@ export async function handleSessionLiveCommand(
       }
       const transcriptPath = getPiwinSessionTranscriptPath(rootDir, command.sessionId);
       const truncated = await truncateTranscriptFrom(transcriptPath, command.messageId);
+      if (!truncated.found) {
+        return fail(
+          requestId,
+          'session/truncate-from',
+          `Message not found in transcript: ${command.messageId}`,
+        );
+      }
       // Drop live handle so next prompt rebuilds from product transcript only.
       const live = context.sessions.get(command.sessionId);
       if (live) {
@@ -621,9 +635,23 @@ export async function handleSessionLiveCommand(
           unsub();
           context.unsubscribers.delete(command.sessionId);
         }
-        context.transcriptRecorders.delete(command.sessionId);
+        // Dispose before delete so a pending flush cannot rewrite the cut file.
+        const recorder = context.transcriptRecorders.get(command.sessionId);
+        if (recorder) {
+          recorder.dispose();
+          context.transcriptRecorders.delete(command.sessionId);
+        }
         context.sessions.delete(command.sessionId);
+      } else {
+        const recorder = context.transcriptRecorders.get(command.sessionId);
+        if (recorder) {
+          recorder.dispose();
+          context.transcriptRecorders.delete(command.sessionId);
+        }
       }
+      // Clear run correlation so late events from the aborted handle cannot
+      // poison the rebuilt shell's next prompt.
+      context.resetSessionEventState?.(command.sessionId);
       // Invalidate the adapter's cached session handle. The Product Shell /
       // live Pi session it holds would otherwise keep the pre-truncation
       // history and be reused by ensureLiveSession on the next prompt.
@@ -720,6 +748,7 @@ export async function handleSessionLiveCommand(
           supersedeReason,
         );
         context.settlePendingPermissionsForSession(command.sessionId);
+        context.settlePendingExtensionUiForSession(command.sessionId);
         // Close ownership immediately so the new run can register. The
         // cancelled background prompt may call emitRunTerminal again; that
         // path is idempotent when runId no longer matches.
@@ -827,6 +856,10 @@ export async function handleSessionLiveCommand(
         'runId' in command && typeof command.runId === 'string' ? command.runId : undefined;
       const active = context.getActiveRun(command.sessionId);
       if (!active) {
+        // An orphaned Extension UI request must not survive after its run has
+        // already disappeared, even though there is no active run left to
+        // cancel.
+        context.settlePendingExtensionUiForSession(command.sessionId);
         // Idempotent: no active run to cancel. Cleanup is best-effort and
         // deliberately detached so a stale control request stays quick.
         scheduleAbortCleanup(context, command.sessionId);
@@ -844,6 +877,10 @@ export async function handleSessionLiveCommand(
           activeRunId: active.runId,
         });
       }
+      // Extension UI waits are not governed by the run AbortSignal. Resolve
+      // them explicitly after validating run ownership; a stale abort must
+      // never cancel a newer run's questionnaire.
+      context.settlePendingExtensionUiForSession(command.sessionId);
 
       context.emitRunPhase(command.sessionId, active.runId, 'cancelling', 'User stopped the run');
       const cancellationRequested = context.requestCancelActiveRun(

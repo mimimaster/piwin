@@ -318,6 +318,7 @@ function createControlContext(
     emitRunPhase: (): void => undefined,
     emitRunTerminal: (sessionId, runId) => registry.markTerminal(sessionId, runId),
     settlePendingPermissionsForSession: (): void => undefined,
+    settlePendingExtensionUiForSession: (): void => undefined,
     setSessionPermissionOverride: (): void => undefined,
     clearSessionPermissionOverride: (): void => undefined,
     loadConfig: async () => ({}) as any,

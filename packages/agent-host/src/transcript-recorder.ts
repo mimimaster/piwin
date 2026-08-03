@@ -22,6 +22,11 @@ export type TranscriptRecorder = {
   recordUserPrompt: (input: PromptInput) => Promise<void>;
   recordEvent: (event: AgentEvent) => Promise<void>;
   flush: () => Promise<void>;
+  /**
+   * Abandon in-memory state and cancel pending flushes. Used by truncate so a
+   * stale recorder cannot rewrite pre-truncation history over the cut file.
+   */
+  dispose: () => void;
 };
 
 const DEFAULT_FLUSH_INTERVAL_MS = 250;
@@ -51,12 +56,16 @@ export function createTranscriptRecorder(options: {
   let backgroundFlushError: unknown = null;
   let documentRevision = 0;
   let persistedRevision = 0;
+  let disposed = false;
   const flushIntervalMs = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
   const maxToolOutputBytes = validateToolOutputLimit(
     options.maxToolOutputBytes ?? DEFAULT_MAX_TOOL_OUTPUT_BYTES,
   );
 
   function enqueueWrite(operation: () => Promise<void>): Promise<void> {
+    if (disposed) {
+      return Promise.resolve();
+    }
     const queuedWrite = writeQueue.then(operation, operation);
     writeQueue = queuedWrite.catch(() => undefined);
     return queuedWrite;
@@ -82,6 +91,9 @@ export function createTranscriptRecorder(options: {
   }
 
   async function persistDocument(): Promise<void> {
+    if (disposed) {
+      return;
+    }
     const currentDocument = await ensureDocument();
     const revisionBeingPersisted = documentRevision;
     currentDocument.updatedAt = new Date().toISOString();
@@ -90,6 +102,9 @@ export function createTranscriptRecorder(options: {
   }
 
   function scheduleFlush(): void {
+    if (disposed) {
+      return;
+    }
     if (flushTimer !== undefined || flushPromise !== null) {
       return;
     }
@@ -374,6 +389,9 @@ export function createTranscriptRecorder(options: {
     },
 
     async flush() {
+      if (disposed) {
+        return;
+      }
       if (flushTimer !== undefined) {
         clearTimeout(flushTimer);
         flushTimer = undefined;
@@ -389,6 +407,19 @@ export function createTranscriptRecorder(options: {
         });
         await writeQueue;
       } while (documentRevision > persistedRevision);
+    },
+
+    dispose() {
+      disposed = true;
+      if (flushTimer !== undefined) {
+        clearTimeout(flushTimer);
+        flushTimer = undefined;
+      }
+      backgroundFlushError = null;
+      document = null;
+      // Drop the write queue so in-flight ops that still resolve cannot
+      // persist after dispose (enqueueWrite no-ops when disposed).
+      writeQueue = Promise.resolve();
     },
   };
 }

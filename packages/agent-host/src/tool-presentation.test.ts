@@ -205,6 +205,26 @@ describe('buildToolPresentation', () => {
     expect(presentation.kind).toBe('mcp');
     expect(presentation.actionVerb).toBe('MCP (agent-memory)');
     expect(presentation.summary).toBe('agent_memory_get_context');
+    expect(presentation.inputPreview).toContain('prefs');
+  });
+
+  it('does not dump raw MCP JSON args into the header summary', () => {
+    const withTool = buildToolPresentation({
+      toolName: 'mcp__agent-memory__agent_memory_get_context',
+      args: { project: 'piwin' },
+    });
+    expect(withTool.summary).toBe('agent_memory_get_context');
+    expect(withTool.summary).not.toContain('project');
+    expect(withTool.inputPreview).toContain('project');
+
+    // Server-only name (no tool segment) must not fall back to JSON summary.
+    const serverOnly = buildToolPresentation({
+      toolName: 'mcp__agent-memory',
+      args: { project: 'piwin' },
+    });
+    expect(serverOnly.actionVerb).toBe('MCP (agent-memory)');
+    expect(serverOnly.summary).toBeUndefined();
+    expect(serverOnly.inputPreview).toBe('{"project":"piwin"}');
   });
 });
 
@@ -238,4 +258,3 @@ describe('buildToolPresentation cancel', () => {
     expect(presentation.error?.message.toLowerCase()).toContain('newer user message');
   });
 });
-
