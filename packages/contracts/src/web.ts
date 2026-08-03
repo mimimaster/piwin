@@ -5,21 +5,30 @@
  * Prefer {@link WebConfig.searchSources} for configuration.
  */
 export type WebSearchProvider =
-  | 'duckduckgo'
-  | 'brave'
-  | 'tavily'
-  | 'searxng'
-  | 'cli'
-  | 'aggregate'
-  | 'none';
+  'duckduckgo' | 'brave' | 'tavily' | 'searxng' | 'cli' | 'aggregate' | 'none';
 
 /** Built-in and user-defined search backends that tools-web can execute. */
 export type WebSearchSourceKind = 'duckduckgo' | 'brave' | 'tavily' | 'searxng' | 'cli';
 
+/** Provider kinds that support a lightweight credentials connectivity check. */
+export type WebSearchTestableSourceKind = Extract<WebSearchSourceKind, 'brave' | 'tavily'>;
+
+export type WebSearchTestInput = {
+  sourceId: string;
+  kind: WebSearchTestableSourceKind;
+};
+
+export type WebSearchTestResult = {
+  sourceId: string;
+  kind: WebSearchTestableSourceKind;
+  durationMs: number;
+  resultCount: number;
+};
+
 /**
- * How tools-web runs multiple enabled sources for one `web_search` call.
- * - parallel: all enabled sources at once, then host-side merge (default)
- * - ordered-fallback: try in list order until maxResults is reached
+ * Search scheduling mode. Multi-source search always runs every enabled source
+ * in parallel and merges hits (URL-deduped). `ordered-fallback` is a legacy
+ * value accepted when reading old configs; it is normalized to `parallel`.
  */
 export type WebSearchStrategyMode = 'parallel' | 'ordered-fallback';
 
@@ -39,6 +48,8 @@ export type WebSearchSource = {
    * Secrets stay out of config files.
    */
   apiKeyEnv?: string;
+  /** Keychain reference holding the API key. Raw secrets never enter config. */
+  apiKeyRef?: string;
   /** SearXNG instance base URL (e.g. https://searx.example.com). */
   baseUrl?: string;
   /**
@@ -112,6 +123,8 @@ export type WebConfig = {
   searchStrategy: WebSearchStrategy;
   /** Reader backend for HTML pages. Default: local supermarkdown. */
   fetchProvider: WebFetchProvider;
+  /** Keychain reference for the selected fetch provider. */
+  fetchApiKeyRef?: string;
   /**
    * Env var name for fetch providers that need a key (e.g. Firecrawl).
    * Jina usually works without a key; optional `JINA_API_KEY` still accepted.

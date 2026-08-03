@@ -3,10 +3,10 @@ import { createDefaultSubagentConfig, THINKING_LEVEL_OPTIONS } from './config.js
 import type {
   ModelConfigEntry,
   ModelCapability,
-  type ModelRouteConfig,
-  type PiwinConfig,
-  type ImageGenerationConfig,
-  type SubagentConfig,
+  ModelRouteConfig,
+  PiwinConfig,
+  ImageGenerationConfig,
+  SubagentConfig,
 } from './config.js';
 
 describe('ModelConfigEntry capabilities + routes', () => {

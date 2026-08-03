@@ -66,6 +66,7 @@ import type {
 } from './session-ops.js';
 import type { WalkthroughArtifact } from './walkthrough-artifact.js';
 import type { PluginInstallSource } from './plugin.js';
+import type { WebSearchTestInput } from './web.js';
 
 /**
  * Bytes are base64 only while crossing the desktop-to-host transport.
@@ -86,6 +87,17 @@ export type MediaSaveData = {
 export type HostCommand =
   | { id?: string; type: 'host/ping' }
   | { id?: string; type: 'host/status' }
+  | {
+      id?: string;
+      /**
+       * ADR 0027: replay buffered pushes from `sinceSeq` (exclusive) to the
+       * calling sink. Only valid when the sink is sequenced and the host
+       * advertised `pushSequencing`. The host re-emits pushes with their
+       * original `seq`/`eventId`, then a terminal `{ type: 'host/replay-done', sinceSeq }`.
+       */
+      type: 'host/replay';
+      sinceSeq: number;
+    }
   | { id?: string; type: 'project/list' }
   | { id?: string; type: 'project/open'; path: string }
   | { id?: string; type: 'project/trust'; path: string }
@@ -316,6 +328,11 @@ export type HostCommand =
     }
   | {
       id?: string;
+      type: 'web/test-search-source';
+      input: WebSearchTestInput;
+    }
+  | {
+      id?: string;
       type: 'permission/resolve';
       requestId: string;
       decision: PermissionDecision;
@@ -512,7 +529,20 @@ export type HostResponse =
       error: string;
     };
 
-export type HostPush =
+/**
+ * ADR 0027: transport-level sequencing fields attached to every push when a
+ * sequenced sink is attached. Optional on every variant; existing consumers
+ * ignore them. Applied via intersection below so the discriminated union on
+ * `type` stays intact.
+ */
+export type HostPushSequencing = {
+  /** Monotonic per host process, not per session. Used for `host/replay`. */
+  seq?: number;
+  /** Stable id for idempotent delivery (distinct from AgentEventEnvelope.eventId). */
+  eventId?: string;
+};
+
+export type HostPushVariant =
   | { type: 'event'; sessionId: string; event: AgentEvent; envelope?: AgentEventEnvelope }
   | {
       type: 'session/name-updated';
@@ -586,7 +616,17 @@ export type HostPush =
       type: 'walkthrough/updated';
       sessionId: string;
       artifact: WalkthroughArtifact;
+    }
+  | {
+      /** ADR 0027: replay buffer drained for a sequenced sink. */
+      type: 'host/replay-done';
+      sinceSeq: number;
+      /** Last seq emitted by this replay, or sinceSeq if nothing was buffered. */
+      lastSeq?: number;
     };
+
+/** ADR 0027: HostPush is the variant union plus optional transport sequencing. */
+export type HostPush = HostPushVariant & HostPushSequencing;
 
 /** Pi ExtensionUIContext dialog kinds bridged to Desktop. */
 export type ExtensionUiKind = 'confirm' | 'select' | 'input';
@@ -647,6 +687,10 @@ export type HostStatusData = {
     usage?: boolean;
     /** CE-SHARE-01: local session export MD/HTML. */
     sessionExport?: boolean;
+    /** ADR 0027: host accepts remote gateway push sinks. */
+    remoteGateway?: boolean;
+    /** ADR 0027: host tags pushes with seq/eventId and supports host/replay. */
+    pushSequencing?: boolean;
   };
 };
 
