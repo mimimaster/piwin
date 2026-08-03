@@ -1,205 +1,253 @@
-# Phase 7 RPC Worker Parity — Gap Analysis
+# Phase 7 RPC Worker Parity — 差异文档 (Gap Analysis)
 
-**Date:** 2026-08-04 (session review)
-**Branch:** `feat/settings-capability-runtime-refactor`
-**Plan:** [`phase7-rpc-worker-parity-plan.md`](./phase7-rpc-worker-parity-plan.md)
+**日期:** 2026-08-04
+**分支:** `feat/settings-capability-runtime-refactor`
+**计划:** [`phase7-rpc-worker-parity-plan.md`](./phase7-rpc-worker-parity-plan.md)
+**状态:** WP0–WP6 已实现并提交。885 测试全绿, typecheck 全绿。但 10 个差异点尚未闭合, 其中 2 个为 Critical。
 
-## Summary
+---
 
-WP0–WP6 are implemented and committed. 885 tests pass, typecheck is green.
-The worker backend (`WorkerRpcSessionBackend`) runs real Pi sessions in a
-piwin-owned Node worker process with tool proxying to the parent Host.
+## 1. 总览: "Done" 标准 vs 实现状态
 
-However, **several gaps remain** before the plan's exit criteria are fully
-met. These gaps fall into two categories: (A) architectural wiring that
-connects the worker to the HostRuntime capability compilation pipeline,
-and (B) protocol robustness features (timeouts, crash semantics, hello
-handshake validation).
+计划 §0.1 定义了 Phase 7 完成的 6 个条件:
 
-## What is done (WP0–WP6)
+| # | "Done" 标准 | 状态 | 差异 |
+|---|------------|------|------|
+| 1 | `hostMode=rpc` 在 piwin-owned worker 进程中运行产品会话 | **部分完成** | worker 进程可以启动并运行, 但 `PiRpcAdapter.createSession` 使用 transitional shim (`deriveBlueprintFromInput`) 而非真正的 capability snapshot 编译。worker 收到的是空资源路径的 blueprint, 不是产品级会话。 |
+| 2 | worker 从 serializable blueprint projection 创建 Pi 会话, 不重新读 Settings | **部分完成** | `WorkerSessionRuntime` + `worker-pi-session-factory` 确实从 `SerializableBlueprint` 创建会话。但 adapter 传递的 blueprint 是 shim, 不是从 `SessionCapabilityResolver` 编译的真实投影。 |
+| 3 | 所有 Host custom tool execution 代理到 parent Host | **机制完成, 数据未通** | tool proxy 机制 (WP4) 完整: proxy tool factory, parent routing, error codes, abort/drop。但 `customToolNames` 在 shim blueprint 中为空, 所以 worker 实际不注册任何 proxy tool。 |
+| 4 | Parent 保持权限/secret/MCP/process/browser 的唯一权威 | **完成** | `HostToolExecutionRouter` 在 parent 侧执行所有 tool calls, worker 不持有任何工具执行器。 |
+| 5 | SDK 和 RPC 通过 conformance suite | **完成 (数据层)** | WP6 conformance suite 覆盖 10 个断言, 全部在数据/策略层验证。runtime event parity 通过 shared mapper 结构性验证。 |
+| 6 | 删除 fallback/stock 路径 | **未执行 (正确)** | WP7 文档化为 next step, gated on CI green + R2。本 session 不删除。 |
 
-| WP | Status | Commit |
-|----|--------|--------|
-| WP0 | Plan + ADR updates | `3238751`, `3a1d75b` |
-| WP1 | Blueprint/protocol completion | `107bc0b` |
-| WP2 | HostToolExecutionRouter extraction | `107bc0b` |
-| WP3 | Worker real session create/prompt/event | `88ddd81` |
-| WP4 | Tool proxy end-to-end | `bfbaf7d` |
-| WP5 | PiSessionBackend dual impl + adapter switch | `414488e` |
-| WP6 | Conformance suite | `3dd63be` |
-| WP7 | Documented as next step (not executed) | `fd43206` |
+**结论:** 条件 4、5 已满足。条件 1、2、3 的机制已实现但数据管道未接通 (GAP-1, GAP-2)。条件 6 正确推迟。
 
-## Gaps (must close before R1 rollout)
+---
 
-### GAP-1: HostRuntime → worker blueprint compilation (§8.3)
+## 2. WP 级别 Exit Criteria vs 实现状态
 
-**What:** `PiRpcAdapter.createSession` uses `deriveBlueprintFromInput()` — a
-transitional shim that builds a minimal blueprint with empty resource
-paths, no providers, and `snapshotId: 'transitional'`. The plan (§8.3)
-requires the HostRuntime to compile the full `SessionCapabilitySnapshot`
-via `SessionCapabilityResolver` and project it to `SerializableBlueprint`
-before calling the worker backend.
+### WP0 — Plan lock and ADR updates
 
-**Impact:** The worker backend currently creates sessions with no skills,
-extensions, prompts, or tools. It is functionally a text-only session.
+| Exit 标准 | 状态 |
+|----------|------|
+| Docs agree on authority matrix and deletion gates | ✅ 已完成 |
 
-**Fix:** Wire `PiRpcAdapter.createSession` to call
-`compileSessionCapabilitySnapshot()` → `projectBlueprintForWorker()` before
-delegating to `WorkerRpcSessionBackend`. The adapter needs access to the
-`SessionCapabilityResolver` (or the HostRuntime must pass the compiled
-blueprint as part of `CreateSessionInput`).
+**交付物:**
+- ✅ Plan file (`phase7-rpc-worker-parity-plan.md`)
+- ✅ ADR 0011 更新 (标记 transitional, 引用 Phase 7 plan)
+- ✅ ADR 0012 更新 (标记 implementation in progress, D-HOST-01b 已实现)
+- ✅ `docs/dev-plan.md` Phase 7 指针
+- ✅ Parent spec Phase 7 section 指向 deep plan
 
-**Priority:** **Critical** — without this, the worker path is not a real
-product session.
+### WP1 — Blueprint/protocol completion
 
-### GAP-2: Provider runtime envelope not populated (§6)
+| Exit 标准 | 状态 |
+|----------|------|
+| Protocol and blueprint ready for a real worker without product wiring yet | ✅ 已完成 |
 
-**What:** `PiRpcAdapter.createSession` passes `providers: []` to the worker
-backend. The plan (§6) requires the parent to build
-`SerializableProviderRuntime[]` from the live Settings provider config and
-pass it to the worker so the worker can register models without loading
-`~/.piwin/config.json`.
+**交付物:**
+- ✅ `SerializableBlueprint` 包含 §5.1 所有字段 (scope, resourceManifest, tools, subagentCeiling, model, thinkingLevel, activePaths)
+- ✅ `SerializableProviderRuntime` 包含 §6.2 所有字段 (providerId, protocol, baseUrl, models, auth)
+- ✅ `WorkerToolCallFrame` + `WorkerToolResultFrame` + `WorkerHelloFrame` 协议帧
+- ✅ `session/create` payload 支持 blueprint-first (productSessionId + blueprint + providers)
+- ✅ Round-trip blueprint 测试
+- ✅ Empty allowlist 保持 empty 测试
+- ✅ Protocol parse unknown frames 测试
 
-**Impact:** The worker cannot call any model — no provider registration
-happens.
+### WP2 — HostToolExecutionRouter extraction
 
-**Fix:** Build the provider envelope from `PiwinConfig.providers` (or the
-live `PiModelRuntime`) in the adapter before calling the backend.
+| Exit 标准 | 状态 |
+|----------|------|
+| Parent can execute any product custom tool by name without going through Pi | ✅ 已完成 |
 
-**Priority:** **Critical** — without providers, the worker session cannot
-prompt.
+**交付物:**
+- ✅ `HostToolExecutionRouter` 按 name 查找工具
+- ✅ Disabled family/stale gate (`isToolDisabled` predicate)
+- ✅ Permission-aware execution (`permissionGate`)
+- ✅ Stable error codes: `tool-not-available`, `tool-disabled`, `permission-denied`, `aborted`
+- ✅ 8 个测试覆盖
 
-### GAP-3: Hello handshake not validated by client (§4.3)
+### WP3 — Worker real session create/prompt/event
 
-**What:** `RpcSdkWorkerClient` does not parse or validate the `hello` frame.
-The plan (§4.3) requires the parent to refuse workers that advertise
-incompatible `protocolVersion`. The worker emits hello, but the client
-ignores it.
+| Exit 标准 | 状态 |
+|----------|------|
+| Worker can run a text-only session end-to-end in isolation without custom tools | ⚠️ 机制完成, Pi 未安装无法验证 |
 
-**Impact:** A worker with an incompatible protocol version would silently
-fail or produce confusing errors instead of a clean rejection.
+**交付物:**
+- ✅ `WorkerSessionRuntime` dispatches JSONL requests (create/prompt/abort/steer/follow-up/drop)
+- ✅ `worker-pi-session-factory` 从 blueprint 构建 ResourceLoader + Pi session
+- ✅ Event mapping via `createPiSessionEventMapper`
+- ✅ `rpc-sdk-worker-entry` 重写为 wire runtime + factory
+- ✅ Integration test: worker process hello + create + drop lifecycle (3 tests, 真实进程)
+- ⚠️ 无法验证真实 Pi session (Pi 包未安装); mock Pi module 测试覆盖 factory 逻辑
 
-**Fix:** Add hello frame parsing in `RpcSdkWorkerClient.handleFrame()`.
-Store the advertised `protocolVersion` and `capabilities`. Refuse
-`createSession` if the version is incompatible.
+**差异:**
+- ⚠️ **GAP-1**: adapter 传递的 blueprint 是 shim, 不是真实 capability snapshot
+- ⚠️ **GAP-2**: adapter 传递 `providers: []`, worker 无法注册任何 model provider
 
-**Priority:** Medium — important for robustness but not blocking dev use.
+### WP4 — Tool proxy end-to-end
 
-### GAP-4: No timeout handling (§4.4)
+| Exit 标准 | 状态 |
+|----------|------|
+| Custom tools work under worker RPC with parent authority | ✅ 机制完成 |
 
-**What:** The plan specifies timeouts for worker start (5s), session/create
-(30s), prompt ack (2s), tool-call roundtrip (10 min), abort (2s). None of
-these are implemented in `RpcSdkWorkerClient` or `WorkerRpcSessionBackend`.
+**交付物:**
+- ✅ `worker-proxy-tool-factory`: 为 blueprint `customToolNames` 构建 proxy tools
+- ✅ Parent client routes `tool-call` → `HostToolExecutionRouter`
+- ✅ `WorkerToolResultFrame` 携带 `code` 字段 (stable error mapping)
+- ✅ Abort cancels outstanding tool proxy (signal listener)
+- ✅ Session drop rejects pending tool calls
+- ✅ 19 个测试 (proxy factory + runtime + router integration)
 
-**Impact:** A hung worker or tool proxy call could block indefinitely.
+**差异:**
+- ⚠️ **GAP-8**: WP4 task 4 要求 MCP/web/process/browser/notes/flashcards/image_gen matrix tests。当前测试覆盖 generic web_search + bash, 未覆盖全部 7 个 tool family。
 
-**Fix:** Add timeout wrappers around `request()` calls with the specified
-durations. Use `AbortSignal` for cancellation.
+### WP5 — PiSessionBackend dual implementation + adapter switch
 
-**Priority:** Medium — important for production but not blocking dev use.
+| Exit 标准 | 状态 |
+|----------|------|
+| `hostMode=rpc` product path uses worker under flag/default policy | ⚠️ Flag 已实现, 数据管道未通 |
 
-### GAP-5: Crash semantics not implemented (§9.3)
+**交付物:**
+- ✅ `PiSessionBackend` interface (createSession/dropSession/dispose + mode/isolated)
+- ✅ `InProcessSdkSessionBackend` (mode='sdk', isolated=false)
+- ✅ `WorkerRpcSessionBackend` (mode='rpc-worker', isolated=true)
+- ✅ `PiRpcAdapter` 支持 `PIWIN_RPC_WORKER=1` / `useWorkerBackend` flag
+- ✅ Doctor/status: `backendMode()`, `isIsolated()`, `usesWorkerBackend()`
+- ✅ `preparePromptInput` helper (image loading + per-turn resolution)
+- ✅ 10 个测试 (backend mode/isolation reporting, flag honor, preparePromptInput)
 
-**What:** When the worker process exits unexpectedly, active sessions should
-be marked `failed`/`stale` and the host should log an error. Currently
-`WorkerRpcSessionBackend` does not handle the worker `exit` event.
+**差异:**
+- ⚠️ **GAP-1**: `deriveBlueprintFromInput` 是 transitional shim, 不调用 `SessionCapabilityResolver`
+- ⚠️ **GAP-2**: `providers: []` 不从 live config 构建
+- ⚠️ **GAP-6**: `PIWIN_RPC_SDK_FALLBACK` flag (§10.1) 未实现
+- ⚠️ **GAP-9**: Extension UI proxy 未实现 (documented degradation)
+- ⚠️ **GAP-10**: Worker script path 仅用 `import.meta.url`, 无 bundle 测试
 
-**Impact:** A worker crash would leave sessions in an indeterminate state;
-the UI would not know the session is dead.
+### WP6 — Conformance suite
 
-**Fix:** Subscribe to `client.on('exit')` in `WorkerRpcSessionBackend`.
-Mark all active sessions as failed. Emit a terminal `AgentEvent` (error)
-for each affected session.
+| Exit 标准 | 状态 |
+|----------|------|
+| CI runs conformance on every agent-host test job | ✅ 已完成 |
 
-**Priority:** Medium — important for production reliability.
+**交付物:**
+- ✅ 10 个断言覆盖 §0.1 条件 5 的所有方面
+- ✅ Blueprint parity (snapshotId, active paths, tool names)
+- ✅ Prepared prompt parity (text/image mode)
+- ✅ Tool router parity (permission deny, disabled behavior)
+- ✅ Subagent ceiling (exact tool set, immutability)
+- ✅ Empty capability ⇒ no tools
 
-### GAP-6: `PIWIN_RPC_SDK_FALLBACK` flag not implemented (§10.1)
+**差异:**
+- ⚠️ Conformance 在数据/策略层验证, 未在 runtime 层验证 (需要 Pi 安装)
 
-**What:** The plan specifies `PIWIN_RPC_SDK_FALLBACK=1` as a temporary flag
-to allow the old in-process fallback after the worker becomes default.
-This flag is not checked in `PiRpcAdapter`.
+### WP7 — Deletion pass
 
-**Impact:** Once `PIWIN_RPC_WORKER` becomes default, users cannot force
-the old fallback path if the worker has issues.
+| Exit 标准 | 状态 |
+|----------|------|
+| No code path silently returns to in-process SDK under `hostMode=rpc` | ⏸️ 正确推迟 |
 
-**Fix:** Add `PIWIN_RPC_SDK_FALLBACK` check in `usesWorkerBackend()` — when
-set, return false (use SDK fallback instead of worker).
+**交付物:**
+- ✅ 文档化为 next step, gated on CI green + R2
+- ✅ ADR 0011/0012 更新标记 transitional
+- ✅ 本 session 不删除任何代码
 
-**Priority:** Low — only needed when worker becomes default (R1).
+---
 
-### GAP-7: `WorkerShutdownFrame` not implemented (§4.1)
+## 3. 差异点详细说明
 
-**What:** The plan specifies a `shutdown` frame for graceful shutdown
-signaling. This frame type is not in the protocol.
+### GAP-1: HostRuntime → worker blueprint 编译 (§8.3) — **Critical**
 
-**Impact:** Minor — the current `close()` path works, but explicit shutdown
-reasons would improve diagnostics.
+**现状:** `PiRpcAdapter.createSession` 调用 `deriveBlueprintFromInput(input)` 构建最小 blueprint:
+```ts
+{
+  snapshotId: 'transitional',
+  settingsRevision: 'transitional',
+  activeSkillPaths: [],
+  activeExtensionPaths: [],
+  activePromptPaths: [],
+  tools: { customToolNames: [], piBuiltinToolNames: [], ... },
+}
+```
 
-**Fix:** Add `WorkerShutdownFrame` type and emit it from the worker entry
-on `rl.on('close')` before `process.exit(0)`.
+**应有:** 调用 `compileSessionCapabilitySnapshot()` → `projectBlueprintForWorker()` 从真实 Settings/trust/MCP/resources 编译完整 blueprint。
 
-**Priority:** Low — nice-to-have for diagnostics.
+**影响:** Worker 收到空资源路径和空工具列表, 创建的是 text-only 会话, 不是产品级会话。
 
-### GAP-8: Tool family matrix tests incomplete (WP4 task 4)
+**修复方向:** `PiRpcAdapter` 需要访问 `SessionCapabilityResolver` (或 HostRuntime 在 `CreateSessionInput` 中传递已编译的 blueprint)。
 
-**What:** WP4 task 4 requires matrix tests covering MCP, web, process,
-browser, notes, flashcards, and image_gen tool families. The current
-tests cover web_search and bash generically but do not test each family
-explicitly.
+### GAP-2: Provider runtime envelope 未填充 (§6) — **Critical**
 
-**Impact:** A regression in one tool family's proxy registration might
-not be caught.
+**现状:** `PiRpcAdapter.createSession` 传递 `providers: []`。
 
-**Fix:** Add parameterized tests that verify each tool family name
-produces a proxy tool with the correct parameter schema.
+**应有:** 从 live `PiwinConfig.providers` (或 `PiModelRuntime`) 构建 `SerializableProviderRuntime[]`, 包含 providerId, protocol, baseUrl, models, auth。
 
-**Priority:** Low — the generic tests cover the mechanism; family-specific
-tests add confidence.
+**影响:** Worker 无法注册任何 model provider, 无法调用任何模型。
 
-### GAP-9: Extension UI proxy not implemented (§3.2 authority matrix)
+**修复方向:** 在 adapter 中添加 `buildProviderEnvelope(config)` 函数, 从 `loadPiwinConfig()` 读取 provider 配置并转换为 serializable envelope。
 
-**What:** Under the worker backend, extension `ctx.ui.confirm` and other
-extension UI requests are not proxied back to the parent. The ADR 0012
-update notes this as a "documented degradation."
+### GAP-3: Hello 握手未验证 (§4.3) — **Medium**
 
-**Impact:** Extensions that use UI APIs will fail under the worker backend.
+**现状:** `RpcSdkWorkerClient` 不解析或验证 `hello` 帧。Worker 发送 hello, client 忽略。
 
-**Fix:** Add an `extension-ui` frame type to the protocol and proxy
-extension UI requests from worker to parent. This is a follow-up work
-item (WP7 or separate).
+**应有:** Client 解析 hello, 存储 `protocolVersion` 和 `capabilities`, 拒绝不兼容版本。
 
-**Priority:** Medium — needed for extension parity but not blocking
-text-only sessions.
+### GAP-4: 无超时处理 (§4.4) — **Medium**
 
-### GAP-10: Worker script path resolution for bundling (§10.3)
+**现状:** `RpcSdkWorkerClient.request()` 无超时。
 
-**What:** The worker script path uses `import.meta.url` which works in dev
-but may break in bundled host packaging. The plan (§10.3) says "worker
-script path resolution must not depend on `import.meta.url` alone without
-bundle tests."
+**应有:** worker start 5s, session/create 30s, prompt ack 2s, tool-call 10 min, abort 2s。
 
-**Impact:** The worker backend may not work in CLI/desktop production
-builds.
+### GAP-5: Crash 语义未实现 (§9.3) — **Medium**
 
-**Fix:** Add a `workerScript` option that packaging scripts can set
-explicitly. Add a bundle test that verifies the worker script is
-resolvable from the bundled host.
+**现状:** `WorkerRpcSessionBackend` 不处理 worker `exit` 事件。
 
-**Priority:** Medium — needed for production packaging.
+**应有:** Worker crash → 所有活跃会话标记 `failed`, 发送 terminal error event。
 
-## Recommendations
+### GAP-6: `PIWIN_RPC_SDK_FALLBACK` flag 未实现 (§10.1) — **Low**
 
-1. **Before R1 rollout:** Close GAP-1 and GAP-2 (critical). Without
-   blueprint compilation and provider envelope, the worker path is not
-   a real product session.
+**现状:** 仅 `PIWIN_RPC_WORKER` 和 `PIWIN_RPC_STOCK` 被检查。
 
-2. **Before R1 rollout:** Close GAP-3, GAP-4, GAP-5 (robustness). The
-   worker backend needs hello validation, timeouts, and crash semantics
-   for production reliability.
+**应有:** `PIWIN_RPC_SDK_FALLBACK=1` 临时允许旧 in-process fallback (R1 后用)。
 
-3. **R1 → R2 window:** Close GAP-6, GAP-7, GAP-8, GAP-9, GAP-10. These
-   are important for full parity but not blocking initial rollout.
+### GAP-7: `WorkerShutdownFrame` 未实现 (§4.1) — **Low**
 
-4. **WP7 (deletion pass):** Only after all gaps are closed and CI is
-   green. Do not delete the SDK fallback until the worker backend is
-   validated in staging with real sessions.
+**现状:** 协议无 `shutdown` 帧类型。
+
+**应有:** Worker 在 `rl.on('close')` 时发送 `shutdown` 帧并注明 reason。
+
+### GAP-8: Tool family matrix tests 不完整 (WP4 task 4) — **Low**
+
+**现状:** 测试覆盖 generic web_search + bash, 未覆盖全部 7 个 family。
+
+**应有:** 参数化测试验证 MCP/web/process/browser/notes/flashcards/image_gen 各自的 proxy tool 注册和 schema。
+
+### GAP-9: Extension UI proxy 未实现 (§3.2) — **Medium**
+
+**现状:** Worker backend 下 extension `ctx.ui.confirm` 等 UI 请求不代理回 parent。
+
+**应有:** 添加 `extension-ui` 帧类型, proxy extension UI 请求从 worker 到 parent。
+
+### GAP-10: Worker script path bundling (§10.3) — **Medium**
+
+**现状:** `import.meta.url` 解析 worker script, 无 bundle 测试。
+
+**应有:** 支持 `workerScript` option + bundle 测试验证路径可解析。
+
+---
+
+## 4. 修复优先级
+
+| 优先级 | 差异点 | R1 前必须修复? |
+|--------|--------|---------------|
+| **Critical** | GAP-1, GAP-2 | ✅ 是 — 没有这些, worker 不是产品级会话 |
+| **Medium** | GAP-3, GAP-4, GAP-5, GAP-9, GAP-10 | ✅ 是 — 生产可靠性要求 |
+| **Low** | GAP-6, GAP-7, GAP-8 | ❌ 否 — R1→R2 窗口修复 |
+
+## 5. 建议的下一步
+
+1. **单独 PR:** 修复 GAP-1 + GAP-2 (critical) — wire `SessionCapabilityResolver` + provider envelope 到 `PiRpcAdapter`
+2. **单独 PR:** 修复 GAP-3 + GAP-4 + GAP-5 (robustness) — hello validation, timeouts, crash semantics
+3. **R1 rollout:** Worker backend 作为 `hostMode=rpc` 默认 (behind `PIWIN_RPC_WORKER=1` env)
+4. **R1→R2 窗口:** 修复 GAP-6, GAP-7, GAP-8, GAP-9, GAP-10
+5. **R2 (WP7):** CI green + soak 后删除 SDK fallback / stock RPC 路径
