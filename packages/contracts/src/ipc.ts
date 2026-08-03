@@ -67,6 +67,7 @@ import type {
 import type { WalkthroughArtifact } from './walkthrough-artifact.js';
 import type { PluginInstallSource } from './plugin.js';
 import type { WebSearchTestInput } from './web.js';
+import type { ApplySettingsInput } from './settings.js';
 
 /**
  * Bytes are base64 only while crossing the desktop-to-host transport.
@@ -188,6 +189,14 @@ export type HostCommand =
   | { id?: string; type: 'subagent/batch-status'; runId: string }
   | { id?: string; type: 'subagent/batch-cancel'; runId: string }
   | { id?: string; type: 'session/resume'; sessionId: string }
+  | { id?: string; type: 'session/runtime-status'; sessionId: string }
+  | {
+      id?: string;
+      type: 'session/reload-runtime';
+      sessionId: string;
+      expectedSettingsRevision: string;
+      when: 'now' | 'after-current-run';
+    }
   | { id?: string; type: 'session/messages'; sessionId: string }
   | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
   | { id?: string; type: 'session/abort'; sessionId: string; runId?: string }
@@ -289,6 +298,8 @@ export type HostCommand =
   | { id?: string; type: 'plan/abort'; sessionId: string; planId: string }
   | { id?: string; type: 'config/get' }
   | { id?: string; type: 'config/set'; config: PiwinConfig }
+  | { id?: string; type: 'settings/get' }
+  | { id?: string; type: 'settings/apply'; input: ApplySettingsInput }
   | {
       id?: string;
       type: 'models/discover';
