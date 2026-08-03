@@ -7,6 +7,7 @@ import type {
   SubagentLifecycleState,
   SubagentRuntimeSnapshot,
 } from '@piwin/contracts';
+import { isPlaceholderSessionName } from './session-display-name.js';
 
 /** Serializes read-modify-write cycles per index file (single-writer). */
 const indexWriteQueues = new Map<string, Promise<unknown>>();
@@ -193,6 +194,8 @@ export function createSessionRecord(input: {
   scope?: SessionScope;
   workingDirectory?: string;
   name?: string;
+  /** When set with name, controls listability / auto-name overwrite policy. */
+  nameSource?: SessionIndexRecord['nameSource'];
   piSessionFile?: string;
   parentSessionId?: string;
   depth?: number;
@@ -229,6 +232,14 @@ export function createSessionRecord(input: {
   };
   if (input.name) {
     record.name = input.name;
+  }
+  if (input.nameSource) {
+    record.nameSource = input.nameSource;
+  } else if (input.name && !isPlaceholderSessionName(input.name)) {
+    // Explicit human create names are listable immediately. Placeholder
+    // `session-<id>` names stay nameSource-less / default so the sidebar
+    // policy hides them until the first user message names the session.
+    record.nameSource = 'text';
   }
   if (input.piSessionFile) {
     record.piSessionFile = input.piSessionFile;
