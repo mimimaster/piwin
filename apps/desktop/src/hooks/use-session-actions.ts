@@ -6,7 +6,6 @@ import type {
   ModelRef,
   PermissionDecision,
   PermissionRememberScope,
-  PromptAttachment,
   SessionSummary,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
@@ -19,6 +18,7 @@ import { applyAgentModeToPrompt, type AgentModeId } from '../agent-mode';
 import type { SessionRowMenuAction } from '../session-row-menu';
 import { isDesktopShellRuntime, pickProjectDirectory } from '../pick-project-directory';
 import { mapSummariesToListItems, summaryToListItem } from './session-list-item';
+import { sessionHasListName } from '../title-display';
 import { resolveSessionOutline } from '../transcript-outline';
 import { canUseThinkingLevel } from '../model-thinking-policy';
 
@@ -47,6 +47,8 @@ export type UseSessionActionsArgs = {
   setEditingMessageId: Dispatch<SetStateAction<string | null>>;
   setRenameDraft: Dispatch<SetStateAction<{ sessionId: string; name: string } | null>>;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
+  /** Restore truncated user text into the composer after Revert (no auto-resend). */
+  setComposer: Dispatch<SetStateAction<string>>;
 };
 
 export function useSessionActions(args: UseSessionActionsArgs) {
@@ -65,6 +67,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     setEditingMessageId,
     setRenameDraft,
     setHostLogEntries,
+    setComposer,
   } = args;
   // Multiple event handlers can ask for the first session before React has
   // committed activeSessionId. Share one create request per selected scope.
@@ -146,9 +149,12 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }
       const data = listed.data as { sessions?: SessionSummary[] } | undefined;
       const sessions = mapSummariesToListItems(data?.sessions ?? []);
+      // Host already filters unnamed sessions; keep a client-side guard so a
+      // stale push cannot reintroduce `session-<id>` rows into the sidebar.
+      const named = sessions.filter((session) => sessionHasListName(session));
       const visible = includeArchived
-        ? sessions.filter((session) => session.isArchived === true)
-        : sessions.filter((session) => session.isArchived !== true);
+        ? named.filter((session) => session.isArchived === true)
+        : named.filter((session) => session.isArchived !== true);
       // Determine the scope that was actually listed so we can dispatch the
       // correct hydrate action. General sessions go into generalSessions
       // (the reducer also mirrors them into sessions when general is the
@@ -183,6 +189,25 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         });
         return;
       }
+      // Hydrate child summaries in the background so the activity dock and
+      // inspector have data without blocking transcript load. The reducer
+      // ignores children whose parent is not the active session, so a stale
+      // response for a switched-away parent cannot leak into the UI.
+      void (async () => {
+        const childrenResponse = await hostClient.request({
+          type: 'session/list-children',
+          parentSessionId: sessionId,
+        });
+        if (!childrenResponse.success) {
+          return;
+        }
+        const childrenData = childrenResponse.data as { sessions?: SessionSummary[] } | undefined;
+        dispatch({
+          type: 'subagent/children-hydrate',
+          parentSessionId: sessionId,
+          children: childrenData?.sessions ?? [],
+        });
+      })();
       const data = resumed.data as {
         sessionId: string;
         live: boolean;
@@ -314,11 +339,19 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           return null;
         }
         const sessionId = (created.data as { sessionId: string }).sessionId;
-        dispatch({
-          type: 'session/add',
-          sessionId,
-          name: options?.sessionName ?? `session-${sessionId.slice(0, 8)}`,
-        });
+        const explicitName = options?.sessionName?.trim();
+        if (explicitName) {
+          // Named at create → listable immediately.
+          dispatch({
+            type: 'session/add',
+            sessionId,
+            name: explicitName,
+          });
+        } else {
+          // Unnamed until first user message assigns a text title. Activate
+          // without inserting a placeholder row into the sidebar.
+          dispatch({ type: 'session/set', sessionId });
+        }
         return sessionId;
       };
 
@@ -934,6 +967,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         dispatch({ type: 'project/trust-dialog', open: true });
         return;
       }
+      // Cursor-style Restore chat: truncate the transcript at this user turn,
+      // put the text back into the composer, and wait for the user to resend.
+      // Edit-and-resend still auto-submits via handleEditAndResend.
       const truncate = await hostClient.request({
         type: 'session/truncate-from',
         sessionId: state.activeSessionId,
@@ -949,64 +985,22 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         sessionId: state.activeSessionId,
         messages: truncData.messages ?? [],
       });
-      const promptText = applyAgentModeToPrompt(agentMode, text);
-      dispatch({
-        type: 'user/send',
-        text,
-        attachments: message.attachments,
-      });
-      const input: {
-        text: string;
-        attachments?: PromptAttachment[];
-        model?: import('@piwin/contracts').ModelRef;
-        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-        agentMode?: import('@piwin/contracts').AgentModeId;
-      } = {
-        text: promptText,
-        agentMode: agentMode,
-      };
-      if (message.attachments.length > 0) {
-        input.attachments = message.attachments;
-      }
-      const retryModel = selectedModelRef();
-      if (retryModel) {
-        input.model = retryModel;
-      }
-      const retryOption = selectedModelOption();
-      if (thinkingLevel && retryOption && canUseThinkingLevel(retryOption, thinkingLevel, true)) {
-        input.thinkingLevel = thinkingLevel;
-      }
-      const response = await hostClient.request({
-        type: 'session/prompt',
-        sessionId: state.activeSessionId,
-        input,
-      });
-      if (!response.success) {
-        dispatch({ type: 'error', message: response.error });
-      } else {
-        const accepted = response.data as { runId?: string; acceptedAt?: string };
-        if (typeof accepted.runId === 'string') {
-          dispatch({
-            type: 'run/accepted',
-            runId: accepted.runId,
-            ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
-          });
-        }
-      }
+      setComposer(text);
+      dispatchNotification(
+        pushInfo('Conversation restored to this checkpoint. Edit and send when ready.'),
+      );
     },
     [
-      agentMode,
       dispatch,
+      dispatchNotification,
       hostClient,
-      selectedModelRef,
+      setComposer,
       state.activeScope.kind,
       state.activeSessionId,
       state.messages,
       state.projectPath,
       state.projectTrusted,
       state.streaming,
-      thinkingLevel,
-      selectedModelOption,
     ],
   );
 

@@ -39,7 +39,7 @@ function createContextValue(
     saveConfig: vi.fn(async () => true),
     webDraft: webToDraft(createDefaultWebConfig()),
     setWebDraft: vi.fn(),
-    saveWeb: vi.fn(async () => undefined),
+    saveWeb: vi.fn(async () => true),
     preferences: {
       assistantTextSize: 'default',
       codeTextSize: 'default',
@@ -126,6 +126,49 @@ describe('SettingsShell', () => {
     expect(container.querySelectorAll('.settings-nav-item')).toHaveLength(SETTINGS_SECTIONS.length);
   });
 
+  it('renders feedback at the dialog level instead of inside the scrolling column', () => {
+    const contextValue = createContextValue(vi.fn());
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SettingsShell
+            activeSection="web"
+            onSelectSection={vi.fn()}
+            contextValue={contextValue}
+            banners={<div data-testid="settings-feedback-message">Saved</div>}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const feedbackHost = container.querySelector('[data-testid="settings-feedback-host"]');
+    const dialog = container.querySelector('.settings-modal-dialog');
+    const scrollingColumn = container.querySelector('[data-testid="settings-main-scroll"]');
+
+    expect(feedbackHost).not.toBeNull();
+    expect(feedbackHost?.parentElement).toBe(dialog);
+    expect(scrollingColumn?.contains(feedbackHost)).toBe(false);
+  });
+
+  it('uses the page content heading without rendering a duplicate shell title', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SettingsShell
+            activeSection="web"
+            onSelectSection={vi.fn()}
+            contextValue={createContextValue(vi.fn())}
+            onClose={vi.fn()}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('.settings-main-header h2')).toBeNull();
+    expect(container.querySelector('.settings-card-heading')).not.toBeNull();
+    expect(container.querySelector('[data-testid="settings-close-button"]')).not.toBeNull();
+  });
+
   it('switches content when a nav item is clicked', () => {
     act(() => {
       root.render(<ShellHarness initialSection="skills" />);
@@ -190,18 +233,22 @@ describe('SettingsShell', () => {
     });
     expect(container.querySelector('[data-testid="settings-models"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-settings"]')).not.toBeNull();
-    // Open the provider drawer; model directory only lives inside the drawer now.
+    // Expand the provider row — model list / discover live on the models page.
     const providerRow = container.querySelector<HTMLElement>(
       '[data-testid="provider-row-deepseek"]',
     );
     expect(providerRow).not.toBeNull();
     act(() => {
-      providerRow?.click();
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-deepseek"]')
+        ?.click();
     });
-    expect(container.querySelector('[data-testid="provider-drawer"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="provider-row-models-deepseek"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-model-list"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-model-row"]')).not.toBeNull();
-    expect(container.querySelector('.provider-editor-modal')).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="provider-discover-models-deepseek"]'),
+    ).not.toBeNull();
   });
 
   it('renders Wave-2 sections through the registry, not the legacy fallback', async () => {

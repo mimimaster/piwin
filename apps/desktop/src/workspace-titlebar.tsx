@@ -16,7 +16,6 @@ import {
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 import { DropdownMenu, DropdownMenuItem, IconButton } from '@piwin/ui-kit';
-import { buildTitlebarTooltip } from './title-display';
 
 export type WorkspaceTitlebarProps = {
   appearanceMode?: 'light' | 'dark';
@@ -34,13 +33,8 @@ export type WorkspaceTitlebarProps = {
   workPanelOpen?: boolean;
   onToggleWorkPanel?: () => void;
   locale?: DesktopLocale;
-  /** Project basename when a project is open; omit for general scope. */
-  projectName?: string;
-  /** Active session display name (auto / user / placeholder). */
+  /** Active session display name — pure label, no titlebar actions. */
   sessionName?: string;
-  scopeLabel?: string;
-  permissionMode?: import('@piwin/contracts').PermissionPreset | null;
-  onOpenPermissions?: () => void;
 };
 
 function startNativeWindowDrag(): void {
@@ -80,9 +74,9 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
         : '切换到浅色主题';
 
   const sessionName = props.sessionName?.trim() ?? '';
-  const projectName = props.projectName?.trim() || undefined;
-  const showIdentity = sessionName.length > 0 || Boolean(projectName);
-  const tooltip = buildTitlebarTooltip(projectName, sessionName || projectName || '');
+  const showTitle = sessionName.length > 0;
+  // Full name on hover when the visible title is truncated with ellipsis.
+  const tooltip = sessionName;
 
   return (
     <header className="titlebar workbench-topbar" data-testid="workbench-topbar">
@@ -129,51 +123,14 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
         </IconButton>
       </div>
 
-      {/* Session Title & Badges in Titlebar */}
-      {showIdentity ? (
+      {/* Display-only session title (no breadcrumb / badges / click actions). */}
+      {showTitle ? (
         <div
-          className="titlebar-session-identity"
-          data-testid="titlebar-session-identity"
+          className="titlebar-session-title"
+          data-testid="titlebar-session-title"
           title={tooltip}
         >
-          {projectName ? (
-            <>
-              <span className="titlebar-project-name">{projectName}</span>
-              {sessionName ? (
-                <span className="titlebar-sep" aria-hidden="true">
-                  /
-                </span>
-              ) : null}
-            </>
-          ) : null}
-          {sessionName ? <span className="titlebar-session-name">{sessionName}</span> : null}
-          {props.scopeLabel ? (
-            <span className="titlebar-scope-pill">{props.scopeLabel}</span>
-          ) : null}
-          {props.permissionMode ? (
-            <button
-              type="button"
-              className={
-                props.permissionMode === 'yolo'
-                  ? 'titlebar-mode-badge is-warning'
-                  : 'titlebar-mode-badge'
-              }
-              data-testid="titlebar-mode-badge"
-              data-mode={props.permissionMode}
-              title={
-                props.locale === 'zh-CN'
-                  ? '运行模式 — 点击打开权限设置'
-                  : 'Run mode — click to open Permissions settings'
-              }
-              onClick={props.onOpenPermissions}
-            >
-              {props.permissionMode === 'auto'
-                ? 'Auto'
-                : props.permissionMode === 'ask'
-                  ? 'Ask'
-                  : 'YOLO'}
-            </button>
-          ) : null}
+          <span className="titlebar-session-title-text">{sessionName}</span>
         </div>
       ) : null}
 

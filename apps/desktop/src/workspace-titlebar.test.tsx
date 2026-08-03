@@ -12,7 +12,7 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
-describe('WorkspaceTitlebar identity', () => {
+describe('WorkspaceTitlebar session title', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -29,42 +29,44 @@ describe('WorkspaceTitlebar identity', () => {
     container.remove();
   });
 
-  it('renders project and session as separate nodes without string-split', () => {
+  it('renders a display-only session title without project breadcrumb or badges', () => {
     act(() => {
       root.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <WorkspaceTitlebar projectName="piwin" sessionName="Auth / OAuth fix" />
+          <WorkspaceTitlebar sessionName="Auth / OAuth fix" />
         </PiwinUiProvider>,
       );
     });
-    expect(container.querySelector('.titlebar-project-name')?.textContent).toBe('piwin');
-    expect(container.querySelector('.titlebar-session-name')?.textContent).toBe('Auth / OAuth fix');
-    // Must NOT treat "Auth" as project because of internal " / "
-    expect(container.querySelectorAll('.titlebar-sep')).toHaveLength(1);
-  });
-
-  it('sets tooltip to full project / session', () => {
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <WorkspaceTitlebar projectName="piwin" sessionName="Walkthrough 交付文档" />
-        </PiwinUiProvider>,
-      );
-    });
-    const identity = container.querySelector('.titlebar-session-identity');
-    expect(identity?.getAttribute('title')).toBe('piwin / Walkthrough 交付文档');
-  });
-
-  it('renders session only when no project', () => {
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <WorkspaceTitlebar sessionName="General chat" />
-        </PiwinUiProvider>,
-      );
-    });
+    const title = container.querySelector('[data-testid="titlebar-session-title"]');
+    expect(title).not.toBeNull();
+    expect(title?.textContent).toBe('Auth / OAuth fix');
     expect(container.querySelector('.titlebar-project-name')).toBeNull();
-    expect(container.querySelector('.titlebar-session-name')?.textContent).toBe('General chat');
+    expect(container.querySelector('.titlebar-sep')).toBeNull();
+    expect(container.querySelector('[data-testid="titlebar-mode-badge"]')).toBeNull();
+    expect(container.querySelector('.titlebar-scope-pill')).toBeNull();
+  });
+
+  it('sets tooltip to the full session name for truncated titles', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <WorkspaceTitlebar sessionName="Walkthrough 交付文档" />
+        </PiwinUiProvider>,
+      );
+    });
+    const title = container.querySelector('[data-testid="titlebar-session-title"]');
+    expect(title?.getAttribute('title')).toBe('Walkthrough 交付文档');
+  });
+
+  it('hides the title when session name is empty', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <WorkspaceTitlebar sessionName="  " />
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container.querySelector('[data-testid="titlebar-session-title"]')).toBeNull();
   });
 
   it('shows theme toggle and invokes onToggleAppearance', () => {

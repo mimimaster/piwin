@@ -546,11 +546,14 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
         <div className="usage-card usage-heatmap-card">
           <div className="usage-heatmap-header-stat">
             <h3 className="usage-heatmap-big-number">
-              {formatFull(rollup.totalTokens)} {isZh ? 'lines / tokens written' : 'lines / tokens written'}
+              <span className="usage-heatmap-total">
+                {formatFull(rollup.totalTokens)}
+              </span>{' '}
+              <span>{isZh ? 'Tokens 已使用' : 'tokens used with piwin'}</span>
             </h3>
             <p className="usage-heatmap-subtext">
               {heatmap.totalActiveDays}{' '}
-              {isZh ? 'day with contributions in the last year' : 'day with contributions in the last year'}
+              {isZh ? '天在过去一年中有使用记录' : 'active days in the last year'}
             </p>
           </div>
 
@@ -585,15 +588,18 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
                 {heatmap.cells.map(({ dateStr, bucket, level }) => {
                   const total = bucket?.totalTokens ?? 0;
                   const entries = bucket?.entryCount ?? 0;
-                  const titleText = `${dateStr}: ${formatFull(total)} tokens (${entries} ${
-                    isZh ? '次请求' : 'turns'
-                  })`;
+                  const friendlyDate = formatDateFriendly(dateStr);
+                  const tooltipText = isZh
+                    ? `${formatFull(total)} Tokens\n${friendlyDate} · ${entries} 次请求`
+                    : `${formatFull(total)} tokens\n${friendlyDate} · ${entries} turns`;
                   return (
                     <div
                       key={dateStr}
                       className="usage-heatmap-cell"
                       data-level={level}
-                      title={titleText}
+                      data-tooltip={tooltipText}
+                      aria-label={tooltipText.replace('\n', ', ')}
+                      role="img"
                     />
                   );
                 })}
@@ -603,13 +609,15 @@ export function UsagePanel(props: UsagePanelProps): ReactElement {
 
           {/* Legend */}
           <div className="usage-heatmap-footer">
-            <span>Less</span>
-            <div className="usage-heatmap-cell" data-level={0} />
-            <div className="usage-heatmap-cell" data-level={1} />
-            <div className="usage-heatmap-cell" data-level={2} />
-            <div className="usage-heatmap-cell" data-level={3} />
-            <div className="usage-heatmap-cell" data-level={4} />
-            <span>More</span>
+            <span>{isZh ? '少' : 'Less'}</span>
+            <div className="usage-heatmap-legend-scale" aria-hidden="true">
+              <div className="usage-heatmap-cell" data-level={0} />
+              <div className="usage-heatmap-cell" data-level={1} />
+              <div className="usage-heatmap-cell" data-level={2} />
+              <div className="usage-heatmap-cell" data-level={3} />
+              <div className="usage-heatmap-cell" data-level={4} />
+            </div>
+            <span>{isZh ? '多' : 'More'}</span>
           </div>
         </div>
 

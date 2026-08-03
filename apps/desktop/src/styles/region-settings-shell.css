@@ -34,6 +34,7 @@
 
 /* Floating modal sub-form dialog frame */
 .settings-modal-dialog {
+  position: relative;
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   width: min(980px, calc(100vw - 48px));
@@ -65,7 +66,9 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 20px 14px 14px;
+  /* No right padding: the nav list scrollbar sits on the column edge (not
+     inset into the menu), so it no longer crowds nav labels. */
+  padding: 20px 0 14px 14px;
   min-height: 0;
   overflow: hidden;
   border-right: none;
@@ -74,6 +77,7 @@
 
 .settings-nav-brand {
   padding: 2px 6px;
+  padding-right: 14px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -119,6 +123,7 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
 .settings-search-container {
   position: relative;
   margin: 0 2px;
+  padding-right: 12px;
 }
 
 .settings-search-icon {
@@ -166,13 +171,43 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   gap: 12px;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 2px;
+  overflow-x: hidden;
+  /* Thin floating thumb on the column edge; hover-reveal so it stays out of the way. */
+  padding-right: 0;
+  scrollbar-gutter: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.settings-nav-list:hover,
+.settings-nav-list:focus-within {
+  scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transparent;
+}
+
+.settings-nav-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.settings-nav-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-nav-list::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.settings-nav-list:hover::-webkit-scrollbar-thumb,
+.settings-nav-list:focus-within::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 32%, transparent);
 }
 
 .settings-nav-group {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  /* Keep labels clear of the floating thumb. */
+  padding-right: 10px;
 }
 
 .settings-nav-group-label {
@@ -251,6 +286,7 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   align-items: center;
   gap: 6px;
   padding: 10px 8px 0;
+  padding-right: 14px;
   font-size: 11px;
   color: var(--faint);
   border-top: none;
@@ -274,34 +310,116 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   padding: 24px 32px 40px;
-  background: var(--canvas);
+  /* Theme primary surface (white in light themes) — not a settings-only color. */
+  background: var(--panel);
 }
 
-/* Floating feedback: open/close must not reflow settings content. */
+/* Dialog-level feedback remains visible while the main column scrolls. */
 .settings-feedback-host.ui-feedback-host {
-  top: 16px;
-  right: 24px;
-  left: auto;
+  z-index: 120;
+  top: 62px;
+  right: auto;
+  left: calc(240px + (100% - 240px) / 2);
   bottom: auto;
-  width: min(360px, calc(100% - 48px));
+  width: min(440px, calc(100% - 300px));
+  transform: translateX(-50%);
+  align-items: stretch;
+}
+
+.settings-feedback-host .ui-notice {
+  position: relative;
+  align-items: center;
+  min-height: 46px;
+  padding: 11px 16px 11px 46px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow:
+    0 14px 34px color-mix(in srgb, #000 24%, transparent),
+    0 2px 8px color-mix(in srgb, #000 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent);
+  backdrop-filter: blur(18px) saturate(1.25);
+  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  animation: settings-feedback-enter 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.settings-feedback-host .ui-notice::before {
+  content: 'i';
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 750;
+  font-style: normal;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.settings-feedback-host .ui-notice.tone-success::before {
+  content: '✓';
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+
+.settings-feedback-host .ui-notice.tone-warning::before {
+  content: '!';
+  background: color-mix(in srgb, var(--state-warning) 16%, transparent);
+  color: var(--state-warning);
+}
+
+.settings-feedback-host .ui-notice.tone-error::before {
+  content: '×';
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.settings-feedback-host .ui-notice-message {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 540;
+  line-height: 1.45;
+}
+
+.settings-feedback-host .ui-notice-title {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 680;
+}
+
+.settings-feedback-host .ui-notice.tone-error {
+  border-color: color-mix(in srgb, var(--danger) 24%, transparent);
+  background: color-mix(in srgb, var(--danger) 6%, var(--panel));
+}
+
+@keyframes settings-feedback-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .settings-main-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin: 0 0 24px;
+  justify-content: flex-end;
+  min-height: 24px;
+  margin: 0 0 16px;
   padding-bottom: 0;
   border-bottom: none;
-}
-
-.settings-main-header h2 {
-  margin: 0;
-  color: var(--text);
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  line-height: 1.2;
 }
 
 .settings-close-btn {
@@ -355,6 +473,18 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
     border-right: none;
     border-bottom: 1px solid var(--line-soft);
     max-height: 180px;
+  }
+
+  .settings-feedback-host.ui-feedback-host {
+    top: 194px;
+    left: 50%;
+    width: min(420px, calc(100% - 32px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-feedback-host .ui-notice {
+    animation: none;
   }
 }
 

@@ -57,6 +57,11 @@ import {
   type AtItem,
 } from './at';
 import { ComposerModalEditor } from './ComposerModalEditor';
+import {
+  ExtensionUiPrompt,
+  type ExtensionUiResolvePayload,
+} from './extension-ui-prompt';
+import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 
 export type ComposerModelOption = {
   providerId: string;
@@ -103,6 +108,11 @@ export type ComposerDockProps = {
   selectedModelKey: string;
   selectedModelLabel?: string;
   onSelectModel: (key: string) => void;
+  /**
+   * When true, text-only models can still send images (host will describe them).
+   * When false/undefined, attach a composer warning if the user adds media.
+   */
+  visionDelegationEnabled?: boolean;
   menuSkills: ComposerSkillOption[];
   menuMcp: ComposerMcpOption[];
   onRefreshComposerMenus: () => void;
@@ -113,6 +123,12 @@ export type ComposerDockProps = {
   onDrop: (event: DragEvent<HTMLTextAreaElement>) => void;
   onSend: () => void;
   onAbort: () => void;
+  /** Model-originated question rendered inline above the composer input. */
+  extensionUiRequest?: ExtensionUiRequestState | null;
+  extensionUiInput?: string;
+  onExtensionUiInputChange?: (value: string) => void;
+  onExtensionUiResolve?: (payload: ExtensionUiResolvePayload) => void;
+  onExtensionUiAbort?: () => void | Promise<void>;
   onCompact: () => void;
   /** Host capability; when false compact slash is unavailable. Default true. */
   compactionSupported?: boolean;
@@ -142,11 +158,26 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const agentModeDefinition = getAgentMode(props.agentMode);
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
-  const canComposeText = true;
-  const hasContent = props.composer.trim().length > 0 || props.pendingAttachments.length > 0;
+  const extensionUiRequest = props.extensionUiRequest ?? null;
+  const isExtensionUiActive = extensionUiRequest !== null;
+  const isExtensionUiInput = extensionUiRequest?.kind === 'input';
+  const extensionUiInput = props.extensionUiInput ?? '';
+  const canComposeText = !isExtensionUiActive;
+  const composerValue = isExtensionUiInput ? extensionUiInput : props.composer;
+  const hasContent = isExtensionUiActive
+    ? isExtensionUiInput && extensionUiInput.trim().length > 0
+    : props.composer.trim().length > 0 || props.pendingAttachments.length > 0;
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
+  const hasMediaAttachment = props.pendingAttachments.some(
+    (item) => item.attachment.kind === 'media',
+  );
+  const selectedModelSupportsImage = selectedModel?.supportsImage === true;
+  const showTextOnlyImageWarning =
+    hasMediaAttachment &&
+    !selectedModelSupportsImage &&
+    props.visionDelegationEnabled !== true;
   const thinkingModels = props.modelOptions.map((model) => ({
     key: `${model.providerId}::${model.modelId}`,
     label: model.label,
@@ -184,6 +215,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   useEffect(() => {
     textareaRef.current?.focus();
   }, [props.activeSessionId, props.projectPath]);
+
+  useEffect(() => {
+    if (isExtensionUiInput) {
+      textareaRef.current?.focus();
+    }
+  }, [extensionUiRequest?.requestId, isExtensionUiInput]);
 
   // Catalog: Slash Menu items
   const slashCatalog = useMemo(
@@ -350,6 +387,32 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (isExtensionUiInput) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        props.onExtensionUiResolve?.({ cancelled: true });
+        return;
+      }
+      if (
+        event.key === 'Enter' &&
+        !event.shiftKey &&
+        !event.nativeEvent.isComposing &&
+        !isComposingRef.current
+      ) {
+        event.preventDefault();
+        props.onExtensionUiResolve?.({ value: extensionUiInput });
+      }
+      return;
+    }
+
+    if (isExtensionUiActive) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        props.onExtensionUiResolve?.({ cancelled: true, confirmed: false });
+      }
+      return;
+    }
+
     // 1. Slash Menu Navigation
     if (slashMenuOpen) {
       if (event.key === 'ArrowDown') {
@@ -502,15 +565,15 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     if (!el) return;
     requestAnimationFrame(() => {
       el.style.height = 'auto';
-      if (props.composer) {
+      if (composerValue) {
         el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
       }
     });
-  }, [props.composer]);
+  }, [composerValue]);
 
   useEffect(() => {
     autoResize();
-  }, [props.composer, props.layoutMode, autoResize]);
+  }, [composerValue, props.layoutMode, autoResize]);
 
   return (
     <div
@@ -529,6 +592,26 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       {/* Attachments row */}
       {props.docCommentsAttachment || props.pendingAttachments.length > 0 ? (
         <div className="composer-v2-attachments">
+          {showTextOnlyImageWarning ? (
+            <div
+              className="composer-v2-vision-warning"
+              data-testid="composer-text-only-image-warning"
+              role="status"
+            >
+              <span className="composer-v2-vision-warning-text">
+                当前为文本模型，不支持识图。请换「视觉」模型，或开启视觉委派。
+              </span>
+              {props.onOpenModelSettings ? (
+                <button
+                  type="button"
+                  className="composer-v2-vision-warning-action"
+                  onClick={props.onOpenModelSettings}
+                >
+                  设置
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           {props.docCommentsAttachment ? (
             <div
               className="composer-v2-attachment-chip composer-v2-doc-comment-chip"
@@ -581,6 +664,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         </div>
       ) : null}
 
+      <ExtensionUiPrompt
+        request={extensionUiRequest}
+        onResolve={props.onExtensionUiResolve ?? (() => undefined)}
+        onAbort={props.onExtensionUiAbort ?? (() => undefined)}
+      />
+
       {/* Textarea area */}
       <div className="composer-v2-input-area">
         <SlashMenu
@@ -603,9 +692,13 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           ref={textareaRef}
           className="composer-v2-textarea"
           data-testid="composer-input"
-          value={props.composer}
+          value={composerValue}
           onChange={(event) => {
-            props.onComposerChange(event.target.value);
+            if (isExtensionUiInput) {
+              props.onExtensionUiInputChange?.(event.target.value);
+            } else if (!isExtensionUiActive) {
+              props.onComposerChange(event.target.value);
+            }
             setCaretIndex(event.target.selectionStart ?? event.target.value.length);
             setSlashMenuForcedClosed(false);
             setAtMenuForcedClosed(false);
@@ -629,7 +722,14 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           onDragLeave={() => props.onDropActiveChange(false)}
           onDrop={(event) => props.onDrop(event)}
           onKeyDown={handleComposerKeyDown}
-          placeholder={agentModeDefinition.placeholder}
+          readOnly={isExtensionUiActive && !isExtensionUiInput}
+          placeholder={
+            isExtensionUiInput
+              ? extensionUiRequest?.placeholder ?? 'Type your answer'
+              : isExtensionUiActive
+                ? 'Choose an option above to continue'
+                : agentModeDefinition.placeholder
+          }
           rows={1}
         />
       </div>
@@ -732,7 +832,20 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
           {/* Send / Stop Action Button */}
           {isStreamingRun ? (
-            hasContent ? (
+            isExtensionUiActive ? (
+              <button
+                type="button"
+                className="composer-v2-stop-btn is-running"
+                data-testid="stop-btn"
+                disabled={!props.activeSessionId || props.runPhase === 'aborting'}
+                onClick={props.onAbort}
+                aria-label={props.runPhase === 'aborting' ? 'Stopping' : 'Stop'}
+                title={props.runPhase === 'aborting' ? 'Stopping…' : 'Stop'}
+              >
+                <span className="stop-btn-pulse" aria-hidden />
+                <IconStop />
+              </button>
+            ) : hasContent ? (
               <button
                 type="button"
                 className="composer-v2-send-btn is-steer"

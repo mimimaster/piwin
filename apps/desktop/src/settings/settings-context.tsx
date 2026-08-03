@@ -37,6 +37,7 @@ export type SettingsConfigRequest = (command: {
     | 'vision/cache/clear'
     | 'secrets/set'
     | 'secrets/get'
+    | 'web/test-search-source'
     | 'project/permissions-list'
     | 'project/permissions-revoke'
     | 'usage/get-rollup';
@@ -55,6 +56,7 @@ export type SettingsConfigRequest = (command: {
   input?:
     | import('@piwin/contracts').ModelCatalogSearchRequest
     | import('@piwin/contracts').VisionDelegateInput;
+  webTest?: import('@piwin/contracts').WebSearchTestInput;
 }) => Promise<HostResponse>;
 
 export type SettingsContextValue = {
@@ -63,13 +65,13 @@ export type SettingsContextValue = {
   root: string;
   saving: boolean;
   setError: (message: string | null) => void;
-  setInfo: (message: string | null) => void;
+  setInfo: (message: string | null, tone?: 'info' | 'success' | 'warning') => void;
   /** Persist config through the host; returns false (and sets error) on failure. */
   saveConfig: (next: PiwinConfig) => Promise<boolean>;
   /** Web tools draft lives above the section so it survives nav switches. */
   webDraft: DraftWeb;
   setWebDraft: (draft: DraftWeb) => void;
-  saveWeb: () => Promise<void>;
+  saveWeb: (draftOverride?: DraftWeb) => Promise<boolean>;
   preferences: DesktopPreferences;
   onPreferencesChange: (prefs: DesktopPreferences) => void;
   projectPath: string | null;
@@ -107,6 +109,9 @@ export type SettingsContextValue = {
   ) => Promise<import('@piwin/contracts').ModelCatalogSearchResult>;
   storeProviderSecret: (providerId: string, secret: string) => Promise<string>;
   loadProviderSecret: (providerId: string) => Promise<string | null>;
+  testWebSearchSource?: (
+    input: import('@piwin/contracts').WebSearchTestInput,
+  ) => Promise<import('@piwin/contracts').WebSearchTestResult>;
 };
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);

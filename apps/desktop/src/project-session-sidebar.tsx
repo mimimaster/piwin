@@ -12,6 +12,9 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   IconButton,
 } from '@piwin/ui-kit';
 import { projectDisplayName } from './project-display-name';
@@ -19,6 +22,9 @@ import {
   IconArchive,
   IconBook,
   IconChat,
+  IconCheck,
+  IconChevronRight,
+  IconDocument,
   IconFolder,
   IconFolderOpen,
   IconFolderPlus,
@@ -28,6 +34,8 @@ import {
   IconSearch,
   IconSettings,
   IconSliders,
+  IconTrash,
+  IconUnarchive,
 } from './shell-icons';
 import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
 
@@ -52,7 +60,7 @@ function formatRelativeTime(dateString?: string): string {
   return `${years}y`;
 }
 
-/** Sort sessions: pinned first, then updatedAt descending. */
+/** Sort sessions: pinned first, then updatedAt descending (missing = newest). */
 function sortByPinnedThenUpdated(list: SessionListItemUi[]): SessionListItemUi[] {
   const sorted = [...list];
   sorted.sort((left, right) => {
@@ -61,9 +69,13 @@ function sortByPinnedThenUpdated(list: SessionListItemUi[]): SessionListItemUi[]
     if (leftPinned !== rightPinned) {
       return leftPinned ? -1 : 1;
     }
-    const leftTime = left.updatedAt ?? '';
-    const rightTime = right.updatedAt ?? '';
-    return rightTime.localeCompare(leftTime);
+    // Missing updatedAt means just-created; keep above stamped rows so new
+    // Conversations entries stay at the top of the section.
+    const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.POSITIVE_INFINITY;
+    const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.POSITIVE_INFINITY;
+    const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
+    const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
+    return rightSafe - leftSafe;
   });
   return sorted;
 }
@@ -102,6 +114,7 @@ export type ProjectSessionSidebarProps = {
   onTogglePin?: ((sessionId: string, currentlyPinned: boolean) => void) | undefined;
   onArchiveSession?: ((sessionId: string) => void) | undefined;
   onUnarchiveSession?: ((sessionId: string) => void) | undefined;
+  onDeleteSession?: ((sessionId: string) => void) | undefined;
   onOpenSettings: () => void;
   knowledgeOpen?: boolean;
   onToggleKnowledge?: () => void;
@@ -123,6 +136,7 @@ function SessionRowItem({
   onTogglePin,
   onArchiveSession,
   onUnarchiveSession,
+  onDeleteSession,
 }: {
   session: SessionListItemUi;
   activeSessionId: string | null;
@@ -131,6 +145,7 @@ function SessionRowItem({
   onTogglePin?: ((sessionId: string, currentlyPinned: boolean) => void) | undefined;
   onArchiveSession?: ((sessionId: string) => void) | undefined;
   onUnarchiveSession?: ((sessionId: string) => void) | undefined;
+  onDeleteSession?: ((sessionId: string) => void) | undefined;
 }): ReactElement {
   const isPinned = session.isPinned === true;
   const isArchived = session.isArchived === true;
@@ -153,12 +168,17 @@ function SessionRowItem({
       >
         <span className="session-item-body">
           <span className="session-item-name">
+            {isArchived ? (
+              <span className="session-archived-mark" aria-hidden title="Archived">
+                <IconDocument width={13} height={13} />
+              </span>
+            ) : null}
             {isPinned ? (
               <span className="session-pin-mark" aria-hidden>
                 <IconPin width={12} height={12} />
               </span>
             ) : null}
-            {session.name}
+            <span className="session-item-title-text">{session.name}</span>
           </span>
         </span>
         {session.updatedAt ? (
@@ -167,59 +187,107 @@ function SessionRowItem({
           </span>
         ) : null}
       </button>
-      <div className="session-row-actions">
-        <button
-          type="button"
-          className="session-action-btn session-menu-btn"
-          data-testid="session-menu-btn"
-          title="Session actions"
-          aria-label="Session actions"
-          onClick={(event) => {
-            event.stopPropagation();
-            const rect = event.currentTarget.getBoundingClientRect();
-            onOpenSessionMenu(session.id, rect.right - 8, rect.bottom + 4);
-          }}
-        >
-          <IconMoreVertical width={14} height={14} />
-        </button>
-        <button
-          type="button"
-          className={
-            isPinned
-              ? 'session-action-btn session-pin-btn active'
-              : 'session-action-btn session-pin-btn'
-          }
-          data-testid="session-pin-btn"
-          title={isPinned ? 'Unpin session' : 'Pin session'}
-          aria-label={isPinned ? 'Unpin session' : 'Pin session'}
-          onClick={(event) => {
-            event.stopPropagation();
-            onTogglePin?.(session.id, isPinned);
-          }}
-        >
-          <IconPin width={13} height={13} />
-        </button>
-        <button
-          type="button"
-          className={
-            isArchived
-              ? 'session-action-btn session-archive-btn active'
-              : 'session-action-btn session-archive-btn'
-          }
-          data-testid="session-archive-btn"
-          title={isArchived ? 'Restore session' : 'Archive session'}
-          aria-label={isArchived ? 'Restore session' : 'Archive session'}
-          onClick={(event) => {
-            event.stopPropagation();
-            if (isArchived) {
-              onUnarchiveSession?.(session.id);
-            } else {
-              onArchiveSession?.(session.id);
-            }
-          }}
-        >
-          <IconArchive width={13} height={13} />
-        </button>
+      <div
+        className={
+          isArchived
+            ? 'session-row-actions session-row-actions--archived'
+            : 'session-row-actions'
+        }
+      >
+        {isArchived ? (
+          <>
+            <button
+              type="button"
+              className={
+                isPinned
+                  ? 'session-action-btn session-pin-btn active'
+                  : 'session-action-btn session-pin-btn'
+              }
+              data-testid="session-pin-btn"
+              title={isPinned ? 'Unpin session' : 'Pin session'}
+              aria-label={isPinned ? 'Unpin session' : 'Pin session'}
+              onClick={(event) => {
+                event.stopPropagation();
+                onTogglePin?.(session.id, isPinned);
+              }}
+            >
+              <IconPin width={13} height={13} />
+            </button>
+            <button
+              type="button"
+              className="session-action-btn session-unarchive-btn"
+              data-testid="session-unarchive-btn"
+              title="Restore session"
+              aria-label="Restore session"
+              onClick={(event) => {
+                event.stopPropagation();
+                onUnarchiveSession?.(session.id);
+              }}
+            >
+              <IconUnarchive width={13} height={13} />
+            </button>
+            <button
+              type="button"
+              className="session-action-btn session-delete-btn"
+              data-testid="session-delete-btn"
+              title="Delete permanently"
+              aria-label="Delete permanently"
+              onClick={(event) => {
+                event.stopPropagation();
+                onDeleteSession?.(session.id);
+              }}
+            >
+              <IconTrash width={13} height={13} />
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="session-action-btn session-menu-btn"
+              data-testid="session-menu-btn"
+              title="Session actions"
+              aria-label="Session actions"
+              onClick={(event) => {
+                event.stopPropagation();
+                const rect = event.currentTarget.getBoundingClientRect();
+                onOpenSessionMenu(session.id, rect.right - 8, rect.bottom + 4);
+              }}
+            >
+              <IconMoreVertical width={14} height={14} />
+            </button>
+            <button
+              type="button"
+              className={
+                isPinned
+                  ? 'session-action-btn session-pin-btn active'
+                  : 'session-action-btn session-pin-btn'
+              }
+              data-testid="session-pin-btn"
+              title={isPinned ? 'Unpin session' : 'Pin session'}
+              aria-label={isPinned ? 'Unpin session' : 'Pin session'}
+              onClick={(event) => {
+                event.stopPropagation();
+                onTogglePin?.(session.id, isPinned);
+              }}
+            >
+              <IconPin width={13} height={13} />
+            </button>
+            <button
+              type="button"
+              className="session-action-btn session-archive-btn"
+              data-testid="session-archive-btn"
+              title="Archive session"
+              aria-label="Archive session"
+              onClick={(event) => {
+                event.stopPropagation();
+                onArchiveSession?.(session.id);
+              }}
+            >
+              <IconArchive width={13} height={13} />
+            </button>
+          </>
+        )}
       </div>
     </li>
   );
@@ -390,32 +458,122 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                   <IconSliders />
                 </IconButton>
               }
+              contentClassName="sidebar-display-menu"
+              align="end"
+              label="Customize sidebar"
+              testId="display-options-menu"
             >
-              <DropdownMenuLabel className="plus-menu-caption muted">
-                Sort Conversations
+              <DropdownMenuLabel className="sidebar-display-menu-title">
+                Customize
               </DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => setSortBy('updated')}>
-                {sortBy === 'updated' ? '✓ ' : ''}Last Updated
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setSortBy('alphabetical')}>
-                {sortBy === 'alphabetical' ? '✓ ' : ''}Alphabetical (A-Z)
-              </DropdownMenuItem>
+
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger testId="display-options-ordering">
+                  <span className="sidebar-display-row">
+                    <span className="sidebar-display-row-label">Ordering</span>
+                    <span className="sidebar-display-row-value">
+                      {sortBy === 'updated' ? 'Updated' : 'A-Z'}
+                      <IconChevronRight width={12} height={12} />
+                    </span>
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                  className="sidebar-display-submenu"
+                  label="Ordering"
+                  testId="display-options-ordering-menu"
+                >
+                  <DropdownMenuItem
+                    onSelect={() => setSortBy('updated')}
+                    testId="display-sort-updated"
+                  >
+                    <span className="sidebar-display-option-label">Last Updated</span>
+                    {sortBy === 'updated' ? (
+                      <span className="sidebar-display-check" aria-hidden>
+                        <IconCheck width={13} height={13} />
+                      </span>
+                    ) : (
+                      <span className="sidebar-display-check-spacer" aria-hidden />
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => setSortBy('alphabetical')}
+                    testId="display-sort-alphabetical"
+                  >
+                    <span className="sidebar-display-option-label">Alphabetical (A-Z)</span>
+                    {sortBy === 'alphabetical' ? (
+                      <span className="sidebar-display-check" aria-hidden>
+                        <IconCheck width={13} height={13} />
+                      </span>
+                    ) : (
+                      <span className="sidebar-display-check-spacer" aria-hidden />
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger testId="display-options-group-by">
+                  <span className="sidebar-display-row">
+                    <span className="sidebar-display-row-label">Group by</span>
+                    <span className="sidebar-display-row-value">
+                      {groupBy === 'time' ? 'Date / Time' : 'None'}
+                      <IconChevronRight width={12} height={12} />
+                    </span>
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent
+                  className="sidebar-display-submenu"
+                  label="Group by"
+                  testId="display-options-group-by-menu"
+                >
+                  <DropdownMenuItem
+                    onSelect={() => setGroupBy('time')}
+                    testId="display-group-time"
+                  >
+                    <span className="sidebar-display-option-label">Date / Time</span>
+                    {groupBy === 'time' ? (
+                      <span className="sidebar-display-check" aria-hidden>
+                        <IconCheck width={13} height={13} />
+                      </span>
+                    ) : (
+                      <span className="sidebar-display-check-spacer" aria-hidden />
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => setGroupBy('none')}
+                    testId="display-group-none"
+                  >
+                    <span className="sidebar-display-option-label">None (Flat list)</span>
+                    {groupBy === 'none' ? (
+                      <span className="sidebar-display-check" aria-hidden>
+                        <IconCheck width={13} height={13} />
+                      </span>
+                    ) : (
+                      <span className="sidebar-display-check-spacer" aria-hidden />
+                    )}
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
 
               <DropdownMenuSeparator />
 
-              <DropdownMenuLabel className="plus-menu-caption muted">Group By</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => setGroupBy('time')}>
-                {groupBy === 'time' ? '✓ ' : ''}Date / Time
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setGroupBy('none')}>
-                {groupBy === 'none' ? '✓ ' : ''}None (Flat list)
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuLabel className="plus-menu-caption muted">Filter</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => props.onToggleShowArchived()}>
-                {props.showArchivedSessions ? '✓ Archived Sessions' : 'Active Sessions'}
+              <DropdownMenuLabel className="sidebar-display-section-label">
+                Filters
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onSelect={() => props.onToggleShowArchived()}
+                testId="display-filter-archived"
+              >
+                <span className="sidebar-display-row">
+                  <span className="sidebar-display-row-label">Archived</span>
+                  {props.showArchivedSessions ? (
+                    <span className="sidebar-display-check" aria-hidden>
+                      <IconCheck width={13} height={13} />
+                    </span>
+                  ) : (
+                    <span className="sidebar-display-check-spacer" aria-hidden />
+                  )}
+                </span>
               </DropdownMenuItem>
             </DropdownMenu>
 
@@ -510,6 +668,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onTogglePin={props.onTogglePin}
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
+                        onDeleteSession={props.onDeleteSession}
                       />
                     ))}
                     {projectSessions.length > 6 ? (
@@ -580,6 +739,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onTogglePin={props.onTogglePin}
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
+                        onDeleteSession={props.onDeleteSession}
                       />
                     ))}
                     {generalSessions.length > 6 ? (

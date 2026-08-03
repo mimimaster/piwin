@@ -28,7 +28,8 @@ export type SettingsSectionId =
   | 'automation'
   | 'subagents'
   | 'pets'
-  | 'usage';
+  | 'usage'
+  | 'shortcuts';
 
 /** Legacy settings deep links that now redirect to a canonical section. */
 export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionId>> = {
@@ -54,6 +55,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'general', group: 'application', labelKey: 'general' },
   { id: 'permissions', group: 'application', labelKey: 'permissions' },
   { id: 'appearance', group: 'application', labelKey: 'appearance' },
+  { id: 'shortcuts', group: 'application', labelKey: 'shortcuts' },
   { id: 'models', group: 'agent', labelKey: 'models' },
   { id: 'vision', group: 'agent', labelKey: 'vision' },
   { id: 'image-generation', group: 'agent', labelKey: 'imageGeneration' },

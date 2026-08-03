@@ -7,11 +7,9 @@ export function buildTitlebarTooltip(projectName: string | undefined, sessionNam
   return `${project} / ${session}`;
 }
 
-const PLACEHOLDER_SESSION_RE = /^session-[0-9a-f]{6,}$/i;
-
-/** True when the list label is still a host placeholder, not user/auto content. */
-export function isPlaceholderSessionName(name: string | undefined): boolean {
-  if (!name) return true;
-  const trimmed = name.trim();
-  return PLACEHOLDER_SESSION_RE.test(trimmed) || trimmed === 'New chat' || trimmed === '新会话';
-}
+// Single source of truth lives in @piwin/session (sidebar list policy).
+export {
+  isPlaceholderSessionName,
+  sessionHasListName,
+  filterListableSessions,
+} from '@piwin/session/session-display-name';

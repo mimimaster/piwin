@@ -1,24 +1,22 @@
 /**
- * Inline parent-transcript subagent lifecycle card (PSR D5).
- * Observation only — no spawn/merge controls in the default workspace UI.
+ * Compact parent-transcript subagent launcher (PSR D5).
  *
- * When a live SubagentStreamState is provided, the card can be expanded
- * to show the child session's streaming text, thinking, and tool calls
- * in real time — similar to Cursor/Devin inline subagent views.
+ * Observation only — the card opens the read-only session inspector; it never
+ * spawns, merges, or navigates the workspace. Status reflects the persisted
+ * transcript card (`activity.state`); live work is surfaced by the Working
+ * dock / ticker driven by the shared activity model.
  */
-import { useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import type { SubagentActivityView } from '@piwin/contracts';
-import { Button } from '@piwin/ui-kit';
+import type { ActiveSubagentStatus, SubagentInspectorSelection } from './subagent-activity-model';
+import { subagentStatusToRunKind } from './subagent-activity-model';
 import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
-import { IconChevronDown } from './shell-icons.js';
-import type { RunStatusKind } from './run-status.js';
-import type { SubagentStreamState } from './chat-reducer.js';
+import { IconChevronRight } from './shell-icons.js';
 
 export type SubagentActivityCardProps = {
   activity: SubagentActivityView;
-  onOpenSession?: (sessionId: string) => void;
-  /** Live stream state from child session events. When present, card is expandable. */
-  stream?: SubagentStreamState;
+  /** Opens the read-only child-session inspector for this child. */
+  onInspect?: (selection: SubagentInspectorSelection) => void;
 };
 
 const STATE_LABEL: Record<SubagentActivityView['state'], string> = {
@@ -30,174 +28,57 @@ const STATE_LABEL: Record<SubagentActivityView['state'], string> = {
   merged: 'Merged',
 };
 
-const STATE_KIND_MAP: Record<SubagentActivityView['state'], RunStatusKind> = {
-  started: 'preparing',
-  running: 'working',
-  completed: 'complete',
+/** Transcript card state → shared activity status (merged is complete). */
+const ACTIVITY_STATUS_MAP: Record<SubagentActivityView['state'], ActiveSubagentStatus> = {
+  started: 'running',
+  running: 'running',
+  completed: 'completed',
   failed: 'failed',
-  cancelled: 'stopping',
-  merged: 'complete',
+  cancelled: 'cancelled',
+  merged: 'completed',
 };
 
-function ToolStatusIcon({ status }: { status: 'running' | 'done' | 'error' }): ReactElement {
-  if (status === 'done') {
-    return (
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M3.5 8.5l3 3 6-6" />
-      </svg>
-    );
-  }
-  if (status === 'error') {
-    return (
-      <svg
-        width="12"
-        height="12"
-        viewBox="0 0 16 16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M4 4l8 8M12 4l-8 8" />
-      </svg>
-    );
-  }
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      className="subagent-tool-spinner"
-    >
-      <path d="M8 2v3M8 11v3M2 8h3M11 8h3M3.8 3.8l2 2M10.2 10.2l2 2M12.2 3.8l-2 2M5.8 10.2l-2 2" />
-    </svg>
-  );
+function toInspectorSelection(activity: SubagentActivityView): SubagentInspectorSelection {
+  return {
+    childSessionId: activity.childSessionId,
+    displayName: activity.displayName,
+    taskSummary: activity.taskSummary,
+  };
 }
 
 export function SubagentActivityCard(props: SubagentActivityCardProps): ReactElement {
-  const { activity, stream } = props;
-  const statusKind = STATE_KIND_MAP[activity.state] ?? 'working';
-  const [expanded, setExpanded] = useState(false);
-
-  const canExpand =
-    stream !== undefined &&
-    (stream.text.length > 0 || stream.tools.length > 0 || stream.thinking.length > 0);
-  const isLive = stream?.streaming === true;
-
-  const handleToggle = () => {
-    if (canExpand) setExpanded((prev) => !prev);
-  };
+  const { activity, onInspect } = props;
+  const statusKind = subagentStatusToRunKind(ACTIVITY_STATUS_MAP[activity.state]);
 
   return (
-    <div
+    <button
+      type="button"
       className="subagent-activity-card"
       data-testid="subagent-activity-card"
       data-state={activity.state}
       data-child-session-id={activity.childSessionId}
-      data-expanded={expanded}
-      data-live={isLive}
-      data-can-expand={canExpand}
+      onClick={() => onInspect?.(toInspectorSelection(activity))}
+      disabled={onInspect === undefined}
+      title={activity.taskSummary}
     >
-      <header className="subagent-activity-header">
-        <div
-          className="subagent-activity-title"
-          {...(canExpand ? { onClick: handleToggle, role: 'button', tabIndex: 0 } : {})}
-        >
+      <span className="subagent-activity-header">
+        <span className="subagent-activity-title">
           <ActivitySvgIcon kind={statusKind} className="subagent-status-icon" />
-          <strong>Subagent</strong>
-          {canExpand ? (
-            <IconChevronDown
-              className={`subagent-expand-chevron${expanded ? ' is-expanded' : ''}`}
-              width={12}
-              height={12}
-            />
-          ) : null}
-          {isLive ? (
-            <span className="subagent-live-badge" aria-label="live">
-              live
-            </span>
-          ) : null}
-        </div>
+          <strong className="subagent-activity-name">{activity.displayName}</strong>
+        </span>
         <span className={`subagent-activity-state state-${activity.state}`}>
           {STATE_LABEL[activity.state]}
         </span>
-      </header>
-      <div className="subagent-activity-body">
-        <div className="subagent-activity-name">{activity.displayName}</div>
-        <p className="subagent-activity-task muted">{activity.taskSummary}</p>
+      </span>
+      <span className="subagent-activity-body">
+        <span className="subagent-activity-task">{activity.taskSummary}</span>
         {activity.worktreePath ? (
-          <div className="subagent-activity-worktree muted" title={activity.worktreePath}>
+          <span className="subagent-activity-worktree" title={activity.worktreePath}>
             Worktree: <code>{activity.worktreePath}</code>
-          </div>
+          </span>
         ) : null}
-        {activity.state === 'running' && !canExpand ? (
-          <div className="subagent-activity-progress" aria-hidden="true">
-            <div className="subagent-activity-progress-bar" />
-          </div>
-        ) : null}
-      </div>
-
-      {expanded && stream ? (
-        <div className="subagent-stream-panel" data-testid="subagent-stream-panel">
-          {stream.thinking.length > 0 ? (
-            <details className="subagent-stream-thinking">
-              <summary className="muted">Thinking</summary>
-              <pre className="subagent-stream-thinking-text">{stream.thinking}</pre>
-            </details>
-          ) : null}
-          {stream.tools.length > 0 ? (
-            <div className="subagent-stream-tools">
-              {stream.tools.map((tool) => (
-                <div
-                  key={tool.toolCallId}
-                  className="subagent-stream-tool"
-                  data-status={tool.status}
-                >
-                  <div className="subagent-stream-tool-header">
-                    <ToolStatusIcon status={tool.status} />
-                    <code className="subagent-stream-tool-name">{tool.toolName}</code>
-                  </div>
-                  {tool.output.length > 0 ? (
-                    <pre className="subagent-stream-tool-output">{tool.output.slice(-2048)}</pre>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {stream.text.length > 0 ? (
-            <div className="subagent-stream-text" data-testid="subagent-stream-text">
-              {stream.text}
-              {isLive ? (
-                <span className="subagent-stream-cursor" aria-hidden="true">
-                  ▋
-                </span>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {props.onOpenSession ? (
-        <footer className="subagent-activity-footer">
-          <Button
-            variant="ghost"
-            size="compact"
-            data-testid="subagent-open-session"
-            onClick={() => props.onOpenSession?.(activity.childSessionId)}
-          >
-            Open session
-          </Button>
-        </footer>
-      ) : null}
-    </div>
+      </span>
+      <IconChevronRight className="subagent-activity-inspect-hint" width={14} height={14} />
+    </button>
   );
 }

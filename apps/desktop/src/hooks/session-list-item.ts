@@ -7,7 +7,8 @@ export function summaryToListItem(
 ): SessionListItemUi {
   const item: SessionListItemUi = {
     id: session.id || fallbackId,
-    name: session.name ?? `session-${fallbackId.slice(0, 8)}`,
+    // Prefer real name; empty string stays unlistable (sidebar policy).
+    name: session.name?.trim() || '',
   };
   if (session.lastPreview) item.lastPreview = session.lastPreview;
   if (typeof session.messageCount === 'number') item.messageCount = session.messageCount;
@@ -24,7 +25,7 @@ export function mapSummariesToListItems(
 ): SessionListItemUi[] {
   return sessions.map((session) => ({
     id: session.id,
-    name: session.name ?? `session-${session.id.slice(0, 8)}`,
+    name: session.name?.trim() || '',
     ...(session.lastPreview ? { lastPreview: session.lastPreview } : {}),
     messageCount: session.messageCount,
     updatedAt: session.updatedAt,

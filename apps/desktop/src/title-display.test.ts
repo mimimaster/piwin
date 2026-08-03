@@ -19,6 +19,7 @@ describe('buildTitlebarTooltip', () => {
 describe('isPlaceholderSessionName', () => {
   it('detects host placeholder ids and default labels', () => {
     expect(isPlaceholderSessionName('session-ab12cd34')).toBe(true);
+    expect(isPlaceholderSessionName('session-sdk-mscy')).toBe(true);
     expect(isPlaceholderSessionName('New chat')).toBe(true);
     expect(isPlaceholderSessionName('新会话')).toBe(true);
     expect(isPlaceholderSessionName(undefined)).toBe(true);
@@ -27,5 +28,6 @@ describe('isPlaceholderSessionName', () => {
   it('rejects real titles', () => {
     expect(isPlaceholderSessionName('Walkthrough 交付')).toBe(false);
     expect(isPlaceholderSessionName('Auth / OAuth fix')).toBe(false);
+    expect(isPlaceholderSessionName('iCloud隐藏邮箱转发设置')).toBe(false);
   });
 });

@@ -20,6 +20,7 @@ import { AutomationPage } from './automation-page';
 import { SubagentProfilesPage } from './subagents-page';
 import { PetsPage } from './pets-page';
 import { UsagePage } from './usage-page';
+import { ShortcutsPage } from './shortcuts-page';
 
 registerSettingsSection('general', GeneralPage);
 registerSettingsSection('appearance', AppearancePage);
@@ -38,3 +39,4 @@ registerSettingsSection('automation', AutomationPage);
 registerSettingsSection('subagents', SubagentProfilesPage);
 registerSettingsSection('pets', PetsPage);
 registerSettingsSection('usage', UsagePage);
+registerSettingsSection('shortcuts', ShortcutsPage);

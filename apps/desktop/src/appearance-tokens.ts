@@ -21,10 +21,11 @@ export const PIWIN_APPEARANCE_DARK: ThemeManifest = {
     'Noir charcoal workbench with quiet column dividers and soft monochrome accent for piwin shell + artifacts',
   mode: 'dark',
   tokens: {
-    // Charcoal field (not pure black) — closer to Cursor/IDE dark shells.
-    bg: '#141414',
+    // Three-level depth: sidebar/composer light · stage dark · chrome mid.
+    // Stage (conversation) is the deepest field; side columns sit one step up.
+    bg: '#0f0f0f',
     panel: '#1a1a1a',
-    panel2: '#222222',
+    panel2: '#242424',
     // Base border; column dividers use a stronger --column-divider.
     border: 'rgba(255, 255, 255, 0.10)',
     text: '#e0e0e3',
@@ -49,17 +50,19 @@ export const PIWIN_APPEARANCE_DARK: ThemeManifest = {
   },
 };
 
-/** Product light — Paper cool white field with restrained blue accent. */
+/** Product light — Paper layered gray shell with white prompt surfaces. */
 export const PIWIN_APPEARANCE_LIGHT: ThemeManifest = {
   id: 'piwin-light',
   name: 'Paper',
-  version: '6.0.0',
-  description: 'Paper cool white field with restrained blue accent for piwin shell + artifacts',
+  version: '6.1.0',
+  description:
+    'Paper layered gray workbench with white prompt surfaces and restrained blue accent for piwin shell + artifacts',
   mode: 'light',
   tokens: {
-    bg: '#f7f7f8',
+    // Three-level depth: side columns gray · conversation soft gray · prompts white.
+    bg: '#f6f6f7',
     panel: '#ffffff',
-    panel2: '#f0f0f2',
+    panel2: '#ececef',
     border: 'rgba(0, 0, 0, 0.08)',
     text: '#1a1a1e',
     muted: '#5c5c66',
@@ -90,7 +93,8 @@ export const PIWIN_APPEARANCE_ORANGE_WHITE: ThemeManifest = {
   description: 'Daybreak warm paper field with tangerine accent for piwin shell + artifacts',
   mode: 'light',
   tokens: {
-    bg: '#f7f3ed',
+    // Stage white; sidebar/composer use warm gray via derived --sidebar/--composer.
+    bg: '#fffdfa',
     panel: '#fffdfa',
     panel2: '#f2ede5',
     border: 'rgba(80, 60, 40, 0.10)',
@@ -240,7 +244,8 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Alias for --sidebar. */
   root.style.setProperty(
     '--surface-sidebar',
-    isLight ? (isWarmLight ? tokens.bg : '#f2f2f4') : tokens.bg,
+    // Sidebar is the darker gray chrome column around the softer conversation stage.
+    isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1c1c1c',
   );
   /** Alias for --panel (the foreground overlay / popover surface). */
   root.style.setProperty('--surface-overlay', tokens.panel);
@@ -444,6 +449,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
     '--sidebar-width',
     '--right-panel-width',
     '--chat-max',
+    '--chat-side-pad',
   ]) {
     root.style.removeProperty(layoutToken);
   }
@@ -453,16 +459,30 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.style.setProperty('--card', isLight ? (isWarmLight ? tokens.panel : '#ffffff') : '#1a1a1a');
   root.style.setProperty(
     '--control',
-    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#222222',
+    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#242424',
   );
   root.style.setProperty(
     '--sunken',
-    isLight ? (isWarmLight ? tokens.panel2 : '#f0f0f2') : '#101010',
+    isLight ? (isWarmLight ? tokens.panel2 : '#f0f0f2') : '#0a0a0a',
   );
-  root.style.setProperty('--sidebar', isLight ? (isWarmLight ? tokens.bg : '#f2f2f4') : tokens.bg);
+  /**
+   * Three-level shell surfaces (sidebar · conversation · composer):
+   *   dark  → light · deep · light
+   *   Paper → gray  · soft gray · white
+   *   橙白  → warm gray · warm white · warm gray
+   */
+  root.style.setProperty(
+    '--sidebar',
+    isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1c1c1c',
+  );
+  root.style.setProperty(
+    '--composer',
+    isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1c1c1c',
+  );
+  // History user-message cards share the composer surface (not stage canvas).
   root.style.setProperty(
     '--user-bubble',
-    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#222222',
+    isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1c1c1c',
   );
   root.style.setProperty('--term-bg', isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#101010');
   root.style.setProperty(

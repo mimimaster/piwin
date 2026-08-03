@@ -28,6 +28,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'subagents',
   'pets',
   'usage',
+  'shortcuts',
 ];
 
 describe('section registry', () => {

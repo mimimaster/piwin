@@ -1,7 +1,14 @@
 /**
  * Connect host, subscribe to HostServerMessage stream, bootstrap config/theme/pet/status.
  */
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import type {
   ExtensionUiKind,
   HostPush,
@@ -86,6 +93,23 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     null,
   );
   const [extensionUiInput, setExtensionUiInput] = useState('');
+  /**
+   * React state can lag behind a push while an extension-ui resolve is in
+   * flight. Keep the latest request synchronously so an old resolve cannot
+   * clear the next questionnaire page.
+   */
+  const extensionUiRequestRef = useRef<ExtensionUiRequestState | null>(null);
+
+  const clearExtensionUiRequest = useCallback((requestId?: string): boolean => {
+    const currentRequest = extensionUiRequestRef.current;
+    if (requestId !== undefined && currentRequest?.requestId !== requestId) {
+      return false;
+    }
+    extensionUiRequestRef.current = null;
+    setExtensionUiRequest(null);
+    setExtensionUiInput('');
+    return true;
+  }, []);
 
   useEffect(() => {
     const { hostClient, dispatch, dispatchNotification } = args;
@@ -97,6 +121,16 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       }
       if (message.type === 'event') {
         streamEventBuffer.push(message.sessionId, message.event, message.envelope);
+        const currentExtensionUiRequest = extensionUiRequestRef.current;
+        if (
+          message.event.type === 'run/terminal' &&
+          currentExtensionUiRequest?.sessionId === message.sessionId
+        ) {
+          // Stop settles the host-side Extension UI promise. Clear the modal
+          // when the corresponding run terminal arrives so the user is not
+          // left staring at a dialog whose request no longer exists.
+          clearExtensionUiRequest(currentExtensionUiRequest.requestId);
+        }
         if (
           message.event.type === 'process/started' ||
           message.event.type === 'process/updated' ||
@@ -145,10 +179,15 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'session/name-updated') {
-        // Host auto-named the session; refresh the sidebar row without a full re-list.
+        // Host named the session (text on send or LLM after complete). session/update
+        // inserts the row when missing so the first text name makes it listable.
         dispatch({
           type: 'session/update',
-          session: { id: message.sessionId, name: message.name },
+          session: {
+            id: message.sessionId,
+            name: message.name,
+            updatedAt: new Date().toISOString(),
+          },
         });
         return;
       }
@@ -203,7 +242,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         return;
       }
       if (message.type === 'extension/ui_request') {
-        setExtensionUiRequest({
+        const nextRequest: ExtensionUiRequestState = {
           sessionId: message.sessionId,
           requestId: message.requestId,
           kind: message.kind,
@@ -211,7 +250,9 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           ...(message.message !== undefined ? { message: message.message } : {}),
           ...(message.options !== undefined ? { options: message.options } : {}),
           ...(message.placeholder !== undefined ? { placeholder: message.placeholder } : {}),
-        });
+        };
+        extensionUiRequestRef.current = nextRequest;
+        setExtensionUiRequest(nextRequest);
         setExtensionUiInput('');
         return;
       }
@@ -332,5 +373,6 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
     setExtensionUiRequest,
     extensionUiInput,
     setExtensionUiInput,
+    clearExtensionUiRequest,
   };
 }

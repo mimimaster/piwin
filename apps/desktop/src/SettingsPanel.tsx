@@ -85,7 +85,8 @@ export function SettingsPanel({
   const [config, setConfig] = useState<PiwinConfig | null>(null);
   const [root, setRoot] = useState('~/.piwin');
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [info, setInfoMessage] = useState<string | null>(null);
+  const [infoTone, setInfoTone] = useState<'info' | 'success' | 'warning'>('info');
   const [webDraft, setWebDraft] = useState<DraftWeb>(webToDraft(createDefaultWebConfig()));
   const [saving, setSaving] = useState(false);
   const [settingsNav, setSettingsNav] = useState<SettingsSectionId>(initialSection ?? 'general');
@@ -117,12 +118,20 @@ export function SettingsPanel({
       return;
     }
     const timer = window.setTimeout(() => {
-      setInfo(null);
+      setInfoMessage(null);
     }, 3500);
     return () => {
       window.clearTimeout(timer);
     };
   }, [info]);
+
+  const setInfo = useCallback(
+    (message: string | null, tone: 'info' | 'success' | 'warning' = 'info'): void => {
+      setInfoTone(tone);
+      setInfoMessage(message);
+    },
+    [],
+  );
 
   const saveConfig = useCallback(
     async (next: PiwinConfig): Promise<boolean> => {
@@ -139,7 +148,7 @@ export function SettingsPanel({
       onSaved?.(next);
       return true;
     },
-    [request, onSaved],
+    [request, onSaved, setInfo],
   );
 
   const discoverProviderModels = useCallback(
@@ -223,20 +232,41 @@ export function SettingsPanel({
     [request],
   );
 
-  const saveWeb = useCallback(async (): Promise<void> => {
-    if (!config) return;
-    const next: PiwinConfig = {
-      ...config,
-      web: draftToWeb(webDraft),
-    };
-    if (await saveConfig(next)) {
-      setInfo(
-        locale === 'zh-CN'
-          ? '已保存 Web 工具设置；新会话将使用新的提供商密钥。'
-          : 'Web tool settings saved. New sessions will use the updated provider keys.',
-      );
-    }
-  }, [config, webDraft, saveConfig, locale]);
+  const testWebSearchSource = useCallback(
+    async (
+      input: import('@piwin/contracts').WebSearchTestInput,
+    ): Promise<import('@piwin/contracts').WebSearchTestResult> => {
+      const response = await request({ type: 'web/test-search-source', webTest: input });
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      return response.data as import('@piwin/contracts').WebSearchTestResult;
+    },
+    [request],
+  );
+
+  const saveWeb = useCallback(
+    async (draftOverride?: DraftWeb): Promise<boolean> => {
+      if (!config) return false;
+      const draftToSave = draftOverride ?? webDraft;
+      const next: PiwinConfig = {
+        ...config,
+        web: draftToWeb(draftToSave),
+      };
+      if (await saveConfig(next)) {
+        setWebDraft(draftToSave);
+        setInfo(
+          locale === 'zh-CN'
+            ? '已保存 Web 工具设置；新会话将使用新的提供商密钥。'
+            : 'Web tool settings saved. New sessions will use the updated provider keys.',
+          'success',
+        );
+        return true;
+      }
+      return false;
+    },
+    [config, webDraft, saveConfig, locale, setInfo],
+  );
 
   const contextValue = useMemo<SettingsContextValue>(
     () => ({
@@ -275,12 +305,14 @@ export function SettingsPanel({
       searchModelCatalog,
       storeProviderSecret,
       loadProviderSecret,
+      testWebSearchSource,
     }),
     [
       request,
       config,
       root,
       saving,
+      setInfo,
       saveConfig,
       webDraft,
       saveWeb,
@@ -308,6 +340,7 @@ export function SettingsPanel({
       searchModelCatalog,
       storeProviderSecret,
       loadProviderSecret,
+      testWebSearchSource,
     ],
   );
 
@@ -324,7 +357,7 @@ export function SettingsPanel({
               {error}
             </Notice>
           ) : null}
-          {info ? <Notice tone="info">{info}</Notice> : null}
+          {info ? <Notice tone={infoTone}>{info}</Notice> : null}
         </>
       }
     />

@@ -6,7 +6,6 @@ import type {
   WebConfig,
   WebSearchSource,
   WebSearchSourceKind,
-  WebSearchStrategyMode,
 } from '@piwin/contracts';
 
 export type DraftSearchSource = {
@@ -15,19 +14,20 @@ export type DraftSearchSource = {
   enabled: boolean;
   label: string;
   apiKeyEnv: string;
+  apiKeyRef: string;
   baseUrl: string;
   command: string;
-  /** Space-separated argv; use {{query}} for the search query token. */
+  /** One argv token per line; use {{query}} for the search query token. */
   args: string;
 };
 
 export type DraftWeb = {
   searchSources: DraftSearchSource[];
-  searchStrategyMode: WebSearchStrategyMode;
   perSourceTimeoutMs: string;
   searchMaxResults: string;
   searchTimeoutMs: string;
   fetchProvider: WebConfig['fetchProvider'];
+  fetchApiKeyRef: string;
   fetchApiKeyEnv: string;
   fetchMaxBytes: string;
   fetchTimeoutMs: string;
@@ -37,11 +37,11 @@ export type DraftWeb = {
 export function webToDraft(web: WebConfig): DraftWeb {
   return {
     searchSources: web.searchSources.map(sourceToDraft),
-    searchStrategyMode: web.searchStrategy.mode,
     perSourceTimeoutMs: String(web.searchStrategy.perSourceTimeoutMs),
     searchMaxResults: String(web.searchMaxResults),
     searchTimeoutMs: String(web.searchTimeoutMs),
     fetchProvider: web.fetchProvider,
+    fetchApiKeyRef: web.fetchApiKeyRef ?? '',
     fetchApiKeyEnv: web.fetchApiKeyEnv,
     fetchMaxBytes: String(web.fetchMaxBytes),
     fetchTimeoutMs: String(web.fetchTimeoutMs),
@@ -70,26 +70,23 @@ export function draftToWeb(draft: DraftWeb): WebConfig {
   return {
     searchProvider,
     searchApiKeyEnv: firstKey,
-    searchMaxResults:
-      Number.isFinite(maxResults) && maxResults > 0 ? Math.floor(maxResults) : 10,
+    searchMaxResults: Number.isFinite(maxResults) && maxResults > 0 ? Math.floor(maxResults) : 10,
     searchTimeoutMs:
-      Number.isFinite(searchTimeoutMs) && searchTimeoutMs > 0
-        ? Math.floor(searchTimeoutMs)
-        : 15000,
+      Number.isFinite(searchTimeoutMs) && searchTimeoutMs > 0 ? Math.floor(searchTimeoutMs) : 15000,
     searchSources,
     searchStrategy: {
-      mode:
-        draft.searchStrategyMode === 'ordered-fallback' ? 'ordered-fallback' : 'parallel',
+      // Multi-source search is always parallel (aggregate + URL dedupe).
+      mode: 'parallel',
       perSourceTimeoutMs:
         Number.isFinite(perSourceTimeoutMs) && perSourceTimeoutMs > 0
           ? Math.floor(perSourceTimeoutMs)
           : 8000,
     },
     fetchProvider: draft.fetchProvider,
+    ...(draft.fetchApiKeyRef.trim() ? { fetchApiKeyRef: draft.fetchApiKeyRef.trim() } : {}),
     fetchApiKeyEnv: draft.fetchApiKeyEnv.trim() || 'FIRECRAWL_API_KEY',
     fetchMaxBytes: Number.isFinite(maxBytes) && maxBytes > 0 ? Math.floor(maxBytes) : 65536,
-    fetchTimeoutMs:
-      Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.floor(timeoutMs) : 15000,
+    fetchTimeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.floor(timeoutMs) : 15000,
     fetchBlockedUrlPrefixes: draft.fetchBlockedUrlPrefixes
       .split(',')
       .map((item) => item.trim())
@@ -108,6 +105,7 @@ export function createDraftSearchSource(
     enabled: true,
     label: '',
     apiKeyEnv: '',
+    apiKeyRef: '',
     baseUrl: '',
     command: '',
     args: '',
@@ -119,8 +117,8 @@ export function createDraftSearchSource(
   } else if (kind === 'searxng') {
     base.baseUrl = 'http://127.0.0.1:8080';
   } else if (kind === 'cli') {
-    base.command = 'my-search';
-    base.args = 'search {{query}}';
+    base.command = '';
+    base.args = '{{query}}';
   }
   return base;
 }
@@ -132,9 +130,10 @@ function sourceToDraft(source: WebSearchSource): DraftSearchSource {
     enabled: source.enabled,
     label: source.label ?? '',
     apiKeyEnv: source.apiKeyEnv ?? '',
+    apiKeyRef: source.apiKeyRef ?? '',
     baseUrl: source.baseUrl ?? '',
     command: source.command ?? '',
-    args: (source.args ?? []).join(' '),
+    args: (source.args ?? []).join('\n'),
   };
 }
 
@@ -150,6 +149,9 @@ function draftSourceToConfig(draft: DraftSearchSource): WebSearchSource {
   if (draft.apiKeyEnv.trim()) {
     source.apiKeyEnv = draft.apiKeyEnv.trim();
   }
+  if (draft.apiKeyRef.trim()) {
+    source.apiKeyRef = draft.apiKeyRef.trim();
+  }
   if (draft.baseUrl.trim()) {
     source.baseUrl = draft.baseUrl.trim();
   }
@@ -157,8 +159,8 @@ function draftSourceToConfig(draft: DraftSearchSource): WebSearchSource {
     source.command = draft.command.trim();
   }
   const args = draft.args
-    .trim()
-    .split(/\s+/)
+    .split(/\r?\n/)
+    .map((part) => part.trim())
     .filter(Boolean);
   if (args.length > 0) {
     source.args = args;

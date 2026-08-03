@@ -25,6 +25,7 @@ export type ShellSettingsSection =
   | 'subagents'
   | 'session'
   | 'usage'
+  | 'shortcuts'
   // Legacy deep links preserved for backward compatibility; consumers should
   // normalize through the section registry before rendering.
   | 'agents'

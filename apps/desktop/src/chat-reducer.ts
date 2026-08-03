@@ -1,3 +1,4 @@
+import { isPlaceholderSessionName } from './title-display';
 import type {
   AgentEvent,
   AgentEventEnvelope,
@@ -245,6 +246,11 @@ export type ChatUiAction =
   | { type: 'subagent/clear-stream'; childSessionId: string }
   | { type: 'subagent/updated'; parentSessionId: string; child: SessionSummary }
   | {
+      type: 'subagent/children-hydrate';
+      parentSessionId: string;
+      children: SessionSummary[];
+    }
+  | {
       type: 'subagent/batch-updated';
       runId: string;
       parentSessionId: string;
@@ -301,6 +307,44 @@ export function createInitialChatUiState(): ChatUiState {
     subagentTaskResults: {},
     walkthroughsByMessageId: {},
   };
+}
+
+/**
+ * Shared persisted-transcript → UI message projection.
+ *
+ * Hydrated transcripts never render as streaming (status is rewritten to
+ * done); the live event path keeps its own streaming status. Keeping this in
+ * one pure function prevents the foreground chat and the subagent inspector
+ * from drifting in tool/attachment/status mapping.
+ */
+export function mapTranscriptMessagesToUi(
+  messages: SessionTranscriptMessage[],
+  options: { keepStreamingStatus?: boolean } = {},
+): ChatMessageUi[] {
+  return messages.map((message) => ({
+    id: message.id,
+    role: message.role,
+    text: message.text,
+    thinking: message.thinking ?? '',
+    tools: (message.tools ?? []).map((tool) => ({
+      toolCallId: tool.toolCallId,
+      toolName: tool.toolName,
+      status: tool.status,
+      output: tool.output,
+      ...(tool.runId ? { runId: tool.runId } : {}),
+      ...(tool.presentation ? { presentation: tool.presentation } : {}),
+    })),
+    attachments: message.attachments ?? [],
+    status:
+      options.keepStreamingStatus === true
+        ? message.status
+        : message.status === 'streaming'
+          ? 'done'
+          : message.status,
+    ...(message.createdAt ? { createdAt: message.createdAt } : {}),
+    ...(message.runId ? { runId: message.runId } : {}),
+    ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
+  }));
 }
 
 export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiState {
@@ -360,6 +404,10 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runTerminal: { kind: 'none' },
         error: null,
         walkthroughsByMessageId: {},
+        // Subagent activity is scoped to the active parent session; switching
+        // scope must not surface another session's children or live streams.
+        subagentStreams: {},
+        subagentChildren: {},
       };
     case 'project/clear':
       return {
@@ -383,6 +431,8 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runTerminal: { kind: 'none' },
         error: null,
         walkthroughsByMessageId: {},
+        subagentStreams: {},
+        subagentChildren: {},
       };
     case 'project/trust-dialog':
       return { ...state, trustDialogOpen: action.open };
@@ -408,27 +458,13 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastAcceptedSequenceByRun: {},
         runRecordsById: {},
         walkthroughsByMessageId: {},
+        // Subagent activity belongs to the previously active parent; the new
+        // session hydrates its own children on resume.
+        subagentStreams: {},
+        subagentChildren: {},
       };
     case 'session/load-messages': {
-      const messages: ChatMessageUi[] = action.messages.map((message) => ({
-        id: message.id,
-        role: message.role,
-        text: message.text,
-        thinking: message.thinking ?? '',
-        tools: (message.tools ?? []).map((tool) => ({
-          toolCallId: tool.toolCallId,
-          toolName: tool.toolName,
-          status: tool.status,
-          output: tool.output,
-          ...(tool.runId ? { runId: tool.runId } : {}),
-          ...(tool.presentation ? { presentation: tool.presentation } : {}),
-        })),
-        attachments: message.attachments ?? [],
-        status: message.status === 'streaming' ? 'done' : message.status,
-        ...(message.createdAt ? { createdAt: message.createdAt } : {}),
-        ...(message.runId ? { runId: message.runId } : {}),
-        ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
-      }));
+      const messages: ChatMessageUi[] = mapTranscriptMessagesToUi(action.messages);
       return {
         ...state,
         activeSessionId: action.sessionId,
@@ -452,22 +488,30 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         // here would wipe the freshly-hydrated map.
       };
     }
-    case 'session/add':
+    case 'session/add': {
+      // Stamp updatedAt so Conversations / project lists sort the new row to the
+      // top (sort is pinned first, then updatedAt desc; missing timestamps sink).
+      const createdAt = new Date().toISOString();
+      const newSession: SessionListItemUi = {
+        id: action.sessionId,
+        name: action.name,
+        updatedAt: createdAt,
+      };
+      // Sidebar policy: placeholder / empty names never enter the list. The
+      // session can still be active (composer) until the first text title lands.
+      const listable = !isPlaceholderSessionName(action.name);
       return {
         ...state,
-        sessions: [
-          { id: action.sessionId, name: action.name },
-          ...state.sessions.filter((item) => item.id !== action.sessionId),
-        ],
-        // If the new session is general-scope (inferred from activeScope), also
-        // prepend it to generalSessions so the Conversations section stays current.
+        sessions: listable
+          ? [newSession, ...state.sessions.filter((item) => item.id !== action.sessionId)]
+          : state.sessions.filter((item) => item.id !== action.sessionId),
         generalSessions:
-          state.activeScope.kind === 'general'
+          state.activeScope.kind === 'general' && listable
             ? [
-                { id: action.sessionId, name: action.name },
+                newSession,
                 ...state.generalSessions.filter((item) => item.id !== action.sessionId),
               ]
-            : state.generalSessions,
+            : state.generalSessions.filter((item) => item.id !== action.sessionId),
         activeSessionId: action.sessionId,
         messages: [],
         runPhase: 'idle',
@@ -481,36 +525,40 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeSessionArchived: false,
         runTerminal: { kind: 'none' },
       };
-    case 'session/hydrate':
+    }
+    case 'session/hydrate': {
+      const listable = action.sessions.filter(
+        (session) => !isPlaceholderSessionName(session.name),
+      );
       return {
         ...state,
-        sessions: action.sessions,
+        sessions: listable,
         // Keep generalSessions in sync when general is the active scope.
-        generalSessions:
-          state.activeScope.kind === 'general' ? action.sessions : state.generalSessions,
-        activeSessionId: action.sessions.some((session) => session.id === state.activeSessionId)
+        generalSessions: state.activeScope.kind === 'general' ? listable : state.generalSessions,
+        activeSessionId: listable.some((session) => session.id === state.activeSessionId)
           ? state.activeSessionId
           : null,
       };
-    case 'session/hydrate-general':
+    }
+    case 'session/hydrate-general': {
+      const listable = action.sessions.filter(
+        (session) => !isPlaceholderSessionName(session.name),
+      );
       return {
         ...state,
-        generalSessions: action.sessions,
+        generalSessions: listable,
         // If general is the active scope, also mirror into sessions so the
-        // active session list and activeSessionId stay in sync. The reducer
-        // always sees up-to-date state (actions processed in order), even
-        // when the dispatching closure had stale activeScope.
+        // active session list and activeSessionId stay in sync.
         ...(state.activeScope.kind === 'general'
           ? {
-              sessions: action.sessions,
-              activeSessionId: action.sessions.some(
-                (session) => session.id === state.activeSessionId,
-              )
+              sessions: listable,
+              activeSessionId: listable.some((session) => session.id === state.activeSessionId)
                 ? state.activeSessionId
                 : null,
             }
           : {}),
       };
+    }
     case 'session/update': {
       const sortPinnedThenUpdated = (list: SessionListItemUi[]): SessionListItemUi[] => {
         list.sort((left, right) => {
@@ -519,28 +567,63 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
           if (leftPinned !== rightPinned) {
             return leftPinned ? -1 : 1;
           }
-          const leftTime = left.updatedAt ?? '';
-          const rightTime = right.updatedAt ?? '';
-          return rightTime.localeCompare(leftTime);
+          // Missing updatedAt = just created; keep above stamped rows.
+          const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.POSITIVE_INFINITY;
+          const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.POSITIVE_INFINITY;
+          const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
+          const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
+          return rightSafe - leftSafe;
         });
         return list;
       };
       const nextSessions = state.sessions.map((session) =>
         session.id === action.session.id ? { ...session, ...action.session } : session,
       );
-      if (!nextSessions.some((session) => session.id === action.session.id)) {
-        nextSessions.unshift(action.session);
+      const mergedForCheck = {
+        ...(state.sessions.find((session) => session.id === action.session.id) ??
+          state.generalSessions.find((session) => session.id === action.session.id) ??
+          { id: action.session.id, name: '' }),
+        ...action.session,
+      };
+      const listable = !isPlaceholderSessionName(mergedForCheck.name);
+      if (listable) {
+        if (!nextSessions.some((session) => session.id === action.session.id)) {
+          nextSessions.unshift({
+            ...action.session,
+            id: action.session.id,
+            name: action.session.name ?? mergedForCheck.name,
+          });
+        }
+      } else {
+        // Drop unlisted placeholders if a bad name ever lands.
+        const dropIdx = nextSessions.findIndex((session) => session.id === action.session.id);
+        if (dropIdx >= 0) {
+          nextSessions.splice(dropIdx, 1);
+        }
       }
       sortPinnedThenUpdated(nextSessions);
-      // Mirror the update into generalSessions if the session is present there.
-      const nextGeneral = state.generalSessions.some((session) => session.id === action.session.id)
-        ? (() => {
-            const list = state.generalSessions.map((session) =>
-              session.id === action.session.id ? { ...session, ...action.session } : session,
-            );
-            return sortPinnedThenUpdated(list);
-          })()
-        : state.generalSessions;
+      // Mirror into generalSessions (insert on first real name for general scope).
+      let nextGeneral = state.generalSessions.map((session) =>
+        session.id === action.session.id ? { ...session, ...action.session } : session,
+      );
+      if (listable) {
+        if (!nextGeneral.some((session) => session.id === action.session.id)) {
+          // Prefer general list when active scope is general OR session already general-tracked.
+          if (
+            state.activeScope.kind === 'general' ||
+            state.generalSessions.some((session) => session.id === action.session.id)
+          ) {
+            nextGeneral.unshift({
+              ...action.session,
+              id: action.session.id,
+              name: action.session.name ?? mergedForCheck.name,
+            });
+          }
+        }
+      } else {
+        nextGeneral = nextGeneral.filter((session) => session.id !== action.session.id);
+      }
+      sortPinnedThenUpdated(nextGeneral);
       return { ...state, sessions: nextSessions, generalSessions: nextGeneral };
     }
     case 'session/remove': {
@@ -741,26 +824,12 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       if (state.messages.some((item) => item.id === action.message.id)) {
         return state;
       }
-      const nextMessage: ChatMessageUi = {
-        id: action.message.id,
-        role: action.message.role,
-        text: action.message.text,
-        thinking: action.message.thinking ?? '',
-        tools: (action.message.tools ?? []).map((tool) => ({
-          toolCallId: tool.toolCallId,
-          toolName: tool.toolName,
-          status: tool.status,
-          output: tool.output,
-          ...(tool.runId ? { runId: tool.runId } : {}),
-          ...(tool.presentation ? { presentation: tool.presentation } : {}),
-        })),
-        attachments: action.message.attachments ?? [],
-        status: action.message.status,
-        ...(action.message.runId ? { runId: action.message.runId } : {}),
-        ...(action.message.subagentActivity
-          ? { subagentActivity: action.message.subagentActivity }
-          : {}),
-      };
+      const [nextMessage] = mapTranscriptMessagesToUi([action.message], {
+        keepStreamingStatus: true,
+      });
+      if (!nextMessage) {
+        return state;
+      }
       return {
         ...state,
         messages: [...state.messages, nextMessage],
@@ -804,8 +873,25 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return applySubagentStreamEvent(state, action.childSessionId, action.event);
     }
     case 'subagent/updated': {
+      // Cross-session guard: child lifecycle pushes for a non-active parent
+      // must not leak into the visible children map.
+      if (state.activeSessionId !== action.parentSessionId) {
+        return state;
+      }
       const child = action.child;
       const nextChildren = { ...state.subagentChildren, [child.id]: child };
+      return { ...state, subagentChildren: nextChildren };
+    }
+    case 'subagent/children-hydrate': {
+      // Hydrate upserts only children of the active parent; summaries for
+      // other parents are intentionally ignored at the application boundary.
+      if (state.activeSessionId !== action.parentSessionId) {
+        return state;
+      }
+      const nextChildren = { ...state.subagentChildren };
+      for (const child of action.children) {
+        nextChildren[child.id] = child;
+      }
       return { ...state, subagentChildren: nextChildren };
     }
     case 'subagent/batch-updated': {

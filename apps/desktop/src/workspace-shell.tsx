@@ -7,13 +7,13 @@
  * Band structure (top to bottom):
  *   1. Titleband (40px)   — WorkspaceTitlebar, rendered outside this component
  *   2. Context bar (42px) — contextBar slot
- *   3. Stage content      — transcript + permissionBar + composerDock in chat-column
+ *   3. Stage content      — shared .chat-stage column (transcript + permission + composer)
  *   4. Status bar (26px)  — statusBar slot
  *   5. Knowledge overlay  — optional full-stage panel (e.g. Knowledge Center)
  *
  * Column structure (left to right):
  *   - Sidebar (collapsible, ~236px)
- *   - Stage (content, max-width 640px)
+ *   - Stage (content; message + composer share --chat-max)
  *   - Right panel / inspector (outward-expanding, optional)
  */
 import type { ReactElement, ReactNode } from 'react';
@@ -22,6 +22,8 @@ export type WorkspaceShellProps = {
   sidebar: ReactNode;
   contextBar: ReactNode;
   transcript: ReactNode;
+  /** Optional compact subagent activity dock — sits between transcript and permission bar. */
+  activityDock?: ReactNode | undefined;
   /** Docked permission bar (ADR 0024) — sits between transcript and composer. */
   permissionBar?: ReactNode | undefined;
   composerDock: ReactNode;
@@ -46,9 +48,12 @@ export function WorkspaceShell(props: WorkspaceShellProps): ReactElement {
           className={`chat-column${props.chatColumnClassName !== undefined ? ` ${props.chatColumnClassName}` : ''}`}
         >
           {props.contextBar}
-          {props.transcript}
-          {props.permissionBar !== undefined ? props.permissionBar : null}
-          {props.composerDock}
+          <div className="chat-stage">
+            {props.transcript}
+            {props.activityDock !== undefined ? props.activityDock : null}
+            {props.permissionBar !== undefined ? props.permissionBar : null}
+            {props.composerDock}
+          </div>
           {props.statusBar}
         </section>
         {props.knowledgePanel !== undefined ? props.knowledgePanel : null}

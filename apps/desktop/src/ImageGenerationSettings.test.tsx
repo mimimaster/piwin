@@ -65,7 +65,7 @@ function createContextValue(
     saveConfig,
     webDraft: webToDraft(createDefaultWebConfig()),
     setWebDraft: vi.fn(),
-    saveWeb: vi.fn(async () => undefined),
+    saveWeb: vi.fn(async () => true),
     preferences: {
       assistantTextSize: 'default',
       codeTextSize: 'default',

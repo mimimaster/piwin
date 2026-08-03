@@ -5,12 +5,8 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactElement } from 'r
 
 import type { SessionPlan, ThemeManifest, WalkthroughArtifact } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
-import type {
-  ChatMessageUi,
-  PermissionPromptUi,
-  RunRecordUi,
-  SubagentStreamState,
-} from './chat-reducer';
+import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
+import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type {
   PermissionDecision,
   PermissionRememberScope,
@@ -210,7 +206,8 @@ export type ChatThreadProps = {
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
   onFeedback?: ((message: string, level: 'success' | 'error') => void) | undefined;
-  onOpenSubagentSession: ((sessionId: string) => void) | undefined;
+  /** Open the read-only subagent session inspector for a transcript card. */
+  onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
   /** Whitelisted artifact actions, e.g. flashcard rating (ADR 0018 S5c). */
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   /** When false (default), MarkdownView hides the heavy Artifact path. */
@@ -229,8 +226,6 @@ export type ChatThreadProps = {
   onPlanAbort?: (() => void | Promise<void>) | undefined;
   /** Locale used by all run activity components. */
   locale?: 'zh-CN' | 'en';
-  /** Live subagent streams for inline expand UX (keyed by childSessionId). */
-  subagentStreams?: Record<string, SubagentStreamState>;
   /** Walkthrough artifacts keyed by owning assistant messageId (spec §5.1). */
   walkthroughsByMessageId?: Record<string, WalkthroughArtifact>;
   /** Whether the Generate Walkthrough action is enabled (config walkthrough.enabled). */
@@ -344,7 +339,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               onEditResend={props.onEditResend}
               onRetry={props.onRetry}
               onFeedback={props.onFeedback}
-              onOpenSubagentSession={props.onOpenSubagentSession}
+              onInspectSubagent={props.onInspectSubagent}
               composerCard={props.composerCard}
               {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
               {...(props.artifactPreviewEnabled ? { artifactPreviewEnabled: true } : {})}
@@ -356,7 +351,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
                 : {})}
               {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
               {...(props.locale ? { locale: props.locale } : {})}
-              {...(props.subagentStreams ? { subagentStreams: props.subagentStreams } : {})}
               {...(props.walkthroughsByMessageId
                 ? { walkthroughsByMessageId: props.walkthroughsByMessageId }
                 : {})}
@@ -426,7 +420,8 @@ type ChatMessageRowProps = {
   onEditResend: (messageId: string, text: string) => void;
   onRetry: (messageId: string) => void;
   onFeedback?: ((message: string, level: 'success' | 'error') => void) | undefined;
-  onOpenSubagentSession: ((sessionId: string) => void) | undefined;
+  /** Open the read-only subagent session inspector for a transcript card. */
+  onInspectSubagent: ((selection: SubagentInspectorSelection) => void) | undefined;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
   /** When false (default), MarkdownView hides the heavy Artifact path. */
   artifactPreviewEnabled?: boolean;
@@ -440,8 +435,6 @@ type ChatMessageRowProps = {
   locale?: 'zh-CN' | 'en';
   /** Global composer card props so the edit mode matches the bottom composer. */
   composerCard: ComposerDockProps;
-  /** Live subagent streams for inline expand UX. */
-  subagentStreams?: Record<string, SubagentStreamState>;
   /** Walkthrough artifacts keyed by owning assistant messageId. */
   walkthroughsByMessageId?: Record<string, WalkthroughArtifact>;
   /** Whether the Generate Walkthrough action is enabled. */
@@ -470,6 +463,26 @@ function formatMessageTime(createdAt?: string): string {
 /** Height (px) above which a user message bubble collapses. */
 const USER_MESSAGE_COLLAPSE_THRESHOLD = 78;
 
+function MessageAttachments(props: {
+  attachments: ChatMessageUi['attachments'];
+}): ReactElement | null {
+  if (props.attachments.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="message-attachments">
+      {props.attachments.map((attachment) =>
+        attachment.kind === 'web-element' ? (
+          <WebElementChip key={attachment.id} attachment={attachment} />
+        ) : (
+          <MediaPreview key={attachment.id} attachment={attachment} />
+        ),
+      )}
+    </div>
+  );
+}
+
 function UserMessageContent(props: {
   message: ChatMessageUi;
   streaming?: boolean;
@@ -479,9 +492,10 @@ function UserMessageContent(props: {
   const { message } = props;
   const [copied, setCopied] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(true);
-  const [isOverflow, setIsOverflow] = useState(false);
+  const [isTextOverflow, setIsTextOverflow] = useState(false);
   const textRef = useRef<HTMLDivElement | null>(null);
   const formattedTime = formatMessageTime(message.createdAt);
+  const hasAttachments = message.attachments.length > 0;
 
   // Measure the natural height of the text node to determine if it needs collapsing.
   useEffect(() => {
@@ -491,7 +505,7 @@ function UserMessageContent(props: {
     function measure(): void {
       if (!node) return;
       const naturalHeight = node.scrollHeight;
-      setIsOverflow(naturalHeight > USER_MESSAGE_COLLAPSE_THRESHOLD);
+      setIsTextOverflow(naturalHeight > USER_MESSAGE_COLLAPSE_THRESHOLD);
     }
 
     measure();
@@ -514,33 +528,35 @@ function UserMessageContent(props: {
     }
   }
 
-  const collapsed = isOverflow && isCollapsed;
+  // Attachments always start in the compact state so a sticky user prompt
+  // cannot occupy most of the transcript viewport while browsing history.
+  const isCollapsible = hasAttachments || isTextOverflow;
+  const collapsed = isCollapsible && isCollapsed;
 
-  const handleToggle = isOverflow ? () => setIsCollapsed((prev) => !prev) : undefined;
+  const handleToggle = isCollapsible ? () => setIsCollapsed((previous) => !previous) : undefined;
 
   return (
     <div className="user-message-wrapper">
       <div
-        className={`message-text-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isOverflow ? 'is-clickable' : ''}`}
+        className={`user-message-collapsible ${collapsed ? 'is-collapsed' : 'is-expanded'} ${isCollapsible ? 'is-clickable' : ''} ${hasAttachments ? 'has-attachments' : ''}`}
+        data-testid="user-message-collapsible-body"
         onClick={handleToggle}
-        role={isOverflow ? 'button' : undefined}
-        tabIndex={isOverflow ? 0 : undefined}
+        role={isCollapsible ? 'button' : undefined}
+        tabIndex={isCollapsible ? 0 : undefined}
+        aria-expanded={isCollapsible ? !collapsed : undefined}
         onKeyDown={
-          isOverflow
+          isCollapsible
             ? (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setIsCollapsed((prev) => !prev);
+                  setIsCollapsed((previous) => !previous);
                 }
               }
             : undefined
         }
       >
-        <div
-          ref={textRef}
-          className="message-text"
-          style={collapsed ? { height: `${USER_MESSAGE_COLLAPSE_THRESHOLD}px` } : undefined}
-        >
+        <MessageAttachments attachments={message.attachments} />
+        <div ref={textRef} className="message-text">
           {message.text}
         </div>
       </div>
@@ -584,13 +600,13 @@ const ChatMessageRow = memo(
   function ChatMessageRow(props: ChatMessageRowProps): ReactElement {
     const { message } = props;
     if (message.subagentActivity) {
-      const stream = props.subagentStreams?.[message.subagentActivity.childSessionId];
       return (
         <div id={`msg-${message.id}`} className="chat-subagent-slot">
           <SubagentActivityCard
             activity={message.subagentActivity}
-            {...(props.onOpenSubagentSession ? { onOpenSession: props.onOpenSubagentSession } : {})}
-            {...(stream ? { stream } : {})}
+            {...(props.onInspectSubagent
+              ? { onInspect: props.onInspectSubagent }
+              : {})}
           />
         </div>
       );
@@ -639,16 +655,8 @@ const ChatMessageRow = memo(
             {...(props.locale ? { locale: props.locale } : {})}
           />
         ) : null}
-        {message.attachments.length > 0 ? (
-          <div className="message-attachments">
-            {message.attachments.map((attachment) =>
-              attachment.kind === 'web-element' ? (
-                <WebElementChip key={attachment.id} attachment={attachment} />
-              ) : (
-                <MediaPreview key={attachment.id} attachment={attachment} />
-              ),
-            )}
-          </div>
+        {message.role === 'assistant' || isEditingThis ? (
+          <MessageAttachments attachments={message.attachments} />
         ) : null}
         {message.role === 'assistant' ? (
           <MarkdownView
@@ -720,7 +728,7 @@ const ChatMessageRow = memo(
         previous.onFeedback === next.onFeedback &&
         previous.composerCard === next.composerCard
       : previous.message.subagentActivity
-        ? previous.onOpenSubagentSession === next.onOpenSubagentSession
+        ? previous.onInspectSubagent === next.onInspectSubagent
         : true;
     return (
       previous.message === next.message &&

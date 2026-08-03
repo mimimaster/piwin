@@ -395,6 +395,29 @@ export function IconArchive(props: IconProps): ReactElement {
   );
 }
 
+/** Restore from archive (box + arrow up). */
+export function IconUnarchive(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="4" width="18" height="4" rx="1" />
+      <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" />
+      <path d="M12 16.5V12M9.5 13.5 12 11l2.5 2.5" />
+    </IconBase>
+  );
+}
+
+/** Permanent delete (trash). */
+export function IconTrash(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M4 7h16" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      <path d="M6.5 7l.8 12a2 2 0 0 0 2 1.8h5.4a2 2 0 0 0 2-1.8l.8-12" />
+      <path d="M10 11v6M14 11v6" />
+    </IconBase>
+  );
+}
+
 export function IconTerminal(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>

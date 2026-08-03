@@ -59,10 +59,15 @@ function resolveTimeGroupId(updatedAt: string | undefined, now: Date): Exclude<S
 
 function sortByRecencyThenName<T extends SessionGroupable>(sessions: T[]): T[] {
   return [...sessions].sort((left, right) => {
-    const leftTime = left.updatedAt ? new Date(left.updatedAt).getTime() : 0;
-    const rightTime = right.updatedAt ? new Date(right.updatedAt).getTime() : 0;
-    if (leftTime !== rightTime) {
-      return rightTime - leftTime;
+    // Missing updatedAt = just created; treat as newest so new rows stay on top.
+    const leftTime = left.updatedAt ? new Date(left.updatedAt).getTime() : Number.POSITIVE_INFINITY;
+    const rightTime = right.updatedAt
+      ? new Date(right.updatedAt).getTime()
+      : Number.POSITIVE_INFINITY;
+    const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
+    const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
+    if (leftSafe !== rightSafe) {
+      return rightSafe - leftSafe;
     }
     return left.name.localeCompare(right.name);
   });

@@ -191,28 +191,44 @@ export function mergeDiscoveredModels(
   const modelsById = new Map(configuredModels.map((model) => [model.id, model]));
   for (const discoveredModel of selectedModels) {
     const modelId = discoveredModel.id.trim();
-    if (!modelId || modelsById.has(modelId)) {
+    if (!modelId) {
       continue;
     }
-    const model: ModelConfigEntry = { id: modelId };
-    if (discoveredModel.label?.trim() && discoveredModel.label !== modelId) {
-      model.label = discoveredModel.label.trim();
-    }
-    if (discoveredModel.input) {
-      model.input = discoveredModel.input;
-    }
-    if (discoveredModel.reasoning !== undefined) {
-      model.reasoning = discoveredModel.reasoning;
-    }
-    if (discoveredModel.contextWindow !== undefined) {
-      model.contextWindow = discoveredModel.contextWindow;
-    }
-    if (discoveredModel.maxOutputTokens !== undefined) {
-      model.maxOutputTokens = discoveredModel.maxOutputTokens;
-    }
-    modelsById.set(modelId, model);
+    const existing = modelsById.get(modelId);
+    // Re-import is intentional: fill missing fields from discovery/catalog.
+    // Never overwrite values the user (or a prior import) already set.
+    modelsById.set(modelId, mergeDiscoveredModelEntry(existing, discoveredModel, modelId));
   }
   return [...modelsById.values()];
+}
+
+/**
+ * Build or enrich one configured model from a discovered row.
+ * Existing fields win; discovery only fills gaps.
+ */
+function mergeDiscoveredModelEntry(
+  existing: ModelConfigEntry | undefined,
+  discoveredModel: DiscoveredModel,
+  modelId: string,
+): ModelConfigEntry {
+  const model: ModelConfigEntry = existing ? { ...existing, id: modelId } : { id: modelId };
+  const discoveredLabel = discoveredModel.label?.trim();
+  if (!model.label?.trim() && discoveredLabel && discoveredLabel !== modelId) {
+    model.label = discoveredLabel;
+  }
+  if (model.input === undefined && discoveredModel.input) {
+    model.input = discoveredModel.input;
+  }
+  if (model.reasoning === undefined && discoveredModel.reasoning !== undefined) {
+    model.reasoning = discoveredModel.reasoning;
+  }
+  if (model.contextWindow === undefined && discoveredModel.contextWindow !== undefined) {
+    model.contextWindow = discoveredModel.contextWindow;
+  }
+  if (model.maxOutputTokens === undefined && discoveredModel.maxOutputTokens !== undefined) {
+    model.maxOutputTokens = discoveredModel.maxOutputTokens;
+  }
+  return model;
 }
 
 export function modelSupportsImage(model: Pick<ModelConfigEntry, 'input'> | undefined): boolean {

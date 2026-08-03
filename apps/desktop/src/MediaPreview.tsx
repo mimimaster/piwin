@@ -8,8 +8,10 @@ export function MediaPreview(props: {
   compact?: boolean;
 }) {
   const [url, setUrl] = useState<string | null>(props.previewUrl ?? null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
+    setLoadFailed(false);
     if (props.previewUrl) {
       setUrl(props.previewUrl);
       return;
@@ -25,10 +27,11 @@ export function MediaPreview(props: {
     };
   }, [props.attachment.path, props.previewUrl]);
 
-  if (!url) {
+  if (!url || loadFailed) {
     return (
       <div className={props.compact ? 'media-chip-fallback' : 'media-preview-fallback'}>
         {props.attachment.mimeType} · {props.attachment.byteSize}B
+        {loadFailed ? ' · preview failed' : ''}
       </div>
     );
   }
@@ -38,6 +41,7 @@ export function MediaPreview(props: {
       className={props.compact ? 'media-chip-thumb' : 'media-preview-image'}
       src={url}
       alt={props.attachment.path.split('/').pop() ?? 'attachment'}
+      onError={() => setLoadFailed(true)}
     />
   );
 }

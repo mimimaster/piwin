@@ -1,0 +1,56 @@
+/* Region: settings -> vision delegation page. */
+
+.vision-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.vision-settings-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.vision-settings-status--enabled {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line-soft));
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  color: var(--ok);
+}
+
+.vision-settings-model-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.vision-settings-field-note,
+.vision-settings-note,
+.vision-settings-test-result {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.vision-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vision-settings-test-result {
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--panel);
+  white-space: pre-wrap;
+}

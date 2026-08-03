@@ -1,3 +1,4 @@
+import { isPlaceholderSessionName } from './title-display';
 /** Browser mock host backend — isolated from live Tauri transport. */
 import type {
   AgentEvent,
@@ -377,8 +378,9 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
               projectPath: value.projectPath,
               updatedAt: new Date().toISOString(),
               messageCount: value.transcript.length || value.events.length,
-              name: value.name ?? `session-${sessionId.slice(0, 8)}`,
             };
+            if (value.name) summary.name = value.name;
+            if (value.nameSource) summary.nameSource = value.nameSource;
             if (value.isPinned === true) summary.isPinned = true;
             if (value.pinnedAt) summary.pinnedAt = value.pinnedAt;
             if (value.isArchived === true) summary.isArchived = true;
@@ -386,6 +388,9 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             return summary;
           })
           .filter((session) => {
+            if (isPlaceholderSessionName(session.name)) {
+              return false;
+            }
             if (listScope?.kind === 'general') {
               if (session.scope.kind !== 'general') return false;
             } else if (listScope?.kind === 'project') {
@@ -422,7 +427,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           workingDirectory: scope.kind === 'project' ? scope.projectPath : 'general',
           events: [],
           transcript: [],
-          name: command.input.sessionName ?? `session-${sessionId.slice(0, 8)}`,
+          name: command.input.sessionName ?? '',
         });
         this.emitPush({ type: 'host/status', mode: this.getMode(), ready: true, mock: true });
         return {
@@ -575,6 +580,8 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           }
         }
         session.transcript.push(userMessage);
+        // Immediate text name (matches host recordUserPrompt naming pipeline).
+        this.maybeMockAutoName(command.sessionId);
         const attachmentNote =
           command.input.attachments && command.input.attachments.length > 0
             ? `\n[attachments: ${command.input.attachments
@@ -2333,10 +2340,17 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           };
         }
         const cut = session.transcript.findIndex((m) => m.id === command.messageId);
-        const removedCount = cut === -1 ? 0 : session.transcript.length - cut;
-        if (cut !== -1) {
-          session.transcript = session.transcript.slice(0, cut);
+        if (cut === -1) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/truncate-from',
+            success: false,
+            error: `Message not found in transcript: ${command.messageId}`,
+          };
         }
+        const removedCount = session.transcript.length - cut;
+        session.transcript = session.transcript.slice(0, cut);
         return {
           id,
           type: 'response',
@@ -2987,7 +3001,15 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
    */
   private maybeMockAutoName(sessionId: string): void {
     const session = this.sessions.get(sessionId);
-    if (!session || session.nameSource === 'user') {
+    if (!session) {
+      return;
+    }
+    // Terminal sources; also skip if we already wrote a text name.
+    if (
+      session.nameSource === 'user' ||
+      session.nameSource === 'llm' ||
+      session.nameSource === 'text'
+    ) {
       return;
     }
     const firstUser = session.transcript.find((message) => message.role === 'user');

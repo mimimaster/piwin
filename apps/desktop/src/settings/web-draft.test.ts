@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { WebConfig } from '@piwin/contracts';
-import {
-  createDraftSearchSource,
-  draftToWeb,
-  webToDraft,
-  type DraftWeb,
-} from './web-draft';
+import { createDraftSearchSource, draftToWeb, webToDraft, type DraftWeb } from './web-draft';
 
 const SAMPLE_WEB: WebConfig = {
   searchProvider: 'aggregate',
@@ -19,10 +14,12 @@ const SAMPLE_WEB: WebConfig = {
       kind: 'brave',
       enabled: true,
       apiKeyEnv: 'BRAVE_API_KEY',
+      apiKeyRef: 'keychain:piwin-web-brave',
     },
   ],
   searchStrategy: { mode: 'parallel', perSourceTimeoutMs: 7000 },
   fetchProvider: 'firecrawl',
+  fetchApiKeyRef: 'keychain:piwin-web-fetch-firecrawl',
   fetchApiKeyEnv: 'FIRECRAWL_API_KEY',
   fetchMaxBytes: 32768,
   fetchTimeoutMs: 20000,
@@ -41,7 +38,6 @@ describe('web draft conversion', () => {
     expect(draft.fetchTimeoutMs).toBe('20000');
     expect(draft.fetchBlockedUrlPrefixes).toBe('http://internal, http://10.');
     expect(draft.searchSources).toHaveLength(2);
-    expect(draft.searchStrategyMode).toBe('parallel');
   });
 
   it('falls back to defaults for invalid numeric input', () => {
@@ -99,5 +95,48 @@ describe('web draft conversion', () => {
     const second = createDraftSearchSource('tavily', [first.id]);
     expect(first.id).toBe('tavily');
     expect(second.id).toBe('tavily-2');
+  });
+
+  it('parses CLI args as one token per line', () => {
+    const draft = webToDraft(SAMPLE_WEB);
+    const cliSource = createDraftSearchSource('cli', []);
+    draft.searchSources = [
+      {
+        ...cliSource,
+        command: 'smart-search',
+        args: 'search\n--format json\n{{query}}',
+      },
+    ];
+    const parsed = draftToWeb(draft);
+    expect(parsed.searchSources[0]).toMatchObject({
+      kind: 'cli',
+      command: 'smart-search',
+      args: ['search', '--format json', '{{query}}'],
+    });
+  });
+
+  it('round-trips multi-token CLI args through draft', () => {
+    const config: WebConfig = {
+      ...SAMPLE_WEB,
+      searchProvider: 'cli',
+      searchApiKeyEnv: '',
+      searchSources: [
+        {
+          id: 'cli',
+          kind: 'cli',
+          enabled: true,
+          command: 'my-search',
+          args: ['--q', '{{query}}', '--limit', '5'],
+        },
+      ],
+    };
+    expect(draftToWeb(webToDraft(config))).toEqual(config);
+  });
+
+  it('keeps keychain references while excluding raw secrets from config drafts', () => {
+    const draft = webToDraft(SAMPLE_WEB);
+    expect(draft.searchSources[1]?.apiKeyRef).toBe('keychain:piwin-web-brave');
+    expect(draft.fetchApiKeyRef).toBe('keychain:piwin-web-fetch-firecrawl');
+    expect(JSON.stringify(draft)).not.toContain('raw-secret');
   });
 });

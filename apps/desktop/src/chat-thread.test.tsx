@@ -238,7 +238,7 @@ function ChatThreadRenderHarness(props: ChatThreadRenderHarnessProps): ReactElem
         onCancelEdit={noop}
         onEditResend={noop}
         onRetry={noop}
-        onOpenSubagentSession={undefined}
+        onInspectSubagent={undefined}
         composerCard={{
           layoutMode: 'docked',
           projectPath: null,
@@ -541,7 +541,7 @@ describe('ChatThread render isolation (E1)', () => {
             onCancelEdit={noop}
             onEditResend={noop}
             onRetry={noop}
-            onOpenSubagentSession={undefined}
+            onInspectSubagent={undefined}
             composerCard={composerCard}
             locale="en"
           />
@@ -570,7 +570,7 @@ describe('ChatThread render isolation (E1)', () => {
             onCancelEdit={noop}
             onEditResend={noop}
             onRetry={noop}
-            onOpenSubagentSession={undefined}
+            onInspectSubagent={undefined}
             composerCard={composerCard}
             locale="en"
           />
@@ -595,7 +595,7 @@ describe('ChatThread render isolation (E1)', () => {
             onCancelEdit={noop}
             onEditResend={noop}
             onRetry={noop}
-            onOpenSubagentSession={undefined}
+            onInspectSubagent={undefined}
             composerCard={composerCard}
             locale="en"
           />
@@ -623,7 +623,7 @@ describe('ChatThread render isolation (E1)', () => {
             onCancelEdit={noop}
             onEditResend={noop}
             onRetry={noop}
-            onOpenSubagentSession={undefined}
+            onInspectSubagent={undefined}
             composerCard={composerCard}
             locale="en"
           />
@@ -656,7 +656,7 @@ describe('ChatThread render isolation (E1)', () => {
             onCancelEdit={noop}
             onEditResend={noop}
             onRetry={noop}
-            onOpenSubagentSession={undefined}
+            onInspectSubagent={undefined}
             composerCard={composerCard}
             locale="en"
           />
@@ -681,7 +681,7 @@ describe('ChatThread render isolation (E1)', () => {
             onCancelEdit={noop}
             onEditResend={noop}
             onRetry={noop}
-            onOpenSubagentSession={undefined}
+            onInspectSubagent={undefined}
             composerCard={composerCard}
             locale="en"
           />
@@ -708,7 +708,7 @@ describe('ChatThread render isolation (E1)', () => {
             onCancelEdit={noop}
             onEditResend={noop}
             onRetry={noop}
-            onOpenSubagentSession={undefined}
+            onInspectSubagent={undefined}
             composerCard={composerCard}
             locale="en"
           />
@@ -750,7 +750,7 @@ describe('ChatThread render isolation (E1)', () => {
             onEditResend={noop}
             onRetry={onRetrySpy}
             onFeedback={onFeedbackSpy}
-            onOpenSubagentSession={undefined}
+            onInspectSubagent={undefined}
             composerCard={composerCard}
             locale="en"
           />
@@ -772,6 +772,64 @@ describe('ChatThread render isolation (E1)', () => {
       revertBtn.click();
     });
     expect(onRetrySpy).toHaveBeenCalledWith('msg-u1');
+  });
+
+  it('collapses user image attachments with the message body by default', () => {
+    const userMessageWithImage: ChatMessageUi = {
+      id: 'msg-image-history',
+      role: 'user',
+      text: 'What is this?',
+      thinking: '',
+      tools: [],
+      attachments: [
+        {
+          id: 'attachment-image',
+          kind: 'media',
+          path: '/tmp/history-image.png',
+          mimeType: 'image/png',
+          byteSize: 1024,
+          source: 'paste',
+        },
+      ],
+      status: 'done',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessageWithImage]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={userMessageWithImage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const collapsibleBody = container.querySelector<HTMLElement>(
+      '[data-testid="user-message-collapsible-body"]',
+    );
+    const attachmentContainer = container.querySelector('.message-attachments');
+
+    expect(collapsibleBody).not.toBeNull();
+    expect(collapsibleBody?.classList.contains('is-collapsed')).toBe(true);
+    expect(collapsibleBody?.contains(attachmentContainer)).toBe(true);
+
+    act(() => {
+      collapsibleBody?.click();
+    });
+
+    expect(collapsibleBody?.classList.contains('is-expanded')).toBe(true);
   });
 });
 
