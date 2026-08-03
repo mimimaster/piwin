@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { HostCommand, HostResponse } from '@piwin/contracts';
+import type { HostCommand, HostResponse, HostServerMessage } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/agent-host';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
-import type { JsonlWriter } from './host-serve-jsonl-writer.js';
+import type { HostServeSend } from './host-serve-dispatcher.js';
 
 function createMockRuntime(handlers: {
   onCommand: (command: HostCommand) => Promise<HostResponse> | HostResponse;
@@ -37,17 +37,15 @@ describe('createHostServeDispatcher', () => {
     });
 
     const written: string[] = [];
-    const writer: JsonlWriter = {
-      write: async (message) => {
-        if (message && typeof message === 'object' && 'command' in message) {
-          written.push(String((message as { command: string }).command));
-        }
-      },
+    const send: HostServeSend = async (message: HostServerMessage) => {
+      if (message && typeof message === 'object' && 'command' in message) {
+        written.push(String((message as { command: string }).command));
+      }
     };
 
     const dispatcher = createHostServeDispatcher({
       runtime: runtime as HostRuntime,
-      writer,
+      send,
       commandTimeoutMs: 5_000,
     });
 
@@ -93,10 +91,10 @@ describe('createHostServeDispatcher', () => {
         };
       },
     });
-    const writer: JsonlWriter = { write: vi.fn(async () => undefined) };
+    const send: HostServeSend = vi.fn(async () => undefined);
     const dispatcher = createHostServeDispatcher({
       runtime: runtime as HostRuntime,
-      writer,
+      send,
     });
 
     dispatcher.dispatch({ type: 'session/list', projectPath: '/tmp/project' });
@@ -125,16 +123,16 @@ describe('createHostServeDispatcher', () => {
         data: {},
       }),
     });
-    const writer: JsonlWriter = { write: vi.fn(async () => undefined) };
+    const send: HostServeSend = vi.fn(async () => undefined);
     const dispatcher = createHostServeDispatcher({
       runtime: runtime as HostRuntime,
-      writer,
+      send,
     });
 
     await dispatcher.drain();
     dispatcher.dispatch({ type: 'host/ping' });
 
     expect(runtime.handleCommand).not.toHaveBeenCalled();
-    expect(writer.write).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
   });
 });

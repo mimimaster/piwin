@@ -1,14 +1,17 @@
 /**
  * ADR 0015 host serve dispatcher: control lane bypasses serial work.
+ * ADR 0027: transport-agnostic — takes a `send` function, not a JsonlWriter.
  */
 import type { HostCommand, HostResponse, HostServerMessage } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/agent-host';
 import { classifyHostServeCommand } from './host-serve-command-lane.js';
-import type { JsonlWriter } from './host-serve-jsonl-writer.js';
+
+/** Frame sender the dispatcher uses to write responses. Transport-agnostic. */
+export type HostServeSend = (message: HostServerMessage) => Promise<void>;
 
 export type HostServeDispatcherOptions = {
   runtime: HostRuntime;
-  writer: JsonlWriter;
+  send: HostServeSend;
   /** Timeout for non-prompt request handling. Prompt is quick-ack after ADR 0015. */
   commandTimeoutMs?: number;
 };
@@ -36,11 +39,11 @@ export function createHostServeDispatcher(
     }
     const lane = classifyHostServeCommand(command);
     if (lane === 'control' || lane === 'concurrent') {
-      void trackCommand(runCommand(options.runtime, options.writer, command, timeoutMs));
+      void trackCommand(runCommand(options.runtime, options.send, command, timeoutMs));
       return;
     }
     serializedChain = trackCommand(
-      serializedChain.then(() => runCommand(options.runtime, options.writer, command, timeoutMs)),
+      serializedChain.then(() => runCommand(options.runtime, options.send, command, timeoutMs)),
     );
   }
 
@@ -72,7 +75,7 @@ export function createHostServeDispatcher(
 
 async function runCommand(
   runtime: HostRuntime,
-  writer: JsonlWriter,
+  send: HostServeSend,
   command: HostCommand,
   timeoutMs: number,
 ): Promise<void> {
@@ -89,7 +92,7 @@ async function runCommand(
       runtime.handleCommand(command),
       timeoutPromise,
     ]);
-    await writer.write(response);
+    await send(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const failure: HostServerMessage = {
@@ -99,7 +102,7 @@ async function runCommand(
       error: `host command '${command.type}' failed: ${message}`,
       ...(commandId ? { id: commandId } : {}),
     };
-    await writer.write(failure);
+    await send(failure);
   } finally {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId);
