@@ -8,10 +8,8 @@ import type {
 } from '@piwin/contracts';
 import { createDefaultWebConfig } from '@piwin/contracts';
 import { mergeSearchHitBatches, type SourceHitBatch } from './search-merge.js';
-import {
-  createProviderForSource,
-  type SearchProvider,
-} from './search-source-providers.js';
+import { createProviderForSource, type SearchProvider } from './search-source-providers.js';
+import type { WebRuntimeCredentials } from './runtime-credentials.js';
 
 export type { SearchProvider } from './search-source-providers.js';
 
@@ -31,11 +29,11 @@ export function resolveWebConfig(partial?: Partial<WebConfig> | undefined): WebC
     searchSources,
     searchStrategy,
     fetchProvider: partial.fetchProvider ?? defaults.fetchProvider,
+    ...(partial.fetchApiKeyRef ? { fetchApiKeyRef: partial.fetchApiKeyRef } : {}),
     fetchApiKeyEnv: partial.fetchApiKeyEnv ?? defaults.fetchApiKeyEnv,
     fetchMaxBytes: partial.fetchMaxBytes ?? defaults.fetchMaxBytes,
     fetchTimeoutMs: partial.fetchTimeoutMs ?? defaults.fetchTimeoutMs,
-    fetchBlockedUrlPrefixes:
-      partial.fetchBlockedUrlPrefixes ?? defaults.fetchBlockedUrlPrefixes,
+    fetchBlockedUrlPrefixes: partial.fetchBlockedUrlPrefixes ?? defaults.fetchBlockedUrlPrefixes,
   };
 }
 
@@ -43,7 +41,10 @@ export function resolveWebConfig(partial?: Partial<WebConfig> | undefined): WebC
  * Build the runtime provider used by web_search.
  * Multiple enabled sources → aggregate; zero → disabled; one → that source.
  */
-export function createSearchProvider(config: WebConfig | Partial<WebConfig>): SearchProvider {
+export function createSearchProvider(
+  config: WebConfig | Partial<WebConfig>,
+  credentials: WebRuntimeCredentials = {},
+): SearchProvider {
   const resolved = resolveWebConfig(config);
   const enabled = resolved.searchSources.filter((source) => source.enabled);
   if (enabled.length === 0) {
@@ -61,28 +62,32 @@ export function createSearchProvider(config: WebConfig | Partial<WebConfig>): Se
     if (!only) {
       throw new Error('web search: enabled source list was empty after filter');
     }
-    return createProviderForSource(only);
+    return createProviderForSource(only, credentials.searchApiKeysBySourceId?.[only.id]);
   }
-  return createAggregateProvider(enabled, resolved.searchStrategy, resolved.searchMaxResults);
+  return createAggregateProvider(
+    enabled,
+    resolved.searchStrategy,
+    resolved.searchMaxResults,
+    credentials,
+  );
 }
 
 export async function webSearch(
   query: string,
   config?: Partial<WebConfig>,
   signal?: AbortSignal,
+  credentials: WebRuntimeCredentials = {},
 ): Promise<WebSearchResult> {
   const resolved = resolveWebConfig(config);
   const trimmed = query.trim();
   if (!trimmed) {
     throw new Error('empty search query');
   }
-  const provider = createSearchProvider(resolved);
+  const provider = createSearchProvider(resolved, credentials);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), resolved.searchTimeoutMs);
-  const searchSignal = signal
-    ? anySignal([signal, controller.signal])
-    : controller.signal;
+  const searchSignal = signal ? anySignal([signal, controller.signal]) : controller.signal;
 
   try {
     const hits = await provider.search(trimmed, {
@@ -114,16 +119,21 @@ function createAggregateProvider(
   sources: WebSearchSource[],
   strategy: WebSearchStrategy,
   defaultLimit: number,
+  credentials: WebRuntimeCredentials,
 ): SearchProvider {
   const sourceIds = sources.map((source) => source.id).join('+');
   return {
     id: sources.length > 1 ? `aggregate:${sourceIds}` : (sources[0]?.id ?? 'aggregate'),
     async search(query, options) {
       const limit = options.limit > 0 ? options.limit : defaultLimit;
-      if (strategy.mode === 'ordered-fallback') {
-        return runOrderedFallback(sources, query, limit, strategy.perSourceTimeoutMs, options.signal);
-      }
-      return runParallelMerge(sources, query, limit, strategy.perSourceTimeoutMs, options.signal);
+      return runParallelMerge(
+        sources,
+        query,
+        limit,
+        strategy.perSourceTimeoutMs,
+        options.signal,
+        credentials,
+      );
     },
   };
 }
@@ -134,6 +144,7 @@ async function runParallelMerge(
   limit: number,
   perSourceTimeoutMs: number,
   parentSignal?: AbortSignal,
+  credentials: WebRuntimeCredentials = {},
 ): Promise<SearchHit[]> {
   const settled = await Promise.all(
     sources.map(async (source) => {
@@ -144,6 +155,7 @@ async function runParallelMerge(
           limit,
           perSourceTimeoutMs,
           parentSignal,
+          credentials.searchApiKeysBySourceId?.[source.id],
         );
         return { sourceId: source.id, hits, error: undefined as string | undefined };
       } catch (error) {
@@ -166,66 +178,23 @@ async function runParallelMerge(
   return merged;
 }
 
-async function runOrderedFallback(
-  sources: WebSearchSource[],
-  query: string,
-  limit: number,
-  perSourceTimeoutMs: number,
-  parentSignal?: AbortSignal,
-): Promise<SearchHit[]> {
-  const collected: SourceHitBatch[] = [];
-  const errors: string[] = [];
-  for (const source of sources) {
-    if (parentSignal?.aborted) {
-      break;
-    }
-    try {
-      const hits = await runSourceWithTimeout(
-        source,
-        query,
-        limit,
-        perSourceTimeoutMs,
-        parentSignal,
-      );
-      if (hits.length > 0) {
-        collected.push({ sourceId: source.id, hits });
-      }
-      const merged = mergeSearchHitBatches(collected, limit);
-      if (merged.length >= limit) {
-        return merged;
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      errors.push(`${source.id}: ${message}`);
-    }
-  }
-  const merged = mergeSearchHitBatches(collected, limit);
-  if (merged.length === 0 && errors.length > 0) {
-    throw new Error(`All search sources failed. ${errors.join('; ')}`);
-  }
-  return merged;
-}
-
 async function runSourceWithTimeout(
   source: WebSearchSource,
   query: string,
   limit: number,
   perSourceTimeoutMs: number,
   parentSignal?: AbortSignal,
+  apiKey?: string,
 ): Promise<SearchHit[]> {
-  const provider = createProviderForSource(source);
+  const provider = createProviderForSource(source, apiKey);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), perSourceTimeoutMs);
-  const signal = parentSignal
-    ? anySignal([parentSignal, controller.signal])
-    : controller.signal;
+  const signal = parentSignal ? anySignal([parentSignal, controller.signal]) : controller.signal;
   try {
     return await provider.search(query, { limit, signal });
   } catch (error) {
     if (signal.aborted && !parentSignal?.aborted) {
-      throw new Error(
-        `source "${source.id}" timed out after ${perSourceTimeoutMs}ms`,
-      );
+      throw new Error(`source "${source.id}" timed out after ${perSourceTimeoutMs}ms`);
     }
     throw error;
   } finally {
@@ -233,10 +202,7 @@ async function runSourceWithTimeout(
   }
 }
 
-function resolveSearchSources(
-  partial: Partial<WebConfig>,
-  defaults: WebConfig,
-): WebSearchSource[] {
+function resolveSearchSources(partial: Partial<WebConfig>, defaults: WebConfig): WebSearchSource[] {
   if (Array.isArray(partial.searchSources)) {
     return partial.searchSources.map(normalizeSourceRecord).filter((source) => source.id);
   }
@@ -254,10 +220,8 @@ function resolveSearchStrategy(
   if (!partial) {
     return defaults;
   }
-  const mode =
-    partial.mode === 'ordered-fallback' || partial.mode === 'parallel'
-      ? partial.mode
-      : defaults.mode;
+  // Multi-source search is always parallel; legacy ordered-fallback normalizes here.
+  const mode: WebSearchStrategy['mode'] = 'parallel';
   const perSourceTimeoutMs =
     typeof partial.perSourceTimeoutMs === 'number' && partial.perSourceTimeoutMs > 0
       ? Math.floor(partial.perSourceTimeoutMs)
@@ -324,10 +288,7 @@ function mirrorSearchProvider(
 
 function normalizeSourceRecord(value: WebSearchSource): WebSearchSource {
   const kind = value.kind;
-  const id =
-    typeof value.id === 'string' && value.id.trim()
-      ? value.id.trim()
-      : kind;
+  const id = typeof value.id === 'string' && value.id.trim() ? value.id.trim() : kind;
   const source: WebSearchSource = {
     id,
     kind,
@@ -338,6 +299,9 @@ function normalizeSourceRecord(value: WebSearchSource): WebSearchSource {
   }
   if (typeof value.apiKeyEnv === 'string' && value.apiKeyEnv.trim()) {
     source.apiKeyEnv = value.apiKeyEnv.trim();
+  }
+  if (typeof value.apiKeyRef === 'string' && value.apiKeyRef.trim()) {
+    source.apiKeyRef = value.apiKeyRef.trim();
   }
   if (typeof value.baseUrl === 'string' && value.baseUrl.trim()) {
     source.baseUrl = value.baseUrl.trim();

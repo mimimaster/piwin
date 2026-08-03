@@ -1,6 +1,7 @@
 import type { WebConfig } from '@piwin/contracts';
 import { webFetch } from './web-fetch.js';
 import { webSearch } from './search-provider.js';
+import type { WebRuntimeCredentials } from './runtime-credentials.js';
 
 /** Pure tool descriptors + executors for host to register with Pi. */
 export type HostToolDefinition = {
@@ -10,7 +11,10 @@ export type HostToolDefinition = {
   execute: (args: Record<string, unknown>, signal?: AbortSignal) => Promise<string>;
 };
 
-export function createWebToolDefinitions(config?: Partial<WebConfig>): HostToolDefinition[] {
+export function createWebToolDefinitions(
+  config?: Partial<WebConfig>,
+  credentials: WebRuntimeCredentials = {},
+): HostToolDefinition[] {
   return [
     {
       name: 'web_search',
@@ -25,7 +29,7 @@ export function createWebToolDefinitions(config?: Partial<WebConfig>): HostToolD
       },
       async execute(args, signal) {
         const query = String(args.query ?? '');
-        const result = await webSearch(query, config, signal);
+        const result = await webSearch(query, config, signal, credentials);
         return JSON.stringify(result, null, 2);
       },
     },
@@ -48,6 +52,9 @@ export function createWebToolDefinitions(config?: Partial<WebConfig>): HostToolD
         }
         if (signal) {
           fetchOptions.signal = signal;
+        }
+        if (credentials.fetchApiKey) {
+          fetchOptions.apiKey = credentials.fetchApiKey;
         }
         const result = await webFetch(url, fetchOptions);
         return JSON.stringify(result, null, 2);

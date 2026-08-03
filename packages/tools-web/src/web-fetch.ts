@@ -7,6 +7,8 @@ import { resolveWebConfig } from './search-provider.js';
 export type WebFetchOptions = {
   config?: Partial<WebConfig>;
   signal?: AbortSignal;
+  /** Host-resolved keychain secret for this in-memory execution only. */
+  apiKey?: string;
   /** Injected for tests */
   fetchImpl?: typeof fetch;
   /** Injected DNS resolver for tests */
@@ -35,8 +37,7 @@ export async function webFetch(
   // Default: built-in local HTML→readable text ("supermarkdown").
   const fetchImpl = options.fetchImpl ?? fetch;
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
-  const resolveHost =
-    options.resolveHostAddresses ?? defaultResolveHostAddresses;
+  const resolveHost = options.resolveHostAddresses ?? defaultResolveHostAddresses;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.fetchTimeoutMs);
@@ -45,11 +46,7 @@ export async function webFetch(
     : controller.signal;
 
   try {
-    let currentUrl = await assertSafeFetchUrl(
-      url,
-      config.fetchBlockedUrlPrefixes,
-      resolveHost,
-    );
+    let currentUrl = await assertSafeFetchUrl(url, config.fetchBlockedUrlPrefixes, resolveHost);
     let response: Response | null = null;
 
     for (let hop = 0; hop <= maxRedirects; hop += 1) {
@@ -68,11 +65,7 @@ export async function webFetch(
           throw new Error(`too many redirects (>${maxRedirects})`);
         }
         const nextUrl = new URL(location, currentUrl).toString();
-        currentUrl = await assertSafeFetchUrl(
-          nextUrl,
-          config.fetchBlockedUrlPrefixes,
-          resolveHost,
-        );
+        currentUrl = await assertSafeFetchUrl(nextUrl, config.fetchBlockedUrlPrefixes, resolveHost);
         continue;
       }
 
@@ -101,8 +94,7 @@ export async function webFetch(
       // readability) well below the raw body cap so a giant page cannot stall
       // the turn inside synchronous parsing.
       const parseCap = config.fetchMaxBytes * 2;
-      const htmlToParse =
-        rawText.length > parseCap ? rawText.slice(0, parseCap) : rawText;
+      const htmlToParse = rawText.length > parseCap ? rawText.slice(0, parseCap) : rawText;
       const extracted = await extractReadableText(htmlToParse, finalUrl, signal);
       const truncated = extracted.text.length > config.fetchMaxBytes;
       return {
@@ -175,9 +167,7 @@ export async function assertSafeFetchUrl(
     const addresses = await resolveHostAddresses(hostname);
     for (const address of addresses) {
       if (isPrivateOrLocalIpAddress(address)) {
-        throw new Error(
-          `SSRF blocked: ${hostname} resolves to private address ${address}`,
-        );
+        throw new Error(`SSRF blocked: ${hostname} resolves to private address ${address}`);
       }
     }
   }
@@ -308,6 +298,7 @@ async function fetchViaJina(
       'X-Return-Format': 'markdown',
     };
     const apiKey =
+      options.apiKey ??
       process.env[config.fetchApiKeyEnv] ??
       process.env.JINA_API_KEY ??
       process.env.JINA_READER_API_KEY;
@@ -347,8 +338,7 @@ async function fetchViaFirecrawl(
 ): Promise<WebFetchResult> {
   const validated = validateFetchUrl(url, config.fetchBlockedUrlPrefixes);
   const apiKey =
-    process.env[config.fetchApiKeyEnv] ??
-    process.env.FIRECRAWL_API_KEY;
+    options.apiKey ?? process.env[config.fetchApiKeyEnv] ?? process.env.FIRECRAWL_API_KEY;
   if (!apiKey) {
     throw new Error(
       `Missing API key env ${config.fetchApiKeyEnv} (or FIRECRAWL_API_KEY) for Firecrawl`,

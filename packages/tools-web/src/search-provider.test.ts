@@ -1,9 +1,5 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import {
-  createSearchProvider,
-  resolveWebConfig,
-  webSearch,
-} from './search-provider.js';
+import { createSearchProvider, resolveWebConfig, webSearch } from './search-provider.js';
 import { mergeSearchHitBatches, normalizeSearchHitUrl } from './search-merge.js';
 
 afterEach(() => {
@@ -64,6 +60,40 @@ describe('search providers', () => {
     }
   });
 
+  it('uses a host-resolved keychain credential before environment variables', async () => {
+    const previous = process.env.BRAVE_API_KEY;
+    delete process.env.BRAVE_API_KEY;
+    let authorizationHeader = '';
+    vi.stubGlobal('fetch', (async (_input: unknown, init?: RequestInit) => {
+      authorizationHeader = String(
+        (init?.headers as Record<string, string> | undefined)?.['X-Subscription-Token'] ?? '',
+      );
+      return new Response(JSON.stringify({ web: { results: [] } }), { status: 200 });
+    }) as typeof fetch);
+    try {
+      await webSearch(
+        'test',
+        {
+          searchSources: [
+            {
+              id: 'brave',
+              kind: 'brave',
+              enabled: true,
+              apiKeyRef: 'keychain:piwin-web-brave',
+            },
+          ],
+        },
+        undefined,
+        { searchApiKeysBySourceId: { brave: 'keychain-secret' } },
+      );
+      expect(authorizationHeader).toBe('keychain-secret');
+    } finally {
+      if (previous !== undefined) {
+        process.env.BRAVE_API_KEY = previous;
+      }
+    }
+  });
+
   it('times out when the provider network hangs', async () => {
     const previousKey = process.env.BRAVE_API_KEY;
     process.env.BRAVE_API_KEY = 'test-key';
@@ -99,19 +129,16 @@ describe('search providers', () => {
   });
 
   it('adds a warning when the provider returns zero hits', async () => {
-    vi.stubGlobal(
-      'fetch',
-      (async (input: unknown) => {
-        const url = String(input);
-        if (url.includes('api.duckduckgo.com')) {
-          return new Response('{"Results":[],"RelatedTopics":[]}', { status: 200 });
-        }
-        return new Response(
-          '<!DOCTYPE html><html><head><title>No results</title></head><body>Nothing</body></html>',
-          { status: 200 },
-        );
-      }) as typeof fetch,
-    );
+    vi.stubGlobal('fetch', (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes('api.duckduckgo.com')) {
+        return new Response('{"Results":[],"RelatedTopics":[]}', { status: 200 });
+      }
+      return new Response(
+        '<!DOCTYPE html><html><head><title>No results</title></head><body>Nothing</body></html>',
+        { status: 200 },
+      );
+    }) as typeof fetch);
     const result = await webSearch('zzz-no-such-thing', {
       searchProvider: 'duckduckgo',
       searchTimeoutMs: 1000,
@@ -121,53 +148,50 @@ describe('search providers', () => {
   });
 
   it('aggregates multiple sources with URL dedupe (parallel)', async () => {
-    vi.stubGlobal(
-      'fetch',
-      (async (input: unknown) => {
-        const url = String(input);
-        if (url.includes('api.search.brave.com')) {
-          return new Response(
-            JSON.stringify({
-              web: {
-                results: [
-                  {
-                    title: 'Shared',
-                    url: 'https://example.com/a',
-                    description: 'from brave',
-                  },
-                  {
-                    title: 'Brave only',
-                    url: 'https://brave.example/b',
-                    description: 'brave unique',
-                  },
-                ],
-              },
-            }),
-            { status: 200 },
-          );
-        }
-        if (url.includes('api.tavily.com')) {
-          return new Response(
-            JSON.stringify({
+    vi.stubGlobal('fetch', (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes('api.search.brave.com')) {
+        return new Response(
+          JSON.stringify({
+            web: {
               results: [
                 {
-                  title: 'Shared again',
-                  url: 'https://example.com/a/',
-                  content: 'from tavily',
+                  title: 'Shared',
+                  url: 'https://example.com/a',
+                  description: 'from brave',
                 },
                 {
-                  title: 'Tavily only',
-                  url: 'https://tavily.example/c',
-                  content: 'tavily unique',
+                  title: 'Brave only',
+                  url: 'https://brave.example/b',
+                  description: 'brave unique',
                 },
               ],
-            }),
-            { status: 200 },
-          );
-        }
-        return new Response('not found', { status: 404 });
-      }) as typeof fetch,
-    );
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.includes('api.tavily.com')) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                title: 'Shared again',
+                url: 'https://example.com/a/',
+                content: 'from tavily',
+              },
+              {
+                title: 'Tavily only',
+                url: 'https://tavily.example/c',
+                content: 'tavily unique',
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response('not found', { status: 404 });
+    }) as typeof fetch);
     process.env.BRAVE_API_KEY = 'brave-test';
     process.env.TAVILY_API_KEY = 'tavily-test';
     try {
@@ -186,7 +210,11 @@ describe('search providers', () => {
       expect(urls).toContain('https://brave.example/b');
       expect(urls).toContain('https://tavily.example/c');
       // Shared URL appears once after normalize trailing slash
-      expect(urls.filter((item) => normalizeSearchHitUrl(item) === normalizeSearchHitUrl('https://example.com/a')).length).toBe(1);
+      expect(
+        urls.filter(
+          (item) => normalizeSearchHitUrl(item) === normalizeSearchHitUrl('https://example.com/a'),
+        ).length,
+      ).toBe(1);
     } finally {
       delete process.env.BRAVE_API_KEY;
       delete process.env.TAVILY_API_KEY;
@@ -194,26 +222,23 @@ describe('search providers', () => {
   });
 
   it('searxng provider hits /search?format=json', async () => {
-    vi.stubGlobal(
-      'fetch',
-      (async (input: unknown) => {
-        const url = String(input);
-        expect(url).toContain('http://127.0.0.1:8080/search');
-        expect(url).toContain('format=json');
-        return new Response(
-          JSON.stringify({
-            results: [
-              {
-                title: 'Docs',
-                url: 'https://docs.example/x',
-                content: 'snippet',
-              },
-            ],
-          }),
-          { status: 200 },
-        );
-      }) as typeof fetch,
-    );
+    vi.stubGlobal('fetch', (async (input: unknown) => {
+      const url = String(input);
+      expect(url).toContain('http://127.0.0.1:8080/search');
+      expect(url).toContain('format=json');
+      return new Response(
+        JSON.stringify({
+          results: [
+            {
+              title: 'Docs',
+              url: 'https://docs.example/x',
+              content: 'snippet',
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch);
     const result = await webSearch('docs', {
       searchSources: [
         {
