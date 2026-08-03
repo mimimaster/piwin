@@ -18,6 +18,8 @@ import {
   type WorkerRequest,
   type WorkerRequestPayload,
   type WorkerResponse,
+  type WorkerToolCallFrame,
+  type WorkerToolResultFrame,
 } from './rpc-sdk-worker-protocol.js';
 import type {
   AgentEvent,
@@ -25,6 +27,7 @@ import type {
   SubagentTaskSpec,
   SubagentWorkspaceLease,
 } from '@piwin/contracts';
+import type { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 export type WorkerClientOptions = {
   /** Path to the worker entry script. Defaults to the bundled entry. */
@@ -35,6 +38,12 @@ export type WorkerClientOptions = {
   env?: Record<string, string>;
   /** Called when the worker emits a normalized event. */
   onEvent?: (sessionId: string, event: AgentEvent) => void;
+  /**
+   * WP4: parent-owned tool execution router. When provided, the client
+   * routes `tool-call` frames from the worker to this router and sends
+   * `tool-result` frames back. The router owns permission/MCP/process/browser.
+   */
+  toolRouter?: HostToolExecutionRouter;
 };
 
 type PendingRequest = {
@@ -178,7 +187,53 @@ export class RpcSdkWorkerClient extends EventEmitter {
     } else if (frame.type === 'event') {
       this.options.onEvent?.(frame.sessionId, frame.event);
       this.emit('event', frame.sessionId, frame.event);
+    } else if (frame.type === 'tool-call') {
+      void this.handleToolCall(frame).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.emit('log', `[worker-client] tool-call error: ${message}`);
+      });
     }
+  }
+
+  /**
+   * WP4: route a tool-call frame from the worker to the parent's
+   * HostToolExecutionRouter and send the result back.
+   */
+  private async handleToolCall(frame: WorkerToolCallFrame): Promise<void> {
+    const router = this.options.toolRouter;
+    if (!router) {
+      this.sendToolResult(frame.id, false, undefined, 'no tool router configured');
+      return;
+    }
+    const args = (frame.args ?? {}) as Record<string, unknown>;
+    const result = await router.execute(frame.toolName, args);
+    if (result.ok) {
+      this.sendToolResult(frame.id, true, result.output);
+    } else {
+      this.sendToolResult(frame.id, false, undefined, result.message, result.code);
+    }
+  }
+
+  private sendToolResult(
+    id: string,
+    ok: boolean,
+    result: unknown,
+    error?: string,
+    code?: 'tool-not-available' | 'tool-disabled' | 'permission-denied' | 'aborted',
+  ): void {
+    let frame: WorkerToolResultFrame;
+    if (ok) {
+      frame = { type: 'tool-result', id, ok: true, result };
+    } else {
+      frame = {
+        type: 'tool-result',
+        id,
+        ok: false,
+        error: error ?? 'unknown error',
+        ...(code ? { code } : {}),
+      };
+    }
+    this.child?.stdin?.write(`${JSON.stringify(frame)}\n`);
   }
 
   private rejectAllPending(reason: string): void {

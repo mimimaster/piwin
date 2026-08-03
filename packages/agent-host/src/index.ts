@@ -318,3 +318,7 @@ export type {
   WorkerPiSessionFactoryInput,
   WorkerPiSessionFactoryOptions,
 } from './rpc/worker-pi-session-factory.js';
+
+// Phase 7 WP4: worker proxy tool factory.
+export { buildWorkerProxyTools, buildSingleProxyTool } from './rpc/worker-proxy-tool-factory.js';
+export type { ToolProxyCall } from './rpc/worker-proxy-tool-factory.js';

@@ -57,7 +57,7 @@ export function toPiCustomTools(tools: HostToolDefinition[]): PiCustomToolDefini
   return tools.map(toPiCustomTool);
 }
 
-function parametersForHostTool(tool: HostToolDefinition): unknown {
+export function parametersForHostTool(tool: HostToolDefinition): unknown {
   if (tool.name === 'web_search') {
     return Type.Object({
       query: Type.String({ description: 'Search query' }),
