@@ -75,6 +75,8 @@ export class MockHostBackend {
     },
     artifact: { maxBytes: 100 * 1024, htmlUiModeDefault: false },
   };
+  /** Monotonic revision for the in-memory settings snapshot (mock parity). */
+  private mockSettingsRevision = 'mock-settings-v1';
 
   constructor(emitPush: MockEmit, getMode: () => HostMode) {
     this.emitPush = emitPush;
@@ -1973,6 +1975,74 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             config: this.mockConfig,
           },
         };
+      case 'settings/get':
+        return {
+          id,
+          type: 'response',
+          command: 'settings/get',
+          success: true,
+          data: {
+            root: '~/.piwin',
+            snapshot: {
+              schemaVersion: 2,
+              revision: this.mockSettingsRevision,
+              config: this.mockConfig,
+            },
+          },
+        };
+      case 'settings/apply': {
+        const input = command.input;
+        if (
+          input.expectedRevision !== undefined &&
+          input.expectedRevision !== this.mockSettingsRevision
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: 'settings/apply',
+            success: false,
+            error: 'settings-revision-conflict',
+          };
+        }
+        let nextConfig = this.mockConfig;
+        for (const mutation of input.mutations) {
+          if (mutation.kind !== 'replace-domain') {
+            return {
+              id,
+              type: 'response',
+              command: 'settings/apply',
+              success: false,
+              error: 'unsupported mutation kind',
+            };
+          }
+          nextConfig = {
+            ...nextConfig,
+            [mutation.domain]: mutation.value,
+          } as import('@piwin/contracts').PiwinConfig;
+        }
+        this.mockConfig = nextConfig;
+        this.mockSettingsRevision = `mock-settings-v${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+        return {
+          id,
+          type: 'response',
+          command: 'settings/apply',
+          success: true,
+          data: {
+            snapshot: {
+              schemaVersion: 2,
+              revision: this.mockSettingsRevision,
+              config: this.mockConfig,
+            },
+            changedDomains: input.mutations.map((mutation) => ({
+              domain: mutation.domain,
+              timing: 'new-runtime',
+              securityTightenedImmediately: mutation.domain === 'permissions',
+            })),
+          },
+        };
+      }
       case 'config/set': {
         if (!('config' in command) || !command.config) {
           return {
@@ -1984,6 +2054,9 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           };
         }
         this.mockConfig = command.config as import('@piwin/contracts').PiwinConfig;
+        this.mockSettingsRevision = `mock-settings-v${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
         return {
           id,
           type: 'response',
