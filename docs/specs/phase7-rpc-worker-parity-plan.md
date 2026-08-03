@@ -712,6 +712,12 @@ Same for SDK backend vs Worker backend:
 
 ### WP7 — Deletion pass
 
+> **Status (session 2025-01):** WP0–WP6 implemented and committed on
+> `feat/settings-capability-runtime-refactor`. WP7 is **not executed** in
+> this session — it is gated on WP6 CI green + rollout decision R2.
+> The deletion pass should be a separate PR after the worker backend is
+> validated in staging.
+
 Only after WP6 green in CI and rollout decision R2:
 
 Delete / stop shipping:
