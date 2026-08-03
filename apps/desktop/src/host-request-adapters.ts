@@ -11,6 +11,7 @@ import type {
   PiwinConfig,
   PluginInstallSource,
 } from '@piwin/contracts';
+import { buildSettingsDomainMutations } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 
 export type HostRequestAdapters = {
@@ -160,12 +161,71 @@ export type HostRequestAdapters = {
   }) => Promise<HostResponse>;
 };
 
+async function getSettingsAsLegacyConfigView(hostClient: HostClient): Promise<HostResponse> {
+  const response = await hostClient.request({ type: 'settings/get' });
+  if (!response.success) {
+    return response;
+  }
+  const data = response.data as {
+    snapshot?: {
+      config: PiwinConfig;
+      revision: string;
+      schemaVersion: number;
+    };
+    root?: string;
+  };
+  if (!data.snapshot) {
+    return {
+      ...response,
+      success: false,
+      error: 'settings/get returned no snapshot',
+    };
+  }
+  return {
+    ...response,
+    data: {
+      config: data.snapshot.config,
+      root: data.root,
+      revision: data.snapshot.revision,
+      schemaVersion: data.snapshot.schemaVersion,
+    },
+  };
+}
+
+async function applyConfigDraft(
+  hostClient: HostClient,
+  nextConfig: PiwinConfig,
+): Promise<HostResponse> {
+  const currentResponse = await hostClient.request({ type: 'settings/get' });
+  if (!currentResponse.success) {
+    return currentResponse;
+  }
+  const data = currentResponse.data as {
+    snapshot?: { config: PiwinConfig; revision: string };
+  };
+  if (!data.snapshot) {
+    return {
+      type: 'response',
+      command: 'settings/apply',
+      success: false,
+      error: 'settings/get returned no snapshot',
+    };
+  }
+  return hostClient.request({
+    type: 'settings/apply',
+    input: {
+      expectedRevision: data.snapshot.revision,
+      mutations: buildSettingsDomainMutations(data.snapshot.config, nextConfig),
+    },
+  });
+}
+
 export function createHostRequestAdapters(hostClient: HostClient): HostRequestAdapters {
   return {
     requestSubAgent: (command) => hostClient.request(command),
     requestConfig: async (command) => {
       if (command.type === 'config/get') {
-        return hostClient.request({ type: 'config/get' });
+        return getSettingsAsLegacyConfigView(hostClient);
       }
       if (command.type === 'project/permissions-list') {
         return hostClient.request({
@@ -282,14 +342,30 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         if (command.topSessions !== undefined) payload.topSessions = command.topSessions;
         return hostClient.request(payload);
       }
-      return hostClient.request({ type: 'config/set', config: command.config! });
+      if (!command.config) {
+        return {
+          type: 'response',
+          command: 'settings/apply',
+          success: false,
+          error: 'config is required',
+        };
+      }
+      return applyConfigDraft(hostClient, command.config);
     },
     requestSkills: async (command) => {
       if (command.type === 'config/get') {
-        return hostClient.request({ type: 'config/get' });
+        return getSettingsAsLegacyConfigView(hostClient);
       }
       if (command.type === 'config/set') {
-        return hostClient.request({ type: 'config/set', config: command.config! });
+        if (!command.config) {
+          return {
+            type: 'response',
+            command: 'settings/apply',
+            success: false,
+            error: 'config is required',
+          };
+        }
+        return applyConfigDraft(hostClient, command.config);
       }
       if (command.type === 'skills/list') {
         const payload: { type: 'skills/list'; projectPath?: string } = { type: 'skills/list' };
@@ -517,9 +593,17 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       });
     },
     requestAutomation: async (command) => {
-      if (command.type === 'config/get') return hostClient.request({ type: 'config/get' });
+      if (command.type === 'config/get') return getSettingsAsLegacyConfigView(hostClient);
       if (command.type === 'config/set') {
-        return hostClient.request({ type: 'config/set', config: command.config! });
+        if (!command.config) {
+          return {
+            type: 'response',
+            command: 'settings/apply',
+            success: false,
+            error: 'config is required',
+          };
+        }
+        return applyConfigDraft(hostClient, command.config);
       }
       if (command.type === 'cron/list') return hostClient.request({ type: 'cron/list' });
       if (command.type === 'cron/upsert') {

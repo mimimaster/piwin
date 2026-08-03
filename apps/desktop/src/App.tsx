@@ -12,6 +12,7 @@ import type {
   PiwinConfig,
   ProjectRecord,
   SessionSearchHit,
+  SettingsMutation,
   ThemeManifest,
   WalkthroughArtifact,
 } from '@piwin/contracts';
@@ -65,7 +66,11 @@ import { useHostBootstrap } from './hooks/use-host-bootstrap';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { useSessionActions } from './hooks/use-session-actions';
 import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspector';
-import { selectActiveSubagents, type ActiveSubagentView, type SubagentInspectorSelection } from './subagent-activity-model';
+import {
+  selectActiveSubagents,
+  type ActiveSubagentView,
+  type SubagentInspectorSelection,
+} from './subagent-activity-model';
 import { SubagentWorkingDock } from './subagent-working-dock';
 import { SubagentSessionDialog } from './subagent-session-dialog';
 import { useManagedProcesses } from './hooks/use-managed-processes';
@@ -888,8 +893,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     const resolvedKey = resolved ? `${resolved.providerId}::${resolved.modelId}` : '';
     setSelectedModelKey(resolvedKey);
 
-    const requestedThinking =
-      composerProfile?.thinkingLevel ?? resolved?.thinkingLevel ?? 'off';
+    const requestedThinking = composerProfile?.thinkingLevel ?? resolved?.thinkingLevel ?? 'off';
     const resolvedThinking = resolveThinkingLevelForModel(
       resolved,
       requestedThinking,
@@ -903,12 +907,28 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     modelOptions,
   ]);
 
-  const saveConfigInOrder = useCallback(
-    (nextConfig: PiwinConfig): void => {
+  const saveSettingsInOrder = useCallback(
+    (buildMutations: (currentConfig: PiwinConfig) => SettingsMutation[]): void => {
       configSaveQueue.current = configSaveQueue.current
         .catch(() => undefined)
         .then(async () => {
-          await hostClient.request({ type: 'config/set', config: nextConfig });
+          const currentResponse = await hostClient.request({ type: 'settings/get' });
+          if (!currentResponse.success) {
+            return;
+          }
+          const data = currentResponse.data as {
+            snapshot?: { config: PiwinConfig; revision: string };
+          };
+          if (!data.snapshot) {
+            return;
+          }
+          await hostClient.request({
+            type: 'settings/apply',
+            input: {
+              expectedRevision: data.snapshot.revision,
+              mutations: buildMutations(data.snapshot.config),
+            },
+          });
         });
     },
     [hostClient],
@@ -941,9 +961,18 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         },
       };
       setConfig(nextConfig);
-      saveConfigInOrder(nextConfig);
+      saveSettingsInOrder((currentConfig) => [
+        {
+          kind: 'replace-domain',
+          domain: 'desktop',
+          value: {
+            ...currentConfig.desktop,
+            composerProfile: nextConfig.desktop?.composerProfile,
+          } as NonNullable<PiwinConfig['desktop']>,
+        },
+      ]);
     },
-    [config, modelOptions, saveConfigInOrder, setConfig],
+    [config, modelOptions, saveSettingsInOrder, setConfig],
   );
 
   const handleSelectModel = useCallback(
@@ -994,9 +1023,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         permissions: { mode: resolved.mode, preset: nextPreset },
       };
       setConfig(nextConfig);
-      saveConfigInOrder(nextConfig);
+      saveSettingsInOrder(() => [
+        {
+          kind: 'replace-domain',
+          domain: 'permissions',
+          value: nextConfig.permissions,
+        },
+      ]);
     },
-    [config, saveConfigInOrder, setConfig],
+    [config, saveSettingsInOrder, setConfig],
   );
 
   useEffect(() => {
@@ -1018,8 +1053,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       desktop: { ...config.desktop, lastSession },
     };
     setConfig(nextConfig);
-    saveConfigInOrder(nextConfig);
-  }, [config, saveConfigInOrder, setConfig, state.activeScope, state.activeSessionId]);
+    saveSettingsInOrder((currentConfig) => [
+      {
+        kind: 'replace-domain',
+        domain: 'desktop',
+        value: {
+          ...currentConfig.desktop,
+          lastSession,
+        } as NonNullable<PiwinConfig['desktop']>,
+      },
+    ]);
+  }, [config, saveSettingsInOrder, setConfig, state.activeScope, state.activeSessionId]);
 
   const {
     composer,
@@ -1056,7 +1100,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
   });
   composerSetterRef.current = setComposer;
-
 
   const handleCommentLine = useCallback((_lineContent: string) => {
     // Chip is the attachment; do not inject quote text into the textarea.
@@ -1801,10 +1844,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
           activityDock={
             activeSubagentViews.length > 0 ? (
-              <SubagentWorkingDock
-                items={activeSubagentViews}
-                onInspect={handleInspectSubagent}
-              />
+              <SubagentWorkingDock items={activeSubagentViews} onInspect={handleInspectSubagent} />
             ) : undefined
           }
           knowledgePanel={
