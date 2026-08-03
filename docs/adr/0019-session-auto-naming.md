@@ -19,6 +19,22 @@ failure.
 
 ## Decision
 
+Implement **Option C: text fallback + LLM auto-naming**, with a hard sidebar rule:
+
+**Unnamed sessions never appear in the session list.** A session is listable
+only when it has a real display name (see `sessionHasListName` in
+`@piwin/session`). Host `session/list` and desktop hydrate both filter
+placeholders such as `session-<id>`.
+
+### Naming pipeline (ordered)
+
+1. **Create** without an explicit name → no list row (no placeholder name written).
+2. **First user message** → host immediately derives a truncated title via
+   `deriveDefaultNameFromMessage` and writes `nameSource: 'text'`, then pushes
+   `session/name-updated` so the sidebar inserts the row.
+3. **First completed exchange** → optional LLM title upgrades to `nameSource: 'llm'`.
+4. **Manual rename** → `nameSource: 'user'` (never overwritten).
+
 Implement **Option C: text fallback + LLM auto-naming**.
 
 ### Three-state name tracking
@@ -48,8 +64,12 @@ one-shot 50-token completion.
 
 ### Trigger point
 
-`emitRunTerminal` with `outcome: 'completed'` in `host-runtime.ts`. The
-`maybeTriggerAutoName` method checks:
+**Immediate text name** on first user send: `recordUserPrompt` →
+`maybeAssignTextNameFromPrompt` writes `nameSource: 'text'` via
+`deriveDefaultNameFromMessage` so the sidebar never waits on a completed run.
+
+**LLM upgrade** after `emitRunTerminal` with `outcome: 'completed'` in
+`host-runtime.ts`. The `maybeTriggerAutoName` method checks:
 - `messageCount >= 1` — `messageCount` counts completed runs (not messages), so
   >= 1 means the first exchange finished. The session index is touched *before*
   the terminal event so the trigger sees the current run.
