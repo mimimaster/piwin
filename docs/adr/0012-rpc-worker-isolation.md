@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Accepted design; implementation residual |
-| Date | 2026-07-21 |
-| Related | ADR 0008, ADR 0011, D-HOST-01b |
+| Status | Accepted design; **implementation in progress** (Phase 7 WP3–WP6 landed) |
+| Date | 2026-07-21 (design), 2026-08-04 (Phase 7 implementation) |
+| Related | ADR 0008, ADR 0011, D-HOST-01b, [`phase7-rpc-worker-parity-plan.md`](../specs/phase7-rpc-worker-parity-plan.md) |
 
 ## Context
 
@@ -37,6 +37,12 @@ Stock `pi --mode rpc` remains unsuitable for custom tools (ADR 0008).
 
 ## Consequences
 
-- D-HOST-01b remains residual until worker lands.
+- ~~D-HOST-01b remains residual until worker lands.~~ **Phase 7 update:**
+  D-HOST-01b is now implemented. The `WorkerRpcSessionBackend` runs Pi
+  sessions in a piwin-owned Node worker process with tool proxying to
+  the parent Host. Isolation is real when `PIWIN_RPC_WORKER=1` or
+  `options.useWorkerBackend=true`. The `backendMode()` and `isIsolated()`
+  methods on `PiRpcAdapter` provide honest status reporting.
 - D-EXT-04 (extension UI bridge) works with SDK path and SDK-fallback RPC path
-  in the host process today.
+  in the host process today. Under the worker backend, extension UI
+  requests are not yet proxied (documented degradation; WP7 or follow-up).
