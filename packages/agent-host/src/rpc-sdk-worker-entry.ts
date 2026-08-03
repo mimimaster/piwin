@@ -10,7 +10,11 @@
  */
 
 import { createInterface } from 'node:readline';
-import { serializeWorkerRequest, type WorkerRequest, type WorkerResponse } from './rpc-sdk-worker-protocol.js';
+import {
+  serializeWorkerRequest,
+  type WorkerRequest,
+  type WorkerResponse,
+} from './rpc-sdk-worker-protocol.js';
 
 // Worker entry: read JSONL from stdin, process, write JSONL to stdout.
 const rl = createInterface({ input: process.stdin, terminal: false });
@@ -42,6 +46,16 @@ async function handleRequest(request: WorkerRequest): Promise<void> {
       }
       case 'session/abort': {
         // TODO: Abort the running prompt.
+        send({ type: 'response', id, success: true, data: {} });
+        break;
+      }
+      case 'session/steer': {
+        // TODO: Steer the in-flight run with a new user message.
+        send({ type: 'response', id, success: true, data: {} });
+        break;
+      }
+      case 'session/follow-up': {
+        // TODO: Follow up on the completed run.
         send({ type: 'response', id, success: true, data: {} });
         break;
       }

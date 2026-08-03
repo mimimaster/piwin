@@ -62,4 +62,23 @@ describe('serializeWorkerRequest', () => {
     expect(parsed.id).toBe('req-1');
     expect(parsed.method).toBe('session/create');
   });
+
+  it('serializes steer and follow-up requests', () => {
+    const steer: WorkerRequest = {
+      type: 'request',
+      id: 'r1',
+      method: 'session/steer',
+      payload: { method: 'session/steer', sessionId: 's1', message: 'go on' },
+    };
+    const followUp: WorkerRequest = {
+      type: 'request',
+      id: 'r2',
+      method: 'session/follow-up',
+      payload: { method: 'session/follow-up', sessionId: 's1', message: 'thanks' },
+    };
+    expect(JSON.parse(serializeWorkerRequest(steer)).method).toBe('session/steer');
+    expect(JSON.parse(serializeWorkerRequest(followUp)).method).toBe('session/follow-up');
+    const roundTrip = JSON.parse(serializeWorkerRequest(steer)) as WorkerRequest;
+    expect(roundTrip.payload).toMatchObject({ sessionId: 's1', message: 'go on' });
+  });
 });
