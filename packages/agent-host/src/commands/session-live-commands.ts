@@ -65,6 +65,7 @@ import {
   getPiwinSessionTranscriptPath,
 } from '../paths.js';
 import type { createTranscriptRecorder } from '../transcript-recorder.js';
+import { SessionRuntimeController } from '../sessions/session-runtime-controller.js';
 import {
   indexProjectPathForScope,
   resolveSessionLocation,
@@ -85,6 +86,11 @@ export type SessionLiveContext = {
   sessionAutoCompactionOverrides: Map<string, boolean>;
   unsubscribers: Map<string, () => void>;
   transcriptRecorders: Map<string, ReturnType<typeof createTranscriptRecorder>>;
+  /**
+   * Session runtime generation registry (spec §12). Reports stale/live state
+   * and validates explicit reloads; HostRuntime owns one instance.
+   */
+  runtimeController: SessionRuntimeController;
   push: (message: HostPush) => void;
   pushStatus: () => void;
   requireSession: (sessionId: string) => SessionHandle;
@@ -182,6 +188,8 @@ const TYPES = new Set<HostCommand['type']>([
   'session/set-auto-compaction',
   'session/export',
   'session/message-child',
+  'session/runtime-status',
+  'session/reload-runtime',
 ]);
 
 export function isSessionLiveCommand(command: HostCommand): boolean {
@@ -723,6 +731,36 @@ export async function handleSessionLiveCommand(
       }
       return ok(requestId, 'session/resume', data);
     }
+    case 'session/runtime-status': {
+      context.requireSession(command.sessionId);
+      const status = context.runtimeController.getStatus(command.sessionId);
+      return ok(requestId, 'session/runtime-status', { status });
+    }
+    case 'session/reload-runtime': {
+      context.requireSession(command.sessionId);
+      const plan = context.runtimeController.planReload(
+        command.sessionId,
+        command.expectedSettingsRevision,
+      );
+      if (!plan.allowed) {
+        const reason =
+          plan.reason === 'running'
+            ? 'session-run-in-flight'
+            : plan.reason === 'not-stale'
+              ? 'session-runtime-not-stale'
+              : 'session-revision-mismatch';
+        return fail(requestId, 'session/reload-runtime', reason);
+      }
+      // Attach a fresh generation id; the adapter rebuilds the Pi handle on
+      // the next ensureLiveSession. Product transcript/history is preserved.
+      context.runtimeController.attachGeneration(
+        command.sessionId,
+        `${command.sessionId}-gen-${Date.now()}`,
+        command.expectedSettingsRevision,
+      );
+      const status = context.runtimeController.getStatus(command.sessionId);
+      return ok(requestId, 'session/reload-runtime', { status });
+    }
     case 'session/messages': {
       const messages = await context.loadTranscriptMessages(command.sessionId);
       return ok(requestId, 'session/messages', {
@@ -742,11 +780,7 @@ export async function handleSessionLiveCommand(
           'cancelling',
           'Superseded by a newer user message',
         );
-        context.requestCancelActiveRun(
-          command.sessionId,
-          existingRun.runId,
-          supersedeReason,
-        );
+        context.requestCancelActiveRun(command.sessionId, existingRun.runId, supersedeReason);
         context.settlePendingPermissionsForSession(command.sessionId);
         context.settlePendingExtensionUiForSession(command.sessionId);
         // Close ownership immediately so the new run can register. The

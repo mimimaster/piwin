@@ -77,7 +77,7 @@ export async function loadPiwinConfig(piwinRoot?: string): Promise<PiwinConfig> 
   try {
     const raw = await readFile(configPath, 'utf8');
     const parsed: unknown = JSON.parse(raw);
-    return normalizeConfig(parsed);
+    return normalizePiwinConfig(parsed);
   } catch (error) {
     if (isNotFound(error)) {
       return createDefaultPiwinConfig();
@@ -119,7 +119,7 @@ export async function initPiwinConfig(piwinRoot?: string): Promise<{
     return {
       path: configPath,
       created: false,
-      config: normalizeConfig(JSON.parse(existing)),
+      config: normalizePiwinConfig(JSON.parse(existing)),
     };
   } catch (error) {
     if (!isNotFound(error)) {
@@ -131,7 +131,7 @@ export async function initPiwinConfig(piwinRoot?: string): Promise<{
   return { path: configPath, created: true, config };
 }
 
-function normalizeConfig(value: unknown): PiwinConfig {
+export function normalizePiwinConfig(value: unknown): PiwinConfig {
   const defaults = createDefaultPiwinConfig();
   if (!value || typeof value !== 'object') {
     return defaults;

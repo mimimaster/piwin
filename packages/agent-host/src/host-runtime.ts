@@ -171,6 +171,7 @@ import {
   type SessionLiveContext,
 } from './commands/session-live-commands.js';
 import type { HostCommandContext } from './commands/host-command-context.js';
+import { SessionRuntimeController } from './sessions/session-runtime-controller.js';
 import {
   handleWalkthroughCancel,
   WalkthroughGenerationRegistry,
@@ -304,6 +305,10 @@ export class HostRuntime {
     index: import('@piwin/notes').NoteIndex;
     searchOptions: import('@piwin/notes').SearchNotesOptions;
   } | null = null;
+  /** Spec §12: per-session runtime generation/staleness registry. */
+  private readonly runtimeController = new SessionRuntimeController({
+    isRunInFlight: (sessionId) => this.activeRuns.get(sessionId) !== undefined,
+  });
   private readonly options: HostRuntimeOptions;
   /**
    * ADR 0027: push sinks. The legacy `onPush` option is registered under
@@ -522,6 +527,21 @@ export class HostRuntime {
       const ctx = await this.buildDomainContext();
       const domain = await dispatchDomainCommands(command, requestId, ctx);
       if (domain) {
+        // Spec §12.3/12.4: when Settings change, mark the affected live
+        // sessions stale and keep safety gates tight without aborting the
+        // current run. Only runtime-stale domains are recorded.
+        if (command.type === 'settings/apply' && domain.type === 'response' && domain.success) {
+          const data = domain.data as
+            | { changedDomains?: { domain: import('@piwin/contracts').SettingsDomain }[] }
+            | null
+            | undefined;
+          if (Array.isArray(data?.changedDomains)) {
+            const changedDomains = data.changedDomains.map((item) => item.domain);
+            for (const sessionId of this.sessions.keys()) {
+              this.runtimeController.recordSettingsChange(sessionId, changedDomains);
+            }
+          }
+        }
         return domain;
       }
       const sessionLive = await handleSessionLiveCommand(
@@ -1098,28 +1118,17 @@ export class HostRuntime {
     }
 
     if (supportsImage) {
-      // D2: native images via adapter loadPromptImages
+      // D2: native images via adapter loadPromptImages. Native text stays
+      // free of absolute paths/base64; the adapter encodes attachments as
+      // ImageContent parts (spec Phase 4: "Remove native path inventory").
       this.push({
         type: 'host/log',
         level: 'info',
         message: `Sending ${media.length} image(s) as native vision content to the primary model`,
       });
-      // Also list absolute paths so the model can `read` them if the gateway
-      // drops image_url (observed with some OpenAI-compatible proxies).
-      // Distinct from text-only `[attached image]` path-inject fallback.
-      const pathInventory = media
-        .map(
-          (attachment) =>
-            `- ${attachment.path} (${attachment.mimeType}, ${attachment.byteSize} bytes)`,
-        )
-        .join('\n');
-      const visionPathNote = [
-        '[user attached image(s) — also available via read tool if vision is unavailable]',
-        pathInventory,
-      ].join('\n');
       return {
         ...input,
-        text: [input.text, ...webInjections, visionPathNote].filter(Boolean).join('\n\n'),
+        text: [input.text, ...webInjections].filter(Boolean).join('\n\n'),
         attachments: safeAttachments,
       };
     }
@@ -1713,6 +1722,7 @@ export class HostRuntime {
       setSessionPermissionOverride: (sessionId, mode) =>
         this.setSessionPermissionOverride(sessionId, mode),
       clearSessionPermissionOverride: (sessionId) => this.clearSessionPermissionOverride(sessionId),
+      runtimeController: this.runtimeController,
       resetSessionEventState: (sessionId) => this.resetSessionEventState(sessionId),
     };
   }
