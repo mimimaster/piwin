@@ -5,9 +5,9 @@
   "description": "Noir charcoal workbench with quiet column dividers and soft monochrome accent for piwin shell + artifacts",
   "mode": "dark",
   "tokens": {
-    "bg": "#141414",
+    "bg": "#0f0f0f",
     "panel": "#1a1a1a",
-    "panel2": "#222222",
+    "panel2": "#242424",
     "border": "rgba(255, 255, 255, 0.10)",
     "text": "#e0e0e3",
     "muted": "#8a8a92",
