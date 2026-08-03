@@ -610,6 +610,92 @@
   }
 }
 
+/* ── TextArea ────────────────────────────────────────────────────── */
+
+.piwin-text-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+.piwin-text-area-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.piwin-text-area-field {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft, var(--border));
+  border-radius: var(--radius-control, 8px);
+  background: var(--surface-inset, var(--surface-control));
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+  transition:
+    border-color var(--motion-quick, 120ms) var(--motion-ease, ease),
+    box-shadow var(--motion-quick, 120ms) var(--motion-ease, ease),
+    background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
+}
+
+.piwin-text-area-field::placeholder {
+  color: var(--muted);
+}
+
+.piwin-text-area-field:hover:not(:disabled):not(:focus) {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line-soft));
+  background: color-mix(in srgb, var(--surface-raised) 70%, var(--surface-inset));
+}
+
+.piwin-text-area-field:focus {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent),
+    0 1px 2px color-mix(in srgb, #000 8%, transparent);
+  background: var(--surface-raised);
+}
+
+.piwin-text-area--disabled .piwin-text-area-field,
+.piwin-text-area-field:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.piwin-text-area-description {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.piwin-text-area-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.piwin-text-area-counter {
+  margin: 4px 0 0;
+  font-size: 11px;
+  text-align: right;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piwin-text-area-field {
+    transition: none;
+  }
+}
+
 /* ── SegmentedControl ───────────────────────────────────────────── */
 
 [data-mantine-color-scheme] .piwin-segmented-control.piwin-segmented-control {

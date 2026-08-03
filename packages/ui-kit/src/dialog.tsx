@@ -8,6 +8,8 @@ export type DialogProps = {
   onOpenChange: (open: boolean) => void;
   testId?: string;
   closeOnInteractOutside?: boolean;
+  /** Extra className applied to the content element for app-level sizing. */
+  contentClassName?: string;
 };
 
 /**
@@ -21,13 +23,16 @@ export function Dialog({
   onOpenChange,
   testId,
   closeOnInteractOutside = false,
+  contentClassName,
 }: DialogProps): ReactElement {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="modal-backdrop" />
         <DialogPrimitive.Content
-          className="modal ui-dialog-content"
+          className={`modal ui-dialog-content${
+            contentClassName !== undefined ? ` ${contentClassName}` : ''
+          }`}
           aria-label={label}
           {...(testId ? { "data-testid": testId } : {})}
           onPointerDownOutside={(event) => {
