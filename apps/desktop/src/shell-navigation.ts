@@ -24,6 +24,7 @@ export type ShellSettingsSection =
   | 'automation'
   | 'subagents'
   | 'session'
+  | 'runtime'
   | 'usage'
   | 'shortcuts'
   // Legacy deep links preserved for backward compatibility; consumers should

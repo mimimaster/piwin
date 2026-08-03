@@ -15,6 +15,8 @@ export type WorkerRequestMethod =
   | 'session/create'
   | 'session/prompt'
   | 'session/abort'
+  | 'session/steer'
+  | 'session/follow-up'
   | 'session/drop';
 
 /** Worker request frame (parent → worker via stdin). */
@@ -67,6 +69,16 @@ export type WorkerRequestPayload =
   | {
       method: 'session/abort';
       sessionId: string;
+    }
+  | {
+      method: 'session/steer';
+      sessionId: string;
+      message: string;
+    }
+  | {
+      method: 'session/follow-up';
+      sessionId: string;
+      message: string;
     }
   | {
       method: 'session/drop';

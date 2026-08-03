@@ -170,10 +170,10 @@ describe('SessionRuntimePage', () => {
   });
 
   it('reload button issues session/reload-runtime with the session id', async () => {
-    const request = vi.fn(async () => ({
-      type: 'response' as const,
+    const request = vi.fn(async (): Promise<import('@piwin/contracts').HostResponse> => ({
+      type: 'response',
       command: 'session/runtime-status',
-      success: true as const,
+      success: true,
       data: { status: staleStatus() },
     }));
     container = renderPage(createContextValue({ request }));
@@ -185,9 +185,12 @@ describe('SessionRuntimePage', () => {
         container!.querySelector('[data-testid="runtime-reload-now-button"]') as HTMLButtonElement
       )?.click();
     });
-    const reloadCall = request.mock.calls.find((call) => call[0].type === 'session/reload-runtime');
+    const reloadCall = request.mock.calls.find(
+      (call: unknown[]) =>
+        (call[0] as { type?: string } | undefined)?.type === 'session/reload-runtime',
+    );
     expect(reloadCall).toBeTruthy();
-    expect(reloadCall?.[0]).toMatchObject({
+    expect((reloadCall as unknown[] | undefined)?.[0]).toMatchObject({
       sessionId: 's1',
       when: 'now',
     });

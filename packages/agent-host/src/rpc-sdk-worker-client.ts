@@ -19,7 +19,12 @@ import {
   type WorkerRequestPayload,
   type WorkerResponse,
 } from './rpc-sdk-worker-protocol.js';
-import type { AgentEvent, SubagentTaskResult, SubagentTaskSpec, SubagentWorkspaceLease } from '@piwin/contracts';
+import type {
+  AgentEvent,
+  SubagentTaskResult,
+  SubagentTaskSpec,
+  SubagentWorkspaceLease,
+} from '@piwin/contracts';
 
 export type WorkerClientOptions = {
   /** Path to the worker entry script. Defaults to the bundled entry. */
@@ -121,6 +126,18 @@ export class RpcSdkWorkerClient extends EventEmitter {
     if (!response.success) throw new Error(response.error ?? 'session/abort failed');
   }
 
+  /** Steer an in-flight run with a new user message. */
+  async steer(sessionId: string, message: string): Promise<void> {
+    const response = await this.request({ method: 'session/steer', sessionId, message });
+    if (!response.success) throw new Error(response.error ?? 'session/steer failed');
+  }
+
+  /** Follow up on a completed run. */
+  async followUp(sessionId: string, message: string): Promise<void> {
+    const response = await this.request({ method: 'session/follow-up', sessionId, message });
+    if (!response.success) throw new Error(response.error ?? 'session/follow-up failed');
+  }
+
   /** Drop a session in the worker (cleanup). */
   async dropSession(sessionId: string): Promise<void> {
     const response = await this.request({ method: 'session/drop', sessionId });
@@ -181,7 +198,11 @@ export class RpcSdkWorkerClient extends EventEmitter {
  * uses this to run tasks in an isolated process.
  */
 export function createWorkerTaskRunner(client: RpcSdkWorkerClient): {
-  start(task: SubagentTaskSpec, workspace: SubagentWorkspaceLease, signal: AbortSignal): Promise<SubagentTaskResult>;
+  start(
+    task: SubagentTaskSpec,
+    workspace: SubagentWorkspaceLease,
+    signal: AbortSignal,
+  ): Promise<SubagentTaskResult>;
   cancel(childSessionId: string): Promise<void>;
 } {
   return {
@@ -191,11 +212,13 @@ export function createWorkerTaskRunner(client: RpcSdkWorkerClient): {
         workingDirectory: workspace.cwd,
         isolation: workspace.mode,
         ...(task.profileId ? { profileId: task.profileId } : {}),
-        ...(task.model ? {
-          modelProtocol: task.model.protocol,
-          modelProviderId: task.model.providerId,
-          modelModelId: task.model.modelId,
-        } : {}),
+        ...(task.model
+          ? {
+              modelProtocol: task.model.protocol,
+              modelProviderId: task.model.providerId,
+              modelModelId: task.model.modelId,
+            }
+          : {}),
         ...(task.thinkingLevel ? { thinkingLevel: task.thinkingLevel } : {}),
       });
       const childSessionId = session.sessionId;
