@@ -322,3 +322,17 @@ export type {
 // Phase 7 WP4: worker proxy tool factory.
 export { buildWorkerProxyTools, buildSingleProxyTool } from './rpc/worker-proxy-tool-factory.js';
 export type { ToolProxyCall } from './rpc/worker-proxy-tool-factory.js';
+
+// Phase 7 WP5: PiSessionBackend dual implementation.
+export type {
+  PiSessionBackend,
+  BackendSessionHandle,
+  PreparedPromptInput,
+  CreateBackendSessionInput,
+  SdkBackendContext,
+} from './backends/pi-session-backend.js';
+export { preparePromptInput } from './backends/pi-session-backend.js';
+export { InProcessSdkSessionBackend } from './backends/in-process-sdk-session-backend.js';
+export type { InProcessSdkSessionBackendOptions } from './backends/in-process-sdk-session-backend.js';
+export { WorkerRpcSessionBackend } from './backends/worker-rpc-session-backend.js';
+export type { WorkerRpcSessionBackendOptions } from './backends/worker-rpc-session-backend.js';

@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { resolve as resolvePath } from 'node:path';
 import type {
   AgentHost,
   CreateSessionInput,
@@ -11,6 +12,9 @@ import { createMockSessionHandle } from './mock-session.js';
 import { PiSdkAdapter, type PiSdkAdapterOptions } from './sdk-adapter.js';
 import type { McpLifecycleManager } from '@piwin/mcp';
 import type { ProcessRegistry } from '@piwin/process';
+import type { PiSessionBackend, BackendSessionHandle } from './backends/pi-session-backend.js';
+import { WorkerRpcSessionBackend } from './backends/worker-rpc-session-backend.js';
+import type { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 export type PiRpcAdapterOptions = {
   /** e.g. "pi" or absolute path (stock pi binary; unused when using SDK fallback) */
@@ -37,6 +41,16 @@ export type PiRpcAdapterOptions = {
    * Set PIWIN_RPC_STOCK=1 to attempt stock binary only (will fail product path).
    */
   useSdkFallback?: boolean;
+  /**
+   * Phase 7 WP5: when true, real sessions use the WorkerRpcSessionBackend
+   * (piwin-owned worker process with tool proxying). Defaults to false
+   * during rollout; set PIWIN_RPC_WORKER=1 to enable.
+   */
+  useWorkerBackend?: boolean;
+  /** Worker script path for the worker backend (defaults to bundled entry). */
+  workerScript?: string;
+  /** Parent-owned tool execution router for worker proxy tool calls. */
+  toolRouter?: HostToolExecutionRouter;
 };
 
 /**
@@ -51,6 +65,7 @@ export class PiRpcAdapter implements AgentHost {
   private child: ChildProcessWithoutNullStreams | null = null;
   private readonly sessions = new Map<string, SessionHandle>();
   private sdkBackend: PiSdkAdapter | null = null;
+  private workerBackend: WorkerRpcSessionBackend | null = null;
   private warnedSdkFallback = false;
 
   constructor(private readonly options: PiRpcAdapterOptions) {}
@@ -60,15 +75,70 @@ export class PiRpcAdapter implements AgentHost {
     if (this.options.mock || process.env.PIWIN_MOCK === '1') {
       return false;
     }
+    if (this.usesWorkerBackend()) {
+      return false;
+    }
     if (process.env.PIWIN_RPC_STOCK === '1') {
       return false;
     }
     return this.options.useSdkFallback !== false;
   }
 
+  /**
+   * Phase 7 WP5: true when product sessions run via the worker backend
+   * (piwin-owned worker process with tool proxying + real isolation).
+   */
+  usesWorkerBackend(): boolean {
+    if (this.options.mock || process.env.PIWIN_MOCK === '1') {
+      return false;
+    }
+    if (process.env.PIWIN_RPC_WORKER === '1') {
+      return true;
+    }
+    return this.options.useWorkerBackend === true;
+  }
+
+  /** True when the backend provides real process isolation. */
+  isIsolated(): boolean {
+    return this.usesWorkerBackend();
+  }
+
+  /** Backend mode for doctor/status reporting. */
+  backendMode(): 'sdk' | 'rpc-worker' | 'rpc-fallback' | 'mock' {
+    if (this.options.mock || process.env.PIWIN_MOCK === '1') {
+      return 'mock';
+    }
+    if (this.usesWorkerBackend()) {
+      return 'rpc-worker';
+    }
+    if (this.usesSdkFallback()) {
+      return 'rpc-fallback';
+    }
+    return 'sdk';
+  }
+
   async createSession(input: CreateSessionInput): Promise<SessionHandle> {
     if (this.options.mock || process.env.PIWIN_MOCK === '1') {
       const session = createMockSessionHandle(input);
+      this.sessions.set(session.id, session);
+      return session;
+    }
+
+    // Phase 7 WP5: worker backend path (real process isolation).
+    if (this.usesWorkerBackend()) {
+      const backend = this.getWorkerBackend();
+      // The worker backend requires a SerializableBlueprint. The adapter
+      // receives a CreateSessionInput; the HostRuntime is responsible for
+      // compiling the blueprint before calling createSession. For now,
+      // we construct a minimal blueprint from the input so the worker
+      // path is testable. WP6 conformance will verify full parity.
+      const blueprint = deriveBlueprintFromInput(input);
+      const handle = await backend.createSession({
+        productSessionId: input.scope?.kind === 'project' ? input.scope.projectPath : 'general',
+        serializable: blueprint,
+        providers: [],
+      });
+      const session = adaptBackendToSessionHandle(handle, input);
       this.sessions.set(session.id, session);
       return session;
     }
@@ -128,7 +198,13 @@ export class PiRpcAdapter implements AgentHost {
         // best-effort
       }
     }
-    if (this.usesSdkFallback() && this.sdkBackend) {
+    if (this.usesWorkerBackend() && this.workerBackend) {
+      try {
+        await this.workerBackend.dropSession(sessionId);
+      } catch {
+        // best-effort
+      }
+    } else if (this.usesSdkFallback() && this.sdkBackend) {
       try {
         await this.sdkBackend.dropSession(sessionId);
       } catch {
@@ -160,6 +236,10 @@ export class PiRpcAdapter implements AgentHost {
 
   async dispose(): Promise<void> {
     this.sessions.clear();
+    if (this.workerBackend) {
+      await this.workerBackend.dispose();
+      this.workerBackend = null;
+    }
     if (this.sdkBackend) {
       await this.sdkBackend.dispose();
       this.sdkBackend = null;
@@ -237,4 +317,105 @@ export class PiRpcAdapter implements AgentHost {
       }
     });
   }
+
+  private getWorkerBackend(): WorkerRpcSessionBackend {
+    if (!this.workerBackend) {
+      const workerScript =
+        this.options.workerScript ??
+        resolvePath(new URL('./rpc-sdk-worker-entry.ts', import.meta.url).pathname);
+      this.workerBackend = new WorkerRpcSessionBackend({
+        worker: {
+          workerScript,
+          nodeArgs: ['--import', 'tsx'],
+          ...(this.options.onLog ? { onLog: this.options.onLog } : {}),
+        },
+        ...(this.options.toolRouter ? { toolRouter: this.options.toolRouter } : {}),
+      });
+    }
+    return this.workerBackend;
+  }
+}
+
+/**
+ * Derive a minimal SerializableBlueprint from a CreateSessionInput.
+ * The HostRuntime is responsible for compiling the full blueprint with
+ * resource paths, providers, and tool allowlists. This derivation is a
+ * transitional shim so the worker path is testable before the full
+ * blueprint compiler is wired (WP6).
+ */
+function deriveBlueprintFromInput(
+  input: CreateSessionInput,
+): import('./rpc/serializable-blueprint.js').SerializableBlueprint {
+  const scope = input.scope ?? { kind: 'general' as const };
+  const workingDirectory = input.cwd ?? (scope.kind === 'project' ? scope.projectPath : '');
+  return {
+    protocolVersion: 1,
+    snapshotId: 'transitional',
+    settingsRevision: 'transitional',
+    workingDirectory,
+    // The blueprint scope requires `trusted: true` for project scope.
+    // The parent enforces trust before calling createSession; the worker
+    // trusts the parent's assertion.
+    scope:
+      scope.kind === 'project'
+        ? { kind: 'project', projectPath: scope.projectPath, trusted: true as const }
+        : { kind: 'general' as const },
+    resourceManifest: { skills: [], extensions: [], prompts: [], diagnostics: [] },
+    contextManifest: { agentsFiles: [] },
+    tools: {
+      enabledFamilies: [],
+      piBuiltinToolNames: [],
+      customToolNames: [],
+      enabledMcpServerIds: [],
+    },
+    activeSkillPaths: [],
+    activeExtensionPaths: [],
+    activePromptPaths: [],
+  };
+}
+
+/**
+ * Adapt a BackendSessionHandle to a SessionHandle for the adapter's
+ * internal session map. The backend handle's prompt receives a
+ * PreparedPromptInput; the SessionHandle's prompt receives a PromptInput.
+ */
+function adaptBackendToSessionHandle(
+  handle: BackendSessionHandle,
+  _input: CreateSessionInput,
+): SessionHandle {
+  return {
+    id: handle.id,
+    async prompt(promptInput) {
+      await handle.prompt({
+        text: promptInput.text,
+        ...(promptInput.streamingBehavior
+          ? { streamingBehavior: promptInput.streamingBehavior }
+          : {}),
+        ...(promptInput.model ? { model: promptInput.model } : {}),
+        ...(promptInput.thinkingLevel ? { thinkingLevel: promptInput.thinkingLevel } : {}),
+      });
+    },
+    async steer(message) {
+      if (handle.steer) {
+        await handle.steer(message);
+      }
+    },
+    async followUp(message) {
+      if (handle.followUp) {
+        await handle.followUp(message);
+      }
+    },
+    async abort() {
+      await handle.abort();
+    },
+    async getMessages() {
+      return [];
+    },
+    async getTree() {
+      return { root: null, activeLeafId: null };
+    },
+    subscribe(listener) {
+      return handle.subscribe(listener);
+    },
+  };
 }

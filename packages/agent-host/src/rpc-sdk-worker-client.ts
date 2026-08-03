@@ -28,6 +28,10 @@ import type {
   SubagentWorkspaceLease,
 } from '@piwin/contracts';
 import type { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
+import type {
+  SerializableBlueprint,
+  SerializableProviderRuntime,
+} from './rpc/serializable-blueprint.js';
 
 export type WorkerClientOptions = {
   /** Path to the worker entry script. Defaults to the bundled entry. */
@@ -114,18 +118,56 @@ export class RpcSdkWorkerClient extends EventEmitter {
     thinkingLevel?: string;
     capabilities?: string[];
     skillIds?: string[];
-  }): Promise<{ sessionId: string }> {
+  }): Promise<{ sessionId: string }>;
+  async createSession(input: {
+    productSessionId: string;
+    blueprint: SerializableBlueprint;
+    providers?: SerializableProviderRuntime[];
+  }): Promise<{ sessionId: string }>;
+  async createSession(input: {
+    projectPath: string;
+    workingDirectory: string;
+    isolation: 'readonly' | 'worktree';
+    profileId?: string;
+    modelProtocol?: string;
+    modelProviderId?: string;
+    modelModelId?: string;
+    thinkingLevel?: string;
+    capabilities?: string[];
+    skillIds?: string[];
+  }): Promise<{ sessionId: string }>;
+  async createSession(input: {
+    productSessionId: string;
+    blueprint: SerializableBlueprint;
+    providers?: SerializableProviderRuntime[];
+  }): Promise<{ sessionId: string }>;
+  async createSession(input: unknown): Promise<{ sessionId: string }> {
     const response = await this.request({
       method: 'session/create',
-      ...input,
-    });
+      ...(input as Record<string, unknown>),
+    } as WorkerRequestPayload);
     if (!response.success) throw new Error(response.error ?? 'session/create failed');
     return response.data as { sessionId: string };
   }
 
   /** Prompt a session in the worker. Returns when the prompt completes. */
-  async prompt(sessionId: string, text: string): Promise<void> {
-    const response = await this.request({ method: 'session/prompt', sessionId, text });
+  async prompt(
+    sessionId: string,
+    text: string,
+    options?: {
+      images?: Array<{ mimeType: string; dataBase64: string }>;
+      thinkingLevel?: string;
+      model?: { providerId: string; modelId: string };
+    },
+  ): Promise<void> {
+    const response = await this.request({
+      method: 'session/prompt',
+      sessionId,
+      text,
+      ...(options?.images ? { images: options.images } : {}),
+      ...(options?.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
+      ...(options?.model ? { model: options.model } : {}),
+    });
     if (!response.success) throw new Error(response.error ?? 'session/prompt failed');
   }
 
