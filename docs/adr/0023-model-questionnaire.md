@@ -22,10 +22,12 @@ and diverge CLI/Desktop handling (AGENTS.md §5: no parallel logic).
    tool is a bundled Pi Extension (`bundled-extensions/questionnaire.ts`,
    discovered via the ADR 0010 ResourceLoader path). It calls only Pi-native
    `ctx.ui.select` and `ctx.ui.input`; piwin adds no second question contract.
-2. **Desktop reuses the existing dialog.** The shipped `extension-ui-dialog`
-   component already handles `extension/ui_request` for `confirm` / `select` /
-   `input`; the questionnaire flows through it unchanged. No new IPC, no new
-   Desktop component.
+2. **Desktop renders an inline Composer prompt.** The shipped
+   `extension-ui-prompt` component handles `extension/ui_request` for `confirm`
+   / `select` / `input` without a modal. Choices are attached above the
+   Composer input, while `input` requests (including questionnaire `Other`)
+   reuse the main Composer textarea. Stop stays available alongside the
+   question and continues through the existing abort command. No new IPC.
 3. **CLI uses a Node-stdlib TTY handler on stderr.** `piwin chat` wires
    `createCliExtensionUiRequestHandler` into the existing
    `onExtensionUiRequest` seam on `createAgentHost`. Prompts render to
@@ -43,7 +45,7 @@ and diverge CLI/Desktop handling (AGENTS.md §5: no parallel logic).
 
 - SDK and RPC→SDK-fallback share one interaction path; Desktop and CLI share
   the same host bridge, differing only in the surface renderer.
-- Desktop keeps its existing `extension-ui-dialog`; no duplicate UI.
+- Desktop keeps the question attached to the Composer; no duplicate modal UI.
 - CLI ships a simple numbered selector first. Arrow-key TUI and multi-select
   are future CLI-adapter enhancements, not new model contracts.
 - Extensions may disable the bundled tool through the existing

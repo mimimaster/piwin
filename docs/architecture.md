@@ -232,9 +232,12 @@ The model-facing `questionnaire` tool is a **bundled Pi Extension** (ADR 0010
 ResourceLoader path; ADR 0023). It calls only Pi-native `ctx.ui.select` /
 `ctx.ui.input`, so piwin adds **no new IPC or question contract**:
 
-- **Desktop** reuses the existing `extension-ui-dialog` component, which already
-  handles `extension/ui_request` → `extension/ui_resolve` for
-  `confirm` / `select` / `input`. No new dialog or component is introduced.
+- **Desktop** renders the request as an inline `extension-ui-prompt` attached to
+  the Composer. It handles `extension/ui_request` → `extension/ui_resolve` for
+  `confirm` / `select` / `input` without a modal: choices sit above the input
+  box, and the `input` phase (including questionnaire `Other`) reuses the main
+  Composer textarea so the user can type and submit in place. Stop remains
+  available in the same surface and uses the existing abort control path.
 - **CLI** wires `createCliExtensionUiRequestHandler` into the existing
   `onExtensionUiRequest` seam on `createAgentHost`. It renders numbered
   prompts to `process.stderr` via `readline/promises`; **stdout remains the

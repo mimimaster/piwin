@@ -28,7 +28,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | RPC isolation | yellow | SDK fallback under `hostMode=rpc` |
 | Hooks / cron | yellow | Thin post-event; cron needs host up |
 | Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; mock remains shell preview |
-| Personal gateway | red | W4 future |
+| Personal gateway | red | W4 future; ADR 0027 seams landed (contracts seq/replay, HostRuntime multi-sink, transport abstraction) |
 
 ## Architecture health
 
