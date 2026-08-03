@@ -1,6 +1,7 @@
 import type {
   ModelCatalogEntry,
   ModelConfigEntry,
+  ModelDiscoveryResult,
   ModelProviderConfig,
   PiwinConfig,
 } from '@piwin/contracts';
@@ -55,6 +56,8 @@ export type ProviderListProps = {
   /** Currently testing model key (`${providerId}::${modelId}`) or null. */
   testingModelKey?: string | null;
   searchCatalog?: (query: string) => Promise<ModelCatalogEntry[]>;
+  /** Discover models for a provider (from expanded row). */
+  onDiscoverProviderModels: (provider: ModelProviderConfig) => Promise<ModelDiscoveryResult>;
 };
 
 function formatCount(isChinese: boolean, count: number, label: string): string {
@@ -84,6 +87,7 @@ export function ProviderList({
   modelTestStatus = {},
   testingModelKey = null,
   searchCatalog,
+  onDiscoverProviderModels,
 }: ProviderListProps): ReactElement {
   const providerLabel = isChinese ? '个提供商' : 'providers';
   const enabledLabel = isChinese ? '个已启用' : 'enabled';
@@ -164,6 +168,9 @@ export function ProviderList({
               provider={provider}
               status={getProviderStatus(provider)}
               isDefault={provider.id === config.defaultProviderId}
+              defaultModelId={
+                provider.id === config.defaultProviderId ? (config.defaultModelId ?? null) : null
+              }
               isChinese={isChinese}
               disabled={saving}
               modelTestStatus={providerModelTestStatus}
@@ -178,6 +185,7 @@ export function ProviderList({
               onUpdateModels={(models) => onUpdateProviderModels(provider.id, models)}
               onTestModel={(modelId) => onTestProviderModel(provider.id, modelId)}
               onSetDefaultModel={(modelId) => onSetDefaultModel(provider.id, modelId)}
+              onDiscoverModels={onDiscoverProviderModels}
             />
           );
         })}

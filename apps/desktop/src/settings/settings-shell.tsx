@@ -277,6 +277,28 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
     </svg>
   ),
+  shortcuts: (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect width="20" height="16" x="2" y="4" rx="2" ry="2" />
+      <path d="M6 8h.01" />
+      <path d="M10 8h.01" />
+      <path d="M14 8h.01" />
+      <path d="M18 8h.01" />
+      <path d="M8 12h.01" />
+      <path d="M12 12h.01" />
+      <path d="M16 12h.01" />
+      <path d="M7 16h10" />
+    </svg>
+  ),
   usage: (
     <svg
       width="14"
@@ -314,9 +336,6 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
   const copy = getDesktopCopy(locale);
   const mainScrollRef = useRef<HTMLDivElement | null>(null);
 
-  const activeMeta = SETTINGS_GROUPS.flatMap((group) => sectionsForGroup(group.id)).find(
-    (section) => section.id === activeSection,
-  );
   const PageComponent = getSettingsSection(activeSection);
 
   const query = searchQuery.trim().toLowerCase();
@@ -439,9 +458,8 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
           </div>
         </aside>
         <div className="settings-main" ref={mainScrollRef} data-testid="settings-main-scroll">
-          <header className="settings-main-header">
-            <h2>{activeMeta ? translator.settings.nav[activeMeta.labelKey] : copy.settings}</h2>
-            {onClose ? (
+          {onClose ? (
+            <header className="settings-main-header">
               <IconButton
                 label={isChinese ? '关闭设置' : 'Close settings'}
                 title={isChinese ? '关闭设置 (Esc)' : 'Close settings (Esc)'}
@@ -451,15 +469,7 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
               >
                 <IconClose />
               </IconButton>
-            ) : null}
-          </header>
-          {/* Overlay host: must NOT sit in normal flow. In-flow Notice on
-              switch/save was pushing the whole page (and every label) down,
-              then jumping back when the 3.5s info TTL cleared. */}
-          {props.banners ? (
-            <div className="ui-feedback-host settings-feedback-host" aria-live="polite">
-              {props.banners}
-            </div>
+            </header>
           ) : null}
           <div
             className={`settings-main-content${
@@ -475,6 +485,17 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
             ) : null}
           </div>
         </div>
+        {/* Keep transient feedback outside the scrolling main column. The
+            dialog owns this overlay, so save results stay visible at any
+            scroll position without moving page content. */}
+        {props.banners ? (
+          <div
+            className="ui-feedback-host settings-feedback-host"
+            data-testid="settings-feedback-host"
+          >
+            {props.banners}
+          </div>
+        ) : null}
       </div>
     </div>
   );

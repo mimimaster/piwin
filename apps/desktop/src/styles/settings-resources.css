@@ -18,13 +18,157 @@
   margin-top: 14px;
 }
 
-/* Card-wrapped section styling for clean grouped settings */
+/* Card-wrapped section: theme inset mask on the white panel layer */
 .settings-section-card {
-  background: var(--panel2, var(--surface-inset));
-  border: none;
+  background: var(--surface-inset);
+  border: 1px solid color-mix(in srgb, var(--line-soft) 85%, transparent);
   border-radius: 12px;
-  padding: 16px 20px;
-  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.04);
+  padding: 18px 20px;
+  box-shadow: none;
+}
+
+/*
+ * Settings control chrome (theme tokens only).
+ * Hierarchy: panel (white) → surface-inset (gray mask) → panel inputs (white).
+ * Inputs must not share the mask color or they disappear into the card.
+ * Scope: settings main + settings-hosted overlays/modals.
+ */
+.settings-main .piwin-text-input-field,
+.settings-main .piwin-password-input-field,
+.settings-main .piwin-password-input-shell,
+.settings-main .piwin-select-field,
+.settings-main .piwin-text-area-field,
+.settings-main .ui-field-control > input:not([class*='piwin-']),
+.settings-main .ui-field-control > select:not([class*='piwin-']),
+.settings-main .ui-field-control > textarea:not([class*='piwin-']),
+.settings-main .ui-field-row-control select:not([class*='piwin-']),
+.provider-editor-modal .piwin-text-input-field,
+.provider-editor-modal .piwin-password-input-field,
+.provider-editor-modal .piwin-password-input-shell,
+.provider-editor-modal .piwin-select-field,
+.provider-editor-modal .piwin-text-area-field,
+.provider-editor-modal .ui-field-control > input:not([class*='piwin-']),
+.provider-editor-modal .ui-field-control > select:not([class*='piwin-']),
+.provider-editor-modal .ui-field-control > textarea:not([class*='piwin-']),
+.settings-page .piwin-modal .piwin-text-input-field,
+.settings-page .piwin-modal .piwin-password-input-field,
+.settings-page .piwin-modal .piwin-password-input-shell,
+.settings-page .piwin-modal .piwin-select-field,
+.settings-page .piwin-modal .piwin-text-area-field {
+  --input-bg: var(--panel);
+  background: var(--panel);
+  background-color: var(--panel);
+  border-color: var(--line-soft);
+}
+
+.settings-main .piwin-text-input-field:hover:not(:disabled):not(:focus),
+.settings-main .piwin-password-input-field:hover:not(:disabled):not(:focus),
+.settings-main .piwin-password-input-shell:hover:not(:disabled):not(:focus),
+.settings-main .piwin-select-field:hover:not(:disabled):not(:focus),
+.settings-main .piwin-text-area-field:hover:not(:disabled):not(:focus),
+.provider-editor-modal .piwin-text-input-field:hover:not(:disabled):not(:focus),
+.provider-editor-modal .piwin-password-input-field:hover:not(:disabled):not(:focus),
+.provider-editor-modal .piwin-password-input-shell:hover:not(:disabled):not(:focus),
+.provider-editor-modal .piwin-select-field:hover:not(:disabled):not(:focus),
+.provider-editor-modal .piwin-text-area-field:hover:not(:disabled):not(:focus) {
+  background: var(--panel);
+  background-color: var(--panel);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line-soft));
+}
+
+.settings-main .piwin-text-input-field:focus,
+.settings-main .piwin-password-input-field:focus,
+.settings-main .piwin-password-input-shell:focus,
+.settings-main .piwin-select-field:focus,
+.settings-main .piwin-text-area-field:focus,
+.provider-editor-modal .piwin-text-input-field:focus,
+.provider-editor-modal .piwin-password-input-field:focus,
+.provider-editor-modal .piwin-password-input-shell:focus,
+.provider-editor-modal .piwin-select-field:focus,
+.provider-editor-modal .piwin-text-area-field:focus {
+  background: var(--panel);
+  background-color: var(--panel);
+}
+
+/*
+ * Nested cards inside the gray section mask lift to theme panel (white).
+ * Avoid gray-on-gray when source/list cards sit inside settings-section-card.
+ */
+.settings-section-card .web-source-card,
+.settings-section-card .ext-list-item,
+.settings-section-card .mcp-server-card,
+.settings-section-card .model-dir {
+  background: var(--panel);
+}
+
+.settings-section-card .web-source-card.is-selected,
+.settings-section-card .ext-list-item.active {
+  background: color-mix(in srgb, var(--accent) 5%, var(--panel));
+}
+
+.settings-section-card .web-source-card-check {
+  background: var(--surface-inset);
+}
+
+.settings-section-card .web-cli-preview {
+  background: var(--surface-inset);
+}
+
+/*
+ * Mantine paints via --input-bg; force theme panel so controls stay white
+ * on the gray section mask (and not surface-inset gray-on-gray).
+ */
+[data-mantine-color-scheme] .settings-main .piwin-text-input-field,
+[data-mantine-color-scheme] .settings-main .piwin-password-input-field,
+[data-mantine-color-scheme] .settings-main .piwin-password-input-shell,
+[data-mantine-color-scheme] .settings-main .piwin-select-field,
+[data-mantine-color-scheme] .provider-editor-modal .piwin-text-input-field,
+[data-mantine-color-scheme] .provider-editor-modal .piwin-password-input-field,
+[data-mantine-color-scheme] .provider-editor-modal .piwin-password-input-shell,
+[data-mantine-color-scheme] .provider-editor-modal .piwin-select-field,
+[data-mantine-color-scheme] .settings-page .piwin-modal .piwin-text-input-field,
+[data-mantine-color-scheme] .settings-page .piwin-modal .piwin-password-input-field,
+[data-mantine-color-scheme] .settings-page .piwin-modal .piwin-password-input-shell,
+[data-mantine-color-scheme] .settings-page .piwin-modal .piwin-select-field {
+  --input-bg: var(--panel);
+  --input-bd: var(--line-soft);
+  background-color: var(--panel);
+}
+
+[data-mantine-color-scheme] .settings-main .piwin-text-input-field:hover:not(:disabled):not(:focus),
+[data-mantine-color-scheme]
+  .settings-main
+  .piwin-password-input-field:hover:not(:disabled):not(:focus),
+[data-mantine-color-scheme]
+  .settings-main
+  .piwin-password-input-shell:hover:not(:disabled):not(:focus),
+[data-mantine-color-scheme] .settings-main .piwin-select-field:hover:not(:disabled):not(:focus),
+[data-mantine-color-scheme]
+  .provider-editor-modal
+  .piwin-text-input-field:hover:not(:disabled):not(:focus),
+[data-mantine-color-scheme]
+  .provider-editor-modal
+  .piwin-password-input-field:hover:not(:disabled):not(:focus),
+[data-mantine-color-scheme]
+  .provider-editor-modal
+  .piwin-password-input-shell:hover:not(:disabled):not(:focus),
+[data-mantine-color-scheme]
+  .provider-editor-modal
+  .piwin-select-field:hover:not(:disabled):not(:focus) {
+  --input-bg: var(--panel);
+  background-color: var(--panel);
+}
+
+[data-mantine-color-scheme] .settings-main .piwin-text-input-field:focus,
+[data-mantine-color-scheme] .settings-main .piwin-password-input-field:focus,
+[data-mantine-color-scheme] .settings-main .piwin-password-input-shell:focus,
+[data-mantine-color-scheme] .settings-main .piwin-select-field:focus,
+[data-mantine-color-scheme] .provider-editor-modal .piwin-text-input-field:focus,
+[data-mantine-color-scheme] .provider-editor-modal .piwin-password-input-field:focus,
+[data-mantine-color-scheme] .provider-editor-modal .piwin-password-input-shell:focus,
+[data-mantine-color-scheme] .provider-editor-modal .piwin-select-field:focus {
+  --input-bg: var(--panel);
+  background-color: var(--panel);
 }
 
 .settings-section-card .settings-card-heading {
@@ -529,6 +673,461 @@
 
 .ext-list-check--empty {
   visibility: hidden;
+}
+
+/* ── Web tools source cards ─────────────────────────────────── */
+
+.web-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.web-source-card {
+  border: 1px solid color-mix(in srgb, var(--line-soft) 85%, transparent);
+  border-radius: 12px;
+  background: var(--surface-inset);
+  box-shadow: none;
+  overflow: hidden;
+  transition:
+    border-color var(--motion-quick, 120ms) ease,
+    background-color var(--motion-quick, 120ms) ease;
+}
+
+.web-source-card:hover {
+  border-color: color-mix(in srgb, var(--text) 12%, var(--line-soft));
+}
+
+.web-source-card.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--line-soft));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-inset));
+}
+
+.web-source-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 16px 18px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.web-source-card-header-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 68px;
+  padding-right: 16px;
+}
+
+.web-source-card-header-row > .piwin-switch {
+  flex: 0 0 auto;
+}
+
+.web-source-card-header:hover .web-source-card-title {
+  color: var(--accent);
+}
+
+.web-source-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.web-source-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  transition: color var(--motion-quick, 120ms) ease;
+}
+
+.web-source-card-desc {
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.web-source-card-check {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--line-soft) 90%, transparent);
+  background: var(--surface-inset);
+  color: transparent;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.web-source-card-chevron {
+  flex: 0 0 auto;
+  color: var(--faint);
+  font-size: 22px;
+  font-weight: 350;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition:
+    color var(--motion-quick, 120ms) ease,
+    transform var(--motion-quick, 120ms) ease;
+}
+
+.web-source-card-header:hover .web-source-card-chevron {
+  color: var(--accent);
+}
+
+.web-source-card-chevron.is-expanded {
+  transform: rotate(90deg);
+}
+
+.web-source-card-check.is-on {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+
+.web-source-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 18px 18px;
+  border-top: 1px solid color-mix(in srgb, var(--line-soft) 70%, transparent);
+}
+
+.web-source-field {
+  margin-bottom: 0;
+}
+
+.web-source-field .ui-field-label,
+.web-source-field .piwin-text-area-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.web-source-field .ui-field-description,
+.web-source-field .piwin-text-area-description {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.web-source-field .piwin-text-input,
+.web-source-field .piwin-password-input,
+.web-source-field .piwin-text-area {
+  width: 100%;
+}
+
+.web-source-field .piwin-text-input-field,
+.web-source-field .piwin-text-area-field {
+  min-height: 36px;
+  border-radius: 10px;
+}
+
+.web-source-field .piwin-text-area-field {
+  min-height: 84px;
+  padding: 10px 12px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.web-cli-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--line-soft) 80%, transparent);
+}
+
+.web-cli-preview-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.web-cli-preview-code {
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text);
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+
+.web-cli-examples {
+  margin-top: -4px;
+  border-top: 1px solid color-mix(in srgb, var(--line-soft) 72%, transparent);
+}
+
+.web-cli-examples > summary {
+  padding: 4px 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.45;
+  user-select: none;
+}
+
+.web-cli-examples-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 2px;
+}
+
+.web-cli-examples-intro,
+.web-cli-example-description,
+.web-cli-example-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.web-cli-example {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+}
+
+.web-cli-example-title {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.web-cli-example-command {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.web-tools-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.web-search-advanced {
+  margin-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--line-soft) 75%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--line-soft) 75%, transparent);
+}
+
+.web-search-advanced > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 2px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  list-style: none;
+  user-select: none;
+}
+
+.web-search-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.web-search-advanced > summary::after {
+  content: '›';
+  color: var(--faint);
+  font-size: 20px;
+  font-weight: 350;
+  line-height: 0.7;
+  transform: rotate(0deg);
+  transition: transform var(--motion-quick, 120ms) ease;
+}
+
+.web-search-advanced[open] > summary::after {
+  transform: rotate(90deg);
+}
+
+.web-search-advanced[open] > .web-tools-options {
+  padding-bottom: 10px;
+}
+
+.web-tools-options .ui-field-row {
+  padding: 12px 0;
+}
+
+.web-tools-tip {
+  margin: 20px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.web-tools-actions {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  justify-content: flex-end;
+}
+
+.web-tools-save-meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.web-tools-save-status {
+  min-height: 20px;
+  margin-right: auto;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.web-tools-save-status.is-saved {
+  color: var(--success, #2f9e44);
+}
+
+.web-tools-save-status.is-error {
+  color: var(--danger, #e03131);
+}
+
+.web-tools-effective-scope {
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.web-secret-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.web-secret-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line-soft));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 4%, var(--panel));
+}
+
+.web-secret-summary-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.web-secret-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.web-secret-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--success, #2f9e44);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--success, #2f9e44) 14%, transparent);
+}
+
+.web-secret-preview {
+  margin-top: 5px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.web-secret-test-result {
+  margin-top: 5px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.web-secret-test-result.is-success {
+  color: var(--success, #2f9e44);
+}
+
+.web-secret-test-result.is-error {
+  color: var(--danger, #e03131);
+}
+
+.web-secret-warning,
+.web-secret-error {
+  padding: 10px 12px;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.web-secret-warning {
+  border: 1px solid color-mix(in srgb, var(--warning, #f59f00) 32%, var(--line-soft));
+  background: color-mix(in srgb, var(--warning, #f59f00) 8%, transparent);
+  color: var(--text);
+}
+
+.web-secret-error {
+  border: 1px solid color-mix(in srgb, var(--danger, #e03131) 28%, var(--line-soft));
+  background: color-mix(in srgb, var(--danger, #e03131) 7%, transparent);
+  color: var(--danger, #e03131);
+}
+
+.web-secret-advanced {
+  border-top: 1px solid color-mix(in srgb, var(--line-soft) 75%, transparent);
+  padding-top: 12px;
+}
+
+.web-secret-advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  user-select: none;
+}
+
+.web-secret-advanced[open] summary {
+  margin-bottom: 14px;
+}
+
+.web-secret-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 /* Conditionally relevant fields stay mounted; toggle visibility only. */
@@ -1176,7 +1775,7 @@
 }
 
 .provider-row-expand-btn:hover {
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
 }
 
 .provider-row-chevron {
@@ -1196,7 +1795,8 @@
 }
 
 .provider-row-expanded {
-  padding: 6px 12px 10px 38px;
+  /* Align with provider-row-main horizontal inset — no extra nest indent */
+  padding: 6px 16px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1324,7 +1924,7 @@
   margin-top: 12px;
   border-radius: 14px;
   border: none;
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -1381,7 +1981,7 @@
   font-size: 13px;
   border-radius: 14px;
   border: none;
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
   margin-bottom: 8px;
 }
 
@@ -1404,7 +2004,7 @@
 .provider-editor-modal {
   width: min(560px, 100%);
   max-height: min(88vh, 820px);
-  background: var(--surface-raised, #fff);
+  background: var(--panel);
   border-radius: 18px;
   box-shadow:
     0 32px 90px -20px rgba(23, 28, 45, 0.45),
@@ -1449,7 +2049,7 @@
   align-items: center;
   gap: 12px;
   padding: 16px 20px;
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
   border-bottom: none;
   flex: none;
   border-radius: 18px 18px 0 0;
@@ -1500,7 +2100,7 @@
   gap: 10px;
   padding: 13px 20px;
   border-top: none;
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
   flex: none;
   border-radius: 0 0 18px 18px;
 }
@@ -1512,7 +2112,7 @@
   padding: 12px 14px;
   border-radius: 12px;
   border: none;
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
 }
 
 .provider-statusbar-text {
@@ -1702,7 +2302,7 @@
 }
 
 .provider-model-empty {
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
   border-radius: 10px;
   padding: 18px;
   text-align: center;
@@ -1714,7 +2314,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
   border-radius: 10px;
   padding: 8px 8px 8px 12px;
 }
@@ -1722,14 +2322,30 @@
 .provider-model-id {
   flex: 1;
   min-width: 0;
-  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.provider-model-name {
+  max-width: 100%;
+  font-size: 12.5px;
+  font-weight: 550;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+}
+
+.provider-model-id-secondary {
+  max-width: 100%;
+  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--faint, var(--muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .provider-model-default {
@@ -1778,7 +2394,7 @@
 
 .provider-add-model-btn {
   width: 100%;
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
   border: none;
   border-radius: 10px;
   padding: 9px;
@@ -2027,8 +2643,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: var(--surface-raised);
-  border: 1px solid var(--line-soft);
+  background: var(--surface-inset);
+  border: 1px solid color-mix(in srgb, var(--line-soft) 85%, transparent);
   border-radius: var(--radius-surface);
   transition:
     border-color var(--motion-quick) ease,
@@ -2037,7 +2653,7 @@
 
 .ext-list-item.active {
   border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  background: color-mix(in srgb, var(--accent) 5%, var(--surface-raised));
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-inset));
 }
 
 .ext-list-main {
@@ -2250,7 +2866,7 @@
   flex-direction: column;
   gap: 7px;
   padding: 8px 10px;
-  background: var(--surface-inset, #f5f6fa);
+  background: var(--surface-inset);
   border-radius: 0 0 8px 8px;
   border-top: 1px solid var(--line-soft);
 }
@@ -2404,4 +3020,122 @@
   justify-content: flex-end;
   gap: 6px;
   padding-top: 1px;
+}
+
+/* ── Shortcuts reference page (Settings → Shortcuts) ───────────── */
+
+.shortcuts-page {
+  padding-bottom: 8px;
+}
+
+.shortcuts-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  margin-top: 4px;
+}
+
+.shortcuts-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.shortcuts-group-label {
+  margin: 0 0 8px;
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--line-soft) 90%, transparent);
+  border-radius: 12px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+}
+
+.shortcuts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-top: 1px solid color-mix(in srgb, var(--line-soft) 75%, transparent);
+  transition: background-color var(--motion-quick, 120ms) ease;
+}
+
+.shortcuts-row:first-child {
+  border-top: 0;
+}
+
+.shortcuts-row:hover {
+  background: color-mix(in srgb, var(--surface-hover, var(--panel2)) 72%, transparent);
+}
+
+.shortcuts-row-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.shortcut-keycaps {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.shortcut-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel) 92%, #fff 8%) 0%,
+    color-mix(in srgb, var(--panel2, var(--surface-inset)) 88%, var(--panel) 12%) 100%
+  );
+  box-shadow:
+    0 1px 0 color-mix(in srgb, var(--text) 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 35%, transparent);
+  color: var(--text);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+[data-theme='dark'] .shortcut-keycap {
+  border-color: color-mix(in srgb, var(--text) 18%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel2) 70%, var(--panel) 30%) 0%,
+    color-mix(in srgb, var(--panel) 85%, #000 15%) 100%
+  );
+  box-shadow:
+    0 1px 0 rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.shortcuts-footnote {
+  margin: 18px 2px 0;
+  font-size: 12px;
+  line-height: 1.45;
 }

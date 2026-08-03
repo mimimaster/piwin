@@ -134,6 +134,99 @@ describe('HistoryTicksDrawer component', () => {
     expect(container?.querySelectorAll('.history-tick-item').length).toBe(2);
   });
 
+  it('stays pinned open when mouse leaves the drawer', () => {
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    const firstBorderTick = container?.querySelector('.border-tick-line');
+    act(() => {
+      firstBorderTick?.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+      );
+    });
+
+    const drawer = container?.querySelector('[data-testid="history-ticks-drawer"]');
+    expect(drawer?.classList.contains('is-pinned')).toBe(true);
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
+
+    act(() => {
+      drawer?.dispatchEvent(
+        new window.MouseEvent('mouseleave', { bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
+    expect(drawer?.classList.contains('is-pinned')).toBe(true);
+  });
+
+  it('closes when the pin close button is clicked', () => {
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    const firstBorderTick = container?.querySelector('.border-tick-line');
+    act(() => {
+      firstBorderTick?.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+      );
+    });
+
+    const closeButton = container?.querySelector('[data-testid="history-drawer-close"]');
+    expect(closeButton).not.toBeNull();
+    act(() => {
+      closeButton?.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
+    expect(container?.querySelector('.border-tick-line')).not.toBeNull();
+  });
+
+  it('closes when clicking outside the drawer while pinned', () => {
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    const firstBorderTick = container?.querySelector('.border-tick-line');
+    act(() => {
+      firstBorderTick?.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+      );
+    });
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
+
+    act(() => {
+      document.dispatchEvent(
+        new window.MouseEvent('mousedown', { bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
+  });
+
+  it('closes when Escape is pressed while pinned', () => {
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    const firstBorderTick = container?.querySelector('.border-tick-line');
+    act(() => {
+      firstBorderTick?.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+      );
+    });
+
+    act(() => {
+      document.dispatchEvent(
+        new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
+  });
+
   it('shows message bubble popover after expanding drawer and hovering tick item', () => {
     act(() => {
       root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
@@ -154,6 +247,70 @@ describe('HistoryTicksDrawer component', () => {
     const bubble = container?.querySelector('[data-testid="history-message-bubble"]');
     expect(bubble).not.toBeNull();
     expect(bubble?.querySelector('.history-bubble-text')?.textContent).toBe('内置的浏览器有优化的方案吗');
+  });
+
+  it('clears the preview bubble on mouse leave so it cannot freeze open', () => {
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    const firstBorderTick = container?.querySelector('.border-tick-line');
+    act(() => {
+      firstBorderTick?.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+      );
+    });
+
+    const firstTick = container?.querySelector('[data-testid="history-tick-msg-user-1"]');
+    act(() => {
+      firstTick?.dispatchEvent(
+        new window.MouseEvent('mouseover', { bubbles: true, cancelable: true }),
+      );
+    });
+    expect(container?.querySelector('[data-testid="history-message-bubble"]')).not.toBeNull();
+
+    const drawer = container?.querySelector('[data-testid="history-ticks-drawer"]');
+    act(() => {
+      drawer?.dispatchEvent(
+        new window.MouseEvent('mouseout', {
+          bubbles: true,
+          cancelable: true,
+          relatedTarget: document.body,
+        }),
+      );
+    });
+
+    // Drawer stays pinned, but the sticky preview must not remain.
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
+    expect(container?.querySelector('[data-testid="history-message-bubble"]')).toBeNull();
+  });
+
+  it('unpins when the conversation identity changes', () => {
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    const firstBorderTick = container?.querySelector('.border-tick-line');
+    act(() => {
+      firstBorderTick?.dispatchEvent(
+        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+      );
+    });
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
+
+    const otherSessionMessages: ChatMessageUi[] = [
+      {
+        ...sampleMessages[0]!,
+        id: 'msg-other-session',
+        text: 'another session',
+      },
+    ];
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={otherSessionMessages} />);
+    });
+
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
+    expect(container?.querySelector('.border-tick-line')).not.toBeNull();
   });
 
   it('triggers scrollIntoView when clicking a tick', () => {

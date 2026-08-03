@@ -190,13 +190,46 @@ describe('model configuration', () => {
     );
 
     expect(models).toEqual([
-      { id: 'deepseek-chat', contextWindow: 64_000 },
+      { id: 'deepseek-chat', contextWindow: 64_000, label: 'DeepSeek Chat' },
       {
         id: 'gpt-4o',
         label: 'GPT-4o',
         input: ['text', 'image'],
         reasoning: true,
         contextWindow: 128_000,
+      },
+    ]);
+  });
+
+  it('re-import fills missing fields without overwriting existing config', () => {
+    const models = mergeDiscoveredModels(
+      [
+        {
+          id: 'grok-4.5',
+          label: 'My Grok',
+          contextWindow: 32_000,
+        },
+      ],
+      [
+        {
+          id: 'grok-4.5',
+          label: 'Grok 4.5',
+          input: ['text', 'image'],
+          reasoning: true,
+          contextWindow: 128_000,
+          maxOutputTokens: 8_192,
+        },
+      ],
+    );
+
+    expect(models).toEqual([
+      {
+        id: 'grok-4.5',
+        label: 'My Grok',
+        contextWindow: 32_000,
+        input: ['text', 'image'],
+        reasoning: true,
+        maxOutputTokens: 8_192,
       },
     ]);
   });

@@ -168,6 +168,67 @@ describe('ComposerDock host status', () => {
     expect(handleAbort).toHaveBeenCalledTimes(1);
   });
 
+  it('reuses the Composer textarea for Other input and keeps Stop instead of Steer', () => {
+    const handleResolve = vi.fn();
+    const handleAbort = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        extensionUiRequest={{
+          sessionId: 'session-1',
+          requestId: 'request-1',
+          kind: 'input',
+          title: 'Response for: What should I work on?',
+          placeholder: 'Type your answer',
+        }}
+        extensionUiInput="Use the existing branch"
+        onExtensionUiResolve={handleResolve}
+        onAbort={handleAbort}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const textarea = container.querySelector('[data-testid="composer-input"]') as HTMLTextAreaElement;
+    expect(textarea.value).toBe('Use the existing branch');
+    expect(textarea.readOnly).toBe(false);
+    expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="stop-btn"]')).not.toBeNull();
+    expect(container.textContent).toContain('Type your answer in the composer below');
+
+    act(() => {
+      rendered.root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ComposerDock
+            {...baseProps}
+            streaming={true}
+            runPhase="streaming"
+            extensionUiRequest={{
+              sessionId: 'session-1',
+              requestId: 'request-1',
+              kind: 'input',
+              title: 'Response for: What should I work on?',
+              placeholder: 'Type your answer',
+            }}
+            extensionUiInput="Use a new branch"
+            onExtensionUiResolve={handleResolve}
+            onAbort={handleAbort}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    act(() => {
+      const updatedTextarea = container?.querySelector(
+        '[data-testid="composer-input"]',
+      ) as HTMLTextAreaElement;
+      updatedTextarea?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(handleResolve).toHaveBeenCalledWith({ value: 'Use a new branch' });
+  });
+
   it('renders send button in steer mode when streaming and input is non-empty', () => {
     const handleSteer = vi.fn();
     const handleSend = vi.fn();
@@ -196,5 +257,140 @@ describe('ComposerDock host status', () => {
     });
     expect(handleSteer).toHaveBeenCalledTimes(1);
     expect(handleSend).not.toHaveBeenCalled();
+  });
+
+  it('shows text-only vision warning when media is attached without vision or delegation', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        selectedModelKey="custom-openai::deepseek-v4-flash"
+        modelOptions={[
+          {
+            providerId: 'custom-openai',
+            protocol: 'openai-compatible',
+            modelId: 'deepseek-v4-flash',
+            label: 'Cpa / DeepSeek',
+            // no supportsImage
+          },
+        ]}
+        visionDelegationEnabled={false}
+        pendingAttachments={[
+          {
+            localId: 'local-1',
+            previewUrl: 'blob:test',
+            attachment: {
+              id: 'a1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/a.png',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const warning = container.querySelector('[data-testid="composer-text-only-image-warning"]');
+    expect(warning).not.toBeNull();
+    expect(warning?.textContent).toContain('文本模型');
+    expect(warning?.textContent).toContain('不支持识图');
+  });
+
+  it('hides text-only vision warning when model supports image', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        selectedModelKey="custom-openai::swe-1-7"
+        modelOptions={[
+          {
+            providerId: 'custom-openai',
+            protocol: 'openai-compatible',
+            modelId: 'swe-1-7',
+            label: 'Cpa / swe',
+            supportsImage: true,
+          },
+        ]}
+        pendingAttachments={[
+          {
+            localId: 'local-1',
+            previewUrl: 'blob:test',
+            attachment: {
+              id: 'a1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/a.png',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-text-only-image-warning"]')).toBeNull();
+  });
+
+  it('hides text-only vision warning when vision delegation is enabled', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        selectedModelKey="custom-openai::deepseek-v4-flash"
+        modelOptions={[
+          {
+            providerId: 'custom-openai',
+            protocol: 'openai-compatible',
+            modelId: 'deepseek-v4-flash',
+            label: 'Cpa / DeepSeek',
+          },
+        ]}
+        visionDelegationEnabled={true}
+        pendingAttachments={[
+          {
+            localId: 'local-1',
+            previewUrl: 'blob:test',
+            attachment: {
+              id: 'a1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/a.png',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-text-only-image-warning"]')).toBeNull();
+  });
+
+  it('hides text-only vision warning when no media is attached', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        selectedModelKey="custom-openai::deepseek-v4-flash"
+        modelOptions={[
+          {
+            providerId: 'custom-openai',
+            protocol: 'openai-compatible',
+            modelId: 'deepseek-v4-flash',
+            label: 'Cpa / DeepSeek',
+          },
+        ]}
+        visionDelegationEnabled={false}
+        pendingAttachments={[]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-text-only-image-warning"]')).toBeNull();
   });
 });

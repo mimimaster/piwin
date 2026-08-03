@@ -197,6 +197,58 @@ function resolveDensity(
   return 'comfortable';
 }
 
+/** True when a head summary is really a raw args/JSON dump, not a tool/query label. */
+export function looksLikeArgsDumpSummary(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length < 2) return false;
+  return (
+    (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+    (trimmed.startsWith('[') && trimmed.endsWith(']'))
+  );
+}
+
+/**
+ * Header mono preview (query / command / path summary).
+ * Detail payloads (shell command / MCP args) are shown only while collapsed —
+ * expanded body already owns the full detail block.
+ */
+export function resolveToolCallHeaderPreview(input: {
+  summary: string;
+  displayName: string;
+  showFilePill: boolean;
+  pillLabel: string;
+  singleBasename: string;
+  isPathLike: boolean;
+  expanded: boolean;
+  /** True when body will render command and/or inputPreview. */
+  hasDetailInBody: boolean;
+  /** True when summary is just a raw args dump (same text as inputPreview). */
+  isArgsDumpSummary?: boolean;
+}): string {
+  const {
+    summary,
+    displayName,
+    showFilePill,
+    pillLabel,
+    singleBasename,
+    isPathLike,
+    expanded,
+    hasDetailInBody,
+    isArgsDumpSummary = false,
+  } = input;
+  if (!summary || summary === displayName) return '';
+  // Never promote raw JSON/args dumps into the title row (MCP legacy presentations).
+  if (isArgsDumpSummary) return '';
+  // Expanded body already renders the full detail — keep the head as verb-only
+  // so long shell/MCP lines do not wrap into a multi-line "title".
+  if (expanded && hasDetailInBody) return '';
+  if (showFilePill && pillLabel && (summary === pillLabel || summary === singleBasename)) {
+    return '';
+  }
+  if (showFilePill && isPathLike) return '';
+  return summary;
+}
+
 export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const { tool } = props;
   const density = resolveDensity(props.density, props.compact);
@@ -260,14 +312,24 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const singleBasename = targetPaths[0]?.split(/[\\/]/).pop() || targetPaths[0] || '';
   const showFilePill = isPathLike && (targetPaths.length >= 1 || Boolean(summary));
   const pillLabel = multiPath || (isPathLike && !targetPaths[0]) ? summary : singleBasename;
-  const previewText = (() => {
-    if (!summary || summary === displayName) return '';
-    if (showFilePill && pillLabel && (summary === pillLabel || summary === singleBasename)) {
-      return '';
-    }
-    if (showFilePill && isPathLike) return '';
-    return summary;
-  })();
+  // Prefer host inputPreview; fall back when legacy presentations stuffed JSON into summary.
+  const inputPreview =
+    tool.presentation?.inputPreview ||
+    (looksLikeArgsDumpSummary(summary) ? summary : undefined);
+  const hasDetailInBody = Boolean(tool.presentation?.command || inputPreview);
+  const isArgsDumpSummary =
+    Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary);
+  const previewText = resolveToolCallHeaderPreview({
+    summary,
+    displayName,
+    showFilePill,
+    pillLabel: pillLabel || '',
+    singleBasename: singleBasename || '',
+    isPathLike,
+    expanded,
+    hasDetailInBody,
+    isArgsDumpSummary,
+  });
   const previewClassName =
     isQueryLike || actionVerb === 'Ran command'
       ? 'tool-call-preview is-query'
@@ -277,6 +339,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     Boolean(displayOutput) ||
     citations.kind !== 'none' ||
     Boolean(tool.presentation?.command) ||
+    Boolean(inputPreview) ||
     targetPaths.length > 0 ||
     hasChangedPaths ||
     Boolean(tool.presentation?.error);
@@ -359,6 +422,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
           ) : null}
           <CitationCards parsed={citations} />
           {tool.presentation?.command ||
+          inputPreview ||
           (displayOutput && citations.kind === 'none' && !canRenderDiffCard) ? (
             <CollapsibleContentBlock
               maxCollapsedHeight={130}
@@ -370,6 +434,11 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
                   {typeof tool.presentation.exitCode === 'number' ? (
                     <span className="dim"> exit {tool.presentation.exitCode}</span>
                   ) : null}
+                </div>
+              ) : null}
+              {!tool.presentation?.command && inputPreview ? (
+                <div className="tool-call-command" data-testid="tool-call-input-preview">
+                  <code>{inputPreview}</code>
                 </div>
               ) : null}
               {displayOutput && citations.kind === 'none' && !canRenderDiffCard ? (

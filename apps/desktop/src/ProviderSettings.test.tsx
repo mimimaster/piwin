@@ -136,7 +136,6 @@ describe('ProviderSettings', () => {
     expect(container.querySelector('[data-testid="provider-drawer"]')).not.toBeNull();
     expect(container.querySelector('.provider-editor-modal')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-baseurl-input"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="provider-model-list"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="provider-test-connection"]')).not.toBeNull();
   });
 
@@ -319,9 +318,7 @@ describe('ProviderSettings', () => {
     expect(props.onInfo).toHaveBeenCalled();
   });
 
-  it('keeps provider editor open when interacting with discover search input', async () => {
-    // Regression: React portal event bubbling used to hit provider-editor-overlay
-    // onClick={onClose} when clicking the discover search field, dismissing the editor.
+  it('discovers models from the expanded provider row on the models page', async () => {
     const onDiscoverModels = vi.fn(async () => ({
       providerId: 'openai',
       protocol: 'openai-compatible' as const,
@@ -336,15 +333,18 @@ describe('ProviderSettings', () => {
     instances.push({ container, root });
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="provider-row-open-openai"]')?.click();
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
+        ?.click();
     });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(container.querySelector('[data-testid="provider-drawer"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="provider-row-models-openai"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="provider-model-list"]')).not.toBeNull();
 
     const discoverBtn = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-discover-models"]',
+      '[data-testid="provider-discover-models-openai"]',
     );
     expect(discoverBtn).not.toBeNull();
     await act(async () => {
@@ -352,7 +352,7 @@ describe('ProviderSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    // Mantine portals the dialog; query document (not only container).
+    expect(onDiscoverModels).toHaveBeenCalled();
     const search = document.querySelector<HTMLInputElement>(
       '[data-testid="discover-models-search"]',
     );
@@ -366,19 +366,20 @@ describe('ProviderSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(container.querySelector('[data-testid="provider-drawer"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="discover-models-search"]')).not.toBeNull();
     expect(search?.value).toBe('mini');
   });
 
-  it('edits a provider model through the inline form and persists the draft', async () => {
+  it('edits a provider model from the expanded row and persists immediately', async () => {
     const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
     const props = makeProps(onSave);
     const { container, root } = renderProviderSettings(props);
     instances.push({ container, root });
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="provider-row-open-openai"]')?.click();
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
+        ?.click();
     });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -410,11 +411,6 @@ describe('ProviderSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    await act(async () => {
-      container.querySelector<HTMLButtonElement>('[data-testid="provider-save-btn"]')?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
     expect(onSave).toHaveBeenCalled();
     const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
     const openai = saved?.providers.find((p: ModelProviderConfig) => p.id === 'openai');
@@ -426,6 +422,5 @@ describe('ProviderSettings', () => {
         capabilities: ['image-generation'],
       }),
     );
-    expect(openai?.baseUrl).toBe('https://api.openai.com/v1');
   });
 });

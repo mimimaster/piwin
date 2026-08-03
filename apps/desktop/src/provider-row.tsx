@@ -1,18 +1,23 @@
 import { useState, type ReactElement } from 'react';
 import type {
+  DiscoveredModel,
   ModelCatalogEntry,
   ModelConfigEntry,
+  ModelDiscoveryResult,
   ModelProviderConfig,
 } from '@piwin/contracts';
 import { Switch } from '@piwin/ui-kit';
+import { AddModelDialog } from './AddModelDialog.js';
+import { DiscoverModelsDialog } from './DiscoverModelsDialog.js';
+import { applyModelConfigurationDraft, mergeDiscoveredModels } from './model-configuration.js';
+import { ModelEditInline } from './model-edit-inline.js';
 import { ProviderIcon } from './provider-icons.js';
 import { ProviderStatusPill, type ProviderTestStatus } from './provider-status.js';
-import { ModelEditInline } from './model-edit-inline.js';
-import { applyModelConfigurationDraft } from './model-configuration.js';
 import {
   IconChevronDown,
   IconClose,
   IconEdit,
+  IconPlus,
   IconRefresh,
   IconSpark,
   IconStar,
@@ -22,6 +27,8 @@ export type ProviderRowProps = {
   provider: ModelProviderConfig;
   status: ProviderTestStatus;
   isDefault: boolean;
+  /** Product default model id when this provider is the default provider. */
+  defaultModelId: string | null;
   isChinese: boolean;
   disabled?: boolean;
   /** Expanded-provider-row model test status, keyed by modelId. */
@@ -33,6 +40,7 @@ export type ProviderRowProps = {
   onUpdateModels: (models: ModelConfigEntry[]) => void;
   onTestModel: (modelId: string) => void;
   onSetDefaultModel: (modelId: string) => void;
+  onDiscoverModels: (provider: ModelProviderConfig) => Promise<ModelDiscoveryResult>;
 };
 
 function hostOf(url: string): string {
@@ -86,6 +94,7 @@ export function ProviderRow({
   provider,
   status,
   isDefault,
+  defaultModelId,
   isChinese,
   disabled,
   modelTestStatus = {},
@@ -96,12 +105,14 @@ export function ProviderRow({
   onUpdateModels,
   onTestModel,
   onSetDefaultModel,
+  onDiscoverModels,
 }: ProviderRowProps): ReactElement {
   const [expanded, setExpanded] = useState(false);
   const [editingModelId, setEditingModelId] = useState<string | null>(null);
-
-  const defaultModelId = isDefault ? null : null; // determined by parent
-  void defaultModelId;
+  const [addModelOpen, setAddModelOpen] = useState(false);
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [discoverModels, setDiscoverModels] = useState<DiscoveredModel[]>([]);
+  const [discovering, setDiscovering] = useState(false);
 
   function toggleExpand(): void {
     setExpanded((prev) => !prev);
@@ -109,9 +120,23 @@ export function ProviderRow({
   }
 
   function handleSaveEdit(draft: import('./model-configuration.js').ModelConfigurationDraft): void {
-    const next = applyModelConfigurationDraft(provider.models, editingModelId!, draft);
+    if (!editingModelId) return;
+    const next = applyModelConfigurationDraft(provider.models, editingModelId, draft);
     if (next) onUpdateModels(next);
     setEditingModelId(null);
+  }
+
+  async function handleDiscover(): Promise<void> {
+    setDiscovering(true);
+    try {
+      const result = await onDiscoverModels(provider);
+      setDiscoverModels(result.models);
+      setDiscoverOpen(true);
+    } catch {
+      // Parent surfaces errors via onError through onDiscoverModels callers when needed.
+    } finally {
+      setDiscovering(false);
+    }
   }
 
   const t = isChinese
@@ -126,6 +151,10 @@ export function ProviderRow({
         expand: '展开',
         collapse: '收起',
         editProvider: '编辑提供商',
+        discover: '发现',
+        discovering: '发现中…',
+        addModel: '手动添加模型',
+        modelsHeading: '模型服务',
       }
     : {
         models: 'Models',
@@ -138,182 +167,251 @@ export function ProviderRow({
         expand: 'Expand',
         collapse: 'Collapse',
         editProvider: 'Edit provider',
+        discover: 'Discover',
+        discovering: 'Discovering…',
+        addModel: 'Add model manually',
+        modelsHeading: 'Models',
       };
 
   return (
-    <div
-      className={`provider-row${expanded ? ' provider-row--expanded' : ''}`}
-      data-testid={`provider-row-${provider.id}`}
-    >
-      <div className="provider-row-main">
-        <button
-          type="button"
-          className="provider-row-expand-btn"
-          onClick={toggleExpand}
-          aria-label={expanded ? t.collapse : t.expand}
-          aria-expanded={expanded}
-          data-testid={`provider-row-expand-${provider.id}`}
-          disabled={disabled}
-        >
-          <IconChevronDown
-            width={14}
-            height={14}
-            className={expanded ? 'provider-row-chevron--open' : 'provider-row-chevron'}
-          />
-        </button>
-        <ProviderIcon id={provider.id} name={provider.name} size={38} />
-        <div className="provider-row-who">
-          <b className="provider-row-name">
-            {provider.name}
-            {isDefault && (
-              <IconStar
-                width={11}
-                height={11}
-                className="provider-row-default-star"
-                style={{ marginLeft: 6, color: 'var(--warn, #f59e0b)' }}
-              />
-            )}
-          </b>
-          <span className="provider-row-host" title={provider.baseUrl}>
-            {hostOf(provider.baseUrl)}
-          </span>
-        </div>
-        <div className="provider-row-models-count">
-          {provider.models.length > 0
-            ? `${provider.models.length} ${t.models}`
-            : t.noModels}
-        </div>
-        <div className="provider-row-tail">
-          <div
-            className="provider-row-controls"
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-          >
-            <ProviderStatusPill status={status} />
-            <Switch
-              checked={provider.enabled !== false}
-              onCheckedChange={onToggle}
-              disabled={disabled}
-              testId={`provider-enable-switch-${provider.id}`}
-              size="sm"
-            />
-          </div>
+    <>
+      <div
+        className={`provider-row${expanded ? ' provider-row--expanded' : ''}`}
+        data-testid={`provider-row-${provider.id}`}
+      >
+        <div className="provider-row-main">
           <button
             type="button"
-            className="provider-row-open"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpen();
-            }}
-            aria-label={t.editProvider}
-            title={t.editProvider}
-            data-testid={`provider-row-open-${provider.id}`}
+            className="provider-row-expand-btn"
+            onClick={toggleExpand}
+            aria-label={expanded ? t.collapse : t.expand}
+            aria-expanded={expanded}
+            data-testid={`provider-row-expand-${provider.id}`}
+            disabled={disabled}
           >
-            <IconEdit width={14} height={14} className="provider-row-edit-icon" />
+            <IconChevronDown
+              width={14}
+              height={14}
+              className={expanded ? 'provider-row-chevron--open' : 'provider-row-chevron'}
+            />
           </button>
+          <ProviderIcon id={provider.id} name={provider.name} size={38} />
+          <div className="provider-row-who">
+            <b className="provider-row-name">
+              {provider.name}
+              {isDefault && (
+                <IconStar
+                  width={11}
+                  height={11}
+                  className="provider-row-default-star"
+                  style={{ marginLeft: 6, color: 'var(--warn, #f59e0b)' }}
+                />
+              )}
+            </b>
+            <span className="provider-row-host" title={provider.baseUrl}>
+              {hostOf(provider.baseUrl)}
+            </span>
+          </div>
+          <div className="provider-row-models-count">
+            {provider.models.length > 0
+              ? `${provider.models.length} ${t.models}`
+              : t.noModels}
+          </div>
+          <div className="provider-row-tail">
+            <div
+              className="provider-row-controls"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <ProviderStatusPill status={status} />
+              <Switch
+                checked={provider.enabled !== false}
+                onCheckedChange={onToggle}
+                disabled={disabled}
+                testId={`provider-enable-switch-${provider.id}`}
+                size="sm"
+              />
+            </div>
+            <button
+              type="button"
+              className="provider-row-open"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen();
+              }}
+              aria-label={t.editProvider}
+              title={t.editProvider}
+              data-testid={`provider-row-open-${provider.id}`}
+            >
+              <IconEdit width={14} height={14} className="provider-row-edit-icon" />
+            </button>
+          </div>
         </div>
+
+        {expanded && (
+          <div
+            className="provider-row-expanded"
+            data-testid={`provider-row-models-${provider.id}`}
+          >
+            <div className="provider-field-label" style={{ marginTop: 0 }}>
+              <span>
+                {t.modelsHeading}
+                <span className="provider-field-label-count">（{provider.models.length}）</span>
+              </span>
+              <button
+                type="button"
+                className="provider-linkbtn"
+                onClick={() => void handleDiscover()}
+                disabled={disabled || discovering}
+                data-testid={`provider-discover-models-${provider.id}`}
+              >
+                {discovering ? t.discovering : t.discover}
+              </button>
+            </div>
+
+            <div className="provider-model-list" data-testid="provider-model-list">
+              {provider.models.length === 0 && (
+                <div className="provider-model-empty">{t.noModels}</div>
+              )}
+              {provider.models.map((model) => {
+                const caps = modelCaps(model, isChinese);
+                const isDefaultModel = isDefault && model.id === defaultModelId;
+                const mTest = modelTestStatus[model.id];
+                const isTesting = testingModelId === model.id;
+                const isEditing = editingModelId === model.id;
+                return (
+                  <div key={model.id} className="provider-model-item">
+                    <div className="provider-model-row" data-testid="provider-model-row">
+                      <span className="provider-model-id" title={model.id}>
+                        <span className="provider-model-name">
+                          {model.label?.trim() || model.id}
+                        </span>
+                        {model.label?.trim() && model.label.trim() !== model.id ? (
+                          <code className="provider-model-id-secondary">{model.id}</code>
+                        ) : null}
+                        {isDefaultModel && (
+                          <span className="provider-model-default">{t.default}</span>
+                        )}
+                      </span>
+                      <div className="provider-model-caps">
+                        {caps.map((cap) => (
+                          <span
+                            key={cap.key}
+                            className="provider-capchip"
+                            style={{ background: cap.bg, color: cap.fg }}
+                          >
+                            {cap.label}
+                          </span>
+                        ))}
+                      </div>
+                      {mTest && (
+                        <span
+                          className={`provider-model-test-status provider-model-test-status--${mTest.tone}`}
+                          title={mTest.message}
+                        >
+                          {mTest.message}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="provider-mini-btn"
+                        title={t.edit}
+                        onClick={() => setEditingModelId(isEditing ? null : model.id)}
+                        disabled={disabled}
+                        data-testid={`provider-model-edit-${model.id}`}
+                      >
+                        <IconEdit width={12} height={12} />
+                      </button>
+                      <button
+                        type="button"
+                        className="provider-mini-btn"
+                        title={t.test}
+                        onClick={() => onTestModel(model.id)}
+                        disabled={disabled || isTesting}
+                        data-testid={`provider-model-test-${model.id}`}
+                      >
+                        {isTesting ? (
+                          <IconRefresh width={12} height={12} className="provider-spin" />
+                        ) : (
+                          <IconSpark width={12} height={12} />
+                        )}
+                      </button>
+                      {!isDefaultModel && (
+                        <button
+                          type="button"
+                          className="provider-mini-btn"
+                          title={t.setDefault}
+                          onClick={() => onSetDefaultModel(model.id)}
+                          disabled={disabled}
+                          data-testid={`provider-model-default-${model.id}`}
+                        >
+                          <IconStar width={12} height={12} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="provider-mini-btn"
+                        onClick={() =>
+                          onUpdateModels(provider.models.filter((entry) => entry.id !== model.id))
+                        }
+                        disabled={disabled}
+                        aria-label={t.delete}
+                        data-testid={`provider-model-remove-${model.id}`}
+                      >
+                        <IconClose width={12} height={12} />
+                      </button>
+                    </div>
+                    {isEditing && (
+                      <ModelEditInline
+                        model={model}
+                        providerProtocol={provider.protocol}
+                        disabled={disabled ?? false}
+                        isChinese={isChinese}
+                        {...(searchCatalog ? { searchCatalog } : {})}
+                        onSave={handleSaveEdit}
+                        onCancel={() => setEditingModelId(null)}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              className="provider-add-model-btn"
+              onClick={() => setAddModelOpen(true)}
+              disabled={disabled}
+              data-testid={`provider-add-model-${provider.id}`}
+            >
+              <IconPlus width={14} height={14} />
+              {t.addModel}
+            </button>
+          </div>
+        )}
       </div>
 
-      {expanded && (
-        <div className="provider-row-expanded" data-testid={`provider-row-models-${provider.id}`}>
-          {provider.models.length === 0 && (
-            <div className="provider-model-empty">{t.noModels}</div>
-          )}
-          {provider.models.map((model) => {
-            const caps = modelCaps(model, isChinese);
-            const isDefaultModel = isDefault && false; // parent determines per-model default
-            void isDefaultModel;
-            const mTest = modelTestStatus[model.id];
-            const isTesting = testingModelId === model.id;
-            const isEditing = editingModelId === model.id;
-            return (
-              <div key={model.id} className="provider-model-item">
-                <div className="provider-model-row" data-testid="provider-model-row">
-                  <span className="provider-model-id" title={model.id}>
-                    {model.id}
-                  </span>
-                  <div className="provider-model-caps">
-                    {caps.map((cap) => (
-                      <span
-                        key={cap.key}
-                        className="provider-capchip"
-                        style={{ background: cap.bg, color: cap.fg }}
-                      >
-                        {cap.label}
-                      </span>
-                    ))}
-                  </div>
-                  {mTest && (
-                    <span
-                      className={`provider-model-test-status provider-model-test-status--${mTest.tone}`}
-                      title={mTest.message}
-                    >
-                      {mTest.message}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    className="provider-mini-btn"
-                    title={t.edit}
-                    onClick={() => setEditingModelId(isEditing ? null : model.id)}
-                    disabled={disabled}
-                    data-testid={`provider-model-edit-${model.id}`}
-                  >
-                    <IconEdit width={12} height={12} />
-                  </button>
-                  <button
-                    type="button"
-                    className="provider-mini-btn"
-                    title={t.test}
-                    onClick={() => onTestModel(model.id)}
-                    disabled={disabled || isTesting}
-                    data-testid={`provider-model-test-${model.id}`}
-                  >
-                    {isTesting ? (
-                      <IconRefresh width={12} height={12} className="provider-spin" />
-                    ) : (
-                      <IconSpark width={12} height={12} />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="provider-mini-btn"
-                    title={t.setDefault}
-                    onClick={() => onSetDefaultModel(model.id)}
-                    disabled={disabled}
-                    data-testid={`provider-model-default-${model.id}`}
-                  >
-                    ★
-                  </button>
-                  <button
-                    type="button"
-                    className="provider-mini-btn"
-                    onClick={() =>
-                      onUpdateModels(provider.models.filter((m) => m.id !== model.id))
-                    }
-                    disabled={disabled}
-                    aria-label={t.delete}
-                    data-testid={`provider-model-remove-${model.id}`}
-                  >
-                    <IconClose width={12} height={12} />
-                  </button>
-                </div>
-                {isEditing && (
-                  <ModelEditInline
-                    model={model}
-                    providerProtocol={provider.protocol}
-                    disabled={disabled ?? false}
-                    isChinese={isChinese}
-                    {...(searchCatalog ? { searchCatalog } : {})}
-                    onSave={handleSaveEdit}
-                    onCancel={() => setEditingModelId(null)}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+      <AddModelDialog
+        open={addModelOpen}
+        onOpenChange={setAddModelOpen}
+        existingModelIds={provider.models.map((model) => model.id)}
+        onAdd={(model) => {
+          onUpdateModels([...provider.models, model]);
+          setAddModelOpen(false);
+        }}
+        {...(searchCatalog ? { searchCatalog } : {})}
+      />
+
+      <DiscoverModelsDialog
+        open={discoverOpen}
+        provider={provider}
+        models={discoverModels}
+        onOpenChange={setDiscoverOpen}
+        onImport={(selected) => {
+          onUpdateModels(mergeDiscoveredModels(provider.models, selected));
+          setDiscoverOpen(false);
+        }}
+      />
+    </>
   );
 }

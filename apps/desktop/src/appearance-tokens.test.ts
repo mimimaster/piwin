@@ -34,6 +34,7 @@ const DOCUMENTED_APPEARANCE_VARIABLES = [
   '--canvas',
   '--card',
   '--column-divider',
+  '--composer',
   '--content-disabled',
   '--content-muted',
   '--content-on-accent',
@@ -132,6 +133,7 @@ const GEOMETRY_VARIABLES = [
   '--sidebar-width',
   '--right-panel-width',
   '--chat-max',
+  '--chat-side-pad',
 ] as const;
 
 function emittedVariableNames(style: CSSStyleDeclaration): string[] {
@@ -195,6 +197,16 @@ describe('applyAppearanceToDocument', () => {
     expect(lightCanvas).not.toBe(darkCanvas);
   });
 
+  it('gives Paper distinct sidebar, conversation, and prompt surfaces', () => {
+    applyAppearanceToDocument(PIWIN_APPEARANCE_LIGHT);
+
+    const style = document.documentElement.style;
+    expect(style.getPropertyValue('--sidebar')).toBe('#ececef');
+    expect(style.getPropertyValue('--canvas')).toBe('#f6f6f7');
+    expect(style.getPropertyValue('--composer')).toBe('#ffffff');
+    expect(style.getPropertyValue('--user-bubble')).toBe('#ffffff');
+  });
+
   it('does not emit removed legacy aliases', () => {
     for (const manifest of [
       PIWIN_APPEARANCE_DARK,
@@ -249,11 +261,12 @@ describe('applyAppearanceToDocument Paper/Noir projection', () => {
   it('projects Paper light derived ramp', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_LIGHT);
     const s = document.documentElement.style;
-    expect(s.getPropertyValue('--canvas').trim()).toBe('#f7f7f8');
+    expect(s.getPropertyValue('--canvas').trim()).toBe('#f6f6f7');
     expect(s.getPropertyValue('--card').trim()).toBe('#ffffff');
-    expect(s.getPropertyValue('--sidebar').trim()).toBe('#f2f2f4');
+    expect(s.getPropertyValue('--sidebar').trim()).toBe('#ececef');
+    expect(s.getPropertyValue('--composer').trim()).toBe('#ffffff');
     expect(s.getPropertyValue('--sunken').trim()).toBe('#f0f0f2');
-    expect(s.getPropertyValue('--user-bubble').trim()).toBe('#ececee');
+    expect(s.getPropertyValue('--user-bubble').trim()).toBe('#ffffff');
     expect(s.getPropertyValue('--faint').trim()).toBe('#a0a0a8');
     expect(s.getPropertyValue('--accent').trim()).toBe('#2f6bed');
     expect(s.getPropertyValue('--accent-fg').trim()).toBe('#ffffff');
@@ -266,10 +279,11 @@ describe('applyAppearanceToDocument Paper/Noir projection', () => {
   it('projects Noir dark derived ramp with inverted accent', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_DARK);
     const s = document.documentElement.style;
-    expect(s.getPropertyValue('--canvas').trim()).toBe('#141414');
+    expect(s.getPropertyValue('--canvas').trim()).toBe('#0f0f0f');
     expect(s.getPropertyValue('--card').trim()).toBe('#1a1a1a');
-    expect(s.getPropertyValue('--sidebar').trim()).toBe('#141414');
-    expect(s.getPropertyValue('--sunken').trim()).toBe('#101010');
+    expect(s.getPropertyValue('--sidebar').trim()).toBe('#1c1c1c');
+    expect(s.getPropertyValue('--composer').trim()).toBe('#1c1c1c');
+    expect(s.getPropertyValue('--sunken').trim()).toBe('#0a0a0a');
     expect(s.getPropertyValue('--faint').trim()).toBe('#6e6e76');
     expect(s.getPropertyValue('--text').trim()).toBe('#e0e0e3');
     expect(s.getPropertyValue('--muted').trim()).toBe('#8a8a92');
@@ -287,9 +301,10 @@ describe('applyAppearanceToDocument Paper/Noir projection', () => {
   it('projects 橙白 warm light derived ramp', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_ORANGE_WHITE);
     const s = document.documentElement.style;
-    expect(s.getPropertyValue('--canvas').trim()).toBe('#f7f3ed');
+    expect(s.getPropertyValue('--canvas').trim()).toBe('#fffdfa');
     expect(s.getPropertyValue('--card').trim()).toBe('#fffdfa');
-    expect(s.getPropertyValue('--sidebar').trim()).toBe('#f7f3ed');
+    expect(s.getPropertyValue('--sidebar').trim()).toBe('#f2ede5');
+    expect(s.getPropertyValue('--composer').trim()).toBe('#f2ede5');
     expect(s.getPropertyValue('--sunken').trim()).toBe('#f2ede5');
     expect(s.getPropertyValue('--user-bubble').trim()).toBe('#f2ede5');
     expect(s.getPropertyValue('--faint').trim()).toBe('#a89d8f');

@@ -30,7 +30,6 @@ import { PermissionBar } from './permission-bar';
 import { FileTreePanel } from './file-tree-panel';
 import { ReviewPanel } from './review-panel';
 import { AppDialogs } from './app-dialogs';
-import { ChatEmptyState } from './chat-empty-state';
 import { createEmptyNotificationState, notificationReducer } from './notification-queue';
 import { GitPanel } from './GitPanel';
 import type { HostLogEntry } from './HostLogPanel';
@@ -65,6 +64,10 @@ import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import { useHostBootstrap } from './hooks/use-host-bootstrap';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { useSessionActions } from './hooks/use-session-actions';
+import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspector';
+import { selectActiveSubagents, type ActiveSubagentView, type SubagentInspectorSelection } from './subagent-activity-model';
+import { SubagentWorkingDock } from './subagent-working-dock';
+import { SubagentSessionDialog } from './subagent-session-dialog';
 import { useManagedProcesses } from './hooks/use-managed-processes';
 import { Button, ConfirmDialog, Dialog, IconButton, Notice } from '@piwin/ui-kit';
 import { IconClose } from './shell-icons';
@@ -330,6 +333,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
   const [remoteSearchHits, setRemoteSearchHits] = useState<SessionSearchHit[] | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  /** Filled after useComposerMedia mounts so Revert can restore text without reordering hooks. */
+  const composerSetterRef = useRef<(value: SetStateAction<string>) => void>(() => undefined);
+
   const [pendingRevertEdit, setPendingRevertEdit] = useState<{
     messageId: string;
     text: string;
@@ -533,9 +539,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setActivePet,
     sessionPlan,
     extensionUiRequest,
-    setExtensionUiRequest,
     extensionUiInput,
     setExtensionUiInput,
+    clearExtensionUiRequest,
   } = useHostBootstrap({
     hostClient,
     dispatch,
@@ -771,6 +777,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setEditingMessageId,
     setRenameDraft,
     setHostLogEntries,
+    // Composer setter is owned by useComposerMedia (declared later). Bridge via ref.
+    setComposer: (value) => {
+      composerSetterRef.current(value);
+    },
   });
   /**
    * Ensure a chat session, resume it, then send a prompt for doc-card generation.
@@ -1045,6 +1055,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       return window.confirm(message);
     },
   });
+  composerSetterRef.current = setComposer;
+
 
   const handleCommentLine = useCallback((_lineContent: string) => {
     // Chip is the attachment; do not inject quote text into the textarea.
@@ -1137,11 +1149,21 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       ...(payload.value !== undefined ? { value: payload.value } : {}),
       ...(payload.cancelled !== undefined ? { cancelled: payload.cancelled } : {}),
     });
-    setExtensionUiRequest(null);
-    setExtensionUiInput('');
+    // Resolving one question can synchronously cause Pi to emit the next
+    // question. Only clear the request that this response belongs to; an
+    // unconditional clear would erase the next questionnaire page.
+    clearExtensionUiRequest(active.requestId);
     if (!response.success) {
       dispatch({ type: 'error', message: response.error });
     }
+  }
+
+  async function handleExtensionUiAbort(): Promise<void> {
+    const active = extensionUiRequest;
+    if (active) {
+      clearExtensionUiRequest(active.requestId);
+    }
+    await handleAbort();
   }
 
   async function handleToggleAppearance(): Promise<void> {
@@ -1453,6 +1475,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     selectedModelKey,
     selectedModelLabel,
     onSelectModel: handleSelectModel,
+    visionDelegationEnabled: config?.visionDelegation?.enabled === true,
     menuSkills,
     menuMcp,
     onRefreshComposerMenus: () => {
@@ -1466,6 +1489,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onSend: () => void handleSendWithComments(),
     onSteer: () => void handleSteer(),
     onFollowUp: () => void handleFollowUp(),
+    extensionUiRequest,
+    extensionUiInput,
+    onExtensionUiInputChange: setExtensionUiInput,
+    onExtensionUiResolve: (payload) => void handleExtensionUiResolve(payload),
+    onExtensionUiAbort: () => void handleExtensionUiAbort(),
     thinkingLevel,
     onThinkingLevelChange: handleThinkingLevelChange,
     ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
@@ -1489,11 +1517,43 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted,
   };
 
-  const handleOpenSubagentSession = useCallback(
+  // Subagent session inspector: preview stays in-place, promotion navigates.
+  const handleEnterSubagentSession = useCallback(
     (sessionId: string): void => {
       void handleResumeSession(sessionId);
     },
     [handleResumeSession],
+  );
+  const inspector = useSubagentSessionInspector({
+    hostClient,
+    streamFor: useCallback(
+      (childSessionId: string) => state.subagentStreams[childSessionId],
+      [state.subagentStreams],
+    ),
+    childFor: useCallback(
+      (childSessionId: string) => state.subagentChildren[childSessionId],
+      [state.subagentChildren],
+    ),
+    onOpenFullSession: handleEnterSubagentSession,
+  });
+  const handleInspectSubagent = useCallback(
+    (selection: SubagentInspectorSelection): void => {
+      inspector.openInspector(selection);
+    },
+    [inspector.openInspector],
+  );
+  // Shared activity model drives the dock/ticker; every entry opens the same
+  // read-only inspector so no surface interprets lifecycle state itself.
+  const activeSubagentViews = useMemo<ActiveSubagentView[]>(
+    () =>
+      state.activeSessionId !== null
+        ? selectActiveSubagents({
+            parentSessionId: state.activeSessionId,
+            children: state.subagentChildren,
+            streams: state.subagentStreams,
+          })
+        : [],
+    [state.activeSessionId, state.subagentChildren, state.subagentStreams],
   );
   const handleCancelMessageEdit = useCallback((): void => {
     setEditingMessageId(null);
@@ -1613,17 +1673,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           workPanelOpen={rightPanelOpen}
           onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
           locale={desktopLocale}
-          {...(state.projectPath ? { projectName: projectDisplayName(state.projectPath) } : {})}
           sessionName={activeSessionName}
-          scopeLabel={
-            state.activeScope.kind === 'general'
-              ? desktopCopy.general
-              : desktopLocale === 'zh-CN'
-                ? '项目'
-                : 'Project'
-          }
-          permissionMode={config?.permissions?.preset ?? configPreset}
-          onOpenPermissions={() => openSettingsSection('permissions')}
         />
 
         <WorkspaceShell
@@ -1683,6 +1733,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onUnarchiveSession={(sessionId) =>
                 void handleSessionMenuAction(sessionId, 'unarchive')
               }
+              onDeleteSession={(sessionId) => {
+                const session = mergeSessionsForLookup(state.sessions, state.generalSessions).find(
+                  (item) => item.id === sessionId,
+                );
+                setDeleteConfirm({
+                  sessionId,
+                  sessionName: session?.name ?? sessionId.slice(0, 8),
+                });
+              }}
               onOpenSettings={() => openSettingsSection('general')}
               knowledgeOpen={knowledgeOpen}
               onToggleKnowledge={() => setKnowledgeOpen((current) => !current)}
@@ -1740,6 +1799,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             />
           }
           chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
+          activityDock={
+            activeSubagentViews.length > 0 ? (
+              <SubagentWorkingDock
+                items={activeSubagentViews}
+                onInspect={handleInspectSubagent}
+              />
+            ) : undefined
+          }
           knowledgePanel={
             knowledgeOpen ? (
               <section
@@ -1795,24 +1862,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 activitySignal={activitySignal}
                 messages={state.messages}
               >
-                {state.messages.length === 0 ? (
-                  <ChatEmptyState
-                    projectPath={state.projectPath}
-                    projectTrusted={state.projectTrusted}
-                    activeSessionId={state.activeSessionId}
-                    onOpenWorkspace={() => void handleOpenWorkspaceClick()}
-                    onCreateSession={() => void handleNewSession()}
-                    onSuggest={(mode, text) => {
-                      void (async () => {
-                        if (!state.activeSessionId && state.projectTrusted) {
-                          await handleNewSession();
-                        }
-                        setAgentMode(mode);
-                        setComposer(text);
-                      })();
-                    }}
-                  />
-                ) : (
+                {state.messages.length > 0 ? (
                   <ChatThread
                     messages={state.messages}
                     streaming={state.streaming}
@@ -1839,7 +1889,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       ? { artifactMaxBytes: config.artifact.maxBytes }
                       : {})}
                     locale={desktopLocale}
-                    onOpenSubagentSession={handleOpenSubagentSession}
+                    onInspectSubagent={handleInspectSubagent}
                     onEdit={setEditingMessageId}
                     onCancelEdit={handleCancelMessageEdit}
                     onEditResend={handleEditAndResendMessage}
@@ -1850,14 +1900,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     onPlanExecute={handlePlanExecute}
                     onPlanAbort={handlePlanAbort}
                     composerCard={composerCard}
-                    subagentStreams={state.subagentStreams}
                     walkthroughsByMessageId={state.walkthroughsByMessageId}
                     walkthroughEnabled={config?.walkthrough?.enabled !== false}
                     walkthroughAutoGenerate={false}
                     onGenerateWalkthrough={handleGenerateWalkthrough}
                     onCancelWalkthrough={handleCancelWalkthrough}
                   />
-                )}
+                ) : null}
               </TranscriptViewport>
               {state.compacting ? (
                 <Notice
@@ -2090,10 +2139,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           projectPath={state.projectPath}
           trustDialogOpen={state.trustDialogOpen}
           onTrustProject={(trust) => void handleTrustProject(trust)}
-          extensionUiRequest={extensionUiRequest}
-          extensionUiInput={extensionUiInput}
-          onExtensionUiInputChange={setExtensionUiInput}
-          onExtensionUiResolve={(payload) => void handleExtensionUiResolve(payload)}
           sessionMenu={sessionMenu}
           onCloseSessionMenu={() => setSessionMenu(null)}
           sessions={mergeSessionsForLookup(state.sessions, state.generalSessions)}
@@ -2157,7 +2202,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         {/* Revert checkpoint confirmation dialog matching exact design specifications */}
         {pendingRevertEdit ? (
           <Dialog
-            label="Discard all changes up to this checkpoint?"
+            label="Restore conversation to this message?"
             open
             onOpenChange={(open) => {
               if (!open) {
@@ -2168,8 +2213,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             testId="revert-edit-confirm"
           >
             <div className="revert-modal-content">
-              <h3 className="revert-modal-title">Discard all changes up to this checkpoint?</h3>
-              <p className="revert-modal-subtitle muted">You can always undo this later.</p>
+              <h3 className="revert-modal-title">Restore conversation to this message?</h3>
+              <p className="revert-modal-subtitle muted">
+                Later messages will be removed from this chat. File changes on disk are not undone.
+              </p>
               <div className="revert-modal-footer">
                 <label className="revert-dont-ask">
                   <input
@@ -2257,6 +2304,22 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             }}
           />
         ) : null}
+        <SubagentSessionDialog
+          open={inspector.selection !== null}
+          selection={inspector.selection}
+          status={inspector.status}
+          messages={inspector.messages}
+          liveTail={inspector.liveTail}
+          loading={inspector.loading}
+          error={inspector.error}
+          onOpenChange={(open) => {
+            if (!open) {
+              inspector.closeInspector();
+            }
+          }}
+          onOpenFullSession={inspector.openFullSession}
+          onRetry={inspector.retryLoad}
+        />
       </div>
     </DesktopLocaleProvider>
   );

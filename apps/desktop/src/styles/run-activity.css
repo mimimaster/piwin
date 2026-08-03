@@ -56,12 +56,6 @@
   100% { stroke-dashoffset: 0; stroke-dasharray: 30; }
 }
 
-@keyframes subagent-progress-slide {
-  0% { transform: translateX(-100%); }
-  50% { transform: translateX(30%); }
-  100% { transform: translateX(100%); }
-}
-
 /* SVG icon transform origin centering */
 .run-activity-svg-icon {
   transform-origin: center center;
@@ -439,20 +433,55 @@
   opacity: 0.8;
 }
 
+/* ── Turn Work Details Active Icon ─────────────────────────────────── */
+
+.turn-summary-active-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  display: inline-block;
+  vertical-align: middle;
+}
+
 /* ==========================================================================
-   Subagent Activity Card Improvements
+   Subagent activity surfaces (compact transcript card + ticker + dock).
+   Owns all `.subagent-activity-*`, `.subagent-ticker-*`, and
+   `.subagent-working-*` classes; region-transcript.css keeps only the slot
+   geometry. The read-only session inspector dialog is styled in
+   subagent-session-inspector.css.
    ========================================================================== */
+
+/* ── Compact transcript launcher card (real <button>) ─────────────── */
 
 .subagent-activity-card {
   position: relative;
+  width: 100%;
   border-radius: 10px;
   border: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
   background: var(--bg-surface-elevated, rgba(24, 24, 27, 0.6));
-  padding: 12px 14px;
+  padding: 12px 34px 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   overflow: hidden;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.subagent-activity-card:disabled {
+  cursor: default;
+}
+
+.subagent-activity-card:hover,
+.subagent-activity-card:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-2) 45%, transparent);
+  outline: none;
+}
+
+.subagent-activity-card:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 35%, transparent);
 }
 
 .subagent-activity-header {
@@ -465,41 +494,262 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .subagent-status-icon {
   width: 20px;
   height: 20px;
+  flex-shrink: 0;
 }
 
-.subagent-activity-progress {
-  position: relative;
-  width: 100%;
-  height: 2px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 2px;
+.subagent-activity-name {
+  font-weight: 650;
   overflow: hidden;
-  margin-top: 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.subagent-activity-progress-bar {
-  width: 40%;
-  height: 100%;
-  background: linear-gradient(90deg, #10b981, #3b82f6);
-  border-radius: 2px;
-  animation: subagent-progress-slide 1.8s ease-in-out infinite;
+.subagent-activity-state {
+  font-size: 11px;
+  font-weight: 650;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  flex-shrink: 0;
 }
 
-/* ==========================================================================
-   Turn Work Details Active Icon
-   ========================================================================== */
+.subagent-activity-state.state-failed,
+.subagent-activity-state.state-cancelled {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
 
-.turn-summary-active-icon {
-  width: 16px;
-  height: 16px;
-  margin-right: 6px;
-  display: inline-block;
-  vertical-align: middle;
+.subagent-activity-state.state-completed,
+.subagent-activity-state.state-merged {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+
+.subagent-activity-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.subagent-activity-task {
+  font-size: 12.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.subagent-activity-worktree {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.subagent-activity-worktree code {
+  font-size: 11px;
+}
+
+.subagent-activity-inspect-hint {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.subagent-activity-card:hover .subagent-activity-inspect-hint,
+.subagent-activity-card:focus-visible .subagent-activity-inspect-hint {
+  color: var(--accent-2);
+  transform: translateY(-50%) translateX(2px);
+}
+
+/* ── Working dock ──────────────────────────────────────────────────── */
+
+.subagent-working-dock {
+  margin: 10px 16px 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.subagent-working-dock-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.subagent-working-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  animation: subagent-working-pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.subagent-working-label {
+  flex: 1;
+  text-align: left;
+}
+
+.subagent-working-chevron {
+  color: var(--text-faint);
+  transition: transform 0.15s ease;
+}
+
+.subagent-working-dock[data-expanded='true'] .subagent-working-chevron {
+  transform: rotate(180deg);
+}
+
+.subagent-working-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 6px;
+  overflow: hidden;
+}
+
+.subagent-working-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.subagent-working-row:hover,
+.subagent-working-row:focus-visible {
+  background: var(--surface-hover, color-mix(in srgb, var(--accent) 8%, transparent));
+  outline: none;
+}
+
+.subagent-working-row-name {
+  font-weight: 650;
+  flex-shrink: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-working-row-task {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subagent-working-row-state {
+  font-size: 10px;
+  font-weight: 650;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  flex-shrink: 0;
+}
+
+.subagent-working-row-state.state-completed {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+
+.subagent-working-row-state.state-failed,
+.subagent-working-row-state.state-cancelled {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+@keyframes subagent-working-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* ── Activity ticker (animated carousel) ───────────────────────────── */
+
+.subagent-activity-ticker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.subagent-activity-ticker:hover,
+.subagent-activity-ticker:focus-visible {
+  background: var(--surface-hover, color-mix(in srgb, var(--accent) 8%, transparent));
+  outline: none;
+}
+
+.subagent-ticker-activity {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+}
+
+.subagent-ticker-phrase {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.subagent-ticker-name {
+  font-weight: 650;
+  flex-shrink: 0;
+}
+
+.subagent-ticker-detail {
+  color: var(--text-faint);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subagent-ticker-inspect-hint {
+  color: var(--text-faint);
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 /* Reduced Motion Fallbacks */
@@ -513,7 +763,7 @@
   .svg-core-breathe,
   .svg-shield-pulse,
   .svg-stop-pulse,
-  .subagent-activity-progress-bar {
+  .subagent-working-dot {
     animation: none !important;
   }
 }

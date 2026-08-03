@@ -1,7 +1,8 @@
 /**
  * Settings → Models page (BYOK list + drawer).
- * ProviderSettings now renders a searchable/filterable provider list, a status
- * pill and enable switch per row, and a drawer for connection + model editing.
+ * ProviderSettings renders a searchable/filterable provider list with expandable
+ * model management (discover / add / edit) per row, plus a connection-only
+ * drawer for credentials and API address.
  * This page only binds ProviderSettings to the settings context.
  */
 import type { ReactElement } from 'react';

@@ -1,7 +1,8 @@
 /**
  * Models / providers settings — BYOK list + drawer layout:
  *   - provider rows with search, filter, status pill, and enable switch
- *   - drawer for editing connection, testing, and managing models
+ *   - expanded row for model list / discover / add / edit
+ *   - drawer for connection credentials and API address only
  *   - provider add dialog with preset grid
  *
  * Manual save in the drawer; the enable switch in the list persists immediately.
@@ -124,35 +125,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     return { ...draft, apiKeyInput: '', storedApiKeyEnv: '', storedApiKeyRef: apiKeyRef };
   }
 
-  async function discoverWithDraft(provider: ModelProviderConfig): Promise<ModelDiscoveryResult> {
-    if (!drawer) return onDiscoverModels(provider);
-    let current = drawer.draft;
-    const oneShot = oneShotApiKeyFromDraft(current);
-    if (oneShot) {
-      current = await storeOneShotKeyIfNeeded(current);
-      markDraft(current);
-    }
-    return onDiscoverModels(draftToProvider(current), oneShot ? { apiKey: oneShot } : undefined);
-  }
-
-  async function testModelWithDraft(
-    provider: ModelProviderConfig,
-    modelId: string,
-  ): Promise<{ durationMs: number }> {
-    if (!drawer) return onTestModel(provider, modelId);
-    let current = drawer.draft;
-    const oneShot = oneShotApiKeyFromDraft(current);
-    if (oneShot) {
-      current = await storeOneShotKeyIfNeeded(current);
-      markDraft(current);
-    }
-    return onTestModel(
-      draftToProvider(current),
-      modelId,
-      oneShot ? { apiKey: oneShot } : undefined,
-    );
-  }
-
   async function testManagedKey(apiKey: string): Promise<{ ok: boolean; message: string }> {
     if (!drawer) return { ok: false, message: copy.detectFail };
     try {
@@ -272,11 +244,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     return false;
   }
 
-  async function handleSetDefaultModel(modelId: string): Promise<void> {
-    if (!drawer) return;
-    await handleSave({ keepOpen: true, default: { providerId: drawer.draft.id, modelId } });
-  }
-
   async function handleDeleteFromDrawer(): Promise<void> {
     if (!drawer) return;
     const confirmed = await confirmDialog.confirm({
@@ -364,12 +331,6 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     setDrawer({ draft: providerToDraft(provider), isNew: false });
   }
 
-  function handleModelsChange(models: ModelConfigEntry[]): void {
-    if (drawer) {
-      markDraft({ ...drawer.draft, models });
-    }
-  }
-
   async function handleUpdateProviderModelsFromList(
     providerId: string,
     models: ModelConfigEntry[],
@@ -430,6 +391,22 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     await onSave(next);
   }
 
+  async function handleDiscoverProviderModelsFromList(
+    provider: ModelProviderConfig,
+  ): Promise<ModelDiscoveryResult> {
+    try {
+      return await onDiscoverModels(provider);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      onError(
+        isChinese
+          ? `模型发现失败：${message}`
+          : `Model discovery failed: ${message}`,
+      );
+      throw error;
+    }
+  }
+
   return (
     <>
       {confirmDialog.dialog}
@@ -460,6 +437,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
         onSetDefaultModel={(providerId, modelId) =>
           void handleSetDefaultModelFromList(providerId, modelId)
         }
+        onDiscoverProviderModels={handleDiscoverProviderModelsFromList}
         modelTestStatus={listModelTestStatus}
         testingModelKey={listTestingModelKey}
         {...(searchCatalog ? { searchCatalog } : {})}
@@ -469,25 +447,19 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
         <ProviderDrawer
           draft={drawer.draft}
           isNew={drawer.isNew}
-          config={config}
           saving={saving}
           testingId={testingId}
           testStatus={testStatus}
           isChinese={isChinese}
           copy={copy}
           common={common}
-          searchCatalog={searchCatalog}
           onClose={() => setDrawer(null)}
           onSave={handleSave}
           onDelete={handleDeleteFromDrawer}
           onDraftChange={markDraft}
           onTestConnection={handleTestConnection}
-          onSetDefaultModel={handleSetDefaultModel}
-          onModelsChange={handleModelsChange}
           onOpenKeyManager={() => setKeyManagerOpen(true)}
           onLoadSecret={onLoadSecret}
-          discoverWithDraft={discoverWithDraft}
-          testModelWithDraft={testModelWithDraft}
         />
       )}
 

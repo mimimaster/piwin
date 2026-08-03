@@ -1,78 +1,229 @@
 /**
  * Settings → Web tools page.
- * Configures multi-source web_search + web_fetch. Draft state lives in
- * settings context so it survives nav switches; tab state is page-local.
+ * Multi-select search sources + web_fetch. Draft state lives in settings context.
  */
-import { useState, type ReactElement } from 'react';
-import type { WebSearchSourceKind } from '@piwin/contracts';
-import { Button, Notice, SegmentedControl, TextInput } from '@piwin/ui-kit';
+import { useEffect, useState, type ReactElement } from 'react';
+import { createDefaultWebConfig, type WebSearchSourceKind } from '@piwin/contracts';
+import { Button, Field, SegmentedControl, Switch, TextArea, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { useSettings } from '../settings-context';
 import { PageTitle } from '../page-title';
-import {
-  createDraftSearchSource,
-  type DraftSearchSource,
-} from '../web-draft';
+import { WebSecretEditor } from '../web-secret-editor';
+import { CLI_SEARCH_EXAMPLES, formatCliSearchExample } from '../cli-search-examples';
+import { createDraftSearchSource, draftToWeb, type DraftSearchSource } from '../web-draft';
 
 const SOURCE_KIND_OPTIONS: Array<{
-  id: WebSearchSourceKind;
+  id: Exclude<WebSearchSourceKind, 'searxng'>;
   title: string;
-  titleZh: string;
+  description: string;
+  descriptionZh: string;
 }> = [
-  { id: 'duckduckgo', title: 'DuckDuckGo', titleZh: 'DuckDuckGo' },
-  { id: 'brave', title: 'Brave', titleZh: 'Brave' },
-  { id: 'tavily', title: 'Tavily', titleZh: 'Tavily' },
-  { id: 'searxng', title: 'SearXNG', titleZh: 'SearXNG' },
-  { id: 'cli', title: 'Custom CLI', titleZh: '自定义 CLI' },
+  {
+    id: 'duckduckgo',
+    title: 'DuckDuckGo',
+    description: 'Free · no API key',
+    descriptionZh: '免费 · 无需 API Key',
+  },
+  {
+    id: 'brave',
+    title: 'Brave',
+    description: 'API key · stored securely in Keychain',
+    descriptionZh: '需要 API Key · 安全保存到钥匙串',
+  },
+  {
+    id: 'tavily',
+    title: 'Tavily',
+    description: 'API key · stored securely in Keychain',
+    descriptionZh: '需要 API Key · 安全保存到钥匙串',
+  },
+  {
+    id: 'cli',
+    title: 'Custom CLI',
+    description: 'Wrap SearXNG / self-hosted / any search API yourself',
+    descriptionZh: '自行封装 SearXNG / 自托管 / 任意搜索接口',
+  },
+];
+
+const FETCH_PROVIDER_OPTIONS = [
+  {
+    id: 'supermarkdown' as const,
+    title: 'Supermarkdown',
+    description: 'Local HTML→Markdown · Free default',
+    descriptionZh: '本地 HTML 转换 · 默认免费',
+  },
+  {
+    id: 'jina' as const,
+    title: 'Jina Reader',
+    description: 'r.jina.ai — handles JS-rendered pages',
+    descriptionZh: 'r.jina.ai — 适合 JS 渲染',
+  },
+  {
+    id: 'firecrawl' as const,
+    title: 'Firecrawl',
+    description: 'Scrape API — self-hostable',
+    descriptionZh: 'Scrape API — 可自托管',
+  },
 ];
 
 export function WebPage(): ReactElement {
   const { locale } = useDesktopLocale();
-  const { webDraft, setWebDraft, saveWeb, saving } = useSettings();
+  const {
+    webDraft,
+    setWebDraft,
+    saveWeb,
+    saving,
+    config,
+    request,
+    storeProviderSecret,
+    loadProviderSecret,
+    testWebSearchSource,
+  } = useSettings();
   const [webToolsTab, setWebToolsTab] = useState<'search' | 'fetch'>('search');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [expandedSourceIds, setExpandedSourceIds] = useState<Set<string>>(() => new Set());
   const zh = locale === 'zh-CN';
+  const isDirty = config
+    ? JSON.stringify(draftToWeb(webDraft)) !==
+      JSON.stringify(config.web ?? createDefaultWebConfig())
+    : false;
 
-  const updateSource = (sourceId: string, patch: Partial<DraftSearchSource>) => {
-    setWebDraft({
-      ...webDraft,
-      searchSources: webDraft.searchSources.map((source) =>
-        source.id === sourceId ? { ...source, ...patch } : source,
-      ),
+  useEffect(() => {
+    if (isDirty && saveStatus === 'saved') {
+      setSaveStatus('idle');
+    }
+  }, [isDirty, saveStatus]);
+
+  const isKindEnabled = (kind: WebSearchSourceKind): boolean =>
+    webDraft.searchSources.some((source) => source.kind === kind && source.enabled);
+
+  const findSource = (kind: WebSearchSourceKind): DraftSearchSource | undefined =>
+    webDraft.searchSources.find((source) => source.kind === kind);
+
+  const toggleExpanded = (sourceId: string): void => {
+    setExpandedSourceIds((current) => {
+      const next = new Set(current);
+      if (next.has(sourceId)) {
+        next.delete(sourceId);
+      } else {
+        next.add(sourceId);
+      }
+      return next;
     });
   };
 
-  const removeSource = (sourceId: string) => {
-    setWebDraft({
-      ...webDraft,
-      searchSources: webDraft.searchSources.filter((source) => source.id !== sourceId),
-    });
-  };
-
-  const addSource = (kind: WebSearchSourceKind) => {
+  const toggleKind = (kind: WebSearchSourceKind, enabled: boolean) => {
+    const existing = findSource(kind);
+    if (existing) {
+      setWebDraft({
+        ...webDraft,
+        searchSources: webDraft.searchSources.map((source) =>
+          source.kind === kind ? { ...source, enabled } : source,
+        ),
+      });
+      setExpandedSourceIds((current) => {
+        const next = new Set(current);
+        if (enabled) {
+          next.add(existing.id);
+        } else {
+          next.delete(existing.id);
+        }
+        return next;
+      });
+      return;
+    }
     const next = createDraftSearchSource(
       kind,
       webDraft.searchSources.map((source) => source.id),
     );
     setWebDraft({
       ...webDraft,
-      searchSources: [...webDraft.searchSources, next],
+      searchSources: [...webDraft.searchSources, { ...next, enabled: true }],
+    });
+    setExpandedSourceIds((current) => new Set(current).add(next.id));
+  };
+
+  const updateKind = (kind: WebSearchSourceKind, patch: Partial<DraftSearchSource>) => {
+    const existing = findSource(kind);
+    if (!existing) {
+      const created = createDraftSearchSource(
+        kind,
+        webDraft.searchSources.map((source) => source.id),
+      );
+      setWebDraft({
+        ...webDraft,
+        searchSources: [...webDraft.searchSources, { ...created, enabled: true, ...patch }],
+      });
+      return;
+    }
+    setWebDraft({
+      ...webDraft,
+      searchSources: webDraft.searchSources.map((source) =>
+        source.kind === kind ? { ...source, ...patch } : source,
+      ),
     });
   };
 
+  const saveSearchSecret = async (
+    kind: 'brave' | 'tavily',
+    apiKeyRef: string,
+    apiKeyEnv: string,
+  ): Promise<boolean> => {
+    const nextDraft = {
+      ...webDraft,
+      searchSources: webDraft.searchSources.map((source) =>
+        source.kind === kind ? { ...source, apiKeyRef, apiKeyEnv } : source,
+      ),
+    };
+    return saveWeb(nextDraft);
+  };
+
+  const saveFetchSecret = async (apiKeyRef: string, apiKeyEnv: string): Promise<boolean> => {
+    const nextDraft = { ...webDraft, fetchApiKeyRef: apiKeyRef, fetchApiKeyEnv: apiKeyEnv };
+    return saveWeb(nextDraft);
+  };
+
+  const saveAllWebSettings = async (): Promise<void> => {
+    setSaveStatus('saving');
+    const saved = await saveWeb();
+    setSaveStatus(saved ? 'saved' : 'error');
+  };
+
+  const testSearchConnection = async (
+    sourceId: string,
+    kind: 'brave' | 'tavily',
+  ): Promise<{ durationMs: number; resultCount: number }> => {
+    if (testWebSearchSource) {
+      return testWebSearchSource({ sourceId, kind });
+    }
+    const response = await request({
+      type: 'web/test-search-source',
+      webTest: { sourceId, kind },
+    });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    const result = response.data as { durationMs: number; resultCount: number };
+    return result;
+  };
+
   return (
-    <div className="settings-card" data-testid="settings-web-tools">
+    <div
+      className="settings-card"
+      data-testid="settings-web-tools"
+      data-dirty={isDirty ? 'true' : 'false'}
+    >
       <div className="settings-section settings-section-card">
         <PageTitle
           title={zh ? 'Web 工具配置' : 'Web Tools'}
           description={
             zh
-              ? '配置多源 web_search（host 并行合并）与 web_fetch。模型仍只看到一个搜索工具。'
-              : 'Configure multi-source web_search (host merges hits) and web_fetch. The model still sees one search tool.'
+              ? '配置 web_search 搜索源与 web_fetch 抓取引擎。'
+              : 'Configure web_search sources and web_fetch providers.'
           }
         />
 
-        <div className="settings-segmented-wrap" style={{ marginBottom: 24 }}>
+        <div className="settings-segmented-wrap" style={{ marginBottom: 28 }}>
           <SegmentedControl
             value={webToolsTab}
             onChange={(value) => setWebToolsTab(value as 'search' | 'fetch')}
@@ -86,346 +237,251 @@ export function WebPage(): ReactElement {
 
         {webToolsTab === 'search' ? (
           <div className="web-tools-panel" data-testid="web-tools-search-panel">
-            <div style={{ marginBottom: 20 }} data-testid="web-search-aggregate-tips">
-              <Notice
-                tone="info"
-                title={zh ? '多源聚合是做什么的？' : 'What does multi-source aggregation do?'}
-              >
-                {zh ? (
-                  <>
-                    <p style={{ margin: '0 0 8px' }}>
-                      模型每次只调用一个 <code>web_search</code>。Host 会按你启用的源去查，
-                      把结果按 URL 去重后合并成一份列表再返回——模型不感知有几家源。
-                    </p>
-                    <p style={{ margin: '0 0 8px' }}>
-                      <strong>parallel（并行）</strong>
-                      ：所有<strong>已启用</strong>的源会同时请求。覆盖面更大，但
-                      <strong>会同时消耗每一家渠道的搜索额度 / 速率限制</strong>
-                      （以及 CLI 源的一次调用）。免费额度紧时慎开多家。
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      <strong>ordered-fallback（顺序回退）</strong>
-                      ：按列表从上到下依次尝试，凑够结果上限就停。更省额度，适合设一个主源、其余当备份。
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p style={{ margin: '0 0 8px' }}>
-                      The model still calls a single <code>web_search</code>. The host queries
-                      every enabled source and returns one URL-deduped hit list—the model does
-                      not see which vendors ran.
-                    </p>
-                    <p style={{ margin: '0 0 8px' }}>
-                      <strong>parallel</strong>: all <strong>enabled</strong> sources run at once
-                      for broader coverage, but each call{' '}
-                      <strong>consumes quota / rate limits on every channel</strong> (and one
-                      invocation of any CLI source). Be careful with free tiers when many
-                      sources are enabled.
-                    </p>
-                    <p style={{ margin: 0 }}>
-                      <strong>ordered-fallback</strong>: tries sources top-to-bottom and stops
-                      once enough hits are collected. Cheaper on quota—put a primary source
-                      first and keep others as backups.
-                    </p>
-                  </>
-                )}
-              </Notice>
-            </div>
-
-            <FieldRow
-              label={zh ? '合并策略' : 'Merge strategy'}
-              description={
-                zh
-                  ? 'parallel：全部启用源并发后按 URL 去重合并（同时扣多家额度）。ordered-fallback：按列表顺序试到够结果为止（更省额度）。'
-                  : 'parallel: query all enabled sources then dedupe by URL (uses quota on each). ordered-fallback: try sources in order until enough hits (cheaper).'
-              }
-            >
-              <SegmentedControl
-                value={webDraft.searchStrategyMode}
-                onChange={(value) =>
-                  setWebDraft({
-                    ...webDraft,
-                    searchStrategyMode: value as 'parallel' | 'ordered-fallback',
-                  })
-                }
-                data={[
-                  { value: 'parallel', label: 'parallel' },
-                  { value: 'ordered-fallback', label: 'fallback' },
-                ]}
-                testId="web-search-strategy"
-              />
-            </FieldRow>
-
-            <div className="ext-list" style={{ marginBottom: 16 }} data-testid="web-search-sources">
-              {webDraft.searchSources.length === 0 ? (
-                <div className="muted" style={{ padding: '12px 0' }}>
-                  {zh
-                    ? '未配置搜索源。添加至少一个源，或保持为空以禁用 web_search。'
-                    : 'No search sources. Add at least one source, or leave empty to disable web_search.'}
-                </div>
-              ) : null}
-              {webDraft.searchSources.map((source) => (
-                <div
-                  key={source.id}
-                  className={source.enabled ? 'ext-list-item active' : 'ext-list-item'}
-                  style={{ flexDirection: 'column', alignItems: 'stretch', gap: 10 }}
-                >
+            <div className="web-source-list" data-testid="web-search-sources">
+              {SOURCE_KIND_OPTIONS.map((option) => {
+                const selected = isKindEnabled(option.id);
+                const source = findSource(option.id);
+                return (
                   <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      alignItems: 'center',
-                    }}
+                    key={option.id}
+                    className={selected ? 'web-source-card is-selected' : 'web-source-card'}
+                    data-testid={`web-search-source-card-${option.id}`}
                   >
-                    <div className="ext-list-main">
-                      <div className="ext-list-title">
-                        <strong>
-                          {source.label.trim() || source.id}
-                        </strong>
-                        <span className="muted" style={{ marginLeft: 8 }}>
-                          {source.kind}
+                    <div className="web-source-card-header-row">
+                      <button
+                        type="button"
+                        className="web-source-card-header"
+                        onClick={() => toggleExpanded(source?.id ?? option.id)}
+                        aria-expanded={Boolean(source && expandedSourceIds.has(source.id))}
+                        data-testid={`web-search-source-${option.id}`}
+                      >
+                        <div className="web-source-card-main">
+                          <div className="web-source-card-title">{option.title}</div>
+                          <div className="web-source-card-desc muted">
+                            {zh ? option.descriptionZh : option.description}
+                          </div>
+                        </div>
+                        <span
+                          className={
+                            source && expandedSourceIds.has(source.id)
+                              ? 'web-source-card-chevron is-expanded'
+                              : 'web-source-card-chevron'
+                          }
+                          aria-hidden
+                        >
+                          ›
                         </span>
+                      </button>
+                      <Switch
+                        checked={selected}
+                        onCheckedChange={(enabled) => toggleKind(option.id, enabled)}
+                        aria-label={
+                          zh
+                            ? `${option.title}${selected ? '已启用' : '已停用'}`
+                            : `${option.title} ${selected ? 'enabled' : 'disabled'}`
+                        }
+                        testId={`web-search-source-toggle-${option.id}`}
+                      />
+                    </div>
+
+                    {selected &&
+                    source &&
+                    expandedSourceIds.has(source.id) &&
+                    (option.id === 'brave' || option.id === 'tavily') ? (
+                      <div
+                        className="web-source-card-body"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
+                      >
+                        <WebSecretEditor
+                          secretId={`web-${source?.id ?? option.id}`}
+                          apiKeyRef={source?.apiKeyRef ?? ''}
+                          apiKeyEnv={source?.apiKeyEnv ?? ''}
+                          defaultApiKeyEnv={
+                            option.id === 'tavily' ? 'TAVILY_API_KEY' : 'BRAVE_API_KEY'
+                          }
+                          disabled={saving}
+                          zh={zh}
+                          loadSecret={loadProviderSecret}
+                          storeSecret={storeProviderSecret}
+                          testConnection={() =>
+                            testSearchConnection(source.id, option.id as 'brave' | 'tavily')
+                          }
+                          onSaved={(apiKeyRef, apiKeyEnv) =>
+                            saveSearchSecret(option.id as 'brave' | 'tavily', apiKeyRef, apiKeyEnv)
+                          }
+                          testId={`web-search-${option.id}-api-key`}
+                        />
                       </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <label className="muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <input
-                          type="checkbox"
-                          checked={source.enabled}
-                          onChange={(event) =>
-                            updateSource(source.id, { enabled: event.currentTarget.checked })
-                          }
-                        />
-                        {zh ? '启用' : 'Enabled'}
-                      </label>
-                      <Button
-                        variant="ghost"
-                        onClick={() => removeSource(source.id)}
+                    ) : null}
+
+                    {selected &&
+                    source &&
+                    expandedSourceIds.has(source.id) &&
+                    option.id === 'cli' ? (
+                      <div
+                        className="web-source-card-body"
+                        onClick={(event) => event.stopPropagation()}
+                        onKeyDown={(event) => event.stopPropagation()}
                       >
-                        {zh ? '移除' : 'Remove'}
-                      </Button>
-                    </div>
+                        <Field
+                          label={zh ? '可执行文件' : 'Executable'}
+                          description={
+                            zh
+                              ? '无 shell：填写 PATH 上的命令名，或绝对路径。'
+                              : 'No shell: binary name on PATH, or an absolute path.'
+                          }
+                          className="web-source-field"
+                        >
+                          <TextInput
+                            value={source?.command ?? ''}
+                            onChange={(event) =>
+                              updateKind('cli', { command: event.currentTarget.value })
+                            }
+                            placeholder={
+                              zh
+                                ? '例如 anysearch、smart-search 或 /usr/local/bin/my-search'
+                                : 'e.g. anysearch, smart-search, or /usr/local/bin/my-search'
+                            }
+                            spellCheck={false}
+                            testId="web-search-cli-command"
+                          />
+                        </Field>
+
+                        <TextArea
+                          label={zh ? '参数（每行一个）' : 'Arguments (one per line)'}
+                          description={
+                            zh
+                              ? '每行一个 argv；可用 {{query}} 插入查询词。stdout 需输出 JSON hits。密钥/URL 写在你的脚本或环境变量里。'
+                              : 'One argv token per line. Use {{query}} for the search text. stdout must print JSON hits. Keys/URLs live in your script or env.'
+                          }
+                          value={source?.args ?? ''}
+                          onChange={(value) => updateKind('cli', { args: value })}
+                          placeholder={'search\n{{query}}'}
+                          rows={3}
+                          className="web-source-field"
+                          testId="web-search-cli-args"
+                          nativeProps={{ spellCheck: false }}
+                        />
+
+                        <CliSearchExamples zh={zh} />
+
+                        <CliCommandPreview
+                          command={source?.command ?? ''}
+                          argsText={source?.args ?? ''}
+                          zh={zh}
+                        />
+                      </div>
+                    ) : null}
                   </div>
-
-                  {(source.kind === 'brave' || source.kind === 'tavily') && (
-                    <FieldRow
-                      label={zh ? 'API Key 环境变量' : 'API Key Env Var'}
-                      description={
-                        zh
-                          ? '仅环境变量名；密钥不写进配置。'
-                          : 'Env var name only; key not written to config.'
-                      }
-                    >
-                      <TextInput
-                        value={source.apiKeyEnv}
-                        onChange={(event) =>
-                          updateSource(source.id, {
-                            apiKeyEnv: event.currentTarget.value,
-                          })
-                        }
-                        placeholder={
-                          source.kind === 'tavily' ? 'TAVILY_API_KEY' : 'BRAVE_API_KEY'
-                        }
-                        spellCheck={false}
-                        style={{ minWidth: 180 }}
-                      />
-                    </FieldRow>
-                  )}
-
-                  {source.kind === 'searxng' && (
-                    <FieldRow
-                      label={zh ? 'SearXNG Base URL' : 'SearXNG Base URL'}
-                      description={
-                        zh
-                          ? '实例根地址，tools-web 会请求 /search?format=json'
-                          : 'Instance root; tools-web calls /search?format=json'
-                      }
-                    >
-                      <TextInput
-                        value={source.baseUrl}
-                        onChange={(event) =>
-                          updateSource(source.id, { baseUrl: event.currentTarget.value })
-                        }
-                        placeholder="https://searx.example.com"
-                        spellCheck={false}
-                        style={{ minWidth: 240 }}
-                      />
-                    </FieldRow>
-                  )}
-
-                  {source.kind === 'cli' && (
-                    <>
-                      <FieldRow
-                        label={zh ? '命令' : 'Command'}
-                        description={
-                          zh
-                            ? '可执行文件（无 shell）。stdout 须为 JSON hits。'
-                            : 'Executable (no shell). stdout must be JSON hits.'
-                        }
-                      >
-                        <TextInput
-                          value={source.command}
-                          onChange={(event) =>
-                            updateSource(source.id, {
-                              command: event.currentTarget.value,
-                            })
-                          }
-                          placeholder="my-search"
-                          spellCheck={false}
-                          style={{ minWidth: 180 }}
-                        />
-                      </FieldRow>
-                      <FieldRow
-                        label={zh ? '参数模板' : 'Args template'}
-                        description={
-                          zh
-                            ? '空格分隔；用 {{query}} 表示查询词。'
-                            : 'Space-separated; use {{query}} for the query token.'
-                        }
-                      >
-                        <TextInput
-                          value={source.args}
-                          onChange={(event) =>
-                            updateSource(source.id, { args: event.currentTarget.value })
-                          }
-                          placeholder="search {{query}}"
-                          spellCheck={false}
-                          style={{ minWidth: 240 }}
-                        />
-                      </FieldRow>
-                    </>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
-              {SOURCE_KIND_OPTIONS.map((option) => (
-                <Button
-                  key={option.id}
-                  variant="secondary"
-                  onClick={() => addSource(option.id)}
-                >
-                  {zh ? `+ ${option.titleZh}` : `+ ${option.title}`}
-                </Button>
-              ))}
-            </div>
+            <details className="web-search-advanced" data-testid="web-search-advanced">
+              <summary>{zh ? '高级搜索设置' : 'Advanced search settings'}</summary>
+              <div className="web-tools-options">
+                <p className="web-search-aggregate-hint muted">
+                  {zh
+                    ? '同时启用多个搜索源时，它们会被并行调用，结果合并、去重后一起返回。'
+                    : 'When multiple sources are enabled, they are queried in parallel and results are merged, deduplicated, and returned together.'}
+                </p>
 
-            <FieldRow label={zh ? '搜索结果上限' : 'Maximum results'}>
-              <TextInput
-                value={webDraft.searchMaxResults}
-                onChange={(event) =>
-                  setWebDraft({ ...webDraft, searchMaxResults: event.currentTarget.value })
-                }
-                inputMode="numeric"
-                style={{ width: 88 }}
-              />
-            </FieldRow>
+                <FieldRow label={zh ? '结果上限' : 'Max results'}>
+                  <TextInput
+                    value={webDraft.searchMaxResults}
+                    onChange={(event) =>
+                      setWebDraft({ ...webDraft, searchMaxResults: event.currentTarget.value })
+                    }
+                    inputMode="numeric"
+                    style={{ width: 96 }}
+                    testId="web-search-max-results"
+                  />
+                </FieldRow>
 
-            <FieldRow
-              label={zh ? '整次搜索超时 (ms)' : 'Overall search timeout (ms)'}
-              description={
-                zh
-                  ? '一次 web_search 的最大等待时间。'
-                  : 'Hard timeout for a single web_search call.'
-              }
-            >
-              <TextInput
-                value={webDraft.searchTimeoutMs}
-                onChange={(event) =>
-                  setWebDraft({ ...webDraft, searchTimeoutMs: event.currentTarget.value })
-                }
-                inputMode="numeric"
-                style={{ width: 110 }}
-              />
-            </FieldRow>
+                <FieldRow label={zh ? '整次超时 (ms)' : 'Overall timeout (ms)'}>
+                  <TextInput
+                    value={webDraft.searchTimeoutMs}
+                    onChange={(event) =>
+                      setWebDraft({ ...webDraft, searchTimeoutMs: event.currentTarget.value })
+                    }
+                    inputMode="numeric"
+                    style={{ width: 120 }}
+                    testId="web-search-timeout-ms"
+                  />
+                </FieldRow>
 
-            <FieldRow
-              label={zh ? '单源超时 (ms)' : 'Per-source timeout (ms)'}
-              description={
-                zh
-                  ? '单个源超时后跳过，不拖死整次搜索。'
-                  : 'Timeout for each source; failures are skipped in parallel mode.'
-              }
-            >
-              <TextInput
-                value={webDraft.perSourceTimeoutMs}
-                onChange={(event) =>
-                  setWebDraft({
-                    ...webDraft,
-                    perSourceTimeoutMs: event.currentTarget.value,
-                  })
-                }
-                inputMode="numeric"
-                style={{ width: 110 }}
-              />
-            </FieldRow>
+                <FieldRow label={zh ? '单源超时 (ms)' : 'Per-source timeout (ms)'}>
+                  <TextInput
+                    value={webDraft.perSourceTimeoutMs}
+                    onChange={(event) =>
+                      setWebDraft({
+                        ...webDraft,
+                        perSourceTimeoutMs: event.currentTarget.value,
+                      })
+                    }
+                    inputMode="numeric"
+                    style={{ width: 120 }}
+                    testId="web-search-per-source-timeout-ms"
+                  />
+                </FieldRow>
+              </div>
+            </details>
+
+            <p className="muted web-tools-tip" data-testid="web-search-quota-tip">
+              {zh
+                ? '提示：并行聚合会同时请求所有已选源，各自消耗搜索额度。自托管或需额外 Key 的服务，请用 Custom CLI 封装。'
+                : 'Tip: parallel aggregation queries every selected source at once and uses each source’s quota. For self-hosted or key-gated services, wrap them with Custom CLI.'}
+            </p>
           </div>
         ) : (
           <div className="web-tools-panel" data-testid="web-tools-fetch-panel">
-            <div className="ext-list" style={{ marginBottom: 24 }}>
-              {(
-                [
-                  {
-                    id: 'supermarkdown' as const,
-                    title: 'Supermarkdown',
-                    description: zh
-                      ? '本地 HTML 转换 · 默认免费'
-                      : 'Local HTML→Markdown · Free default',
-                  },
-                  {
-                    id: 'jina' as const,
-                    title: 'Jina Reader',
-                    description: zh
-                      ? 'r.jina.ai — 适合 JS 渲染'
-                      : 'r.jina.ai — handles JS-rendered pages',
-                  },
-                  {
-                    id: 'firecrawl' as const,
-                    title: 'Firecrawl',
-                    description: zh
-                      ? 'Scrape API — 可自托管'
-                      : 'Scrape API — self-hostable',
-                  },
-                ] as const
-              ).map((option) => (
-                <div
-                  key={option.id}
-                  className={
-                    webDraft.fetchProvider === option.id
-                      ? 'ext-list-item active'
-                      : 'ext-list-item'
-                  }
-                  onClick={() =>
-                    setWebDraft({
-                      ...webDraft,
-                      fetchProvider: option.id,
-                      fetchApiKeyEnv:
-                        option.id === 'firecrawl'
-                          ? webDraft.fetchApiKeyEnv || 'FIRECRAWL_API_KEY'
-                          : option.id === 'jina'
-                            ? webDraft.fetchApiKeyEnv || 'JINA_API_KEY'
-                            : webDraft.fetchApiKeyEnv,
-                    })
-                  }
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="ext-list-main">
-                    <div className="ext-list-title">
-                      <strong>{option.title}</strong>
-                    </div>
-                    <div className="muted ext-desc">{option.description}</div>
+            <div className="web-source-list" style={{ marginBottom: 8 }}>
+              {FETCH_PROVIDER_OPTIONS.map((option) => {
+                const selected = webDraft.fetchProvider === option.id;
+                return (
+                  <div
+                    key={option.id}
+                    className={selected ? 'web-source-card is-selected' : 'web-source-card'}
+                  >
+                    <button
+                      type="button"
+                      className="web-source-card-header"
+                      onClick={() =>
+                        setWebDraft({
+                          ...webDraft,
+                          fetchProvider: option.id,
+                          fetchApiKeyEnv:
+                            option.id === 'firecrawl'
+                              ? webDraft.fetchApiKeyEnv || 'FIRECRAWL_API_KEY'
+                              : option.id === 'jina'
+                                ? webDraft.fetchApiKeyEnv || 'JINA_API_KEY'
+                                : webDraft.fetchApiKeyEnv,
+                          fetchApiKeyRef:
+                            option.id === webDraft.fetchProvider ? webDraft.fetchApiKeyRef : '',
+                        })
+                      }
+                      aria-pressed={selected}
+                      data-testid={`web-fetch-provider-${option.id}`}
+                    >
+                      <div className="web-source-card-main">
+                        <div className="web-source-card-title">{option.title}</div>
+                        <div className="web-source-card-desc muted">
+                          {zh ? option.descriptionZh : option.description}
+                        </div>
+                      </div>
+                      <span
+                        className={
+                          selected ? 'web-source-card-check is-on' : 'web-source-card-check'
+                        }
+                        aria-hidden
+                      >
+                        {selected ? '✓' : ''}
+                      </span>
+                    </button>
                   </div>
-                  {webDraft.fetchProvider === option.id ? (
-                    <span className="ext-list-check" aria-hidden>
-                      ✓
-                    </span>
-                  ) : (
-                    <span className="ext-list-check ext-list-check--empty" aria-hidden />
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div
@@ -435,53 +491,120 @@ export function WebPage(): ReactElement {
                   : 'web-tools-conditional'
               }
             >
-              <FieldRow
-                label={zh ? 'API Key 环境变量' : 'API Key Env Var'}
-                description={
-                  zh
-                    ? '仅环境变量名；密钥不写进配置。'
-                    : 'Env var name only; key not written to config.'
-                }
-              >
-                <TextInput
-                  value={webDraft.fetchApiKeyEnv}
-                  onChange={(event) =>
-                    setWebDraft({ ...webDraft, fetchApiKeyEnv: event.currentTarget.value })
+              <div className="web-tools-options">
+                <WebSecretEditor
+                  secretId={`web-fetch-${webDraft.fetchProvider}`}
+                  apiKeyRef={webDraft.fetchApiKeyRef}
+                  apiKeyEnv={webDraft.fetchApiKeyEnv}
+                  defaultApiKeyEnv={
+                    webDraft.fetchProvider === 'firecrawl' ? 'FIRECRAWL_API_KEY' : 'JINA_API_KEY'
                   }
-                  placeholder={
-                    webDraft.fetchProvider === 'firecrawl'
-                      ? 'FIRECRAWL_API_KEY'
-                      : 'JINA_API_KEY'
-                  }
-                  spellCheck={false}
-                  style={{ minWidth: 180 }}
+                  disabled={saving}
+                  zh={zh}
+                  loadSecret={loadProviderSecret}
+                  storeSecret={storeProviderSecret}
+                  onSaved={saveFetchSecret}
+                  testId="web-fetch-api-key"
                 />
-              </FieldRow>
+              </div>
             </div>
           </div>
         )}
 
-        <div
-          className="web-tools-actions"
-          style={{
-            marginTop: 32,
-            paddingTop: 24,
-            borderTop: '1px solid var(--line-soft)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-          }}
-        >
-          <Button variant="primary" disabled={saving} onClick={() => void saveWeb()}>
-            {saving
-              ? zh
-                ? '保存中...'
-                : 'Saving...'
-              : zh
-                ? '保存 Web 配置'
-                : 'Save Web Config'}
+        <div className="web-tools-actions">
+          <div className="web-tools-save-meta">
+            <div
+              className={`web-tools-save-status is-${saveStatus}`}
+              role="status"
+              aria-live="polite"
+            >
+              {saveStatus === 'saving'
+                ? zh
+                  ? '正在保存...'
+                  : 'Saving...'
+                : saveStatus === 'saved'
+                  ? zh
+                    ? '✓ 配置已保存'
+                    : '✓ Settings saved'
+                  : saveStatus === 'error'
+                    ? zh
+                      ? '保存失败，请查看上方错误'
+                      : 'Save failed; see the error above'
+                    : isDirty
+                      ? zh
+                        ? '● 有未保存更改'
+                        : '● Unsaved changes'
+                      : ''}
+            </div>
+            <div className="web-tools-effective-scope">
+              {zh ? '保存后对新会话生效' : 'Changes apply to new sessions'}
+            </div>
+          </div>
+          <Button variant="primary" disabled={saving} onClick={() => void saveAllWebSettings()}>
+            {saving ? (zh ? '保存中...' : 'Saving...') : zh ? '保存 Web 配置' : 'Save Web Config'}
           </Button>
         </div>
       </div>
     </div>
   );
+}
+
+function CliCommandPreview(props: {
+  command: string;
+  argsText: string;
+  zh: boolean;
+}): ReactElement | null {
+  const executable = props.command.trim();
+  if (!executable) {
+    return null;
+  }
+  const args = props.argsText
+    .split(/\r?\n/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const previewParts = [executable, ...args.map((arg) => shellQuotePreview(arg))];
+  return (
+    <div className="web-cli-preview" data-testid="web-search-cli-preview">
+      <div className="web-cli-preview-label">{props.zh ? '将执行' : 'Will run'}</div>
+      <code className="web-cli-preview-code">{previewParts.join(' ')}</code>
+    </div>
+  );
+}
+
+function CliSearchExamples(props: { zh: boolean }): ReactElement {
+  return (
+    <details className="web-cli-examples" data-testid="web-search-cli-examples">
+      <summary>{props.zh ? '常用配置示例' : 'Common configuration examples'}</summary>
+      <div className="web-cli-examples-list">
+        <p className="web-cli-examples-intro">
+          {props.zh
+          ? '下面只是配置参考，不会自动安装服务。AnySearch 有官方 CLI 形态，其他示例需要你自己准备 wrapper。'
+            : 'These are configuration references, not automatic integrations. AnySearch has a documented CLI shape; prepare the other wrappers yourself.'}
+        </p>
+        {CLI_SEARCH_EXAMPLES.map((example) => (
+          <div className="web-cli-example" key={example.id}>
+            <div className="web-cli-example-title">
+              {props.zh ? example.labelZh : example.label}
+            </div>
+            <div className="web-cli-example-description">
+              {props.zh ? example.descriptionZh : example.description}
+            </div>
+            <code className="web-cli-example-command">{formatCliSearchExample(example)}</code>
+            <div className="web-cli-example-note">{props.zh ? example.noteZh : example.note}</div>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+/** Light quoting for preview only — runtime still uses argv array (no shell). */
+function shellQuotePreview(value: string): string {
+  if (value.length === 0) {
+    return "''";
+  }
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value) || value.includes('{{query}}')) {
+    return value;
+  }
+  return `'${value.replaceAll("'", `'"'"'`)}'`;
 }

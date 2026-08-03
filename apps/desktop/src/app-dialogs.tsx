@@ -1,5 +1,5 @@
 /**
- * Modal stack for workspace trust, extension UI, rename, session menu.
+ * Modal stack for workspace trust, rename, session menu.
  * Permission prompts are now rendered inline by GateCard in the chat thread
  * (Task 12); the modal branch has been removed.
  */
@@ -8,7 +8,6 @@ import type { PermissionDecision, PermissionRememberScope } from '@piwin/contrac
 import { Button, Dialog } from '@piwin/ui-kit';
 import { Field } from '@piwin/ui-kit';
 import type { ChatUiState } from './chat-reducer';
-import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import { SessionRowMenu, type SessionRowMenuAction } from './session-row-menu';
 
 export type AppDialogsProps = {
@@ -21,14 +20,6 @@ export type AppDialogsProps = {
   projectPath: string | null;
   trustDialogOpen: boolean;
   onTrustProject: (trust: boolean) => void;
-  extensionUiRequest: ExtensionUiRequestState | null;
-  extensionUiInput: string;
-  onExtensionUiInputChange: (value: string) => void;
-  onExtensionUiResolve: (payload: {
-    confirmed?: boolean;
-    value?: string;
-    cancelled?: boolean;
-  }) => void;
   sessionMenu: { sessionId: string; x: number; y: number } | null;
   onCloseSessionMenu: () => void;
   sessions: ChatUiState['sessions'];
@@ -121,82 +112,6 @@ export function AppDialogs(props: AppDialogsProps): ReactElement {
               Trust project
             </Button>
           </div>
-        </Dialog>
-      ) : null}
-
-      {props.extensionUiRequest ? (
-        <Dialog
-          label={props.extensionUiRequest.title}
-          open
-          testId="extension-ui-dialog"
-          onOpenChange={(open) => {
-            if (!open) {
-              props.onExtensionUiResolve({ cancelled: true, confirmed: false });
-            }
-          }}
-        >
-          <h3>{props.extensionUiRequest.title}</h3>
-          {props.extensionUiRequest.message ? (
-            <pre className="permission-detail">{props.extensionUiRequest.message}</pre>
-          ) : null}
-          <p className="muted">Extension UI ({props.extensionUiRequest.kind})</p>
-          {props.extensionUiRequest.kind === 'input' ? (
-            <Field label="Response">
-              <input
-                data-testid="extension-ui-input"
-                value={props.extensionUiInput}
-                placeholder={props.extensionUiRequest.placeholder ?? ''}
-                onChange={(event) => props.onExtensionUiInputChange(event.target.value)}
-              />
-            </Field>
-          ) : null}
-          {props.extensionUiRequest.kind === 'select' ? (
-            <div className="modal-actions" style={{ flexWrap: 'wrap' }}>
-              {(props.extensionUiRequest.options ?? []).map((option) => (
-                <Button
-                  key={option}
-                  data-testid="extension-ui-option"
-                  onClick={() => props.onExtensionUiResolve({ value: option })}
-                >
-                  {option}
-                </Button>
-              ))}
-              <Button onClick={() => props.onExtensionUiResolve({ cancelled: true })}>
-                Cancel
-              </Button>
-            </div>
-          ) : null}
-          {props.extensionUiRequest.kind === 'confirm' ? (
-            <div className="modal-actions">
-              <Button
-                data-testid="extension-ui-deny"
-                onClick={() => props.onExtensionUiResolve({ confirmed: false })}
-              >
-                Deny
-              </Button>
-              <Button
-                variant="primary"
-                data-testid="extension-ui-allow"
-                onClick={() => props.onExtensionUiResolve({ confirmed: true })}
-              >
-                Allow
-              </Button>
-            </div>
-          ) : null}
-          {props.extensionUiRequest.kind === 'input' ? (
-            <div className="modal-actions">
-              <Button onClick={() => props.onExtensionUiResolve({ cancelled: true })}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                data-testid="extension-ui-submit"
-                onClick={() => props.onExtensionUiResolve({ value: props.extensionUiInput })}
-              >
-                Submit
-              </Button>
-            </div>
-          ) : null}
         </Dialog>
       ) : null}
 

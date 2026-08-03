@@ -136,11 +136,8 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: transparent;
-}
-
-html[data-theme-mode='light'] .workspace {
-  background: transparent;
+  /* Conversation stage: deepest (dark) / white (light) surface. */
+  background: var(--canvas, var(--bg));
 }
 
 .chat-column {
@@ -151,17 +148,30 @@ html[data-theme-mode='light'] .workspace {
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  /* Transparent so the workspace Daybreak glow shows through the stage. */
-  background: transparent;
+  background: var(--canvas, var(--bg));
   /* Panel open/close changes stage width; avoid width transitions on chrome. */
   transition: none;
 }
 
-/* Empty stage packs from the top; hero + composer own the vertical rhythm
-   (see region-transcript.css / region-composer.css). */
+/* Groups transcript + composer. Stays full stage width so the transcript
+   scrollbar sits on the stage edge; content measure is on the children. */
+.chat-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* A new session is composer-first: no landing page, just the prompt card. */
 .chat-column-empty {
   padding: 0;
   overflow: hidden;
+}
+
+.chat-column-empty .chat-stage {
+  justify-content: center;
 }
 
 /* ── App-level error boundary ─────────────────────────────────────── */

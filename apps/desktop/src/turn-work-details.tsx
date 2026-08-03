@@ -1,6 +1,6 @@
 /**
- * Per-turn work record: thinking (collapsible, brain icon only) + tools (always
- * visible as Command-style cards, never sharing the thinking icon).
+ * Per-turn call chain (visual): Thought row + tool timeline.
+ * Explore batches and light tool rows help users scan what the agent did.
  */
 import { useEffect, useState, type ReactElement } from 'react';
 import type { WorkDetailsExpanded } from './ui-preferences';
@@ -97,6 +97,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
   const toolGroupProps = {
     tools,
     ...(props.toolDensity ? { density: props.toolDensity } : { density: 'compact' as const }),
+    locale,
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
   };
@@ -112,7 +113,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
       data-run-id={presentation.runId ?? undefined}
       data-open={hasThinking && thinkingOpen ? 'true' : 'false'}
     >
-      {/* Thinking: brain icon only here — never on tool/bash rows. */}
+      {/* Thought row — muted timeline line; expand for full reasoning text. */}
       {hasThinking && thinkingItem && thinkingItem.kind === 'thinking' ? (
         <>
           <button
@@ -175,7 +176,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         </div>
       ) : null}
 
-      {/* Tools always sit outside the thinking collapse (Command-style cards). */}
+      {/* Tool timeline: Explore groups + individual Read/Ran/Edit rows. */}
       {tools.length > 0 ? <TurnToolGroup {...toolGroupProps} /> : null}
 
       {presentation.terminalMessage ? (

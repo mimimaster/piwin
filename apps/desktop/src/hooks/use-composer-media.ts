@@ -19,7 +19,11 @@ import type {
 import { toMediaAttachmentRef } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
-import { fileToBase64, isAllowedImageFile, type PendingComposerAttachment } from '../media-utils';
+import {
+  fileToBase64,
+  resolveImageMimeType,
+  type PendingComposerAttachment,
+} from '../media-utils.js';
 import { applyAgentModeToPrompt, type AgentModeId } from '../agent-mode';
 import {
   applySkillToPrompt,
@@ -162,7 +166,16 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       if (!sessionId) {
         return;
       }
-      if (!isAllowedImageFile(file)) {
+      // Read a small header so empty clipboard MIME still resolves (macOS paste).
+      let headerBytes: Uint8Array | undefined;
+      try {
+        const headerBuffer = await file.slice(0, 16).arrayBuffer();
+        headerBytes = new Uint8Array(headerBuffer);
+      } catch {
+        headerBytes = undefined;
+      }
+      const mimeType = resolveImageMimeType(file, headerBytes);
+      if (!mimeType) {
         args.dispatch({
           type: 'error',
           message: `Unsupported image type: ${file.type || file.name}`,
@@ -175,7 +188,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           type: 'media/save',
           input: {
             sessionId,
-            mimeType: file.type || 'image/png',
+            mimeType,
             source,
             base64Data,
           },
@@ -207,7 +220,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       }
       const imageFiles: File[] = [];
       for (const item of items) {
-        if (item.kind === 'file' && item.type.startsWith('image/')) {
+        // Some pastes expose image/*; others only give a file with empty type.
+        if (item.kind === 'file' && (item.type.startsWith('image/') || item.type === '')) {
           const file = item.getAsFile();
           if (file) {
             imageFiles.push(file);
@@ -260,7 +274,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       }
 
       const files = [...(event.dataTransfer?.files ?? [])].filter((file) =>
-        file.type.startsWith('image/'),
+        resolveImageMimeType(file) !== null || file.type.startsWith('image/'),
       );
       for (const file of files) {
         await saveImageFile(file, 'drop');
@@ -348,7 +362,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         const supportsImage = selected?.supportsImage === true;
         if (!supportsImage && !args.visionDelegationEnabled) {
           const message =
-            'Current model is text-only. Images will be path-injected (not native vision). Continue?';
+            '当前模型是纯文本（无视觉）。图片只会以本地路径字符串注入，模型看不到像素。' +
+            '请切换到带「视觉」标签的模型，或在设置里开启视觉委派。仍要发送吗？';
           if (args.confirmTextOnlyImageSend) {
             const ok = await args.confirmTextOnlyImageSend(message);
             if (!ok) {
@@ -569,17 +584,21 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
               ...(accepted.acceptedAt ? { acceptedAt: accepted.acceptedAt } : {}),
             });
           }
-          // Optimistic interim title while host auto-name is in flight.
-          // Local UI only — do not session/rename (would set nameSource user).
+          // Optimistic text title on send (host also persists nameSource:text).
+          // This inserts the row into the sidebar immediately; LLM may upgrade later.
           const currentName =
             args.state.sessions.find((session) => session.id === sessionId)?.name ??
-            (wasInDraftMode ? `session-${sessionId.slice(0, 8)}` : undefined);
+            args.state.generalSessions.find((session) => session.id === sessionId)?.name;
           if (isPlaceholderSessionName(currentName)) {
             const interim = deriveDefaultNameFromMessage(text);
             if (interim) {
               args.dispatch({
                 type: 'session/update',
-                session: { id: sessionId, name: interim },
+                session: {
+                  id: sessionId,
+                  name: interim,
+                  updatedAt: new Date().toISOString(),
+                },
               });
             }
           }

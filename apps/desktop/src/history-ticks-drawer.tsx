@@ -1,13 +1,24 @@
 /**
  * Translucent history scale ticks bar for transcript viewport.
  * Interaction flow:
- * 1. Collapsed: Equal-length (等长) tick lines attached to left border. Click opens drawer ONLY (no jump yet).
+ * 1. Collapsed: Equal-length (等长) tick lines attached to left border. Click pins the drawer open.
  * 2. Expanded: Drawer pulls out, tick lines have dynamic lengths (不定长) based on message text length.
- *    Hovering any tick displays the message bubble popover with matching surface background & text colors.
+ *    Hovering any tick displays a transient message bubble (clears on leave — does not freeze open).
  * 3. Click tick inside drawer: Jumps/scrolls to target user message in transcript.
+ * 4. Pinned until Escape, click outside, or the close control — mouse leave does not collapse.
+ * 5. Session change (first user message id) unpins and clears selection.
  */
-import { useState, useMemo, type ReactElement } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  type RefObject,
+  type ReactElement,
+} from 'react';
 import type { ChatMessageUi } from './chat-reducer';
+import { IconClose } from './shell-icons';
 
 export type HistoryTicksDrawerProps = {
   messages?: ChatMessageUi[] | undefined;
@@ -60,13 +71,28 @@ export function getDynamicTickWidth(text: string, minWidth: number, maxWidth: nu
 }
 
 export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): ReactElement | null {
-  const [isExpanded, setIsExpanded] = useState(false);
+  /** Click pins open; not collapsed by mouse leave. */
+  const [isPinnedOpen, setIsPinnedOpen] = useState(false);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
 
   const userMessages = useMemo(() => {
     return messages.filter((m) => m.role === 'user' && m.text.trim().length > 0);
   }, [messages]);
+
+  const unpinClose = useCallback((): void => {
+    setIsPinnedOpen(false);
+    setHoveredMessageId(null);
+    setActiveMessageId(null);
+  }, []);
+
+  // Switching sessions replaces the message list; never leave a pinned drawer
+  // open against a different conversation (reads as a frozen overlay).
+  const firstUserMessageId = userMessages[0]?.id;
+  useEffect(() => {
+    unpinClose();
+  }, [firstUserMessageId, unpinClose]);
 
   if (userMessages.length === 0) {
     return null;
@@ -83,23 +109,48 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
         targetElem.classList.remove('highlight-target');
       }, 2000);
     }
+    // Keep the drawer usable after jump; scroll the active tick into view if needed.
+    const tickButton = rootRef.current?.querySelector(
+      `[data-testid="history-tick-${messageId}"]`,
+    );
+    if (tickButton instanceof HTMLElement) {
+      tickButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   }
 
-  // Active preview message in expanded state is either hovered tick or selected tick
-  const displayMessageId = isExpanded ? (hoveredMessageId || activeMessageId) : null;
-  const previewMessage = userMessages.find((m) => m.id === displayMessageId);
+  function pinOpen(messageId?: string): void {
+    setIsPinnedOpen(true);
+    if (messageId) {
+      setActiveMessageId(messageId);
+      setHoveredMessageId(messageId);
+    }
+  }
+
+  // Preview bubble is hover-only so it cannot freeze over the transcript.
+  const previewMessage = isPinnedOpen
+    ? userMessages.find((message) => message.id === hoveredMessageId)
+    : undefined;
 
   return (
     <div
-      className={`history-ticks-drawer ${isExpanded ? 'is-expanded' : 'is-collapsed'}`}
+      ref={rootRef}
+      className={`history-ticks-drawer ${isPinnedOpen ? 'is-expanded is-pinned' : 'is-collapsed'}`}
       onMouseLeave={() => {
-        setIsExpanded(false);
+        // Keep pin; only clear transient hover highlight when leaving the bar.
         setHoveredMessageId(null);
-        setActiveMessageId(null);
+      }}
+      onMouseOut={(event) => {
+        // Fallback for environments where mouseleave is not dispatched reliably.
+        // Keep pin; only clear hover when the pointer truly left the drawer.
+        const nextTarget = event.relatedTarget;
+        if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+          return;
+        }
+        setHoveredMessageId(null);
       }}
       data-testid="history-ticks-drawer"
     >
-      {!isExpanded ? (
+      {!isPinnedOpen ? (
         <div
           className="history-ticks-border-strip"
           data-testid="history-drawer-handle"
@@ -117,18 +168,16 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
                   onMouseLeave={() => setHoveredMessageId(null)}
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Click collapsed tick: Open drawer ONLY (equal length collapsed ticks)
-                    setIsExpanded(true);
-                    setActiveMessageId(msg.id);
-                    setHoveredMessageId(msg.id);
+                    // Click collapsed tick: pin drawer open (no jump yet).
+                    pinOpen(msg.id);
                   }}
                   role="button"
                   tabIndex={0}
-                  title="Click to open history drawer"
+                  title="Click to pin history ticks"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
-                      setIsExpanded(true);
-                      setActiveMessageId(msg.id);
+                      e.preventDefault();
+                      pinOpen(msg.id);
                     }
                   }}
                 />
@@ -141,8 +190,24 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
           className="history-drawer-panel"
           data-testid="history-drawer-panel"
         >
+          <div className="history-drawer-panel-head">
+            <span className="history-drawer-panel-title">History</span>
+            <button
+              type="button"
+              className="history-drawer-close"
+              data-testid="history-drawer-close"
+              title="Close"
+              aria-label="Close history ticks"
+              onClick={(event) => {
+                event.stopPropagation();
+                unpinClose();
+              }}
+            >
+              <IconClose width={10} height={10} />
+            </button>
+          </div>
           <div className="history-ticks-container">
-            <div className="history-ticks-track">
+            <div className="history-ticks-track" data-testid="history-ticks-track">
               {userMessages.map((msg, index) => {
                 const relativeTime = formatRelativeTime(msg.createdAt, now) || `#${index + 1}`;
                 const isCurrent = msg.id === (hoveredMessageId || activeMessageId);
@@ -165,6 +230,7 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
                         setActiveMessageId(msg.id);
                         handleTickJump(msg.id);
                       }
@@ -193,6 +259,54 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
           </div>
         </div>
       )}
+      <HistoryTicksPinEffects
+        isPinnedOpen={isPinnedOpen}
+        rootRef={rootRef}
+        onClose={unpinClose}
+      />
     </div>
   );
+}
+
+/**
+ * Outside-click + Escape to unpin. Kept as a child so hooks run only when
+ * the parent actually mounts (drawer returns null with no user messages).
+ */
+function HistoryTicksPinEffects(props: {
+  isPinnedOpen: boolean;
+  rootRef: RefObject<HTMLDivElement | null>;
+  onClose: () => void;
+}): null {
+  const { isPinnedOpen, rootRef, onClose } = props;
+
+  useEffect(() => {
+    if (!isPinnedOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: MouseEvent): void {
+      const root = rootRef.current;
+      if (!root) return;
+      const target = event.target;
+      if (target instanceof Node && root.contains(target)) {
+        return;
+      }
+      onClose();
+    }
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPinnedOpen, onClose, rootRef]);
+
+  return null;
 }

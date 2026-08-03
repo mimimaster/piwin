@@ -1,0 +1,371 @@
+/* Region: subagent session inspector dialog (subagent-session-dialog.tsx,
+   subagent-session-transcript.tsx). Owns the large modal geometry, header,
+   transcript scroll region, thinking/tool rows, live tail, and footer.
+   Compact transcript launcher/ticker/dock motion lives in run-activity.css. */
+
+/* ── Large modal geometry ───────────────────────────────────────────── */
+/* Overrides the generic ui-kit dialog width/max-height via higher
+   specificity; still honors the theme overlay tokens. */
+.modal.ui-dialog-content.subagent-session-dialog-content {
+  width: min(960px, 82vw);
+  max-width: min(960px, 82vw);
+  /* Explicit height so the inner flex column + scroll region can shrink
+     instead of growing past the viewport with a non-scrollable overflow. */
+  height: min(760px, 82vh);
+  max-height: min(760px, 82vh);
+  padding: 0;
+  border: 1px solid var(--line-soft);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.subagent-session-dialog {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+.subagent-session-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  flex-shrink: 0;
+}
+
+.subagent-session-dialog-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.subagent-session-state {
+  align-self: flex-start;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-2);
+}
+
+.subagent-session-state.state-failed,
+.subagent-session-state.state-cancelled {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.subagent-session-state.state-completed {
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+  color: var(--ok);
+}
+
+.subagent-session-title {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.35;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.subagent-session-identity {
+  font-size: 11px;
+}
+
+.subagent-session-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Transcript scroll region ───────────────────────────────────────── */
+.subagent-inspector-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.subagent-inspector-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.subagent-inspector-message.role-user {
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+
+.subagent-inspector-user-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-faint);
+}
+
+.subagent-inspector-user-text {
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
+.subagent-inspector-message.role-system {
+  font-size: 12px;
+}
+
+/* ── Thinking ───────────────────────────────────────────────────────── */
+.subagent-inspector-thinking summary {
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-faint);
+  list-style: none;
+}
+.subagent-inspector-thinking summary::-webkit-details-marker {
+  display: none;
+}
+.subagent-inspector-thinking summary::before {
+  content: '▸ ';
+  font-size: 10px;
+}
+.subagent-inspector-thinking[open] summary::before {
+  content: '▾ ';
+}
+
+.subagent-inspector-thinking-text {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: var(--font-mono, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-raised);
+  border-radius: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+  color: var(--text-faint);
+}
+
+/* ── Tool rows ──────────────────────────────────────────────────────── */
+.subagent-inspector-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.subagent-inspector-tool {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.subagent-inspector-tool[data-status='running'] {
+  border-color: color-mix(in srgb, var(--accent-2) 40%, transparent);
+}
+
+.subagent-inspector-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.subagent-inspector-tool-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.subagent-inspector-tool-status.status-running {
+  background: var(--accent-2);
+  animation: subagent-inspector-tool-pulse 1s ease-in-out infinite;
+}
+
+.subagent-inspector-tool-status.status-done {
+  background: var(--ok);
+}
+
+.subagent-inspector-tool-status.status-error {
+  background: var(--danger);
+}
+
+@keyframes subagent-inspector-tool-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.subagent-inspector-tool-name {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  color: var(--text);
+}
+
+.subagent-inspector-tool-output {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-raised);
+  border-radius: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+  color: var(--text-faint);
+}
+
+/* ── Live tail ──────────────────────────────────────────────────────── */
+.subagent-inspector-live {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--line-soft);
+}
+
+.subagent-stream-cursor {
+  display: inline-block;
+  animation: subagent-cursor-blink 1s step-end infinite;
+  color: var(--accent-2);
+  margin-left: 1px;
+}
+
+@keyframes subagent-cursor-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ── States + jump-to-latest ────────────────────────────────────────── */
+.subagent-inspector-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 0;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.subagent-inspector-state.is-error {
+  color: var(--danger);
+}
+
+.subagent-inspector-jump-latest {
+  position: sticky;
+  bottom: 8px;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: var(--panel);
+  color: var(--accent-2);
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow: var(--shadow-overlay);
+  flex-shrink: 0;
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────── */
+.subagent-session-dialog-footer {
+  display: flex;
+  align-items: center;
+  padding: 10px 18px;
+  border-top: 1px solid var(--line-soft);
+  flex-shrink: 0;
+}
+
+.subagent-session-footer-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.subagent-session-footer-status.status-running {
+  color: var(--accent-2);
+}
+
+.subagent-session-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  animation: subagent-live-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes subagent-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* ── Responsive fallback ────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  .modal.ui-dialog-content.subagent-session-dialog-content {
+    width: calc(100vw - 32px);
+    max-width: calc(100vw - 32px);
+    height: calc(100vh - 32px);
+    max-height: calc(100vh - 32px);
+  }
+  .subagent-session-dialog-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .subagent-session-actions {
+    align-self: flex-end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subagent-session-live-dot,
+  .subagent-inspector-tool-status.status-running,
+  .subagent-stream-cursor {
+    animation: none !important;
+  }
+}

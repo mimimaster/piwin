@@ -81,6 +81,7 @@ export type DesktopTranslator = {
       subagents: string;
       pets: string;
       usage: string;
+      shortcuts: string;
     };
     provider: {
       search: string;
@@ -318,6 +319,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         subagents: isChinese ? '子代理配置' : 'Sub-agent profiles',
         pets: isChinese ? '宠物' : 'Companion',
         usage: isChinese ? '用量统计' : 'Usage',
+        shortcuts: isChinese ? '快捷键' : 'Shortcuts',
       },
       provider: {
         search: isChinese ? '搜索提供商…' : 'Search providers…',
@@ -479,8 +481,12 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         noMatchingModels: isChinese ? '无匹配模型。' : 'No matching models found.',
         selectedModels: (selected, newModels) =>
           isChinese
-            ? `已选 ${selected} 个 · 新增 ${newModels} 个`
-            : `${selected} selected · ${newModels} new`,
+            ? newModels > 0
+              ? `已选 ${selected} 个 · 新增 ${newModels} 个`
+              : `已选 ${selected} 个 · 将补全已配置模型的元数据`
+            : newModels > 0
+              ? `${selected} selected · ${newModels} new`
+              : `${selected} selected · will enrich already-configured models`,
         importSelected: isChinese ? '导入所选' : 'Import selected',
       },
       imageGeneration: {

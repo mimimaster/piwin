@@ -702,7 +702,13 @@ describe('chatUiReducer', () => {
       let state = createInitialChatUiState();
       state = chatUiReducer(state, {
         type: 'session/hydrate-general',
-        sessions: [{ id: 'g1', name: 'General 1' }],
+        sessions: [
+          {
+            id: 'g1',
+            name: 'General 1',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          },
+        ],
       });
       state = chatUiReducer(state, {
         type: 'session/add',
@@ -711,6 +717,11 @@ describe('chatUiReducer', () => {
       });
       expect(state.generalSessions.map((item) => item.id)).toEqual(['g2', 'g1']);
       expect(state.sessions.map((item) => item.id)).toEqual(['g2', 'g1']);
+      // New Conversations rows must carry updatedAt so sort keeps them on top.
+      expect(state.generalSessions[0]?.updatedAt).toBeTruthy();
+      const newStamp = Date.parse(state.generalSessions[0]?.updatedAt ?? '');
+      const oldStamp = Date.parse(state.generalSessions[1]?.updatedAt ?? '');
+      expect(newStamp).toBeGreaterThan(oldStamp);
     });
 
     it('session/add does NOT touch generalSessions when active scope is project', () => {
@@ -955,8 +966,9 @@ describe('chatUiReducer', () => {
   });
 
   describe('subagent children + streams', () => {
-    it('upserts subagent/updated into subagentChildren', () => {
+    it('upserts subagent/updated into subagentChildren for the active parent', () => {
       let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
       state = chatUiReducer(state, {
         type: 'subagent/updated',
         parentSessionId: 'parent-1',
@@ -978,6 +990,7 @@ describe('chatUiReducer', () => {
 
     it('replaces a previous child summary on later subagent/updated', () => {
       let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
       const child = (subagentStatus: 'running' | 'done') => ({
         id: 'child-1',
         scope: { kind: 'project', projectPath: '/p' } as const,
@@ -1257,5 +1270,91 @@ describe('chatUiReducer', () => {
       });
       expect(Object.keys(state.walkthroughsByMessageId)).toHaveLength(0);
     });
+  });
+});
+
+describe('chatUiReducer subagent hydration', () => {
+  const childSummary = (id: string, parentSessionId: string) => ({
+    id,
+    scope: { kind: 'project' as const, projectPath: '/workspace' },
+    workingDirectory: '/workspace',
+    projectPath: '/workspace',
+    updatedAt: '2026-08-03T00:00:00.000Z',
+    messageCount: 0,
+    parentSessionId,
+    kind: 'subagent' as const,
+  });
+
+  it('hydrates children only for the active parent session', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+
+    state = chatUiReducer(state, {
+      type: 'subagent/children-hydrate',
+      parentSessionId: 'parent-1',
+      children: [childSummary('child-1', 'parent-1')],
+    });
+    expect(state.subagentChildren['child-1']?.id).toBe('child-1');
+
+    const beforeStaleHydrate = state;
+    const afterStaleHydrate = chatUiReducer(state, {
+      type: 'subagent/children-hydrate',
+      parentSessionId: 'parent-other',
+      children: [childSummary('child-2', 'parent-other')],
+    });
+    expect(afterStaleHydrate).toBe(beforeStaleHydrate);
+  });
+
+  it('merges a hydrate over existing entries without dropping unrelated children', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+    state = chatUiReducer(state, {
+      type: 'subagent/children-hydrate',
+      parentSessionId: 'parent-1',
+      children: [childSummary('child-1', 'parent-1')],
+    });
+    state = chatUiReducer(state, {
+      type: 'subagent/children-hydrate',
+      parentSessionId: 'parent-1',
+      children: [
+        { ...childSummary('child-1', 'parent-1'), name: 'updated' },
+        childSummary('child-2', 'parent-1'),
+      ],
+    });
+    expect(state.subagentChildren['child-1']?.name).toBe('updated');
+    expect(state.subagentChildren['child-2']?.id).toBe('child-2');
+  });
+
+  it('ignores subagent/updated pushes for a non-active parent', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+    const beforeStalePush = state;
+    const afterStalePush = chatUiReducer(state, {
+      type: 'subagent/updated',
+      parentSessionId: 'parent-other',
+      child: childSummary('child-x', 'parent-other'),
+    });
+    expect(afterStalePush).toBe(beforeStalePush);
+  });
+
+  it('clears subagent maps when switching sessions', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-1' });
+    state = chatUiReducer(state, {
+      type: 'subagent/children-hydrate',
+      parentSessionId: 'parent-1',
+      children: [childSummary('child-1', 'parent-1')],
+    });
+    state = chatUiReducer(state, {
+      type: 'subagent/stream',
+      parentSessionId: 'parent-1',
+      childSessionId: 'child-1',
+      event: { type: 'message/start', messageId: 'm1', role: 'assistant' },
+    });
+    expect(Object.keys(state.subagentStreams)).toHaveLength(1);
+
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'parent-2' });
+    expect(Object.keys(state.subagentChildren)).toHaveLength(0);
+    expect(Object.keys(state.subagentStreams)).toHaveLength(0);
   });
 });

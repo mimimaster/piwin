@@ -26,6 +26,7 @@ export type HostRequestAdapters = {
       | 'vision/cache/clear'
       | 'secrets/set'
       | 'secrets/get'
+      | 'web/test-search-source'
       | 'project/permissions-list'
       | 'project/permissions-revoke'
       | 'usage/get-rollup';
@@ -44,6 +45,7 @@ export type HostRequestAdapters = {
     input?:
       | import('@piwin/contracts').ModelCatalogSearchRequest
       | import('@piwin/contracts').VisionDelegateInput;
+    webTest?: import('@piwin/contracts').WebSearchTestInput;
   }) => Promise<HostResponse>;
   requestSkills: (command: {
     type:
@@ -245,6 +247,20 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         return hostClient.request({
           type: 'secrets/get',
           providerId: command.providerId ?? '',
+        });
+      }
+      if (command.type === 'web/test-search-source') {
+        if (!command.webTest) {
+          return {
+            type: 'response',
+            command: 'web/test-search-source',
+            success: false,
+            error: 'web test input is required',
+          };
+        }
+        return hostClient.request({
+          type: 'web/test-search-source',
+          input: command.webTest,
         });
       }
       if (command.type === 'usage/get-rollup') {
