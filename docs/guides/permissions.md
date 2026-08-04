@@ -31,9 +31,9 @@ Permissions, or via CLI flags.
 
 | Mode | Sandbox | Behavior |
 |------|---------|----------|
-| `auto` (default) | On | Low-friction inside the sandbox. Safe commands and in-project writes run without prompts; leaving the workspace or opening network asks. |
+| `auto` | On | Low-friction inside the sandbox. Safe commands and in-project writes run without prompts; leaving the workspace or opening network asks. |
 | `ask` | On | Prompts on almost every tool call (still sandboxed). Use when you want to watch every step. |
-| `yolo` | Off | No sandbox, no routine prompts. **Circuit breakers still fire** (see below). Refused for untrusted projects (downgraded to `auto`). |
+| `yolo` (default) | Off | No sandbox, no routine prompts. **Circuit breakers still fire** (see below). Refused for untrusted projects (downgraded to `auto`). |
 
 ### Circuit breakers (apply in all modes, including `yolo`)
 

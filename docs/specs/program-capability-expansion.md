@@ -7,7 +7,7 @@
 | Source | LiveAgent product audit + piwin PRD/architecture |
 | Canonical backlog | [`docs/todo-deferred.md`](../todo-deferred.md) §2.9 |
 | Binding | `AGENTS.md`, ADR 0008/0009/0010/0011 |
-| Parallel tracks (do not collide) | **D-EXT-04** extension confirm→Desktop · **D-HOST-01b** RPC worker isolation |
+| Runtime authority | [`runtime-refactor.md`](./runtime-refactor.md); D-HOST-01b is absorbed by Phase 3 |
 
 ---
 
@@ -22,7 +22,7 @@ Ship a **full local-agent product surface** (memory, managed processes, chat rec
 1. Close the gap vs LiveAgent **capabilities** users feel (remember, run long jobs, edit/retry, parallel agents, install tools, schedule, remote later).
 2. **Maximize Pi ecosystem**: Extensions, Skills, Prompt templates, Packages, Compaction `FileOperations`, `contextUsage`, ResourceLoader, customTools — prefer these over parallel runtimes.
 3. Keep architecture: apps ↛ Pi; only `@piwin/agent-host` imports Pi; contracts-first; SDK + RPC dual mode remains honest.
-4. Preserve piwin differentiators: CLI↔Desktop same host, Theme/Pet/Artifact, dual host, `~/.piwin` single root.
+4. Preserve piwin differentiators: CLI↔Desktop same product Host Runtime, Theme/Pet/Artifact, dual Pi backends, `~/.piwin` single root.
 
 ## 2. Non-goals (program-wide)
 
@@ -32,7 +32,7 @@ Ship a **full local-agent product surface** (memory, managed processes, chat rec
 | Copy LiveAgent monorepo / Rust tool executors | We stay TS packages + Pi tools |
 | Cloud multi-tenant / public history share by default | private first |
 | Full IDE (LSP, multi-file editor) | agent shell |
-| Replacing D-EXT-04 / D-HOST-01b designs | those tracks own UI confirm + RPC isolation |
+| Replacing D-EXT-04 UI design | that track owns Extension UI presentation; Runtime Refactor owns RPC isolation |
 
 ## 3. Parallel-track contracts (must not thrash)
 
@@ -45,9 +45,11 @@ Ship a **full local-agent product surface** (memory, managed processes, chat rec
 - Use extension `tool_call` gates that call `ctx.ui.confirm` **without** inventing a second confirm IPC.
 - Not rewrite `extension-ui-bridge.ts` except additive fixes if a wave uncovers a gap (file a residual; don’t redesign).
 
-### 3.2 D-HOST-01b (in flight) — RPC worker isolation
+### 3.2 D-HOST-01b — absorbed by Runtime Refactor Phase 3
 
-**Assume:** stock Pi RPC still weak for custom tools; product path may isolate worker; ADR 0011 SDK fallback already exists.
+The table below is retained as historical capability input. Current worker
+ownership, protocol, parity, and deletion gates are defined only by
+[`runtime-refactor.md`](./runtime-refactor.md) Phase 3.
 
 | Capability class | Default mode | After D-HOST-01b |
 |------------------|--------------|------------------|
@@ -75,7 +77,7 @@ For every feature, pick the **highest row that fits** before inventing host-only
 | Skills/prompts/themes | ResourceLoader + Pi packages | install paths under `~/.piwin` | fork skill loaders |
 | Lifecycle hooks | Extension events **or** host `AgentEvent` runner | user hook config + shell runner | app-side monkey patch of Pi |
 | Share extensions | Pi package (`pi` key in package.json) | marketplace install into `~/.piwin` | npm-only without ResourceLoader |
-| Long-running process | custom tool + host process manager | `@piwin/process` | spawn from renderer |
+| Long-running process | Host custom tool through JobController | `@piwin/process` implementation + `@piwin/host-runtime` authority | spawn from renderer or Pi adapter |
 | Cron | **outside** Pi loop (host scheduler) | `@piwin/automation` | blocking agent session for cron |
 | Remote control | N/A in Pi | optional gateway later | putting secrets in gateway |
 
@@ -100,15 +102,10 @@ For every feature, pick the **highest row that fits** before inventing host-only
 ```text
 apps/desktop, apps/cli
     ↓
-@piwin/session          ← pin, search index, truncate/resend, usage cards
-@piwin/memory           ← NEW: store, FTS, index overview, quota
-@piwin/process          ← NEW: managed process registry
-@piwin/automation       ← NEW: cron + hooks config/runner
-@piwin/marketplace      ← expand: MCP registry + skill hub sources
-@piwin/git              ← worktree create/apply for sub-agents
-@piwin/mcp, skills, media, artifact, theme, pet, tools-web, project
-    ↓
-@piwin/agent-host       ← tools, extension paths, events, scheduler arm
+@piwin/host-runtime     ← product composition, commands/pushes, Runs, Jobs, tools
+    ├──→ @piwin/session, memory, process, automation, marketplace, git
+    ├──→ @piwin/mcp, skills, media, artifact, theme, pet, tools-web, project
+    └──→ @piwin/agent-host ← Pi SDK/worker backends and Pi adapters only
     ↓
 @piwin/contracts
 ```
@@ -116,12 +113,13 @@ apps/desktop, apps/cli
 | Package | New? | Responsibility |
 |---------|------|----------------|
 | `@piwin/memory` | yes | Markdown + SQLite FTS, CRUD, overview injection text, quota |
-| `@piwin/process` | yes | ManagedProcess start/list/logs/stop, cwd/timeout policy |
+| `@piwin/process` | yes | Job registry, process-tree supervision, logs, readiness |
 | `@piwin/automation` | yes | Cron jobs, hook definitions, run log; no Pi imports |
 | `@piwin/session` | extend | pin, FTS/search projection, message truncate, execution mode |
 | `@piwin/git` | extend | worktree create/remove, apply helpers |
 | `@piwin/marketplace` | extend | registry adapters |
-| `@piwin/agent-host` | extend | wire tools/events/scheduler; **only** Pi import site |
+| `@piwin/host-runtime` | new composition root | wire product tools/events/Runs/Jobs/scheduler and application services |
+| `@piwin/agent-host` | narrow | SDK/worker backend and Pi event/tool adaptation; **only** Pi import site |
 | `@piwin/contracts` | extend | types + HostCommand surface |
 | apps/desktop | extend | panels; never FS for product data |
 | apps/cli | extend | parity commands |
@@ -158,7 +156,7 @@ Bundled Pi extensions (seeded to `~/.piwin/extensions`):
 ~/.piwin/
   config.json
   memory/                     # @piwin/memory
-  process/                    # optional
+  jobs/                       # Job metadata and diagnostic log spool
   automation/
     cron.json
     hooks.json
@@ -182,7 +180,7 @@ Bundled Pi extensions (seeded to `~/.piwin/extensions`):
 | Event | Source |
 |-------|--------|
 | `usage/update` | Pi contextUsage / last assistant usage |
-| `process/*` | managed process lifecycle |
+| `job/*` | Job lifecycle |
 | `memory/extraction_*` | optional silent extract |
 | `automation/cron_*` | scheduler |
 | `subagent/worktree_*` | worktree lifecycle |
@@ -213,10 +211,10 @@ piwin session export
 
 ## 8. Success criteria (program)
 
-1. User can: remember a fact across sessions; start ManagedProcess; edit/resend; see token usage; spawn worktree sub-agent and merge; install MCP from registry; schedule prompt cron.
+1. User can: remember a fact across sessions; start a command/service Job; edit/resend; see token usage; spawn worktree sub-agent and merge; install MCP from registry; schedule prompt cron.
 2. `pnpm typecheck` + package tests green; doctor reports new capabilities.
 3. No app imports of `@earendil-works/pi-*`.
-4. D-EXT-04 / D-HOST-01b land without thrashing (additive only on shared files).
+4. D-EXT-04 remains presentation-owned while D-HOST-01b is delivered only through Runtime Refactor Phase 3.
 5. Specs linked from `todo-deferred.md` §2.9.
 
 ---
@@ -227,7 +225,7 @@ piwin session export
 |------|------------|
 | Scope explosion | Waves shippable; W4 gated by ADR |
 | Memory extract cost | MVP manual + tool; silent extract opt-in |
-| Process zombies | host dispose + killOnHostDispose |
+| Process zombies | Job lifetime cleanup + process-tree graceful/force stop |
 | Worktree disk bloat | cleanup on complete; retain flag |
 | Registry supply chain | pin versions; command preview; no auto-run scripts |
 | Gateway attack surface | W4 feature flag + ADR |

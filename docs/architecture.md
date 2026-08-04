@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Draft v0.1 |
-| Date | 2026-07-19 |
+| Status | Active architecture |
+| Date | 2026-08-04 |
 | Related | [PRD](./prd.md), [ADRs](./adr/), [Artifact research](./artifact-research.md) |
 
 ## 1. Goals
@@ -20,13 +20,16 @@
 │ Presentation                                                 │
 │  apps/desktop (Tauri + web UI)   apps/cli (TTY)              │
 ├─────────────────────────────────────────────────────────────┤
-│ Application services (no UI frameworks)                      │
-│  session · project · skills · mcp · marketplace              │
-│  git · theme · pet · artifact · media · tools-web            │
+│ Product Host Runtime (composition root)                       │
+│  Settings · commands/pushes · Runs · Jobs · scheduling       │
+│  permissions · tools · prompt preparation                    │
 ├─────────────────────────────────────────────────────────────┤
-│ Agent Host                                                   │
-│  Session lifecycle · event bus · permission policy           │
-│  Adapters: PiSdkAdapter | PiRpcAdapter                       │
+│ Application services (no UI frameworks)                      │
+│  session · project · process · skills · mcp · browser        │
+│  git · artifact · media · tools-web                          │
+├─────────────────────────────────────────────────────────────┤
+│ Pi boundary: @piwin/agent-host                               │
+│  PiSdkAdapter · Pi worker backend · Pi event/tool adapters   │
 ├─────────────────────────────────────────────────────────────┤
 │ Capability providers                                         │
 │  Tools · Skills · MCP · Model protocols · Search/Fetch       │
@@ -40,9 +43,11 @@
 ### Dependency rule
 
 ```text
-apps/*  →  packages/* (application + host + contracts)
-packages/* (except contracts)  →  packages/contracts
-packages/agent-host  →  Pi packages (only place allowed)
+apps/*  →  packages/host-runtime + public application/UI packages
+packages/host-runtime  →  application packages + agent-host + contracts
+application packages  →  contracts
+packages/agent-host  →  contracts + Pi packages (only place allowed)
+packages/agent-host  ↛  application packages
 apps/*  ↛  Pi packages
 ```
 
@@ -57,7 +62,13 @@ Violations are architecture bugs.
 | **SDK** (`PiSdkAdapter`) | Default Desktop main / Node CLI | Low latency, full events | Shares process with host |
 | **RPC** (`PiRpcAdapter`) | Isolation, external IDE clients, crash boundary | Process isolation | JSONL overhead |
 
-v1: **both adapters exist** behind `AgentHost` / `SessionHandle`. Default runtime = SDK. RPC mode (`PiRpcAdapter`) defaults to **SDK session fallback** because stock `pi --mode rpc` cannot register piwin custom tools (web/MCP/bash gate) or extensions/prompts (ADR 0008 / D-EXT-07). True RPC process isolation is residual (D-HOST-01b, ADR 0012); the product path uses SDK fallback under `hostMode=rpc` (ADR 0011). Set `PIWIN_RPC_STOCK=1` to attempt the stock binary path (will fail the product tool path with an actionable error).
+Both adapters remain behind one backend contract. SDK is an in-process Pi
+backend. The target RPC mode is a piwin-owned child process with one worker per
+live runtime generation. The current SDK fallback and stock Pi RPC escape path
+are transitional implementation state and are deleted by Runtime Refactor
+Phase 3. The authoritative three-phase migration is
+[`runtime-refactor.md`](./specs/runtime-refactor.md); ADR 0011 records the
+transition and ADR 0012 records the worker boundary.
 
 ### 3.2 Core contracts (packages/contracts)
 
@@ -90,18 +101,25 @@ interface PromptInput {
 }
 ```
 
+`SessionHandle.prompt()` is the backend completion API used inside the Host.
+The product `session/prompt` HostCommand follows ADR 0015: it allocates and
+returns a `runId` immediately, then observes completion through Host pushes and
+RunRegistry state.
+
 ### 3.3 Event model
 
-Host normalizes Pi SDK events and RPC events into one `AgentEvent` union:
+Pi backends normalize Pi SDK and worker events into one `AgentEvent` union:
 
 - `session/*` lifecycle
 - `message/*` start/update/end (text, thinking)
 - `tool/*` start/update/end
-- `permission/*` request/resolved
 - `compaction/*`
 - `error`
 
-Presentation only consumes `AgentEvent`.
+Product transport uses a broader `HostPush` union. `agent/event` carries the
+normalized Agent stream; Job, Run, Plan, subagent, permission, browser, and
+diagnostic pushes are sibling variants. Product services never manufacture
+fake Pi-native `AgentEvent` variants for operational state.
 
 ### 3.4 Permission system
 
@@ -155,7 +173,7 @@ effect on the next session (no hot-reload).
 | Mode | bash unmatched | file-write in-project | file-write out-of-project | public network | MCP | deny rules |
 |------|----------------|----------------------|--------------------------|----------------|-----|------------|
 | `ask-all` | ask | ask | ask | ask | server-gated (§MCP) | always enforced |
-| `auto` (default) | allow¹ | allow | ask | ask | server-gated | always enforced |
+| `auto` | allow¹ | allow | ask | ask | server-gated | always enforced |
 | `bypass` | allow | allow | allow | allow | server-gated | **still enforced** |
 
 ¹ `auto` bash unmatched → allow **only after** bundled deny **and** bundled ask
@@ -212,19 +230,22 @@ extends to the new keys; `listRememberedPermissions` surfaces them in Settings.
 #### Dual host modes
 
 File-write gate, bash gate, rule loading, and the bypass guard apply on every
-path that registers gated tools. The RPC adapter uses SDK fallback (ADR 0011),
-so the same SDK session-create wiring — and therefore the same gates — run on
-both host modes. Apps never import Pi; only `@piwin/agent-host` wires tools.
+Host tool execution path. `@piwin/host-runtime` owns those gates and injects a
+runtime-generation-scoped tool router into either backend. SDK calls it
+directly; the isolated worker proxies calls back to the parent. Apps never
+import Pi, and `@piwin/agent-host` never owns product permission policy.
 
 #### Desktop UI (first-tier)
 
-Settings → Permissions page: mode switcher bound to
-`config.permissions?.mode ?? 'auto'` with trust-aware notices. Context bar
-shows a **mode badge** (click → open Permissions; `bypass` rendered with a
-warning tone). Permission prompt dialog offers **"Allow for project"** for
-bash/file-write subjects (persisted via the remember keys above). A full visual
-rule editor is a follow-up (ADR 0019 open questions); until then users edit
-`permissions.json` by hand.
+Settings → Permissions page: mode switcher bound to the user-facing
+`config.permissions?.preset ?? 'yolo'` with trust-aware notices. New sessions
+default to Pi-compatible YOLO: ordinary actions run without approval prompts;
+deny rules, circuit breakers, and the untrusted-project guard remain active.
+Context bar shows a **mode badge** (click → open Permissions; `bypass` rendered
+with a warning tone). Permission prompt dialog offers **"Allow for project"**
+for bash/file-write subjects (persisted via the remember keys above). A full
+visual rule editor is a follow-up (ADR 0019 open questions); until then users
+edit `permissions.json` by hand.
 
 ### 3.5 Extension UI bridge (model questionnaire)
 
@@ -249,12 +270,35 @@ ResourceLoader path; ADR 0023). It calls only Pi-native `ctx.ui.select` /
   crosses the app boundary (AGENTS.md §1). SDK and RPC→SDK-fallback share one
   interaction path; the surfaces differ only in renderer.
 
+### 3.6 Runtime control and execution planes
+
+Runtime control follows [`runtime-refactor.md`](./specs/runtime-refactor.md):
+
+| Domain | Meaning | Authority |
+|---|---|---|
+| Runtime generation | One live Pi backend instance for a product session | `SessionRuntimeController` |
+| Run | Agent/orchestration work and structured cancellation | `RunRegistry` |
+| Job | User-visible non-interactive OS child process | `JobController` |
+| Worker | Internal isolated Pi process for one runtime generation | `AgentWorkerSupervisor` |
+| Terminal | Interactive desktop PTY | Tauri |
+
+Runs and Jobs are linked but are not a polymorphic state object. A parent Run
+cannot become terminal while a descendant remains non-terminal. Run
+cancellation closes child admission, aborts descendants, cleans run-lifetime
+Jobs, and joins children before the parent terminal transition.
+
+Parallel subagent scheduling is work-conserving and uses one orchestrator.
+Configured concurrency greater than one is effective only when the backend
+reports real process isolation. Write tasks use per-child worktrees and
+repository-keyed serialized integration.
+
 ## 4. Package map
 
 | Package | Responsibility |
 |---------|----------------|
 | `@piwin/contracts` | Types, events, config schemas (runtime-light) |
-| `@piwin/agent-host` | Host + SDK/RPC adapters + permission; config-driven `image_gen` host tool (routed by model name, gated on `imagegen` skill) |
+| `@piwin/host-runtime` | Product composition root: Settings compilation, command/push routing, runtime generations, Runs, Jobs, permissions, tools, prompt preparation |
+| `@piwin/agent-host` | Pi-only boundary: SDK backend, isolated worker backend, Pi event/tool adapters, worker protocol |
 | `@piwin/session` | History index, tree projection, naming |
 | `@piwin/project` | Workspace/project trust, cwd binding |
 | `@piwin/skills` | Discovery, install, defaults, find/create helpers |
@@ -265,7 +309,8 @@ ResourceLoader path; ADR 0023). It calls only Pi-native `ctx.ui.select` /
 | `@piwin/pet` | Codex pet adapter + state machine |
 | `@piwin/artifact` | Markdown helpers + HTML artifact runtime (from openwebui_m) |
 | `@piwin/browser` | Playwright-driven browser session (agent tools + panel mirror + element pick) |
-| `@piwin/media` | Paste store, previews; model-facing images loaded as native content by agent-host |
+| `@piwin/process` | Non-interactive Job registry, process-tree supervision, logs, readiness |
+| `@piwin/media` | Paste store and previews; PromptPreparation validates model-facing media refs |
 | `@piwin/marketplace` | Unified install sources |
 | `@piwin/ui-kit` | Shared desktop UI primitives |
 
@@ -281,6 +326,7 @@ ResourceLoader path; ADR 0023). It calls only Pi-native `ctx.ui.select` /
   themes/
   pets/
   media/<session-id>/
+  jobs/                       # Job metadata and diagnostic log spool
   logs/
 ```
 
@@ -324,8 +370,9 @@ Paste image
   → media service save ~/.piwin/media/<session>/<uuid>.ext
   → composer attachment chip + thumbnail
   → on send: PromptInput.attachments[]
-  → text-model path: inject absolute path string into model-facing text
-  → vision path (later): image content parts when protocol + model support
+  → PromptPreparation validates path/MIME/size and selects routing
+  → vision path: native ImageContent passed to Pi, without path text
+  → text-only path: vision delegation; explicit path fallback only when needed
 ```
 
 ## 8. Browser Session
@@ -388,7 +435,7 @@ Alternative (simpler smoke): CLI embeds host in-process; Desktop spawns `piwin h
 ## 10. CLI shape
 
 ```text
-apps/cli → @piwin/agent-host + services
+apps/cli → @piwin/host-runtime
 ```
 
 Commands mirror host capabilities; no separate business logic.
@@ -399,7 +446,8 @@ Commands mirror host capabilities; no separate business logic.
 |-------|-------|
 | contracts | type-level / schema validation |
 | artifact/media/git pure logic | vitest unit tests |
-| agent-host adapters | integration with mocked Pi / recorded RPC |
+| host-runtime | Run/Job ownership, command/push routing, cancellation integration |
+| agent-host backends | parameterized SDK/worker conformance + Pi event fixtures |
 | desktop critical flows | playwright later |
 
 ## 12. Evolution rules (anti-shitpile)
@@ -424,12 +472,12 @@ Commands mirror host capabilities; no separate business logic.
 | Layer | States (truthful labels) | Notes |
 |-------|--------------------------|-------|
 | **Desktop transport** | Browser mock · Tauri sidecar | Browser Playwright uses mock host. Tauri uses a **two-tier** spawn (ADR 0017): packaged Node sidecar + `host/host-serve.mjs` when present, else workspace `pnpm`/`tsx` (dev). Packaged path still requires **S5 clean-machine smoke** before claiming public distribution readiness. Wire-protocol rules: [`ipc-transport-discipline.md`](./ipc-transport-discipline.md). |
-| **Agent backend** | mock session · SDK · SDK fallback | UI never claims a live model when mock is active. RPC custom-tools may fall back to SDK (ADR 0011). |
-| **Desktop host mode** | **SDK-only preview** | Desktop does **not** honor a selectable RPC `PiwinConfig.hostMode`. RPC remains CLI/host architecture until isolation worker ships (ADR 0012). |
+| **Agent backend** | mock session · SDK in-process · RPC worker isolated | UI never claims a live model when mock is active. Until Runtime Refactor Phase 3 exits, any fallback is labeled transitional and not isolated. |
+| **Desktop host mode** | SDK in-process · RPC worker isolated when available | Desktop must report actual backend and isolation capability; it must not infer isolation from configured `hostMode` alone. |
 | **Terminal** | Tauri PTY authorized · unavailable | Interactive Terminal is a **desktop capability** (ADR 0013). Host `capabilities.pty` is **not** proof that Tauri Terminal is unavailable or available. |
-| **Host shell preview** | `capabilities.shellPreview` | Line-oriented host shell remains for non-Tauri / mock paths. |
+| **Jobs** | starting · running · ready · terminal | Non-interactive process state comes from JobController; interactive Terminal remains Tauri-owned. |
 | **Provider** | unconfigured · credential unavailable · configured | Best-effort status only. Provider readiness must **not** gate workspace browse/trust (PSR D7). |
-| **Packages** | `memory`, `process`, `automation` first-class | Host domain commands; Advanced/Experimental in Desktop Settings. |
+| **Packages** | `memory`, `process`, `automation` first-class | Product commands route through host-runtime; Advanced/Experimental in Desktop Settings. |
 | **Evidence coverage** | browser mock · live JSONL sidecar · native macOS | [See automated prerequisites](../README.md#automated-prerequisite-sequence) and [trace recipe](plans/2026-07-24-responsiveness-trace-recipe.md). Automated prerequisites are not a release candidate; a separately reviewed dated native macOS evidence manifest is required before declaring one. |
 
 ### Evidence layers
@@ -452,15 +500,12 @@ must not be claimed:
    requires a bundled executable or Node runtime, resource resolution,
    signing/notarization, and clean-machine verification — planned in
    [ADR 0017](./adr/0017-host-sidecar-bundling.md).
-2. **ADR 0012 true RPC worker isolation:** SDK fallback remains compatible but
-   is not process isolation. The worker strategy needs separate contracts,
-   lifecycle design, and failure semantics. **Update (ADR 0026):** the
-   piwin-owned SDK worker is now the product isolation path for parallel
-   subagent execution. See
-   [ADR 0026](./adr/0026-safe-parallel-subagent-execution.md) for the full
-   design: one `SubagentOrchestrator` for batch scheduling, worktree-only
-   parallel writes, serialized three-way integration, and conflict retention.
-   Pi RPC fallback is explicitly **not** process isolation.
+2. **Runtime Refactor Phases 1-3:** Job control, structured concurrency, and
+   true RPC worker isolation are specified in
+   [`runtime-refactor.md`](./specs/runtime-refactor.md). ADR 0030 defines safe
+   parallel subagent execution. SDK fallback is explicitly not process
+   isolation, and effective concurrency remains one until the backend reports
+   `processIsolation=true`.
 3. **Follow-up turn lifecycle:** `session/follow_up` now validates run
    ownership, but a distinct foreground lifecycle is not introduced here.
    Decide in a separate ADR/plan whether it appends to an existing run or

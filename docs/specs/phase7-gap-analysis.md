@@ -2,7 +2,10 @@
 
 **日期:** 2026-08-04 (initial), 2026-08-04 (all gaps fixed)
 **分支:** `feat/settings-capability-runtime-refactor`
-**计划:** [`phase7-rpc-worker-parity-plan.md`](./phase7-rpc-worker-parity-plan.md)
+**Status:** Historical gap record. Current execution authority:
+[`runtime-refactor.md`](./runtime-refactor.md), Phase 3.
+
+**Original plan:** [`phase7-rpc-worker-parity-plan.md`](./phase7-rpc-worker-parity-plan.md)
 **状态:** WP0–WP6 已实现。10 个差异点全部修复。913 测试全绿, typecheck 全绿。
 
 ---

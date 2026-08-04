@@ -31,11 +31,11 @@ Externally: three **Run Modes** that set both.
 | Run Mode | Sandbox | Approval | When |
 |----------|---------|----------|------|
 | `ask` | workspace-write, net off | ask almost everything | Sensitive / untrusted |
-| `auto` (default) | workspace-write, net off | low friction inside; ask to leave | Daily coding |
-| `yolo` | none (full host) | no prompts except circuit breakers | Disposable VM / CI |
+| `auto` | workspace-write, net off | low friction inside; ask to leave | Explicitly safer daily coding |
+| `yolo` (default) | none (full host) | no prompts except circuit breakers | Pi-compatible default; disposable VM / CI |
 
-**`auto` defaults sandbox ON** (locked). Leave-sandbox approval is the escape
-hatch until network allowlist ships (Phase 3).
+**`auto` uses sandbox ON**. Leave-sandbox approval is the escape hatch until
+network allowlist ships (Phase 3).
 
 ### 2. Agent mode ≠ Run Mode
 

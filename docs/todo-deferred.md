@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Living execution backlog |
-| Updated | 2026-07-24 |
+| Updated | 2026-08-04 |
 | Roadmap | [`v1-completion-roadmap.md`](./specs/v1-completion-roadmap.md) |
 | Rule | This is the **only** task backlog. Specs explain design and acceptance; this file tracks execution state. |
 
@@ -22,16 +22,22 @@
    - **R2:** Windows keychain, Tauri UI e2e, signing  
    - **R3 spikes:** Pi JSONL tree, RPC custom tools, MCP SSE  
    - **R4 later:** sub-agent, git DAG, content packs  
-   - **R5 extensions follow-on:** mostly done (D-EXT-01..03,05..07); residual D-EXT-04 UI bridge + D-HOST-01b isolation  
-5. **Parallel (other sessions):** **D-EXT-04** extension confirm→Desktop · **D-HOST-01b** RPC worker isolation — do not thrash those files.
+   - **R5 extensions follow-on:** mostly done (D-EXT-01..03,05..07); residual D-EXT-04 UI bridge; D-HOST-01b is absorbed by Runtime Refactor Phase 3
+5. **Settings + Runtime architecture refactor (ordered):** finish the Settings capability prerequisites, then execute Unified Job Control → Structured Concurrency → Agent Worker Isolation —
+   [`docs/specs/settings-capability-runtime-refactor.md`](./specs/settings-capability-runtime-refactor.md) · [`docs/specs/runtime-refactor.md`](./specs/runtime-refactor.md).
 6. **Capability Expansion program (queued):** LiveAgent-class features via Pi ecosystem —  
    [`docs/specs/program-capability-expansion.md`](./specs/program-capability-expansion.md) · W1–W4 `docs/specs/w*.md` · backlog **CE-*** in §2.9.
 7. **Product Depth (recommended next for “too rough”):** main-path depth + competitive alignment —  
    [`docs/specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) · ADR [`0013-pty-tauri.md`](./adr/0013-pty-tauri.md) · backlog **PD-***.  
-   **Locked 2026-07-21:** archive-first sessions; fork-light=duplicate transcript; post-event hooks only (thin); **Tauri PTY** (not node-pty). Prefer this before new CE surface area.
+   **Historical lock 2026-07-21:** archive-first sessions; the shipped
+   fork-light was whole-session Duplicate; post-event hooks only (thin);
+   **Tauri PTY** (not node-pty). The 2026-08-04 SF-* spec now separates
+   Duplicate from response-level Fork.
 8. **Product-Shell Repair (PSR-*) — Active 2026-07-22:** developer-preview desktop shell repair —  
    plan [`docs/plans/2026-07-22-desktop-product-shell-repair.md`](plans/2026-07-22-desktop-product-shell-repair.md).  
    **D1 lock:** remains developer preview; bundled Node/host sidecar distribution is intentionally deferred (not a completed release path).
+9. **Product-level Session Fork (SF-*) — Ready for implementation 2026-08-04:** user-triggered response branching, a discoverable response-level Duplicate entry, and lightweight product lineage without coupling v1 to Pi JSONL active-leaf restore —
+   spec [`docs/specs/session-fork-product-adaptation.md`](specs/session-fork-product-adaptation.md).
 
 ---
 
@@ -119,7 +125,7 @@
 | D-M2-06 | Hot-switch agentMock + restart host | restart process manually | polish |
 | D-M2-07 | ~~host-log UI panel~~ | **Done 2026-07-20** — ring buffer + HostLogPanel + bridge emit | done |
 | D-HOST-01 | ~~RPC capability honesty (bounded)~~ | **Done** — clear CLI/RPC failure; `capabilities.customTools` | done (bounded) |
-| D-HOST-01b | Full RPC **process isolation worker** | ADR 0012 design; product uses SDK fallback (0011) | residual worker |
+| D-HOST-01b | Full RPC **process isolation worker** | Absorbed into [`runtime-refactor.md`](./specs/runtime-refactor.md) Phase 3; SDK fallback remains transitional until its deletion gate | Runtime Refactor Phase 3 |
 | D-HOST-02 | ~~Provider validation on load/save~~ | **Done** — validate + reject raw keys | done |
 | D-HOST-03 | ~~Sub-agent / plan mode~~ | **Done 2026-07-20** H2 plan + H3 multi-session; residuals 03c/03d executed same day | done |
 | D-HOST-03c | ~~Sub-agent Complete & merge~~ | **Done 2026-07-20** session/complete-subagent + merge-subagent → parent system message; extractive summary | done |
@@ -209,7 +215,7 @@
 | PD-SESS-02 | session/archive + unarchive | **Done 2026-07-21** |
 | PD-SESS-03 | session/delete permanent (from archive) | **Done 2026-07-21** |
 | PD-SESS-04 | Session row context menu | **Done 2026-07-21** |
-| PD-SESS-05 | session/duplicate (fork-light) | **Done 2026-07-21** |
+| PD-SESS-05 | `session/duplicate` (historically shipped as fork-light; now independent from SF-* response Fork) | **Done 2026-07-21** |
 | PD-SESS-06..07 | Pinned section + show archived | **Done 2026-07-21** (pinned group + archive toggle) |
 | PD-TRUE-01..04 | Capability honesty / Shell wording | **Done 2026-07-21** (pty=false, matrix, pills) |
 | PD-STR-01..06 | App/host-runtime/host-client/ui-kit split | **Done** — domain command modules (catalog/mcp/git/plan/process/memory/pty/automation/resolve) + dispatchDomainCommands; session-live-commands extracted; HostRuntime is orchestrator+services |
@@ -287,6 +293,30 @@
 | QW-BTN-01 | Migrate 21 raw `.btn*` usages in `NotesPanel.tsx` / `FlashcardsPanel.tsx` to ui-kit `Button` | **Done 2026-07-27** |
 | QW-BTN-02 | Remove legacy `.btn*` rules from `ui-foundations.css` once QW-BTN-01 lands | **Done 2026-07-27** |
 | QW-BTN-03 | Verify + delete `.icon-btn` rule in `ui-foundations.css` (no bare TSX consumer found; suspected dead) | **Done 2026-07-27** |
+
+---
+
+### 2.14 Product-level Session Fork (SF-*) — ready for implementation 2026-08-04
+
+> Spec: [`docs/specs/session-fork-product-adaptation.md`](specs/session-fork-product-adaptation.md)
+> Product lock: Duplicate is an independent complete copy; Fork is a linked
+> transcript prefix through a selected completed assistant response. Product
+> lineage is not Pi `SessionTreeView`, transcript outline, Git history, or
+> subagent parentage.
+
+| ID | Item | Status |
+|----|------|--------|
+| SF-00 | Contracts + decision alignment (`ProductSessionOrigin`, lineage, Fork IPC) | **Active** — executable spec + ADR 0009 alignment done 2026-08-04; contracts pending |
+| SF-01 | Derived-session core + harden Duplicate media ownership | **Queued** — existing Duplicate shares source attachment paths and must be fixed before response entry ships |
+| SF-02 | Shared-workspace `session/fork` + `session/lineage` Host path | **Queued** |
+| SF-03 | Assistant response footer: inline SVG Duplicate + Fork icons | **Queued** — latest completed response shows both; historical completed responses show Fork only |
+| SF-04 | Source badge, direct-fork count, lightweight sidebar lineage navigation | **Queued** |
+| SF-05 | CLI parity for duplicate/fork/lineage | **Queued** — same Host semantics, no separate CLI implementation |
+| SF-06 | Optional isolated session-fork worktree | **Future** — separate from subagent fields; no historical checkpoint claim |
+| SF-07 | Pi native JSONL tree/active-leaf spike | **Future / spike-first** — may optimize Host later; does not block SF-00..06 |
+
+**Execution order:** SF-00 → SF-01 → SF-02 → SF-03 → SF-04 → SF-05;
+SF-06 follows core adoption, and SF-07 remains independently spike-gated.
 
 ---
 

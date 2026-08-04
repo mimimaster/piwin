@@ -2,10 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| Updated | 2026-07-22 |
+| Updated | 2026-08-04 |
 | Backlog | [`todo-deferred.md`](./todo-deferred.md) |
 | Depth program | [`specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) |
 | Optimization program | [`specs/product-optimization-program.md`](./specs/product-optimization-program.md) **Active** |
+| Runtime program | [`specs/runtime-refactor.md`](./specs/runtime-refactor.md) **Ready, ordered Phases 1-3** |
 
 Legend: **green** usable · **yellow** partial / honest degrade · **red** not shipped
 
@@ -19,15 +20,15 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Pin + search | green | Pinned group in sidebar |
 | Skills / MCP panels | green | stdio lifecycle |
 | Permissions | green | Host-owned policy |
-| Media paste path inject | green | No base64 dumps |
+| Media prompt routing | green/transitioning | Native vision uses ImageContent; path text is explicit text-only fallback only |
 | Markdown + KaTeX/Mermaid | green | Soft-fail fences |
 | Artifact HTML | green | Sandbox iframe |
 | Git status/commit | green | No force-push |
 | Memory / process tools | green | Feature-flagged config |
-| Shell dock | yellow→green on Tauri | **Tauri PTY + xterm** when running desktop; browser mock stays Shell preview (`host capabilities.pty=false`) |
-| RPC isolation | yellow | SDK fallback under `hostMode=rpc` |
+| Shell dock | yellow→green on Tauri | **Tauri PTY + xterm** when running desktop; Node shell preview is removed by Runtime Refactor Phase 1 |
+| RPC isolation | yellow | SDK fallback is transitional; Runtime Refactor Phase 3 requires one isolated worker per runtime generation |
 | Hooks / cron | yellow | Thin post-event; cron needs host up |
-| Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; mock remains shell preview |
+| Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; no second Node shell-preview architecture in the target state |
 | Personal gateway | red | W4 future; ADR 0027 seams landed (contracts seq/replay, HostRuntime multi-sink, transport abstraction) |
 
 ## Architecture health
@@ -37,7 +38,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Package boundary (apps ↛ Pi) | green |
 | App shell modularity | green | App ~800 lines orchestration + hooks/components |
 | host-client mock isolation | green | `host-client-mock.ts` |
-| HostRuntime modularity | green | domain + session-live command modules |
+| HostRuntime modularity | transition | target extraction to `@piwin/host-runtime`; `@piwin/agent-host` narrows to the Pi boundary |
 | ui-kit primitives | green | Menu/Popover/Confirm/Notice/Status/Tabs/Field + Button/Dialog |
 | Desktop UI modernization | green | Shell IA + run strip + palette + confirms + CSS split + viewport e2e + visual baselines (darwin) |
 

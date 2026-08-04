@@ -3,10 +3,10 @@
 | Field | Value |
 |---|---|
 | Status | Ready for implementation |
-| Date | 2026-08-03 |
-| Scope | `contracts`, `agent-resources` (new), `agent-host`, `project`, `skills`, `mcp`, `tools-web`, `process`, `notes`, `flashcards`, `desktop`, `cli`, docs |
-| Primary owners | Settings control plane, Agent Host capability boundary, Desktop/CLI product surfaces |
-| Related | [`architecture.md`](../architecture.md), [`prd.md`](../prd.md), [`settings-ui-redesign.md`](./settings-ui-redesign.md), [`vision-delegation.md`](./vision-delegation.md), ADR 0002/0003/0005/0008/0010/0011/0012/0014/0019/0020/0021/0024/0026 |
+| Date | 2026-08-04 |
+| Scope | `contracts`, `agent-resources` (new), `host-runtime` (new composition root), `agent-host`, `project`, `skills`, `mcp`, `tools-web`, `process`, `notes`, `flashcards`, `desktop`, `cli`, docs |
+| Primary owners | Settings control plane and product composition in `host-runtime`; Pi backend boundary in `agent-host`; Desktop/CLI product surfaces |
+| Related | [`architecture.md`](../architecture.md), [`prd.md`](../prd.md), [`settings-ui-redesign.md`](./settings-ui-redesign.md), [`vision-delegation.md`](./vision-delegation.md), ADR 0002/0003/0005/0008/0010/0011/0012/0014/0019/0020/0021/0024/0030 |
 | Trigger | Audit found settings-off resources/tools still entering Pi sessions, inconsistent runtime application, and multiple competing config writers |
 | Binding rules | `AGENTS.md`: contracts first, only `agent-host` imports Pi, dual host modes remain real, no cross-layer temporary hacks |
 
@@ -138,7 +138,7 @@ The work must be deliverable as vertical, reviewable phases. Each phase must lea
 | ID | Decision |
 |---|---|
 | SCR-01 | `SettingsService` is the only writer of `~/.piwin/config.json`. |
-| SCR-02 | Runtime capability decisions are compiled in `@piwin/agent-host`, not in apps, adapters, or domain packages. |
+| SCR-02 | Runtime capability decisions are compiled in `@piwin/host-runtime`, not in apps, Pi adapters, or domain packages. |
 | SCR-03 | Pi adapters consume a `SessionBlueprint`; they do not read Settings or project trust. |
 | SCR-04 | Safety disable/revocation blocks new execution immediately, including calls from stale live sessions. |
 | SCR-05 | Tool/resource schema changes apply to a new Agent Runtime, not through partial hot reload. |
@@ -153,6 +153,8 @@ The work must be deliverable as vertical, reviewable phases. Each phase must lea
 | SCR-14 | Existing user data is preserved during capability disable. Notes, flashcards, media, MCP definitions, resources, and process records are not deleted by an exposure switch. |
 | SCR-15 | RPC product parity is achieved through a piwin-owned SDK worker, not stock Pi RPC and not a permanent RPC-to-SDK fallback. |
 | SCR-16 | Pi/global/project `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md`, and `APPEND_SYSTEM.md` are represented by an explicit `ContextManifest`; adapters may not rely on invisible default context discovery. |
+| SCR-17 | ToolManifest contains complete descriptors for Host custom/dynamic tools. Pi built-ins are the explicit name-selected exception resolved by the same pinned Pi version in each backend. |
+| SCR-18 | `SessionRuntimeController` in `@piwin/host-runtime` owns `runtimeGenerationId` allocation, replacement ordering, and active-generation publication. |
 
 ---
 
@@ -242,7 +244,7 @@ Every save confirmation must answer:
 apps/desktop, apps/cli
         |
         v
-@piwin/agent-host public commands/contracts
+@piwin/host-runtime public commands/contracts
         |
         +--> @piwin/agent-resources (new, pure inventory; no Pi)
         +--> @piwin/project
@@ -250,6 +252,7 @@ apps/desktop, apps/cli
         +--> @piwin/tools-web
         +--> @piwin/process
         +--> @piwin/notes / flashcards / media / session
+        +--> @piwin/agent-host (Pi backends only)
         |
         v
 @piwin/contracts
@@ -287,10 +290,10 @@ Forbidden:
 - Desktop UI
 - Settings persistence
 
-### 6.3 Agent Host target layout
+### 6.3 Host Runtime and Agent Host target layouts
 
 ```text
-packages/agent-host/src/
+packages/host-runtime/src/
   settings/
     settings-service.ts
     settings-migration.ts
@@ -313,7 +316,6 @@ packages/agent-host/src/
     tool-registry.ts
     tool-manifest-builder.ts
     host-tool-execution-router.ts
-    pi-tool-adapter.ts
 
   prompt/
     prompt-preparation.ts
@@ -321,10 +323,14 @@ packages/agent-host/src/
     prompt-context-composer.ts
     image-prompt-policy.ts
     image-path-fallback.ts
-    pi-image-content-loader.ts
+
+packages/agent-host/src/
+  tools/
+    pi-tool-adapter.ts
 
   pi/
     pi-resource-loader.ts
+    pi-image-content-loader.ts
     pi-session-factory.ts
     pi-session-handle.ts
     pi-model-runtime.ts
@@ -798,10 +804,16 @@ export type SessionToolFamily =
 
 ```ts
 export type HostToolRegistration = {
-  definition: HostToolDefinition;
+  descriptor: HostToolDescriptor;
   family: SessionToolFamily;
   requiredSubagentCapability?: SubagentCapability;
   availability: () => Promise<ToolAvailability> | ToolAvailability;
+};
+
+export type HostToolDescriptor = {
+  name: string;
+  description: string;
+  parameters: JsonSchema;
 };
 ```
 
@@ -813,10 +825,14 @@ Dynamic MCP tools use the same registration shape after metadata projection.
 export type SessionToolPolicy = {
   enabledFamilies: SessionToolFamily[];
   piBuiltinToolNames: string[];
-  customToolNames: string[];
+  hostTools: HostToolDescriptor[];
   enabledMcpServerIds: string[];
 };
 ```
+
+Host custom and dynamic tools always carry complete descriptors. Pi built-ins
+remain name-selected because their definitions come from the same pinned Pi
+version in SDK and worker backends.
 
 Resolution order:
 
@@ -912,11 +928,12 @@ The snapshot must be canonicalized, sorted, and fingerprinted. Adapters cannot m
 
 ### 10.2 SessionBlueprint
 
-`SessionBlueprint` is internal to `agent-host` and may include non-public runtime references:
+`SessionBlueprint` is internal to `host-runtime` and may include non-public runtime references:
 
 ```ts
 type SessionBlueprint = {
   sessionId: string;
+  runtimeGenerationId: string;
   capabilitySnapshot: SessionCapabilitySnapshot;
   modelRuntimeConfig: ResolvedModelRuntimeConfig;
   piBuiltinToolNames: string[];
@@ -956,7 +973,7 @@ Adapters may not:
 
 ### 11.1 Ownership
 
-`PromptPreparation` is an internal `@piwin/agent-host` service used by all product prompt paths.
+`PromptPreparation` is an internal `@piwin/host-runtime` service used by all product prompt paths.
 
 Desktop sidecar and CLI must both submit the same `PromptInput` through HostRuntime/session commands. CLI must stop calling a bare SessionHandle in a way that bypasses product preparation.
 
@@ -1061,7 +1078,7 @@ One product session may have multiple sequential runtime generations. Only one m
 export type SessionRuntimeStatus = {
   sessionId: string;
   state: 'none' | 'lazy-shell' | 'live' | 'stale' | 'rebuilding' | 'failed';
-  generationId?: string;
+  runtimeGenerationId?: string;
   settingsRevision?: string;
   capabilitySnapshotId?: string;
   staleDomains: SettingsDomain[];
@@ -1070,6 +1087,17 @@ export type SessionRuntimeStatus = {
 ```
 
 `session/resume` must stop returning a misleading single `live: boolean` for both real handles and lazy product shells.
+
+`SessionRuntimeController` is the only runtime-generation identity authority.
+Replacement order is binding:
+
+1. Compile a new blueprint with a new `runtimeGenerationId`.
+2. Publish `rebuilding` without publishing the generation as active.
+3. Close admission to the old generation and cancel/join its active Runs.
+4. Dispose the old backend handle or worker.
+5. Create the new backend from the compiled blueprint.
+6. Atomically publish the new generation as active.
+7. Drop late events from prior generations.
 
 ### 12.3 Runtime staleness
 
@@ -1744,54 +1772,31 @@ Exit:
 
 - Settings semantics match runtime behavior and remain discoverable.
 
-### Phase 7 - Real RPC worker parity
+### Phase 7 - Runtime execution handoff
 
-**Execution authority for Phase 7 is the deep plan:**
+The Settings program ends by handing its compiled outputs to the three-phase
+Runtime Refactor:
 
-- [`docs/specs/phase7-rpc-worker-parity-plan.md`](./phase7-rpc-worker-parity-plan.md)
+- [`docs/specs/runtime-refactor.md`](./runtime-refactor.md)
 
-That document expands this phase into work packages WP0–WP7 covering:
+This Settings phase owns only the prerequisites:
 
-- authority matrix (parent vs worker)
-- serializable blueprint completeness
-- tool-proxy protocol frames
-- `PiSessionBackend` dual implementations
-- rollout flags and deletion gates
-- conformance suite requirements
+- immutable SessionBlueprint semantics;
+- complete ToolManifest descriptors;
+- PromptPreparation output;
+- `runtimeGenerationId` and replacement ordering;
+- SDK/worker-neutral capability snapshots.
 
-High-level create/update list (details in the deep plan):
-
-- worker protocol/client/entry/proxy files
-- shared `PiSessionBackend`
-- SDK/RPC conformance fixtures
-- ADR 0011/0012 final state
-
-Steps (summary; follow deep plan order):
-
-1. Define/complete serializable blueprint projection.
-2. Implement worker session creation and normalized events.
-3. Implement parent-owned tool execution proxy.
-4. Implement abort/steer/follow-up.
-5. Implement extension UI proxy (or documented honesty degradation).
-6. Run conformance suite against SDK and worker.
-7. Switch RPC product mode to worker.
-8. Delete fallback/stock paths and temporary environment switches **only after** conformance is green.
-
-Required conformance assertions:
-
-- same snapshot ID;
-- same resource paths;
-- same Pi built-in/custom tool names;
-- same prepared prompt text/image mode;
-- same normalized event ordering/terminal outcome;
-- same permission context;
-- same MCP/Web/Process disabled behavior;
-- same subagent ceiling.
+Runtime Refactor Phase 1 then establishes Job control, Phase 2 establishes the
+Run tree and structured concurrency, and Phase 3 implements the real isolated
+worker plus SDK/worker conformance. The old Phase 7 worker deep plan is a
+historical analysis and is not an independent execution authority.
 
 Exit:
 
-- Dual host modes are real and consume one architecture.
-- Isolation claims are honest; fallback is not the product default.
+- Runtime prerequisites are complete and consumed without adapters re-reading
+  Settings or reconstructing policy.
+- Runtime implementation follows the handoff contracts in `runtime-refactor.md`.
 
 ---
 

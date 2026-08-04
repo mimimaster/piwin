@@ -2,16 +2,16 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Ready for implementation planning** |
+| Status | **Historical wave spec; ManagedProcess portion superseded by Runtime Refactor Phase 1** |
 | Date | 2026-07-21 |
 | Program | [`program-capability-expansion.md`](./program-capability-expansion.md) |
 | Depends on | M2 shell, PermissionPolicy, ADR 0008/0010 |
-| Parallel | Consume D-EXT-04 when ready; tools on SDK until D-HOST-01b |
+| Runtime authority | [`runtime-refactor.md`](./runtime-refactor.md) Phase 1 for Job control; Phase 3 for worker isolation |
 | Packages | `contracts`, `@piwin/memory` (new), `@piwin/process` (new), `session`, `agent-host`, desktop, cli |
 
 ## 1. Goals
 1. Cross-session **Memory** (MD + FTS + tools + Settings + inject).
-2. **ManagedProcess** for long-running jobs (dev servers).
+2. Long-running commands/services, now implemented through the Phase 1 **Job** model.
 3. Chat **pin / search / edit-resend**.
 4. **Usage** (tokens/context) via Pi `contextUsage`.
 
@@ -19,7 +19,9 @@
 Organizer, always-on silent extract, PTY, worktree, cron, gateway (later waves).
 
 ## 3. Architecture
-HostRuntime owns MemoryStore + ProcessRegistry. Tools as host `customTools` at `createAgentSession`. Memory overview injected as host system/reminder each prompt (default). Optional extension only reads overview cache file.
+The original ProcessRegistry shape below is historical. The target composition
+is `@piwin/host-runtime` + Phase 1 JobController; `@piwin/agent-host` receives
+backend-neutral tool ports and does not own process state.
 
 ## 4. CE-MEM Memory
 ### Model

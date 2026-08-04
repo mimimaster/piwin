@@ -80,7 +80,7 @@ Never: broaden remote/gateway or second kernel while main path still rough
 | ID | Decision | Source |
 |----|----------|--------|
 | L1 | Archive-first session delete | Product Depth |
-| L2 | Fork = product transcript duplicate | Product Depth |
+| L2 | Historical fork-light shipped as whole-session Duplicate. The 2026-08-04 SF-* design now keeps Duplicate and response-level transcript-prefix Fork distinct. | Product Depth + [`session-fork-product-adaptation.md`](./session-fork-product-adaptation.md) |
 | L3 | Hooks = post-event only; thin priority | Product Depth + user |
 | L4 | Interactive PTY = Tauri (not node-pty) | ADR 0013 |
 | **L5** | Product Optimization priority: **A polish → B half-built → C PTY spike** | 2026-07-22 product review |
