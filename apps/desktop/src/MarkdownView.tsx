@@ -522,7 +522,13 @@ function CodeFenceView(props: {
     // (no stacked second code block). The "Show code" action lives inside the
     // ArtifactFrame header via `extraHeaderAction`.
     return (
-      <div className="artifact-with-source">
+      <div
+        className={
+          artifactPreviewOpen
+            ? 'artifact-with-source artifact-with-source--full-bleed'
+            : 'artifact-with-source'
+        }
+      >
         {artifactPreviewOpen ? (
           <ArtifactFrame
             key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}`}

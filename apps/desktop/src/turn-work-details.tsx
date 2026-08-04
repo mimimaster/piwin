@@ -24,6 +24,8 @@ export type TurnWorkDetailsProps = {
   permissionPrompt: PermissionPromptUi | null;
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity?: 'compact' | 'comfortable' | 'detailed';
+  /** Whether intermediate Agent thinking should be rendered. */
+  showThinking?: boolean;
   locale?: 'zh-CN' | 'en';
   /** Project root forwarded to tool cards → DiffCard. */
   projectPath?: string | null;
@@ -79,9 +81,8 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     .map((item) => item.tool);
   const thinkingItem = presentation.workItems.find((item) => item.kind === 'thinking');
   const permissionItem = presentation.workItems.find((item) => item.kind === 'permission');
-  const thinkingIsStreaming =
-    presentation.isActive && !presentation.answerStarted && Boolean(thinkingItem);
-  const hasThinking = Boolean(thinkingItem);
+  const hasThinking = props.showThinking !== false && Boolean(thinkingItem);
+  const thinkingIsStreaming = presentation.isActive && !presentation.answerStarted && hasThinking;
 
   const hasVisibleWork =
     hasThinking ||
@@ -160,7 +161,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
         </>
       ) : null}
 
-      {presentation.isWaitingForModel && tools.length === 0 && !thinkingItem ? (
+      {presentation.isWaitingForModel && tools.length === 0 && !hasThinking ? (
         <div className="turn-waiting-line" data-testid="turn-waiting-line">
           <RunActivitySplash
             input={turnPresentationToActivityInput(presentation, props.message, locale)}

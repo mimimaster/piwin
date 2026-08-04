@@ -57,11 +57,10 @@ import {
   type AtItem,
 } from './at';
 import { ComposerModalEditor } from './ComposerModalEditor';
-import {
-  ExtensionUiPrompt,
-  type ExtensionUiResolvePayload,
-} from './extension-ui-prompt';
+import { ExtensionUiPrompt, type ExtensionUiResolvePayload } from './extension-ui-prompt';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
+import { getDesktopCopy } from './desktop-locale';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type ComposerModelOption = {
   providerId: string;
@@ -154,7 +153,18 @@ export type ComposerDockProps = {
   runModeYoloDisabled?: boolean;
 };
 
+function getAgentPlaceholder(
+  mode: AgentModeId,
+  copy: ReturnType<typeof getDesktopCopy>['composer'],
+): string {
+  if (mode === 'plan') return copy.planPlaceholder;
+  if (mode === 'ask') return copy.askPlaceholder;
+  return copy.agentPlaceholder;
+}
+
 export function ComposerCard(props: ComposerDockProps): ReactElement {
+  const { locale } = useDesktopLocale();
+  const copy = getDesktopCopy(locale).composer;
   const agentModeDefinition = getAgentMode(props.agentMode);
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
@@ -175,9 +185,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   );
   const selectedModelSupportsImage = selectedModel?.supportsImage === true;
   const showTextOnlyImageWarning =
-    hasMediaAttachment &&
-    !selectedModelSupportsImage &&
-    props.visionDelegationEnabled !== true;
+    hasMediaAttachment && !selectedModelSupportsImage && props.visionDelegationEnabled !== true;
   const thinkingModels = props.modelOptions.map((model) => ({
     key: `${model.providerId}::${model.modelId}`,
     label: model.label,
@@ -584,7 +592,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       {props.dropActive ? (
         <div className="composer-v2-drop-overlay">
           <div className="composer-v2-drop-content">
-            <span className="composer-v2-drop-text">Drop files or images here to add context</span>
+            <span className="composer-v2-drop-text">{copy.dropFiles}</span>
           </div>
         </div>
       ) : null}
@@ -598,16 +606,14 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               data-testid="composer-text-only-image-warning"
               role="status"
             >
-              <span className="composer-v2-vision-warning-text">
-                当前为文本模型，不支持识图。请换「视觉」模型，或开启视觉委派。
-              </span>
+              <span className="composer-v2-vision-warning-text">{copy.textOnlyModelWarning}</span>
               {props.onOpenModelSettings ? (
                 <button
                   type="button"
                   className="composer-v2-vision-warning-action"
                   onClick={props.onOpenModelSettings}
                 >
-                  设置
+                  {copy.openModelSettings}
                 </button>
               ) : null}
             </div>
@@ -637,7 +643,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                   type="button"
                   className="composer-v2-chip-remove doc-comment-chip-remove"
                   onClick={props.onRemoveDocComments}
-                  aria-label="Remove comment attachment"
+                  aria-label={copy.removeCommentAttachment}
                 >
                   <IconClose width={12} height={12} />
                 </button>
@@ -655,7 +661,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 type="button"
                 className="composer-v2-chip-remove"
                 onClick={() => props.onRemoveAttachment(item.localId)}
-                aria-label="Remove attachment"
+                aria-label={copy.removeAttachment}
               >
                 <IconClose width={12} height={12} />
               </button>
@@ -725,10 +731,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           readOnly={isExtensionUiActive && !isExtensionUiInput}
           placeholder={
             isExtensionUiInput
-              ? extensionUiRequest?.placeholder ?? 'Type your answer'
+              ? (extensionUiRequest?.placeholder ?? copy.typeYourAnswer)
               : isExtensionUiActive
-                ? 'Choose an option above to continue'
-                : agentModeDefinition.placeholder
+                ? copy.chooseOption
+                : getAgentPlaceholder(props.agentMode, copy)
           }
           rows={1}
         />
@@ -744,8 +750,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 <IconButton
                   className={`composer-v2-icon-btn${props.plusMenuOpen ? ' active' : ''}`}
                   data-testid="composer-plus-btn"
-                  title="Attach files, add context"
-                  label="Attach files, add context"
+                  title={copy.attachFiles}
+                  label={copy.attachFiles}
                 >
                   <IconPlus />
                 </IconButton>
@@ -783,7 +789,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 className="composer-v2-mode-dismiss"
                 data-testid="agent-mode-dismiss"
                 disabled={isStreamingRun}
-                aria-label={`Exit ${agentModeDefinition.label} mode`}
+                aria-label={copy.exitAgentMode(agentModeDefinition.label)}
                 onClick={() => props.onAgentModeChange('agent')}
               >
                 <IconClose width={12} height={12} />
@@ -810,7 +816,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           {/* Thinking effort control */}
           <ThinkingEffortControl
             disabled={isStreamingRun || !props.onThinkingLevelChange}
-            modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? 'Model'}
+            modelLabel={selectedModel?.label ?? props.selectedModelLabel ?? copy.model}
             ultraEnabled={props.ultraThinkingEnabled ?? false}
             value={props.thinkingLevel ?? 'off'}
             onChange={(level) => props.onThinkingLevelChange?.(level)}
@@ -839,8 +845,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 data-testid="stop-btn"
                 disabled={!props.activeSessionId || props.runPhase === 'aborting'}
                 onClick={props.onAbort}
-                aria-label={props.runPhase === 'aborting' ? 'Stopping' : 'Stop'}
-                title={props.runPhase === 'aborting' ? 'Stopping…' : 'Stop'}
+                aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
+                title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
               >
                 <span className="stop-btn-pulse" aria-hidden />
                 <IconStop />
@@ -852,8 +858,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 data-testid="send-btn"
                 disabled={!props.onSteer}
                 onClick={triggerSteer}
-                aria-label="Send steer message"
-                title="发送 (进入队列/Steer)"
+                aria-label={copy.sendSteerMessage}
+                title={copy.sendSteerHint}
               >
                 <IconSend />
               </button>
@@ -864,8 +870,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 data-testid="stop-btn"
                 disabled={!props.activeSessionId || props.runPhase === 'aborting'}
                 onClick={props.onAbort}
-                aria-label={props.runPhase === 'aborting' ? 'Stopping' : 'Stop'}
-                title={props.runPhase === 'aborting' ? 'Stopping…' : 'Stop'}
+                aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
+                title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
               >
                 <span className="stop-btn-pulse" aria-hidden />
                 <IconStop />
@@ -878,8 +884,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               data-testid="send-btn"
               disabled={!hasContent}
               onClick={triggerSend}
-              aria-label="Send"
-              title="Send (Enter)"
+              aria-label={copy.send}
+              title={copy.sendShortcut}
             >
               <IconSend />
             </button>
@@ -902,17 +908,14 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 }
 
 export function ComposerDock(props: ComposerDockProps): ReactElement {
+  const { locale } = useDesktopLocale();
+  const copy = getDesktopCopy(locale).composer;
   const hostReady = props.hostReady ?? props.hostStatus?.ready ?? true;
   const hostMode = (props.hostStatus?.mode ?? 'sdk').toUpperCase();
   const isMock = props.hostMock ?? props.hostStatus?.mock ?? false;
 
-  const statusLabel = hostReady
-    ? `Host: ${hostMode}${isMock ? ' (mock)' : ''}`
-    : 'Host: Connecting...';
-
-  const tooltipText = `Host Mode: ${hostMode}${isMock ? ' (Mock)' : ' (Live)'} | Status: ${
-    hostReady ? 'Ready' : 'Connecting'
-  }${props.transportLabel ? ` | Transport: ${props.transportLabel}` : ''}`;
+  const statusLabel = hostReady ? copy.hostStatus(hostMode, isMock) : copy.hostConnecting;
+  const tooltipText = copy.hostTooltip(hostMode, isMock, hostReady, props.transportLabel);
 
   return (
     <footer
@@ -933,9 +936,7 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
           <span className={`host-status-dot ${hostReady ? 'online' : 'offline'}`} />
           <span className="host-status-label">{statusLabel}</span>
         </button>
-        <div className="composer-hint">
-          ⏎ 发送 · ⇧⏎ 换行 · / 命令 · @ 提及 · ↑/↓ 历史记录 · Esc 中断
-        </div>
+        <div className="composer-hint">{copy.shortcutHint}</div>
       </div>
     </footer>
   );

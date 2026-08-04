@@ -41,7 +41,7 @@ export type ProviderListProps = {
   isChinese: boolean;
   saving: boolean;
   copy: ProviderListCopy;
-  getProviderStatus: (provider: ModelProviderConfig) => ProviderTestStatus;
+  getProviderStatus: (provider: ModelProviderConfig) => ProviderTestStatus | null;
   onOpenProvider: (provider: ModelProviderConfig) => void;
   onToggleProvider: (id: string) => void;
   onAddOpen: () => void;
@@ -51,6 +51,7 @@ export type ProviderListProps = {
   onTestProviderModel: (providerId: string, modelId: string) => void;
   /** Set default model (from expanded row). */
   onSetDefaultModel: (providerId: string, modelId: string) => void;
+  onToggleModel: (providerId: string, modelId: string) => void;
   /** Per-provider model test status, keyed by `${providerId}::${modelId}`. */
   modelTestStatus?: Record<string, ModelTestState>;
   /** Currently testing model key (`${providerId}::${modelId}`) or null. */
@@ -84,6 +85,7 @@ export function ProviderList({
   onUpdateProviderModels,
   onTestProviderModel,
   onSetDefaultModel,
+  onToggleModel,
   modelTestStatus = {},
   testingModelKey = null,
   searchCatalog,
@@ -185,6 +187,7 @@ export function ProviderList({
               onUpdateModels={(models) => onUpdateProviderModels(provider.id, models)}
               onTestModel={(modelId) => onTestProviderModel(provider.id, modelId)}
               onSetDefaultModel={(modelId) => onSetDefaultModel(provider.id, modelId)}
+              onToggleModel={(modelId) => onToggleModel(provider.id, modelId)}
               onDiscoverModels={onDiscoverProviderModels}
             />
           );

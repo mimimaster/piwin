@@ -12,10 +12,10 @@
   z-index: 10;
   flex-shrink: 0;
   width: 100%;
-  /* Full stage width + same side pad as .chat-stream so card edges == message edges. */
+  /* Full stage wrapper; .composer-card-v2 below owns the selected content measure. */
   max-width: none;
   margin: 0;
-  padding: 4px var(--chat-side-pad, 20px) 14px;
+  padding: 8px var(--chat-inline-pad, 24px) 14px;
   box-sizing: border-box;
   border-top: none;
   background: transparent;
@@ -29,7 +29,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 6px var(--chat-side-pad, 20px) 24px;
+  padding: 6px var(--chat-inline-pad, 24px) 24px;
   box-sizing: border-box;
   border-top: none;
 }
@@ -38,9 +38,9 @@
 .chat-column-empty .composer-dock.layout-centered {
   flex: 0 0 auto;
   width: 100%;
-  max-width: calc(780px + (var(--chat-side-pad, 20px) * 2));
-  margin: 0 auto;
-  padding: 0 var(--chat-side-pad, 20px);
+  max-width: none;
+  margin: 0;
+  padding: 0 var(--chat-inline-pad, 24px);
   box-sizing: border-box;
   border-top: 0;
   background: transparent;
@@ -50,13 +50,28 @@
   display: none;
 }
 
+/* This is the concrete conversation-width boundary. It intentionally matches
+   .chat-thread, so Default equals the Composer width and Narrow / Wide change
+   both visible surfaces together. */
+.composer-card-v2,
+.composer-footer-row {
+  width: var(--chat-max);
+  max-width: 100%;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.composer-card-v2 {
+  box-sizing: border-box;
+}
+
 @media (max-width: 820px) {
   .composer-dock {
     padding-bottom: 12px;
   }
 
   .chat-column-empty .composer-dock.layout-centered {
-    padding: 0 max(12px, var(--chat-side-pad, 20px));
+    padding: 0 max(12px, var(--chat-inline-pad, 24px));
   }
 }
 
@@ -271,12 +286,14 @@
 .composer-card-v2 {
   display: flex;
   flex-direction: column;
-  width: 100%;
+  width: var(--chat-max);
+  max-width: 100%;
   margin: 0 auto;
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-  border-radius: 16px;
-  /* Level-3 surface: light on dark / gray on light — contrasts the deep/white stage. */
-  background: var(--composer, var(--sidebar, var(--panel)));
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 14px;
+  /* The dock and transcript records share a calm raised field, rather than
+     separate card treatments competing for attention. */
+  background: color-mix(in srgb, var(--composer, var(--sidebar, var(--panel))) 94%, var(--canvas));
   box-shadow: none;
   transition:
     background-color 200ms ease,
@@ -286,7 +303,7 @@
 }
 
 html[data-theme-mode='dark'] .composer-card-v2 {
-  border-color: color-mix(in srgb, var(--text) 10%, transparent);
+  border-color: color-mix(in srgb, var(--text) 11%, transparent);
   box-shadow: none;
 }
 
@@ -310,7 +327,7 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 
 /* Empty session: a single focused prompt card, without landing-page chrome. */
 .chat-column-empty .composer-dock.layout-centered .composer-card-v2 {
-  width: 100%;
+  width: var(--chat-max);
   border-radius: 16px;
   background: var(--composer, var(--sidebar, var(--panel)));
   border-color: color-mix(in srgb, var(--text) 16%, transparent);
@@ -512,7 +529,7 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 
 .composer-v2-input-area {
   position: relative;
-  padding: 14px 16px 6px;
+  padding: 14px 16px 7px;
 }
 
 .composer-v2-textarea {
@@ -527,8 +544,8 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   background: transparent;
   color: var(--text);
   font-family: var(--font);
-  font-size: 14.5px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.55;
   letter-spacing: -0.01em;
 }
 
@@ -547,9 +564,9 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 8px 12px 8px 12px;
-  border-radius: 0 0 16px 16px;
-  background: color-mix(in srgb, var(--fg) 3.5%, transparent);
+  padding: 6px 10px 9px;
+  border-radius: 0 0 14px 14px;
+  background: transparent;
   overflow: visible;
 }
 
@@ -574,7 +591,7 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   padding: 0;
   border: none;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--fg) 5%, transparent);
+  background: transparent;
   color: var(--muted);
   cursor: pointer;
   transition:
@@ -591,8 +608,8 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 
 .composer-v2-icon-btn:hover:not(:disabled) {
   color: var(--text);
-  background: color-mix(in srgb, var(--fg) 10%, transparent);
-  transform: scale(1.04);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  transform: none;
 }
 
 .composer-v2-icon-btn.active {
@@ -652,15 +669,15 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .composer-v2-send-btn {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   border: none;
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-fg, #ffffff);
   cursor: pointer;
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: none;
   transition:
     transform 0.16s ease,
     opacity 0.16s ease,
@@ -677,8 +694,8 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 
 .composer-v2-send-btn:hover:not(:disabled) {
   filter: brightness(1.08);
-  transform: translateY(-1px) scale(1.03);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 40%, transparent);
+  transform: none;
+  box-shadow: none;
 }
 
 .composer-v2-send-btn:active:not(:disabled) {

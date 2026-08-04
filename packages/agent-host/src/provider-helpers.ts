@@ -8,7 +8,7 @@ import type {
   ModelRef,
   PiwinConfig,
 } from '@piwin/contracts';
-import { isProviderEnabled } from '@piwin/contracts';
+import { isModelEnabled, isProviderEnabled } from '@piwin/contracts';
 
 export function getEnabledProviders(config: {
   providers: readonly ModelProviderConfig[];
@@ -30,7 +30,9 @@ export function findEnabledModel(
   providerId: string,
   modelId: string,
 ): ModelConfigEntry | undefined {
-  return findEnabledProvider(config, providerId)?.models.find((model) => model.id === modelId);
+  return findEnabledProvider(config, providerId)?.models.find(
+    (model) => model.id === modelId && isModelEnabled(model),
+  );
 }
 
 /**
@@ -53,7 +55,12 @@ export function resolveConfiguredDefaultModelRef(
     return undefined;
   }
   const provider = findEnabledProvider(config, config.defaultProviderId);
-  if (!provider || !provider.models.some((model) => model.id === config.defaultModelId)) {
+  if (
+    !provider ||
+    !provider.models.some(
+      (model) => model.id === config.defaultModelId && isModelEnabled(model),
+    )
+  ) {
     return undefined;
   }
   return {
@@ -81,7 +88,11 @@ export function resolveDefaultModelRef(
 
   if (config.defaultProviderId && config.defaultModelId) {
     const provider = findEnabledProvider(config, config.defaultProviderId);
-    if (provider?.models.some((model) => model.id === config.defaultModelId)) {
+    if (
+      provider?.models.some(
+        (model) => model.id === config.defaultModelId && isModelEnabled(model),
+      )
+    ) {
       return {
         protocol: provider.protocol,
         providerId: provider.id,
@@ -94,7 +105,7 @@ export function resolveDefaultModelRef(
   if (!first) {
     return undefined;
   }
-  const firstModel = first.models[0];
+  const firstModel = first.models.find((model) => isModelEnabled(model));
   if (!firstModel) {
     return undefined;
   }

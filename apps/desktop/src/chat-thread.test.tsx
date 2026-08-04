@@ -761,10 +761,14 @@ describe('ChatThread render isolation (E1)', () => {
     const timeEl = container.querySelector('[data-testid="user-message-time"]');
     expect(timeEl).not.toBeNull();
 
-    const copyBtn = container.querySelector('[data-testid="message-copy-btn"]') as HTMLButtonElement;
+    const copyBtn = container.querySelector(
+      '[data-testid="message-copy-btn"]',
+    ) as HTMLButtonElement;
     expect(copyBtn).not.toBeNull();
 
-    const revertBtn = container.querySelector('[data-testid="message-revert-btn"]') as HTMLButtonElement;
+    const revertBtn = container.querySelector(
+      '[data-testid="message-revert-btn"]',
+    ) as HTMLButtonElement;
     expect(revertBtn).not.toBeNull();
 
     // Revert button click triggers onRetry with message id
@@ -830,6 +834,53 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     expect(collapsibleBody?.classList.contains('is-expanded')).toBe(true);
+  });
+
+  it('updates existing thinking details when verbose Agent chat changes', () => {
+    const assistantMessage: ChatMessageUi = {
+      id: 'thinking-visibility-a1',
+      role: 'assistant',
+      text: 'The implementation is complete.',
+      thinking: 'Reviewing the implementation details.',
+      tools: [],
+      attachments: [],
+      status: 'done',
+    };
+    const runRecordsById = {};
+
+    function renderThread(showThinking: boolean): void {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[assistantMessage]}
+            streaming={false}
+            editingMessageId={null}
+            lastUserMessageId={null}
+            activeTheme={null}
+            artifactThemeKey={0}
+            runRecordsById={runRecordsById}
+            showThinking={showThinking}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    }
+
+    act(() => {
+      renderThread(false);
+    });
+    expect(container.querySelector('[data-testid="turn-work-details-summary"]')).toBeNull();
+
+    act(() => {
+      renderThread(true);
+    });
+    expect(container.querySelector('[data-testid="turn-work-details-summary"]')).not.toBeNull();
   });
 });
 

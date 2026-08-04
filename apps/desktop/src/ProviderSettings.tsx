@@ -84,9 +84,9 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const [testStatus, setTestStatus] = useState<Record<string, ProviderTestStatus>>({});
   const [testingId, setTestingId] = useState<string | null>(null);
   const testInFlightRef = useRef(false);
-  const [listModelTestStatus, setListModelTestStatus] = useState<
-    Record<string, ModelTestState>
-  >({});
+  const [listModelTestStatus, setListModelTestStatus] = useState<Record<string, ModelTestState>>(
+    {},
+  );
   const [listTestingModelKey, setListTestingModelKey] = useState<string | null>(null);
 
   const filteredProviders = useMemo(() => {
@@ -104,13 +104,13 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   const enabledCount = config.providers.filter((p) => p.enabled !== false).length;
   const modelCount = config.providers.reduce((sum, p) => sum + p.models.length, 0);
 
-  function getProviderStatus(provider: ModelProviderConfig): ProviderTestStatus {
+  function getProviderStatus(provider: ModelProviderConfig): ProviderTestStatus | null {
     if (provider.enabled === false) {
       return { tone: 'off', message: copy.statusOff };
     }
     const test = testStatus[provider.id];
     if (test) return test;
-    return { tone: 'warn', message: copy.statusUntested };
+    return null;
   }
 
   function markDraft(next: ProviderDraft): void {
@@ -335,9 +335,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     providerId: string,
     models: ModelConfigEntry[],
   ): Promise<void> {
-    const nextProviders = config.providers.map((p) =>
-      p.id === providerId ? { ...p, models } : p,
-    );
+    const nextProviders = config.providers.map((p) => (p.id === providerId ? { ...p, models } : p));
     const next: PiwinConfig = { ...config, providers: nextProviders };
     const nextDefault = resolveDefaultAfterProviderChange(nextProviders, {
       ...(config.defaultProviderId !== undefined ? { providerId: config.defaultProviderId } : {}),
@@ -379,15 +377,31 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     }
   }
 
-  async function handleSetDefaultModelFromList(
-    providerId: string,
-    modelId: string,
-  ): Promise<void> {
+  async function handleSetDefaultModelFromList(providerId: string, modelId: string): Promise<void> {
     const next: PiwinConfig = {
       ...config,
       defaultProviderId: providerId,
       defaultModelId: modelId,
     };
+    await onSave(next);
+  }
+
+  async function handleToggleModelFromList(providerId: string, modelId: string): Promise<void> {
+    const nextProviders = config.providers.map((provider) => {
+      if (provider.id !== providerId) return provider;
+      const nextModels = provider.models.map((model) =>
+        model.id === modelId
+          ? { ...model, enabled: model.enabled !== false ? false : true }
+          : model,
+      );
+      return { ...provider, models: nextModels };
+    });
+    const next: PiwinConfig = { ...config, providers: nextProviders };
+    const nextDefault = resolveDefaultAfterProviderChange(nextProviders, {
+      ...(config.defaultProviderId !== undefined ? { providerId: config.defaultProviderId } : {}),
+      ...(config.defaultModelId !== undefined ? { modelId: config.defaultModelId } : {}),
+    });
+    applyDefaultToConfig(next, nextDefault);
     await onSave(next);
   }
 
@@ -398,11 +412,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
       return await onDiscoverModels(provider);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      onError(
-        isChinese
-          ? `模型发现失败：${message}`
-          : `Model discovery failed: ${message}`,
-      );
+      onError(isChinese ? `模型发现失败：${message}` : `Model discovery failed: ${message}`);
       throw error;
     }
   }
@@ -437,6 +447,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
         onSetDefaultModel={(providerId, modelId) =>
           void handleSetDefaultModelFromList(providerId, modelId)
         }
+        onToggleModel={(providerId, modelId) => void handleToggleModelFromList(providerId, modelId)}
         onDiscoverProviderModels={handleDiscoverProviderModelsFromList}
         modelTestStatus={listModelTestStatus}
         testingModelKey={listTestingModelKey}

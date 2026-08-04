@@ -5,6 +5,141 @@
   margin-bottom: 16px;
 }
 
+/* Appearance page — mirrors the compact settings layout while keeping all
+   fills and strokes tied to the active desktop theme. */
+.appearance-page-heading {
+  margin: 0 0 28px;
+}
+
+.appearance-page-heading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.appearance-page-heading p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.appearance-theme-card {
+  gap: 0;
+}
+
+.appearance-theme-setting-row,
+.appearance-theme-color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 50px;
+  gap: 20px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text);
+  font-size: 13.5px;
+}
+
+.appearance-theme-setting-row {
+  padding: 8px 0;
+}
+
+.appearance-theme-color-row {
+  padding: 4px 0;
+}
+
+.appearance-theme-color-label {
+  min-width: 0;
+  font-weight: 550;
+}
+
+.appearance-theme-setting-row .piwin-select {
+  width: 170px;
+}
+
+.appearance-mode-option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.appearance-mode-option svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+/* Keep the Appearance mode choice as one compact setting instead of repeating
+   its title once in the section heading and again in a FieldRow. */
+.settings-section.appearance-mode-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.appearance-mode-copy {
+  min-width: 0;
+}
+
+.appearance-mode-copy h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.appearance-mode-copy p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.appearance-mode-control {
+  flex: 0 0 auto;
+}
+
+.appearance-reset-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
+}
+
+@media (max-width: 720px) {
+  .appearance-page-heading h2 {
+    font-size: 24px;
+  }
+
+  .appearance-page-heading p {
+    font-size: 14px;
+  }
+
+  .appearance-theme-setting-row,
+  .appearance-theme-color-row {
+    gap: 12px;
+  }
+
+  .appearance-theme-setting-row .piwin-select {
+    width: 150px;
+  }
+
+  .settings-section.appearance-mode-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 .settings-section {
   display: flex;
   flex-direction: column;
@@ -2279,6 +2414,11 @@
   pointer-events: auto;
 }
 
+.provider-model-row .provider-mini-btn {
+  width: 30px;
+  height: 30px;
+}
+
 .provider-mini-btn:hover {
   background: var(--surface-inset, #e9ecf3);
   color: var(--text);
@@ -3234,4 +3374,12 @@
 
 .image-model-suggest-show-all:hover {
   background: var(--bg-hover, #313244);
+}
+
+/* Model row enable/disable toggle */
+.provider-model-toggle {
+  display: flex;
+  align-items: center;
+  flex: none;
+  margin-left: auto;
 }

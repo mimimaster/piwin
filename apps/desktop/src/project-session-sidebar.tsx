@@ -37,7 +37,7 @@ import {
   IconTrash,
   IconUnarchive,
 } from './shell-icons';
-import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
+import { getDesktopCopy, type DesktopCopy, type DesktopLocale } from './desktop-locale';
 
 function formatRelativeTime(dateString?: string): string {
   if (!dateString) return '';
@@ -137,6 +137,7 @@ function SessionRowItem({
   onArchiveSession,
   onUnarchiveSession,
   onDeleteSession,
+  copy,
 }: {
   session: SessionListItemUi;
   activeSessionId: string | null;
@@ -146,6 +147,7 @@ function SessionRowItem({
   onArchiveSession?: ((sessionId: string) => void) | undefined;
   onUnarchiveSession?: ((sessionId: string) => void) | undefined;
   onDeleteSession?: ((sessionId: string) => void) | undefined;
+  copy: DesktopCopy['sidebar'];
 }): ReactElement {
   const isPinned = session.isPinned === true;
   const isArchived = session.isArchived === true;
@@ -169,7 +171,7 @@ function SessionRowItem({
         <span className="session-item-body">
           <span className="session-item-name">
             {isArchived ? (
-              <span className="session-archived-mark" aria-hidden title="Archived">
+              <span className="session-archived-mark" aria-hidden title={copy.archived}>
                 <IconDocument width={13} height={13} />
               </span>
             ) : null}
@@ -189,9 +191,7 @@ function SessionRowItem({
       </button>
       <div
         className={
-          isArchived
-            ? 'session-row-actions session-row-actions--archived'
-            : 'session-row-actions'
+          isArchived ? 'session-row-actions session-row-actions--archived' : 'session-row-actions'
         }
       >
         {isArchived ? (
@@ -204,8 +204,8 @@ function SessionRowItem({
                   : 'session-action-btn session-pin-btn'
               }
               data-testid="session-pin-btn"
-              title={isPinned ? 'Unpin session' : 'Pin session'}
-              aria-label={isPinned ? 'Unpin session' : 'Pin session'}
+              title={isPinned ? copy.unpinSession : copy.pinSession}
+              aria-label={isPinned ? copy.unpinSession : copy.pinSession}
               onClick={(event) => {
                 event.stopPropagation();
                 onTogglePin?.(session.id, isPinned);
@@ -217,8 +217,8 @@ function SessionRowItem({
               type="button"
               className="session-action-btn session-unarchive-btn"
               data-testid="session-unarchive-btn"
-              title="Restore session"
-              aria-label="Restore session"
+              title={copy.restoreSession}
+              aria-label={copy.restoreSession}
               onClick={(event) => {
                 event.stopPropagation();
                 onUnarchiveSession?.(session.id);
@@ -230,8 +230,8 @@ function SessionRowItem({
               type="button"
               className="session-action-btn session-delete-btn"
               data-testid="session-delete-btn"
-              title="Delete permanently"
-              aria-label="Delete permanently"
+              title={copy.deleteSessionPermanently}
+              aria-label={copy.deleteSessionPermanently}
               onClick={(event) => {
                 event.stopPropagation();
                 onDeleteSession?.(session.id);
@@ -246,8 +246,8 @@ function SessionRowItem({
               type="button"
               className="session-action-btn session-menu-btn"
               data-testid="session-menu-btn"
-              title="Session actions"
-              aria-label="Session actions"
+              title={copy.sessionActions}
+              aria-label={copy.sessionActions}
               onClick={(event) => {
                 event.stopPropagation();
                 const rect = event.currentTarget.getBoundingClientRect();
@@ -264,8 +264,8 @@ function SessionRowItem({
                   : 'session-action-btn session-pin-btn'
               }
               data-testid="session-pin-btn"
-              title={isPinned ? 'Unpin session' : 'Pin session'}
-              aria-label={isPinned ? 'Unpin session' : 'Pin session'}
+              title={isPinned ? copy.unpinSession : copy.pinSession}
+              aria-label={isPinned ? copy.unpinSession : copy.pinSession}
               onClick={(event) => {
                 event.stopPropagation();
                 onTogglePin?.(session.id, isPinned);
@@ -277,8 +277,8 @@ function SessionRowItem({
               type="button"
               className="session-action-btn session-archive-btn"
               data-testid="session-archive-btn"
-              title="Archive session"
-              aria-label="Archive session"
+              title={copy.archived}
+              aria-label={copy.archived}
               onClick={(event) => {
                 event.stopPropagation();
                 onArchiveSession?.(session.id);
@@ -295,6 +295,7 @@ function SessionRowItem({
 
 export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactElement {
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
+  const sidebarCopy = copy.sidebar;
   const [sortBy, setSortBy] = useState<'updated' | 'alphabetical'>('updated');
   const [groupBy, setGroupBy] = useState<'time' | 'none'>('time');
   const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
@@ -442,7 +443,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       <div className="sidebar-folder-tree" data-testid="sessions-list">
         {/* Header Toolbar: Projects Title, Display Options, Add Project */}
         <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
-          <span>Projects</span>
+          <span>{sidebarCopy.projects}</span>
           <div className="sidebar-section-label-actions">
             <span className="sidebar-section-count muted">{props.recentProjects.length}</span>
 
@@ -451,8 +452,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
               trigger={
                 <IconButton
                   className="sidebar-icon-btn"
-                  label="Display options"
-                  title="Display options"
+                  label={sidebarCopy.displayOptions}
+                  title={sidebarCopy.displayOptions}
                   data-testid="display-options-btn"
                 >
                   <IconSliders />
@@ -460,33 +461,33 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
               }
               contentClassName="sidebar-display-menu"
               align="end"
-              label="Customize sidebar"
+              label={sidebarCopy.customizeSidebar}
               testId="display-options-menu"
             >
               <DropdownMenuLabel className="sidebar-display-menu-title">
-                Customize
+                {sidebarCopy.customize}
               </DropdownMenuLabel>
 
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger testId="display-options-ordering">
                   <span className="sidebar-display-row">
-                    <span className="sidebar-display-row-label">Ordering</span>
+                    <span className="sidebar-display-row-label">{sidebarCopy.ordering}</span>
                     <span className="sidebar-display-row-value">
-                      {sortBy === 'updated' ? 'Updated' : 'A-Z'}
+                      {sortBy === 'updated' ? sidebarCopy.updated : 'A-Z'}
                       <IconChevronRight width={12} height={12} />
                     </span>
                   </span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent
                   className="sidebar-display-submenu"
-                  label="Ordering"
+                  label={sidebarCopy.ordering}
                   testId="display-options-ordering-menu"
                 >
                   <DropdownMenuItem
                     onSelect={() => setSortBy('updated')}
                     testId="display-sort-updated"
                   >
-                    <span className="sidebar-display-option-label">Last Updated</span>
+                    <span className="sidebar-display-option-label">{sidebarCopy.lastUpdated}</span>
                     {sortBy === 'updated' ? (
                       <span className="sidebar-display-check" aria-hidden>
                         <IconCheck width={13} height={13} />
@@ -499,7 +500,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                     onSelect={() => setSortBy('alphabetical')}
                     testId="display-sort-alphabetical"
                   >
-                    <span className="sidebar-display-option-label">Alphabetical (A-Z)</span>
+                    <span className="sidebar-display-option-label">{sidebarCopy.alphabetical}</span>
                     {sortBy === 'alphabetical' ? (
                       <span className="sidebar-display-check" aria-hidden>
                         <IconCheck width={13} height={13} />
@@ -514,23 +515,20 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger testId="display-options-group-by">
                   <span className="sidebar-display-row">
-                    <span className="sidebar-display-row-label">Group by</span>
+                    <span className="sidebar-display-row-label">{sidebarCopy.groupBy}</span>
                     <span className="sidebar-display-row-value">
-                      {groupBy === 'time' ? 'Date / Time' : 'None'}
+                      {groupBy === 'time' ? sidebarCopy.dateTime : sidebarCopy.none}
                       <IconChevronRight width={12} height={12} />
                     </span>
                   </span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent
                   className="sidebar-display-submenu"
-                  label="Group by"
+                  label={sidebarCopy.groupBy}
                   testId="display-options-group-by-menu"
                 >
-                  <DropdownMenuItem
-                    onSelect={() => setGroupBy('time')}
-                    testId="display-group-time"
-                  >
-                    <span className="sidebar-display-option-label">Date / Time</span>
+                  <DropdownMenuItem onSelect={() => setGroupBy('time')} testId="display-group-time">
+                    <span className="sidebar-display-option-label">{sidebarCopy.dateTime}</span>
                     {groupBy === 'time' ? (
                       <span className="sidebar-display-check" aria-hidden>
                         <IconCheck width={13} height={13} />
@@ -539,11 +537,10 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                       <span className="sidebar-display-check-spacer" aria-hidden />
                     )}
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() => setGroupBy('none')}
-                    testId="display-group-none"
-                  >
-                    <span className="sidebar-display-option-label">None (Flat list)</span>
+                  <DropdownMenuItem onSelect={() => setGroupBy('none')} testId="display-group-none">
+                    <span className="sidebar-display-option-label">
+                      {`${sidebarCopy.none} (${sidebarCopy.flatList})`}
+                    </span>
                     {groupBy === 'none' ? (
                       <span className="sidebar-display-check" aria-hidden>
                         <IconCheck width={13} height={13} />
@@ -558,14 +555,14 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
               <DropdownMenuSeparator />
 
               <DropdownMenuLabel className="sidebar-display-section-label">
-                Filters
+                {sidebarCopy.filters}
               </DropdownMenuLabel>
               <DropdownMenuItem
                 onSelect={() => props.onToggleShowArchived()}
                 testId="display-filter-archived"
               >
                 <span className="sidebar-display-row">
-                  <span className="sidebar-display-row-label">Archived</span>
+                  <span className="sidebar-display-row-label">{sidebarCopy.archived}</span>
                   {props.showArchivedSessions ? (
                     <span className="sidebar-display-check" aria-hidden>
                       <IconCheck width={13} height={13} />
@@ -582,19 +579,19 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
               trigger={
                 <IconButton
                   className="sidebar-icon-btn"
-                  label="Open workspace folder"
+                  label={sidebarCopy.openWorkspaceFolder}
                   data-testid="open-workspace-btn"
-                  title={props.projectPath ?? 'Open workspace folder'}
+                  title={props.projectPath ?? sidebarCopy.openWorkspaceFolder}
                 >
                   <IconFolderPlus />
                 </IconButton>
               }
             >
               <DropdownMenuItem onSelect={() => props.onOpenWorkspace()}>
-                <IconFolder width={14} height={14} /> Open Workspace Folder…
+                <IconFolder width={14} height={14} /> {sidebarCopy.openWorkspaceFolderAction}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => props.onSelectGeneral?.()}>
-                <IconChat width={14} height={14} /> General Chat (Quick Start)
+                <IconChat width={14} height={14} /> {sidebarCopy.generalChat}
               </DropdownMenuItem>
             </DropdownMenu>
           </div>
@@ -629,7 +626,11 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                       ...prev,
                       [project.path]: !isProjectOpen,
                     }));
-                    props.onOpenProject(project.path);
+                    // Only open the project when expanding the folder.
+                    // Collapsing should not reset the active session.
+                    if (!isProjectOpen) {
+                      props.onOpenProject(project.path);
+                    }
                   }}
                   title={project.path}
                 >
@@ -644,7 +645,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                   <button
                     type="button"
                     className="tree-folder-add-btn"
-                    title={`New conversation in ${displayName}`}
+                    title={sidebarCopy.newConversationInProject(displayName)}
                     onClick={(e) => {
                       e.stopPropagation();
                       props.onOpenProject(project.path);
@@ -669,6 +670,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
                         onDeleteSession={props.onDeleteSession}
+                        copy={sidebarCopy}
                       />
                     ))}
                     {projectSessions.length > 6 ? (
@@ -684,7 +686,9 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                             }))
                           }
                         >
-                          {isProjectExpanded ? 'Show less' : `See all (${projectSessions.length})`}
+                          {isProjectExpanded
+                            ? sidebarCopy.showLess
+                            : sidebarCopy.seeAll(projectSessions.length)}
                         </button>
                       </li>
                     ) : null}
@@ -712,7 +716,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           return (
             <div className="sidebar-conversations-section">
               <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
-                <span>Conversations</span>
+                <span>{sidebarCopy.conversations}</span>
                 <div className="sidebar-section-label-actions">
                   <IconButton
                     className="sidebar-icon-btn"
@@ -740,6 +744,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
                         onDeleteSession={props.onDeleteSession}
+                        copy={sidebarCopy}
                       />
                     ))}
                     {generalSessions.length > 6 ? (
@@ -750,13 +755,15 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                           data-testid="see-all-general-btn"
                           onClick={() => setShowAllGeneralSessions((prev) => !prev)}
                         >
-                          {isGeneralExpanded ? 'Show less' : `See all (${generalSessions.length})`}
+                          {isGeneralExpanded
+                            ? sidebarCopy.showLess
+                            : sidebarCopy.seeAll(generalSessions.length)}
                         </button>
                       </li>
                     ) : null}
                   </>
                 ) : (
-                  <li className="sidebar-empty-hint muted">No general conversations</li>
+                  <li className="sidebar-empty-hint muted">{sidebarCopy.noGeneralConversations}</li>
                 )}
               </ul>
             </div>

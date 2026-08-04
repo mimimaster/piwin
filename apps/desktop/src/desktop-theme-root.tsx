@@ -3,17 +3,19 @@
  * Document CSS tokens, the Mantine provider, and artifact mapping are all
  * projections of the manifest held here (plan: quiet-workbench P0 convergence).
  */
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { PrimitiveGallery } from './e2e/primitive-gallery';
 import {
+  buildAppearanceTheme,
   applyAppearanceToDocument,
-  PIWIN_APPEARANCE_DARK,
   resolveDesktopAppearance,
+  resolveSystemThemeMode,
 } from './appearance-tokens';
+import { loadDesktopPreferences, type AppearanceMode } from './ui-preferences';
 
 /**
  * Test-harness route, compiled in only when Playwright's Vite server sets
@@ -31,7 +33,12 @@ function isPrimitiveGalleryRoute(): boolean {
 }
 
 export function DesktopThemeRoot() {
-  const [activeTheme, setActiveTheme] = useState<ThemeManifest>(PIWIN_APPEARANCE_DARK);
+  const [activeTheme, setActiveTheme] = useState<ThemeManifest>(() => {
+    const preferences = loadDesktopPreferences();
+    const activeMode = resolvePreferredThemeMode(preferences.appearanceMode);
+    const themeSettings = activeMode === 'light' ? preferences.lightTheme : preferences.darkTheme;
+    return buildAppearanceTheme(activeMode, themeSettings);
+  });
 
   const applyResolvedTheme = useCallback((candidateTheme: ThemeManifest) => {
     const resolvedTheme = resolveDesktopAppearance(candidateTheme);
@@ -47,6 +54,23 @@ export function DesktopThemeRoot() {
     applyAppearanceToDocument(activeTheme);
   }, [activeTheme]);
 
+  useEffect(() => {
+    const preferences = loadDesktopPreferences();
+    if (preferences.appearanceMode !== 'system' || typeof window.matchMedia !== 'function') {
+      return undefined;
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+    const applySystemTheme = (): void => {
+      const nextMode = resolveSystemThemeMode();
+      const nextSettings = nextMode === 'light' ? preferences.lightTheme : preferences.darkTheme;
+      applyResolvedTheme(buildAppearanceTheme(nextMode, nextSettings));
+    };
+
+    mediaQuery.addEventListener?.('change', applySystemTheme);
+    return () => mediaQuery.removeEventListener?.('change', applySystemTheme);
+  }, [applyResolvedTheme]);
+
   return (
     <PiwinUiProvider manifest={activeTheme}>
       <AppErrorBoundary>
@@ -58,4 +82,8 @@ export function DesktopThemeRoot() {
       </AppErrorBoundary>
     </PiwinUiProvider>
   );
+}
+
+function resolvePreferredThemeMode(appearanceMode: AppearanceMode): 'light' | 'dark' {
+  return appearanceMode === 'system' ? resolveSystemThemeMode() : appearanceMode;
 }

@@ -3,18 +3,6 @@
    Uses runtime semantic tokens from appearance-tokens.ts only. */
 
 .context-bar {
-  display: flex;
-  align-items: center;
-  height: 38px;
-  min-height: 38px;
-  padding: 0 12px;
-  gap: 8px;
-  border-bottom: 1px solid transparent;
-  background: transparent;
-  flex-shrink: 0;
-}
-
-.context-bar[data-kind='idle'] {
   display: none;
 }
 

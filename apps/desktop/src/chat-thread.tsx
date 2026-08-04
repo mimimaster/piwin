@@ -202,6 +202,8 @@ export type ChatThreadProps = {
   onPermission?: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
   workDetailsExpanded?: WorkDetailsExpanded;
   toolDensity?: ToolCallDensity;
+  /** Whether intermediate Agent thinking should be rendered in the timeline. */
+  showThinking?: boolean;
   onEdit: (messageId: string) => void;
   onCancelEdit: () => void;
   onEditResend: (messageId: string, text: string) => void;
@@ -239,7 +241,7 @@ export type ChatThreadProps = {
   /** Cancel an in-flight walkthrough generation. */
   onCancelWalkthrough?:
     ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
-  /** SF-03: Duplicate the entire session (shown on latest assistant response only). */
+  /** SF-03: Duplicate the entire session. */
   onDuplicateSession?: (() => void | Promise<void>) | undefined;
   /** SF-03: Fork from a specific assistant response. */
   onForkFromMessage?: ((messageId: string) => void | Promise<void>) | undefined;
@@ -307,17 +309,6 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return turns;
   }, [props.messages]);
 
-  // SF-03: find the last completed assistant message for Duplicate visibility.
-  const lastAssistantMessageId = useMemo(() => {
-    for (let i = props.messages.length - 1; i >= 0; i--) {
-      const msg = props.messages[i];
-      if (msg?.role === 'assistant' && msg.status === 'done') {
-        return msg.id;
-      }
-    }
-    return null;
-  }, [props.messages]);
-
   return (
     <div className="chat-thread">
       {props.plan ? (
@@ -346,6 +337,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               permissionPrompt={props.permissionPrompt ?? null}
               workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
               toolDensity={props.toolDensity ?? 'comfortable'}
+              showThinking={props.showThinking !== false}
               {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
               {...(props.toolDiffRequest !== undefined
                 ? { toolDiffRequest: props.toolDiffRequest }
@@ -397,12 +389,17 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               {...(props.onCancelWalkthrough
                 ? { onCancelWalkthrough: props.onCancelWalkthrough }
                 : {})}
-              {...(props.onDuplicateSession ? { onDuplicateSession: props.onDuplicateSession } : {})}
+              {...(props.onDuplicateSession
+                ? { onDuplicateSession: props.onDuplicateSession }
+                : {})}
               {...(props.onForkFromMessage ? { onForkFromMessage: props.onForkFromMessage } : {})}
               {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
-              {...(props.forkCountsByMessageId ? { forkCountsByMessageId: props.forkCountsByMessageId } : {})}
-              lastAssistantMessageId={lastAssistantMessageId}
-              {...(props.derivedActionsDisabled !== undefined ? { derivedActionsDisabled: props.derivedActionsDisabled } : {})}
+              {...(props.forkCountsByMessageId
+                ? { forkCountsByMessageId: props.forkCountsByMessageId }
+                : {})}
+              {...(props.derivedActionsDisabled !== undefined
+                ? { derivedActionsDisabled: props.derivedActionsDisabled }
+                : {})}
             />
           ))}
         </section>
@@ -437,6 +434,7 @@ type ChatMessageRowProps = {
   permissionPrompt: PermissionPromptUi | null;
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity: ToolCallDensity;
+  showThinking: boolean;
   /** Project root forwarded to tool cards → DiffCard. */
   projectPath?: string | null;
   /** Host git request adapter forwarded to tool cards → DiffCard. */
@@ -477,7 +475,7 @@ type ChatMessageRowProps = {
   /** Cancel an in-flight walkthrough generation. */
   onCancelWalkthrough?:
     ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
-  /** SF-03: Duplicate the entire session (latest assistant response only). */
+  /** SF-03: Duplicate the entire session. */
   onDuplicateSession?: (() => void | Promise<void>) | undefined;
   /** SF-03: Fork from a specific assistant response. */
   onForkFromMessage?: ((messageId: string) => void | Promise<void>) | undefined;
@@ -485,8 +483,6 @@ type ChatMessageRowProps = {
   onOpenForks?: ((messageId: string) => void) | undefined;
   /** SF-03: Map of messageId → direct fork count (for badge display). */
   forkCountsByMessageId?: Record<string, number>;
-  /** SF-03: ID of the last completed assistant message (controls Duplicate visibility). */
-  lastAssistantMessageId: string | null;
   /** SF-03: Whether derived-session actions are disabled. */
   derivedActionsDisabled?: boolean;
 };
@@ -644,9 +640,7 @@ const ChatMessageRow = memo(
         <div id={`msg-${message.id}`} className="chat-subagent-slot">
           <SubagentActivityCard
             activity={message.subagentActivity}
-            {...(props.onInspectSubagent
-              ? { onInspect: props.onInspectSubagent }
-              : {})}
+            {...(props.onInspectSubagent ? { onInspect: props.onInspectSubagent } : {})}
           />
         </div>
       );
@@ -690,6 +684,7 @@ const ChatMessageRow = memo(
             permissionPrompt={props.permissionPrompt}
             workDetailsExpanded={props.workDetailsExpanded}
             toolDensity={props.toolDensity}
+            showThinking={props.showThinking}
             {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
             {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
             {...(props.locale ? { locale: props.locale } : {})}
@@ -755,15 +750,21 @@ const ChatMessageRow = memo(
             {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           />
         ) : null}
-        {message.role === 'assistant' && message.status === 'done' && (props.onDuplicateSession || props.onForkFromMessage) ? (
+        {message.role === 'assistant' &&
+        message.status === 'done' &&
+        (props.onDuplicateSession || props.onForkFromMessage) ? (
           <AssistantResponseActions
             messageId={message.id}
-            showDuplicate={props.onDuplicateSession !== undefined && props.lastAssistantMessageId === message.id}
+            showDuplicate={props.onDuplicateSession !== undefined}
             showFork={props.onForkFromMessage !== undefined}
             directForkCount={props.forkCountsByMessageId?.[message.id] ?? 0}
             disabled={props.derivedActionsDisabled === true || props.streaming}
-            {...(props.onDuplicateSession ? { onDuplicate: props.onDuplicateSession } : { onDuplicate: () => {} })}
-            {...(props.onForkFromMessage ? { onFork: props.onForkFromMessage } : { onFork: () => {} })}
+            {...(props.onDuplicateSession
+              ? { onDuplicate: props.onDuplicateSession }
+              : { onDuplicate: () => {} })}
+            {...(props.onForkFromMessage
+              ? { onFork: props.onForkFromMessage }
+              : { onFork: () => {} })}
             {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
             locale={props.locale ?? 'en'}
           />
@@ -796,6 +797,7 @@ const ChatMessageRow = memo(
       previous.permissionPrompt === next.permissionPrompt &&
       previous.workDetailsExpanded === next.workDetailsExpanded &&
       previous.toolDensity === next.toolDensity &&
+      previous.showThinking === next.showThinking &&
       previous.projectPath === next.projectPath &&
       previous.toolDiffRequest === next.toolDiffRequest &&
       previous.locale === next.locale &&
@@ -813,7 +815,6 @@ const ChatMessageRow = memo(
       previous.onForkFromMessage === next.onForkFromMessage &&
       previous.onOpenForks === next.onOpenForks &&
       previous.forkCountsByMessageId === next.forkCountsByMessageId &&
-      previous.lastAssistantMessageId === next.lastAssistantMessageId &&
       previous.derivedActionsDisabled === next.derivedActionsDisabled &&
       callbackPropsAreStable
     );

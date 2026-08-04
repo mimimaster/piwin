@@ -290,13 +290,28 @@ input.project-path-input {
 .notification-region {
   position: fixed;
   z-index: var(--layer-toast);
-  top: 16px;
+  top: max(12px, calc(var(--titleband-height, 36px) + 8px));
   right: 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: min(380px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
   pointer-events: none;
+}
+
+/* Main-workspace failures are persistent inline feedback, not transient
+   notifications. Keep the message aligned with the current conversation
+   measure without placing it inside the transcript history. */
+.main-error-banner {
+  width: var(--chat-max, 780px);
+  max-width: 100%;
+  margin: 8px auto 0;
+}
+
+.main-error-banner .ui-notice {
+  margin: 0;
+  border-radius: 9px;
+  box-shadow: var(--shadow-overlay);
 }
 
 .notification-toast {
@@ -304,18 +319,21 @@ input.project-path-input {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 10px 12px;
-  border-radius: 10px;
+  position: relative;
+  padding: 10px 12px 10px 38px;
+  border-radius: 9px;
   border: 1px solid var(--line);
   background: var(--surface-raised);
   box-shadow: var(--shadow-overlay);
   color: var(--text);
   font-size: 13px;
   line-height: 1.4;
+  animation: notification-toast-enter 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .notification-toast.level-error {
   border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-raised));
 }
 
 .notification-toast.level-success {
@@ -328,6 +346,48 @@ input.project-path-input {
 
 .notification-message {
   flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.notification-toast.level-error::before,
+.notification-toast.level-warning::before,
+.notification-toast.level-success::before,
+.notification-toast.level-info::before {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.notification-toast.level-error::before {
+  content: '×';
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+}
+
+.notification-toast.level-warning::before {
+  content: '!';
+  color: var(--state-warning);
+  background: color-mix(in srgb, var(--state-warning) 16%, transparent);
+}
+
+.notification-toast.level-success::before {
+  content: '✓';
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
+}
+
+.notification-toast.level-info::before {
+  content: 'i';
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .notification-dismiss {
@@ -338,6 +398,17 @@ input.project-path-input {
   font-size: 16px;
   line-height: 1;
   padding: 0 2px;
+}
+
+@keyframes notification-toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ── Command palette ──────────────────────────────────────────────── */

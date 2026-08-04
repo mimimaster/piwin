@@ -1,5 +1,9 @@
 import type { ModelProviderConfig } from '@piwin/contracts';
-import { DEFAULT_MODEL_CONTEXT_WINDOW, DEFAULT_MODEL_MAX_OUTPUT_TOKENS } from '@piwin/contracts';
+import {
+  DEFAULT_MODEL_CONTEXT_WINDOW,
+  DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+  isModelEnabled,
+} from '@piwin/contracts';
 
 export type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai';
 
@@ -58,7 +62,9 @@ export function buildPiProviderRegistration(
     baseUrl: provider.baseUrl,
     api,
     authHeader: Boolean(apiKey || provider.apiKeyEnv?.trim() || provider.apiKeyRef?.trim()),
-    models: provider.models.map((model) => ({
+    models: provider.models
+      .filter((model) => isModelEnabled(model))
+      .map((model) => ({
       id: model.id,
       name: model.label?.trim() || model.id,
       api,

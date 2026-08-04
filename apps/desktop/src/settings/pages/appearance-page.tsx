@@ -1,19 +1,26 @@
-/**
- * Settings → Appearance page (Wave 1 migration from SettingsPanel).
- * Typography/density preference controls plus the ThemePanel wrapper.
- */
+/** Settings → Appearance: chat preferences and editable light/dark themes. */
 import type { ReactElement } from 'react';
-import { Button, SegmentedControl, Switch } from '@piwin/ui-kit';
+import { Button, ColorInput, Select, SegmentedControl, Switch } from '@piwin/ui-kit';
+import { buildAppearanceTheme, resolveSystemThemeMode } from '../../appearance-tokens';
 import { ThemePanel } from '../../ThemePanel';
+import { getDesktopCopy, type DesktopCopy } from '../../desktop-locale';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import {
+  DEFAULT_DARK_THEME_SETTINGS,
+  DEFAULT_LIGHT_THEME_SETTINGS,
   saveDesktopPreferences,
+  type AppearanceMode,
+  type AppearanceThemeSettings,
   type DesktopPreferences,
+  type ConversationWidth,
   type ToolCallDensity,
 } from '../../ui-preferences';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
+
+type ThemeMode = 'light' | 'dark';
+type ThemeColorKey = keyof Pick<AppearanceThemeSettings, 'background' | 'foreground' | 'accent'>;
 
 function updatePreference<K extends keyof DesktopPreferences>(
   prefs: DesktopPreferences,
@@ -21,116 +28,317 @@ function updatePreference<K extends keyof DesktopPreferences>(
   value: DesktopPreferences[K],
   onChange: (prefs: DesktopPreferences) => void,
 ): void {
-  onChange({ ...prefs, [key]: value });
+  const nextPreferences = { ...prefs, [key]: value } as DesktopPreferences;
+  onChange(nextPreferences);
+  saveDesktopPreferences(nextPreferences);
+}
+
+function getAppearanceThemeSettings(
+  preferences: DesktopPreferences,
+  mode: ThemeMode,
+): AppearanceThemeSettings {
+  return mode === 'light'
+    ? (preferences.lightTheme ?? DEFAULT_LIGHT_THEME_SETTINGS)
+    : (preferences.darkTheme ?? DEFAULT_DARK_THEME_SETTINGS);
+}
+
+function isHexColor(value: string): boolean {
+  return /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
+function getModeLabel(mode: AppearanceMode, copy: DesktopCopy['appearance']): string {
+  if (mode === 'system') return copy.system;
+  return mode === 'light' ? copy.light : copy.dark;
+}
+
+function ModeIcon({ mode }: { mode: AppearanceMode }): ReactElement {
+  if (mode === 'system') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="13" rx="2" />
+        <path d="M8 21h8M12 17v4" />
+      </svg>
+    );
+  }
+  if (mode === 'light') {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z" />
+    </svg>
+  );
+}
+
+function AppearanceModeControl(props: {
+  value: AppearanceMode;
+  onChange: (mode: AppearanceMode) => void;
+  copy: DesktopCopy['appearance'];
+}): ReactElement {
+  return (
+    <SegmentedControl
+      value={props.value}
+      onChange={(value) => props.onChange(value as AppearanceMode)}
+      aria-label={props.copy.appearance}
+      data={(['system', 'light', 'dark'] as const).map((mode) => ({
+        value: mode,
+        label: (
+          <span className="appearance-mode-option">
+            <ModeIcon mode={mode} />
+            {getModeLabel(mode, props.copy)}
+          </span>
+        ),
+      }))}
+      testId="appearance-mode-control"
+    />
+  );
+}
+
+function ThemeColorRow(props: {
+  label: string;
+  value: string;
+  testId: string;
+  onChange: (value: string) => void;
+}): ReactElement {
+  return (
+    <div className="appearance-theme-color-row">
+      <span className="appearance-theme-color-label">{props.label}</span>
+      <ColorInput
+        value={props.value}
+        onValueChange={(value) => {
+          if (isHexColor(value)) {
+            props.onChange(value.toUpperCase());
+          }
+        }}
+        aria-label={props.label}
+        testId={props.testId}
+      />
+    </div>
+  );
+}
+
+function ThemeSettingsCard(props: {
+  mode: ThemeMode;
+  settings: AppearanceThemeSettings;
+  copy: DesktopCopy['appearance'];
+  onChange: (key: ThemeColorKey, value: string) => void;
+}): ReactElement {
+  const title = props.mode === 'light' ? props.copy.lightTheme : props.copy.darkTheme;
+  const prefix = props.mode === 'light' ? 'light' : 'dark';
+
+  return (
+    <section className="settings-section settings-section-card appearance-theme-card">
+      <PageTitle title={title} />
+      <div className="appearance-theme-setting-row">
+        <span>{props.copy.preset}</span>
+        <Select
+          value={props.settings.preset}
+          onChange={() => undefined}
+          data={[{ value: 'default', label: 'Default' }]}
+          aria-label={`${title} ${props.copy.preset}`}
+          testId={`${prefix}-theme-preset`}
+        />
+      </div>
+      <ThemeColorRow
+        label={props.copy.background}
+        value={props.settings.background}
+        testId={`${prefix}-theme-background`}
+        onChange={(value) => props.onChange('background', value)}
+      />
+      <ThemeColorRow
+        label={props.copy.foreground}
+        value={props.settings.foreground}
+        testId={`${prefix}-theme-foreground`}
+        onChange={(value) => props.onChange('foreground', value)}
+      />
+      <ThemeColorRow
+        label={props.copy.accent}
+        value={props.settings.accent}
+        testId={`${prefix}-theme-accent`}
+        onChange={(value) => props.onChange('accent', value)}
+      />
+    </section>
+  );
 }
 
 export function AppearancePage(): ReactElement {
   const { locale } = useDesktopLocale();
-  const isChinese = locale === 'zh-CN';
-  const { preferences, onPreferencesChange, requestTheme, onThemeApplied } = useSettings();
+  const copy = getDesktopCopy(locale).appearance;
+  const { preferences, onPreferencesChange, requestTheme, onThemeApplied, activeTheme } =
+    useSettings();
+
+  function handleAppearanceModeChange(mode: AppearanceMode): void {
+    const nextPreferences = { ...preferences, appearanceMode: mode };
+    onPreferencesChange(nextPreferences);
+    saveDesktopPreferences(nextPreferences);
+
+    const activeMode = mode === 'system' ? resolveSystemThemeMode() : mode;
+    onThemeApplied(
+      buildAppearanceTheme(activeMode, getAppearanceThemeSettings(nextPreferences, activeMode)),
+    );
+  }
+
+  function handleThemeColorChange(mode: ThemeMode, key: ThemeColorKey, value: string): void {
+    const currentThemeSettings = getAppearanceThemeSettings(preferences, mode);
+    const nextThemeSettings: AppearanceThemeSettings = {
+      ...currentThemeSettings,
+      [key]: value,
+    };
+    const nextPreferences: DesktopPreferences = {
+      ...preferences,
+      ...(mode === 'light' ? { lightTheme: nextThemeSettings } : { darkTheme: nextThemeSettings }),
+    };
+    onPreferencesChange(nextPreferences);
+    saveDesktopPreferences(nextPreferences);
+    if (activeTheme.mode === mode) {
+      onThemeApplied(buildAppearanceTheme(mode, nextThemeSettings));
+    }
+  }
+
+  function resetAppearanceDefaults(): void {
+    const nextPreferences: DesktopPreferences = {
+      ...preferences,
+      verboseAgentChat: true,
+      conversationWidth: 'default',
+      appearanceMode: 'system',
+      lightTheme: { ...DEFAULT_LIGHT_THEME_SETTINGS },
+      darkTheme: { ...DEFAULT_DARK_THEME_SETTINGS },
+    };
+    onPreferencesChange(nextPreferences);
+    saveDesktopPreferences(nextPreferences);
+    const activeMode = resolveSystemThemeMode();
+    onThemeApplied(
+      buildAppearanceTheme(activeMode, getAppearanceThemeSettings(nextPreferences, activeMode)),
+    );
+  }
 
   return (
-    <div className="settings-card">
-      <div className="settings-section settings-section-card">
-        <PageTitle
-          title={locale === 'zh-CN' ? '字体与排印' : 'Typography'}
-          description={
-            locale === 'zh-CN'
-              ? '调整助手文本和代码块的字体大小与换行策略。'
-              : 'Adjust font sizes and line wrapping for assistant text and code blocks.'
-          }
-        />
+    <div className="settings-card appearance-page" data-testid="settings-appearance">
+      <div className="appearance-page-heading">
+        <h2>{copy.pageTitle}</h2>
+        <p>{copy.pageDescription}</p>
+      </div>
 
-        {/* Assistant text size */}
-        <FieldRow
-          label={locale === 'zh-CN' ? '助手文本大小' : 'Assistant text size'}
-          description={
-            locale === 'zh-CN' ? '助手回答的字体大小。' : 'Font size for assistant responses.'
-          }
-        >
+      <section className="settings-section settings-section-card">
+        <PageTitle title={copy.chatSettings} description={copy.chatSettingsDescription} />
+        <FieldRow label={copy.verboseAgentChat} description={copy.verboseAgentChatDescription}>
+          <Switch
+            checked={preferences.verboseAgentChat}
+            onCheckedChange={(checked) =>
+              updatePreference(preferences, 'verboseAgentChat', checked, onPreferencesChange)
+            }
+            aria-label={copy.verboseAgentChat}
+            testId="verbose-agent-chat-switch"
+          />
+        </FieldRow>
+        <FieldRow label={copy.conversationWidth} description={copy.conversationWidthDescription}>
+          <SegmentedControl
+            value={preferences.conversationWidth}
+            onChange={(value) =>
+              updatePreference(
+                preferences,
+                'conversationWidth',
+                value as ConversationWidth,
+                onPreferencesChange,
+              )
+            }
+            data={[
+              { value: 'default', label: copy.default },
+              { value: 'narrow', label: copy.narrow },
+              { value: 'wide', label: copy.wide },
+            ]}
+            testId="conversation-width-control"
+          />
+        </FieldRow>
+      </section>
+
+      <section className="settings-section settings-section-card appearance-mode-card">
+        <div className="appearance-mode-copy">
+          <h3>{copy.appearance}</h3>
+          <p>{copy.appearanceDescription}</p>
+        </div>
+        <div className="appearance-mode-control">
+          <AppearanceModeControl
+            value={preferences.appearanceMode}
+            onChange={handleAppearanceModeChange}
+            copy={copy}
+          />
+        </div>
+      </section>
+
+      <ThemeSettingsCard
+        mode="light"
+        settings={getAppearanceThemeSettings(preferences, 'light')}
+        copy={copy}
+        onChange={(key, value) => handleThemeColorChange('light', key, value)}
+      />
+      <ThemeSettingsCard
+        mode="dark"
+        settings={getAppearanceThemeSettings(preferences, 'dark')}
+        copy={copy}
+        onChange={(key, value) => handleThemeColorChange('dark', key, value)}
+      />
+
+      <div className="settings-section settings-section-card">
+        <PageTitle title={copy.typography} description={copy.typographyDescription} />
+        <FieldRow label={copy.assistantTextSize} description={copy.assistantTextSizeDescription}>
           <SegmentedControl
             value={preferences.assistantTextSize}
             onChange={(value) =>
               updatePreference(
                 preferences,
                 'assistantTextSize',
-                value as typeof preferences.assistantTextSize,
+                value as DesktopPreferences['assistantTextSize'],
                 onPreferencesChange,
               )
             }
             data={[
-              { value: 'small', label: isChinese ? '小' : 'Small' },
-              { value: 'default', label: isChinese ? '默认' : 'Default' },
-              { value: 'large', label: isChinese ? '大' : 'Large' },
+              { value: 'small', label: copy.small },
+              { value: 'default', label: copy.default },
+              { value: 'large', label: copy.large },
             ]}
           />
         </FieldRow>
-
-        {/* Code text size */}
-        <FieldRow
-          label={locale === 'zh-CN' ? '代码块大小' : 'Code block size'}
-          description={
-            locale === 'zh-CN'
-              ? '代码和工具输出中的等宽字体大小。'
-              : 'Monospace font size for code and tool output.'
-          }
-        >
+        <FieldRow label={copy.codeBlockSize} description={copy.codeBlockSizeDescription}>
           <SegmentedControl
             value={preferences.codeTextSize}
             onChange={(value) =>
               updatePreference(
                 preferences,
                 'codeTextSize',
-                value as typeof preferences.codeTextSize,
+                value as DesktopPreferences['codeTextSize'],
                 onPreferencesChange,
               )
             }
             data={[
-              { value: 'small', label: isChinese ? '小' : 'Small' },
-              { value: 'default', label: isChinese ? '默认' : 'Default' },
-              { value: 'large', label: isChinese ? '大' : 'Large' },
+              { value: 'small', label: copy.small },
+              { value: 'default', label: copy.default },
+              { value: 'large', label: copy.large },
             ]}
           />
         </FieldRow>
-
-        {/* Code wrap toggle */}
-        <FieldRow
-          label={locale === 'zh-CN' ? '代码自动换行' : 'Code wrap'}
-          description={
-            locale === 'zh-CN'
-              ? '开启后代码块将自动换行而非水平滚动。'
-              : 'When enabled, code blocks wrap instead of scrolling horizontally.'
-          }
-        >
+        <FieldRow label={copy.codeWrap} description={copy.codeWrapDescription}>
           <Switch
             checked={preferences.codeWrap}
-            onCheckedChange={(checked) => {
-              updatePreference(preferences, 'codeWrap', checked, onPreferencesChange);
-            }}
-            aria-label={locale === 'zh-CN' ? '代码自动换行' : 'Code wrap'}
+            onCheckedChange={(checked) =>
+              updatePreference(preferences, 'codeWrap', checked, onPreferencesChange)
+            }
+            aria-label={copy.codeWrap}
           />
         </FieldRow>
       </div>
 
       <div className="settings-section settings-section-card">
         <PageTitle
-          title={locale === 'zh-CN' ? '交互与渲染' : 'Interaction & Rendering'}
-          description={
-            locale === 'zh-CN'
-              ? '自定义工具调用详细度、工作详情展开策略与 Artifact 动态渲染。'
-              : 'Customize tool call details, work section default expansion, and Artifact live rendering.'
-          }
+          title={copy.interactionRendering}
+          description={copy.interactionRenderingDescription}
         />
-
-        {/* Tool call density */}
-        <FieldRow
-          label={locale === 'zh-CN' ? '工具调用密度' : 'Tool call density'}
-          description={
-            locale === 'zh-CN'
-              ? '调整工具调用显示的详细程度。'
-              : 'Adjust how much detail is shown for tool calls.'
-          }
-        >
+        <FieldRow label={copy.toolCallDensity} description={copy.toolCallDensityDescription}>
           <SegmentedControl
             value={preferences.toolDensity}
             onChange={(value) =>
@@ -142,93 +350,54 @@ export function AppearancePage(): ReactElement {
               )
             }
             data={[
-              { value: 'compact', label: isChinese ? '紧凑' : 'Compact' },
-              { value: 'comfortable', label: isChinese ? '适中' : 'Comfortable' },
-              { value: 'detailed', label: isChinese ? '详细' : 'Detailed' },
+              { value: 'compact', label: copy.compact },
+              { value: 'comfortable', label: copy.comfortable },
+              { value: 'detailed', label: copy.detailed },
             ]}
-            testId="tool-density-segmented"
           />
         </FieldRow>
-
-        {/* Work details default */}
-        <FieldRow
-          label={locale === 'zh-CN' ? '工作详情默认展开' : 'Work details default'}
-          description={
-            locale === 'zh-CN'
-              ? '控制助手消息中工作详情的默认展开行为。'
-              : 'Controls the default expansion of work details in assistant messages.'
-          }
-        >
+        <FieldRow label={copy.workDetailsDefault} description={copy.workDetailsDefaultDescription}>
           <SegmentedControl
             value={preferences.workDetailsExpanded}
             onChange={(value) =>
               updatePreference(
                 preferences,
                 'workDetailsExpanded',
-                value as typeof preferences.workDetailsExpanded,
+                value as DesktopPreferences['workDetailsExpanded'],
                 onPreferencesChange,
               )
             }
             data={[
-              { value: 'auto', label: isChinese ? '自动' : 'Auto' },
-              { value: 'always', label: isChinese ? '始终展开' : 'Always' },
-              { value: 'collapsed', label: isChinese ? '默认收起' : 'Collapsed' },
+              { value: 'auto', label: copy.auto },
+              { value: 'always', label: copy.always },
+              { value: 'collapsed', label: copy.collapsed },
             ]}
           />
         </FieldRow>
-
-        {/* Artifact 代码优先 toggle */}
-        <FieldRow
-          label={isChinese ? '代码优先' : 'Code-first mode'}
-          description={
-            locale === 'zh-CN'
-              ? '开启后生成 Artifact 时优先展示源代码，悬停代码块可通过 Preview 按钮切换具现 UI。'
-              : 'When enabled, Artifacts display source code first with a Preview toggle to render the UI.'
-          }
-        >
+        <FieldRow label={copy.codeFirstMode} description={copy.codeFirstModeDescription}>
           <Switch
             checked={preferences.artifactCodeFirst}
-            onCheckedChange={(checked) => {
-              updatePreference(preferences, 'artifactCodeFirst', checked, onPreferencesChange);
-            }}
-            aria-label={isChinese ? '代码优先' : 'Code-first mode'}
+            onCheckedChange={(checked) =>
+              updatePreference(preferences, 'artifactCodeFirst', checked, onPreferencesChange)
+            }
+            aria-label={copy.codeFirstMode}
             testId="artifact-code-first-switch"
           />
         </FieldRow>
-
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+        <div className="appearance-reset-actions">
           <Button
             size="compact"
             variant="ghost"
             data-testid="reset-typography-defaults"
-            onClick={() => {
-              const defaults: DesktopPreferences = {
-                assistantTextSize: 'default',
-                codeTextSize: 'default',
-                codeWrap: false,
-                toolDensity: 'comfortable',
-                workDetailsExpanded: 'auto',
-                artifactPreviewEnabled: true,
-                artifactCodeFirst: false,
-              };
-              saveDesktopPreferences(defaults);
-              onPreferencesChange(defaults);
-            }}
+            onClick={resetAppearanceDefaults}
           >
-            {locale === 'zh-CN' ? '重置排印默认值' : 'Reset defaults'}
+            {copy.resetDefaults}
           </Button>
         </div>
       </div>
 
       <div className="settings-section settings-section-card">
-        <PageTitle
-          title={locale === 'zh-CN' ? '界面主题' : 'UI Themes'}
-          description={
-            locale === 'zh-CN'
-              ? '选择、应用或安装 piwin 界面外观主题。'
-              : 'Select, apply, or install piwin UI appearance themes.'
-          }
-        />
+        <PageTitle title={copy.uiThemes} description={copy.uiThemesDescription} />
         <ThemePanel request={requestTheme} onApplied={onThemeApplied} variant="inline" />
       </div>
     </div>

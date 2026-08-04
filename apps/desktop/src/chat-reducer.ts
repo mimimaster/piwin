@@ -238,6 +238,7 @@ export type ChatUiAction =
     }
   | { type: 'compaction/dismiss' }
   | { type: 'error'; message: string }
+  | { type: 'error/clear' }
   | { type: 'transcript/append'; sessionId: string; message: SessionTranscriptMessage }
   | {
       type: 'subagent/stream';
@@ -809,6 +810,8 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         streaming: false,
         runTerminal: { kind: 'failed', message: action.message, at: Date.now() },
       };
+    case 'error/clear':
+      return state.error === null ? state : { ...state, error: null };
     case 'compaction/dismiss':
       return {
         ...state,

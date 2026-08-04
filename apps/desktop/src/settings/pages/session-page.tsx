@@ -78,8 +78,8 @@ export function SessionPage(): ReactElement {
           title="WalkThrough"
           description={
             isZh
-              ? '可编辑生成提示词。默认关闭；桌面端不会自动生成，也没有生成按钮。'
-              : 'Edit the generation prompt. Off by default; Desktop never auto-generates and has no Generate button.'
+              ? 'Walkthrough 交付文档的生成提示词。默认关闭。'
+              : 'Generation prompt for Walkthrough delivery documents. Off by default.'
           }
         />
         {config ? (
@@ -88,8 +88,8 @@ export function SessionPage(): ReactElement {
               label={isZh ? '启用 WalkThrough' : 'Enable WalkThrough'}
               description={
                 isZh
-                  ? '默认关闭。开启后仅 CLI（piwin walkthrough generate）可生成；聊天与计划完成都不会自动生成，桌面也没有生成按钮。已有文档仍可查看。'
-                  : 'Off by default. When on, only CLI (piwin walkthrough generate) can create new ones; chat turns and plan completion never auto-generate, and Desktop has no Generate button. Existing artifacts remain viewable.'
+                  ? '默认关闭。开启后可手动生成 Walkthrough；聊天和计划完成时不会自动生成。已有文档仍可查看。'
+                  : 'Off by default. When on, Walkthroughs can be generated manually; chat turns and plan completion never auto-generate. Existing artifacts remain viewable.'
               }
               testId="walkthrough-enabled-row"
             >
@@ -105,8 +105,8 @@ export function SessionPage(): ReactElement {
               label={isZh ? '生成提示词' : 'Generation prompt'}
               description={
                 isZh
-                  ? 'CLI 生成时发给模型的说明。使用当前会话/消息模型，不单独选模型。'
-                  : 'Instructions used when CLI generates a walkthrough. Uses the session/message model (no separate model picker).'
+                  ? '生成 Walkthrough 时使用的提示词。'
+                  : 'Prompt used when generating a Walkthrough.'
               }
               testId="walkthrough-prompt-field"
             >

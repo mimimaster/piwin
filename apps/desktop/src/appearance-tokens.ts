@@ -1,6 +1,7 @@
 /** Built-in dark / light appearance. Shared by shell CSS vars and artifact mapping. */
 
 import type { ThemeManifest } from '@piwin/contracts';
+import type { AppearanceThemeSettings } from './ui-preferences';
 
 /** UI sans — system first (Cursor uses SF Pro / -apple-system; Inter is optional fallback). */
 const SHARED_FONT =
@@ -124,6 +125,46 @@ export const BUILTIN_APPEARANCES: ThemeManifest[] = [
   PIWIN_APPEARANCE_LIGHT,
   PIWIN_APPEARANCE_ORANGE_WHITE,
 ];
+
+/** Resolve the browser system preference without making SSR/test assumptions. */
+export function resolveSystemThemeMode(): 'light' | 'dark' {
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  return 'dark';
+}
+
+/** Convert the Appearance settings fields into a validated desktop manifest. */
+export function buildAppearanceTheme(
+  mode: 'light' | 'dark',
+  settings: AppearanceThemeSettings,
+): ThemeManifest {
+  const baseTheme = mode === 'light' ? PIWIN_APPEARANCE_LIGHT : PIWIN_APPEARANCE_DARK;
+  const panel = mode === 'light' ? '#F8F8F8' : '#181818';
+  const panel2 = mode === 'light' ? '#E4E4E4' : '#242424';
+
+  return {
+    ...baseTheme,
+    id: `piwin-${mode}-appearance`,
+    name: mode === 'light' ? 'Default Light' : 'Default Dark',
+    tokens: {
+      ...baseTheme.tokens,
+      bg: settings.background,
+      panel,
+      panel2,
+      text: settings.foreground,
+      accent: settings.accent,
+      accent2: settings.accent,
+    },
+    artifact: {
+      ...baseTheme.artifact,
+      bg: settings.background,
+      surface: panel,
+      text: settings.foreground,
+      accent: settings.accent,
+    },
+  };
+}
 
 export function resolveBuiltinAppearance(themeId: string | undefined): ThemeManifest {
   if (themeId === 'piwin-light') {
@@ -471,14 +512,8 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
    *   Paper → gray  · soft gray · white
    *   橙白  → warm gray · warm white · warm gray
    */
-  root.style.setProperty(
-    '--sidebar',
-    isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1c1c1c',
-  );
-  root.style.setProperty(
-    '--composer',
-    isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1c1c1c',
-  );
+  root.style.setProperty('--sidebar', isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1c1c1c');
+  root.style.setProperty('--composer', isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1c1c1c');
   // History user-message cards share the composer surface (not stage canvas).
   root.style.setProperty(
     '--user-bubble',

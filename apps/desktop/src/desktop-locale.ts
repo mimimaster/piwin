@@ -30,6 +30,130 @@ export type DesktopCopy = {
   offline: string;
   betaFeature: string;
   knowledgeCenter: string;
+  titlebar: {
+    collapseSidebar: string;
+    expandSidebar: string;
+    shellNavigation: string;
+    back: string;
+    forward: string;
+    dragWindow: string;
+    tools: string;
+    more: string;
+    moreTools: string;
+    sessions: string;
+    skills: string;
+    collapseWorkspacePanel: string;
+    expandWorkspacePanel: string;
+    switchToDarkTheme: string;
+    switchToLightTheme: string;
+  };
+  sidebar: {
+    archived: string;
+    pinSession: string;
+    unpinSession: string;
+    restoreSession: string;
+    deleteSessionPermanently: string;
+    sessionActions: string;
+    projects: string;
+    displayOptions: string;
+    customizeSidebar: string;
+    customize: string;
+    ordering: string;
+    updated: string;
+    lastUpdated: string;
+    alphabetical: string;
+    groupBy: string;
+    dateTime: string;
+    none: string;
+    flatList: string;
+    filters: string;
+    openWorkspaceFolder: string;
+    openWorkspaceFolderAction: string;
+    generalChat: string;
+    newConversationInProject: (projectName: string) => string;
+    showLess: string;
+    seeAll: (count: number) => string;
+    conversations: string;
+    noGeneralConversations: string;
+    resizeSidebar: string;
+    resizeSidebarHint: string;
+  };
+  composer: {
+    dropFiles: string;
+    textOnlyModelWarning: string;
+    openModelSettings: string;
+    removeCommentAttachment: string;
+    removeAttachment: string;
+    typeYourAnswer: string;
+    chooseOption: string;
+    agentPlaceholder: string;
+    planPlaceholder: string;
+    askPlaceholder: string;
+    attachFiles: string;
+    exitAgentMode: (mode: string) => string;
+    model: string;
+    send: string;
+    sendShortcut: string;
+    sendSteerMessage: string;
+    sendSteerHint: string;
+    stop: string;
+    stopping: string;
+    hostConnecting: string;
+    hostStatus: (mode: string, isMock: boolean) => string;
+    hostTooltip: (mode: string, isMock: boolean, ready: boolean, transport?: string) => string;
+    shortcutHint: string;
+  };
+  appearance: {
+    pageTitle: string;
+    pageDescription: string;
+    chatSettings: string;
+    chatSettingsDescription: string;
+    verboseAgentChat: string;
+    verboseAgentChatDescription: string;
+    conversationWidth: string;
+    conversationWidthDescription: string;
+    default: string;
+    narrow: string;
+    wide: string;
+    appearance: string;
+    appearanceDescription: string;
+    system: string;
+    light: string;
+    dark: string;
+    lightTheme: string;
+    darkTheme: string;
+    preset: string;
+    background: string;
+    foreground: string;
+    accent: string;
+    typography: string;
+    typographyDescription: string;
+    assistantTextSize: string;
+    assistantTextSizeDescription: string;
+    small: string;
+    large: string;
+    codeBlockSize: string;
+    codeBlockSizeDescription: string;
+    codeWrap: string;
+    codeWrapDescription: string;
+    interactionRendering: string;
+    interactionRenderingDescription: string;
+    toolCallDensity: string;
+    toolCallDensityDescription: string;
+    compact: string;
+    comfortable: string;
+    detailed: string;
+    workDetailsDefault: string;
+    workDetailsDefaultDescription: string;
+    auto: string;
+    always: string;
+    collapsed: string;
+    codeFirstMode: string;
+    codeFirstModeDescription: string;
+    resetDefaults: string;
+    uiThemes: string;
+    uiThemesDescription: string;
+  };
 };
 
 /**
@@ -122,7 +246,6 @@ export type DesktopTranslator = {
       addProviderHint: string;
       statusOk: string;
       statusFail: string;
-      statusUntested: string;
       statusOff: string;
       testConnection: string;
       testing: string;
@@ -244,6 +367,133 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     offline: 'piwin 已断开',
     betaFeature: 'Beta 功能',
     knowledgeCenter: '知识中心',
+    titlebar: {
+      collapseSidebar: '收起左边栏',
+      expandSidebar: '展开左边栏',
+      shellNavigation: '界面导航',
+      back: '上一步',
+      forward: '下一步',
+      dragWindow: '拖动窗口',
+      tools: '工具',
+      more: '更多',
+      moreTools: '更多工具',
+      sessions: '会话',
+      skills: 'Skills',
+      collapseWorkspacePanel: '收起右侧工作面板',
+      expandWorkspacePanel: '展开右侧工作面板',
+      switchToDarkTheme: '切换到深色主题',
+      switchToLightTheme: '切换到浅色主题',
+    },
+    sidebar: {
+      archived: '已归档',
+      pinSession: '置顶会话',
+      unpinSession: '取消置顶',
+      restoreSession: '恢复会话',
+      deleteSessionPermanently: '永久删除会话',
+      sessionActions: '会话操作',
+      projects: '项目',
+      displayOptions: '显示选项',
+      customizeSidebar: '自定义侧边栏',
+      customize: '自定义',
+      ordering: '排序',
+      updated: '最近更新',
+      lastUpdated: '最后更新',
+      alphabetical: '按字母排序 (A-Z)',
+      groupBy: '分组方式',
+      dateTime: '日期 / 时间',
+      none: '无',
+      flatList: '无分组列表',
+      filters: '筛选',
+      openWorkspaceFolder: '打开工作区文件夹',
+      openWorkspaceFolderAction: '打开工作区文件夹…',
+      generalChat: '通用 Chat（快速开始）',
+      newConversationInProject: (projectName) => `在 ${projectName} 中新建会话`,
+      showLess: '收起',
+      seeAll: (count) => `查看全部 (${count})`,
+      conversations: '会话',
+      noGeneralConversations: '暂无通用会话',
+      resizeSidebar: '调整侧边栏宽度',
+      resizeSidebarHint: '拖动调整宽度，双击恢复默认。',
+    },
+    composer: {
+      dropFiles: '拖放文件或图片以添加上下文',
+      textOnlyModelWarning: '当前模型不支持图像。请切换到 Vision 模型，或开启视觉委派。',
+      openModelSettings: '模型设置',
+      removeCommentAttachment: '移除评论附件',
+      removeAttachment: '移除附件',
+      typeYourAnswer: '输入你的回答',
+      chooseOption: '选择上方选项以继续',
+      agentPlaceholder: '规划、搜索或构建任何内容',
+      planPlaceholder: '描述你希望制定的计划…',
+      askPlaceholder: '询问有关此项目的任何问题…',
+      attachFiles: '添加文件和上下文',
+      exitAgentMode: (mode) => `退出 ${mode} 模式`,
+      model: '模型',
+      send: '发送',
+      sendShortcut: '发送 (Enter)',
+      sendSteerMessage: '发送 Steer 消息',
+      sendSteerHint: '发送（进入队列 / Steer）',
+      stop: '停止',
+      stopping: '正在停止…',
+      hostConnecting: 'Host：正在连接…',
+      hostStatus: (mode, isMock) => `Host：${mode}${isMock ? '（模拟）' : ''}`,
+      hostTooltip: (mode, isMock, ready, transport) =>
+        `Host 模式：${mode}${isMock ? '（模拟）' : '（实时）'}｜状态：${ready ? '就绪' : '正在连接'}${transport ? `｜传输：${transport}` : ''}`,
+      shortcutHint: '↵ 发送 · ⇧↵ 换行 · / 命令 · @ 提及 · ↑/↓ 历史记录 · Esc 中断',
+    },
+    appearance: {
+      pageTitle: '外观',
+      pageDescription: '配置 Agent 的视觉主题和显示偏好。',
+      chatSettings: 'Chat Settings',
+      chatSettingsDescription: '调整 Chat 显示和对话宽度。',
+      verboseAgentChat: 'Verbose Agent Chat',
+      verboseAgentChatDescription:
+        '显示并保留中间 thinking steps。关闭后仅隐藏显示，不会删除 transcript。',
+      conversationWidth: '对话宽度',
+      conversationWidthDescription: '设置 conversation panel 的最大宽度。',
+      default: 'Default',
+      narrow: 'Narrow',
+      wide: 'Wide',
+      appearance: 'Appearance',
+      appearanceDescription: '选择 Light、Dark，或跟随系统设置。',
+      system: 'System',
+      light: 'Light',
+      dark: 'Dark',
+      lightTheme: 'Light Theme',
+      darkTheme: 'Dark Theme',
+      preset: 'Preset',
+      background: 'Background',
+      foreground: 'Foreground',
+      accent: 'Accent',
+      typography: '字体与排印',
+      typographyDescription: '调整助手文本和代码块的字体大小与换行策略。',
+      assistantTextSize: '助手文本大小',
+      assistantTextSizeDescription: '助手回答的字体大小。',
+      small: '小',
+      large: '大',
+      codeBlockSize: '代码块大小',
+      codeBlockSizeDescription: '代码和 Tool output 中的等宽字体大小。',
+      codeWrap: '代码自动换行',
+      codeWrapDescription: '代码块自动换行，而非水平滚动。',
+      interactionRendering: '交互与渲染',
+      interactionRenderingDescription:
+        '自定义 Tool call 详细度、工作详情展开策略和 Artifact 动态渲染。',
+      toolCallDensity: 'Tool call 密度',
+      toolCallDensityDescription: '调整 Tool call 显示的详细程度。',
+      compact: '紧凑',
+      comfortable: '适中',
+      detailed: '详细',
+      workDetailsDefault: '工作详情默认展开',
+      workDetailsDefaultDescription: '控制 assistant message 中工作详情的默认展开方式。',
+      auto: '自动',
+      always: '始终展开',
+      collapsed: '默认收起',
+      codeFirstMode: '代码优先',
+      codeFirstModeDescription: 'Artifact 默认展示源代码，并提供 Preview 切换。',
+      resetDefaults: '重置 Appearance 默认值',
+      uiThemes: '界面主题',
+      uiThemesDescription: '选择、应用或安装 piwin UI appearance themes。',
+    },
   },
   en: {
     settings: 'Settings',
@@ -266,6 +516,135 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     offline: 'piwin disconnected',
     betaFeature: 'Beta feature',
     knowledgeCenter: 'Knowledge Center',
+    titlebar: {
+      collapseSidebar: 'Collapse sidebar',
+      expandSidebar: 'Expand sidebar',
+      shellNavigation: 'Shell navigation',
+      back: 'Back',
+      forward: 'Forward',
+      dragWindow: 'Drag window',
+      tools: 'Tools',
+      more: 'More',
+      moreTools: 'More tools',
+      sessions: 'Sessions',
+      skills: 'Skills',
+      collapseWorkspacePanel: 'Collapse workspace panel',
+      expandWorkspacePanel: 'Expand workspace panel',
+      switchToDarkTheme: 'Switch to dark theme',
+      switchToLightTheme: 'Switch to light theme',
+    },
+    sidebar: {
+      archived: 'Archived',
+      pinSession: 'Pin session',
+      unpinSession: 'Unpin session',
+      restoreSession: 'Restore session',
+      deleteSessionPermanently: 'Delete session permanently',
+      sessionActions: 'Session actions',
+      projects: 'Projects',
+      displayOptions: 'Display options',
+      customizeSidebar: 'Customize sidebar',
+      customize: 'Customize',
+      ordering: 'Ordering',
+      updated: 'Updated',
+      lastUpdated: 'Last updated',
+      alphabetical: 'Alphabetical (A-Z)',
+      groupBy: 'Group by',
+      dateTime: 'Date / Time',
+      none: 'None',
+      flatList: 'Flat list',
+      filters: 'Filters',
+      openWorkspaceFolder: 'Open workspace folder',
+      openWorkspaceFolderAction: 'Open Workspace Folder…',
+      generalChat: 'General Chat (Quick Start)',
+      newConversationInProject: (projectName) => `New conversation in ${projectName}`,
+      showLess: 'Show less',
+      seeAll: (count) => `See all (${count})`,
+      conversations: 'Conversations',
+      noGeneralConversations: 'No general conversations',
+      resizeSidebar: 'Resize sidebar',
+      resizeSidebarHint: 'Drag to resize. Double-click to reset.',
+    },
+    composer: {
+      dropFiles: 'Drop files or images here to add context',
+      textOnlyModelWarning:
+        'This text-only model cannot analyze images. Switch to a Vision model or enable vision delegation.',
+      openModelSettings: 'Model settings',
+      removeCommentAttachment: 'Remove comment attachment',
+      removeAttachment: 'Remove attachment',
+      typeYourAnswer: 'Type your answer',
+      chooseOption: 'Choose an option above to continue',
+      agentPlaceholder: 'Plan, search, build anything',
+      planPlaceholder: 'Describe what you want planned…',
+      askPlaceholder: 'Ask anything about this project…',
+      attachFiles: 'Attach files, add context',
+      exitAgentMode: (mode) => `Exit ${mode} mode`,
+      model: 'Model',
+      send: 'Send',
+      sendShortcut: 'Send (Enter)',
+      sendSteerMessage: 'Send steer message',
+      sendSteerHint: 'Send (queue / Steer)',
+      stop: 'Stop',
+      stopping: 'Stopping…',
+      hostConnecting: 'Host: Connecting…',
+      hostStatus: (mode, isMock) => `Host: ${mode}${isMock ? ' (mock)' : ''}`,
+      hostTooltip: (mode, isMock, ready, transport) =>
+        `Host Mode: ${mode}${isMock ? ' (Mock)' : ' (Live)'} | Status: ${ready ? 'Ready' : 'Connecting'}${transport ? ` | Transport: ${transport}` : ''}`,
+      shortcutHint: '↵ Send · ⇧↵ New line · / Commands · @ Mention · ↑/↓ History · Esc Stop',
+    },
+    appearance: {
+      pageTitle: 'Appearance',
+      pageDescription: "Configure the Agent's visual theme and display preferences.",
+      chatSettings: 'Chat Settings',
+      chatSettingsDescription: 'Tune Chat display and conversation width.',
+      verboseAgentChat: 'Verbose Agent Chat',
+      verboseAgentChatDescription: 'Display and preserve intermediate thinking steps.',
+      conversationWidth: 'Conversation Width',
+      conversationWidthDescription: 'Configure the maximum width of the conversation panel.',
+      default: 'Default',
+      narrow: 'Narrow',
+      wide: 'Wide',
+      appearance: 'Appearance',
+      appearanceDescription: 'Select light, dark, or inherit system settings.',
+      system: 'System',
+      light: 'Light',
+      dark: 'Dark',
+      lightTheme: 'Light Theme',
+      darkTheme: 'Dark Theme',
+      preset: 'Preset',
+      background: 'Background',
+      foreground: 'Foreground',
+      accent: 'Accent',
+      typography: 'Typography',
+      typographyDescription:
+        'Adjust font sizes and line wrapping for assistant text and code blocks.',
+      assistantTextSize: 'Assistant text size',
+      assistantTextSizeDescription: 'Font size for assistant responses.',
+      small: 'Small',
+      large: 'Large',
+      codeBlockSize: 'Code block size',
+      codeBlockSizeDescription: 'Monospace font size for code and Tool output.',
+      codeWrap: 'Code wrap',
+      codeWrapDescription: 'Wrap code blocks instead of scrolling horizontally.',
+      interactionRendering: 'Interaction & Rendering',
+      interactionRenderingDescription:
+        'Customize Tool call details, work section expansion, and Artifact live rendering.',
+      toolCallDensity: 'Tool call density',
+      toolCallDensityDescription: 'Adjust how much detail is shown for Tool calls.',
+      compact: 'Compact',
+      comfortable: 'Comfortable',
+      detailed: 'Detailed',
+      workDetailsDefault: 'Work details default',
+      workDetailsDefaultDescription:
+        'Control the default expansion of work details in assistant messages.',
+      auto: 'Auto',
+      always: 'Always',
+      collapsed: 'Collapsed',
+      codeFirstMode: 'Code-first mode',
+      codeFirstModeDescription: 'Display Artifact source first with a Preview toggle.',
+      resetDefaults: 'Reset Appearance defaults',
+      uiThemes: 'UI Themes',
+      uiThemesDescription: 'Select, apply, or install piwin UI appearance themes.',
+    },
   },
 };
 
@@ -307,7 +686,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         models: isChinese ? '模型' : 'Models',
         vision: isChinese ? '视觉' : 'Vision',
         imageGeneration: isChinese ? '图像生成' : 'Image Generation',
-        sessions: 'WalkThrough',
+        sessions: 'Walkthrough',
         runtime: isChinese ? '会话运行时' : 'Session Runtime',
         rules: isChinese ? '规则' : 'Rules',
         skills: 'Skills',
@@ -387,7 +766,6 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
           : 'Supports OpenAI, Anthropic, and any OpenAI-compatible endpoint',
         statusOk: isChinese ? '正常' : 'OK',
         statusFail: isChinese ? '连接失败' : 'Connection failed',
-        statusUntested: isChinese ? '未测试' : 'Untested',
         statusOff: isChinese ? '已停用' : 'Disabled',
         testConnection: isChinese ? '测试连接' : 'Test connection',
         testing: isChinese ? '测试中…' : 'Testing…',

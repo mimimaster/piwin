@@ -166,6 +166,11 @@ export function applyModelConfigurationDraft(
     return null;
   }
   const updated: ModelConfigEntry = { ...original, ...entry };
+  // Preserve the `enabled` flag from the original — the inline editor
+  // does not manage this field; it is toggled via the row switch.
+  if (original.enabled !== undefined) {
+    updated.enabled = original.enabled;
+  }
   if (!draft.contextWindow.trim()) delete updated.contextWindow;
   if (!draft.maxOutputTokens.trim()) delete updated.maxOutputTokens;
   if (!draft.label.trim() || draft.label.trim() === updated.id) delete updated.label;

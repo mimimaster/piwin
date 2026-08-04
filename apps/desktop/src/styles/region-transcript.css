@@ -380,12 +380,12 @@
   min-height: 0;
   box-sizing: border-box;
   height: calc(100% - 28px);
-  /* Horizontal padding is handled by the .chat-stage parent.
-     Keep padding-top 0 so sticky user message headers freeze flush at top:0 without gaps. */
+  /* Stable stage gutter. The visible conversation width lives on
+     .chat-thread so the Default / Narrow / Wide setting changes the
+     content column itself rather than only its surrounding padding. */
   overflow-y: auto;
   overflow-y: overlay;
-  /* Same side pad formula as .composer-dock — one content measure, no dual centering. */
-  padding: 0 var(--chat-side-pad, 20px) 12px;
+  padding: 0 var(--chat-inline-pad, 24px) 12px;
   background: transparent;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent;
@@ -405,11 +405,12 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  /* Horizontal measure comes from .chat-stream side pad. */
-  max-width: none;
-  margin: 0;
-  padding: 20px 0 12px;
+  width: var(--chat-max);
+  max-width: 100%;
+  /* The message column and Composer card use the same --chat-max measure. */
+  margin: 0 auto;
+  /* Historical messages should sit directly under the titlebar. */
+  padding: 0 0 12px;
   box-sizing: border-box;
   gap: 20px;
 }
@@ -455,7 +456,7 @@
 
 @media (max-width: 820px) {
   .chat-stream {
-    padding: 0 max(12px, var(--chat-side-pad, 20px)) 14px;
+    padding: 0 max(12px, var(--chat-inline-pad, 24px)) 14px;
   }
 }
 
@@ -644,9 +645,16 @@
 
 /* SF-03: Assistant response action footer (Duplicate + Fork icons) */
 .assistant-response-actions {
+  position: relative;
+  display: flex;
   align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  opacity: 1;
+  pointer-events: auto;
 }
 .assistant-response-actions .msg-action-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -657,7 +665,9 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
 .assistant-response-actions .msg-action-btn:hover:not(:disabled) {
   background: var(--hover-bg, rgba(128, 128, 128, 0.12));
@@ -671,6 +681,38 @@
   gap: 2px;
   opacity: 0.7;
 }
+
+/* Small, product-styled tooltip shown when an action icon is hovered. */
+.assistant-action-tooltip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 50%;
+  width: max-content;
+  max-width: 180px;
+  padding: 4px 7px;
+  border: 1px solid var(--line-soft, var(--line));
+  border-radius: 5px;
+  background: var(--panel, var(--surface, #ffffff));
+  color: var(--text, currentColor);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 16%);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -2px);
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
+}
+.assistant-response-actions .msg-action-btn:hover .assistant-action-tooltip,
+.assistant-response-actions .msg-action-btn:focus-visible .assistant-action-tooltip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -1769,8 +1811,8 @@
  */
 .bubble.role-user {
   position: sticky;
-  /* Stay below the titleband hairline; do not paint over the shell divider. */
-  top: 8px;
+  /* Pin the history record directly to the transcript's top edge. */
+  top: 0;
   z-index: 10;
   box-sizing: border-box;
   width: 100%;
@@ -1861,8 +1903,8 @@ html[data-theme-mode='dark'] .bubble.role-user {
 }
 
 .user-message-collapsible.has-attachments.is-collapsed .media-preview-image {
-  max-width: 72px;
-  max-height: 56px;
+  width: 48px;
+  height: 48px;
 }
 
 /* Expanded state: no clipping and no mask. */
@@ -2483,6 +2525,15 @@ html[data-theme-mode='dark'] .bubble.role-user {
 .artifact-with-source {
   position: relative;
   margin: 0.2em 0 0.4em;
+}
+
+/* Visual previews are intentionally wider than transcript prose. Only the
+   open Artifact expands across the chat-stage gutter; source code and normal
+   assistant copy retain the selected conversation measure. */
+.artifact-with-source--full-bleed {
+  width: calc(100% + (var(--chat-side-pad) * 2));
+  margin-right: calc(-1 * var(--chat-side-pad));
+  margin-left: calc(-1 * var(--chat-side-pad));
 }
 
 .artifact-frame {

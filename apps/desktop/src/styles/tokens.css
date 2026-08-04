@@ -6,12 +6,14 @@
   --rail-width: 48px;
   --signal-rail-width: 48px;
   --right-panel-width: 300px;
-  --chat-max: min(100%, 780px);
-  /* Shared horizontal inset for transcript + composer (must stay identical). */
-  --chat-inline-pad: 20px;
-  /* Side pad that keeps a 780px content column centered in a wide stage.
-     Used by BOTH .chat-stream and .composer-dock so edges stay aligned. */
-  --chat-side-pad: max(var(--chat-inline-pad), calc((100% - 780px) / 2));
+  --conversation-width: 780px;
+  /* The readable content column shared by transcript and Composer. App.tsx
+     updates --conversation-width from the Default / Narrow / Wide setting. */
+  --chat-max: min(100%, var(--conversation-width));
+  /* Stable stage gutter. Content width is controlled by --chat-max rather
+     than by padding so each conversation-width option visibly changes size. */
+  --chat-inline-pad: 24px;
+  --chat-side-pad: var(--chat-inline-pad);
   --chat-font-size: 13.5px;
   --code-font-size: 12px;
   --code-wrap: unset;
@@ -52,8 +54,12 @@
 
   /* Base typography — font values are overwritten at runtime by appearance-tokens.ts
      but these fallbacks prevent a flash before the first applyAppearanceToDocument call. */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Inter, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', Inter, sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'Fira Code', 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
 
   font-family: var(--font-sans);
   font-size: 13px;
@@ -61,7 +67,10 @@
   font-weight: 400;
   letter-spacing: -0.011em;
   font-feature-settings:
-    'cv02', 'cv03', 'cv04', 'cv11',
+    'cv02',
+    'cv03',
+    'cv04',
+    'cv11',
     'kern' 1,
     'liga' 1;
   -webkit-font-smoothing: antialiased;

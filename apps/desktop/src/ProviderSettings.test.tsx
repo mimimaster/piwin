@@ -123,6 +123,38 @@ describe('ProviderSettings', () => {
     expect(container.querySelector('[data-testid="provider-row-custom-local"]')).not.toBeNull();
   });
 
+  it('hides the untested provider state and labels enlarged model actions', () => {
+    const { container, root } = renderProviderSettings(makeProps());
+    instances.push({ container, root });
+
+    const openaiRow = container.querySelector('[data-testid="provider-row-openai"]');
+    expect(openaiRow?.querySelector('.provider-status-pill')).toBeNull();
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
+        ?.click();
+    });
+
+    const editButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-model-edit-gpt-4.1"]',
+    );
+    const testButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-model-test-gpt-4.1"]',
+    );
+    const removeButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-model-remove-gpt-4.1"]',
+    );
+
+    expect(editButton?.title).toBe('Edit');
+    expect(editButton?.getAttribute('aria-label')).toBe('Edit');
+    expect(editButton?.querySelector('svg')?.getAttribute('width')).toBe('16');
+    expect(testButton?.title).toBe('Test');
+    expect(testButton?.getAttribute('aria-label')).toBe('Test');
+    expect(removeButton?.title).toBe('Delete');
+    expect(removeButton?.getAttribute('aria-label')).toBe('Delete');
+  });
+
   it('opens the provider editor when the edit button is clicked', () => {
     const { container, root } = renderProviderSettings(makeProps());
     instances.push({ container, root });
@@ -301,7 +333,9 @@ describe('ProviderSettings', () => {
     const { container, root } = renderProviderSettings(props);
     instances.push({ container, root });
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="provider-row-open-openai"]')?.click();
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-row-open-openai"]')
+        ?.click();
     });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -386,14 +420,20 @@ describe('ProviderSettings', () => {
     });
 
     act(() => {
-      container.querySelector<HTMLButtonElement>('[data-testid="provider-model-edit-gpt-4.1"]')?.click();
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-model-edit-gpt-4.1"]')
+        ?.click();
     });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const contextInput = container.querySelector<HTMLInputElement>('[data-testid="model-edit-context"]');
-    const outputInput = container.querySelector<HTMLInputElement>('[data-testid="model-edit-output"]');
+    const contextInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="model-edit-context"]',
+    );
+    const outputInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="model-edit-output"]',
+    );
     expect(contextInput).not.toBeNull();
     expect(outputInput).not.toBeNull();
 
@@ -403,7 +443,9 @@ describe('ProviderSettings', () => {
     });
 
     act(() => {
-      container.querySelector<HTMLInputElement>('[data-testid="model-edit-image-generation"]')?.click();
+      container
+        .querySelector<HTMLInputElement>('[data-testid="model-edit-image-generation"]')
+        ?.click();
     });
 
     await act(async () => {
