@@ -25,7 +25,7 @@ Read first:
 ## 1. Non-negotiable architecture rules
 
 1. **UI/apps never import Pi packages** (`@earendil-works/pi-*`).
-   - Only `@piwin/agent-host` (and other `@piwin/*`) are allowed from apps.
+   - Apps may import public `@piwin/*` packages only, never raw Pi packages.
 2. **Only `packages/agent-host` may depend on Pi**.
 3. **Contracts first**: new cross-cutting capability starts in `packages/contracts`.
 4. **Adapters over forks**: do not fork Pi core to add product features.
@@ -35,6 +35,7 @@ Read first:
 8. **Dual host modes stay real**: `PiSdkAdapter` + `PiRpcAdapter` implement the same contracts.
 9. **No circular package deps**. Dependency direction is one-way downward (see §2).
 10. **No "temporary" cross-layer hacks** that become permanent. Prefer a small contract over a clever shortcut.
+11. **One product composition root**: `@piwin/host-runtime` composes application services and `@piwin/agent-host`; `agent-host` stays a Pi-only backend boundary.
 
 ---
 
@@ -43,10 +44,11 @@ Read first:
 ```text
 apps/desktop, apps/cli
     ↓
-application packages (session, project, skills, mcp, media, artifact, git, theme, pet, marketplace, tools-web, ui-kit)
-    ↓
-packages/agent-host          ← only place that may import Pi
-    ↓
+packages/host-runtime        ← product composition root
+    ├──→ application packages (session, project, skills, mcp, media, artifact, git, process, browser, tools-web)
+    └──→ packages/agent-host ← only place that may import Pi
+application packages ──→ packages/contracts
+packages/agent-host ─────→ packages/contracts
 packages/contracts           ← no runtime deps on other @piwin/*
     ↓
 Node/OS/Pi (host only)
@@ -58,6 +60,7 @@ Node/OS/Pi (host only)
 |------|----|
 | `apps/*` | any `@piwin/*` except raw Pi |
 | `@piwin/*` (not contracts) | `@piwin/contracts` |
+| `@piwin/host-runtime` | application packages + `@piwin/agent-host` + `@piwin/contracts` |
 | `@piwin/agent-host` | `@piwin/contracts` + `@earendil-works/pi-*` |
 | `@piwin/ui-kit` | `@piwin/contracts` only (no host, no FS) |
 
@@ -66,6 +69,8 @@ Node/OS/Pi (host only)
 | From | To | Why |
 |------|----|-----|
 | `apps/*` | `@earendil-works/pi-*` | breaks host boundary |
+| application packages | `@piwin/host-runtime`, `@piwin/agent-host` | composition and Pi dependencies point downward from the root |
+| `@piwin/agent-host` | application packages such as `process`, `mcp`, `browser`, `media` | keep the Pi boundary backend-only; inject ports from host-runtime |
 | `packages/contracts` | any `@piwin/*` | contracts must stay leaf |
 | `packages/ui-kit` | `agent-host`, `media` FS, Node-only | keep UI pure |
 | `packages/artifact` | Svelte / React / DOM host APIs | runtime must stay portable |
@@ -88,6 +93,13 @@ Public API = package `src/index.ts` (and explicitly exported subpaths if added l
 - Functions are verbs; variables/types are nouns. Avoid 1–2 character names.
 - Keep files focused: one primary export concept per file when practical.
 - Comments explain **why / invariants / non-obvious constraints**, not "set x to y".
+
+### 3.1.1 UI component reuse
+
+- Unless the user explicitly requests a custom UI treatment, prefer the already-introduced public component libraries and shared components over hand-written UI primitives.
+- In Desktop, use `@piwin/ui-kit` first; use its exported components and styles for buttons, inputs, dialogs, menus, notices, toasts, cards, and other common controls. Reuse Mantine primitives through the existing UI-kit integration where appropriate.
+- Do not create a one-off button, modal, toast, alert, input, dropdown, or similar primitive in an app package merely to avoid using an existing component. If a reusable primitive is genuinely missing, add it deliberately to `@piwin/ui-kit` and expose it through the package public API.
+- Custom CSS should be limited to product-specific layout, theme, and interaction requirements. Do not restyle or fork a shared primitive locally without a clear product reason.
 
 ### 3.2 File & module layout
 
@@ -114,15 +126,15 @@ packages/<name>/
 
 ### 3.4 Async, events, streams
 
-- Host events use the normalized `AgentEvent` union from contracts.
-- Adapters translate Pi SDK / RPC payloads → `AgentEvent` only. UI never parses Pi-native event shapes.
+- Adapters translate Pi SDK / RPC payloads → normalized `AgentEvent` only. UI never parses Pi-native event shapes.
+- Product transport uses `HostPush`: Agent execution is an `agent/event` variant; Job, Run, Plan, subagent, browser, permission, and diagnostic pushes are sibling variants rather than fake Pi events.
 - Prefer explicit unsubscribe functions returned from `subscribe`.
 - Abort paths must be implemented for long operations (prompt, fetch, tool runs).
 
 ### 3.5 State & side effects
 
 - Pure logic (parse, security classify, format injection) stays pure and unit-tested.
-- FS / process / network live in dedicated services (`media`, `mcp`, `tools-web`, `agent-host`).
+- FS / process / network live in dedicated application services (`media`, `process`, `mcp`, `browser`, `tools-web`); `host-runtime` composes them and `agent-host` remains Pi-only.
 - UI components do not call `fs` / `child_process` directly.
 
 ### 3.6 Security
@@ -178,7 +190,7 @@ Do not merge "logic changes" with zero tests when the package already has a test
 1. **Spec**: does PRD/dev-plan cover it? If architectural, write/update ADR.
 2. **Contracts**: add/change types in `@piwin/contracts` if cross-boundary.
 3. **Package**: implement in the owning package only.
-4. **Host wiring**: if tools/events/session, wire through `@piwin/agent-host`.
+4. **Host wiring**: compose product services through `@piwin/host-runtime`; use `@piwin/agent-host` only for Pi backends and Pi event/tool adaptation.
 5. **App**: CLI and/or Desktop consume public APIs only.
 6. **Verify**: typecheck + tests + manual smoke listed in PR/notes.
 
@@ -192,8 +204,9 @@ Do not merge "logic changes" with zero tests when the package already has a test
 | MCP JSON / servers | `mcp` |
 | web_search / web_fetch | `tools-web` |
 | HTML artifact policy | `artifact` (+ research doc) |
-| Paste image / media store | `media` (+ `agent-host` loads native images for Pi) |
-| Pi session run | `agent-host` |
+| Paste image / media store | `media` + `host-runtime` PromptPreparation; `agent-host` applies native image input to Pi |
+| Job / Run / scheduling authority | `host-runtime` + owning application package |
+| Pi SDK/worker session backend | `agent-host` |
 | Shared types | `contracts` |
 | Desktop chrome | `apps/desktop` + `ui-kit` |
 | CLI commands | `apps/cli` |
@@ -250,4 +263,3 @@ When implementing in this repo:
 - **`WalkthroughArtifact` (Walkthrough)**: User-facing, evidence-driven delivery report (`sessionId + messageId` bound). Generated asynchronously by Host via non-streaming provider completion. Displayed as Markdown card under assistant message.
 - **`PlanExecutionSummary` (Plan Summary)**: Internal structured data object tracking plan step status (`completedStepIds`, `failedStepIds`, `mergedChildSessionIds`, etc.). Used internally by Host during plan execution orchestration; not a user-facing document.
 - **`SessionPlan`**: Structural plan representation in the plan domain (`id`, `title`, `steps`, `status`).
-

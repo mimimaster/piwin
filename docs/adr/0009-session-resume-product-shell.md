@@ -40,3 +40,22 @@ from the same transcript.
   injects the truncated history via `needsProductHistoryInjection`, so an
   edited-and-resent message replaces the pre-truncation turns instead of
   duplicating them.
+
+## 2026-08-04 extension: product-level Session Fork
+
+Product-level conversation branching is allowed without superseding this ADR:
+
+1. **Duplicate** creates an independent copy of the complete product
+   transcript.
+2. **Fork from here** creates a separate product session containing the
+   transcript prefix through one completed assistant response and records
+   explicit product lineage.
+3. Each derived session remains linear internally and receives a fresh live Pi
+   session lazily on its next prompt.
+4. Product lineage must not reuse `SessionTreeView`, `SessionOutlineNode[]`, or
+   subagent `parentSessionId`; those domains retain their existing meanings.
+5. A future Pi JSONL tree spike may optimize the Host implementation, but it
+   must preserve the product command and lineage semantics.
+
+The executable design is
+[`docs/specs/session-fork-product-adaptation.md`](../specs/session-fork-product-adaptation.md).

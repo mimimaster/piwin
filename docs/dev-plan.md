@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Active — M2 done; see todo-deferred |
-| Date | 2026-07-20 |
+| Date | 2026-08-04 |
 | Based on | `docs/prd.md` v0.2, locked product decisions |
 | Repo | `~/Projects/piwin` |
 
@@ -26,16 +26,15 @@ live Agent Runtime 的统一改造，以以下 Spec 为执行权威：
 
 - [`docs/specs/settings-capability-runtime-refactor.md`](./specs/settings-capability-runtime-refactor.md)
 
-Phase 7（RPC worker 对等）的深入可执行计划：
+Runtime 控制面与执行面的三阶段改造，以一份连续 Spec 为执行权威：
 
-- [`docs/specs/phase7-rpc-worker-parity-plan.md`](./specs/phase7-rpc-worker-parity-plan.md)
+- [`docs/specs/runtime-refactor.md`](./specs/runtime-refactor.md)
 
-该计划优先于在现有 `sdk-adapter.ts` / `host-runtime.ts` 上继续添加零散开关判断。
-实施顺序固定为：版本化 Settings 控制面 → Resource/Trust → Capability/Tool
-Manifest → Prompt Preparation → Runtime 生效语义 → Settings 产品整合 → RPC
-worker 对等。各阶段必须完成旧路径删除门槛后才算结束。Phase 7 必须按
-deep plan 的 WP0–WP7 顺序推进，且仅在 conformance 全绿后删除 SDK fallback /
-stock RPC 路径。
+实施顺序固定为：先完成 Settings 控制面、精确 manifests、Prompt
+Preparation 与 runtime generation 前置条件；再按 Runtime Spec 的 Phase 1
+Unified Job Control → Phase 2 Structured Concurrency → Phase 3 Agent Worker
+Isolation 推进。每一阶段必须完成本阶段旧路径删除门槛后才能进入下一阶段。
+原 Phase 7 worker plan 只保留为历史分析，不再是执行权威。
 
 ---
 
@@ -118,7 +117,7 @@ Spec: [`docs/specs/m1-host-cli.md`](./specs/m1-host-cli.md) · M2 design: [`docs
 |---|------|---------------|
 | M3.1 | `@piwin/media` save paste under `~/.piwin/media/<session>/` | files on disk |
 | M3.2 | Composer paste + thumbnail | chip removable |
-| M3.3 | Text-model path injection | model sees absolute path text |
+| M3.3 | Native/delegated image prompt routing | native vision receives ImageContent; path text is explicit text-only fallback only |
 | M3.4 | Chat image preview | bubble shows image |
 | M3.5 | `web_search` + `web_fetch` tools | pluggable provider; citations in UI |
 | M3.6 | Permission prompts for network tools | ask/allow/deny |
@@ -179,7 +178,7 @@ Spec: [`docs/specs/m1-host-cli.md`](./specs/m1-host-cli.md) · M2 design: [`docs
 |---|------|---------------|
 | M7.1 | doctor command full checks | providers, paths, pi binary |
 | M7.2 | logging + redaction | no secrets in logs |
-| M7.3 | crash isolation RPC path | optional setting |
+| M7.3 | Runtime Refactor Phases 1-3 | Job/Run ownership unified; RPC worker isolated; SDK/worker conformance green |
 | M7.4 | performance: session list, artifact init | acceptable on large history |
 | M7.5 | security review pass | permissions + CSP + path rules |
 

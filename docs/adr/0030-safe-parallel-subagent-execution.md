@@ -1,9 +1,10 @@
-# ADR 0026: Safe Parallel Subagent Execution
+# ADR 0030: Safe Parallel Subagent Execution
 
 **Status:** Accepted
-**Date:** 2026-08-03
+**Date:** 2026-08-03 (renumbered 2026-08-04)
 **Supersedes:** None
 **Related:** ADR 0012 (RPC worker isolation), ADR 0024 (run modes and sandbox)
+**Implementation:** [`runtime-refactor.md`](../specs/runtime-refactor.md), Phases 2 and 3
 
 ## Context
 
@@ -43,6 +44,10 @@ Git operations.
 | `SubagentIntegrationPort` | Serialized three-way code integration |
 | `@piwin/git` | Git primitives (worktree create/remove/diff/apply) |
 
+`RunRegistry` is the only Run lifecycle and terminal authority. Scheduler
+state, durable manifests, and UI snapshots are projections rather than
+competing state machines.
+
 ### Bounded concurrency
 
 Default max concurrency: **4**. Hard task cap per batch: **8**. Both are
@@ -54,6 +59,14 @@ Parallel runs require the **piwin-owned SDK worker** (ADR 0012), not stock Pi
 RPC. The worker runs as a child process with JSONL IPC, maps Pi-native events
 to normalized `AgentEvent` before emission, and preserves piwin permission,
 MCP, model, session, and event boundaries.
+
+The structured scheduler lands before the isolated runner. Until the backend
+reports `processIsolation=true`, the production orchestrator clamps effective
+concurrency to one and reports that degradation honestly. It does not run an
+unisolated batch in parallel merely because `maxConcurrency > 1` was requested.
+
+Isolation is a backend capability, not a caller preference. Batch requests do
+not carry a `processPolicy` switch.
 
 `PIWIN_RPC_STOCK=1` is not an acceptable product backend for isolated
 subagents because stock Pi RPC cannot register piwin custom tools.
@@ -71,6 +84,10 @@ A dirty parent is rejected when `requireCleanBaseForParallelWrites` is true.
 A failed or conflicted child worktree is **retained** for inspection. Cleanup
 is never allowed to discard unintegrated changes. The batch status becomes
 `needs-integration` when integration conflicts are detected.
+
+The owning batch Run terminates as `failed` with stable terminal code
+`integration-required`; `needs-integration` is the product projection, not a
+second Run terminal state.
 
 ### No automatic retry
 

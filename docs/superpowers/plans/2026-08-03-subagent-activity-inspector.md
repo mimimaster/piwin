@@ -29,7 +29,7 @@ The result should look lightweight in the parent transcript and rich only after 
 - Do not allow steering or follow-up messages from the inspector in this slice.
 - Do not create a second session runtime, event bus, or transcript store.
 - Do not parse Pi-native events in Desktop.
-- Do not change parallel scheduling or worktree integration behavior from ADR 0026.
+- Do not change parallel scheduling or worktree integration behavior from ADR 0030.
 - Do not make `SubAgentPanel` the default activity surface.
 - Do not add per-token animation; append streamed text normally and animate only container/status transitions.
 - Do not invent token counts that are not already available per child session.
@@ -536,4 +536,3 @@ generic `Dialog.contentClassName` (no Subagent-specific API).
   `activity.state`; live freshness lives in the Working dock/ticker. If product
   wants the card itself to pulse while its child streams, pass
   `subagentChildren` into the card row (out of scope for this slice).
-

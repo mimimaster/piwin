@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Ready for implementation |
+| Status | Superseded by [`runtime-refactor.md`](./runtime-refactor.md) Phase 3 |
 | Date | 2026-08-04 |
 | Scope | `contracts`, `agent-host` (RPC/worker/backend), `cli` doctor/capabilities honesty, docs/ADR 0011/0012, conformance tests |
 | Primary owners | Agent Host dual-mode backend, tool execution authority, session isolation boundary |
@@ -12,6 +12,10 @@
 | Binding rules | UI never imports Pi; only `agent-host` may import `@earendil-works/pi-*`; SDK and RPC remain dual modes implementing the same contracts; parent Host remains the single authority for permissions, MCP lifecycle, process, browser, secrets, and Settings. |
 
 ---
+
+> Historical implementation analysis only. Runtime Refactor Phase 3 is the
+> current execution authority and replaces this plan's work-package ordering,
+> worker ownership, runtime-generation identity, and deletion gates.
 
 ## 0. Executive summary
 

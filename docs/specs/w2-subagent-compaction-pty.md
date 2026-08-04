@@ -2,11 +2,16 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Ready for implementation planning** |
+| Status | **Historical wave spec; runtime portions superseded** |
 | Date | 2026-07-21 |
 | Program | [`program-capability-expansion.md`](./program-capability-expansion.md) |
 | Prerequisite | W1 recommended; existing H3 sub-agent + H1 compaction |
 | Packages | git, session, agent-host, contracts, desktop, cli, ui-kit |
+
+> Runtime authority: [`runtime-refactor.md`](./runtime-refactor.md) Phase 2
+> replaces the concurrency/orchestration design; Phase 3 owns worker isolation.
+> ADR 0013 remains authoritative for Tauri PTY. Numeric concurrency and tool
+> payloads below are historical inputs, not current contracts.
 
 ## 1. Goals
 1. Safe parallel sub-agents: **worktree isolation**, apply policies, concurrency, roster UX.

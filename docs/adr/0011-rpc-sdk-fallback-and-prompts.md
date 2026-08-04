@@ -2,18 +2,16 @@
 
 ## Status
 
-Accepted (2026-07-21); **transitional** per Phase 7 plan (2026-08-04).
+Accepted (2026-07-21); **transitional** until Runtime Refactor Phase 3 exits
+(2026-08-04).
 
-> **Phase 7 update:** The SDK fallback described in this ADR is a
-> **transitional** state, not the end-state. Phase 7 WP3–WP6 implement a
-> piwin-owned worker process (`WorkerRpcSessionBackend`) that provides
-> real process isolation for `hostMode=rpc`. Once the worker backend is
-> rolled out (R1) and conformance is green in CI, the SDK fallback
-> product path will be deleted (WP7, gated on R2). The `PIWIN_RPC_STOCK`
-> escape hatch and `PIWIN_RPC_SDK_FALLBACK` temporary flag will also be
-> removed at that time. See
-> [`docs/specs/phase7-rpc-worker-parity-plan.md`](../specs/phase7-rpc-worker-parity-plan.md)
-> for the authoritative execution plan.
+> **Runtime Refactor update:** The fallback described here records the current
+> migration baseline, not the target architecture. Runtime Refactor Phase 3
+> replaces it with one piwin-owned worker per
+> `(productSessionId, runtimeGenerationId)`, proves SDK/worker parity through a
+> shared conformance suite, and then deletes fallback, stock RPC, and temporary
+> environment switches. See
+> [`docs/specs/runtime-refactor.md`](../specs/runtime-refactor.md), Phase 3.
 
 ## Context
 
@@ -40,5 +38,7 @@ Pi prompt templates are first-class Markdown resources discovered by
 ## Consequences
 
 - RPC mode is no longer a capability dead-end for main product tools.
-- True process isolation is still residual (D-HOST-01b worker).
+- SDK fallback remains explicitly non-isolated until Runtime Refactor Phase 3.
+- On Phase 3 exit, this ADR is superseded by ADR 0012's implemented worker
+  boundary; fallback and stock RPC product paths no longer exist.
 - Users can map Cursor/Claude/Codex skill dirs via `skills.extraPaths` presets.

@@ -37,7 +37,7 @@ Capability Expansion (W1–W3) 与 Extensions 通道已把表面拉得很宽：M
 | # | Question | Decision | Implication |
 |---|----------|----------|-------------|
 | **L1** | Delete vs archive | **Archive is the default lifecycle action** (soft hide). Hard delete is secondary (confirm + optional empty archive). | Session index gains `archivedAt` / `isArchived`; list defaults exclude archived; UI has Archive + “Show archived” + permanent delete from archive view. |
-| **L2** | Fork | **Fork-light = duplicate product transcript** into a new session id. | No Pi multi-leaf JSONL branch UI (still residual D-M2-01b). IPC `session/duplicate` (or `session/fork` product-meaning). |
+| **L2** | Fork | **Historical decision:** fork-light shipped as whole-session `session/duplicate`. **Superseded for new product work on 2026-08-04:** Duplicate remains an independent complete copy; response-level Fork creates a linked transcript prefix. | See [`session-fork-product-adaptation.md`](./session-fork-product-adaptation.md). Pi multi-leaf JSONL remains residual D-M2-01b. |
 | **L3** | Hooks PreToolUse | **Post-event hooks only** for v1 depth. User expects low personal use — ship minimal, correct wiring + last-run visibility; do not build Claude-full 12-event surface. | Map `tool/end`, `message/end`, session settle only. No PreToolUse block path competing with PermissionPolicy. |
 | **L4** | PTY host stack | **Tauri-side PTY** (Rust / official or curated Tauri plugin), not Node `node-pty` as primary. | Desktop renderer ↔ Tauri command/events ↔ PTY; Node host may still own trust checks / session association via IPC bridge. See ADR 0013. |
 
@@ -51,7 +51,7 @@ These four override earlier “recommendation defaults” in drafts and in W2 �
 
 | Track | 目标 |
 |-------|------|
-| **A. Session product** | Rename · **Archive** · hard-delete-from-archive · Duplicate (fork-light) · context menu · pin section |
+| **A. Session product** | Rename · **Archive** · hard-delete-from-archive · whole-session Duplicate (historically fork-light) · context menu · pin section. Response-level Fork is now specified under SF-*. |
 | **B. Truthful capabilities** | Shell vs PTY 文案；doctor/UI 能力矩阵；hooks/todo/cron 接线完成或明确 disabled |
 | **C. Shell structure** | 拆 `App.tsx` / `host-runtime` / `host-client`；ui-kit 最小原语 |
 | **D. Feedback UX** | Notification queue、App ErrorBoundary、统一 Empty/Loading/Error |
@@ -129,13 +129,15 @@ IDs are stable for `todo-deferred.md`. Prefix **PD-** = Product Depth.
 | PD-SESS-02 | `session/archive` + `session/unarchive` | P0 | Default list hides archived; archived view can restore |
 | PD-SESS-03 | `session/delete` (permanent, from archive or explicit) | P0 | Confirm dialog; removes index + product transcript; only after archive or with strong confirm |
 | PD-SESS-04 | Session row **context menu** | P0 | Pin · Rename · Export · **Archive** · Duplicate · (Delete permanent when archived) |
-| PD-SESS-05 | `session/duplicate` (fork-light) | P1 | New session id; copies product transcript messages; independent of Pi JSONL tree |
+| PD-SESS-05 | `session/duplicate` (historically called fork-light) | P1 | New session id; copies the complete product transcript; independent of Pi JSONL tree. It is no longer the product meaning of response-level Fork; see SF-* spec. |
 | PD-SESS-06 | Pinned section UI | P1 | Pinned block above recency groups (Cursor pattern); archived never mixed into pin without unarchive |
 | PD-SESS-07 | Show archived toggle | P1 | Sidebar filter; empty archived state |
 
 **Industry align (Cursor):** right-click → Pin, Rename, Fork, Archive.  
 **piwin map:** product transcript + session index (ADR 0009).  
-**Fork** = **duplicate product session** (L2), not Pi multi-leaf tree.
+**Historical note:** the 2026-07-21 slice used Duplicate as a temporary
+fork-light interaction. The approved SF-* design now keeps Duplicate and
+response-level Fork distinct while still avoiding Pi multi-leaf coupling.
 
 **Archive policy (L1):**
 

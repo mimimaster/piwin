@@ -2,47 +2,51 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Accepted design; **implementation in progress** (Phase 7 WP3–WP6 landed) |
-| Date | 2026-07-21 (design), 2026-08-04 (Phase 7 implementation) |
-| Related | ADR 0008, ADR 0011, D-HOST-01b, [`phase7-rpc-worker-parity-plan.md`](../specs/phase7-rpc-worker-parity-plan.md) |
+| Status | Accepted design; implementation governed by Runtime Refactor Phase 3 |
+| Date | 2026-07-21 (design), 2026-08-04 (final target clarified) |
+| Related | ADR 0008, ADR 0011, ADR 0030, [`runtime-refactor.md`](../specs/runtime-refactor.md) |
 
 ## Context
 
 ADR 0011 made `hostMode: "rpc"` use an in-process **SDK session backend** so
 web/MCP/extensions/prompts work. That is not process isolation.
 
-True isolation needs a piwin-owned worker that runs the SDK adapter in a child
-process and speaks a product JSONL protocol to HostRuntime.
+True isolation needs a piwin-owned worker that runs one Pi SDK session in a
+child process and speaks a product JSONL protocol to the parent Host.
 
 Stock `pi --mode rpc` remains unsuitable for custom tools (ADR 0008).
 
 ## Decision
 
-1. **Do not claim isolation** for ADR 0011 fallback. Surface
-   `capabilities.rpcSdkFallback` and `extensionUiBridge` honestly.
-2. **Future worker** (`D-HOST-01b`):
-   - HostRuntime spawns `node …/rpc-sdk-worker` (or package bin).
-   - Worker owns `PiSdkAdapter` + MCP lifecycle + extension UI bridge over IPC.
-   - Parent HostRuntime proxies `SessionHandle` and forwards `extension/ui_*` /
-     `permission/*` events to Desktop.
-3. Escape hatches stay:
-   - default: SDK fallback (product complete)
-   - `PIWIN_RPC_STOCK=1`: stock pi RPC (tools fail)
-   - future: `PIWIN_RPC_WORKER=1`: isolated worker
+1. **Do not claim isolation** for ADR 0011 fallback. It remains a transitional,
+   explicitly non-isolated state until Runtime Refactor Phase 3 exits.
+2. One worker process owns exactly one
+   `(productSessionId, runtimeGenerationId)` and one Pi SDK session.
+3. Worker lifetime equals runtime-generation lifetime. Workers are not reused
+   across sessions or generations, and Phase 3 adds no automatic idle eviction.
+4. `@piwin/agent-host` owns worker spawn, framing, shutdown, and Pi event
+   normalization. Internal workers are not user-visible Jobs, and
+   `agent-host` must not import `@piwin/process`.
+5. Parent `@piwin/host-runtime` owns Settings compilation, permissions, Host
+   custom tools, MCP, Jobs, browser, media, Git, secrets, and product Run state.
+   Worker tool calls proxy back to that parent authority.
+6. SDK and worker backends consume the same SessionBlueprint and exact
+   ToolManifest descriptors and pass one parameterized conformance suite.
+7. On Phase 3 exit, SDK fallback, stock Pi RPC, and temporary backend-selection
+   environment switches are deleted.
 
 ## Non-goals for this ADR
 
-- Implementing the worker in the same change as D-EXT-04
+- Sharing one worker across multiple live runtime generations
 - Supporting stock Pi RPC custom tool registration
+- Treating process isolation as an OS sandbox
+- Automatic turn replay after worker crash
 
 ## Consequences
 
-- ~~D-HOST-01b remains residual until worker lands.~~ **Phase 7 update:**
-  D-HOST-01b is now implemented. The `WorkerRpcSessionBackend` runs Pi
-  sessions in a piwin-owned Node worker process with tool proxying to
-  the parent Host. Isolation is real when `PIWIN_RPC_WORKER=1` or
-  `options.useWorkerBackend=true`. The `backendMode()` and `isIsolated()`
-  methods on `PiRpcAdapter` provide honest status reporting.
-- D-EXT-04 (extension UI bridge) works with SDK path and SDK-fallback RPC path
-  in the host process today. Under the worker backend, extension UI
-  requests are not yet proxied (documented degradation; WP7 or follow-up).
+- Worker scaffolding or an opt-in flag does not satisfy this ADR by itself.
+  Completion requires the Phase 3 conformance and deletion gates.
+- One worker crash affects one runtime generation; parent RunRegistry creates
+  terminal product state with the real active `runId`.
+- Extension UI, prompt cancellation, native images, and Host tool cancellation
+  are parity requirements rather than accepted permanent degradations.

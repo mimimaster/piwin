@@ -5,7 +5,7 @@
 | Status | **Accepted** |
 | Date | 2026-07-21 |
 | Supersedes (product path) | W2 draft preference for `node-pty` in Node host ([`w2-subagent-compaction-pty.md`](../specs/w2-subagent-compaction-pty.md) §5) |
-| Related | ADR 0001 (Tauri desktop), ADR 0006 (desktop host transport), [`product-depth-competitive-alignment.md`](../specs/product-depth-competitive-alignment.md) L4 |
+| Related | ADR 0001 (Tauri desktop), ADR 0006 (desktop host transport), [`runtime-refactor.md`](../specs/runtime-refactor.md) Phase 1 |
 
 ## Context
 
@@ -28,9 +28,9 @@ Product Depth locked decision **L4** (user 2026-07-21): **Tauri for PTY**.
    - Desktop may call host `project/*` / status before spawning; host does not need to multiplex PTY streams.
    - **Authoritative enforcement** of trusted cwd is at the **Rust/Tauri boundary** (`pty_open` → host `project/authorize-terminal`); React checks are usability guidance only (PSR D3).
 4. **Terminal availability is a desktop capability**, not a host capability flag.
-   - Host `capabilities.pty` describes the host-owned piped shell / future host PTY surface only.
+   - Host `capabilities.pty` describes only a real host-owned PTY surface, if one is added by a future ADR.
    - Do **not** treat host `capabilities.pty === false` as proof that the Tauri interactive Terminal is unavailable.
-   - Existing Node **`PtyHost` piped shell** remains the non-Tauri / mock **Shell preview** path; UI wording must stay honest per surface.
+   - Runtime Refactor Phase 1 deletes the Node `PtyHost` piped-shell preview rather than maintaining a second terminal-like product path.
 5. **CLI** does not require full xterm; optional later thin spawn is out of this ADR’s desktop path.
 6. Do **not** add Electron solely for terminal.
 
@@ -61,8 +61,8 @@ Parallel (unchanged):
 | xterm rendering | Desktop web UI |
 | Project trust gate | Host records authoritative; Tauri `pty_open` re-authorizes via host before spawn; desktop prechecks are guidance only |
 | Agent one-shot bash | Pi / host tools (not this PTY) |
-| Long-lived non-interactive jobs | `@piwin/process` |
-| Line-oriented Shell preview | Host `PtyHost` until replaced |
+| Long-lived non-interactive jobs | Phase 1 `JobController` in `@piwin/process`, composed by `@piwin/host-runtime` |
+| Line-oriented Shell preview | Removed by Runtime Refactor Phase 1 |
 
 ## Consequences
 
@@ -75,12 +75,12 @@ Parallel (unchanged):
 ### Negative / work
 
 - Need Rust PTY integration + capability/permission config in Tauri.
-- Two IPC worlds (host JSONL vs Tauri events) — document carefully; do not route PTY data through host “just because”.
+- Two IPC worlds (Host transport vs Tauri events) — document carefully; do not route PTY data through Host "just because".
 - CLI parity for interactive TTY is not automatic (acceptable for desktop-first PTY).
 
 ### Explicit non-goals
 
-- Agent-driven interactive PTY tool in v1 (ManagedProcess + bash remain).
+- Agent-driven interactive PTY tool in v1 (Jobs + one-shot bash remain non-interactive).
 - Replacing PermissionPolicy with terminal hooks.
 
 ## Implementation notes (non-normative)

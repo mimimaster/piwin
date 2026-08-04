@@ -77,8 +77,8 @@ Platform:      FS / Git / Process / Net / Keychain
 | AW-02 | Project layering: Workspace → Project → Session → Message tree | P0 |
 | AW-03 | Session history per project | P0 |
 | AW-04 | Chat stream: markdown, tools, thinking | P0 |
-| AW-05 | Session tree UI (Pi JSONL tree) | P1 |
-| AW-06 | New / Resume / Fork / Rename / Delete | P0 |
+| AW-05 | Session tree UI (Pi JSONL tree; native active-leaf projection remains a later spike) | P1 |
+| AW-06 | New / Resume / response-level Fork / whole-session Duplicate / Rename / Delete | P0 |
 | AW-07 | Model + thinking level controls | P0 |
 | AW-08 | Abort / Steer / Follow-up | P1 |
 
@@ -91,6 +91,12 @@ Workspace (optional collection)
     ├── Sessions (Pi JSONL tree + piwin index)
     └── Project-scoped resources (optional)
 ```
+
+**Session branching clarification (2026-08-04):** AW-06 product Fork creates a
+linked product session from a selected completed assistant response; Duplicate
+creates an independent complete copy. Neither operation waits for AW-05 Pi
+native JSONL tree support. See
+[`session-fork-product-adaptation.md`](./specs/session-fork-product-adaptation.md).
 
 ### 4.2 Skills panel (P0)
 
