@@ -15,6 +15,7 @@ import {
   parseWorkerFrame,
   serializeWorkerRequest,
   type WorkerFrame,
+  type WorkerHelloFrame,
   type WorkerRequest,
   type WorkerRequestPayload,
   type WorkerResponse,
@@ -48,6 +49,32 @@ export type WorkerClientOptions = {
    * `tool-result` frames back. The router owns permission/MCP/process/browser.
    */
   toolRouter?: HostToolExecutionRouter;
+  /**
+   * Phase 7 §4.4: timeout (ms) for worker start/hello handshake.
+   * Default 5000ms. If the worker does not send hello within this window,
+   * start() rejects with an actionable error.
+   */
+  helloTimeoutMs?: number;
+  /**
+   * Phase 7 §4.4: timeout (ms) for session/create requests.
+   * Default 30000ms (includes provider registration + resource load).
+   */
+  createTimeoutMs?: number;
+  /**
+   * Phase 7 §4.4: timeout (ms) for session/prompt ack.
+   * Default 2000ms. Long generation continues via events.
+   */
+  promptAckTimeoutMs?: number;
+  /**
+   * Phase 7 §4.4: timeout (ms) for tool-call roundtrip.
+   * Default 600000ms (10 min). Parent may ask user for permission.
+   */
+  toolCallTimeoutMs?: number;
+  /**
+   * Phase 7 §4.4: timeout (ms) for abort ack.
+   * Default 2000ms. Must not block control lane.
+   */
+  abortTimeoutMs?: number;
 };
 
 type PendingRequest = {
@@ -61,14 +88,18 @@ export class RpcSdkWorkerClient extends EventEmitter {
   private readonly options: WorkerClientOptions;
   private exited = false;
   private exitCode: number | null = null;
+  private helloReceived = false;
+  private helloResolve: ((hello: WorkerHelloFrame) => void) | null = null;
+  private helloReject: ((error: Error) => void) | null = null;
+  private helloTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: WorkerClientOptions = {}) {
     super();
     this.options = options;
   }
 
-  /** Start the worker child process. */
-  start(): void {
+  /** Start the worker child process and wait for hello handshake. */
+  async start(): Promise<void> {
     if (this.child) return;
     const script =
       this.options.workerScript ??
@@ -89,19 +120,72 @@ export class RpcSdkWorkerClient extends EventEmitter {
       this.exited = true;
       this.exitCode = code;
       this.rejectAllPending(`worker exited with code ${code}`);
+      if (this.helloReject && !this.helloReceived) {
+        this.helloReject(new Error(`worker exited before hello (code ${code})`));
+      }
+      if (this.helloTimer) {
+        clearTimeout(this.helloTimer);
+        this.helloTimer = null;
+      }
       this.emit('exit', code);
+    });
+
+    // Wait for hello handshake with timeout (§4.4: 5s default).
+    const helloTimeout = this.options.helloTimeoutMs ?? 5000;
+    await new Promise<void>((resolve, reject) => {
+      this.helloResolve = (hello) => {
+        this.helloReceived = true;
+        this.helloTimer && clearTimeout(this.helloTimer);
+        this.helloTimer = null;
+        // Validate protocol version (§4.3: parent refuses incompatible workers).
+        if (hello.protocolVersion !== 1) {
+          reject(
+            new Error(`worker protocol version ${hello.protocolVersion} incompatible (expected 1)`),
+          );
+          return;
+        }
+        resolve();
+      };
+      this.helloReject = reject;
+      this.helloTimer = setTimeout(() => {
+        if (!this.helloReceived) {
+          reject(
+            new Error(
+              `worker hello timeout after ${helloTimeout}ms — worker may be stuck or misconfigured`,
+            ),
+          );
+        }
+      }, helloTimeout);
     });
   }
 
-  /** Send a request and wait for the response. */
-  async request(payload: WorkerRequestPayload): Promise<WorkerResponse> {
+  /** Send a request and wait for the response with optional timeout. */
+  async request(payload: WorkerRequestPayload, timeoutMs?: number): Promise<WorkerResponse> {
     if (!this.child || this.exited) {
       throw new Error('worker not running');
+    }
+    if (!this.helloReceived) {
+      throw new Error('worker hello not received — call start() first');
     }
     const id = randomUUID();
     const request: WorkerRequest = { type: 'request', id, method: payload.method, payload };
     return new Promise<WorkerResponse>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timer = timeoutMs
+        ? setTimeout(() => {
+            this.pending.delete(id);
+            reject(new Error(`request ${payload.method} timed out after ${timeoutMs}ms`));
+          }, timeoutMs)
+        : null;
+      this.pending.set(id, {
+        resolve: (response) => {
+          if (timer) clearTimeout(timer);
+          resolve(response);
+        },
+        reject: (error) => {
+          if (timer) clearTimeout(timer);
+          reject(error);
+        },
+      });
       this.child!.stdin?.write(serializeWorkerRequest(request) + '\n');
     });
   }
@@ -142,10 +226,13 @@ export class RpcSdkWorkerClient extends EventEmitter {
     providers?: SerializableProviderRuntime[];
   }): Promise<{ sessionId: string }>;
   async createSession(input: unknown): Promise<{ sessionId: string }> {
-    const response = await this.request({
-      method: 'session/create',
-      ...(input as Record<string, unknown>),
-    } as WorkerRequestPayload);
+    const response = await this.request(
+      {
+        method: 'session/create',
+        ...(input as Record<string, unknown>),
+      } as WorkerRequestPayload,
+      this.options.createTimeoutMs ?? 30000,
+    );
     if (!response.success) throw new Error(response.error ?? 'session/create failed');
     return response.data as { sessionId: string };
   }
@@ -160,20 +247,26 @@ export class RpcSdkWorkerClient extends EventEmitter {
       model?: { providerId: string; modelId: string };
     },
   ): Promise<void> {
-    const response = await this.request({
-      method: 'session/prompt',
-      sessionId,
-      text,
-      ...(options?.images ? { images: options.images } : {}),
-      ...(options?.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
-      ...(options?.model ? { model: options.model } : {}),
-    });
+    const response = await this.request(
+      {
+        method: 'session/prompt',
+        sessionId,
+        text,
+        ...(options?.images ? { images: options.images } : {}),
+        ...(options?.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
+        ...(options?.model ? { model: options.model } : {}),
+      },
+      this.options.promptAckTimeoutMs ?? 2000,
+    );
     if (!response.success) throw new Error(response.error ?? 'session/prompt failed');
   }
 
   /** Abort a running prompt in the worker. */
   async abort(sessionId: string): Promise<void> {
-    const response = await this.request({ method: 'session/abort', sessionId });
+    const response = await this.request(
+      { method: 'session/abort', sessionId },
+      this.options.abortTimeoutMs ?? 2000,
+    );
     if (!response.success) throw new Error(response.error ?? 'session/abort failed');
   }
 
@@ -220,7 +313,15 @@ export class RpcSdkWorkerClient extends EventEmitter {
   }
 
   private handleFrame(frame: WorkerFrame): void {
-    if (frame.type === 'response') {
+    if (frame.type === 'hello') {
+      this.helloResolve?.(frame);
+      this.helloResolve = null;
+      this.helloReject = null;
+      this.emit('hello', frame);
+    } else if (frame.type === 'shutdown') {
+      this.emit('log', `[worker-client] worker shutdown: ${frame.reason}`);
+      this.emit('shutdown', frame.reason);
+    } else if (frame.type === 'response') {
       const pending = this.pending.get(frame.id);
       if (pending) {
         this.pending.delete(frame.id);
@@ -287,6 +388,11 @@ export class RpcSdkWorkerClient extends EventEmitter {
 
   get isRunning(): boolean {
     return this.child !== null && !this.exited;
+  }
+
+  /** True when the worker has sent a valid hello handshake. */
+  get isReady(): boolean {
+    return this.helloReceived && !this.exited;
   }
 }
 

@@ -42,7 +42,11 @@ describe('preparePromptInput', () => {
       {},
     );
     expect(prepared.streamingBehavior).toBe('steer');
-    expect(prepared.model).toEqual({ protocol: 'openai-compatible', providerId: 'p1', modelId: 'm1' });
+    expect(prepared.model).toEqual({
+      protocol: 'openai-compatible',
+      providerId: 'p1',
+      modelId: 'm1',
+    });
     expect(prepared.thinkingLevel).toBe('high');
   });
 });
@@ -97,6 +101,20 @@ describe('PiRpcAdapter backend mode reporting', () => {
       expect(adapter.isIsolated()).toBe(true);
     } finally {
       delete process.env.PIWIN_RPC_WORKER;
+    }
+  });
+
+  it('PIWIN_RPC_SDK_FALLBACK=1 forces SDK fallback even when worker enabled (§10.1)', () => {
+    process.env.PIWIN_RPC_WORKER = '1';
+    process.env.PIWIN_RPC_SDK_FALLBACK = '1';
+    try {
+      const adapter = new PiRpcAdapter({ command: 'pi', useWorkerBackend: true });
+      expect(adapter.usesWorkerBackend()).toBe(false);
+      expect(adapter.isIsolated()).toBe(false);
+      expect(adapter.backendMode()).toBe('rpc-fallback');
+    } finally {
+      delete process.env.PIWIN_RPC_WORKER;
+      delete process.env.PIWIN_RPC_SDK_FALLBACK;
     }
   });
 
