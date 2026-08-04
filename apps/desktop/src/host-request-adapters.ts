@@ -22,6 +22,7 @@ export type HostRequestAdapters = {
       | 'config/set'
       | 'models/discover'
       | 'models/catalog/search'
+      | 'models/image-catalog/search'
       | 'models/test'
       | 'vision/delegate'
       | 'vision/cache/clear'

@@ -28,11 +28,19 @@ export type ArtifactFrameProps = {
   >;
   /** Higher = sooner init when many artifacts mount (history). */
   initPriority?: number;
+  /** Presentation surface: inline (chat) or canvas (side panel). */
+  presentation?: 'inline' | 'canvas';
   /**
    * Validated whitelisted action from the sandboxed artifact (e.g. flashcard
    * rating). Absent = actions are ignored (render-only artifact).
    */
   onArtifactAction?: (action: ArtifactActionMessage) => void;
+  /**
+   * Canvas-only: called when the artifact sends a `composer/propose-text`
+   * action (e.g. "Use React" button in a canvas artifact). Ignored in inline
+   * presentation.
+   */
+  onComposerProposal?: (payload: { text: string; label?: string }) => void;
   /**
    * Optional extra control rendered at the end of the artifact header row.
    * Used by MarkdownView's in-place code/render toggle ("Show code") so the
@@ -57,13 +65,15 @@ function getArtifactContentLabel(type: 'html' | 'svg'): string {
 export function ArtifactFrame({
   decision,
   initPriority = 0,
+  presentation = 'inline',
   onArtifactAction,
+  onComposerProposal,
   extraHeaderAction,
 }: ArtifactFrameProps): ReactElement {
   const contentLabel = getArtifactContentLabel(decision.descriptor.type);
   if (decision.kind === 'blocked') {
     return (
-      <div className="artifact-frame blocked">
+      <div data-testid="artifact-frame" className={`artifact-frame blocked${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
         <div className="artifact-frame-header">
           <strong>{decision.descriptor.title}</strong>
           <span className="pill">blocked</span>
@@ -87,7 +97,7 @@ export function ArtifactFrame({
 
   if (decision.kind === 'preparing') {
     return (
-      <div className="artifact-frame preparing">
+      <div data-testid="artifact-frame" className={`artifact-frame preparing${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
         <div className="artifact-frame-header">
           <strong>{decision.descriptor.title}</strong>
           <span className="pill">streaming</span>
@@ -108,7 +118,9 @@ export function ArtifactFrame({
     <ArtifactRenderFrame
       decision={decision}
       initPriority={initPriority}
+      presentation={presentation}
       {...(onArtifactAction ? { onArtifactAction } : {})}
+      {...(onComposerProposal ? { onComposerProposal } : {})}
       {...(extraHeaderAction ? { extraHeaderAction } : {})}
     />
   );
@@ -117,10 +129,12 @@ export function ArtifactFrame({
 function ArtifactRenderFrame(props: {
   decision: Extract<ArtifactPreviewDecision, { kind: 'render' }>;
   initPriority: number;
+  presentation: 'inline' | 'canvas';
   onArtifactAction?: (action: ArtifactActionMessage) => void;
+  onComposerProposal?: (payload: { text: string; label?: string }) => void;
   extraHeaderAction?: ReactElement;
 }): ReactElement {
-  const { decision, initPriority, onArtifactAction, extraHeaderAction } = props;
+  const { decision, initPriority, presentation, onArtifactAction, onComposerProposal, extraHeaderAction } = props;
   const contentLabel = getArtifactContentLabel(decision.descriptor.type);
   const channelId =
     decision.mode === 'stream-preview'
@@ -225,12 +239,26 @@ function ArtifactRenderFrame(props: {
         if (
           actionMessage.channelId === channelId &&
           onArtifactAction &&
+          (actionMessage.action === 'flashcard/rate' || actionMessage.action === 'flashcard/open-source') &&
           decision.descriptor.source.includes(`data-card-id="${actionMessage.payload.cardId}"`)
         ) {
           onArtifactAction(actionMessage);
         }
+        // Canvas-only: composer/propose-text action from artifact content.
+        if (
+          presentation === 'canvas' &&
+          onComposerProposal &&
+          actionMessage.action === 'composer/propose-text' &&
+          actionMessage.channelId === channelId
+        ) {
+          onComposerProposal(actionMessage.payload);
+        }
         return;
       }
+
+      // Canvas-only fallback: composer/propose-text may arrive as a raw
+      // message that parseArtifactActionMessage already handles above.
+      // This block catches any future action types that are not yet parsed.
 
       const message = parseArtifactBridgeMessage(event.data);
       if (!message || message.channelId !== channelId) {
@@ -303,6 +331,10 @@ function ArtifactRenderFrame(props: {
       window.clearTimeout(readyTimeout);
     };
   }, [granted, channelId, decision.mode, decision.descriptor.source, maxHeight, onArtifactAction]);
+  // Note: presentation and onComposerProposal are intentionally not in the
+  // deps array above — the message listener is per-grant cycle and reads the
+  // latest values from closure. Adding them would re-bind the listener on
+  // every parent re-render without functional benefit.
 
   // When collapsing expand mode, re-clamp height to the default max and enter a
   // final-trim window so the iframe shrinks back to the real content height
@@ -337,8 +369,9 @@ function ArtifactRenderFrame(props: {
         ? 'preview'
         : statusLabel;
 
+  const isCanvas = presentation === 'canvas';
   return (
-    <div className="artifact-frame">
+    <div data-testid="artifact-frame" data-expanded={expanded ? "true" : "false"} className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}${expanded ? ' is-expanded' : ''}`}>
       <div className="artifact-frame-header">
         <strong>{decision.descriptor.title}</strong>
         <span
@@ -359,18 +392,22 @@ function ArtifactRenderFrame(props: {
             layout adjusted ({decision.layoutRepairs.length})
           </span>
         ) : null}
-        <Button
-          variant="ghost"
-          className="artifact-expand-toggle"
-          onClick={() => setExpanded((previous) => !previous)}
-          title={
-            expanded
-              ? `Collapse to ${MAX_ARTIFACT_IFRAME_HEIGHT}px max`
-              : `Expand up to ${MAX_ARTIFACT_EXPANDED_HEIGHT}px`
-          }
-        >
-          {expanded ? 'Collapse' : 'Expand'}
-        </Button>
+        {!isCanvas ? (
+          <Button
+            variant="ghost"
+            data-testid="artifact-expand-toggle"
+            className="artifact-expand-toggle"
+            aria-pressed={expanded}
+            onClick={() => setExpanded((previous) => !previous)}
+            title={
+              expanded
+                ? `Collapse to ${MAX_ARTIFACT_IFRAME_HEIGHT}px max`
+                : `Expand up to ${MAX_ARTIFACT_EXPANDED_HEIGHT}px`
+            }
+          >
+            {expanded ? 'Collapse' : 'Expand'}
+          </Button>
+        ) : null}
         {extraHeaderAction ?? null}
       </div>
       {granted ? (
@@ -381,23 +418,29 @@ function ArtifactRenderFrame(props: {
           srcDoc={decision.srcdoc}
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
-          style={{
-            minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
-            height,
-            maxHeight,
-            width: '100%',
-            border: 0,
-          }}
+          style={
+            isCanvas
+              ? { minHeight: '100%', height: '100%', maxHeight: '100%', width: '100%', border: 0 }
+              : {
+                  minHeight: MIN_ARTIFACT_IFRAME_HEIGHT,
+                  height,
+                  maxHeight,
+                  width: '100%',
+                  border: 0,
+                }
+          }
         />
       ) : (
         <p className="muted">Waiting for artifact init slot…</p>
       )}
-      <details>
-        <summary>Source (raw model {contentLabel})</summary>
-        <pre className="md-code">
-          <code>{decision.descriptor.source}</code>
-        </pre>
-      </details>
+      {!isCanvas ? (
+        <details>
+          <summary>Source (raw model {contentLabel})</summary>
+          <pre className="md-code">
+            <code>{decision.descriptor.source}</code>
+          </pre>
+        </details>
+      ) : null}
     </div>
   );
 }

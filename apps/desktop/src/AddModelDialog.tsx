@@ -36,6 +36,8 @@ export function AddModelDialog({
   const [contextWindow, setContextWindow] = useState('');
   const [maxOutputTokens, setMaxOutputTokens] = useState('');
   const [supportsImage, setSupportsImage] = useState(false);
+  const [imageGeneration, setImageGeneration] = useState(false);
+  const [imageGenTimeout, setImageGenTimeout] = useState('180');
   const [reasoning, setReasoning] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<ModelCatalogEntry[]>([]);
@@ -56,6 +58,8 @@ export function AddModelDialog({
     setContextWindow('');
     setMaxOutputTokens('');
     setSupportsImage(false);
+    setImageGeneration(false);
+    setImageGenTimeout('180');
     setReasoning(true);
     setError(null);
     setSuggestions([]);
@@ -189,10 +193,25 @@ export function AddModelDialog({
       setError(isChinese ? '该模型 ID 已存在。' : 'This model ID already exists.');
       return;
     }
+    const capabilities: import('@piwin/contracts').ModelCapability[] = [];
+    if (imageGeneration) {
+      capabilities.push('image-generation');
+    }
+    const timeoutSeconds = Number(imageGenTimeout.trim());
+    const hasValidTimeout =
+      imageGenTimeout.trim() && Number.isFinite(timeoutSeconds) && timeoutSeconds > 0;
     const model: ModelConfigEntry = {
       id,
       input: supportsImage ? ['text', 'image'] : ['text'],
       reasoning,
+      ...(capabilities.length > 0 ? { capabilities } : {}),
+      ...(imageGeneration && hasValidTimeout
+        ? {
+            routes: {
+              'image-generation': { timeoutMs: Math.round(timeoutSeconds * 1000) },
+            },
+          }
+        : {}),
     };
     const displayName = label.trim();
     if (displayName && displayName !== id) {
@@ -354,6 +373,15 @@ export function AddModelDialog({
           <label className="add-model-flag">
             <input
               type="checkbox"
+              checked={imageGeneration}
+              onChange={(event) => setImageGeneration(event.currentTarget.checked)}
+              data-testid="add-model-image-generation"
+            />
+            {isChinese ? '生图能力（Image Generation）' : 'Image generation'}
+          </label>
+          <label className="add-model-flag">
+            <input
+              type="checkbox"
               checked={reasoning}
               onChange={(event) => setReasoning(event.currentTarget.checked)}
               data-testid="add-model-reasoning"
@@ -361,6 +389,18 @@ export function AddModelDialog({
             {isChinese ? '支持推理 / Thinking' : 'Supports reasoning / thinking'}
           </label>
         </div>
+        {imageGeneration ? (
+          <Field label={isChinese ? '生图超时（秒）' : 'Image generation timeout (seconds)'}>
+            <TextInput
+              value={imageGenTimeout}
+              onChange={(event) => setImageGenTimeout(event.currentTarget.value)}
+              placeholder="180"
+              spellCheck={false}
+              inputMode="numeric"
+              testId="add-model-image-gen-timeout"
+            />
+          </Field>
+        ) : null}
         {searchCatalog ? (
           <p className="add-model-catalog-hint muted">
             {isChinese

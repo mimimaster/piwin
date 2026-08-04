@@ -104,6 +104,8 @@ export type SessionListItemUi = {
   pinnedAt?: string;
   isArchived?: boolean;
   archivedAt?: string;
+  /** SF-04: product session origin for branch/duplicate badge. */
+  origin?: import('@piwin/contracts').ProductSessionOrigin;
 };
 
 export type RunTerminalState =

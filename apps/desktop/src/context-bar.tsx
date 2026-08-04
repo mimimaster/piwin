@@ -13,8 +13,10 @@
 import type { ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
+import type { ProductSessionOrigin } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
 import { RunActivityInline } from './RunActivityInline.js';
+import { IconForkConversation } from './shell-icons';
 
 export type ContextBarSession = {
   title: string;
@@ -23,6 +25,10 @@ export type ContextBarSession = {
 
 export type ContextBarProps = {
   session: ContextBarSession;
+  /** SF-04: product session origin for branch/duplicate badge. */
+  origin?: ProductSessionOrigin | null;
+  /** SF-04: callback to return to root/parent session. */
+  onReturnToRoot?: (() => void) | undefined;
   runState: RunStatusView;
   onStop: () => void;
   onViewActivity: () => void;
@@ -109,6 +115,31 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             onClick={props.onOpenPermissions}
           >
             {modeBadgeLabel(mode)}
+          </button>
+        ) : null}
+        {props.origin ? (
+          <button
+            type="button"
+            className="context-bar-origin-badge"
+            data-testid="context-bar-origin-badge"
+            data-origin-kind={props.origin.kind}
+            title={
+              props.origin.kind === 'fork'
+                ? isChinese
+                  ? `从「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」分叉`
+                  : `Forked from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
+                : isChinese
+                  ? `复制自「${props.origin.sourceSessionNameSnapshot ?? '源会话'}」`
+                  : `Duplicated from "${props.origin.sourceSessionNameSnapshot ?? 'source session'}"`
+            }
+            onClick={props.onReturnToRoot}
+          >
+            <IconForkConversation width={12} height={12} />
+            <span>
+              {props.origin.kind === 'fork'
+                ? isChinese ? '分支' : 'Branch'
+                : isChinese ? '副本' : 'Duplicate'}
+            </span>
           </button>
         ) : null}
       </div>

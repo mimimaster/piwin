@@ -758,6 +758,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     handleNewSession,
     handleResumeSession,
     handleRenameSession,
+    handleDuplicateSession,
+    handleForkSession,
     handleSessionMenuAction,
     confirmDeleteSession,
     handleEditAndResend,
@@ -1476,6 +1478,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
 
   const activeSessionName =
     state.sessions.find((item) => item.id === state.activeSessionId)?.name ?? 'New chat';
+  const activeSessionOrigin = state.sessions.find((item) => item.id === state.activeSessionId)?.origin ?? null;
   const desktopCopy = getDesktopCopy(desktopLocale);
 
   // Shared composer card props for the bottom dock and in-place message editing.
@@ -1839,6 +1842,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               permissionMode={config?.permissions?.preset ?? configPreset}
               onOpenPermissions={() => openSettingsSection('permissions')}
               locale={desktopLocale}
+              {...(activeSessionOrigin ? { origin: activeSessionOrigin } : {})}
+              {...(activeSessionOrigin?.kind === 'fork' ? {
+                  onReturnToRoot: () => void handleResumeSession(activeSessionOrigin.rootSessionId),
+                } : {})}
             />
           }
           chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
@@ -1943,9 +1950,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     walkthroughsByMessageId={state.walkthroughsByMessageId}
                     walkthroughEnabled={config?.walkthrough?.enabled !== false}
                     walkthroughAutoGenerate={false}
-                    onGenerateWalkthrough={handleGenerateWalkthrough}
-                    onCancelWalkthrough={handleCancelWalkthrough}
-                  />
+                   onGenerateWalkthrough={handleGenerateWalkthrough}
+                   onCancelWalkthrough={handleCancelWalkthrough}
+                    {...(state.activeSessionId ? {
+                        onDuplicateSession: () => void handleDuplicateSession(state.activeSessionId!),
+                        onForkFromMessage: (messageId: string) => void handleForkSession(state.activeSessionId!, messageId),
+                      } : {})}
+                    derivedActionsDisabled={!state.activeSessionId || state.streaming}
+                 />
                 ) : null}
               </TranscriptViewport>
               {state.compacting ? (

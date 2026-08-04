@@ -337,8 +337,6 @@ export type SettingsShellProps = {
   activeSection: SettingsSectionId;
   onSelectSection: (section: SettingsSectionId) => void;
   contextValue: SettingsContextValue;
-  /** Error/info banners owned by SettingsPanel; rendered above the content. */
-  banners?: ReactNode;
   /** Callback to close the modal sub-form. */
   onClose?: (() => void) | undefined;
 };
@@ -500,17 +498,6 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
             ) : null}
           </div>
         </div>
-        {/* Keep transient feedback outside the scrolling main column. The
-            dialog owns this overlay, so save results stay visible at any
-            scroll position without moving page content. */}
-        {props.banners ? (
-          <div
-            className="ui-feedback-host settings-feedback-host"
-            data-testid="settings-feedback-host"
-          >
-            {props.banners}
-          </div>
-        ) : null}
       </div>
     </div>
   );

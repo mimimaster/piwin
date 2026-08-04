@@ -70,6 +70,7 @@ function createContextValue(
     discoverProviderModels: vi.fn(),
     testProviderModel: vi.fn(),
     searchModelCatalog: vi.fn(async () => ({ entries: [], catalogVersion: 'test' })),
+    searchImageModelCatalog: vi.fn(async () => ({ entries: [], catalogVersion: 'test' })),
     storeProviderSecret: vi.fn(),
     loadProviderSecret: vi.fn(),
   };
@@ -124,30 +125,6 @@ describe('SettingsShell', () => {
       ).not.toBeNull();
     }
     expect(container.querySelectorAll('.settings-nav-item')).toHaveLength(SETTINGS_SECTIONS.length);
-  });
-
-  it('renders feedback at the dialog level instead of inside the scrolling column', () => {
-    const contextValue = createContextValue(vi.fn());
-    act(() => {
-      root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <SettingsShell
-            activeSection="web"
-            onSelectSection={vi.fn()}
-            contextValue={contextValue}
-            banners={<div data-testid="settings-feedback-message">Saved</div>}
-          />
-        </PiwinUiProvider>,
-      );
-    });
-
-    const feedbackHost = container.querySelector('[data-testid="settings-feedback-host"]');
-    const dialog = container.querySelector('.settings-modal-dialog');
-    const scrollingColumn = container.querySelector('[data-testid="settings-main-scroll"]');
-
-    expect(feedbackHost).not.toBeNull();
-    expect(feedbackHost?.parentElement).toBe(dialog);
-    expect(scrollingColumn?.contains(feedbackHost)).toBe(false);
   });
 
   it('uses the page content heading without rendering a duplicate shell title', () => {

@@ -3,7 +3,7 @@
  *
  * Mirrors Models page patterns:
  *   - pick a real provider from `config.providers` (same channels as Models)
- *   - DiscoverModelsDialog multi-select import (same picker as provider drawer)
+ *   - ImageModelSuggest smart dropdown (Pi catalog + provider discovery)
  *   - manual add/edit form for route path / timeout / label
  *   - list of image-capable models with set-default / remove
  *
@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Button, Field, Spinner } from '@piwin/ui-kit';
+import { Button, Field } from '@piwin/ui-kit';
 import type {
   DiscoveredModel,
   ModelConfigEntry,
@@ -21,7 +21,7 @@ import type {
   ModelRouteConfig,
   PiwinConfig,
 } from '@piwin/contracts';
-import { DiscoverModelsDialog } from './DiscoverModelsDialog.js';
+import { ImageModelSuggest } from './image-model-suggest.jsx';
 import { useDesktopLocale } from './desktop-locale-context.js';
 import { ProviderIcon } from './provider-icons.js';
 import { useSettings } from './settings/settings-context.js';
@@ -169,7 +169,7 @@ export function mergeDiscoveredImageModels(
 }
 
 export function ImageGenerationSettings(): ReactElement {
-  const { config, saveConfig, discoverProviderModels, setError } = useSettings();
+  const { config, saveConfig, discoverProviderModels, searchImageModelCatalog, setError } = useSettings();
   const { locale, translator } = useDesktopLocale();
   const copy = translator.settings.imageGeneration;
   const common = translator.common;
@@ -181,12 +181,9 @@ export function ImageGenerationSettings(): ReactElement {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [addModelId, setAddModelId] = useState('');
   const [addModelPath, setAddModelPath] = useState('/images/generations');
-  const [addModelTimeout, setAddModelTimeout] = useState('');
+  const [addModelTimeout, setAddModelTimeout] = useState('180');
   const [addModelLabel, setAddModelLabel] = useState('');
   const [addModelDescription, setAddModelDescription] = useState('');
-  const [discovering, setDiscovering] = useState(false);
-  const [discoverOpen, setDiscoverOpen] = useState(false);
-  const [discoverModels, setDiscoverModels] = useState<DiscoveredModel[]>([]);
 
   // Prefer default chat provider, else first configured provider.
   useEffect(() => {
@@ -221,7 +218,7 @@ export function ImageGenerationSettings(): ReactElement {
     setAddModelPath(
       selectedProvider ? defaultImageGenPath(selectedProvider.protocol) : '/images/generations',
     );
-    setAddModelTimeout('');
+    setAddModelTimeout('180');
     setAddModelLabel('');
     setAddModelDescription('');
   }, [selectedProvider]);
@@ -241,7 +238,7 @@ export function ImageGenerationSettings(): ReactElement {
     const route = model.routes?.['image-generation'];
     setAddModelId(model.id);
     setAddModelPath(route?.path ?? defaultImageGenPath(provider.protocol));
-    setAddModelTimeout(route?.timeoutMs !== undefined ? String(route.timeoutMs / 1000) : '');
+    setAddModelTimeout(route?.timeoutMs !== undefined ? String(route.timeoutMs / 1000) : '180');
     setAddModelLabel(model.label ?? '');
     setAddModelDescription(model.tooltipMarkdown ?? '');
   }
@@ -317,37 +314,6 @@ export function ImageGenerationSettings(): ReactElement {
     }
 
     resetAddForm();
-    await saveConfig({ ...config, providers: nextProviders });
-  }
-
-  async function handleDiscoverModels(): Promise<void> {
-    if (!selectedProvider) {
-      return;
-    }
-    setDiscovering(true);
-    try {
-      const result = await discoverProviderModels(selectedProvider);
-      setDiscoverModels(result.models);
-      setDiscoverOpen(true);
-    } catch {
-      setError(copy.discoveryError);
-    } finally {
-      setDiscovering(false);
-    }
-  }
-
-  async function handleImportDiscovered(selected: DiscoveredModel[]): Promise<void> {
-    if (!config || !selectedProvider || selected.length === 0) {
-      return;
-    }
-    const nextModels = mergeDiscoveredImageModels(selectedProvider.models, selected, {
-      path: addModelPath,
-      timeoutSeconds: addModelTimeout,
-    });
-    const nextProviders = config.providers.map((provider) =>
-      provider.id === selectedProvider.id ? { ...provider, models: nextModels } : provider,
-    );
-    setDiscoverOpen(false);
     await saveConfig({ ...config, providers: nextProviders });
   }
 
@@ -469,48 +435,26 @@ export function ImageGenerationSettings(): ReactElement {
                 </div>
               </div>
 
-              {/* Model ID + discover (same DiscoverModelsDialog as Models) */}
+              {/* Model ID with smart image-model suggestion dropdown */}
               <div
                 className="image-gen-form-row image-gen-form-row--full"
                 style={{ marginTop: 12 }}
               >
                 <div className="ui-field">
-                  <label className="ui-field-label" htmlFor="image-add-model-id">
+                  <label className="ui-field-label">
                     <span style={{ color: 'var(--danger, #ef4444)', marginRight: 4 }}>*</span>
                     {copy.modelId}
                   </label>
-                  <div
-                    className="ui-field-control"
-                    style={{ display: 'flex', gap: 8, alignItems: 'center' }}
-                  >
-                    <input
-                      id="image-add-model-id"
-                      list={imageRows.length > 0 ? 'image-model-ids' : undefined}
-                      className="mcp-raw-editor"
-                      style={{ height: 'auto', padding: '8px 12px', flex: 1 }}
-                      data-testid="image-add-model-id"
+                  <div className="ui-field-control">
+                    <ImageModelSuggest
                       value={addModelId}
-                      onChange={(event) => setAddModelId(event.target.value)}
-                      placeholder="dall-e-3"
-                      spellCheck={false}
+                      onChange={setAddModelId}
+                      provider={selectedProvider}
                       disabled={Boolean(editingKey)}
+                      searchImageModelCatalog={searchImageModelCatalog}
+                      discoverProviderModels={discoverProviderModels}
+                      onDiscoverError={(message) => setError(message)}
                     />
-                    <datalist id="image-model-ids">
-                      {imageRows.map((row) => (
-                        <option key={`${row.provider.id}:${row.model.id}`} value={row.model.id}>
-                          {row.model.label ?? row.model.id}
-                        </option>
-                      ))}
-                    </datalist>
-                    <Button
-                      size="compact"
-                      variant="ghost"
-                      disabled={discovering || !selectedProvider || Boolean(editingKey)}
-                      onClick={() => void handleDiscoverModels()}
-                      data-testid="image-gen-discover-btn"
-                    >
-                      {discovering ? <Spinner /> : copy.discoverModels}
-                    </Button>
                   </div>
                 </div>
               </div>
@@ -679,15 +623,7 @@ export function ImageGenerationSettings(): ReactElement {
         )}
       </div>
 
-      <DiscoverModelsDialog
-        open={discoverOpen}
-        provider={selectedProvider}
-        models={discoverModels}
-        onOpenChange={setDiscoverOpen}
-        onImport={(selected) => {
-          void handleImportDiscovered(selected);
-        }}
-      />
+
     </div>
   );
 }

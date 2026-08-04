@@ -28,6 +28,7 @@ import type { DiffCardRequest } from './diff-card';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import type { PendingComposerAttachment } from './media-utils';
 import { IconCopy, IconCheck, IconRevert } from './shell-icons';
+import { AssistantResponseActions } from './assistant-response-actions';
 
 /**
  * In-place composer for editing a user message. Renders the same ComposerCard
@@ -238,6 +239,16 @@ export type ChatThreadProps = {
   /** Cancel an in-flight walkthrough generation. */
   onCancelWalkthrough?:
     ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
+  /** SF-03: Duplicate the entire session (shown on latest assistant response only). */
+  onDuplicateSession?: (() => void | Promise<void>) | undefined;
+  /** SF-03: Fork from a specific assistant response. */
+  onForkFromMessage?: ((messageId: string) => void | Promise<void>) | undefined;
+  /** SF-03: Open the lineage / branch list for a message. */
+  onOpenForks?: ((messageId: string) => void) | undefined;
+  /** SF-03: Map of messageId → direct fork count (for badge display). */
+  forkCountsByMessageId?: Record<string, number>;
+  /** SF-03: Whether derived-session actions are disabled (e.g. no host). */
+  derivedActionsDisabled?: boolean;
 };
 
 export function ChatThread(props: ChatThreadProps): ReactElement {
@@ -294,6 +305,17 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
       currentTurn.items.push({ message, index });
     });
     return turns;
+  }, [props.messages]);
+
+  // SF-03: find the last completed assistant message for Duplicate visibility.
+  const lastAssistantMessageId = useMemo(() => {
+    for (let i = props.messages.length - 1; i >= 0; i--) {
+      const msg = props.messages[i];
+      if (msg?.role === 'assistant' && msg.status === 'done') {
+        return msg.id;
+      }
+    }
+    return null;
   }, [props.messages]);
 
   return (
@@ -375,6 +397,12 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               {...(props.onCancelWalkthrough
                 ? { onCancelWalkthrough: props.onCancelWalkthrough }
                 : {})}
+              {...(props.onDuplicateSession ? { onDuplicateSession: props.onDuplicateSession } : {})}
+              {...(props.onForkFromMessage ? { onForkFromMessage: props.onForkFromMessage } : {})}
+              {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
+              {...(props.forkCountsByMessageId ? { forkCountsByMessageId: props.forkCountsByMessageId } : {})}
+              lastAssistantMessageId={lastAssistantMessageId}
+              {...(props.derivedActionsDisabled !== undefined ? { derivedActionsDisabled: props.derivedActionsDisabled } : {})}
             />
           ))}
         </section>
@@ -449,6 +477,18 @@ type ChatMessageRowProps = {
   /** Cancel an in-flight walkthrough generation. */
   onCancelWalkthrough?:
     ((messageId: string, generationId?: string) => void | Promise<void>) | undefined;
+  /** SF-03: Duplicate the entire session (latest assistant response only). */
+  onDuplicateSession?: (() => void | Promise<void>) | undefined;
+  /** SF-03: Fork from a specific assistant response. */
+  onForkFromMessage?: ((messageId: string) => void | Promise<void>) | undefined;
+  /** SF-03: Open the lineage / branch list for a message. */
+  onOpenForks?: ((messageId: string) => void) | undefined;
+  /** SF-03: Map of messageId → direct fork count (for badge display). */
+  forkCountsByMessageId?: Record<string, number>;
+  /** SF-03: ID of the last completed assistant message (controls Duplicate visibility). */
+  lastAssistantMessageId: string | null;
+  /** SF-03: Whether derived-session actions are disabled. */
+  derivedActionsDisabled?: boolean;
 };
 
 function formatMessageTime(createdAt?: string): string {
@@ -715,6 +755,19 @@ const ChatMessageRow = memo(
             {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           />
         ) : null}
+        {message.role === 'assistant' && message.status === 'done' && (props.onDuplicateSession || props.onForkFromMessage) ? (
+          <AssistantResponseActions
+            messageId={message.id}
+            showDuplicate={props.onDuplicateSession !== undefined && props.lastAssistantMessageId === message.id}
+            showFork={props.onForkFromMessage !== undefined}
+            directForkCount={props.forkCountsByMessageId?.[message.id] ?? 0}
+            disabled={props.derivedActionsDisabled === true || props.streaming}
+            {...(props.onDuplicateSession ? { onDuplicate: props.onDuplicateSession } : { onDuplicate: () => {} })}
+            {...(props.onForkFromMessage ? { onFork: props.onForkFromMessage } : { onFork: () => {} })}
+            {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
+            locale={props.locale ?? 'en'}
+          />
+        ) : null}
       </article>
     );
   },
@@ -756,6 +809,12 @@ const ChatMessageRow = memo(
       previous.walkthroughEligible === next.walkthroughEligible &&
       previous.onGenerateWalkthrough === next.onGenerateWalkthrough &&
       previous.onCancelWalkthrough === next.onCancelWalkthrough &&
+      previous.onDuplicateSession === next.onDuplicateSession &&
+      previous.onForkFromMessage === next.onForkFromMessage &&
+      previous.onOpenForks === next.onOpenForks &&
+      previous.forkCountsByMessageId === next.forkCountsByMessageId &&
+      previous.lastAssistantMessageId === next.lastAssistantMessageId &&
+      previous.derivedActionsDisabled === next.derivedActionsDisabled &&
       callbackPropsAreStable
     );
   },

@@ -812,6 +812,40 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     [dispatch, dispatchNotification, handleResumeSession, hostClient],
   );
 
+  const handleForkSession = useCallback(
+    async (sessionId: string, messageId: string): Promise<void> => {
+      const response = await hostClient.request({
+        type: 'session/fork',
+        sessionId,
+        messageId,
+        workspaceStrategy: 'shared',
+      });
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+        return;
+      }
+      const data = response.data as {
+        sessionId: string;
+        session?: SessionSummary;
+        messages?: SessionTranscriptMessage[];
+      };
+      const listItem = data.session
+        ? summaryToListItem(data.session, data.sessionId)
+        : { id: data.sessionId, name: 'Forked session' };
+      dispatch({ type: 'session/update', session: listItem });
+      dispatchNotification(pushSuccess(`Forked as "${listItem.name}"`));
+      await handleResumeSession(data.sessionId);
+      if (data.messages && data.messages.length > 0) {
+        dispatch({
+          type: 'session/load-messages',
+          sessionId: data.sessionId,
+          messages: data.messages,
+        });
+      }
+    },
+    [dispatch, dispatchNotification, handleResumeSession, hostClient],
+  );
+
   const handleSessionMenuAction = useCallback(
     async (sessionId: string, action: SessionRowMenuAction): Promise<void> => {
       const session = state.sessions.find((item) => item.id === sessionId);
@@ -1120,6 +1154,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     handleDeleteSession,
     confirmDeleteSession,
     handleDuplicateSession,
+    handleForkSession,
     handleSessionMenuAction,
     handleEditAndResend,
     handleRetryFromMessage,

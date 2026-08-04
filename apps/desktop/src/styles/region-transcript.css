@@ -642,6 +642,47 @@
   pointer-events: auto;
 }
 
+/* SF-03: Assistant response action footer (Duplicate + Fork icons) */
+.assistant-response-actions {
+  align-items: center;
+}
+.assistant-response-actions .msg-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, currentColor);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.assistant-response-actions .msg-action-btn:hover:not(:disabled) {
+  background: var(--hover-bg, rgba(128, 128, 128, 0.12));
+  color: var(--text, currentColor);
+}
+.assistant-response-actions .msg-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.assistant-response-actions .fork-count-badge {
+  gap: 2px;
+  opacity: 0.7;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ─── Turn-level files changed bar (files-changed-bar.tsx) ─────────── */
 /* Compact summary under assistant replies: "N files changed · +x -y [Review]".
    Lists tool-mutated paths for the message; Review opens the Changes panel. */

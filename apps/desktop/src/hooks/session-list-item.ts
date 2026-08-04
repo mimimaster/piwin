@@ -17,6 +17,7 @@ export function summaryToListItem(
   if (session.pinnedAt) item.pinnedAt = session.pinnedAt;
   if (session.isArchived === true) item.isArchived = true;
   if (session.archivedAt) item.archivedAt = session.archivedAt;
+  if (session.origin) item.origin = session.origin;
   return item;
 }
 
@@ -33,5 +34,6 @@ export function mapSummariesToListItems(
     ...(session.pinnedAt ? { pinnedAt: session.pinnedAt } : {}),
     ...(session.isArchived === true ? { isArchived: true } : {}),
     ...(session.archivedAt ? { archivedAt: session.archivedAt } : {}),
+    ...(session.origin ? { origin: session.origin } : {}),
   }));
 }

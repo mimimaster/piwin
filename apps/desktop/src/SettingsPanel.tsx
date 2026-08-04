@@ -19,7 +19,7 @@ import type { PromptsPanelProps } from './PromptsPanel';
 import type { ThemePanelProps } from './ThemePanel';
 import type { PetPanelProps } from './PetPanel';
 import type { AutomationPanelProps } from './AutomationPanel';
-import { Notice } from '@piwin/ui-kit';
+import { hideUiNotification, showUiNotification } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import type { DesktopPreferences } from './ui-preferences';
 import { type SettingsSectionId } from './settings/section-registry';
@@ -84,12 +84,19 @@ export function SettingsPanel({
   const { locale } = useDesktopLocale();
   const [config, setConfig] = useState<PiwinConfig | null>(null);
   const [root, setRoot] = useState('~/.piwin');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorState] = useState<string | null>(null);
   const [info, setInfoMessage] = useState<string | null>(null);
   const [infoTone, setInfoTone] = useState<'info' | 'success' | 'warning'>('info');
   const [webDraft, setWebDraft] = useState<DraftWeb>(webToDraft(createDefaultWebConfig()));
   const [saving, setSaving] = useState(false);
   const [settingsNav, setSettingsNav] = useState<SettingsSectionId>(initialSection ?? 'general');
+
+  const setError = useCallback((message: string | null): void => {
+    setErrorState(message);
+    if (message) {
+      setInfoMessage(null);
+    }
+  }, []);
 
   // Escape is owned by useShellLayout so focus returns to the opener.
   useEffect(() => {
@@ -104,7 +111,7 @@ export function SettingsPanel({
       setRoot(data.root);
       setWebDraft(webToDraft(data.config.web ?? createDefaultWebConfig()));
     })();
-  }, [request]);
+  }, [request, setError]);
 
   useEffect(() => {
     if (initialSection) {
@@ -112,23 +119,43 @@ export function SettingsPanel({
     }
   }, [initialSection]);
 
-  // Success / info banners are transient; errors stay until next action.
+  // All Settings feedback uses the shared Mantine notification host rather
+  // than a page-local alert so placement, sizing, and dismissal stay uniform.
   useEffect(() => {
-    if (!info) {
+    const message = error ?? info;
+    if (!message) {
       return;
     }
-    const timer = window.setTimeout(() => {
-      setInfoMessage(null);
-    }, 3500);
+
+    const isError = error !== null;
+    const notificationId = showUiNotification({
+      tone: isError ? 'error' : infoTone,
+      ...(isError
+        ? { title: locale === 'zh-CN' ? '设置错误' : 'Settings error' }
+        : {}),
+      message,
+      autoClose: isError ? 6000 : 3500,
+      onClose: () => {
+        if (isError) {
+          setErrorState(null);
+        } else {
+          setInfoMessage(null);
+        }
+      },
+    });
+
     return () => {
-      window.clearTimeout(timer);
+      hideUiNotification(notificationId);
     };
-  }, [info]);
+  }, [error, info, infoTone, locale]);
 
   const setInfo = useCallback(
     (message: string | null, tone: 'info' | 'success' | 'warning' = 'info'): void => {
       setInfoTone(tone);
       setInfoMessage(message);
+      if (message) {
+        setErrorState(null);
+      }
     },
     [],
   );
@@ -148,7 +175,7 @@ export function SettingsPanel({
       onSaved?.(next);
       return true;
     },
-    [request, onSaved, setInfo],
+    [request, onSaved, setError, setInfo],
   );
 
   const discoverProviderModels = useCallback(
@@ -201,6 +228,19 @@ export function SettingsPanel({
         throw new Error(response.error);
       }
       return response.data as import('@piwin/contracts').ModelCatalogSearchResult;
+    },
+    [request],
+  );
+
+  const searchImageModelCatalog = useCallback(
+    async (): Promise<import('@piwin/contracts').ImageModelCatalogSearchResult> => {
+      const response = await request({
+        type: 'models/image-catalog/search',
+      });
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      return response.data as import('@piwin/contracts').ImageModelCatalogSearchResult;
     },
     [request],
   );
@@ -303,6 +343,7 @@ export function SettingsPanel({
       discoverProviderModels,
       testProviderModel,
       searchModelCatalog,
+      searchImageModelCatalog,
       storeProviderSecret,
       loadProviderSecret,
       testWebSearchSource,
@@ -312,6 +353,7 @@ export function SettingsPanel({
       config,
       root,
       saving,
+      setError,
       setInfo,
       saveConfig,
       webDraft,
@@ -338,6 +380,7 @@ export function SettingsPanel({
       discoverProviderModels,
       testProviderModel,
       searchModelCatalog,
+      searchImageModelCatalog,
       storeProviderSecret,
       loadProviderSecret,
       testWebSearchSource,
@@ -350,16 +393,6 @@ export function SettingsPanel({
       onSelectSection={setSettingsNav}
       contextValue={contextValue}
       onClose={onClose}
-      banners={
-        <>
-          {error ? (
-            <Notice tone="error" title={locale === 'zh-CN' ? '设置错误' : 'Settings error'}>
-              {error}
-            </Notice>
-          ) : null}
-          {info ? <Notice tone={infoTone}>{info}</Notice> : null}
-        </>
-      }
     />
   );
 }
