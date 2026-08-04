@@ -15,6 +15,7 @@ import type { ProcessRegistry } from '@piwin/process';
 import type { PiSessionBackend, BackendSessionHandle } from './backends/pi-session-backend.js';
 import { WorkerRpcSessionBackend } from './backends/worker-rpc-session-backend.js';
 import type { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
+import { compileBlueprintForWorker } from './blueprint-compiler.js';
 
 export type PiRpcAdapterOptions = {
   /** e.g. "pi" or absolute path (stock pi binary; unused when using SDK fallback) */
@@ -127,16 +128,16 @@ export class PiRpcAdapter implements AgentHost {
     // Phase 7 WP5: worker backend path (real process isolation).
     if (this.usesWorkerBackend()) {
       const backend = this.getWorkerBackend();
-      // The worker backend requires a SerializableBlueprint. The adapter
-      // receives a CreateSessionInput; the HostRuntime is responsible for
-      // compiling the blueprint before calling createSession. For now,
-      // we construct a minimal blueprint from the input so the worker
-      // path is testable. WP6 conformance will verify full parity.
-      const blueprint = deriveBlueprintFromInput(input);
+      // Compile the real SerializableBlueprint from live config + resource
+      // discovery. This is the product path — the worker receives the exact
+      // same capability projection that the SDK path would use.
+      const { blueprint, providers, productSessionId } = await compileBlueprintForWorker(input, {
+        ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
+      });
       const handle = await backend.createSession({
-        productSessionId: input.scope?.kind === 'project' ? input.scope.projectPath : 'general',
+        productSessionId,
         serializable: blueprint,
-        providers: [],
+        providers,
       });
       const session = adaptBackendToSessionHandle(handle, input);
       this.sessions.set(session.id, session);
@@ -334,44 +335,6 @@ export class PiRpcAdapter implements AgentHost {
     }
     return this.workerBackend;
   }
-}
-
-/**
- * Derive a minimal SerializableBlueprint from a CreateSessionInput.
- * The HostRuntime is responsible for compiling the full blueprint with
- * resource paths, providers, and tool allowlists. This derivation is a
- * transitional shim so the worker path is testable before the full
- * blueprint compiler is wired (WP6).
- */
-function deriveBlueprintFromInput(
-  input: CreateSessionInput,
-): import('./rpc/serializable-blueprint.js').SerializableBlueprint {
-  const scope = input.scope ?? { kind: 'general' as const };
-  const workingDirectory = input.cwd ?? (scope.kind === 'project' ? scope.projectPath : '');
-  return {
-    protocolVersion: 1,
-    snapshotId: 'transitional',
-    settingsRevision: 'transitional',
-    workingDirectory,
-    // The blueprint scope requires `trusted: true` for project scope.
-    // The parent enforces trust before calling createSession; the worker
-    // trusts the parent's assertion.
-    scope:
-      scope.kind === 'project'
-        ? { kind: 'project', projectPath: scope.projectPath, trusted: true as const }
-        : { kind: 'general' as const },
-    resourceManifest: { skills: [], extensions: [], prompts: [], diagnostics: [] },
-    contextManifest: { agentsFiles: [] },
-    tools: {
-      enabledFamilies: [],
-      piBuiltinToolNames: [],
-      customToolNames: [],
-      enabledMcpServerIds: [],
-    },
-    activeSkillPaths: [],
-    activeExtensionPaths: [],
-    activePromptPaths: [],
-  };
 }
 
 /**
