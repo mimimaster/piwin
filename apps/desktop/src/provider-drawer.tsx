@@ -12,11 +12,7 @@
 
 import { useState, type ReactElement } from 'react';
 import { Button, IconButton, Switch, TextInput } from '@piwin/ui-kit';
-import {
-  createHeaderRow,
-  hasKeychainSecret,
-  type ProviderDraft,
-} from './provider-draft.js';
+import { createHeaderRow, hasKeychainSecret, type ProviderDraft } from './provider-draft.js';
 import { ProviderIcon } from './provider-icons.js';
 import { ProviderStatusPill, type ProviderTestStatus } from './provider-status.js';
 import {
@@ -83,7 +79,6 @@ export type ProviderDrawerCopy = {
   enableProvider: string;
   providerEnabledHint: string;
   providerDisabledHint: string;
-  statusUntested: string;
   statusOff: string;
   testing: string;
   testConnection: string;
@@ -154,7 +149,7 @@ export function ProviderDrawer({
   const [advOpen, setAdvOpen] = useState(false);
 
   const status = draft.enabled
-    ? (testStatus[draft.id] ?? { tone: 'warn' as const, message: copy.statusUntested })
+    ? (testStatus[draft.id] ?? null)
     : { tone: 'off' as const, message: copy.statusOff };
 
   const hasStoredKey = hasKeychainSecret(draft);
@@ -393,9 +388,7 @@ export function ProviderDrawer({
                       onDraftChange({
                         ...draft,
                         headerRows: draft.headerRows.map((item) =>
-                          item.id === row.id
-                            ? { ...item, name: event.currentTarget.value }
-                            : item,
+                          item.id === row.id ? { ...item, name: event.currentTarget.value } : item,
                         ),
                       })
                     }
@@ -410,9 +403,7 @@ export function ProviderDrawer({
                       onDraftChange({
                         ...draft,
                         headerRows: draft.headerRows.map((item) =>
-                          item.id === row.id
-                            ? { ...item, value: event.currentTarget.value }
-                            : item,
+                          item.id === row.id ? { ...item, value: event.currentTarget.value } : item,
                         ),
                       })
                     }

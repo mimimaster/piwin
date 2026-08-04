@@ -5,6 +5,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
+import { DesktopLocaleProvider } from './desktop-locale-context';
+import type { DesktopLocale } from './desktop-locale';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -45,12 +47,19 @@ const baseProps: ComposerDockProps = {
   contextUsage: null,
 };
 
-function renderDock(node: ReactElement): { container: HTMLElement; root: Root } {
+function renderDock(
+  node: ReactElement,
+  locale: DesktopLocale = 'en',
+): { container: HTMLElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
-    root.render(<PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>{node}</PiwinUiProvider>);
+    root.render(
+      <DesktopLocaleProvider locale={locale} onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>{node}</PiwinUiProvider>
+      </DesktopLocaleProvider>,
+    );
   });
   return { container, root };
 }
@@ -100,7 +109,9 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    const hostStatusBtn = container.querySelector('[data-testid="composer-host-status"]') as HTMLButtonElement;
+    const hostStatusBtn = container.querySelector(
+      '[data-testid="composer-host-status"]',
+    ) as HTMLButtonElement;
     expect(hostStatusBtn).not.toBeNull();
     expect(hostStatusBtn.textContent).toContain('Host: SDK');
 
@@ -115,9 +126,11 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    const hostStatusBtn = container.querySelector('[data-testid="composer-host-status"]') as HTMLButtonElement;
+    const hostStatusBtn = container.querySelector(
+      '[data-testid="composer-host-status"]',
+    ) as HTMLButtonElement;
     expect(hostStatusBtn).not.toBeNull();
-    expect(hostStatusBtn.textContent).toContain('Host: Connecting...');
+    expect(hostStatusBtn.textContent).toContain('Host: Connecting…');
   });
 
   it('resets textarea height when composer text is cleared or changed', async () => {
@@ -125,15 +138,19 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    const textarea = container.querySelector('[data-testid="composer-input"]') as HTMLTextAreaElement;
+    const textarea = container.querySelector(
+      '[data-testid="composer-input"]',
+    ) as HTMLTextAreaElement;
     expect(textarea).not.toBeNull();
 
     // Re-render with empty composer (e.g. after sending or clearing)
     await act(async () => {
       rendered.root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ComposerDock {...baseProps} composer="" />
-        </PiwinUiProvider>,
+        <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ComposerDock {...baseProps} composer="" />
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
       );
       await new Promise((r) => requestAnimationFrame(r));
     });
@@ -191,7 +208,9 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    const textarea = container.querySelector('[data-testid="composer-input"]') as HTMLTextAreaElement;
+    const textarea = container.querySelector(
+      '[data-testid="composer-input"]',
+    ) as HTMLTextAreaElement;
     expect(textarea.value).toBe('Use the existing branch');
     expect(textarea.readOnly).toBe(false);
     expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
@@ -200,23 +219,25 @@ describe('ComposerDock host status', () => {
 
     act(() => {
       rendered.root.render(
-        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-          <ComposerDock
-            {...baseProps}
-            streaming={true}
-            runPhase="streaming"
-            extensionUiRequest={{
-              sessionId: 'session-1',
-              requestId: 'request-1',
-              kind: 'input',
-              title: 'Response for: What should I work on?',
-              placeholder: 'Type your answer',
-            }}
-            extensionUiInput="Use a new branch"
-            onExtensionUiResolve={handleResolve}
-            onAbort={handleAbort}
-          />
-        </PiwinUiProvider>,
+        <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ComposerDock
+              {...baseProps}
+              streaming={true}
+              runPhase="streaming"
+              extensionUiRequest={{
+                sessionId: 'session-1',
+                requestId: 'request-1',
+                kind: 'input',
+                title: 'Response for: What should I work on?',
+                placeholder: 'Type your answer',
+              }}
+              extensionUiInput="Use a new branch"
+              onExtensionUiResolve={handleResolve}
+              onAbort={handleAbort}
+            />
+          </PiwinUiProvider>
+        </DesktopLocaleProvider>,
       );
     });
 
@@ -295,8 +316,8 @@ describe('ComposerDock host status', () => {
 
     const warning = container.querySelector('[data-testid="composer-text-only-image-warning"]');
     expect(warning).not.toBeNull();
-    expect(warning?.textContent).toContain('文本模型');
-    expect(warning?.textContent).toContain('不支持识图');
+    expect(warning?.textContent).toContain('text-only model');
+    expect(warning?.textContent).toContain('cannot analyze images');
   });
 
   it('hides text-only vision warning when model supports image', () => {
@@ -392,5 +413,25 @@ describe('ComposerDock host status', () => {
     container = rendered.container;
 
     expect(container.querySelector('[data-testid="composer-text-only-image-warning"]')).toBeNull();
+  });
+
+  it('localizes Composer controls and placeholders for Simplified Chinese', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} />, 'zh-CN');
+    root = rendered.root;
+    container = rendered.container;
+
+    const textarea = container.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]');
+    const attachButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="composer-plus-btn"]',
+    );
+    const sendButton = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
+    const hostStatus = container.querySelector<HTMLButtonElement>(
+      '[data-testid="composer-host-status"]',
+    );
+
+    expect(textarea?.placeholder).toBe('规划、搜索或构建任何内容');
+    expect(attachButton?.getAttribute('aria-label')).toBe('添加文件和上下文');
+    expect(sendButton?.getAttribute('aria-label')).toBe('发送');
+    expect(hostStatus?.textContent).toContain('Host：SDK');
   });
 });

@@ -12,7 +12,7 @@ import type {
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
-import { pushError, pushInfo, pushSuccess } from '../notification-queue';
+import { pushInfo, pushSuccess } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import { applyAgentModeToPrompt, type AgentModeId } from '../agent-mode';
 import type { SessionRowMenuAction } from '../session-row-menu';
@@ -683,7 +683,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       const response = await hostClient.request({ type: 'session/archive', sessionId });
       if (!response.success) {
         dispatch({ type: 'error', message: response.error });
-        dispatchNotification(pushError(response.error));
         return;
       }
       dispatchNotification(pushSuccess('Agent archived'));
@@ -867,7 +866,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             await navigator.clipboard.writeText(sessionId);
             dispatchNotification(pushSuccess('Session ID copied to clipboard'));
           } catch {
-            dispatchNotification(pushError('Could not copy session ID'));
+            dispatch({ type: 'error', message: 'Could not copy session ID' });
           }
           break;
         case 'duplicate':

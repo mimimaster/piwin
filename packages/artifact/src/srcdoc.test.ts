@@ -39,6 +39,17 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(csp).toContain("default-src 'none'");
   });
 
+  it('centers fixed-width native SVG fences within the responsive artifact measure', () => {
+    const { srcdoc } = buildHtmlArtifactSrcdoc({
+      source: '<svg width="500" height="400" viewBox="0 0 500 400"></svg>',
+      channelId: 'svg-centered',
+    });
+
+    expect(srcdoc).toContain('.piwin-artifact-root > svg');
+    expect(srcdoc).toContain('width: auto;');
+    expect(srcdoc).toContain('margin-inline: auto;');
+  });
+
   it('can omit bridge when requested', () => {
     const { srcdoc } = buildHtmlArtifactSrcdoc({
       source: '<div>x</div>',

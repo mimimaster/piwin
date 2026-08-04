@@ -67,6 +67,12 @@ export type ModelConfigEntry = {
    * When omitted at Pi registration time, defaults to `true` (legacy behavior).
    */
   reasoning?: boolean;
+  /**
+   * Whether this model is available for use. Default true when omitted.
+   * Disabled models remain in config but are excluded from Pi registration,
+   * composer model lists, and default-model resolution.
+   */
+  enabled?: boolean;
 };
 
 /** Default context window when a model omits `contextWindow`. */
@@ -130,6 +136,14 @@ export const DEFAULT_PROVIDER_ENABLED = true;
 /** A provider is active unless explicitly disabled. */
 export function isProviderEnabled(provider: { enabled?: boolean }): boolean {
   return provider.enabled !== false;
+}
+
+/** Default for the optional `enabled` field on models. */
+export const DEFAULT_MODEL_ENABLED = true;
+
+/** A model is available unless explicitly disabled. */
+export function isModelEnabled(model: { enabled?: boolean }): boolean {
+  return model.enabled !== false;
 }
 
 /** Normalized model identity returned from a provider's discovery endpoint. */

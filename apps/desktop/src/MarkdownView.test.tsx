@@ -74,6 +74,11 @@ describe('MarkdownView artifact preview policy', () => {
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" />,
     );
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(
+      container
+        .querySelector('.artifact-with-source')
+        ?.classList.contains('artifact-with-source--full-bleed'),
+    ).toBe(true);
   });
 
   it('code-first mode (artifactCodeFirst=true): artifact-html fence shows Preview button first', () => {
@@ -187,6 +192,11 @@ describe('MarkdownView artifact preview policy', () => {
     // Closed: source visible, no artifact frame.
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
+    expect(
+      container
+        .querySelector('.artifact-with-source')
+        ?.classList.contains('artifact-with-source--full-bleed'),
+    ).toBe(false);
     // Open preview in-place.
     const toggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-preview-toggle"]',
@@ -198,6 +208,11 @@ describe('MarkdownView artifact preview policy', () => {
     // Source code block is gone; rendered frame replaces it in place.
     expect(container.querySelector('[data-testid="code-fence-source"]')).toBeNull();
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(
+      container
+        .querySelector('.artifact-with-source')
+        ?.classList.contains('artifact-with-source--full-bleed'),
+    ).toBe(true);
     // The "Show code" affordance lives inside the frame header.
     const showCode = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-preview-toggle"]',
@@ -209,6 +224,11 @@ describe('MarkdownView artifact preview policy', () => {
     });
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
+    expect(
+      container
+        .querySelector('.artifact-with-source')
+        ?.classList.contains('artifact-with-source--full-bleed'),
+    ).toBe(false);
   });
 
   it('in-place toggle: SVG preview replaces source with ArtifactFrame', () => {

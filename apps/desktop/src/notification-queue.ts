@@ -32,7 +32,9 @@ const DEFAULT_TTL: Record<NotificationLevel, number> = {
   info: 4000,
   success: 3500,
   warning: 6000,
-  error: 0,
+  // Errors are important, but should not permanently cover the workspace.
+  // The dismiss button remains available for messages that need more time.
+  error: 6000,
 };
 
 const MAX_ITEMS = 5;

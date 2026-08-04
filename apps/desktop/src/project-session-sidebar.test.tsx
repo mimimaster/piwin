@@ -64,6 +64,7 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
     onResumeSession: () => {},
     onOpenSessionMenu: () => {},
     onOpenSettings: () => {},
+    locale: 'en',
     ...props,
   };
 
@@ -140,89 +141,98 @@ describe('ProjectSessionSidebar "See all" functionality', () => {
 
     expect(container.querySelectorAll('[data-testid="session-item"]').length).toBe(10);
   });
+
+  it('uses Chinese sidebar labels when the display locale is zh-CN', () => {
+    const { container } = renderSidebar({ locale: 'zh-CN' });
+
+    expect(container.textContent).toContain('项目');
+    expect(container.textContent).toContain('会话');
+    expect(
+      container.querySelector('[data-testid="display-options-btn"]')?.getAttribute('aria-label'),
+    ).toBe('显示选项');
+  });
 });
 
-  it('renders archived session rows with archived mark and data attribute', () => {
-    const sessions: SessionListItemUi[] = [
-      {
-        id: 'archived-1',
-        name: 'Old chat',
-        updatedAt: new Date().toISOString(),
-        isPinned: false,
-        isArchived: true,
-      },
-    ];
-    const { container } = renderSidebar({
-      filteredSessions: sessions,
-      showArchivedSessions: true,
-    });
-
-    const item = container.querySelector('[data-testid="session-item"]');
-    expect(item).not.toBeNull();
-    expect(item?.getAttribute('data-archived')).toBe('true');
-    expect(container.querySelector('.session-archived-mark')).not.toBeNull();
+it('renders archived session rows with archived mark and data attribute', () => {
+  const sessions: SessionListItemUi[] = [
+    {
+      id: 'archived-1',
+      name: 'Old chat',
+      updatedAt: new Date().toISOString(),
+      isPinned: false,
+      isArchived: true,
+    },
+  ];
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    showArchivedSessions: true,
   });
 
+  const item = container.querySelector('[data-testid="session-item"]');
+  expect(item).not.toBeNull();
+  expect(item?.getAttribute('data-archived')).toBe('true');
+  expect(container.querySelector('.session-archived-mark')).not.toBeNull();
+});
 
-  it('archived row shows pin, unarchive, and delete actions', () => {
-    const sessions: SessionListItemUi[] = [
-      {
-        id: 'archived-2',
-        name: 'Archived chat',
-        updatedAt: new Date().toISOString(),
-        isPinned: false,
-        isArchived: true,
-      },
-    ];
-    const { container } = renderSidebar({
-      filteredSessions: sessions,
-      showArchivedSessions: true,
-    });
-
-    expect(container.querySelector('[data-testid="session-pin-btn"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="session-unarchive-btn"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="session-delete-btn"]')).not.toBeNull();
-    expect(container.querySelector('[data-testid="session-menu-btn"]')).toBeNull();
-    expect(container.querySelector('[data-testid="session-archive-btn"]')).toBeNull();
+it('archived row shows pin, unarchive, and delete actions', () => {
+  const sessions: SessionListItemUi[] = [
+    {
+      id: 'archived-2',
+      name: 'Archived chat',
+      updatedAt: new Date().toISOString(),
+      isPinned: false,
+      isArchived: true,
+    },
+  ];
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    showArchivedSessions: true,
   });
 
-  it('opens customize menu with ordering, group by, and archived filter', () => {
-    let toggledArchived = false;
-    const { container } = renderSidebar({
-      onToggleShowArchived: () => {
-        toggledArchived = true;
-      },
-    });
+  expect(container.querySelector('[data-testid="session-pin-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-unarchive-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-delete-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-menu-btn"]')).toBeNull();
+  expect(container.querySelector('[data-testid="session-archive-btn"]')).toBeNull();
+});
 
-    const displayOptionsButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="display-options-btn"]',
+it('opens customize menu with ordering, group by, and archived filter', () => {
+  let toggledArchived = false;
+  const { container } = renderSidebar({
+    onToggleShowArchived: () => {
+      toggledArchived = true;
+    },
+  });
+
+  const displayOptionsButton = container.querySelector<HTMLButtonElement>(
+    '[data-testid="display-options-btn"]',
+  );
+  expect(displayOptionsButton).not.toBeNull();
+
+  act(() => {
+    // Radix DropdownMenu.Trigger opens on pointerdown, not a bare click.
+    displayOptionsButton?.dispatchEvent(
+      new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }),
     );
-    expect(displayOptionsButton).not.toBeNull();
-
-    act(() => {
-      // Radix DropdownMenu.Trigger opens on pointerdown, not a bare click.
-      displayOptionsButton?.dispatchEvent(
-        new window.PointerEvent('pointerdown', { bubbles: true, cancelable: true }),
-      );
-      displayOptionsButton?.dispatchEvent(
-        new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }),
-      );
-      displayOptionsButton?.dispatchEvent(
-        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
-      );
-    });
-
-    // Portaled menu content lives under document.body.
-    expect(document.querySelector('[data-testid="display-options-menu"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="display-options-ordering"]')).not.toBeNull();
-    expect(document.querySelector('[data-testid="display-options-group-by"]')).not.toBeNull();
-
-    const archivedFilter = document.querySelector<HTMLElement>(
-      '[data-testid="display-filter-archived"]',
+    displayOptionsButton?.dispatchEvent(
+      new window.PointerEvent('pointerup', { bubbles: true, cancelable: true }),
     );
-    expect(archivedFilter).not.toBeNull();
-    act(() => {
-      archivedFilter?.click();
-    });
-    expect(toggledArchived).toBe(true);
+    displayOptionsButton?.dispatchEvent(
+      new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+    );
   });
+
+  // Portaled menu content lives under document.body.
+  expect(document.querySelector('[data-testid="display-options-menu"]')).not.toBeNull();
+  expect(document.querySelector('[data-testid="display-options-ordering"]')).not.toBeNull();
+  expect(document.querySelector('[data-testid="display-options-group-by"]')).not.toBeNull();
+
+  const archivedFilter = document.querySelector<HTMLElement>(
+    '[data-testid="display-filter-archived"]',
+  );
+  expect(archivedFilter).not.toBeNull();
+  act(() => {
+    archivedFilter?.click();
+  });
+  expect(toggledArchived).toBe(true);
+});

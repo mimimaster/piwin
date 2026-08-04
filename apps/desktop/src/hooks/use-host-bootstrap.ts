@@ -23,7 +23,6 @@ import type { PetRuntimeSnapshot } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, PermissionPromptUi } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
-import { pushError } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import type { PtyOutputLine } from '../terminal-dock';
 import { PIWIN_APPEARANCE_DARK, resolveDesktopAppearance } from '../appearance-tokens';
@@ -112,7 +111,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
   }, []);
 
   useEffect(() => {
-    const { hostClient, dispatch, dispatchNotification } = args;
+    const { hostClient, dispatch } = args;
     const streamEventBuffer = createStreamEventBuffer({ dispatch });
     const unsubscribe = hostClient.subscribe((message: HostServerMessage) => {
       if (message.type === 'host/status') {
@@ -304,7 +303,6 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
           return;
         }
         dispatch({ type: 'error', message: message.error });
-        dispatchNotification(pushError(message.error));
       }
     });
 
@@ -326,7 +324,10 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         }
       } catch (error) {
         dispatch({ type: 'host/status', ready: false, mock: false });
-        dispatchNotification(pushError(error instanceof Error ? error.message : String(error)));
+        dispatch({
+          type: 'error',
+          message: error instanceof Error ? error.message : String(error),
+        });
       }
       const configResponse = await hostClient.request({ type: 'config/get' });
       if (configResponse.success) {

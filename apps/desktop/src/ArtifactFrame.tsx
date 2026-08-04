@@ -21,6 +21,8 @@ import {
 } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
 
+import { useArtifactHeightSignal } from './artifact-height-signal';
+
 export type ArtifactFrameProps = {
   decision: Extract<
     ArtifactPreviewDecision,
@@ -156,6 +158,7 @@ function ArtifactRenderFrame(props: {
   const slotReleasedRef = useRef(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const maxHeight = expanded ? MAX_ARTIFACT_EXPANDED_HEIGHT : MAX_ARTIFACT_IFRAME_HEIGHT;
+  const heightSignal = useArtifactHeightSignal();
 
   /**
    * Enter final-trim: allow measured heights to shrink back to the real content
@@ -222,6 +225,9 @@ function ArtifactRenderFrame(props: {
       );
       floorRef.current = Math.max(floorRef.current, clamped);
       setHeight(clamped);
+      // Notify the transcript scroll system that the iframe grew, so
+      // follow-tail scrolling re-fires even without text length changes.
+      heightSignal?.notifyHeightChange(clamped);
     };
 
     const onMessage = (event: MessageEvent): void => {
@@ -350,10 +356,29 @@ function ArtifactRenderFrame(props: {
 
   // Reset height state when srcdoc identity changes
   useEffect(() => {
+    // During stream-preview, the srcdoc changes on every token as
+    // MarkdownView re-evaluates the fence. Resetting height to 80px each
+    // time causes a collapse-regrow cycle and loses the floor. Instead,
+    // preserve the current height as the new floor so the iframe stays
+    // at its measured height and only grows from there.
+    if (decision.mode === 'stream-preview') {
+      // Keep the current height as floor; don't collapse.
+      floorRef.current = Math.max(floorRef.current, INITIAL_ARTIFACT_IFRAME_HEIGHT);
+      setPhase('protected');
+      setStatusLabel('streaming');
+      slotReleasedRef.current = false;
+      if (settleTimerRef.current) {
+        clearTimeout(settleTimerRef.current);
+        settleTimerRef.current = null;
+      }
+      return;
+    }
     setHeight(INITIAL_ARTIFACT_IFRAME_HEIGHT);
     floorRef.current = INITIAL_ARTIFACT_IFRAME_HEIGHT;
     setPhase('protected');
-    setStatusLabel(decision.mode === 'stream-preview' ? 'streaming' : 'loading');
+    // After the stream-preview early return above, decision.mode is
+    // narrowed to 'interactive' — always use 'loading' here.
+    setStatusLabel('loading');
     setExpanded(false);
     slotReleasedRef.current = false;
     if (settleTimerRef.current) {

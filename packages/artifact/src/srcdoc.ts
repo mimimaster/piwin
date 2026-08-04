@@ -80,6 +80,16 @@ body > *, body > div {
   min-height: auto !important;
 }
 img, svg, canvas, video { max-width: 100%; height: auto; }
+/* Native SVG fences often declare a fixed width. Keep them responsive to the
+   selected conversation measure and center the intrinsic canvas instead of
+   leaving it pinned to the left edge of the Artifact iframe. */
+.piwin-artifact-root > svg {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+}
 a { color: var(--piwin-artifact-accent); }
 button, input, select, textarea { font: inherit; }
 .piwin-artifact-root,

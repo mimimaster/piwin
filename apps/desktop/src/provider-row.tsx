@@ -25,7 +25,7 @@ import {
 
 export type ProviderRowProps = {
   provider: ModelProviderConfig;
-  status: ProviderTestStatus;
+  status: ProviderTestStatus | null;
   isDefault: boolean;
   /** Product default model id when this provider is the default provider. */
   defaultModelId: string | null;
@@ -40,6 +40,7 @@ export type ProviderRowProps = {
   onUpdateModels: (models: ModelConfigEntry[]) => void;
   onTestModel: (modelId: string) => void;
   onSetDefaultModel: (modelId: string) => void;
+  onToggleModel: (modelId: string) => void;
   onDiscoverModels: (provider: ModelProviderConfig) => Promise<ModelDiscoveryResult>;
 };
 
@@ -105,6 +106,7 @@ export function ProviderRow({
   onUpdateModels,
   onTestModel,
   onSetDefaultModel,
+  onToggleModel,
   onDiscoverModels,
 }: ProviderRowProps): ReactElement {
   const [expanded, setExpanded] = useState(false);
@@ -213,9 +215,7 @@ export function ProviderRow({
             </span>
           </div>
           <div className="provider-row-models-count">
-            {provider.models.length > 0
-              ? `${provider.models.length} ${t.models}`
-              : t.noModels}
+            {provider.models.length > 0 ? `${provider.models.length} ${t.models}` : t.noModels}
           </div>
           <div className="provider-row-tail">
             <div
@@ -249,10 +249,7 @@ export function ProviderRow({
         </div>
 
         {expanded && (
-          <div
-            className="provider-row-expanded"
-            data-testid={`provider-row-models-${provider.id}`}
-          >
+          <div className="provider-row-expanded" data-testid={`provider-row-models-${provider.id}`}>
             <div className="provider-field-label" style={{ marginTop: 0 }}>
               <span>
                 {t.modelsHeading}
@@ -316,41 +313,50 @@ export function ProviderRow({
                         type="button"
                         className="provider-mini-btn"
                         title={t.edit}
+                        aria-label={t.edit}
                         onClick={() => setEditingModelId(isEditing ? null : model.id)}
                         disabled={disabled}
                         data-testid={`provider-model-edit-${model.id}`}
                       >
-                        <IconEdit width={12} height={12} />
+                        <IconEdit width={16} height={16} />
                       </button>
                       <button
                         type="button"
                         className="provider-mini-btn"
                         title={t.test}
+                        aria-label={t.test}
                         onClick={() => onTestModel(model.id)}
                         disabled={disabled || isTesting}
                         data-testid={`provider-model-test-${model.id}`}
                       >
                         {isTesting ? (
-                          <IconRefresh width={12} height={12} className="provider-spin" />
+                          <IconRefresh width={16} height={16} className="provider-spin" />
                         ) : (
-                          <IconSpark width={12} height={12} />
+                          <IconSpark width={16} height={16} />
                         )}
                       </button>
-                      {!isDefaultModel && (
-                        <button
-                          type="button"
-                          className="provider-mini-btn"
-                          title={t.setDefault}
-                          onClick={() => onSetDefaultModel(model.id)}
-                          disabled={disabled}
-                          data-testid={`provider-model-default-${model.id}`}
-                        >
-                          <IconStar width={12} height={12} />
-                        </button>
-                      )}
                       <button
                         type="button"
                         className="provider-mini-btn"
+                        title={isDefaultModel ? t.default : t.setDefault}
+                        aria-label={isDefaultModel ? t.default : t.setDefault}
+                        onClick={() => {
+                          if (!isDefaultModel) onSetDefaultModel(model.id);
+                        }}
+                        disabled={disabled || isDefaultModel}
+                        data-testid={`provider-model-default-${model.id}`}
+                        style={isDefaultModel ? { color: 'var(--warn, #f59e0b)' } : undefined}
+                      >
+                        <IconStar
+                          width={12}
+                          height={12}
+                          fill={isDefaultModel ? 'currentColor' : 'none'}
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        className="provider-mini-btn"
+                        title={t.delete}
                         onClick={() =>
                           onUpdateModels(provider.models.filter((entry) => entry.id !== model.id))
                         }
@@ -358,8 +364,28 @@ export function ProviderRow({
                         aria-label={t.delete}
                         data-testid={`provider-model-remove-${model.id}`}
                       >
-                        <IconClose width={12} height={12} />
+                        <IconClose width={16} height={16} />
                       </button>
+                      <div
+                        className="provider-model-toggle"
+                        title={
+                          model.enabled === false
+                            ? isChinese
+                              ? '已停用'
+                              : 'Disabled'
+                            : isChinese
+                              ? '已启用'
+                              : 'Enabled'
+                        }
+                      >
+                        <Switch
+                          checked={model.enabled !== false}
+                          onCheckedChange={() => onToggleModel(model.id)}
+                          disabled={disabled}
+                          testId={`provider-model-toggle-${model.id}`}
+                          size="sm"
+                        />
+                      </div>
                     </div>
                     {isEditing && (
                       <ModelEditInline

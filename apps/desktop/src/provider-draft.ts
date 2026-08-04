@@ -4,6 +4,7 @@
  */
 
 import type { ModelConfigEntry, ModelProviderConfig } from '@piwin/contracts';
+import { isModelEnabled } from '@piwin/contracts';
 import type { ProviderProtocol } from './provider-presets.js';
 
 export type HeaderDraftRow = {
@@ -117,7 +118,9 @@ export function resolveDefaultAfterProviderChange(
 
   if (previousDefault?.providerId && previousDefault?.modelId) {
     const provider = enabled.find((p) => p.id === previousDefault.providerId);
-    const model = provider?.models.find((m) => m.id === previousDefault.modelId);
+    const model = provider?.models.find(
+      (m) => m.id === previousDefault.modelId && isModelEnabled(m),
+    );
     if (provider && model) {
       return { defaultProviderId: provider.id, defaultModelId: model.id };
     }
@@ -125,7 +128,7 @@ export function resolveDefaultAfterProviderChange(
 
   const first = enabled[0];
   if (first) {
-    const firstModel = first.models[0];
+    const firstModel = first.models.find((m) => isModelEnabled(m));
     if (firstModel) {
       return { defaultProviderId: first.id, defaultModelId: firstModel.id };
     }

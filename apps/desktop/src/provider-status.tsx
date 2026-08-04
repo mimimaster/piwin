@@ -6,7 +6,13 @@ export type ProviderTestStatus = {
   durationMs?: number;
 };
 
-export function ProviderStatusPill({ status }: { status: ProviderTestStatus }): ReactElement {
+export function ProviderStatusPill({
+  status,
+}: {
+  status: ProviderTestStatus | null;
+}): ReactElement | null {
+  if (!status) return null;
+
   return (
     <span className={`provider-status-pill provider-status-pill--${status.tone}`}>
       <span className="provider-status-pill-dot" />

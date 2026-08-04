@@ -8,10 +8,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ThemeManifest } from '@piwin/contracts';
 import type { AppProps } from './App';
-import {
-  PIWIN_APPEARANCE_DARK,
-  PIWIN_APPEARANCE_LIGHT,
-} from './appearance-tokens';
+import { PIWIN_APPEARANCE_LIGHT } from './appearance-tokens';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -35,6 +32,8 @@ describe('DesktopThemeRoot', () => {
 
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    localStorage.clear();
+    localStorage.setItem('piwin.desktop.appearanceMode', 'dark');
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -46,24 +45,24 @@ describe('DesktopThemeRoot', () => {
       root.unmount();
     });
     container.remove();
+    localStorage.clear();
     globalThis.IS_REACT_ACT_ENVIRONMENT = undefined;
   });
 
-  it('starts with built-in dark and projects it to the document', () => {
+  it('starts with the persisted dark Appearance mode and projects it to the document', () => {
     act(() => {
       root.render(<DesktopThemeRoot />);
     });
 
     expect(capturedProps).not.toBeNull();
     const props = capturedProps as unknown as AppProps;
-    expect(props.activeTheme).toBe(PIWIN_APPEARANCE_DARK);
+    expect(props.activeTheme.id).toBe('piwin-dark-appearance');
+    expect(props.activeTheme.mode).toBe('dark');
 
     const documentRoot = document.documentElement;
-    expect(documentRoot.dataset.themeId).toBe('piwin-dark');
+    expect(documentRoot.dataset.themeId).toBe('piwin-dark-appearance');
     expect(documentRoot.dataset.themeMode).toBe('dark');
-    expect(documentRoot.style.getPropertyValue('--canvas')).toBe(
-      PIWIN_APPEARANCE_DARK.tokens.bg,
-    );
+    expect(documentRoot.style.getPropertyValue('--canvas')).toBe('#101010');
   });
 
   it('applies light identity, tokens, and provider manifest through its callback', () => {
@@ -79,9 +78,7 @@ describe('DesktopThemeRoot', () => {
     const documentRoot = document.documentElement;
     expect(documentRoot.dataset.themeId).toBe('piwin-light');
     expect(documentRoot.dataset.themeMode).toBe('light');
-    expect(documentRoot.style.getPropertyValue('--canvas')).toBe(
-      PIWIN_APPEARANCE_LIGHT.tokens.bg,
-    );
+    expect(documentRoot.style.getPropertyValue('--canvas')).toBe(PIWIN_APPEARANCE_LIGHT.tokens.bg);
 
     // App receives the exact same resolved manifest projected to the document.
     const rerendered = capturedProps as unknown as AppProps;

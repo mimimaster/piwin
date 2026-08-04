@@ -42,6 +42,7 @@ function buildModelOptions(
   const options: { value: string; label: string; ref: ModelRef }[] = [];
   for (const provider of providers) {
     for (const model of provider.models) {
+      if (model.enabled === false) continue;
       const ref: ModelRef = {
         protocol: provider.protocol,
         providerId: provider.id,

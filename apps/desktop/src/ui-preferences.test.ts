@@ -3,6 +3,7 @@ import {
   loadDesktopPreferences,
   saveDesktopPreferences,
   loadToolCallDensity,
+  resolveConversationWidth,
 } from './ui-preferences';
 import type { DesktopPreferences } from './ui-preferences';
 
@@ -68,6 +69,21 @@ describe('DesktopPreferences loading', () => {
       workDetailsExpanded: 'auto',
       artifactPreviewEnabled: true,
       artifactCodeFirst: false,
+      verboseAgentChat: true,
+      conversationWidth: 'default',
+      appearanceMode: 'system',
+      lightTheme: {
+        preset: 'default',
+        background: '#EEEEEE',
+        foreground: '#101010',
+        accent: '#007ACC',
+      },
+      darkTheme: {
+        preset: 'default',
+        background: '#101010',
+        foreground: '#CCCCCC',
+        accent: '#007ACC',
+      },
       dontAskRevertConfirm: false,
     });
   });
@@ -89,6 +105,21 @@ describe('DesktopPreferences loading', () => {
       workDetailsExpanded: 'always',
       artifactPreviewEnabled: true,
       artifactCodeFirst: true,
+      verboseAgentChat: true,
+      conversationWidth: 'default',
+      appearanceMode: 'system',
+      lightTheme: {
+        preset: 'default',
+        background: '#EEEEEE',
+        foreground: '#101010',
+        accent: '#007ACC',
+      },
+      darkTheme: {
+        preset: 'default',
+        background: '#101010',
+        foreground: '#CCCCCC',
+        accent: '#007ACC',
+      },
       dontAskRevertConfirm: false,
     });
   });
@@ -104,6 +135,7 @@ describe('DesktopPreferences loading', () => {
     expect(prefs.workDetailsExpanded).toBe('auto');
     expect(prefs.artifactPreviewEnabled).toBe(true);
     expect(prefs.artifactCodeFirst).toBe(false);
+    expect(prefs.conversationWidth).toBe('default');
   });
 
   it('backward compat: reads old toolCallDensity key', () => {
@@ -130,6 +162,7 @@ describe('DesktopPreferences loading', () => {
     setLocalStorage('toolCallDensity', 'super-detailed');
     setLocalStorage('workDetailsExpanded', 'never');
     setLocalStorage('artifactCodeFirst', 'maybe');
+    setLocalStorage('conversationWidth', 'extra-wide');
 
     const prefs = loadDesktopPreferences();
     expect(prefs.assistantTextSize).toBe('default');
@@ -139,6 +172,7 @@ describe('DesktopPreferences loading', () => {
     expect(prefs.workDetailsExpanded).toBe('auto');
     expect(prefs.artifactPreviewEnabled).toBe(true);
     expect(prefs.artifactCodeFirst).toBe(false);
+    expect(prefs.conversationWidth).toBe('default');
   });
 
   it('codeWrap only parses true as true', () => {
@@ -167,6 +201,21 @@ describe('DesktopPreferences saving and roundtrip', () => {
       workDetailsExpanded: 'collapsed',
       artifactPreviewEnabled: true,
       artifactCodeFirst: true,
+      verboseAgentChat: false,
+      conversationWidth: 'narrow',
+      appearanceMode: 'dark',
+      lightTheme: {
+        preset: 'default',
+        background: '#FFFFFF',
+        foreground: '#000000',
+        accent: '#FF0000',
+      },
+      darkTheme: {
+        preset: 'default',
+        background: '#000000',
+        foreground: '#FFFFFF',
+        accent: '#00FF00',
+      },
       dontAskRevertConfirm: true,
     };
     saveDesktopPreferences(input);
@@ -184,12 +233,35 @@ describe('DesktopPreferences saving and roundtrip', () => {
       workDetailsExpanded: 'auto',
       artifactPreviewEnabled: true,
       artifactCodeFirst: false,
+      verboseAgentChat: true,
+      conversationWidth: 'default',
+      appearanceMode: 'system',
+      lightTheme: {
+        preset: 'default',
+        background: '#EEEEEE',
+        foreground: '#101010',
+        accent: '#007ACC',
+      },
+      darkTheme: {
+        preset: 'default',
+        background: '#101010',
+        foreground: '#CCCCCC',
+        accent: '#007ACC',
+      },
       dontAskRevertConfirm: false,
     };
     saveDesktopPreferences(defaults);
 
     const output = loadDesktopPreferences();
     expect(output).toEqual(defaults);
+  });
+});
+
+describe('conversation width', () => {
+  it('maps every width preference to its desktop conversation measure', () => {
+    expect(resolveConversationWidth('narrow')).toBe('620px');
+    expect(resolveConversationWidth('default')).toBe('780px');
+    expect(resolveConversationWidth('wide')).toBe('1040px');
   });
 });
 
@@ -226,6 +298,21 @@ describe('artifactCodeFirst', () => {
       workDetailsExpanded: 'auto',
       artifactPreviewEnabled: true,
       artifactCodeFirst: true,
+      verboseAgentChat: true,
+      conversationWidth: 'wide',
+      appearanceMode: 'system',
+      lightTheme: {
+        preset: 'default',
+        background: '#EEEEEE',
+        foreground: '#101010',
+        accent: '#007ACC',
+      },
+      darkTheme: {
+        preset: 'default',
+        background: '#101010',
+        foreground: '#CCCCCC',
+        accent: '#007ACC',
+      },
     });
     expect(loadDesktopPreferences().artifactCodeFirst).toBe(true);
   });

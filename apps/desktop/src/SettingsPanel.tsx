@@ -9,6 +9,7 @@ import type {
   ModelProviderConfig,
   PiwinConfig,
   HostStatusData,
+  ThemeManifest,
 } from '@piwin/contracts';
 import { createDefaultWebConfig } from '@piwin/contracts';
 import type { SkillsPanelProps } from './SkillsPanel';
@@ -45,6 +46,7 @@ type SettingsPanelProps = {
   requestAutomation: AutomationPanelProps['request'];
   requestSubAgent?: import('./SubAgentPanel').SubAgentPanelProps['request'];
   activeSessionId?: string | null;
+  activeTheme: ThemeManifest;
   /** Live child summaries from host pushes (keyed by childSessionId). */
   subagentChildren?: Record<string, import('@piwin/contracts').SessionSummary>;
   onOpenSubagentSession?: (sessionId: string) => void;
@@ -73,6 +75,7 @@ export function SettingsPanel({
   requestAutomation,
   requestSubAgent,
   activeSessionId = null,
+  activeTheme,
   subagentChildren,
   onOpenSubagentSession,
   onThemeApplied,
@@ -130,9 +133,7 @@ export function SettingsPanel({
     const isError = error !== null;
     const notificationId = showUiNotification({
       tone: isError ? 'error' : infoTone,
-      ...(isError
-        ? { title: locale === 'zh-CN' ? '设置错误' : 'Settings error' }
-        : {}),
+      ...(isError ? { title: locale === 'zh-CN' ? '设置错误' : 'Settings error' } : {}),
       message,
       autoClose: isError ? 6000 : 3500,
       onClose: () => {
@@ -232,18 +233,17 @@ export function SettingsPanel({
     [request],
   );
 
-  const searchImageModelCatalog = useCallback(
-    async (): Promise<import('@piwin/contracts').ImageModelCatalogSearchResult> => {
-      const response = await request({
-        type: 'models/image-catalog/search',
-      });
-      if (!response.success) {
-        throw new Error(response.error);
-      }
-      return response.data as import('@piwin/contracts').ImageModelCatalogSearchResult;
-    },
-    [request],
-  );
+  const searchImageModelCatalog = useCallback(async (): Promise<
+    import('@piwin/contracts').ImageModelCatalogSearchResult
+  > => {
+    const response = await request({
+      type: 'models/image-catalog/search',
+    });
+    if (!response.success) {
+      throw new Error(response.error);
+    }
+    return response.data as import('@piwin/contracts').ImageModelCatalogSearchResult;
+  }, [request]);
 
   const storeProviderSecret = useCallback(
     async (providerId: string, secret: string): Promise<string> => {
@@ -337,6 +337,7 @@ export function SettingsPanel({
       requestPet,
       requestAutomation,
       requestSubAgent,
+      activeTheme,
       ...(subagentChildren ? { subagentChildren } : {}),
       onThemeApplied,
       onPetActiveChanged,
@@ -374,6 +375,7 @@ export function SettingsPanel({
       requestPet,
       requestAutomation,
       requestSubAgent,
+      activeTheme,
       subagentChildren,
       onThemeApplied,
       onPetActiveChanged,

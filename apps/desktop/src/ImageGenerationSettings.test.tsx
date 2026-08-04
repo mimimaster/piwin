@@ -74,6 +74,21 @@ function createContextValue(
       workDetailsExpanded: 'auto',
       artifactPreviewEnabled: false,
       artifactCodeFirst: false,
+      verboseAgentChat: true,
+      conversationWidth: 'wide',
+      appearanceMode: 'dark',
+      lightTheme: {
+        preset: 'default',
+        background: '#EEEEEE',
+        foreground: '#101010',
+        accent: '#007ACC',
+      },
+      darkTheme: {
+        preset: 'default',
+        background: '#101010',
+        foreground: '#CCCCCC',
+        accent: '#007ACC',
+      },
     },
     onPreferencesChange: vi.fn(),
     projectPath: null,
@@ -91,6 +106,7 @@ function createContextValue(
     requestPet: noopRequest,
     requestAutomation: noopRequest,
     requestSubAgent: undefined,
+    activeTheme: PIWIN_APPEARANCE_DARK,
     onThemeApplied: vi.fn(),
     onPetActiveChanged: vi.fn(),
     discoverProviderModels: vi.fn(),
@@ -289,14 +305,24 @@ describe('ImageGenerationSettings', () => {
     const discoverProviderModels = vi.fn(async () => ({
       providerId: 'zhipu',
       protocol: 'openai-compatible' as const,
-      models: [
-        { id: 'gpt-image-1', label: 'GPT Image 1' },
-      ],
+      models: [{ id: 'gpt-image-1', label: 'GPT Image 1' }],
     }));
     const searchImageModelCatalog = vi.fn(async () => ({
       entries: [
-        { catalogProviderId: 'openrouter', modelId: 'openai/gpt-image-1', name: 'GPT Image 1', input: ['text', 'image'] as const, output: ['image'] as const },
-        { catalogProviderId: 'openrouter', modelId: 'google/gemini-3-pro-image', name: 'Gemini 3 Pro Image', input: ['image', 'text'] as const, output: ['image', 'text'] as const },
+        {
+          catalogProviderId: 'openrouter',
+          modelId: 'openai/gpt-image-1',
+          name: 'GPT Image 1',
+          input: ['text', 'image'] as const,
+          output: ['image'] as const,
+        },
+        {
+          catalogProviderId: 'openrouter',
+          modelId: 'google/gemini-3-pro-image',
+          name: 'Gemini 3 Pro Image',
+          input: ['image', 'text'] as const,
+          output: ['image', 'text'] as const,
+        },
       ],
       catalogVersion: 'test',
     }));
@@ -313,7 +339,9 @@ describe('ImageGenerationSettings', () => {
         (
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
             <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
-              <SettingsProvider value={{ ...base, discoverProviderModels, searchImageModelCatalog }}>
+              <SettingsProvider
+                value={{ ...base, discoverProviderModels, searchImageModelCatalog }}
+              >
                 <ImageGenerationSettings />
               </SettingsProvider>
             </DesktopLocaleProvider>

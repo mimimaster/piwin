@@ -158,6 +158,58 @@
   cursor: not-allowed;
 }
 
+/* ── ColorInput ───────────────────────────────────────────── */
+
+.piwin-color-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 158px;
+  height: var(--control-height-default);
+  padding: 4px 10px 4px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-control);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.piwin-color-input:focus-within {
+  border-color: var(--border-emphasis, var(--accent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.piwin-color-input-swatch {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.piwin-color-input-swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.piwin-color-input-swatch::-webkit-color-swatch {
+  border: 0;
+  border-radius: 6px;
+}
+
+.piwin-color-input-field {
+  width: 92px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Surface ───────────────────────────────────────────────── */
 
 .piwin-surface {

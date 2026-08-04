@@ -17,6 +17,8 @@ export type SubagentSessionTranscriptProps = {
   error: string | null;
   onRetry: () => void;
   locale: 'zh-CN' | 'en';
+  /** Whether persisted and live child-session thinking should be rendered. */
+  showThinking?: boolean;
 };
 
 const SCROLL_FOLLOW_THRESHOLD_PX = 80;
@@ -25,7 +27,10 @@ function SubagentToolRow({ tool }: { tool: SubagentStreamTool }): ReactElement {
   return (
     <div className="subagent-inspector-tool" data-status={tool.status}>
       <span className="subagent-inspector-tool-header">
-        <span className={`subagent-inspector-tool-status status-${tool.status}`} aria-hidden="true" />
+        <span
+          className={`subagent-inspector-tool-status status-${tool.status}`}
+          aria-hidden="true"
+        />
         <code className="subagent-inspector-tool-name">{tool.toolName}</code>
       </span>
       {tool.output.length > 0 ? (
@@ -39,13 +44,15 @@ function SubagentInspectorAssistant({
   message,
   streaming,
   locale,
+  showThinking,
 }: {
   message: ChatMessageUi;
   streaming: boolean;
   locale: 'zh-CN' | 'en';
+  showThinking: boolean;
 }): ReactElement {
   const isChinese = locale === 'zh-CN';
-  const hasThinking = message.thinking.trim().length > 0;
+  const hasThinking = showThinking && message.thinking.trim().length > 0;
   const hasTools = message.tools.length > 0;
   return (
     <div className="subagent-inspector-message role-assistant" data-streaming={streaming}>
@@ -76,11 +83,10 @@ function SubagentInspectorAssistant({
   );
 }
 
-export function SubagentSessionTranscript(
-  props: SubagentSessionTranscriptProps,
-): ReactElement {
+export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps): ReactElement {
   const { locale } = props;
   const isChinese = locale === 'zh-CN';
+  const showThinking = props.showThinking !== false;
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [followLatest, setFollowLatest] = useState(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -140,7 +146,7 @@ export function SubagentSessionTranscript(
   const hasLiveContent =
     props.stream !== null &&
     (props.stream.text.length > 0 ||
-      props.stream.thinking.length > 0 ||
+      (showThinking && props.stream.thinking.length > 0) ||
       props.stream.tools.length > 0);
   const isEmpty = props.historicalMessages.length === 0 && !hasLiveContent;
 
@@ -154,15 +160,14 @@ export function SubagentSessionTranscript(
               message={message}
               streaming={false}
               locale={locale}
+              showThinking={showThinking}
             />
           );
         }
         if (message.role === 'user') {
           return (
             <div key={message.id} className="subagent-inspector-message role-user">
-              <span className="subagent-inspector-user-label">
-                {isChinese ? '任务' : 'Task'}
-              </span>
+              <span className="subagent-inspector-user-label">{isChinese ? '任务' : 'Task'}</span>
               <div className="subagent-inspector-user-text">{message.text}</div>
             </div>
           );
@@ -174,49 +179,50 @@ export function SubagentSessionTranscript(
         );
       })}
 
-      {props.stream !== null && (() => {
-        const stream = props.stream;
-        const isLive = stream.streaming;
-        const hasContent =
-          stream.text.length > 0 || stream.thinking.length > 0 || stream.tools.length > 0;
-        if (!hasContent) {
-          return null;
-        }
-        return (
-          <div className="subagent-inspector-live" data-live={isLive}>
-            {stream.thinking.length > 0 ? (
-              <details className="subagent-inspector-thinking" open>
-                <summary>{isChinese ? '思考过程' : 'Thinking'}</summary>
-                <pre className="subagent-inspector-thinking-text">{stream.thinking}</pre>
-              </details>
-            ) : null}
-            {stream.tools.length > 0 ? (
-              <div className="subagent-inspector-tools">
-                {stream.tools.map((tool) => (
-                  <SubagentToolRow key={tool.toolCallId} tool={tool} />
-                ))}
-              </div>
-            ) : null}
-            {stream.text.length > 0 ? (
-              <MarkdownView
-                text={stream.text}
-                renderingPhase={isLive ? 'streaming' : 'completed'}
-                artifactPreviewEnabled={false}
-              />
-            ) : null}
-            {isLive ? (
-              <span className="subagent-stream-cursor" aria-hidden="true">
-                ▋
-              </span>
-            ) : null}
-          </div>
-        );
-      })()}
+      {props.stream !== null &&
+        (() => {
+          const stream = props.stream;
+          const isLive = stream.streaming;
+          const hasContent =
+            stream.text.length > 0 ||
+            (showThinking && stream.thinking.length > 0) ||
+            stream.tools.length > 0;
+          if (!hasContent) {
+            return null;
+          }
+          return (
+            <div className="subagent-inspector-live" data-live={isLive}>
+              {showThinking && stream.thinking.length > 0 ? (
+                <details className="subagent-inspector-thinking" open>
+                  <summary>{isChinese ? '思考过程' : 'Thinking'}</summary>
+                  <pre className="subagent-inspector-thinking-text">{stream.thinking}</pre>
+                </details>
+              ) : null}
+              {stream.tools.length > 0 ? (
+                <div className="subagent-inspector-tools">
+                  {stream.tools.map((tool) => (
+                    <SubagentToolRow key={tool.toolCallId} tool={tool} />
+                  ))}
+                </div>
+              ) : null}
+              {stream.text.length > 0 ? (
+                <MarkdownView
+                  text={stream.text}
+                  renderingPhase={isLive ? 'streaming' : 'completed'}
+                  artifactPreviewEnabled={false}
+                />
+              ) : null}
+              {isLive ? (
+                <span className="subagent-stream-cursor" aria-hidden="true">
+                  ▋
+                </span>
+              ) : null}
+            </div>
+          );
+        })()}
 
       {isEmpty && !props.loading && props.error === null ? (
-        <div className="subagent-inspector-state">
-          {isChinese ? '尚无输出' : 'No output yet'}
-        </div>
+        <div className="subagent-inspector-state">{isChinese ? '尚无输出' : 'No output yet'}</div>
       ) : null}
 
       {showJumpToLatest ? (

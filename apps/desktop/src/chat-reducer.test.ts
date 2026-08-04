@@ -375,6 +375,18 @@ describe('chatUiReducer', () => {
     });
   });
 
+  it('clears only the transient error message while retaining failed run state', () => {
+    let state = chatUiReducer(createInitialChatUiState(), {
+      type: 'error',
+      message: 'delete failed',
+    });
+
+    state = chatUiReducer(state, { type: 'error/clear' });
+
+    expect(state.error).toBeNull();
+    expect(state.runTerminal).toMatchObject({ kind: 'failed', message: 'delete failed' });
+  });
+
   it('stores attachments on user/send', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, {

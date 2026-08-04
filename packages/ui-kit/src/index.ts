@@ -93,5 +93,8 @@ export type { SelectProps } from './select.js';
 export { SegmentedControl } from './segmented-control.js';
 export type { SegmentedControlProps } from './segmented-control.js';
 
+export { ColorInput } from './color-input.js';
+export type { ColorInputProps } from './color-input.js';
+
 export { Card } from './card.js';
 export type { CardProps } from './card.js';

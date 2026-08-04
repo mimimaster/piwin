@@ -23,6 +23,7 @@ import { useHostRequestAdapters } from './host-request-adapters';
 import { WorkspaceTitlebar } from './workspace-titlebar';
 import { SettingsPanel } from './SettingsPanel';
 import { NotificationRegion } from './NotificationRegion';
+import { MainErrorBanner } from './main-error-banner';
 import { ProjectSessionSidebar } from './project-session-sidebar';
 import { projectDisplayName } from './project-display-name';
 import { ChatThread } from './chat-thread';
@@ -31,7 +32,10 @@ import { PermissionBar } from './permission-bar';
 import { FileTreePanel } from './file-tree-panel';
 import { ReviewPanel } from './review-panel';
 import { AppDialogs } from './app-dialogs';
-import { createEmptyNotificationState, notificationReducer } from './notification-queue';
+import {
+  createEmptyNotificationState,
+  notificationReducer,
+} from './notification-queue';
 import { GitPanel } from './GitPanel';
 import type { HostLogEntry } from './HostLogPanel';
 import { NotesPanel } from './NotesPanel';
@@ -51,6 +55,7 @@ import { type AgentModeId } from './agent-mode';
 import { groupSessionsByRecency } from './session-groups';
 import {
   loadDesktopPreferences,
+  resolveConversationWidth,
   saveDesktopPreferences,
   type DesktopPreferences,
 } from './ui-preferences';
@@ -94,6 +99,11 @@ import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { SIDEBAR_DEFAULT_WIDTH_PX } from './sidebar-width';
 import { resolveThinkingLevelForModel } from './model-thinking-policy';
 
+import {
+  ArtifactHeightSignalProvider,
+  type ArtifactHeightSignalContextValue,
+} from './artifact-height-signal';
+
 type ModelOption = {
   providerId: string;
   protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
@@ -114,6 +124,7 @@ function modelsFromConfig(config: PiwinConfig | null): ModelOption[] {
   const options: ModelOption[] = [];
   for (const provider of config.providers) {
     for (const model of provider.models) {
+      if (model.enabled === false) continue;
       options.push({
         providerId: provider.id,
         protocol: provider.protocol,
@@ -375,10 +386,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           ? '14.5px'
           : '13px';
     const codeWrap = preferences.codeWrap ? 'break-word' : 'unset';
+    const conversationWidth = resolveConversationWidth(preferences.conversationWidth);
     return {
       '--chat-font-size': chatFontSize,
       '--code-font-size': codeFontSize,
       '--code-wrap': codeWrap,
+      '--conversation-width': conversationWidth,
     } as React.CSSProperties;
   }, [preferences]);
   const appShellStyle = useMemo(
@@ -1220,6 +1233,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       return;
     }
     const theme = (response.data as { theme: ThemeManifest }).theme;
+    const nextPreferences: DesktopPreferences = {
+      ...preferences,
+      appearanceMode: theme.mode,
+    };
+    setPreferences(nextPreferences);
+    saveDesktopPreferences(nextPreferences);
     onThemeApplied(theme);
   }
 
@@ -1428,6 +1447,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [state, sessionTools, sessionPlan, managedProcesses, runClock],
   );
 
+  // Artifact height signal: bumped whenever an ArtifactFrame's iframe grows
+  // via the postMessage height bridge. Included in activitySignal so the
+  // transcript scroll system re-fires follow-tail scrolling even when the
+  // markdown text length hasn't changed (e.g. SVG growing inside iframe).
+  const [artifactHeightTick, setArtifactHeightTick] = useState(0);
+  const artifactHeightSignal = useMemo<ArtifactHeightSignalContextValue>(
+    () => ({
+      notifyHeightChange: () => {
+        setArtifactHeightTick((tick) => tick + 1);
+      },
+    }),
+    [],
+  );
+
   const activitySignal = useMemo(() => {
     const latestMessage = state.messages[state.messages.length - 1];
     const latestVisibleLength = latestMessage
@@ -1436,8 +1469,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     const toolStates = sessionTools
       .map((tool) => `${tool.toolCallId}:${tool.status}:${tool.output.length}`)
       .join(',');
-    return `${state.runPhase}:${state.messages.length}:${latestVisibleLength}:${toolStates}`;
-  }, [state.runPhase, state.messages, sessionTools]);
+    return `${state.runPhase}:${state.messages.length}:${latestVisibleLength}:${toolStates}:ah${artifactHeightTick}`;
+  }, [state.runPhase, state.messages, sessionTools, artifactHeightTick]);
 
   const selectedModelLabel = useMemo(() => {
     if (!selectedModelKey) {
@@ -1478,7 +1511,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
 
   const activeSessionName =
     state.sessions.find((item) => item.id === state.activeSessionId)?.name ?? 'New chat';
-  const activeSessionOrigin = state.sessions.find((item) => item.id === state.activeSessionId)?.origin ?? null;
+  const activeSessionOrigin =
+    state.sessions.find((item) => item.id === state.activeSessionId)?.origin ?? null;
   const desktopCopy = getDesktopCopy(desktopLocale);
 
   // Shared composer card props for the bottom dock and in-place message editing.
@@ -1843,9 +1877,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onOpenPermissions={() => openSettingsSection('permissions')}
               locale={desktopLocale}
               {...(activeSessionOrigin ? { origin: activeSessionOrigin } : {})}
-              {...(activeSessionOrigin?.kind === 'fork' ? {
-                  onReturnToRoot: () => void handleResumeSession(activeSessionOrigin.rootSessionId),
-                } : {})}
+              {...(activeSessionOrigin?.kind === 'fork'
+                ? {
+                    onReturnToRoot: () =>
+                      void handleResumeSession(activeSessionOrigin.rootSessionId),
+                  }
+                : {})}
             />
           }
           chatColumnClassName={composerLayoutMode === 'centered' ? 'chat-column-empty' : undefined}
@@ -1883,6 +1920,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           }
           transcript={
             <>
+              <MainErrorBanner
+                message={state.error}
+                onDismiss={() => dispatch({ type: 'error/clear' })}
+              />
               {state.projectPath && !state.projectTrusted ? (
                 <div className="chat-inline-notice">
                   <ProjectTrustNotice
@@ -1909,56 +1950,63 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 activitySignal={activitySignal}
                 messages={state.messages}
               >
-                {state.messages.length > 0 ? (
-                  <ChatThread
-                    messages={state.messages}
-                    streaming={state.streaming}
-                    editingMessageId={editingMessageId}
-                    lastUserMessageId={lastUserMessageId}
-                    activeTheme={activeTheme}
-                    artifactThemeKey={artifactThemeKey}
-                    runRecordsById={state.runRecordsById}
-                    activeRunId={state.activeRunId}
-                    permissionPrompt={state.permissionPrompt}
-                    projectPath={state.projectPath}
-                    toolDiffRequest={requestGit as never}
-                    filesChangedRequest={requestGit as never}
-                    onReviewChanges={() => openRightTab('review')}
-                    onPermission={(decision, scope) => {
-                      void handlePermission(decision, scope);
-                    }}
-                    workDetailsExpanded={preferences.workDetailsExpanded}
-                    toolDensity={preferences.toolDensity}
-                    artifactPreviewEnabled={preferences.artifactPreviewEnabled}
-                    artifactCodeFirst={preferences.artifactCodeFirst}
-                    plan={sessionPlan}
-                    {...(config?.artifact?.maxBytes !== undefined
-                      ? { artifactMaxBytes: config.artifact.maxBytes }
-                      : {})}
-                    locale={desktopLocale}
-                    onInspectSubagent={handleInspectSubagent}
-                    onEdit={setEditingMessageId}
-                    onCancelEdit={handleCancelMessageEdit}
-                    onEditResend={handleEditAndResendMessage}
-                    onRetry={handleRetryMessage}
-                    onFeedback={handleMessageFeedback}
-                    onArtifactAction={handleArtifactAction}
-                    onOpenDocument={handleOpenDocument}
-                    onPlanExecute={handlePlanExecute}
-                    onPlanAbort={handlePlanAbort}
-                    composerCard={composerCard}
-                    walkthroughsByMessageId={state.walkthroughsByMessageId}
-                    walkthroughEnabled={config?.walkthrough?.enabled !== false}
-                    walkthroughAutoGenerate={false}
-                   onGenerateWalkthrough={handleGenerateWalkthrough}
-                   onCancelWalkthrough={handleCancelWalkthrough}
-                    {...(state.activeSessionId ? {
-                        onDuplicateSession: () => void handleDuplicateSession(state.activeSessionId!),
-                        onForkFromMessage: (messageId: string) => void handleForkSession(state.activeSessionId!, messageId),
-                      } : {})}
-                    derivedActionsDisabled={!state.activeSessionId || state.streaming}
-                 />
-                ) : null}
+                <ArtifactHeightSignalProvider value={artifactHeightSignal}>
+                  {state.messages.length > 0 ? (
+                    <ChatThread
+                      messages={state.messages}
+                      streaming={state.streaming}
+                      editingMessageId={editingMessageId}
+                      lastUserMessageId={lastUserMessageId}
+                      activeTheme={activeTheme}
+                      artifactThemeKey={artifactThemeKey}
+                      runRecordsById={state.runRecordsById}
+                      activeRunId={state.activeRunId}
+                      permissionPrompt={state.permissionPrompt}
+                      projectPath={state.projectPath}
+                      toolDiffRequest={requestGit as never}
+                      filesChangedRequest={requestGit as never}
+                      onReviewChanges={() => openRightTab('review')}
+                      onPermission={(decision, scope) => {
+                        void handlePermission(decision, scope);
+                      }}
+                      workDetailsExpanded={preferences.workDetailsExpanded}
+                      toolDensity={preferences.toolDensity}
+                      showThinking={preferences.verboseAgentChat}
+                      artifactPreviewEnabled={preferences.artifactPreviewEnabled}
+                      artifactCodeFirst={preferences.artifactCodeFirst}
+                      plan={sessionPlan}
+                      {...(config?.artifact?.maxBytes !== undefined
+                        ? { artifactMaxBytes: config.artifact.maxBytes }
+                        : {})}
+                      locale={desktopLocale}
+                      onInspectSubagent={handleInspectSubagent}
+                      onEdit={setEditingMessageId}
+                      onCancelEdit={handleCancelMessageEdit}
+                      onEditResend={handleEditAndResendMessage}
+                      onRetry={handleRetryMessage}
+                      onFeedback={handleMessageFeedback}
+                      onArtifactAction={handleArtifactAction}
+                      onOpenDocument={handleOpenDocument}
+                      onPlanExecute={handlePlanExecute}
+                      onPlanAbort={handlePlanAbort}
+                      composerCard={composerCard}
+                      walkthroughsByMessageId={state.walkthroughsByMessageId}
+                      walkthroughEnabled={config?.walkthrough?.enabled !== false}
+                      walkthroughAutoGenerate={false}
+                      onGenerateWalkthrough={handleGenerateWalkthrough}
+                      onCancelWalkthrough={handleCancelWalkthrough}
+                      {...(state.activeSessionId
+                        ? {
+                            onDuplicateSession: () =>
+                              void handleDuplicateSession(state.activeSessionId!),
+                            onForkFromMessage: (messageId: string) =>
+                              void handleForkSession(state.activeSessionId!, messageId),
+                          }
+                        : {})}
+                      derivedActionsDisabled={!state.activeSessionId || state.streaming}
+                    />
+                  ) : null}
+                </ArtifactHeightSignalProvider>
               </TranscriptViewport>
               {state.compacting ? (
                 <Notice
@@ -2010,11 +2058,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     </>
                   }
                 />
-              ) : null}
-              {state.error ? (
-                <Notice tone="error" testId="chat-error-notice">
-                  {state.error}
-                </Notice>
               ) : null}
             </>
           }
@@ -2324,6 +2367,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             hostStatus={hostStatus}
             request={requestConfig}
             preferences={preferences}
+            activeTheme={activeTheme}
             onPreferencesChange={(next) => {
               setPreferences(next);
               saveDesktopPreferences(next);
@@ -2364,6 +2408,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           liveTail={inspector.liveTail}
           loading={inspector.loading}
           error={inspector.error}
+          showThinking={preferences.verboseAgentChat}
           onOpenChange={(open) => {
             if (!open) {
               inspector.closeInspector();

@@ -1,6 +1,6 @@
 /**
- * SF-03: Hover action footer for completed assistant responses.
- * Shows Duplicate (latest only) + Fork (all completed) as inline SVG icon buttons.
+ * SF-03: Persistent action footer for completed assistant responses.
+ * Shows Duplicate + Fork as inline SVG icon buttons with hover tooltips.
  */
 import { useState, type ReactElement } from 'react';
 import { IconDuplicateConversation, IconForkConversation } from './shell-icons';
@@ -32,7 +32,7 @@ export function AssistantResponseActions(props: AssistantResponseActionsProps): 
     if (props.disabled || duplicateBusy) return;
     setDuplicateBusy(true);
     try {
-      props.onDuplicate();
+      await props.onDuplicate();
     } finally {
       setDuplicateBusy(false);
     }
@@ -42,14 +42,14 @@ export function AssistantResponseActions(props: AssistantResponseActionsProps): 
     if (props.disabled || forkBusy) return;
     setForkBusy(true);
     try {
-      props.onFork(props.messageId);
+      await props.onFork(props.messageId);
     } finally {
       setForkBusy(false);
     }
   }
 
   return (
-    <div className="message-actions assistant-response-actions" data-testid="assistant-response-actions">
+    <div className="assistant-response-actions" data-testid="assistant-response-actions">
       {props.showDuplicate ? (
         <button
           type="button"
@@ -61,7 +61,9 @@ export function AssistantResponseActions(props: AssistantResponseActionsProps): 
           data-testid="response-duplicate-btn"
         >
           <IconDuplicateConversation width={14} height={14} />
-          <span className="sr-only">{duplicateLabel}</span>
+          <span className="assistant-action-tooltip" role="tooltip">
+            {duplicateLabel}
+          </span>
         </button>
       ) : null}
       {props.showFork ? (
@@ -75,7 +77,9 @@ export function AssistantResponseActions(props: AssistantResponseActionsProps): 
           data-testid="response-fork-btn"
         >
           <IconForkConversation width={14} height={14} />
-          <span className="sr-only">{forkLabel}</span>
+          <span className="assistant-action-tooltip" role="tooltip">
+            {forkLabel}
+          </span>
         </button>
       ) : null}
       {props.directForkCount > 0 && props.onOpenForks ? (
@@ -89,6 +93,9 @@ export function AssistantResponseActions(props: AssistantResponseActionsProps): 
         >
           <span style={{ fontSize: '11px' }}>{props.directForkCount}</span>
           <IconForkConversation width={11} height={11} />
+          <span className="assistant-action-tooltip" role="tooltip">
+            {props.directForkCount} {forksLabel}
+          </span>
         </button>
       ) : null}
     </div>

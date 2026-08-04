@@ -53,6 +53,7 @@ function startNativeWindowDrag(): void {
 
 export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
+  const titlebarCopy = copy.titlebar;
   const isEnglish = props.locale === 'en';
   const canGoBack = props.canGoBack === true;
   const canGoForward = props.canGoForward === true;
@@ -85,18 +86,18 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
           props.sessionsExpanded ? 'topbar-sessions-toggle active' : 'topbar-sessions-toggle'
         }
         data-testid="rail-chats-btn"
-        label={props.sessionsExpanded ? '收起左边栏' : '展开左边栏'}
+        label={props.sessionsExpanded ? titlebarCopy.collapseSidebar : titlebarCopy.expandSidebar}
         aria-expanded={props.sessionsExpanded}
         onClick={props.onToggleSessions}
       >
         <IconPanelLeft />
       </IconButton>
 
-      <div className="titlebar-history" role="group" aria-label="Shell navigation">
+      <div className="titlebar-history" role="group" aria-label={titlebarCopy.shellNavigation}>
         <IconButton
           className="titlebar-history-btn"
           data-testid="titlebar-back-btn"
-          label="上一步"
+          label={titlebarCopy.back}
           disabled={!canGoBack}
           aria-disabled={!canGoBack}
           onClick={() => {
@@ -110,7 +111,7 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
         <IconButton
           className="titlebar-history-btn"
           data-testid="titlebar-forward-btn"
-          label="下一步"
+          label={titlebarCopy.forward}
           disabled={!canGoForward}
           aria-disabled={!canGoForward}
           onClick={() => {
@@ -137,7 +138,7 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
       <div
         className="titlebar-spacer"
         data-tauri-drag-region
-        aria-label="Drag window"
+        aria-label={titlebarCopy.dragWindow}
         onMouseDown={(event) => {
           if (event.button === 0) {
             startNativeWindowDrag();
@@ -145,7 +146,7 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
         }}
       />
 
-      <div className="titlebar-actions" role="toolbar" aria-label="Tools">
+      <div className="titlebar-actions" role="toolbar" aria-label={titlebarCopy.tools}>
         {props.onToggleAppearance ? (
           <IconButton
             className="titlebar-theme-toggle"
@@ -161,18 +162,22 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
 
         <div className="more-menu-wrap">
           <DropdownMenu
-            label="More tools"
+            label={titlebarCopy.moreTools}
             trigger={
-              <IconButton title="More" label="More tools" data-testid="titlebar-more-menu">
+              <IconButton
+                title={titlebarCopy.more}
+                label={titlebarCopy.moreTools}
+                data-testid="titlebar-more-menu"
+              >
                 <IconMore />
               </IconButton>
             }
           >
             <DropdownMenuItem testId="more-sessions" onSelect={() => props.onToggleSessions?.()}>
-              <IconPanelLeft /> Sessions
+              <IconPanelLeft /> {titlebarCopy.sessions}
             </DropdownMenuItem>
             <DropdownMenuItem testId="more-skills" onSelect={() => props.onOpenSkills?.()}>
-              <IconSkill width={16} height={16} /> Skills
+              <IconSkill width={16} height={16} /> {titlebarCopy.skills}
             </DropdownMenuItem>
             <DropdownMenuItem testId="more-mcp" onSelect={() => props.onOpenMcp?.()}>
               <IconMcp width={16} height={16} /> MCP

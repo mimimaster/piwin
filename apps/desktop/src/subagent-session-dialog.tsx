@@ -22,6 +22,8 @@ export type SubagentSessionDialogProps = {
   liveTail: SubagentStreamState | null;
   loading: boolean;
   error: string | null;
+  /** Whether child-session thinking should be shown in the inspector. */
+  showThinking?: boolean;
   onOpenChange: (open: boolean) => void;
   /** Promote the preview to the existing full session view. */
   onOpenFullSession: (sessionId: string) => void;
@@ -88,12 +90,11 @@ export function SubagentSessionDialog(props: SubagentSessionDialogProps): ReactE
             error={props.error}
             onRetry={props.onRetry}
             locale={locale}
+            {...(props.showThinking !== undefined ? { showThinking: props.showThinking } : {})}
           />
           <footer className="subagent-session-dialog-footer">
             <span className={`subagent-session-footer-status status-${status}`}>
-              {isLive ? (
-                <span className="subagent-session-live-dot" aria-hidden="true" />
-              ) : null}
+              {isLive ? <span className="subagent-session-live-dot" aria-hidden="true" /> : null}
               {STATUS_LABEL[status]}
               {isLive ? (
                 <span className="muted">

@@ -41,4 +41,13 @@ describe('desktop locale preference', () => {
     expect(getDesktopTranslator('en').settings.provider.models(1)).toBe('1 model');
     expect(getDesktopTranslator('en').settings.provider.models(2)).toBe('2 models');
   });
+
+  it('provides complete shell and Appearance copy in both display languages', () => {
+    expect(getDesktopCopy('zh-CN').titlebar.moreTools).toBe('更多工具');
+    expect(getDesktopCopy('zh-CN').sidebar.displayOptions).toBe('显示选项');
+    expect(getDesktopCopy('zh-CN').appearance.conversationWidth).toBe('对话宽度');
+    expect(getDesktopCopy('en').titlebar.moreTools).toBe('More tools');
+    expect(getDesktopCopy('en').sidebar.displayOptions).toBe('Display options');
+    expect(getDesktopCopy('en').appearance.conversationWidth).toBe('Conversation Width');
+  });
 });
