@@ -3,13 +3,18 @@
  * Does not copy Pi JSONL trees or create a live host handle — caller binds/resumes.
  */
 import { randomUUID } from 'node:crypto';
-import type { SessionIndexRecord, SessionTranscriptDocument } from '@piwin/contracts';
+import type {
+  ProductSessionOrigin,
+  SessionIndexRecord,
+  SessionTranscriptDocument,
+} from '@piwin/contracts';
 import {
   createSessionRecord,
   getSessionRecord,
   upsertSessionRecord,
 } from './session-index-store.js';
 import { loadSessionTranscript, saveSessionTranscript } from './message-store.js';
+import { cloneTranscript } from './clone-session-transcript.js';
 
 export type DuplicateSessionPaths = {
   indexPath: string;
@@ -51,47 +56,13 @@ export function buildDuplicateSessionName(
 /**
  * Clone messages for a new product session. Message ids are regenerated so
  * subsequent truncate/edit ops never collide across sessions in UI caches.
+ * Delegates to the shared cloneTranscript primitive (SF-01).
  */
 export function cloneTranscriptForDuplicate(
   source: SessionTranscriptDocument,
   newSessionId: string,
 ): SessionTranscriptDocument {
-  const clonedMessages = source.messages.map((message) => {
-    const next: (typeof source.messages)[number] = {
-      id: randomUUID(),
-      role: message.role,
-      text: message.text,
-      createdAt: message.createdAt,
-      status: message.status === 'streaming' ? 'done' : message.status,
-    };
-    if (message.thinking !== undefined) {
-      next.thinking = message.thinking;
-    }
-    if (message.tools) {
-      next.tools = message.tools.map((tool) => ({ ...tool }));
-    }
-    if (message.attachments) {
-      // Media paths stay as-is (shared refs); no binary copy in fork-light.
-      next.attachments = message.attachments.map((attachment) => ({ ...attachment }));
-    }
-    return next;
-  });
-
-  const cloned: SessionTranscriptDocument = {
-    version: 1,
-    sessionId: newSessionId,
-    projectPath: source.projectPath,
-    messages: clonedMessages,
-    updatedAt: nowIso(),
-  };
-  // Preserve scope and working directory from source
-  if (source.scope) {
-    cloned.scope = source.scope;
-  }
-  if (source.workingDirectory) {
-    cloned.workingDirectory = source.workingDirectory;
-  }
-  return cloned;
+  return cloneTranscript({ source, targetSessionId: newSessionId }).transcript;
 }
 
 export async function duplicateProductSession(
@@ -157,6 +128,15 @@ export async function duplicateProductSession(
   record.isArchived = false;
   delete record.pinnedAt;
   delete record.archivedAt;
+
+  // SF-01: record duplicate origin metadata.
+  const origin: ProductSessionOrigin = {
+    kind: 'duplicate',
+    sourceSessionId: input.sourceSessionId,
+    ...(sourceRecord.name ? { sourceSessionNameSnapshot: sourceRecord.name } : {}),
+    createdAt: nowIso(),
+  };
+  record.origin = origin;
 
   await upsertSessionRecord(paths.indexPath, record);
   return { record, transcript };
