@@ -4,9 +4,11 @@ import {
   type MantineColorsTuple,
   type MantineThemeOverride,
 } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 import type { ThemeManifest } from '@piwin/contracts';
 import '@mantine/core/styles.css';
+import '@mantine/notifications/styles.css';
 
 /**
  * Neutral gray scale derived from a theme manifest's background tones.
@@ -185,6 +187,7 @@ export function PiwinUiProvider({ children, manifest }: PiwinUiProviderProps): R
   // tokens the mount owner projects from the same manifest.
   return (
     <MantineProvider theme={theme} forceColorScheme={manifest.mode}>
+      <Notifications position="top-center" zIndex={80} />
       {children}
     </MantineProvider>
   );

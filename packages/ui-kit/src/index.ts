@@ -51,6 +51,9 @@ export type { ConfirmDialogProps, ConfirmDialogTone } from './confirm-dialog.js'
 export { Notice } from './notice.js';
 export type { NoticeProps, NoticeTone } from './notice.js';
 
+export { hideUiNotification, showUiNotification } from './notifications.js';
+export type { UiNotificationInput, UiNotificationTone } from './notifications.js';
+
 export { StatusBadge } from './status-badge.js';
 export type { StatusBadgeProps, StatusTone } from './status-badge.js';
 
