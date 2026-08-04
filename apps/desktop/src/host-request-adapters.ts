@@ -11,6 +11,7 @@ import type {
   PiwinConfig,
   PluginInstallSource,
 } from '@piwin/contracts';
+import { buildSettingsDomainMutations } from '@piwin/contracts';
 import type { HostClient } from './host-client';
 
 export type HostRequestAdapters = {
@@ -29,7 +30,9 @@ export type HostRequestAdapters = {
       | 'web/test-search-source'
       | 'project/permissions-list'
       | 'project/permissions-revoke'
-      | 'usage/get-rollup';
+      | 'usage/get-rollup'
+      | 'session/runtime-status'
+      | 'session/reload-runtime';
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
     apiKey?: string;
@@ -42,6 +45,9 @@ export type HostRequestAdapters = {
     projectPath?: string;
     window?: { from?: string; to?: string };
     topSessions?: number;
+    sessionId?: string;
+    expectedSettingsRevision?: string;
+    when?: 'now' | 'after-current-run';
     input?:
       | import('@piwin/contracts').ModelCatalogSearchRequest
       | import('@piwin/contracts').VisionDelegateInput;
@@ -160,12 +166,71 @@ export type HostRequestAdapters = {
   }) => Promise<HostResponse>;
 };
 
+async function getSettingsAsLegacyConfigView(hostClient: HostClient): Promise<HostResponse> {
+  const response = await hostClient.request({ type: 'settings/get' });
+  if (!response.success) {
+    return response;
+  }
+  const data = response.data as {
+    snapshot?: {
+      config: PiwinConfig;
+      revision: string;
+      schemaVersion: number;
+    };
+    root?: string;
+  };
+  if (!data.snapshot) {
+    return {
+      ...response,
+      success: false,
+      error: 'settings/get returned no snapshot',
+    };
+  }
+  return {
+    ...response,
+    data: {
+      config: data.snapshot.config,
+      root: data.root,
+      revision: data.snapshot.revision,
+      schemaVersion: data.snapshot.schemaVersion,
+    },
+  };
+}
+
+async function applyConfigDraft(
+  hostClient: HostClient,
+  nextConfig: PiwinConfig,
+): Promise<HostResponse> {
+  const currentResponse = await hostClient.request({ type: 'settings/get' });
+  if (!currentResponse.success) {
+    return currentResponse;
+  }
+  const data = currentResponse.data as {
+    snapshot?: { config: PiwinConfig; revision: string };
+  };
+  if (!data.snapshot) {
+    return {
+      type: 'response',
+      command: 'settings/apply',
+      success: false,
+      error: 'settings/get returned no snapshot',
+    };
+  }
+  return hostClient.request({
+    type: 'settings/apply',
+    input: {
+      expectedRevision: data.snapshot.revision,
+      mutations: buildSettingsDomainMutations(data.snapshot.config, nextConfig),
+    },
+  });
+}
+
 export function createHostRequestAdapters(hostClient: HostClient): HostRequestAdapters {
   return {
     requestSubAgent: (command) => hostClient.request(command),
     requestConfig: async (command) => {
       if (command.type === 'config/get') {
-        return hostClient.request({ type: 'config/get' });
+        return getSettingsAsLegacyConfigView(hostClient);
       }
       if (command.type === 'project/permissions-list') {
         return hostClient.request({
@@ -282,14 +347,52 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         if (command.topSessions !== undefined) payload.topSessions = command.topSessions;
         return hostClient.request(payload);
       }
-      return hostClient.request({ type: 'config/set', config: command.config! });
+      if (command.type === 'session/runtime-status') {
+        return hostClient.request({
+          type: 'session/runtime-status',
+          sessionId: command.sessionId ?? '',
+        });
+      }
+      if (command.type === 'session/reload-runtime') {
+        if (!command.sessionId || !command.expectedSettingsRevision) {
+          return {
+            type: 'response',
+            command: 'session/reload-runtime',
+            success: false,
+            error: 'sessionId and expectedSettingsRevision are required',
+          };
+        }
+        return hostClient.request({
+          type: 'session/reload-runtime',
+          sessionId: command.sessionId,
+          expectedSettingsRevision: command.expectedSettingsRevision,
+          when: command.when ?? 'now',
+        });
+      }
+      if (!command.config) {
+        return {
+          type: 'response',
+          command: 'settings/apply',
+          success: false,
+          error: 'config is required',
+        };
+      }
+      return applyConfigDraft(hostClient, command.config);
     },
     requestSkills: async (command) => {
       if (command.type === 'config/get') {
-        return hostClient.request({ type: 'config/get' });
+        return getSettingsAsLegacyConfigView(hostClient);
       }
       if (command.type === 'config/set') {
-        return hostClient.request({ type: 'config/set', config: command.config! });
+        if (!command.config) {
+          return {
+            type: 'response',
+            command: 'settings/apply',
+            success: false,
+            error: 'config is required',
+          };
+        }
+        return applyConfigDraft(hostClient, command.config);
       }
       if (command.type === 'skills/list') {
         const payload: { type: 'skills/list'; projectPath?: string } = { type: 'skills/list' };
@@ -517,9 +620,17 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       });
     },
     requestAutomation: async (command) => {
-      if (command.type === 'config/get') return hostClient.request({ type: 'config/get' });
+      if (command.type === 'config/get') return getSettingsAsLegacyConfigView(hostClient);
       if (command.type === 'config/set') {
-        return hostClient.request({ type: 'config/set', config: command.config! });
+        if (!command.config) {
+          return {
+            type: 'response',
+            command: 'settings/apply',
+            success: false,
+            error: 'config is required',
+          };
+        }
+        return applyConfigDraft(hostClient, command.config);
       }
       if (command.type === 'cron/list') return hostClient.request({ type: 'cron/list' });
       if (command.type === 'cron/upsert') {

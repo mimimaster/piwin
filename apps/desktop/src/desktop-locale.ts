@@ -69,6 +69,7 @@ export type DesktopTranslator = {
       vision: string;
       imageGeneration: string;
       sessions: string;
+      runtime: string;
       rules: string;
       skills: string;
       tools: string;
@@ -307,6 +308,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         vision: isChinese ? '视觉' : 'Vision',
         imageGeneration: isChinese ? '图像生成' : 'Image Generation',
         sessions: 'WalkThrough',
+        runtime: isChinese ? '会话运行时' : 'Session Runtime',
         rules: isChinese ? '规则' : 'Rules',
         skills: 'Skills',
         tools: 'MCP',

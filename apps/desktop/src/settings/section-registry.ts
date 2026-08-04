@@ -25,6 +25,7 @@ export type SettingsSectionId =
   | 'tools'
   | 'web'
   | 'session'
+  | 'runtime'
   | 'automation'
   | 'subagents'
   | 'pets'
@@ -60,6 +61,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'vision', group: 'agent', labelKey: 'vision' },
   { id: 'image-generation', group: 'agent', labelKey: 'imageGeneration' },
   { id: 'session', group: 'agent', labelKey: 'sessions' },
+  { id: 'runtime', group: 'agent', labelKey: 'runtime' },
   { id: 'skills', group: 'integrations', labelKey: 'skills' },
   { id: 'web', group: 'integrations', labelKey: 'web' },
   { id: 'tools', group: 'integrations', labelKey: 'tools' },

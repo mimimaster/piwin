@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { resolve as resolvePath } from 'node:path';
 import type {
   AgentHost,
   CreateSessionInput,
@@ -11,6 +12,10 @@ import { createMockSessionHandle } from './mock-session.js';
 import { PiSdkAdapter, type PiSdkAdapterOptions } from './sdk-adapter.js';
 import type { McpLifecycleManager } from '@piwin/mcp';
 import type { ProcessRegistry } from '@piwin/process';
+import type { PiSessionBackend, BackendSessionHandle } from './backends/pi-session-backend.js';
+import { WorkerRpcSessionBackend } from './backends/worker-rpc-session-backend.js';
+import type { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
+import { compileBlueprintForWorker } from './blueprint-compiler.js';
 
 export type PiRpcAdapterOptions = {
   /** e.g. "pi" or absolute path (stock pi binary; unused when using SDK fallback) */
@@ -37,6 +42,16 @@ export type PiRpcAdapterOptions = {
    * Set PIWIN_RPC_STOCK=1 to attempt stock binary only (will fail product path).
    */
   useSdkFallback?: boolean;
+  /**
+   * Phase 7 WP5: when true, real sessions use the WorkerRpcSessionBackend
+   * (piwin-owned worker process with tool proxying). Defaults to false
+   * during rollout; set PIWIN_RPC_WORKER=1 to enable.
+   */
+  useWorkerBackend?: boolean;
+  /** Worker script path for the worker backend (defaults to bundled entry). */
+  workerScript?: string;
+  /** Parent-owned tool execution router for worker proxy tool calls. */
+  toolRouter?: HostToolExecutionRouter;
 };
 
 /**
@@ -51,6 +66,7 @@ export class PiRpcAdapter implements AgentHost {
   private child: ChildProcessWithoutNullStreams | null = null;
   private readonly sessions = new Map<string, SessionHandle>();
   private sdkBackend: PiSdkAdapter | null = null;
+  private workerBackend: WorkerRpcSessionBackend | null = null;
   private warnedSdkFallback = false;
 
   constructor(private readonly options: PiRpcAdapterOptions) {}
@@ -60,15 +76,76 @@ export class PiRpcAdapter implements AgentHost {
     if (this.options.mock || process.env.PIWIN_MOCK === '1') {
       return false;
     }
+    if (this.usesWorkerBackend()) {
+      return false;
+    }
     if (process.env.PIWIN_RPC_STOCK === '1') {
       return false;
     }
     return this.options.useSdkFallback !== false;
   }
 
+  /**
+   * Phase 7 WP5: true when product sessions run via the worker backend
+   * (piwin-owned worker process with tool proxying + real isolation).
+   * Falls back to SDK when PIWIN_RPC_SDK_FALLBACK=1 (§10.1 temporary flag).
+   */
+  usesWorkerBackend(): boolean {
+    if (this.options.mock || process.env.PIWIN_MOCK === '1') {
+      return false;
+    }
+    // §10.1: PIWIN_RPC_SDK_FALLBACK=1 forces old in-process SDK path
+    // even when worker is enabled. Used during rollout for emergency fallback.
+    if (process.env.PIWIN_RPC_SDK_FALLBACK === '1') {
+      return false;
+    }
+    if (process.env.PIWIN_RPC_WORKER === '1') {
+      return true;
+    }
+    return this.options.useWorkerBackend === true;
+  }
+
+  /** True when the backend provides real process isolation. */
+  isIsolated(): boolean {
+    return this.usesWorkerBackend();
+  }
+
+  /** Backend mode for doctor/status reporting. */
+  backendMode(): 'sdk' | 'rpc-worker' | 'rpc-fallback' | 'mock' {
+    if (this.options.mock || process.env.PIWIN_MOCK === '1') {
+      return 'mock';
+    }
+    if (this.usesWorkerBackend()) {
+      return 'rpc-worker';
+    }
+    if (this.usesSdkFallback()) {
+      return 'rpc-fallback';
+    }
+    return 'sdk';
+  }
+
   async createSession(input: CreateSessionInput): Promise<SessionHandle> {
     if (this.options.mock || process.env.PIWIN_MOCK === '1') {
       const session = createMockSessionHandle(input);
+      this.sessions.set(session.id, session);
+      return session;
+    }
+
+    // Phase 7 WP5: worker backend path (real process isolation).
+    if (this.usesWorkerBackend()) {
+      const backend = this.getWorkerBackend();
+      // Compile the real SerializableBlueprint from live config + resource
+      // discovery. This is the product path — the worker receives the exact
+      // same capability projection that the SDK path would use.
+      const { blueprint, providers, productSessionId } = await compileBlueprintForWorker(input, {
+        ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
+      });
+      const handle = await backend.createSession({
+        productSessionId,
+        serializable: blueprint,
+        providers,
+      });
+      const session = adaptBackendToSessionHandle(handle, input);
       this.sessions.set(session.id, session);
       return session;
     }
@@ -128,7 +205,13 @@ export class PiRpcAdapter implements AgentHost {
         // best-effort
       }
     }
-    if (this.usesSdkFallback() && this.sdkBackend) {
+    if (this.usesWorkerBackend() && this.workerBackend) {
+      try {
+        await this.workerBackend.dropSession(sessionId);
+      } catch {
+        // best-effort
+      }
+    } else if (this.usesSdkFallback() && this.sdkBackend) {
       try {
         await this.sdkBackend.dropSession(sessionId);
       } catch {
@@ -160,6 +243,10 @@ export class PiRpcAdapter implements AgentHost {
 
   async dispose(): Promise<void> {
     this.sessions.clear();
+    if (this.workerBackend) {
+      await this.workerBackend.dispose();
+      this.workerBackend = null;
+    }
     if (this.sdkBackend) {
       await this.sdkBackend.dispose();
       this.sdkBackend = null;
@@ -237,4 +324,72 @@ export class PiRpcAdapter implements AgentHost {
       }
     });
   }
+
+  private getWorkerBackend(): WorkerRpcSessionBackend {
+    if (!this.workerBackend) {
+      // §10.3: worker script path resolution. In dev (tsx), use
+      // import.meta.url. In bundled builds, the packaging script must
+      // set `options.workerScript` to the resolved bundled path.
+      const workerScript =
+        this.options.workerScript ??
+        resolvePath(new URL('./rpc-sdk-worker-entry.ts', import.meta.url).pathname);
+      this.workerBackend = new WorkerRpcSessionBackend({
+        worker: {
+          workerScript,
+          // --import tsx is needed for dev; bundled builds should override
+          // via options.worker.nodeArgs or set workerScript to a .js path.
+          nodeArgs: ['--import', 'tsx'],
+          ...(this.options.onLog ? { onLog: this.options.onLog } : {}),
+        },
+        ...(this.options.toolRouter ? { toolRouter: this.options.toolRouter } : {}),
+      });
+    }
+    return this.workerBackend;
+  }
+}
+
+/**
+ * Adapt a BackendSessionHandle to a SessionHandle for the adapter's
+ * internal session map. The backend handle's prompt receives a
+ * PreparedPromptInput; the SessionHandle's prompt receives a PromptInput.
+ */
+function adaptBackendToSessionHandle(
+  handle: BackendSessionHandle,
+  _input: CreateSessionInput,
+): SessionHandle {
+  return {
+    id: handle.id,
+    async prompt(promptInput) {
+      await handle.prompt({
+        text: promptInput.text,
+        ...(promptInput.streamingBehavior
+          ? { streamingBehavior: promptInput.streamingBehavior }
+          : {}),
+        ...(promptInput.model ? { model: promptInput.model } : {}),
+        ...(promptInput.thinkingLevel ? { thinkingLevel: promptInput.thinkingLevel } : {}),
+      });
+    },
+    async steer(message) {
+      if (handle.steer) {
+        await handle.steer(message);
+      }
+    },
+    async followUp(message) {
+      if (handle.followUp) {
+        await handle.followUp(message);
+      }
+    },
+    async abort() {
+      await handle.abort();
+    },
+    async getMessages() {
+      return [];
+    },
+    async getTree() {
+      return { root: null, activeLeafId: null };
+    },
+    subscribe(listener) {
+      return handle.subscribe(listener);
+    },
+  };
 }

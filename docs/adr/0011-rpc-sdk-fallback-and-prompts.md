@@ -2,7 +2,18 @@
 
 ## Status
 
-Accepted (2026-07-21)
+Accepted (2026-07-21); **transitional** per Phase 7 plan (2026-08-04).
+
+> **Phase 7 update:** The SDK fallback described in this ADR is a
+> **transitional** state, not the end-state. Phase 7 WP3–WP6 implement a
+> piwin-owned worker process (`WorkerRpcSessionBackend`) that provides
+> real process isolation for `hostMode=rpc`. Once the worker backend is
+> rolled out (R1) and conformance is green in CI, the SDK fallback
+> product path will be deleted (WP7, gated on R2). The `PIWIN_RPC_STOCK`
+> escape hatch and `PIWIN_RPC_SDK_FALLBACK` temporary flag will also be
+> removed at that time. See
+> [`docs/specs/phase7-rpc-worker-parity-plan.md`](../specs/phase7-rpc-worker-parity-plan.md)
+> for the authoritative execution plan.
 
 ## Context
 

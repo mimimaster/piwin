@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_MODEL_MAX_OUTPUT_TOKENS } from '@piwin/contracts';
 import type { ModelProviderConfig } from '@piwin/contracts';
-import {
-  buildPiProviderRegistration,
-  ensureModelAcceptsImages,
-  resolvePiApiForProvider,
-} from './pi-model-runtime.js';
+import { buildPiProviderRegistration, resolvePiApiForProvider } from './pi-model-runtime.js';
 
 describe('pi-model-runtime', () => {
   it('maps product protocols to Pi provider APIs', () => {
@@ -102,12 +98,5 @@ describe('pi-model-runtime', () => {
     const registration = buildPiProviderRegistration(provider);
     expect(registration.models[0]?.input).toEqual(['text']);
     expect(registration.models[0]?.reasoning).toBe(true);
-  });
-
-  it('ensureModelAcceptsImages forces vision when missing', () => {
-    const textOnly = { id: 'swe-1-7', input: ['text'] as Array<'text' | 'image'> };
-    expect(ensureModelAcceptsImages(textOnly).input).toEqual(['text', 'image']);
-    const alreadyVision = { id: 'v', input: ['text', 'image'] as Array<'text' | 'image'> };
-    expect(ensureModelAcceptsImages(alreadyVision)).toBe(alreadyVision);
   });
 });
