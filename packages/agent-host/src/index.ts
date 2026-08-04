@@ -268,10 +268,7 @@ export { createSubagentWorkspaceService } from './subagent-workspace-service.js'
 export type { SubagentWorkspaceServiceOptions } from './subagent-workspace-service.js';
 export { RpcSdkWorkerClient, createWorkerTaskRunner } from './rpc-sdk-worker-client.js';
 export type { WorkerClientOptions } from './rpc-sdk-worker-client.js';
-export {
-  parseWorkerFrame,
-  serializeWorkerRequest,
-} from './rpc-sdk-worker-protocol.js';
+export { parseWorkerFrame, serializeWorkerRequest } from './rpc-sdk-worker-protocol.js';
 export type {
   WorkerRequest,
   WorkerResponse,
@@ -279,4 +276,63 @@ export type {
   WorkerFrame,
   WorkerRequestMethod,
   WorkerRequestPayload,
+  WorkerToolCallFrame,
+  WorkerToolResultFrame,
+  WorkerHelloFrame,
 } from './rpc-sdk-worker-protocol.js';
+
+// Phase 7 WP1: serializable blueprint + provider runtime envelope.
+export {
+  BLUEPRINT_PROTOCOL_VERSION,
+  projectBlueprintForWorker,
+  isSerializableBlueprint,
+} from './rpc/serializable-blueprint.js';
+export type {
+  SerializableBlueprint,
+  SerializableProviderRuntime,
+} from './rpc/serializable-blueprint.js';
+
+// Phase 7 WP2: parent-owned tool execution router.
+export { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
+export type {
+  HostToolErrorCode,
+  ToolExecutionResult,
+  ToolDisablePredicate,
+  HostToolExecutionRouterOptions,
+} from './tools/host-tool-execution-router.js';
+
+// Phase 7 WP3: worker-side session runtime + Pi session factory.
+export { WorkerSessionRuntime } from './rpc/worker-session-runtime.js';
+export type {
+  WorkerPiSessionLike,
+  CreateWorkerPiSessionInput,
+  WorkerSessionRuntimeOptions,
+} from './rpc/worker-session-runtime.js';
+export {
+  createWorkerPiSessionFactory,
+  createBlueprintResourceLoader,
+  registerWorkerProviders,
+  buildWorkerProviderRegistration,
+} from './rpc/worker-pi-session-factory.js';
+export type {
+  WorkerPiSessionFactoryInput,
+  WorkerPiSessionFactoryOptions,
+} from './rpc/worker-pi-session-factory.js';
+
+// Phase 7 WP4: worker proxy tool factory.
+export { buildWorkerProxyTools, buildSingleProxyTool } from './rpc/worker-proxy-tool-factory.js';
+export type { ToolProxyCall } from './rpc/worker-proxy-tool-factory.js';
+
+// Phase 7 WP5: PiSessionBackend dual implementation.
+export type {
+  PiSessionBackend,
+  BackendSessionHandle,
+  PreparedPromptInput,
+  CreateBackendSessionInput,
+  SdkBackendContext,
+} from './backends/pi-session-backend.js';
+export { preparePromptInput } from './backends/pi-session-backend.js';
+export { InProcessSdkSessionBackend } from './backends/in-process-sdk-session-backend.js';
+export type { InProcessSdkSessionBackendOptions } from './backends/in-process-sdk-session-backend.js';
+export { WorkerRpcSessionBackend } from './backends/worker-rpc-session-backend.js';
+export type { WorkerRpcSessionBackendOptions } from './backends/worker-rpc-session-backend.js';

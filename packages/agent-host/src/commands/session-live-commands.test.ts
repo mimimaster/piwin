@@ -6,6 +6,7 @@ import {
   createActiveRunRegistry,
 } from '../active-run.js';
 import { createDelayedSessionHandle } from '../delayed-session-fixture.js';
+import { SessionRuntimeController } from '../sessions/session-runtime-controller.js';
 import type { SessionLiveContext } from './session-live-commands.js';
 import { handleSessionLiveCommand } from './session-live-commands.js';
 
@@ -321,6 +322,9 @@ function createControlContext(
     settlePendingExtensionUiForSession: (): void => undefined,
     setSessionPermissionOverride: (): void => undefined,
     clearSessionPermissionOverride: (): void => undefined,
+    runtimeController: new SessionRuntimeController({
+      isRunInFlight: (sessionId) => registry.get(sessionId) !== undefined,
+    }),
     loadConfig: async () => ({}) as any,
   };
   return { context, registry, activeRun };

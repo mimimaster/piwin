@@ -54,7 +54,6 @@ import { createSecretResolver } from './secret-resolver.js';
 import { resolveWebRuntimeCredentials } from './web-credentials.js';
 import {
   buildPiProviderRegistration,
-  ensureModelAcceptsImages,
   type PiModelRuntime,
   type PiModelRegistration,
 } from './pi-model-runtime.js';
@@ -1095,15 +1094,14 @@ function wrapPiSession(
               `Configured model is unavailable: ${promptInput.model.providerId}/${promptInput.model.modelId}`,
             );
           }
-          if (images.length > 0) {
-            const before = model.input?.includes('image') === true;
-            model = ensureModelAcceptsImages(model);
-            if (!before) {
-              console.warn(
-                `[piwin] model ${promptInput.model.providerId}/${promptInput.model.modelId} ` +
-                  `had no image input; forced vision so native attachments are not stripped`,
-              );
-            }
+          if (images.length > 0 && model.input?.includes('image') !== true) {
+            // Spec Phase 4: the adapter must not widen capability. Host
+            // routing (native vs delegation vs path fallback) decides image
+            // delivery; a text-only model here means routing was wrong.
+            throw new Error(
+              `model-cannot-receive-images: ${promptInput.model.providerId}/${promptInput.model.modelId} ` +
+                `declares no image input; use vision delegation or a vision model`,
+            );
           }
           await piSession.setModel(model);
         } catch (error) {
