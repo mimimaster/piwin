@@ -91,12 +91,30 @@ export function parseArtifactActionMessage(data: unknown): ArtifactActionMessage
   if (typeof channelId !== 'string' || channelId.length === 0 || channelId.length > 200) {
     return null;
   }
-  if (data['action'] !== 'flashcard/rate' && data['action'] !== 'flashcard/open-source') {
+  const action = data['action'];
+  if (action !== 'flashcard/rate' && action !== 'flashcard/open-source' && action !== 'composer/propose-text') {
     return null;
   }
   const payload = data['payload'];
   if (!isRecord(payload)) {
     return null;
+  }
+  // composer/propose-text does not require a cardId
+  if (action === 'composer/propose-text') {
+    const text = payload['text'];
+    if (typeof text !== 'string' || text.length === 0 || text.length > 10000) {
+      return null;
+    }
+    const label = payload['label'];
+    return {
+      type: ARTIFACT_BRIDGE_ACTION_TYPE,
+      channelId,
+      action: 'composer/propose-text',
+      payload: {
+        text,
+        ...(typeof label === 'string' ? { label } : {}),
+      },
+    };
   }
   const cardId = payload['cardId'];
   if (typeof cardId !== 'string' || !CARD_ID_PATTERN.test(cardId)) {

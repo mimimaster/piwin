@@ -45,6 +45,9 @@ export type ArtifactSecurityResult = {
   externalResources: ExternalArtifactResource[];
 };
 
+/** Where an artifact is rendered in the product UI. */
+export type ArtifactSurface = 'inline' | 'canvas';
+
 export type ArtifactDescriptorBase = {
   id: string;
   title: string;
@@ -52,6 +55,8 @@ export type ArtifactDescriptorBase = {
   source: string;
   rawLanguage: string;
   alias: string;
+  /** Where the artifact is rendered in the product UI. */
+  surface: ArtifactSurface;
 };
 
 export type HtmlArtifactDescriptor = ArtifactDescriptorBase & {
@@ -159,6 +164,12 @@ export type FlashcardOpenSourceActionPayload = {
   sourceLine?: number;
 };
 
+/** Payload for the composer/propose-text action (Canvas-only). */
+export type ComposerProposeTextActionPayload = {
+  text: string;
+  label?: string;
+};
+
 export type ArtifactActionMessage =
   | {
       type: 'piwin-artifact:action';
@@ -171,6 +182,12 @@ export type ArtifactActionMessage =
       channelId: string;
       action: 'flashcard/open-source';
       payload: FlashcardOpenSourceActionPayload;
+    }
+  | {
+      type: 'piwin-artifact:action';
+      channelId: string;
+      action: 'composer/propose-text';
+      payload: ComposerProposeTextActionPayload;
     };
 
 export type ArtifactPreviewDecision =

@@ -153,6 +153,7 @@ export function tryParseArtifactFence(input: {
       source,
       rawLanguage,
       alias,
+      surface: 'inline',
     };
   }
 
@@ -167,6 +168,7 @@ export function tryParseArtifactFence(input: {
       source,
       rawLanguage,
       alias,
+      surface: 'inline',
     };
   }
 
@@ -181,6 +183,7 @@ export function tryParseArtifactFence(input: {
       source,
       rawLanguage,
       alias,
+      surface: 'inline',
     };
   }
 
@@ -196,6 +199,7 @@ export function tryParseArtifactFence(input: {
       source: normalizeHtmlDocumentToArtifactFragment(source),
       rawLanguage,
       alias,
+      surface: 'inline',
     };
   }
 

@@ -90,6 +90,8 @@ export type EvaluateDescriptorOptions = {
    * Security still classifies descriptor.source.
    */
   renderSource?: string;
+  /** Surface the artifact will be rendered on (affects CSP/bridge). */
+  renderSurface?: import('./types.js').ArtifactSurface;
 };
 
 export function evaluateArtifactDescriptor(
