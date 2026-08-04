@@ -32,6 +32,7 @@ export type SettingsConfigRequest = (command: {
     | 'config/set'
     | 'models/discover'
     | 'models/catalog/search'
+    | 'models/image-catalog/search'
     | 'models/test'
     | 'vision/delegate'
     | 'vision/cache/clear'
@@ -112,6 +113,7 @@ export type SettingsContextValue = {
   searchModelCatalog: (
     input?: import('@piwin/contracts').ModelCatalogSearchRequest,
   ) => Promise<import('@piwin/contracts').ModelCatalogSearchResult>;
+  searchImageModelCatalog: () => Promise<import('@piwin/contracts').ImageModelCatalogSearchResult>;
   storeProviderSecret: (providerId: string, secret: string) => Promise<string>;
   loadProviderSecret: (providerId: string) => Promise<string | null>;
   testWebSearchSource?: (

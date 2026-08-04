@@ -2143,6 +2143,18 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           },
         };
       }
+      case 'models/image-catalog/search': {
+        return {
+          id,
+          type: 'response',
+          command: 'models/image-catalog/search',
+          success: true,
+          data: {
+            entries: [],
+            catalogVersion: 'mock',
+          },
+        };
+      }
       case 'session/pin': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {
@@ -2369,6 +2381,137 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             sourceSessionId: command.sessionId,
             session: summary,
             messages: clonedTranscript,
+          },
+        };
+      }
+      case 'session/fork': {
+        const session = this.sessions.get(command.sessionId);
+        if (!session) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/fork',
+            success: false,
+            error: 'unknown session',
+          };
+        }
+        const messageIndex = session.transcript.findIndex(
+          (message) => message.id === command.messageId,
+        );
+        if (messageIndex === -1) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/fork',
+            success: false,
+            error: 'session-fork-message-not-found',
+          };
+        }
+        const sourceMessage = session.transcript[messageIndex]!;
+        if (sourceMessage.role !== 'assistant' || sourceMessage.status !== 'done') {
+          return {
+            id,
+            type: 'response',
+            command: 'session/fork',
+            success: false,
+            error: 'session-fork-message-incomplete',
+          };
+        }
+        const newForkId = crypto.randomUUID();
+        const baseName = session.name ?? `session-${command.sessionId.slice(0, 8)}`;
+        const rootName = baseName.replace(/\s*·\s*Branch(\s+\d+)?$/, '');
+        const forkName =
+          typeof command.name === 'string' && command.name.trim()
+            ? command.name.trim()
+            : `${rootName} · Branch`;
+        const forkTranscript = session.transcript.slice(0, messageIndex + 1).map((message) => {
+          const next: SessionTranscriptMessage = {
+            id: crypto.randomUUID(),
+            role: message.role,
+            text: message.text,
+            createdAt: message.createdAt,
+            status: message.status === 'streaming' ? 'done' : message.status,
+          };
+          if (message.thinking !== undefined) {
+            next.thinking = message.thinking;
+          }
+          if (message.tools) {
+            next.tools = message.tools.map((tool) => ({ ...tool }));
+          }
+          if (message.attachments) {
+            next.attachments = message.attachments.map((attachment) => ({ ...attachment }));
+          }
+          return next;
+        });
+        this.sessions.set(newForkId, {
+          projectPath: session.projectPath,
+          events: [],
+          transcript: forkTranscript,
+          name: forkName,
+          isPinned: false,
+          isArchived: false,
+        });
+        const forkSummary = this.mockSessionSummary(newForkId, this.sessions.get(newForkId)!);
+        const origin = {
+          kind: 'fork' as const,
+          rootSessionId: command.sessionId,
+          sourceSessionId: command.sessionId,
+          ...(session.name ? { sourceSessionNameSnapshot: session.name } : {}),
+          sourceMessageId: command.messageId,
+          sourceMessageRole: 'assistant' as const,
+          sourceMessagePreview: sourceMessage.text.slice(0, 200),
+          sourceMessageCreatedAt: sourceMessage.createdAt,
+          workspaceStrategy: command.workspaceStrategy,
+          createdAt: new Date().toISOString(),
+        };
+        return {
+          id,
+          type: 'response',
+          command: 'session/fork',
+          success: true,
+          data: {
+            sessionId: newForkId,
+            sourceSessionId: command.sessionId,
+            session: forkSummary,
+            messages: forkTranscript,
+            origin,
+          },
+        };
+      }
+      case 'session/lineage': {
+        const targetSession = this.sessions.get(command.sessionId);
+        if (!targetSession) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/lineage',
+            success: true,
+            data: {
+              rootSessionId: command.sessionId,
+              activeSessionId: command.sessionId,
+              rootMissing: true,
+              nodes: [],
+            },
+          };
+        }
+        // In mock mode, return a minimal lineage with just the active session.
+        return {
+          id,
+          type: 'response',
+          command: 'session/lineage',
+          success: true,
+          data: {
+            rootSessionId: command.sessionId,
+            activeSessionId: command.sessionId,
+            rootMissing: false,
+            nodes: [
+              {
+                sessionId: command.sessionId,
+                ...(targetSession.name ? { name: targetSession.name } : {}),
+                isArchived: false,
+                updatedAt: new Date().toISOString(),
+              },
+            ],
           },
         };
       }

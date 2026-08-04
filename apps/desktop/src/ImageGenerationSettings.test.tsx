@@ -96,6 +96,7 @@ function createContextValue(
     discoverProviderModels: vi.fn(),
     testProviderModel: vi.fn(),
     searchModelCatalog: vi.fn(async () => ({ entries: [], catalogVersion: 'test' })),
+    searchImageModelCatalog: vi.fn(async () => ({ entries: [], catalogVersion: 'test' })),
     storeProviderSecret: vi.fn(),
     loadProviderSecret: vi.fn(),
   };
@@ -198,7 +199,7 @@ describe('ImageGenerationSettings', () => {
     act(() => {
       // Missing leading slash is normalized on save.
       setInputValue(
-        container!.querySelector<HTMLInputElement>('[data-testid="image-add-model-id"]'),
+        container!.querySelector<HTMLInputElement>('[data-testid="image-model-suggest-input"]'),
         'cogview-3',
       );
       setInputValue(
@@ -282,21 +283,22 @@ describe('ImageGenerationSettings', () => {
     expect(last?.providers[0]?.models).toHaveLength(0);
   });
 
-  it('opens DiscoverModelsDialog and imports selected models as image-capable', async () => {
-    // Same multi-select discover flow as Models → provider drawer.
+  it('ImageModelSuggest dropdown shows matched models from Pi catalog', async () => {
     const config = makeConfig();
-    const saved: PiwinConfig[] = [];
-    const saveConfig = vi.fn(async (next: PiwinConfig) => {
-      saved.push(next);
-      return true;
-    });
+    const saveConfig = vi.fn(async () => true);
     const discoverProviderModels = vi.fn(async () => ({
       providerId: 'zhipu',
       protocol: 'openai-compatible' as const,
       models: [
-        { id: 'cogview-3', label: 'CogView 3' },
-        { id: 'cogview-4', label: 'CogView 4' },
+        { id: 'gpt-image-1', label: 'GPT Image 1' },
       ],
+    }));
+    const searchImageModelCatalog = vi.fn(async () => ({
+      entries: [
+        { catalogProviderId: 'openrouter', modelId: 'openai/gpt-image-1', name: 'GPT Image 1', input: ['text', 'image'] as const, output: ['image'] as const },
+        { catalogProviderId: 'openrouter', modelId: 'google/gemini-3-pro-image', name: 'Gemini 3 Pro Image', input: ['image', 'text'] as const, output: ['image', 'text'] as const },
+      ],
+      catalogVersion: 'test',
     }));
 
     const containerEl = document.createElement('div');
@@ -311,7 +313,7 @@ describe('ImageGenerationSettings', () => {
         (
           <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
             <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
-              <SettingsProvider value={{ ...base, discoverProviderModels }}>
+              <SettingsProvider value={{ ...base, discoverProviderModels, searchImageModelCatalog }}>
                 <ImageGenerationSettings />
               </SettingsProvider>
             </DesktopLocaleProvider>
@@ -323,44 +325,29 @@ describe('ImageGenerationSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    const discoverBtn = containerEl.querySelector<HTMLButtonElement>(
-      '[data-testid="image-gen-discover-btn"]',
+    // Focus the model ID input to open the suggestion dropdown.
+    const input = containerEl.querySelector<HTMLInputElement>(
+      '[data-testid="image-model-suggest-input"]',
     );
-    expect(discoverBtn).not.toBeNull();
+    expect(input).not.toBeNull();
     await act(async () => {
-      discoverBtn?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-    expect(discoverProviderModels).toHaveBeenCalled();
-
-    // Dialog is portaled; query document.
-    const list = document.querySelector('[data-testid="discover-models-list"]');
-    expect(list).not.toBeNull();
-    expect(list?.textContent ?? '').toContain('cogview-3');
-
-    // Select first option via its checkbox.
-    const checkbox = list?.querySelector<HTMLInputElement>('input[type="checkbox"]');
-    expect(checkbox).not.toBeNull();
-    act(() => {
-      checkbox?.click();
+      input?.focus();
+      // Sequential async calls (catalog then discovery) need multiple ticks.
+      await new Promise((resolve) => setTimeout(resolve, 10));
     });
 
-    const importBtn = document.querySelector<HTMLButtonElement>(
-      '[data-testid="discover-models-import"]',
+    // The dropdown should appear with matched models.
+    const dropdown = containerEl.querySelector('[data-testid="image-model-suggest-dropdown"]');
+    expect(dropdown).not.toBeNull();
+
+    // gpt-image-1 should be matched (discovered), gemini should be unmatched.
+    const list = containerEl.querySelector('[data-testid="image-model-suggest-list"]');
+    expect(list?.textContent ?? '').toContain('gpt-image-1');
+
+    // "Show all" button should be present for the unmatched model.
+    const showAllBtn = containerEl.querySelector<HTMLButtonElement>(
+      '[data-testid="image-model-suggest-show-all"]',
     );
-    expect(importBtn).not.toBeNull();
-    await act(async () => {
-      importBtn?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(saved.length).toBeGreaterThan(0);
-    const last = saved[saved.length - 1];
-    const imported = last?.providers[0]?.models.find((model) => model.id === 'cogview-3');
-    expect(imported).toBeDefined();
-    expect(imported?.capabilities).toContain('image-generation');
-    expect(imported?.routes?.['image-generation']).toBeDefined();
-    // Existing image model is preserved.
-    expect(last?.providers[0]?.models.some((model) => model.id === 'glm-image')).toBe(true);
+    expect(showAllBtn).not.toBeNull();
   });
 });

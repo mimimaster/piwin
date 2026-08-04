@@ -1,7 +1,7 @@
 /**
  * Settings → Permissions page (ADR 0019 §3, ADR 0024 Run Modes).
  *
- * Preset switcher bound to `config.permissions?.preset ?? 'auto'`, saved via
+ * Preset switcher bound to `config.permissions?.preset ?? 'yolo'`, saved via
  * `saveConfig`. Trust-aware notices explain what each Run Mode does and how the
  * open project's trust state interacts with YOLO + project allow rules.
  * Rule files and preset both take effect on the next session (no hot-reload).
@@ -23,7 +23,7 @@ export function PermissionsPage(): ReactElement {
   const { config, projectPath, projectTrusted, saveConfig, saving } = useSettings();
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const currentPreset: PermissionPreset = config?.permissions?.preset ?? 'auto';
+  const currentPreset: PermissionPreset = config?.permissions?.preset ?? 'yolo';
   const hasProject = projectPath !== null;
   const yoloRefused = currentPreset === 'yolo' && hasProject && !projectTrusted;
 
@@ -113,13 +113,13 @@ export function PermissionsPage(): ReactElement {
                 ●
               </span>
               <span className="capability-body">
-                <strong>{isChinese ? 'Auto（默认）' : 'Auto (default)'}</strong>
+                <strong>{isChinese ? 'YOLO（默认）' : 'YOLO (default)'}</strong>
                 <span className="muted">
                   {' '}
                   —{' '}
                   {isChinese
-                    ? '沙箱内低打扰；离开工作区或出网时询问；deny 始终生效。'
-                    : 'low friction inside sandbox; asks to leave workspace or open network; deny always enforced.'}
+                    ? '新会话默认使用 YOLO；跳过常规确认，但 deny 和危险操作保护始终生效。'
+                    : 'New sessions default to YOLO; routine prompts are skipped, but deny rules and circuit breakers always apply.'}
                 </span>
               </span>
             </li>
@@ -143,13 +143,13 @@ export function PermissionsPage(): ReactElement {
                 ●
               </span>
               <span className="capability-body">
-                <strong>{isChinese ? 'YOLO' : 'YOLO'}</strong>
+                <strong>{isChinese ? 'Auto' : 'Auto'}</strong>
                 <span className="muted">
                   {' '}
                   —{' '}
                   {isChinese
-                    ? '关闭沙箱，跳过常规确认。危险操作（rm -rf /、写密钥、强推 main）仍会拦截；未信任项目拒绝使用。'
-                    : 'no sandbox, skip routine prompts. Circuit breakers (rm -rf /, secret writes, force-push main) still fire; refused for untrusted projects.'}
+                    ? '沙箱内低打扰；离开工作区或出网时询问，适合更谨慎的日常开发。'
+                    : 'low friction inside the sandbox; asks before leaving the workspace or opening network, for safer daily coding.'}
                 </span>
               </span>
             </li>
