@@ -327,12 +327,17 @@ export class PiRpcAdapter implements AgentHost {
 
   private getWorkerBackend(): WorkerRpcSessionBackend {
     if (!this.workerBackend) {
+      // §10.3: worker script path resolution. In dev (tsx), use
+      // import.meta.url. In bundled builds, the packaging script must
+      // set `options.workerScript` to the resolved bundled path.
       const workerScript =
         this.options.workerScript ??
         resolvePath(new URL('./rpc-sdk-worker-entry.ts', import.meta.url).pathname);
       this.workerBackend = new WorkerRpcSessionBackend({
         worker: {
           workerScript,
+          // --import tsx is needed for dev; bundled builds should override
+          // via options.worker.nodeArgs or set workerScript to a .js path.
           nodeArgs: ['--import', 'tsx'],
           ...(this.options.onLog ? { onLog: this.options.onLog } : {}),
         },

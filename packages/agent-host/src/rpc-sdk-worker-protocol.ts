@@ -98,9 +98,43 @@ export type WorkerShutdownFrame = {
   reason: 'parent-dispose' | 'worker-fatal' | 'protocol-error';
 };
 
+/**
+ * Worker → parent: extension UI request (§3.2 authority matrix).
+ * The worker's Pi extension context needs a confirm/select/input dialog
+ * that only the parent can display. The parent resolves and sends back
+ * a `extension-ui-response` frame.
+ */
+export type WorkerExtensionUiRequestFrame = {
+  type: 'extension-ui-request';
+  id: string;
+  sessionId: string;
+  kind: 'confirm' | 'select' | 'input';
+  title: string;
+  message?: string;
+  options?: string[];
+  placeholder?: string;
+};
+
+/** Parent → worker: extension UI response. */
+export type WorkerExtensionUiResponseFrame = {
+  type: 'extension-ui-response';
+  id: string;
+  ok: boolean;
+  result?:
+    | { kind: 'confirm'; confirmed: boolean }
+    | { kind: 'select'; value?: string; cancelled?: boolean }
+    | { kind: 'input'; value?: string; cancelled?: boolean };
+  error?: string;
+};
+
 /** Union of all worker → parent frames. */
 export type WorkerFrame =
-  WorkerResponse | WorkerEvent | WorkerToolCallFrame | WorkerHelloFrame | WorkerShutdownFrame;
+  | WorkerResponse
+  | WorkerEvent
+  | WorkerToolCallFrame
+  | WorkerHelloFrame
+  | WorkerShutdownFrame
+  | WorkerExtensionUiRequestFrame;
 
 /** Payload variants for worker requests. */
 export type WorkerRequestPayload =
@@ -182,6 +216,14 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
           parsed.reason === 'protocol-error')
       ) {
         return parsed as WorkerShutdownFrame;
+      }
+      if (
+        parsed.type === 'extension-ui-request' &&
+        typeof parsed.id === 'string' &&
+        typeof parsed.sessionId === 'string' &&
+        (parsed.kind === 'confirm' || parsed.kind === 'select' || parsed.kind === 'input')
+      ) {
+        return parsed as WorkerExtensionUiRequestFrame;
       }
     }
     return undefined;

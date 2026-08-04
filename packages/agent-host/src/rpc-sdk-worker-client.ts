@@ -14,6 +14,8 @@ import { resolve as resolvePath } from 'node:path';
 import {
   parseWorkerFrame,
   serializeWorkerRequest,
+  type WorkerExtensionUiRequestFrame,
+  type WorkerExtensionUiResponseFrame,
   type WorkerFrame,
   type WorkerHelloFrame,
   type WorkerRequest,
@@ -75,6 +77,24 @@ export type WorkerClientOptions = {
    * Default 2000ms. Must not block control lane.
    */
   abortTimeoutMs?: number;
+  /**
+   * Phase 7 §3.2: extension UI request handler. When provided, the client
+   * routes `extension-ui-request` frames from the worker to this handler
+   * and sends `extension-ui-response` frames back. The parent owns the
+   * Desktop/CLI modal display.
+   */
+  onExtensionUiRequest?: (request: {
+    sessionId: string;
+    kind: 'confirm' | 'select' | 'input';
+    title: string;
+    message?: string;
+    options?: string[];
+    placeholder?: string;
+  }) => Promise<
+    | { kind: 'confirm'; confirmed: boolean }
+    | { kind: 'select'; value?: string; cancelled?: boolean }
+    | { kind: 'input'; value?: string; cancelled?: boolean }
+  >;
 };
 
 type PendingRequest = {
@@ -335,6 +355,11 @@ export class RpcSdkWorkerClient extends EventEmitter {
         const message = error instanceof Error ? error.message : String(error);
         this.emit('log', `[worker-client] tool-call error: ${message}`);
       });
+    } else if (frame.type === 'extension-ui-request') {
+      void this.handleExtensionUiRequest(frame).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.emit('log', `[worker-client] extension-ui error: ${message}`);
+      });
     }
   }
 
@@ -376,6 +401,53 @@ export class RpcSdkWorkerClient extends EventEmitter {
         ...(code ? { code } : {}),
       };
     }
+    this.child?.stdin?.write(`${JSON.stringify(frame)}\n`);
+  }
+
+  /**
+   * Phase 7 §3.2: route an extension-ui-request frame from the worker
+   * to the parent's onExtensionUiRequest handler and send the response back.
+   */
+  private async handleExtensionUiRequest(frame: WorkerExtensionUiRequestFrame): Promise<void> {
+    const handler = this.options.onExtensionUiRequest;
+    if (!handler) {
+      this.sendExtensionUiResponse(
+        frame.id,
+        false,
+        undefined,
+        'no extension UI handler configured',
+      );
+      return;
+    }
+    try {
+      const result = await handler({
+        sessionId: frame.sessionId,
+        kind: frame.kind,
+        title: frame.title,
+        ...(frame.message ? { message: frame.message } : {}),
+        ...(frame.options ? { options: frame.options } : {}),
+        ...(frame.placeholder ? { placeholder: frame.placeholder } : {}),
+      });
+      this.sendExtensionUiResponse(frame.id, true, result);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.sendExtensionUiResponse(frame.id, false, undefined, message);
+    }
+  }
+
+  private sendExtensionUiResponse(
+    id: string,
+    ok: boolean,
+    result?: WorkerExtensionUiResponseFrame['result'],
+    error?: string,
+  ): void {
+    const frame: WorkerExtensionUiResponseFrame = {
+      type: 'extension-ui-response',
+      id,
+      ok,
+      ...(result ? { result } : {}),
+      ...(error ? { error } : {}),
+    };
     this.child?.stdin?.write(`${JSON.stringify(frame)}\n`);
   }
 
