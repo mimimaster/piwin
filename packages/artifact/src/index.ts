@@ -18,6 +18,7 @@ export {
   ARTIFACT_BRIDGE_READY_TYPE,
   ARTIFACT_BRIDGE_RESIZE_TYPE,
   ARTIFACT_BRIDGE_ACTION_TYPE,
+  COMPOSER_PROPOSE_TEXT_ACTION,
   ARTIFACT_ACTION_NAMES,
   DEFAULT_ARTIFACT_IFRAME_ALLOWED_URL_PREFIXES,
 } from './constants.js';
@@ -32,6 +33,7 @@ export type {
   ExternalArtifactResourceKind,
   ExternalArtifactResource,
   ArtifactSecurityResult,
+  ArtifactSurface,
   ArtifactDescriptorBase,
   HtmlArtifactDescriptor,
   SvgArtifactDescriptor,
@@ -53,6 +55,7 @@ export type {
   ArtifactActionMessage,
   FlashcardRateActionPayload,
   FlashcardOpenSourceActionPayload,
+  ComposerProposeTextActionPayload,
   ArtifactPreviewDecision,
 } from './types.js';
 
