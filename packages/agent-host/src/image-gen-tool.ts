@@ -72,7 +72,7 @@ export function resolveImageProvider(
   );
 }
 
-const DEFAULT_IMAGE_TIMEOUT_MS = 120_000;
+const DEFAULT_IMAGE_TIMEOUT_MS = 180_000;
 
 /** Normalize a custom route path to a leading-slash relative path, rejecting host overrides. */
 function normalizeCustomImagePath(routePath: string): string {

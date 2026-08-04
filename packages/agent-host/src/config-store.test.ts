@@ -158,7 +158,7 @@ describe('config-store', () => {
     expect(loaded.marketplace).toEqual(config.marketplace);
   });
 
-  it('normalizes permissions.mode (default auto, unknown falls back)', async () => {
+  it('normalizes legacy permissions.mode while preserving explicit YOLO', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-perm-config-'));
     const config = createDefaultPiwinConfig();
     config.permissions = { mode: 'bypass' };
@@ -197,15 +197,18 @@ describe('config-store', () => {
     expect(loaded.providers[0]?.models[0]).toEqual(config.providers[0]?.models[0]);
   });
 
-  it('falls back to auto when permissions.mode is missing or invalid', async () => {
+  it('uses YOLO when permissions is missing and Auto when the block is invalid', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-perm-config-invalid-'));
     const config = createDefaultPiwinConfig();
-    config.permissions = { mode: 'bypass' };
     await savePiwinConfig(config, rootDir);
-    // Corrupt the mode to confirm normalizeConfig rejects unknown values.
     const raw = await readFile(join(rootDir, 'config.json'), 'utf8');
-    const corrupted = JSON.parse(raw);
-    corrupted.permissions = { mode: 'yolo' };
+    const withoutPermissions = JSON.parse(raw);
+    delete withoutPermissions.permissions;
+    await writeFile(join(rootDir, 'config.json'), JSON.stringify(withoutPermissions), 'utf8');
+    const defaulted = await loadPiwinConfig(rootDir);
+    expect(defaulted.permissions).toEqual({ mode: 'bypass', preset: 'yolo' });
+
+    const corrupted = { ...withoutPermissions, permissions: { mode: 'yolo' } };
     await writeFile(join(rootDir, 'config.json'), JSON.stringify(corrupted), 'utf8');
     const loaded = await loadPiwinConfig(rootDir);
     expect(loaded.permissions).toEqual({ mode: 'auto', preset: 'auto' });

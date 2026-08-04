@@ -32,6 +32,7 @@ export function indexRecordToSummary(
     | 'worktreeBranch'
     | 'subagentRuntime'
     | 'subagentLifecycle'
+    | 'origin'
   >,
 ): SessionSummary {
   const scope: SessionScope = scopeFromIndexRecord(record);
@@ -77,6 +78,9 @@ export function indexRecordToSummary(
     summary.subagentExecutionStatus = lifecycle.executionStatus;
     summary.subagentSummaryStatus = lifecycle.summaryStatus;
     summary.subagentIntegrationStatus = lifecycle.integrationStatus;
+  }
+  if (record.origin) {
+    summary.origin = record.origin;
   }
   return summary;
 }

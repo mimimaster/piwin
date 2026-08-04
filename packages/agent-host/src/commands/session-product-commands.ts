@@ -27,6 +27,14 @@ import {
   upsertSessionRecord,
   filterListableSessions,
 } from '@piwin/session';
+import {
+  forkProductSession,
+  ForkValidationError,
+  getSessionLineage,
+  getDirectForkNames,
+  listAllSessionRecords,
+} from '@piwin/session';
+import { cloneSessionMedia, cleanupFailedMediaClone } from '@piwin/media';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
 import {
@@ -68,6 +76,8 @@ const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
   'session/unarchive',
   'session/delete',
   'session/duplicate',
+  'session/fork',
+  'session/lineage',
   'session/search',
 ]);
 
@@ -290,6 +300,89 @@ export async function handleSessionProductCommand(
         session: indexRecordToSummary(finalRecord),
         messages: duplicated.transcript.messages as SessionTranscriptMessage[],
       });
+    }
+    case 'session/fork': {
+      const source = await getSessionRecord(indexPath, command.sessionId);
+      if (!source) {
+        return fail(requestId, 'session/fork', `Unknown session: ${command.sessionId}`);
+      }
+      if (source.isArchived === true) {
+        return fail(requestId, 'session/fork', 'Source session is archived');
+      }
+      const createInput: CreateSessionInput = {
+        projectPath: source.projectPath,
+      };
+      if (source.scope) {
+        createInput.scope = source.scope;
+      }
+      const created = await context.host.createSession(createInput);
+      const sourceTranscriptPath = getPiwinSessionTranscriptPath(rootDir, command.sessionId);
+      const targetTranscriptPath = getPiwinSessionTranscriptPath(rootDir, created.id);
+      const mediaRoot = getPiwinSessionMediaDir(rootDir, '');
+      // Compute existing fork names for collision avoidance.
+      const allRecords = await listAllSessionRecords(indexPath);
+      const existingForkNames = getDirectForkNames(allRecords, command.sessionId);
+
+      try {
+        const forked = await forkProductSession(
+          {
+            indexPath,
+            sourceTranscriptPath,
+            targetTranscriptPath,
+          },
+          {
+            sourceSessionId: command.sessionId,
+            messageId: command.messageId,
+            ...(typeof command.name === 'string' ? { name: command.name } : {}),
+            newSessionId: created.id,
+            workspaceStrategy: command.workspaceStrategy,
+            cloneMedia: async (transcript) => {
+              await cloneSessionMedia(transcript, {
+                mediaRoot,
+                targetSessionId: created.id,
+              });
+            },
+          },
+        );
+        if (!forked) {
+          await cleanupFailedMediaClone(mediaRoot, created.id);
+          return fail(requestId, 'session/fork', `Failed to fork session: ${command.sessionId}`);
+        }
+        await context.bindSession(created, source.projectPath, forked.record.name, {
+          kind: 'main',
+          depth: 0,
+        });
+       const rebound = await getSessionRecord(indexPath, created.id);
+        if (rebound) {
+          rebound.messageCount = forked.record.messageCount;
+          if (forked.record.lastPreview) {
+            rebound.lastPreview = forked.record.lastPreview;
+          }
+          if (forked.record.name) {
+            rebound.name = forked.record.name;
+          }
+          await upsertSessionRecord(indexPath, rebound);
+        }
+        const finalRecord = (await getSessionRecord(indexPath, created.id)) ?? forked.record;
+        context.pushStatus();
+        return ok(requestId, 'session/fork', {
+          sessionId: created.id,
+          sourceSessionId: command.sessionId,
+          session: indexRecordToSummary(finalRecord),
+          messages: forked.transcript.messages as SessionTranscriptMessage[],
+          origin: forked.origin,
+        });
+      } catch (error) {
+        await cleanupFailedMediaClone(mediaRoot, created.id);
+        if (error instanceof ForkValidationError) {
+          return fail(requestId, 'session/fork', error.message);
+        }
+        return fail(requestId, 'session/fork', `Fork failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    case 'session/lineage': {
+      const lineage = await getSessionLineage({ indexPath }, command.sessionId);
+      return ok(requestId, 'session/lineage', lineage);
     }
     case 'session/search': {
       const result = await searchSessions(

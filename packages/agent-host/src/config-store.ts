@@ -30,6 +30,7 @@ import {
   createDefaultExtensionsConfig,
   createDefaultMarketplaceConfig,
   createDefaultPermissionConfig,
+  createSafeFallbackPermissionConfig,
   createDefaultProcessConfig,
   createDefaultPromptsConfig,
   createDefaultSessionConfig,
@@ -68,6 +69,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     marketplace: createDefaultMarketplaceConfig(),
     walkthrough: createDefaultWalkthroughConfig(),
     subagents: createDefaultSubagentConfig(),
+    permissions: createDefaultPermissionConfig(),
   };
 }
 
@@ -286,14 +288,16 @@ function normalizeVisionDelegationConfig(value: unknown): VisionDelegationConfig
 }
 
 /**
- * Normalize the `permissions` block (ADR 0019 §3). Unknown / missing values
- * fall back to the default `'auto'` mode so a malformed config never silently
- * enables `bypass`.
+ * Normalize the `permissions` block (ADR 0019 §3). A missing block uses the
+ * Pi-compatible YOLO default. A present but malformed block uses the safe
+ * Auto fallback so invalid data never silently enables `bypass`.
  */
 function normalizePermissionConfig(value: unknown): PermissionConfig {
   const record = asRecord(value);
   if (!record) {
-    return createDefaultPermissionConfig();
+    return value === undefined
+      ? createDefaultPermissionConfig()
+      : createSafeFallbackPermissionConfig();
   }
   // ADR 0024: accept `preset` (ask/auto/yolo) as the preferred field.
   const preset = record.preset;
@@ -307,7 +311,7 @@ function normalizePermissionConfig(value: unknown): PermissionConfig {
     const presetFromMode = modeToPreset(mode as PermissionMode);
     return { mode: mode as PermissionMode, preset: presetFromMode };
   }
-  return createDefaultPermissionConfig();
+  return createSafeFallbackPermissionConfig();
 }
 
 function normalizeNotesConfig(value: unknown): PiwinConfig['notes'] {

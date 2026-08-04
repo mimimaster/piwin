@@ -3,8 +3,10 @@
  * Uses `@earendil-works/pi-ai/providers/all` (MODELS is not on the package root export).
  */
 import { createRequire } from 'node:module';
-import { getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all';
+import { builtinImagesProviders, getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all';
 import type {
+  ImageModelCatalogEntry,
+  ImageModelCatalogSearchResult,
   ModelCatalogEntry,
   ModelCatalogSearchRequest,
   ModelCatalogSearchResult,
@@ -167,4 +169,63 @@ export function enrichFromCatalog<T extends { id: string }>(
     (result as { label?: string }).label = catalog.name;
   }
   return result;
+}
+
+
+/* ------------------------------------------------------------------ *
+ * Image-generation catalog (separate from chat Model catalog)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Extract the model name segment after the last `/`.
+ * e.g. `openai/gpt-image-1` → `gpt-image-1`.
+ */
+export function splitModelName(modelId: string): string {
+  const idx = modelId.lastIndexOf('/');
+  return idx >= 0 ? modelId.slice(idx + 1) : modelId;
+}
+
+function flattenImagesCatalog(): ImageModelCatalogEntry[] {
+  const entries: ImageModelCatalogEntry[] = [];
+  for (const provider of builtinImagesProviders()) {
+    const providerId = provider.id;
+    const models = provider.getModels();
+    for (const model of models) {
+      const rawInput = Array.isArray(model.input) ? model.input : ['text'];
+      const input: ModelInputModality[] = rawInput.filter(
+        (item): item is ModelInputModality => item === 'text' || item === 'image',
+      );
+      const rawOutput = Array.isArray(model.output) ? model.output : ['image'];
+      const output: ModelInputModality[] = rawOutput.filter(
+        (item): item is ModelInputModality => item === 'text' || item === 'image',
+      );
+      entries.push({
+        catalogProviderId: providerId,
+        modelId: model.id,
+        name: typeof model.name === 'string' && model.name.trim() ? model.name.trim() : model.id,
+        input: input.length > 0 ? input : ['text'],
+        output: output.length > 0 ? output : ['image'],
+      });
+    }
+  }
+  return entries;
+}
+
+let cachedImagesEntries: ImageModelCatalogEntry[] | null = null;
+
+function getAllImagesEntries(): ImageModelCatalogEntry[] {
+  if (!cachedImagesEntries) {
+    cachedImagesEntries = flattenImagesCatalog();
+  }
+  return cachedImagesEntries;
+}
+
+/**
+ * Return all Pi built-in image-generation models (static catalog, no network).
+ */
+export function searchPiImagesCatalog(): ImageModelCatalogSearchResult {
+  return {
+    entries: getAllImagesEntries(),
+    catalogVersion: readCatalogVersion(),
+  };
 }
