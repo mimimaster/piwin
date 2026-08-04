@@ -22,6 +22,7 @@ import type {
   SessionRunTerminalCode,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
+import { DEFAULT_PERMISSION_PRESET, resolvePreset } from '@piwin/contracts';
 import type { ActiveRun } from '../active-run.js';
 import type { RunAbortReason } from '../run-abort-reason.js';
 import {
@@ -278,8 +279,7 @@ async function preparePromptInput(
   if (agentMode === 'plan' || agentMode === 'ask') {
     try {
       const config = await context.loadConfig();
-      const preset = config.permissions?.preset ?? 'auto';
-      const { resolvePreset } = await import('@piwin/contracts');
+      const preset = config.permissions?.preset ?? DEFAULT_PERMISSION_PRESET;
       const resolved = resolvePreset(preset, agentMode);
       context.setSessionPermissionOverride(command.sessionId, resolved.mode);
     } catch {

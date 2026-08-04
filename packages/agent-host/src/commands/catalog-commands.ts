@@ -26,7 +26,7 @@ import { ensureBundledPromptsInstalled } from '../ensure-bundled-prompts.js';
 import { scanPrompts } from '../prompt-scanner.js';
 import { decodeBase64Media } from '../media-decode.js';
 import { discoverProviderModels } from '../provider-model-discovery.js';
-import { searchPiCatalog } from '../model-catalog-reader.js';
+import { searchPiCatalog, searchPiImagesCatalog } from '../model-catalog-reader.js';
 import { testProviderModel } from '../provider-model-test.js';
 import {
   DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT,
@@ -83,6 +83,7 @@ const TYPES = new Set<HostCommand['type']>([
   'settings/apply',
   'models/discover',
   'models/catalog/search',
+  'models/image-catalog/search',
   'models/test',
   'vision/delegate',
   'vision/cache/clear',

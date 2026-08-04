@@ -127,7 +127,7 @@ describe('SettingsService', () => {
     // succeed; the second must conflict instead of silently re-enabling.
     const firstWrite = await service.apply({
       expectedRevision: first.revision,
-      mutations: [mutation('permissions', { mode: 'bypass', preset: 'yolo' })],
+      mutations: [mutation('permissions', { mode: 'auto', preset: 'auto' })],
     });
     const secondWrite = service.apply({
       expectedRevision: first.revision,
@@ -136,7 +136,7 @@ describe('SettingsService', () => {
     await expect(secondWrite).rejects.toBeInstanceOf(SettingsRevisionConflictError);
 
     const finalConfig = (await service.getSnapshot()).config;
-    expect(finalConfig.permissions?.mode).toBe('bypass');
+    expect(finalConfig.permissions?.mode).toBe('auto');
     expect(finalConfig.web?.searchProvider).toBe(webBefore);
   });
 
