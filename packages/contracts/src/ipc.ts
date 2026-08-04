@@ -314,6 +314,10 @@ export type HostCommand =
     }
   | {
       id?: string;
+      type: 'models/image-catalog/search';
+    }
+  | {
+      id?: string;
       type: 'models/test';
       provider: ModelProviderConfig;
       modelId: string;
@@ -431,6 +435,24 @@ export type HostCommand =
       sessionId: string;
       /** Optional override; default "Copy of <name>". */
       name?: string;
+    }
+  /** SF-02: fork from a completed assistant response into a linked product session. */
+  | {
+      id?: string;
+      type: 'session/fork';
+      sessionId: string;
+      /** The assistant response to fork from (inclusive in the new transcript). */
+      messageId: string;
+      /** Optional display name; default "<source name> · Branch". */
+      name?: string;
+      /** V1 shared workspace; worktree is a follow-up slice. */
+      workspaceStrategy: 'shared' | 'worktree';
+    }
+  /** SF-04: query the product lineage (branch family) for a session. */
+  | {
+      id?: string;
+      type: 'session/lineage';
+      sessionId: string;
     }
   | { id?: string; type: 'session/search'; query: SessionSearchQuery }
   | {

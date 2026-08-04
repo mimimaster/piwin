@@ -228,6 +228,8 @@ export type SessionSummary = {
   subagentSummaryStatus?: SubagentSummaryStatus;
   /** CE-SUB-LIFE: orthogonal code-integration state axis. */
   subagentIntegrationStatus?: SubagentIntegrationStatus;
+  /** SF-*: product-level session origin (duplicate or fork). Absent on legacy records. */
+  origin?: import('./session-origin.js').ProductSessionOrigin;
 };
 
 export type AgentMessageRole = 'user' | 'assistant' | 'system' | 'tool';

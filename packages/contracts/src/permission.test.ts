@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_PERMISSION_PRESET,
   createDefaultPermissionConfig,
+  createSafeFallbackPermissionConfig,
   createEmptyRuleSet,
   mergeRuleSets,
   modeToPreset,
@@ -29,8 +31,13 @@ const allowRule = {
 };
 
 describe('createDefaultPermissionConfig', () => {
-  it('returns auto mode and preset', () => {
-    expect(createDefaultPermissionConfig()).toEqual({ mode: 'auto', preset: 'auto' });
+  it('returns Pi-compatible YOLO mode and preset', () => {
+    expect(DEFAULT_PERMISSION_PRESET).toBe('yolo');
+    expect(createDefaultPermissionConfig()).toEqual({ mode: 'bypass', preset: 'yolo' });
+  });
+
+  it('provides a conservative Auto fallback for malformed config', () => {
+    expect(createSafeFallbackPermissionConfig()).toEqual({ mode: 'auto', preset: 'auto' });
   });
 });
 

@@ -40,3 +40,24 @@ export type ModelCatalogSearchResult = {
   /** e.g. pi-ai package version. */
   catalogVersion: string;
 };
+
+/**
+ * Pi image-generation model catalog projection.
+ *
+ * Pi maintains a separate `ImagesModel` catalog (35 built-in models) distinct
+ * from the chat `Model` catalog.  These types mirror the shape needed by the
+ * Image Generation settings page — apps fetch via IPC
+ * `models/image-catalog/search`.
+ */
+export type ImageModelCatalogEntry = {
+  catalogProviderId: string;
+  modelId: string;
+  name: string;
+  input: readonly ModelInputModality[];
+  output: readonly ModelInputModality[];
+};
+
+export type ImageModelCatalogSearchResult = {
+  entries: ImageModelCatalogEntry[];
+  catalogVersion: string;
+};
