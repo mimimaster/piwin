@@ -57,7 +57,7 @@ import {
   type AtItem,
 } from './at';
 import { ComposerModalEditor } from './ComposerModalEditor';
-import { ExtensionUiPrompt, type ExtensionUiResolvePayload } from './extension-ui-prompt';
+import type { ExtensionUiResolvePayload } from './extension-ui-prompt';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
@@ -669,12 +669,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           ))}
         </div>
       ) : null}
-
-      <ExtensionUiPrompt
-        request={extensionUiRequest}
-        onResolve={props.onExtensionUiResolve ?? (() => undefined)}
-        onAbort={props.onExtensionUiAbort ?? (() => undefined)}
-      />
 
       {/* Textarea area */}
       <div className="composer-v2-input-area">

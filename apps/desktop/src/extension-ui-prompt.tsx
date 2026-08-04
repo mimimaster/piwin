@@ -1,6 +1,19 @@
+/**
+ * Inline model question surface using the shared AgentInterruptionFrame.
+ *
+ * This is deliberately not a modal: the question is part of the active agent
+ * turn, so it must remain visible next to the place where the user answers and
+ * must not trap the user away from the run controls.
+ *
+ * Stop is intentionally NOT rendered here — the composer toolbar owns the
+ * sole Stop control. Cancel dismisses the question only; it does not abort
+ * the run.
+ */
 import type { ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
+import { AgentInterruptionFrame } from './agent-interruption-frame';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type ExtensionUiResolvePayload = {
   confirmed?: boolean;
@@ -11,102 +24,88 @@ export type ExtensionUiResolvePayload = {
 export type ExtensionUiPromptProps = {
   request: ExtensionUiRequestState | null;
   onResolve: (payload: ExtensionUiResolvePayload) => void;
-  onAbort: () => void | Promise<void>;
 };
 
-/**
- * Inline model question surface attached to the Composer.
- *
- * This is deliberately not a modal: the question is part of the active agent
- * turn, so it must remain visible next to the place where the user answers and
- * must not trap the user away from the run controls.
- */
 export function ExtensionUiPrompt(props: ExtensionUiPromptProps): ReactElement | null {
   const request = props.request;
-
   if (!request) {
     return null;
   }
+  return <ExtensionUiPromptInner request={request} onResolve={props.onResolve} />;
+}
+
+function ExtensionUiPromptInner({
+  request,
+  onResolve,
+}: {
+  request: ExtensionUiRequestState;
+  onResolve: (payload: ExtensionUiResolvePayload) => void;
+}): ReactElement {
+  const { translator } = useDesktopLocale();
+  const description =
+    request.kind === 'input'
+      ? translator.interruption.answerInComposer
+      : request.message ?? undefined;
 
   return (
-    <section
-      className="extension-ui-prompt"
-      data-testid="extension-ui-prompt"
-      aria-label="Agent question"
+    <AgentInterruptionFrame
+      tone="question"
+      statusLabel={translator.interruption.agentWaiting}
+      title={request.title}
+      {...(description !== undefined ? { description } : {})}
+      testId="extension-ui-prompt"
     >
-      <div className="extension-ui-prompt-header">
-        <div className="extension-ui-prompt-heading">
-          <span className="extension-ui-prompt-eyebrow">Agent needs your input</span>
-          <strong className="extension-ui-prompt-title">{request.title}</strong>
-        </div>
-        <span className="extension-ui-prompt-kind">{request.kind}</span>
-      </div>
-
-      {request.message ? (
-        <p className="extension-ui-prompt-message">{request.message}</p>
-      ) : null}
-
       {request.kind === 'select' ? (
-        <div className="extension-ui-prompt-options" role="listbox" aria-label={request.title}>
+        <div
+          className="agent-interruption-choices"
+          role="group"
+          aria-label={request.title}
+        >
           {(request.options ?? []).map((option) => (
             <button
               key={option}
               type="button"
-              className="extension-ui-prompt-option"
+              className="agent-interruption-choice"
               data-testid="extension-ui-option"
-              role="option"
-              onClick={() => props.onResolve({ value: option })}
+              onClick={() => onResolve({ value: option })}
             >
               <span>{option}</span>
-              <span className="extension-ui-prompt-option-arrow" aria-hidden>
-                Enter
-              </span>
             </button>
           ))}
         </div>
       ) : null}
 
       {request.kind === 'confirm' ? (
-        <div className="extension-ui-prompt-actions">
-          <Button data-testid="extension-ui-deny" onClick={() => props.onResolve({ confirmed: false })}>
-            Deny
+        <div className="agent-interruption-actions">
+          <Button
+            variant="secondary"
+            data-testid="extension-ui-deny"
+            onClick={() => onResolve({ confirmed: false })}
+          >
+            {translator.common.cancel}
           </Button>
           <Button
             variant="primary"
             data-testid="extension-ui-allow"
-            onClick={() => props.onResolve({ confirmed: true })}
+            onClick={() => onResolve({ confirmed: true })}
           >
-            Allow
+            {translator.interruption.continue}
           </Button>
         </div>
       ) : null}
 
-      <div className="extension-ui-prompt-footer">
-        <span className="extension-ui-prompt-hint">
-          {request.kind === 'select'
-            ? 'Choose an option to continue'
-            : request.kind === 'input'
-              ? 'Type your answer in the composer below'
-              : 'The agent is waiting'}
-        </span>
-        <div className="extension-ui-prompt-footer-actions">
+      {request.kind === 'select' || request.kind === 'confirm' ? (
+        <div className="agent-interruption-footer">
           <Button
+            variant="ghost"
             size="compact"
             data-testid="extension-ui-cancel"
-            onClick={() => props.onResolve({ cancelled: true, confirmed: false })}
+            onClick={() => onResolve({ cancelled: true, confirmed: false })}
           >
-            Cancel
-          </Button>
-          <Button
-            variant="danger"
-            size="compact"
-            data-testid="extension-ui-stop"
-            onClick={() => void props.onAbort()}
-          >
-            Stop run
+            {translator.interruption.cancelQuestion}
           </Button>
         </div>
-      </div>
-    </section>
+      ) : null}
+    </AgentInterruptionFrame>
   );
 }

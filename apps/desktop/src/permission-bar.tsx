@@ -1,25 +1,22 @@
 /**
- * PermissionBar — docked permission prompt that sits above the composer
- * (ADR 0024). Replaces the inline GateCard that used to render at the end of
- * the scrolling transcript.
- *
- * Design references: Claude Code, Cursor, and helmor all dock the approval
- * surface above the input box rather than in the chat stream. This keeps the
- * prompt visible while the user scrolls the transcript and makes the approval
- * feel like a composer-level interaction, not a chat message.
+ * PermissionBar — docked permission prompt using the shared
+ * AgentInterruptionFrame (ADR 0024). Sits above the composer so the approval
+ * surface stays visible while the user scrolls the transcript.
  *
  * Structure:
- *   .permission-bar
- *     .permission-bar-head   — warn icon + action label + expand chevron
- *     .permission-bar-detail — collapsible mono block (command / paths / etc.)
- *     .permission-bar-actions — Allow session / once / project / Deny
+ *   AgentInterruptionFrame (warning/danger tone)
+ *     .permission-bar-subject   — one-line visible fact (command/path/host)
+ *     .permission-bar-detail    — collapsible full facts (PermissionFacts)
+ *     .permission-bar-actions   — Allow session / once / project / Deny
  */
 import { useState, type ReactElement } from 'react';
-import { Button } from '@piwin/ui-kit';
+import { Button, Collapse } from '@piwin/ui-kit';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
 import type { PermissionPromptUi } from './chat-reducer';
 import { PermissionFacts, canRememberPermissionForProject } from './permission-request-card';
-import { IconWarn } from './shell-icons';
+import { AgentInterruptionFrame, type AgentInterruptionTone } from './agent-interruption-frame';
+import { useDesktopLocale } from './desktop-locale-context';
+import { IconChevronDown } from './shell-icons';
 
 export type PermissionBarProps = {
   prompt: PermissionPromptUi;
@@ -29,82 +26,112 @@ export type PermissionBarProps = {
   onPermission: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
 };
 
+/** Compact one-line subject shown before the details disclosure. */
+function permissionSubject(
+  prompt: PermissionPromptUi,
+): string {
+  const context = prompt.context;
+  if (context?.summary) return context.summary;
+  if (context?.command) return context.command;
+  if (context?.host) return context.host;
+  if (context?.paths && context.paths.length > 0) return context.paths[0]!;
+  return prompt.action;
+}
+
+/** High-risk requests should start with details expanded. */
+function shouldDefaultExpand(prompt: PermissionPromptUi): boolean {
+  const context = prompt.context;
+  if (!context) return false;
+  return (
+    context.destructive === true ||
+    context.secretRelated === true ||
+    context.kind === 'unknown'
+  );
+}
+
 export function PermissionBar(props: PermissionBarProps): ReactElement {
   const { prompt, projectPath } = props;
-  const [expanded, setExpanded] = useState(false);
+  const { translator } = useDesktopLocale();
+  const copy = translator.interruption;
+  const [expanded, setExpanded] = useState(() => shouldDefaultExpand(prompt));
   const context = prompt.context ?? null;
   const canRemember =
     canRememberPermissionForProject(context, prompt.action) && Boolean(projectPath);
-  const actionLabel = context?.summary ?? prompt.action;
-  const isDestructive = context?.destructive === true || context?.secretRelated === true;
+  const isDanger = context?.destructive === true || context?.secretRelated === true;
+  const tone: AgentInterruptionTone = isDanger ? 'danger' : 'warning';
+  const subject = permissionSubject(prompt);
+  const detailId = `permission-detail-${prompt.requestId}`;
 
   return (
-    <section
-      className={`permission-bar${isDestructive ? ' is-danger' : ''}`}
-      data-testid="permission-bar"
-      data-kind={context?.kind ?? 'unknown'}
-      aria-label="Permission required"
+    <AgentInterruptionFrame
+      tone={tone}
+      statusLabel={copy.approvalRequired}
+      title={subject}
+      testId="permission-bar"
     >
-      <div className="permission-bar-head" onClick={() => setExpanded((prev) => !prev)}>
-        <IconWarn className="permission-bar-icon" />
-        <span className="permission-bar-action">{actionLabel}</span>
-        <button
-          type="button"
-          className="permission-bar-toggle"
-          aria-label={expanded ? 'Collapse details' : 'Expand details'}
-          data-testid="permission-bar-toggle"
-          onClick={(event) => {
-            event.stopPropagation();
-            setExpanded((prev) => !prev);
-          }}
-        >
-          <span className={`permission-bar-chevron${expanded ? ' is-expanded' : ''}`} aria-hidden />
-        </button>
-      </div>
+      <button
+        type="button"
+        className="permission-bar-disclosure"
+        aria-expanded={expanded}
+        aria-controls={detailId}
+        data-testid="permission-bar-toggle"
+        onClick={() => setExpanded((prev) => !prev)}
+      >
+        <span className="permission-bar-disclosure-label">
+          {expanded ? copy.collapseDetails : copy.expandDetails}
+        </span>
+        <IconChevronDown
+          className={`permission-bar-chevron${expanded ? ' is-expanded' : ''}`}
+        />
+      </button>
 
-      {expanded ? (
-        <div className="permission-bar-detail" data-testid="permission-bar-detail">
+      <Collapse expanded={expanded} testId="permission-bar-detail">
+        <div id={detailId} className="permission-bar-detail-inner">
           <PermissionFacts action={prompt.action} detail={prompt.detail} context={context} />
         </div>
-      ) : null}
+      </Collapse>
 
       <div className="permission-bar-actions">
         <Button
           variant="primary"
+          size="compact"
           className="permission-bar-btn-allow-session"
           data-testid="permission-bar-allow-session"
           onClick={() => props.onPermission('allow', 'session')}
         >
-          Allow for session
+          {copy.allowForSession}
         </Button>
         <Button
           variant="secondary"
+          size="compact"
           className="permission-bar-btn-allow-once"
           data-testid="permission-bar-allow-once"
           onClick={() => props.onPermission('allow', 'once')}
         >
-          Once
+          {copy.allowOnce}
         </Button>
         {canRemember ? (
           <Button
             variant="secondary"
+            size="compact"
             className="permission-bar-btn-allow-project"
             data-testid="permission-bar-allow-project"
-            title="Remember this allow for the current project"
+            title={copy.allowForProject}
             onClick={() => props.onPermission('allow', 'project')}
           >
-            Always allow
+            {copy.allowForProject}
           </Button>
         ) : null}
         <Button
-          variant="secondary"
+          variant="danger"
+          size="compact"
           className="permission-bar-btn-deny"
           data-testid="permission-bar-deny"
           onClick={() => props.onPermission('deny')}
         >
-          Deny
+          {copy.deny}
         </Button>
       </div>
-    </section>
+    </AgentInterruptionFrame>
   );
 }

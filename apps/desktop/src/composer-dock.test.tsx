@@ -208,14 +208,17 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-    const textarea = container.querySelector(
-      '[data-testid="composer-input"]',
-    ) as HTMLTextAreaElement;
-    expect(textarea.value).toBe('Use the existing branch');
-    expect(textarea.readOnly).toBe(false);
-    expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
-    expect(container.querySelector('[data-testid="stop-btn"]')).not.toBeNull();
-    expect(container.textContent).toContain('Type your answer in the composer below');
+  const textarea = container.querySelector(
+    '[data-testid="composer-input"]',
+  ) as HTMLTextAreaElement;
+  expect(textarea.value).toBe('Use the existing branch');
+  expect(textarea.readOnly).toBe(false);
+  expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
+  expect(container.querySelector('[data-testid="stop-btn"]')).not.toBeNull();
+  // The question prompt is now rendered in the App-level interruption dock,
+  // not inside the composer card. The composer textarea placeholder still
+  // reflects the input mode.
+  expect(textarea.placeholder).toBe('Type your answer');
 
     act(() => {
       rendered.root.render(

@@ -29,6 +29,7 @@ import { projectDisplayName } from './project-display-name';
 import { ChatThread } from './chat-thread';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import { PermissionBar } from './permission-bar';
+import { ExtensionUiPrompt } from './extension-ui-prompt';
 import { FileTreePanel } from './file-tree-panel';
 import { ReviewPanel } from './review-panel';
 import { AppDialogs } from './app-dialogs';
@@ -2061,7 +2062,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               ) : null}
             </>
           }
-          permissionBar={
+         permissionBar={
             state.permissionPrompt ? (
               <PermissionBar
                 prompt={state.permissionPrompt}
@@ -2069,6 +2070,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 onPermission={(decision, scope) => {
                   void handlePermission(decision, scope);
                 }}
+              />
+            ) : extensionUiRequest ? (
+              <ExtensionUiPrompt
+                request={extensionUiRequest}
+                onResolve={(payload) => void handleExtensionUiResolve(payload)}
               />
             ) : null
           }

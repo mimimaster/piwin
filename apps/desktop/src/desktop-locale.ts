@@ -103,6 +103,19 @@ export type DesktopCopy = {
     hostTooltip: (mode: string, isMock: boolean, ready: boolean, transport?: string) => string;
     shortcutHint: string;
   };
+  interruption: {
+    agentWaiting: string;
+    answerInComposer: string;
+    cancelQuestion: string;
+    continue: string;
+    approvalRequired: string;
+    allowForSession: string;
+    allowOnce: string;
+    allowForProject: string;
+    deny: string;
+    expandDetails: string;
+    collapseDetails: string;
+  };
   appearance: {
     pageTitle: string;
     pageDescription: string;
@@ -176,6 +189,19 @@ export type DesktopTranslator = {
     remove: string;
     save: string;
     saving: string;
+  };
+  interruption: {
+    agentWaiting: string;
+    answerInComposer: string;
+    cancelQuestion: string;
+    continue: string;
+    approvalRequired: string;
+    allowForSession: string;
+    allowOnce: string;
+    allowForProject: string;
+    deny: string;
+    expandDetails: string;
+    collapseDetails: string;
   };
   settings: {
     application: string;
@@ -441,6 +467,19 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
         `Host 模式：${mode}${isMock ? '（模拟）' : '（实时）'}｜状态：${ready ? '就绪' : '正在连接'}${transport ? `｜传输：${transport}` : ''}`,
       shortcutHint: '↵ 发送 · ⇧↵ 换行 · / 命令 · @ 提及 · ↑/↓ 历史记录 · Esc 中断',
     },
+    interruption: {
+      agentWaiting: 'Agent 正等待你的回答',
+      answerInComposer: '在下方输入框中回答',
+      cancelQuestion: '取消问题',
+      continue: '继续',
+      approvalRequired: '需要你的批准',
+      allowForSession: '允许本次会话',
+      allowOnce: '仅允许这一次',
+      allowForProject: '允许此项目',
+      deny: '拒绝',
+      expandDetails: '展开详情',
+      collapseDetails: '收起详情',
+    },
     appearance: {
       pageTitle: '外观',
       pageDescription: '配置 Agent 的视觉主题和显示偏好。',
@@ -591,6 +630,19 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
         `Host Mode: ${mode}${isMock ? ' (Mock)' : ' (Live)'} | Status: ${ready ? 'Ready' : 'Connecting'}${transport ? ` | Transport: ${transport}` : ''}`,
       shortcutHint: '↵ Send · ⇧↵ New line · / Commands · @ Mention · ↑/↓ History · Esc Stop',
     },
+    interruption: {
+      agentWaiting: 'Agent is waiting for your answer',
+      answerInComposer: 'Answer in the composer below',
+      cancelQuestion: 'Cancel question',
+      continue: 'Continue',
+      approvalRequired: 'Approval required',
+      allowForSession: 'Allow for this session',
+      allowOnce: 'Allow once',
+      allowForProject: 'Allow for this project',
+      deny: 'Deny',
+      expandDetails: 'Expand details',
+      collapseDetails: 'Collapse details',
+    },
     appearance: {
       pageTitle: 'Appearance',
       pageDescription: "Configure the Agent's visual theme and display preferences.",
@@ -669,9 +721,22 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       refresh: isChinese ? '刷新' : 'Refresh',
       remove: isChinese ? '移除' : 'Remove',
       save: isChinese ? '保存' : 'Save',
-      saving: isChinese ? '保存中…' : 'Saving…',
+     saving: isChinese ? '保存中…' : 'Saving…',
+   },
+    interruption: {
+      agentWaiting: isChinese ? 'Agent 正等待你的回答' : 'Agent is waiting for your answer',
+      answerInComposer: isChinese ? '在下方输入框中回答' : 'Answer in the composer below',
+      cancelQuestion: isChinese ? '取消问题' : 'Cancel question',
+      continue: isChinese ? '继续' : 'Continue',
+      approvalRequired: isChinese ? '需要你的批准' : 'Approval required',
+      allowForSession: isChinese ? '允许本次会话' : 'Allow for this session',
+      allowOnce: isChinese ? '仅允许这一次' : 'Allow once',
+      allowForProject: isChinese ? '允许此项目' : 'Allow for this project',
+      deny: isChinese ? '拒绝' : 'Deny',
+      expandDetails: isChinese ? '展开详情' : 'Expand details',
+      collapseDetails: isChinese ? '收起详情' : 'Collapse details',
     },
-    settings: {
+   settings: {
       application: isChinese ? '应用' : 'Application',
       agent: 'Agent',
       integrations: isChinese ? '集成' : 'Integrations',
