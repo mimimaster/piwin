@@ -3,6 +3,7 @@
 import type { SessionScope } from './host.js';
 import type { SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { SubagentLifecycleState } from './subagent-lifecycle.js';
+import type { ProductSessionOrigin } from './session-origin.js';
 
 export type SubagentStatus = 'running' | 'done' | 'failed' | 'cancelled';
 
@@ -72,6 +73,8 @@ export type SessionIndexRecord = {
   subagentRuntime?: SubagentRuntimeSnapshot;
   /** CE-SUB-LIFE: orthogonal execution/summary/integration state axes. */
   subagentLifecycle?: SubagentLifecycleState;
+  /** SF-*: product-level session origin (duplicate or fork). Absent on legacy records. */
+  origin?: ProductSessionOrigin;
 };
 
 /**

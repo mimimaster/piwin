@@ -17,10 +17,13 @@ export type PermissionMode = 'auto' | 'ask-all' | 'bypass';
  * {@link resolvePreset}.
  *
  * - `ask`  — ask almost everything (sandboxed)
- * - `auto` — low friction inside sandbox; ask to leave (default)
+ * - `auto` — low friction inside sandbox; ask to leave
  * - `yolo` — no sandbox, no prompts except circuit breakers
  */
 export type PermissionPreset = 'ask' | 'auto' | 'yolo';
+
+/** Default Run Mode for newly created sessions. Pi's native default is YOLO. */
+export const DEFAULT_PERMISSION_PRESET: PermissionPreset = 'yolo';
 
 /**
  * Approval scope for a permission prompt (ADR 0024 §4).
@@ -96,6 +99,15 @@ export type PermissionConfig = {
 };
 
 export function createDefaultPermissionConfig(): PermissionConfig {
+  return { mode: 'bypass', preset: DEFAULT_PERMISSION_PRESET };
+}
+
+/**
+ * Conservative fallback for a present but malformed permissions block.
+ * Missing configuration uses Pi-compatible YOLO; invalid configuration must
+ * not silently increase privileges.
+ */
+export function createSafeFallbackPermissionConfig(): PermissionConfig {
   return { mode: 'auto', preset: 'auto' };
 }
 
