@@ -50,4 +50,13 @@ describe('desktop locale preference', () => {
     expect(getDesktopCopy('en').sidebar.displayOptions).toBe('Display options');
     expect(getDesktopCopy('en').appearance.conversationWidth).toBe('Conversation Width');
   });
+
+  it('provides interruption copy in both display languages', () => {
+    expect(getDesktopCopy('zh-CN').interruption.agentWaiting).toBe('Agent 正等待你的回答');
+    expect(getDesktopCopy('zh-CN').interruption.cancelQuestion).toBe('取消问题');
+    expect(getDesktopCopy('zh-CN').interruption.allowForSession).toBe('允许本次会话');
+    expect(getDesktopCopy('en').interruption.agentWaiting).toBe('Agent is waiting for your answer');
+    expect(getDesktopCopy('en').interruption.cancelQuestion).toBe('Cancel question');
+    expect(getDesktopCopy('en').interruption.allowForSession).toBe('Allow for this session');
+  });
 });

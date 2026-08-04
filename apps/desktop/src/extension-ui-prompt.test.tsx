@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { ExtensionUiPrompt, type ExtensionUiPromptProps } from './extension-ui-prompt';
+import { DesktopLocaleProvider } from './desktop-locale-context';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -17,18 +18,22 @@ const baseProps: ExtensionUiPromptProps = {
     options: ['Fix the bug', 'Improve the UI', 'Other'],
   },
   onResolve: vi.fn(),
-  onAbort: vi.fn(),
 };
 
-function renderPrompt(props: ExtensionUiPromptProps): { container: HTMLElement; root: Root } {
+function renderPrompt(
+  props: ExtensionUiPromptProps,
+  locale: 'zh-CN' | 'en' = 'en',
+): { container: HTMLElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
   const root = createRoot(container);
   act(() => {
     root.render(
-      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-        <ExtensionUiPrompt {...props} />
-      </PiwinUiProvider>,
+      <DesktopLocaleProvider locale={locale} onLocaleChange={() => undefined}>
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ExtensionUiPrompt {...props} />
+        </PiwinUiProvider>
+      </DesktopLocaleProvider>,
     );
   });
   return { container, root };
@@ -51,7 +56,14 @@ describe('ExtensionUiPrompt', () => {
     container = null;
   });
 
-  it('renders select choices inline and resolves the selected value', () => {
+  it('renders null when request is null', () => {
+    const rendered = renderPrompt({ ...baseProps, request: null });
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('[data-testid="extension-ui-prompt"]')).toBeNull();
+  });
+
+  it('renders select choices and resolves the selected value', () => {
     const onResolve = vi.fn();
     const rendered = renderPrompt({ ...baseProps, onResolve });
     root = rendered.root;
@@ -70,33 +82,97 @@ describe('ExtensionUiPrompt', () => {
     expect(onResolve).toHaveBeenCalledWith({ value: 'Improve the UI' });
   });
 
-  it('uses the same prompt surface for Other input and exposes cancel and stop', () => {
+  it('uses native group semantics, not incomplete listbox', () => {
+    const rendered = renderPrompt(baseProps);
+    root = rendered.root;
+    container = rendered.container;
+
+    const group = container.querySelector('.agent-interruption-choices');
+    expect(group?.getAttribute('role')).toBe('group');
+    // No role="option" buttons — they are plain buttons now
+    expect(container.querySelector('[role="option"]')).toBeNull();
+  });
+
+  it('does not render a Stop run button (composer owns Stop)', () => {
+    const rendered = renderPrompt(baseProps);
+    root = rendered.root;
+    container = rendered.container;
+    expect(container.querySelector('[data-testid="extension-ui-stop"]')).toBeNull();
+  });
+
+  it('renders cancel for select and resolves cancelled', () => {
     const onResolve = vi.fn();
-    const onAbort = vi.fn();
+    const rendered = renderPrompt({ ...baseProps, onResolve });
+    root = rendered.root;
+    container = rendered.container;
+
+    const cancel = container.querySelector<HTMLButtonElement>(
+      '[data-testid="extension-ui-cancel"]',
+    );
+    expect(cancel).not.toBeNull();
+    act(() => {
+      cancel?.click();
+    });
+    expect(onResolve).toHaveBeenCalledWith({ cancelled: true, confirmed: false });
+  });
+
+  it('renders confirm with Continue and Cancel (not Allow/Deny)', () => {
+    const onResolve = vi.fn();
     const rendered = renderPrompt({
       ...baseProps,
       onResolve,
-      onAbort,
       request: {
         sessionId: 'session-1',
-        requestId: 'request-1',
-        kind: 'input',
-        title: 'Tell me what to do instead',
-        placeholder: 'Describe the task',
+        requestId: 'request-2',
+        kind: 'confirm',
+        title: 'Proceed with refactoring?',
       },
     });
     root = rendered.root;
     container = rendered.container;
 
-    expect(container.textContent).toContain('Type your answer in the composer below');
-    expect(container.querySelector('[data-testid="extension-ui-option"]')).toBeNull();
+    const allowBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="extension-ui-allow"]',
+    );
+    const denyBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="extension-ui-deny"]',
+    );
+    expect(allowBtn?.textContent).toBe('Continue');
+    expect(denyBtn?.textContent).toBe('Cancel');
 
     act(() => {
-      container?.querySelector<HTMLButtonElement>('[data-testid="extension-ui-cancel"]')?.click();
-      container?.querySelector<HTMLButtonElement>('[data-testid="extension-ui-stop"]')?.click();
+      allowBtn?.click();
     });
+    expect(onResolve).toHaveBeenCalledWith({ confirmed: true });
+  });
 
-    expect(onResolve).toHaveBeenCalledWith({ cancelled: true, confirmed: false });
-    expect(onAbort).toHaveBeenCalledTimes(1);
+  it('renders input hint in description, no option buttons', () => {
+    const rendered = renderPrompt({
+      ...baseProps,
+      request: {
+        sessionId: 'session-1',
+        requestId: 'request-3',
+        kind: 'input',
+        title: 'Describe the task',
+        placeholder: 'Type your answer',
+      },
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="extension-ui-option"]')).toBeNull();
+    expect(container.textContent).toContain('Answer in the composer below');
+  });
+
+  it('renders localized Chinese copy', () => {
+    const rendered = renderPrompt(baseProps, 'zh-CN');
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.textContent).toContain('Agent 正等待你的回答');
+    const cancel = container.querySelector<HTMLButtonElement>(
+      '[data-testid="extension-ui-cancel"]',
+    );
+    expect(cancel?.textContent).toBe('取消问题');
   });
 });

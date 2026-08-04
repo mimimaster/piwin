@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { PermissionBar } from './permission-bar';
+import { DesktopLocaleProvider } from './desktop-locale-context';
 import type { PermissionPromptUi } from './chat-reducer';
 import type { PermissionDecision, PermissionRememberScope } from '@piwin/contracts';
 
@@ -26,13 +27,15 @@ function Harness(props: {
   onPermission: (decision: PermissionDecision, rememberScope?: PermissionRememberScope) => void;
 }): ReactElement {
   return (
-    <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-      <PermissionBar
-        prompt={props.prompt}
-        projectPath={props.projectPath}
-        onPermission={props.onPermission}
-      />
-    </PiwinUiProvider>
+    <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
+      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <PermissionBar
+          prompt={props.prompt}
+          projectPath={props.projectPath}
+          onPermission={props.onPermission}
+        />
+      </PiwinUiProvider>
+    </DesktopLocaleProvider>
   );
 }
 
@@ -53,14 +56,14 @@ describe('PermissionBar', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = undefined;
   });
 
-  it('renders the permission bar with action label', () => {
+  it('renders the permission bar with subject label', () => {
     act(() =>
       root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={vi.fn()} />),
     );
     const bar = container.querySelector('[data-testid="permission-bar"]');
     expect(bar).not.toBeNull();
-    const actionEl = bar?.querySelector('.permission-bar-action');
-    expect(actionEl?.textContent).toContain('bash:ls');
+    const title = bar?.querySelector('.agent-interruption-title');
+    expect(title?.textContent).toContain('bash:ls');
   });
 
   it('fires allow-session with rememberScope "session"', () => {
@@ -94,7 +97,9 @@ describe('PermissionBar', () => {
     act(() =>
       root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={onPermission} />),
     );
-    const btn = container.querySelector<HTMLButtonElement>('[data-testid="permission-bar-deny"]');
+    const btn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="permission-bar-deny"]',
+    );
     expect(btn).not.toBeNull();
     act(() => btn?.click());
     expect(onPermission).toHaveBeenCalledWith('deny');
@@ -136,11 +141,38 @@ describe('PermissionBar', () => {
     act(() =>
       root.render(<Harness prompt={commandPrompt} projectPath="/repo" onPermission={vi.fn()} />),
     );
-    expect(container.querySelector('[data-testid="permission-bar-detail"]')).toBeNull();
+   // Non-destructive: details start collapsed
+    // Collapse keeps children in DOM (keepMounted); check aria-expanded instead.
+   const toggle = container.querySelector<HTMLButtonElement>(
+     '[data-testid="permission-bar-toggle"]',
+   );
+   expect(toggle).not.toBeNull();
+   expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+   act(() => toggle?.click());
+   expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('starts expanded for destructive context', () => {
+    const destructivePrompt: PermissionPromptUi = {
+      ...basePrompt,
+      action: 'bash:rm -rf /',
+      detail: 'rm -rf /',
+      context: {
+        kind: 'command',
+        summary: 'bash: rm -rf /',
+        command: 'rm -rf /',
+        destructive: true,
+      },
+    };
+    act(() =>
+      root.render(
+        <Harness prompt={destructivePrompt} projectPath="/repo" onPermission={vi.fn()} />,
+      ),
+    );
     const toggle = container.querySelector<HTMLButtonElement>(
       '[data-testid="permission-bar-toggle"]',
     );
-    act(() => toggle?.click());
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
     expect(container.querySelector('[data-testid="permission-bar-detail"]')).not.toBeNull();
   });
 
@@ -162,6 +194,20 @@ describe('PermissionBar', () => {
       ),
     );
     const bar = container.querySelector('[data-testid="permission-bar"]');
-    expect(bar?.classList.contains('is-danger')).toBe(true);
+    expect(bar?.classList.contains('agent-interruption--danger')).toBe(true);
+  });
+
+  it('uses localized labels', () => {
+    act(() =>
+      root.render(<Harness prompt={basePrompt} projectPath="/repo" onPermission={vi.fn()} />),
+    );
+    const sessionBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="permission-bar-allow-session"]',
+    );
+    expect(sessionBtn?.textContent).toBe('Allow for this session');
+    const denyBtn = container.querySelector<HTMLButtonElement>(
+      '[data-testid="permission-bar-deny"]',
+    );
+    expect(denyBtn?.textContent).toBe('Deny');
   });
 });

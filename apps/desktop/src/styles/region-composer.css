@@ -147,25 +147,18 @@
   white-space: nowrap;
 }
 
-/* ─── Permission bar (docked above composer, ADR 0024) ──────────────── */
+/* ─── Agent interruption dock (shared shell, ADR 0023 + 0024) ──────── */
 
-.permission-bar {
-  width: auto;
-  margin: 0 var(--chat-side-pad, 20px) 6px;
-  border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 40%, var(--line));
+.agent-interruption {
+  width: var(--chat-max);
+  max-width: 100%;
+  margin: 0 auto 6px;
   border-radius: 10px 10px 0 0;
-  background: color-mix(in srgb, var(--warn, #f59e0b) 6%, var(--card, #fff));
-  box-shadow: 0 -1px 8px rgba(0, 0, 0, 0.04);
   overflow: hidden;
-  animation: permission-bar-slide-in 180ms ease-out;
+  animation: agent-interruption-slide-in 180ms ease-out;
 }
 
-.permission-bar.is-danger {
-  border-color: color-mix(in srgb, var(--danger, #ef4444) 50%, var(--line));
-  background: color-mix(in srgb, var(--danger, #ef4444) 8%, var(--card, #fff));
-}
-
-@keyframes permission-bar-slide-in {
+@keyframes agent-interruption-slide-in {
   from {
     opacity: 0;
     transform: translateY(8px);
@@ -176,101 +169,159 @@
   }
 }
 
-.permission-bar-head {
+/* Tone variants — question is neutral, warning is amber, danger is red. */
+.agent-interruption--question {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
+  background: color-mix(in srgb, var(--accent) 4%, var(--card, #fff));
+}
+
+.agent-interruption--warning {
+  border-color: color-mix(in srgb, var(--warn, #f59e0b) 40%, var(--line));
+  background: color-mix(in srgb, var(--warn, #f59e0b) 6%, var(--card, #fff));
+}
+
+.agent-interruption--danger {
+  border-color: color-mix(in srgb, var(--danger, #ef4444) 50%, var(--line));
+  background: color-mix(in srgb, var(--danger, #ef4444) 8%, var(--card, #fff));
+}
+
+/* ── Header ── */
+
+.agent-interruption-header {
+  padding: 10px 14px 6px;
+}
+
+.agent-interruption-title {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.agent-interruption-description {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* ── Content area ── */
+
+.agent-interruption-content {
+  padding: 0 14px 10px;
+}
+
+/* ── Question choices ── */
+
+.agent-interruption-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.agent-interruption-choice {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   padding: 8px 12px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 100ms ease;
-}
-
-.permission-bar-head:hover {
-  background: color-mix(in srgb, var(--warn, #f59e0b) 8%, transparent);
-}
-
-.permission-bar.is-danger .permission-bar-head:hover {
-  background: color-mix(in srgb, var(--danger, #ef4444) 8%, transparent);
-}
-
-.permission-bar-icon {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  color: var(--warn, #f59e0b);
-}
-
-.permission-bar.is-danger .permission-bar-icon {
-  color: var(--danger, #ef4444);
-}
-
-.permission-bar-action {
-  flex: 1;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.permission-bar-toggle {
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: none;
-  border-radius: 4px;
+  border: 1px solid var(--line-soft, transparent);
+  border-radius: var(--radius-control, 8px);
   background: transparent;
-  color: var(--muted);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
   cursor: pointer;
   transition:
-    background 100ms ease,
-    color 100ms ease;
+    background 120ms ease,
+    border-color 120ms ease;
 }
 
-.permission-bar-toggle:hover {
-  background: var(--surface-hover);
+.agent-interruption-choice:hover {
+ border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  background: var(--surface-hover, rgba(0, 0, 0, 0.03));
+}
+
+.agent-interruption-choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* ── Action row (confirm / permission) ── */
+
+.agent-interruption-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* ── Footer (cancel question) ── */
+
+.agent-interruption-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+/* ── Permission disclosure button ── */
+
+.permission-bar-disclosure {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+ font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: color 100ms ease;
+}
+
+.permission-bar-disclosure:hover {
   color: var(--text);
 }
 
-.permission-bar-chevron {
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid currentColor;
+.permission-bar-disclosure .permission-bar-chevron {
   transition: transform 160ms ease;
+  font-size: 14px;
 }
 
-.permission-bar-chevron.is-expanded {
+.permission-bar-disclosure .permission-bar-chevron.is-expanded {
   transform: rotate(180deg);
 }
 
-.permission-bar-detail {
-  padding: 0 12px 8px;
+/* ── Permission detail panel ── */
+
+.permission-bar-detail-inner {
+  padding: 6px 0 4px;
   border-top: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
-  margin-top: 2px;
-  padding-top: 8px;
+  margin-top: 4px;
 }
 
-.permission-bar-detail .permission-facts {
+.permission-bar-detail-inner .permission-facts {
   margin: 0;
 }
 
-.permission-bar-detail .permission-detail {
+.permission-bar-detail-inner .permission-detail {
   font-size: 12px;
   max-height: 180px;
   overflow-y: auto;
 }
 
+/* ── Permission action buttons ── */
+
 .permission-bar-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
-  padding: 6px 12px 8px;
+  margin-top: 8px;
 }
 
 .permission-bar-actions button {
