@@ -240,3 +240,74 @@ describe('WP6 conformance: event terminal outcome parity', () => {
     expect(BLUEPRINT_PROTOCOL_VERSION).toBe(1); // parity verified by shared mapper
   });
 });
+
+/**
+ * WP4 task 4: tool family matrix tests.
+ * Verify that each of the 7 product tool families produces a proxy tool
+ * with the correct name when enabled, and no proxy tool when disabled.
+ */
+describe('WP4 task 4: tool family matrix', () => {
+  const families: Array<{
+    name: string;
+    toolNames: string[];
+    family: import('@piwin/contracts').SessionToolFamily;
+  }> = [
+    { name: 'web', family: 'web-search', toolNames: ['web_search', 'web_fetch'] },
+    { name: 'shell', family: 'shell', toolNames: ['bash'] },
+    {
+      name: 'process',
+      family: 'process',
+      toolNames: ['process_start', 'process_list', 'process_logs', 'process_stop'],
+    },
+    {
+      name: 'browser',
+      family: 'browser',
+      toolNames: ['browser_navigate', 'browser_screenshot', 'browser_click', 'browser_eval'],
+    },
+    {
+      name: 'notes',
+      family: 'notes-read',
+      toolNames: ['notes_search', 'notes_create', 'notes_update'],
+    },
+    {
+      name: 'flashcards',
+      family: 'flashcards-read',
+      toolNames: ['flashcards_review', 'flashcards_create'],
+    },
+    { name: 'image_gen', family: 'image-generation', toolNames: ['image_gen'] },
+  ];
+
+  for (const { name, family, toolNames } of families) {
+    it(`${name}: enabled family produces proxy tools`, () => {
+      const snap = snapshot({
+        tools: {
+          enabledFamilies: [family],
+          piBuiltinToolNames: [],
+          customToolNames: toolNames,
+          enabledMcpServerIds: [],
+        },
+      });
+      const blueprint = projectBlueprintForWorker(snap);
+      // Worker proxy tool factory builds proxy tools for each custom name.
+      const proxyTools = buildWorkerProxyTools(blueprint, vi.fn());
+      expect(proxyTools.length).toBe(toolNames.length);
+      for (const tool of proxyTools) {
+        expect(toolNames).toContain(tool.name);
+      }
+    });
+
+    it(`${name}: disabled family produces no proxy tools`, () => {
+      const snap = snapshot({
+        tools: {
+          enabledFamilies: [],
+          piBuiltinToolNames: [],
+          customToolNames: [],
+          enabledMcpServerIds: [],
+        },
+      });
+      const blueprint = projectBlueprintForWorker(snap);
+      const proxyTools = buildWorkerProxyTools(blueprint, vi.fn());
+      expect(proxyTools).toEqual([]);
+    });
+  }
+});

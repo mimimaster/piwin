@@ -64,7 +64,16 @@ rl.on('line', (line: string) => {
 });
 
 rl.on('close', () => {
+  // Graceful shutdown signal (Phase 7 plan §4.1).
+  writeLine({ type: 'shutdown', reason: 'parent-dispose' });
   process.exit(0);
+});
+
+// Fatal error handler — emit shutdown before exiting.
+process.on('uncaughtException', (error) => {
+  process.stderr.write(`[worker] uncaught: ${error.message}\n`);
+  writeLine({ type: 'shutdown', reason: 'worker-fatal' });
+  process.exit(1);
 });
 
 process.stdin.resume();

@@ -88,9 +88,15 @@ export class PiRpcAdapter implements AgentHost {
   /**
    * Phase 7 WP5: true when product sessions run via the worker backend
    * (piwin-owned worker process with tool proxying + real isolation).
+   * Falls back to SDK when PIWIN_RPC_SDK_FALLBACK=1 (§10.1 temporary flag).
    */
   usesWorkerBackend(): boolean {
     if (this.options.mock || process.env.PIWIN_MOCK === '1') {
+      return false;
+    }
+    // §10.1: PIWIN_RPC_SDK_FALLBACK=1 forces old in-process SDK path
+    // even when worker is enabled. Used during rollout for emergency fallback.
+    if (process.env.PIWIN_RPC_SDK_FALLBACK === '1') {
       return false;
     }
     if (process.env.PIWIN_RPC_WORKER === '1') {

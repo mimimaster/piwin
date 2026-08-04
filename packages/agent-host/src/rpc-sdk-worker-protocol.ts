@@ -92,8 +92,15 @@ export type WorkerHelloFrame = {
   };
 };
 
+/** Worker → parent: graceful shutdown signal (§4.1). */
+export type WorkerShutdownFrame = {
+  type: 'shutdown';
+  reason: 'parent-dispose' | 'worker-fatal' | 'protocol-error';
+};
+
 /** Union of all worker → parent frames. */
-export type WorkerFrame = WorkerResponse | WorkerEvent | WorkerToolCallFrame | WorkerHelloFrame;
+export type WorkerFrame =
+  WorkerResponse | WorkerEvent | WorkerToolCallFrame | WorkerHelloFrame | WorkerShutdownFrame;
 
 /** Payload variants for worker requests. */
 export type WorkerRequestPayload =
@@ -167,6 +174,14 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
       }
       if (parsed.type === 'hello' && parsed.protocolVersion === 1) {
         return parsed as WorkerHelloFrame;
+      }
+      if (
+        parsed.type === 'shutdown' &&
+        (parsed.reason === 'parent-dispose' ||
+          parsed.reason === 'worker-fatal' ||
+          parsed.reason === 'protocol-error')
+      ) {
+        return parsed as WorkerShutdownFrame;
       }
     }
     return undefined;

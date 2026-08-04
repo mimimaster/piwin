@@ -40,6 +40,8 @@ export class WorkerRpcSessionBackend implements PiSessionBackend {
   private client: RpcSdkWorkerClient | null = null;
   private readonly sessions = new Map<string, ActiveSession>();
   private readonly options: WorkerRpcSessionBackendOptions;
+  private disposing = false;
+  private startupError: Error | null = null;
 
   constructor(options: WorkerRpcSessionBackendOptions) {
     this.options = options;
@@ -59,13 +61,42 @@ export class WorkerRpcSessionBackend implements PiSessionBackend {
         ...(this.options.toolRouter ? { toolRouter: this.options.toolRouter } : {}),
       };
       this.client = new RpcSdkWorkerClient(clientOptions);
-      this.client.start();
+      // Crash semantics (§9.3): when the worker exits unexpectedly,
+      // all active sessions are marked as failed with a terminal error event.
+      this.client.on('exit', (code: number | null) => {
+        const wasIntentional = this.disposing;
+        for (const [sessionId, session] of this.sessions) {
+          if (!wasIntentional) {
+            // Emit a terminal error event so the UI knows the session is dead.
+            session.listeners.emit('event', {
+              type: 'run/terminal',
+              sessionId,
+              runId: 'worker-crash',
+              outcome: 'failed' as const,
+              at: new Date().toISOString(),
+              code: 'host-shutdown' as const,
+              message: `worker process exited (code ${code}); session failed`,
+            } as AgentEvent);
+          }
+          session.listeners.removeAllListeners();
+        }
+        this.sessions.clear();
+        this.client = null;
+      });
+      void this.client.start().catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        // Hello timeout or protocol mismatch — surface to caller.
+        this.startupError = new Error(`worker start failed: ${message}`);
+      });
     }
     return this.client;
   }
 
   async createSession(input: CreateBackendSessionInput): Promise<BackendSessionHandle> {
     const client = this.ensureClient();
+    if (this.startupError) {
+      throw this.startupError;
+    }
     const created = await client.createSession({
       productSessionId: input.productSessionId,
       blueprint: input.serializable,
@@ -124,6 +155,7 @@ export class WorkerRpcSessionBackend implements PiSessionBackend {
   }
 
   async dispose(): Promise<void> {
+    this.disposing = true;
     for (const sessionId of this.sessions.keys()) {
       await this.dropSession(sessionId);
     }

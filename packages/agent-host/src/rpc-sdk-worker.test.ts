@@ -75,6 +75,15 @@ describe('parseWorkerFrame', () => {
     expect(frame?.type).toBe('hello');
   });
 
+  it('parses a shutdown frame (Phase 7 §4.1)', () => {
+    const line = JSON.stringify({ type: 'shutdown', reason: 'parent-dispose' });
+    const frame = parseWorkerFrame(line);
+    expect(frame?.type).toBe('shutdown');
+    if (frame?.type === 'shutdown') {
+      expect(frame.reason).toBe('parent-dispose');
+    }
+  });
+
   it('returns undefined for malformed JSON', () => {
     expect(parseWorkerFrame('not json')).toBeUndefined();
   });
