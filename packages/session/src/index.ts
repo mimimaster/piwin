@@ -44,6 +44,34 @@ export type {
 } from './duplicate-session.js';
 
 export {
+  cloneTranscript,
+  rewriteAttachmentPaths,
+  collectAttachmentPaths,
+} from './clone-session-transcript.js';
+export type {
+  CloneTranscriptOptions,
+  CloneTranscriptResult,
+} from './clone-session-transcript.js';
+
+export {
+  forkProductSession,
+  buildForkSessionName,
+  ForkValidationError,
+} from './fork-session.js';
+export type {
+  ForkSessionPaths,
+  ForkSessionInput,
+  ForkSessionResult,
+} from './fork-session.js';
+
+export {
+  getSessionLineage,
+  countDirectForks,
+  getDirectForkNames,
+} from './session-lineage.js';
+export type { SessionLineagePaths } from './session-lineage.js';
+
+export {
   loadSessionTranscript,
   saveSessionTranscript,
   saveSessionTranscriptAtomic,
