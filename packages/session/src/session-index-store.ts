@@ -4,6 +4,8 @@ import type {
   SessionIndexDocument,
   SessionIndexRecord,
   SessionScope,
+  SideChatContextSnapshot,
+  SideChatRelation,
   SubagentLifecycleState,
   SubagentRuntimeSnapshot,
 } from '@piwin/contracts';
@@ -150,6 +152,10 @@ export async function listSessionsForProject(
 
   return sortSessionRecords(
     document.sessions.filter((item) => {
+      // Side chats never surface in the main session list (SIDE-D9).
+      if (item.kind === 'side-chat') {
+        return false;
+      }
       if (!matchesScope(item)) {
         return false;
       }
@@ -199,7 +205,10 @@ export function createSessionRecord(input: {
   piSessionFile?: string;
   parentSessionId?: string;
   depth?: number;
-  kind?: 'main' | 'subagent';
+  kind?: SessionIndexRecord['kind'];
+  /** SIDE: relation + snapshot for side-chat records (kind: 'side-chat'). */
+  sideChatRelation?: SideChatRelation;
+  sideChatContext?: SideChatContextSnapshot;
   subagentStatus?: SessionIndexRecord['subagentStatus'];
   task?: string;
   subagentMode?: SessionIndexRecord['subagentMode'];
@@ -252,6 +261,12 @@ export function createSessionRecord(input: {
   }
   if (input.kind) {
     record.kind = input.kind;
+  }
+  if (input.sideChatRelation) {
+    record.sideChatRelation = input.sideChatRelation;
+  }
+  if (input.sideChatContext) {
+    record.sideChatContext = input.sideChatContext;
   }
   if (input.subagentStatus) {
     record.subagentStatus = input.subagentStatus;
