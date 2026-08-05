@@ -119,6 +119,12 @@ export type MediaAttachmentRef = {
 export type PromptInput = {
   text: string;
   attachments?: PromptAttachment[];
+  /**
+   * Structured context references (SIDE spec §8.2). Host resolves these
+   * during prompt preparation; the user transcript keeps the original text +
+   * refs and never treats resolved context as handwritten content.
+   */
+  contextRefs?: import('./side-chat.js').PromptContextRef[];
   /** Per-turn model for this prompt only (not a synthetic chat message). */
   model?: ModelRef;
   /** Per-turn thinking level for this prompt only. */
@@ -161,6 +167,13 @@ export type CreateSessionInput = {
   /** Optional agent cwd override (worktree path). Defaults to projectPath / workspace. */
   cwd?: string;
   /**
+   * Internal: product session kind. `side-chat` is created only through the
+   * `side-chat/open` command; apps must not assemble side relations via bare
+   * `session/create`. Absent means a regular main session.
+   * @internal
+   */
+  sessionKind?: 'main' | 'side-chat';
+  /**
    * Internal: immutable runtime snapshot captured at child creation. Used by
    * the Host to resume a child with its original model/thinking/capabilities/
    * skills/cwd. Model-facing callers must not supply or mutate this field.
@@ -196,7 +209,9 @@ export type SessionSummary = {
   lastPreview?: string;
   parentSessionId?: string;
   depth?: number;
-  kind?: 'main' | 'subagent';
+  kind?: 'main' | 'subagent' | 'side-chat';
+  /** SIDE: product relation binding this session to its source main session. */
+  sideChatRelation?: import('./side-chat.js').SideChatRelation;
   subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
   task?: string;
   /** ISO time when child summary was merged into parent transcript. */

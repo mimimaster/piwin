@@ -27,6 +27,7 @@ export * from './theme.js';
 export * from './pet.js';
 export * from './session-transcript.js';
 export * from './session-origin.js';
+export * from './side-chat.js';
 export * from './plan.js';
 export * from './plan-execution.js';
 export * from './usage.js';
