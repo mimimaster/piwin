@@ -67,6 +67,41 @@
   display: none;
 }
 
+/* ─── Floating scrollbar (overlay, no layout space) ─────────────────── */
+/* Replaces the native scrollbar which was removed from .chat-stream so the
+   centered content column stays aligned with the composer dock. This track
+   floats above the content at the right edge of the transcript viewport. */
+.chat-stream-floating-scrollbar {
+  position: absolute;
+  top: 8px;
+  bottom: 36px; /* clear the bottom blur fade */
+  right: 4px;
+  width: 6px;
+  z-index: 6; /* above content (z:1) and fade overlays (z:5), below menus */
+  pointer-events: none;
+}
+
+.chat-stream-floating-scrollbar-thumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+  opacity: 0.6;
+  transition:
+    opacity 200ms ease,
+    background 200ms ease;
+}
+
+.chat-stream-floating-scrollbar:hover .chat-stream-floating-scrollbar-thumb {
+  opacity: 1;
+  background: color-mix(in srgb, var(--text) 32%, transparent);
+}
+
+.chat-column-empty .chat-stream-floating-scrollbar {
+  display: none;
+}
+
 /* ─── History Ticks Drawer (Translucent Scale Bar & Drawer) ──────────────── */
 
 .history-ticks-drawer {
@@ -384,20 +419,18 @@
      .chat-thread so the Default / Narrow / Wide setting changes the
      content column itself rather than only its surrounding padding. */
   overflow-y: auto;
-  overflow-y: overlay;
   padding: 0 var(--chat-inline-pad, 24px) 12px;
   background: transparent;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent;
+  /* Overlay scrollbar: hide native scrollbar so it doesn't take layout
+     space. This keeps the centered --chat-max column aligned with the
+     composer dock below. A custom floating scrollbar is rendered by the
+     transcript-viewport overlay (see .chat-stream-scroll-indicator below). */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .chat-stream::-webkit-scrollbar {
-  width: 8px;
-}
-
-.chat-stream::-webkit-scrollbar-thumb {
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--text) 16%, transparent);
+  display: none;
 }
 
 .chat-thread {
@@ -1940,7 +1973,7 @@ html[data-theme-mode='dark'] .bubble.role-user {
 }
 
 .user-message-time {
-  font-size: 11px;
+  font-size: 18px !important;
   font-family: var(--font-mono, monospace), sans-serif;
   color: var(--muted);
   opacity: 0.85;

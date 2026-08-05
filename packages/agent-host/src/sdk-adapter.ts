@@ -10,6 +10,8 @@ import type {
   SessionSummary,
 } from '@piwin/contracts';
 import { resolvePreset } from '@piwin/contracts';
+import { resolveArtifactDecisionPrompt } from '@piwin/contracts';
+import { ARTIFACT_RUNTIME_CONTRACT } from './artifact-runtime-contract.js';
 import {
   createSessionRecord,
   getSessionRecord,
@@ -858,6 +860,8 @@ async function createPiSdkSession(
   const disabledExtensionIds = config.extensions?.disabledIds ?? [];
   const extraPromptPaths = config.prompts?.extraPaths ?? [];
   const disabledPromptIds = config.prompts?.disabledIds ?? [];
+  // ADR 0029: resolve artifact system prompt (decision + runtime contract).
+  const artifactAppendPrompt = buildArtifactSystemPrompt(config);
   const { resourceLoader, skillPaths, extensionPaths, promptPaths } = await createPiResourceLoader({
     cwd: agentCwd,
     agentDir,
@@ -873,6 +877,8 @@ async function createPiSdkSession(
     ...(disabledPromptIds.length > 0 ? { disabledPromptIds } : {}),
     // CE-SUB-PROF: profile skill allowlist (intersected with globally enabled skills).
     ...(input.subagent?.skillIds ? { allowedSkillIds: input.subagent.skillIds } : {}),
+    // ADR 0029: inject artifact decision + runtime contract as append-system prompt.
+    ...(artifactAppendPrompt ? { appendSystemPrompt: artifactAppendPrompt } : {}),
   });
 
   const sessionOptions: Record<string, unknown> = {
@@ -1271,4 +1277,17 @@ export function createSdkAdapterFromHostOptions(
     sdkOptions.mock = mock;
   }
   return new PiSdkAdapter(sdkOptions);
+}
+/**
+ * Builds the complete artifact system prompt (decision policy + runtime contract)
+ * when artifacts are enabled. Returns undefined when artifacts are disabled.
+ */
+function buildArtifactSystemPrompt(
+  config: Awaited<ReturnType<typeof loadPiwinConfig>>,
+): string | undefined {
+  if (!config.artifact.enabled) {
+    return undefined;
+  }
+  const decisionPrompt = resolveArtifactDecisionPrompt(config.artifact);
+  return `${decisionPrompt}\n\n${ARTIFACT_RUNTIME_CONTRACT}`;
 }

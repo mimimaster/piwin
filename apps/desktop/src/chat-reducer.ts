@@ -193,6 +193,12 @@ export type ChatUiState = {
    * Cleared on session switch so stale artifacts never leak across sessions.
    */
   walkthroughsByMessageId: Record<string, WalkthroughArtifact>;
+  /**
+   * Session IDs that currently have an active run (streaming / tool-running).
+   * Survives session switches so the sidebar can show a working indicator
+   * on sessions that are running in the background.
+   */
+  workingSessionIds: Record<string, true>;
 };
 
 export type ChatUiAction =
@@ -210,6 +216,8 @@ export type ChatUiAction =
       sessionId: string;
       messages: SessionTranscriptMessage[];
       outline?: SessionOutlineNode[];
+      /** When true, the resumed session has an active run — mark it as working. */
+      live?: boolean;
     }
   | { type: 'session/update'; session: SessionListItemUi }
   | { type: 'session/remove'; sessionId: string }
@@ -309,6 +317,7 @@ export function createInitialChatUiState(): ChatUiState {
     subagentBatches: {},
     subagentTaskResults: {},
     walkthroughsByMessageId: {},
+    workingSessionIds: {},
   };
 }
 
@@ -489,6 +498,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         // before load-messages) already clears it, and a walkthrough/list
         // response may resolve before load-messages is dispatched — clearing
         // here would wipe the freshly-hydrated map.
+        workingSessionIds: action.live
+          ? { ...state.workingSessionIds, [action.sessionId]: true }
+          : { ...state.workingSessionIds },
       };
     }
     case 'session/add': {
@@ -742,6 +754,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         streaming: true,
         runTerminal: { kind: 'none' },
         error: null,
+        workingSessionIds: state.activeSessionId
+          ? { ...state.workingSessionIds, [state.activeSessionId]: true }
+          : state.workingSessionIds,
       };
     }
     case 'run/aborting':
@@ -1180,6 +1195,19 @@ function recordEventEnvelope(
   return recordEnvelope(state, envelope);
 }
 
+/** Remove a session ID from the working set, returning a new record. */
+function removeWorkingSessionId(
+  working: Record<string, true>,
+  sessionId: string | null,
+): Record<string, true> {
+  if (!sessionId || !(sessionId in working)) {
+    return working;
+  }
+  const next = { ...working };
+  delete next[sessionId];
+  return next;
+}
+
 function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
   switch (event.type) {
     case 'message/start': {
@@ -1293,6 +1321,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         lastTerminalRunId: null,
         streaming: false,
         runTerminal: hasRunningTool ? next.runTerminal : { kind: 'complete', at: Date.now() },
+        workingSessionIds: removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
       };
     }
     case 'session/aborted': {
@@ -1318,6 +1347,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         lastTerminalRunId: event.runId ?? null,
         streaming: false,
         runTerminal: { kind: 'stopped', at: Date.now() },
+        workingSessionIds: removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
       };
     }
     case 'tool/start': {

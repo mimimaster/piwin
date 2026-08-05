@@ -1,5 +1,7 @@
 /**
  * Follow-tail / jump-to-latest scroll presentation state for the transcript.
+ * Also exposes scrollProgress (0–1) for a floating scrollbar indicator
+ * that overlays the content without taking layout space.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -9,11 +11,28 @@ export type TranscriptScrollState = {
   followTail: boolean;
   unreadActivityCount: number;
   showJumpToLatest: boolean;
+  /** Fraction of content scrolled from top (0) to bottom (1). */
+  scrollProgress: number;
+  /** Visible-to-content height ratio; drives the floating thumb height. */
+  scrollRatio: number;
 };
 
 export function isNearBottom(element: HTMLElement, thresholdPx = BOTTOM_THRESHOLD_PX): boolean {
   const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
   return remaining <= thresholdPx;
+}
+
+export function computeScrollProgress(element: HTMLElement): {
+  progress: number;
+  ratio: number;
+} {
+  const maxScroll = element.scrollHeight - element.clientHeight;
+  if (maxScroll <= 0) {
+    return { progress: 1, ratio: 1 };
+  }
+  const progress = Math.min(1, Math.max(0, element.scrollTop / maxScroll));
+  const ratio = Math.min(1, element.clientHeight / element.scrollHeight);
+  return { progress, ratio };
 }
 
 export function useTranscriptScroll(options: {
@@ -23,6 +42,8 @@ export function useTranscriptScroll(options: {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [followTail, setFollowTail] = useState(true);
   const [unreadActivityCount, setUnreadActivityCount] = useState(0);
+  const [scrollProgress, setScrollProgress] = useState(1);
+  const [scrollRatio, setScrollRatio] = useState(1);
   const previousSignalRef = useRef(options.activitySignal);
 
   const jumpToLatest = useCallback(() => {
@@ -44,6 +65,9 @@ export function useTranscriptScroll(options: {
     if (nearBottom) {
       setUnreadActivityCount(0);
     }
+    const { progress, ratio } = computeScrollProgress(element);
+    setScrollProgress(progress);
+    setScrollRatio(ratio);
   }, []);
 
   useEffect(() => {
@@ -76,5 +100,7 @@ export function useTranscriptScroll(options: {
     jumpToLatest,
     handleScroll,
     setFollowTail,
+    scrollProgress,
+    scrollRatio,
   };
 }

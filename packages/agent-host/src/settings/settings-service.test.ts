@@ -34,7 +34,7 @@ describe('createSettingsSnapshot', () => {
       agentMock: false,
       providers: [],
       media: { maxPasteBytes: 100, allowedMimeTypes: ['image/png'] },
-      artifact: { maxBytes: 100, htmlUiModeDefault: false },
+      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100 },
     };
     const snapshotOne = createSettingsSnapshot(base);
     const snapshotTwo = createSettingsSnapshot(base);
@@ -50,7 +50,7 @@ describe('createSettingsSnapshot', () => {
       agentMock: false,
       providers: [],
       media: { maxPasteBytes: 100, allowedMimeTypes: ['image/png'] },
-      artifact: { maxBytes: 100, htmlUiModeDefault: false },
+      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100 },
     };
     const snapshot = createSettingsSnapshot(normalized);
     expect(snapshot.schemaVersion).toBe(PIWIN_SETTINGS_SCHEMA_VERSION);

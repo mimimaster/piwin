@@ -21,7 +21,7 @@ function makeConfig(overrides: Partial<PiwinConfig> = {}): PiwinConfig {
       },
     ],
     media: { maxPasteBytes: 0, allowedMimeTypes: [] },
-    artifact: { maxBytes: 0, htmlUiModeDefault: false },
+    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 0 },
     ...overrides,
   };
 }

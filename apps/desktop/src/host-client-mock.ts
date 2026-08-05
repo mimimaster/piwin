@@ -73,7 +73,7 @@ export class MockHostBackend {
       maxPasteBytes: 10 * 1024 * 1024,
       allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
     },
-    artifact: { maxBytes: 100 * 1024, htmlUiModeDefault: false },
+    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100 * 1024 },
   };
   /** Monotonic revision for the in-memory settings snapshot (mock parity). */
   private mockSettingsRevision = 'mock-settings-v1';

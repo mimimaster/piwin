@@ -1694,7 +1694,7 @@ export class HostRuntime {
             const detail = error instanceof Error ? error.message : String(error);
             this.push({ type: 'host/log', level: 'warn', message: `auto-name failed: ${detail}` });
           });
-          // ADR 0026: auto-walkthrough after runs retired (no maybeTriggerAutoWalkthrough).
+          // Walkthrough is generated on plan completion, not after ordinary runs.
         }
         const recorder = this.transcriptRecorders.get(sessionId);
         if (recorder) {

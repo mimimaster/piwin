@@ -1,8 +1,10 @@
 /**
- * Settings → WalkThrough page (ADR 0026).
- * - enabled: opt-in for CLI/IPC generation only (no Desktop Generate button)
- * - custom.prompt: editable generation instructions for CLI generation
- * - no autoGenerate, no model picker, no custom mode, no chat/plan auto-trigger
+ * Settings → WalkThrough page.
+ * - Walkthrough is always generated when a plan completes.
+ * - Switch (default on): inject the custom prompt into generation.
+ * - Switch off: no prompt injected — model generates freely (Pi norm).
+ * - Prompt textarea is always visible and editable.
+ * - Save button appears only when the textarea is focused.
  */
 
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
@@ -25,18 +27,20 @@ export function SessionPage(): ReactElement {
   const { config, saveConfig, setInfo } = useSettings();
   const walkthrough = config?.walkthrough ?? createDefaultWalkthroughConfig();
 
-  const [enabled, setEnabled] = useState<boolean>(walkthrough.enabled);
+  const [useCustomPrompt, setUseCustomPrompt] = useState<boolean>(walkthrough.enabled);
   const [prompt, setPrompt] = useState<string>(walkthrough.custom.prompt);
+  const [editing, setEditing] = useState<boolean>(false);
 
   useEffect(() => {
-    setEnabled(walkthrough.enabled);
+    setUseCustomPrompt(walkthrough.enabled);
     setPrompt(walkthrough.custom.prompt);
+    setEditing(false);
   }, [walkthrough]);
 
   const draft: WalkthroughConfig = useMemo(
     () => ({
       ...createDefaultWalkthroughConfig(),
-      enabled,
+      enabled: useCustomPrompt,
       autoGenerate: false,
       mode: 'default',
       custom: {
@@ -44,7 +48,7 @@ export function SessionPage(): ReactElement {
         prompt,
       },
     }),
-    [enabled, prompt],
+    [useCustomPrompt, prompt],
   );
 
   const issues = useMemo(() => validateWalkthroughConfig(draft), [draft]);
@@ -66,6 +70,7 @@ export function SessionPage(): ReactElement {
     };
     if (await saveConfig(next)) {
       setInfo(isZh ? '已保存 WalkThrough 设置。' : 'WalkThrough settings saved.');
+      setEditing(false);
     } else {
       setInfo(isZh ? '保存失败：无法写入配置文件。' : 'Save failed: could not write config.');
     }
@@ -78,25 +83,25 @@ export function SessionPage(): ReactElement {
           title="WalkThrough"
           description={
             isZh
-              ? 'Walkthrough 交付文档的生成提示词。默认关闭。'
-              : 'Generation prompt for Walkthrough delivery documents. Off by default.'
+              ? '计划执行完成后自动生成交付文档。'
+              : 'A Walkthrough document is generated automatically when a plan completes.'
           }
         />
         {config ? (
           <>
             <FieldRow
-              label={isZh ? '启用 WalkThrough' : 'Enable WalkThrough'}
+              label={isZh ? '自定义生成提示词' : 'Custom generation prompt'}
               description={
                 isZh
-                  ? '默认关闭。开启后可手动生成 Walkthrough；聊天和计划完成时不会自动生成。已有文档仍可查看。'
-                  : 'Off by default. When on, Walkthroughs can be generated manually; chat turns and plan completion never auto-generate. Existing artifacts remain viewable.'
+                  ? '开启后，下方提示词会注入到 Walkthrough 生成中。关闭后不注入任何提示词，模型根据证据自由生成。计划完成时始终生成 Walkthrough，不受此开关影响。'
+                  : 'When on, the prompt below is injected into Walkthrough generation. When off, no prompt is injected — the model generates freely from the evidence. Walkthrough is always generated on plan completion regardless of this setting.'
               }
               testId="walkthrough-enabled-row"
             >
               <Switch
-                checked={enabled}
-                onCheckedChange={(checked) => setEnabled(checked)}
-                aria-label={isZh ? '启用 WalkThrough' : 'Enable WalkThrough'}
+                checked={useCustomPrompt}
+                onCheckedChange={(checked) => setUseCustomPrompt(checked)}
+                aria-label={isZh ? '自定义生成提示词' : 'Custom generation prompt'}
                 testId="walkthrough-enabled-switch"
               />
             </FieldRow>
@@ -115,9 +120,9 @@ export function SessionPage(): ReactElement {
                 rows={12}
                 value={prompt}
                 onChange={(event) => setPrompt(event.currentTarget.value)}
+                onFocus={() => setEditing(true)}
                 style={{ resize: 'vertical' }}
                 data-testid="walkthrough-prompt-textarea"
-                disabled={!enabled}
               />
             </Field>
             {promptIssue ? (
@@ -125,19 +130,20 @@ export function SessionPage(): ReactElement {
                 {promptIssue.message}
               </p>
             ) : null}
-            <div className="ui-field-row-control" style={{ justifyContent: 'flex-end', gap: 8 }}>
-              <Button
-                variant="ghost"
-                data-testid="walkthrough-prompt-reset-button"
-                onClick={() => setPrompt(DEFAULT_WALKTHROUGH_PROMPT)}
-                disabled={!enabled}
-              >
-                {isZh ? '恢复默认提示词' : 'Reset prompt'}
-              </Button>
-              <Button data-testid="walkthrough-save-button" onClick={() => void handleSave()}>
-                {isZh ? '保存' : 'Save'}
-              </Button>
-            </div>
+            {editing ? (
+              <div className="ui-field-row-control" style={{ justifyContent: 'flex-end', gap: 8 }}>
+                <Button
+                  variant="ghost"
+                  data-testid="walkthrough-prompt-reset-button"
+                  onClick={() => setPrompt(DEFAULT_WALKTHROUGH_PROMPT)}
+                >
+                  {isZh ? '恢复默认提示词' : 'Reset prompt'}
+                </Button>
+                <Button data-testid="walkthrough-save-button" onClick={() => void handleSave()}>
+                  {isZh ? '保存' : 'Save'}
+                </Button>
+              </div>
+            ) : null}
           </>
         ) : (
           <p className="muted">{isZh ? '正在加载配置…' : 'Loading config…'}</p>

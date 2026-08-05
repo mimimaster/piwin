@@ -76,6 +76,10 @@ export async function createBlueprintResourceLoader(
     reload: () => Promise<void>;
   };
 
+  // Append the artifact contract after any user/project APPEND_SYSTEM.md
+  // content via `appendSystemPromptOverride` (Pi expects string[] for the raw
+  // `appendSystemPrompt` option, which would also *replace* discovery).
+  const artifactAppendPrompt = blueprint.appendSystemPrompt?.trim();
   const loaderOptions: Record<string, unknown> = {
     cwd: blueprint.workingDirectory,
     agentDir,
@@ -85,6 +89,12 @@ export async function createBlueprintResourceLoader(
       : {}),
     ...(blueprint.activePromptPaths.length > 0
       ? { additionalPromptTemplatePaths: blueprint.activePromptPaths }
+      : {}),
+    ...(artifactAppendPrompt
+      ? {
+          appendSystemPromptOverride: (base: string[]) =>
+            base.includes(artifactAppendPrompt) ? base : [...base, artifactAppendPrompt],
+        }
       : {}),
   };
 

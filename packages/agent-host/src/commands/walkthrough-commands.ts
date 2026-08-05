@@ -327,13 +327,6 @@ export async function handleWalkthroughGenerate(
 
   const config = await context.loadConfig();
   const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
-  if (!walkthrough.enabled) {
-    return fail(
-      requestId,
-      'walkthrough/generate',
-      JSON.stringify(walkthroughError('disabled', 'Walkthrough is disabled in settings.')),
-    );
-  }
 
   // If a ready artifact already exists and force is not set, return it directly
   // without publishing a new generating state (spec §8.1).
@@ -560,7 +553,9 @@ async function runWalkthroughCompletion(input: CompletionInput): Promise<void> {
     const systemPrompt = assembleSystemPrompt();
     const userPrompt = assembleUserPrompt(
       input.mode,
-      input.walkthrough.custom.prompt,
+      // When enabled is false, no custom prompt is injected — the model
+      // generates freely from system prompt + evidence only (Pi norm).
+      input.walkthrough.enabled ? input.walkthrough.custom.prompt : '',
       bounded.bounded,
     );
 

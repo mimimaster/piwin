@@ -17,9 +17,9 @@ const VALID_MODEL_REFS: ModelRef[] = [
 ];
 
 describe('walkthrough config', () => {
-  it('createDefaultWalkthroughConfig defaults generation off (ADR 0026)', () => {
+  it('createDefaultWalkthroughConfig defaults prompt injection on (ADR 0026)', () => {
     const config = createDefaultWalkthroughConfig();
-    expect(config.enabled).toBe(false);
+    expect(config.enabled).toBe(true);
     expect(config.autoGenerate).toBe(false);
     expect(config.concisePrompt).toBe(DEFAULT_CONCISE_PROMPT);
     expect(config.mode).toBe('default');
@@ -211,7 +211,7 @@ describe('normalizeWalkthroughConfig', () => {
         prompt: 'keep me',
       },
     });
-    expect(normalized.enabled).toBe(false);
+    expect(normalized.enabled).toBe(true);
     expect(normalized.autoGenerate).toBe(false);
     expect(normalized.mode).toBe('default');
     expect(normalized.custom.prompt).toBe('keep me');

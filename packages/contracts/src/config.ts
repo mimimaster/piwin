@@ -11,6 +11,7 @@ import type { AutomationConfig } from './automation.js';
 import type { MarketplaceConfig } from './marketplace-registry.js';
 import type { PermissionConfig } from './permission.js';
 import type { WalkthroughConfig } from './walkthrough.js';
+import type { ArtifactConfig } from './artifact.js';
 import { THINKING_LEVEL_OPTIONS } from './host.js';
 import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 import type { SubagentProfileSettings } from './subagent-profile.js';
@@ -286,10 +287,7 @@ export type PiwinConfig = {
     maxPasteBytes: number;
     allowedMimeTypes: string[];
   };
-  artifact: {
-    maxBytes: number;
-    htmlUiModeDefault: boolean;
-  };
+  artifact: ArtifactConfig;
   web?: WebConfig;
   skills?: SkillsConfig;
   extensions?: ExtensionsConfig;

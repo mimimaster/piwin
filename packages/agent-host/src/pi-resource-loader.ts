@@ -29,6 +29,12 @@ export type CreatePiResourceLoaderOptions = {
    * When absent, preserve current global skill behavior.
    */
   allowedSkillIds?: string[];
+  /**
+   * Additional system prompt text appended after all other system prompts
+   * (Pi native, project, user). Used for product-level contracts such as
+   * the artifact decision policy (ADR 0029).
+   */
+  appendSystemPrompt?: string;
 };
 
 /**
@@ -88,12 +94,24 @@ export async function createPiResourceLoader(options: CreatePiResourceLoaderOpti
     reload: () => Promise<void>;
   };
 
+  // Pi appends discovered APPEND_SYSTEM.md files as `base`, then applies
+  // `appendSystemPromptOverride` if present. We use the override (not the raw
+  // `appendSystemPrompt` option, which *replaces* discovery and expects
+  // string[]), so the artifact contract is appended exactly once after any
+  // user/project append-system content.
+  const artifactAppendPrompt = options.appendSystemPrompt?.trim();
   const loaderOptions: Record<string, unknown> = {
     cwd: options.cwd,
     agentDir: options.agentDir,
     additionalSkillPaths: skillPaths,
     ...(extensionPaths.length > 0 ? { additionalExtensionPaths: extensionPaths } : {}),
     ...(promptPaths.length > 0 ? { additionalPromptTemplatePaths: promptPaths } : {}),
+    ...(artifactAppendPrompt
+      ? {
+          appendSystemPromptOverride: (base: string[]) =>
+            base.includes(artifactAppendPrompt) ? base : [...base, artifactAppendPrompt],
+        }
+      : {}),
   };
 
   if (disabled.size > 0 || (options.allowedSkillIds ?? []).length > 0) {

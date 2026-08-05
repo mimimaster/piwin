@@ -9,7 +9,7 @@ function baseConfig(): PiwinConfig {
     agentMock: false,
     providers: [],
     media: { maxPasteBytes: 1024, allowedMimeTypes: ['image/png'] },
-    artifact: { maxBytes: 1024, htmlUiModeDefault: false },
+    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1024 },
   };
 }
 

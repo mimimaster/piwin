@@ -326,6 +326,13 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               key={message.id}
               message={message}
               messageIndex={messageIndex}
+              isLastAssistantInTurn={(() => {
+                for (let i = turn.items.length - 1; i >= 0; i--) {
+                  const item = turn.items[i];
+                  if (item?.message.role === 'assistant') return item.message.id === message.id;
+                }
+                return false;
+              })()}
               isNew={enteringIds.has(message.id)}
               streaming={props.streaming}
               editingMessageId={props.editingMessageId}
@@ -485,6 +492,8 @@ type ChatMessageRowProps = {
   forkCountsByMessageId?: Record<string, number>;
   /** SF-03: Whether derived-session actions are disabled. */
   derivedActionsDisabled?: boolean;
+  /** SF-03: True only for the last assistant message in a turn group. */
+  isLastAssistantInTurn?: boolean;
 };
 
 function formatMessageTime(createdAt?: string): string {
@@ -752,6 +761,7 @@ const ChatMessageRow = memo(
         ) : null}
         {message.role === 'assistant' &&
         message.status === 'done' &&
+        props.isLastAssistantInTurn !== false &&
         (props.onDuplicateSession || props.onForkFromMessage) ? (
           <AssistantResponseActions
             messageId={message.id}
@@ -816,6 +826,7 @@ const ChatMessageRow = memo(
       previous.onOpenForks === next.onOpenForks &&
       previous.forkCountsByMessageId === next.forkCountsByMessageId &&
       previous.derivedActionsDisabled === next.derivedActionsDisabled &&
+      previous.isLastAssistantInTurn === next.isLastAssistantInTurn &&
       callbackPropsAreStable
     );
   },

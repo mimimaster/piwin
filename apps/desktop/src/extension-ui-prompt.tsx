@@ -61,7 +61,7 @@ function ExtensionUiPromptInner({
           role="group"
           aria-label={request.title}
         >
-          {(request.options ?? []).map((option) => (
+          {(request.options ?? []).map((option, index) => (
             <button
               key={option}
               type="button"
@@ -69,7 +69,10 @@ function ExtensionUiPromptInner({
               data-testid="extension-ui-option"
               onClick={() => onResolve({ value: option })}
             >
-              <span>{option}</span>
+              <span className="agent-interruption-choice-badge">
+                {String.fromCharCode(65 + index)}
+              </span>
+              <span className="agent-interruption-choice-label">{option}</span>
             </button>
           ))}
         </div>
@@ -82,14 +85,16 @@ function ExtensionUiPromptInner({
             data-testid="extension-ui-deny"
             onClick={() => onResolve({ confirmed: false })}
           >
-            {translator.common.cancel}
+            <span className="agent-interruption-choice-badge">B</span>
+            <span>{translator.common.cancel}</span>
           </Button>
           <Button
             variant="primary"
             data-testid="extension-ui-allow"
             onClick={() => onResolve({ confirmed: true })}
           >
-            {translator.interruption.continue}
+            <span className="agent-interruption-choice-badge">A</span>
+            <span>{translator.interruption.continue}</span>
           </Button>
         </div>
       ) : null}

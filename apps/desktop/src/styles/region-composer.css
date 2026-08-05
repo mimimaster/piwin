@@ -152,9 +152,12 @@
 .agent-interruption {
   width: var(--chat-max);
   max-width: 100%;
-  margin: 0 auto 6px;
-  border-radius: 10px 10px 0 0;
+  margin: 0 auto 0;
+  border-radius: 12px 12px 0 0;
+  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 40%, transparent);
   overflow: hidden;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
   animation: agent-interruption-slide-in 180ms ease-out;
 }
 
@@ -171,29 +174,29 @@
 
 /* Tone variants — question is neutral, warning is amber, danger is red. */
 .agent-interruption--question {
-  border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
-  background: color-mix(in srgb, var(--accent) 4%, var(--card, #fff));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
+  background: color-mix(in srgb, var(--accent) 6%, var(--card, #1c1c20));
 }
 
 .agent-interruption--warning {
   border-color: color-mix(in srgb, var(--warn, #f59e0b) 40%, var(--line));
-  background: color-mix(in srgb, var(--warn, #f59e0b) 6%, var(--card, #fff));
+  background: color-mix(in srgb, var(--warn, #f59e0b) 7%, var(--card, #1c1c20));
 }
 
 .agent-interruption--danger {
   border-color: color-mix(in srgb, var(--danger, #ef4444) 50%, var(--line));
-  background: color-mix(in srgb, var(--danger, #ef4444) 8%, var(--card, #fff));
+  background: color-mix(in srgb, var(--danger, #ef4444) 9%, var(--card, #1c1c20));
 }
 
 /* ── Header ── */
 
 .agent-interruption-header {
-  padding: 10px 14px 6px;
+  padding: 12px 16px 8px;
 }
 
 .agent-interruption-title {
   margin: 6px 0 0;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.4;
@@ -201,7 +204,7 @@
 
 .agent-interruption-description {
   margin: 4px 0 0;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.45;
 }
@@ -209,40 +212,104 @@
 /* ── Content area ── */
 
 .agent-interruption-content {
-  padding: 0 14px 10px;
+  padding: 0 16px 12px;
 }
 
-/* ── Question choices ── */
+/* ── Question choices & Option Badges ── */
 
 .agent-interruption-choices {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .agent-interruption-choice {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid var(--line-soft, transparent);
-  border-radius: var(--radius-control, 8px);
-  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--bg-subtle, #141416) 40%, var(--card, #1c1c20));
   color: var(--text);
   font: inherit;
   font-size: 13px;
   text-align: left;
   cursor: pointer;
-  transition:
-    background 120ms ease,
-    border-color 120ms ease;
+  transition: all 140ms ease-out;
 }
 
 .agent-interruption-choice:hover {
- border-color: color-mix(in srgb, var(--accent) 30%, var(--line));
-  background: var(--surface-hover, rgba(0, 0, 0, 0.03));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--card, #1c1c20));
+  transform: translateX(2px);
+}
+
+.agent-interruption-choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.agent-interruption-choice-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--card, #1c1c20));
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono, monospace);
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  transition: all 140ms ease-out;
+}
+
+.agent-interruption-choice:hover .agent-interruption-choice-badge {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.agent-interruption-choice-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Action row (confirm / permission) ── */
+
+.agent-interruption-actions,
+.permission-bar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.permission-bar-actions button .agent-interruption-choice-badge,
+.agent-interruption-actions button .agent-interruption-choice-badge {
+  margin-right: 4px;
+}
+
+.agent-interruption-choice:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--card, #1c1c20));
+  transform: translateX(2px);
+}
+
+.agent-interruption-choice:hover .agent-interruption-choice-badge {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 
 .agent-interruption-choice:focus-visible {
@@ -769,7 +836,7 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   width: 30px;
   height: 30px;
   padding: 0;
-  border: none;
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
   border-radius: 50%;
   background: color-mix(in srgb, var(--danger, #ef4444) 14%, transparent);
   color: var(--danger, #ef4444);
@@ -777,6 +844,7 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   transition:
     background 160ms ease,
     color 160ms ease,
+    border-color 160ms ease,
     transform 160ms ease,
     box-shadow 160ms ease;
   flex-shrink: 0;
@@ -816,6 +884,7 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .composer-v2-stop-btn:hover:not(:disabled) {
   background: var(--danger, #ef4444);
   color: #ffffff;
+  border-color: var(--danger, #ef4444);
   transform: scale(1.06);
   box-shadow: 0 4px 14px color-mix(in srgb, var(--danger, #ef4444) 40%, transparent);
 }

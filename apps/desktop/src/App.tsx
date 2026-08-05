@@ -1841,6 +1841,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               isResizing={sidebarResize.isResizing}
               onResizePointerDown={sidebarResize.onResizePointerDown}
               onResizeReset={() => sidebarResize.setWidthPx(SIDEBAR_DEFAULT_WIDTH_PX)}
+              workingSessionIds={state.workingSessionIds}
             />
           }
           contextBar={
@@ -1976,8 +1977,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       artifactPreviewEnabled={preferences.artifactPreviewEnabled}
                       artifactCodeFirst={preferences.artifactCodeFirst}
                       plan={sessionPlan}
-                      {...(config?.artifact?.maxBytes !== undefined
-                        ? { artifactMaxBytes: config.artifact.maxBytes }
+                      {...(config?.artifact
+                        ? {
+                            artifactMaxBytes: config.artifact.maxBytes,
+                            artifactPreviewEnabled: config.artifact.enabled,
+                          }
                         : {})}
                       locale={desktopLocale}
                       onInspectSubagent={handleInspectSubagent}

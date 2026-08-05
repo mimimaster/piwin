@@ -699,6 +699,44 @@ html[data-theme-mode='light'] .session-item.active {
   font-weight: 580;
 }
 
+/* ── Working session indicator ────────────────────────────────────
+   A pulsing left-edge bar shows when a session is actively running
+   (streaming / tool-execution). Uses ::before on .session-item.working
+   so no extra DOM is needed. The bar sits at the left edge of the
+   button, vertically centered, with a soft glow that breathes. */
+
+.session-item.working::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+  animation: session-working-pulse var(--motion-pulse, 1.6s) ease-in-out infinite;
+}
+
+.session-item.working.active::before {
+  height: 70%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+
+@keyframes session-working-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: translateY(-50%) scaleY(0.7);
+  }
+}
+
 .session-item-time {
   position: absolute;
   right: 10px;

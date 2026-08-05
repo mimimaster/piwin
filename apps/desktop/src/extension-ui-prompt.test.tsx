@@ -137,8 +137,8 @@ describe('ExtensionUiPrompt', () => {
     const denyBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="extension-ui-deny"]',
     );
-    expect(allowBtn?.textContent).toBe('Continue');
-    expect(denyBtn?.textContent).toBe('Cancel');
+    expect(allowBtn?.textContent).toContain('Continue');
+    expect(denyBtn?.textContent).toContain('Cancel');
 
     act(() => {
       allowBtn?.click();

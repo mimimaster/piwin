@@ -2,6 +2,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type {
   AutomationConfig,
+  ArtifactConfig,
+  ArtifactTriggerMode,
+  ArtifactPromptMode,
   CompactionConfig,
   DesktopRestoreConfig,
   ExtensionsConfig,
@@ -26,6 +29,7 @@ import type {
 } from '@piwin/contracts';
 import {
   createDefaultAutomationConfig,
+  createDefaultArtifactConfig,
   createDefaultCompactionConfig,
   createDefaultExtensionsConfig,
   createDefaultMarketplaceConfig,
@@ -56,8 +60,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
       allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
     },
     artifact: {
-      maxBytes: 100 * 1024,
-      htmlUiModeDefault: false,
+      ...createDefaultArtifactConfig(),
     },
     web: createDefaultWebConfig(),
     skills: createDefaultSkillsConfig(),
@@ -153,11 +156,7 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
         asStringArray(asRecord(record.media)?.allowedMimeTypes) ?? defaults.media.allowedMimeTypes,
     },
     artifact: {
-      maxBytes: asPositiveNumber(asRecord(record.artifact)?.maxBytes) ?? defaults.artifact.maxBytes,
-      htmlUiModeDefault:
-        typeof asRecord(record.artifact)?.htmlUiModeDefault === 'boolean'
-          ? Boolean(asRecord(record.artifact)?.htmlUiModeDefault)
-          : defaults.artifact.htmlUiModeDefault,
+      ...normalizeArtifactConfig(record.artifact, defaults.artifact),
     },
   };
   if (typeof record.defaultProviderId === 'string') {
@@ -227,6 +226,46 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
     normalized.visionDelegation = visionDelegation;
   }
   return normalized;
+}
+
+
+/**
+ * Normalize the `artifact` block. Handles migration from the legacy shape
+ * (`htmlUiModeDefault`) to the new `ArtifactConfig` (`enabled`, `triggerMode`,
+ * `decisionPrompt`, `maxBytes`).
+ */
+function normalizeArtifactConfig(
+  value: unknown,
+  defaults: ArtifactConfig,
+): ArtifactConfig {
+  const record = asRecord(value);
+  if (!record) {
+    return defaults;
+  }
+  // Migration: old shape had `htmlUiModeDefault: boolean` instead of `enabled`.
+  const hasEnabled = typeof record.enabled === 'boolean';
+  const hasLegacy = typeof record.htmlUiModeDefault === 'boolean';
+  const enabled = hasEnabled
+    ? Boolean(record.enabled)
+    : hasLegacy
+      ? Boolean(record.htmlUiModeDefault)
+      : defaults.enabled;
+  const triggerMode: ArtifactTriggerMode =
+    record.triggerMode === 'explicit-only' ? 'explicit-only' : defaults.triggerMode;
+  const decisionPromptRecord = asRecord(record.decisionPrompt);
+  const promptMode: ArtifactPromptMode =
+    decisionPromptRecord?.mode === 'custom' ? 'custom' : 'default';
+  const customPrompt =
+    typeof decisionPromptRecord?.customPrompt === 'string'
+      ? decisionPromptRecord.customPrompt
+      : '';
+  const maxBytes = asPositiveNumber(record.maxBytes) ?? defaults.maxBytes;
+  return {
+    enabled,
+    triggerMode,
+    decisionPrompt: { mode: promptMode, customPrompt },
+    maxBytes,
+  };
 }
 
 function normalizeSessionConfig(value: unknown, defaults: SessionConfig): SessionConfig {

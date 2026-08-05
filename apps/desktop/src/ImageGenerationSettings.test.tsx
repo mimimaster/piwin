@@ -47,7 +47,7 @@ function makeConfig(): PiwinConfig {
       },
     ],
     media: { maxPasteBytes: 1_000_000, allowedMimeTypes: [] },
-    artifact: { maxBytes: 1_000_000, htmlUiModeDefault: false },
+    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1_000_000 },
   };
 }
 
