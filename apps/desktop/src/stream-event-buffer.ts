@@ -21,8 +21,6 @@ const IMMEDIATE_EVENT_TYPES = new Set<AgentEvent['type']>([
   'permission/request',
   'permission/resolved',
   'error',
-  'run/phase',
-  'run/terminal',
   'session/aborted',
 ]);
 

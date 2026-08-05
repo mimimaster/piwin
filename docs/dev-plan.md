@@ -33,7 +33,8 @@ Runtime 控制面与执行面的三阶段改造，以一份连续 Spec 为执行
 实施顺序固定为：先完成 Settings 控制面、精确 manifests、Prompt
 Preparation 与 runtime generation 前置条件；再按 Runtime Spec 的 Phase 1
 Unified Job Control → Phase 2 Structured Concurrency → Phase 3 Agent Worker
-Isolation 推进。每一阶段必须完成本阶段旧路径删除门槛后才能进入下一阶段。
+Isolation 推进。三阶段现已完成：旧的 Job/Run/process/worker 权威路径已删除，
+公共 runtime replacement 也已接入；后续改动必须通过架构门禁。
 原 Phase 7 worker plan 只保留为历史分析，不再是执行权威。
 
 ---
@@ -178,7 +179,7 @@ Spec: [`docs/specs/m1-host-cli.md`](./specs/m1-host-cli.md) · M2 design: [`docs
 |---|------|---------------|
 | M7.1 | doctor command full checks | providers, paths, pi binary |
 | M7.2 | logging + redaction | no secrets in logs |
-| M7.3 | Runtime Refactor Phases 1-3 | Job/Run ownership unified; RPC worker isolated; SDK/worker conformance green |
+| M7.3 | Runtime Refactor Phases 1-3 | done — Job/Run ownership unified; RPC worker isolated; SDK/worker conformance green |
 | M7.4 | performance: session list, artifact init | acceptable on large history |
 | M7.5 | security review pass | permissions + CSP + path rules |
 

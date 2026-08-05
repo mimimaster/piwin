@@ -10,7 +10,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { memo, Profiler, act, useEffect, useReducer, useRef, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import type { AgentEvent } from '@piwin/contracts';
+import type { AgentEvent, ExecutionRunRecord } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { ChatThread } from './chat-thread';
@@ -488,13 +488,18 @@ describe('ChatThread render isolation (E1)', () => {
     buffer.push('s1', createDeltaEvent('streaming-e2', ' delta-data'));
 
     // Push a terminal event — must flush pending deltas and dispatch immediately
-    buffer.push('s1', {
-      type: 'run/terminal',
-      sessionId: 's1',
+    const terminalRun: ExecutionRunRecord = {
       runId: 'run-e2',
-      outcome: 'completed',
-      at: new Date().toISOString(),
-    });
+      kind: 'session-turn',
+      status: 'completed',
+      rootRunId: 'run-e2',
+      sessionId: 's1',
+      endedAt: new Date().toISOString(),
+      terminalCode: 'completed',
+    };
+    buffer.flush();
+    dispatchedActions.push({ type: 'run/terminal', run: terminalRun });
+    appState = chatUiReducer(appState, { type: 'run/terminal', run: terminalRun });
 
     // ---- Assertions ----
 
@@ -509,9 +514,9 @@ describe('ChatThread render isolation (E1)', () => {
     }
 
     const secondAction = dispatchedActions[1];
-    expect(secondAction?.type).toBe('event');
-    if (secondAction?.type === 'event') {
-      expect(secondAction.event.type).toBe('run/terminal');
+    expect(secondAction?.type).toBe('run/terminal');
+    if (secondAction?.type === 'run/terminal') {
+      expect(secondAction.run.runId).toBe('run-e2');
     }
 
     // B. The scheduled frame was cancelled — it should never fire

@@ -304,14 +304,13 @@ async function runTestSequence(child, piwinRoot) {
     debug('step 8: waiting for run/terminal event ...');
     const terminalEvent = await waitForEvent(
       (push) =>
-        push.type === 'event' &&
-        push.event?.type === 'run/terminal' &&
-        push.event?.runId === runId,
+        push.type === 'run/terminal' &&
+        push.run?.runId === runId,
       15_000,
     );
     const cancelTerminalMs = Date.now() - abortSentAt;
     assert(terminalEvent != null, 'run/terminal event received');
-    const terminalOutcome = terminalEvent.event.outcome;
+    const terminalOutcome = terminalEvent.run.status;
     assert(
       terminalOutcome === 'cancelled',
       `run terminal outcome is 'cancelled' (got '${terminalOutcome}')`,
@@ -323,16 +322,15 @@ async function runTestSequence(child, piwinRoot) {
     debug(
       'run/terminal: outcome=%s code=%s cancelTerminalMs=%d',
       terminalOutcome,
-      terminalEvent.event.code,
+      terminalEvent.run.terminalCode,
       cancelTerminalMs,
     );
 
     // Verify exactly one terminal event for this run.
     const terminalEventsForRun = eventLog.filter(
       (push) =>
-        push.type === 'event' &&
-        push.event?.type === 'run/terminal' &&
-        push.event?.runId === runId,
+        push.type === 'run/terminal' &&
+        push.run?.runId === runId,
     );
     assert(
       terminalEventsForRun.length === 1,
@@ -872,22 +870,22 @@ async function testHighRateOutput(piwinRoot) {
   assert(terminalLine != null, 'high-rate test: run/terminal event received');
   const terminalParsed = JSON.parse(terminalLine);
   assert(
-    terminalParsed.event?.type === 'run/terminal',
+    terminalParsed.type === 'run/terminal',
     'high-rate test: terminal event has type=run/terminal',
   );
   assert(
-    typeof terminalParsed.event?.runId === 'string',
+    typeof terminalParsed.run?.runId === 'string',
     'high-rate test: terminal event has runId',
   );
   assert(
-    typeof terminalParsed.event?.outcome === 'string',
+    typeof terminalParsed.run?.status === 'string',
     'high-rate test: terminal event has outcome',
   );
   assert(
-    terminalParsed.event?.outcome === 'completed',
-    `high-rate test: terminal outcome is 'completed' (got '${terminalParsed.event.outcome}')`,
+    terminalParsed.run?.status === 'completed',
+    `high-rate test: terminal outcome is 'completed' (got '${terminalParsed.run?.status}')`,
   );
-  debug('high-rate test: terminal event outcome=%s', terminalParsed.event.outcome);
+  debug('high-rate test: terminal event outcome=%s', terminalParsed.run.status);
 
   const messageId = randomUUID();
   child.stdin.write(JSON.stringify({ id: messageId, type: 'session/messages', sessionId }) + '\n');

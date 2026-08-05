@@ -26,34 +26,25 @@ export function buildCapabilityMatrix(
   capabilities: HostStatusData['capabilities'],
   options?: { mode?: HostStatusData['mode']; mock?: boolean },
 ): CapabilityRow[] {
-  const rpcFallback = capabilities.rpcSdkFallback === true;
   const mode = options?.mode;
   const mock = options?.mock === true;
 
   let customNote: string | undefined;
   if (capabilities.customTools !== true) {
-    customNote = 'Use SDK host mode (or live RPC with SDK fallback)';
-  } else if (rpcFallback) {
-    customNote = 'RPC host uses SDK session backend';
+    customNote = 'Use SDK or RPC worker host mode';
   }
 
   let ptyNote: string | undefined;
   if (capabilities.pty !== true) {
-    ptyNote =
-      capabilities.shellPreview === true
-        ? 'Host path is shell preview; interactive PTY is Tauri desktop (ADR 0013)'
-        : 'Not available';
+    ptyNote = 'Interactive PTY is Tauri desktop (ADR 0013)';
   }
 
   let isolationAvailable = false;
   let isolationNote: string | undefined;
-  if (mode === 'rpc' && rpcFallback) {
-    isolationAvailable = false;
-    isolationNote = 'RPC mode: SDK backend (no process isolation)';
-  } else if (mode === 'rpc' && mock) {
+  if (mode === 'rpc' && mock) {
     isolationAvailable = false;
     isolationNote = 'Mock RPC — isolation not simulated';
-  } else if (mode === 'rpc' && !rpcFallback && !mock) {
+  } else if (mode === 'rpc' && !mock) {
     isolationAvailable = true;
   } else if (mode === 'sdk') {
     isolationAvailable = false;
@@ -72,12 +63,6 @@ export function buildCapabilityMatrix(
     row('sessionSearch', 'Session search', capabilities.sessionSearch === true),
     row('process', 'Managed processes', capabilities.process === true),
     row('pty', 'Interactive terminal (PTY)', capabilities.pty === true, ptyNote),
-    row(
-      'shellPreview',
-      'Shell preview (piped)',
-      capabilities.shellPreview === true || capabilities.pty !== true,
-      capabilities.pty === true ? 'Superseded by real PTY' : undefined,
-    ),
     row(
       'automation',
       'Automation (cron/hooks)',

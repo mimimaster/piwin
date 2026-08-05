@@ -96,9 +96,6 @@ export function reducePetAgentContext(
       next.waitingPermission = false;
       next.permissionAction = null;
       break;
-    case 'run/phase':
-      next.runPhase = event.phase;
-      break;
     case 'error':
       next.lastError = true;
       next.streaming = false;

@@ -1,6 +1,45 @@
 /**
  * CE-SUB-ORCH: safe parallel subagent orchestration contracts.
  *
+ * Provider runtime envelope for worker sessions.
+ *
+ * The orchestrator freezes provider runtimes before dispatch so the worker
+ * never resolves secrets itself (Phase 7 plan §6). This type is a minimal
+ * contract-level mirror of the agent-host `SerializableProviderRuntime`; it
+ * captures only the serializable shape needed to cross the package boundary.
+ * The agent-host side casts to its own concrete type when calling the worker
+ * protocol.
+ */
+
+/**
+ * Minimal provider runtime envelope for cross-package transport.
+ *
+ * Contracts cannot import from agent-host, so this type mirrors the
+ * `SerializableProviderRuntime` shape defined in agent-host's
+ * `rpc/serializable-blueprint.ts`. The two types must stay structurally
+ * compatible. When the worker task runner receives this envelope it casts
+ * to the agent-host type before passing to the worker client.
+ */
+export type SubagentProviderEnvelope = {
+  readonly providerId: string;
+  readonly protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
+  readonly baseUrl: string;
+  readonly headers?: Record<string, string>;
+  readonly models: ReadonlyArray<{
+    readonly id: string;
+    readonly label?: string;
+    readonly input?: ReadonlyArray<'text' | 'image'>;
+    readonly reasoning?: boolean;
+    readonly contextWindow?: number;
+    readonly maxOutputTokens?: number;
+  }>;
+  readonly auth:
+    | { readonly kind: 'env'; readonly envName: string }
+    | { readonly kind: 'inline'; readonly apiKey: string }
+    | { readonly kind: 'none' };
+};
+
+/**
  * The orchestrator schedules tasks with bounded concurrency, delegates
  * execution to a backend, and tracks three orthogonal result axes
  * (execution, summary, integration). These contracts are consumed by the
@@ -14,31 +53,50 @@ import type {
   SubagentIntegrationStatus,
   SubagentSummaryStatus,
 } from './subagent-lifecycle.js';
-import type { SubagentIsolationMode } from './subagent.js';
+import type { SubagentApplyPolicy, SubagentIsolationMode } from './subagent.js';
+import type { SubagentCapability, SubagentRuntimeSnapshot } from './subagent-profile.js';
+import type { BackendPreparedPrompt } from './backend-prepared-prompt.js';
+import type { BackendSessionBlueprint } from './backend-session-blueprint.js';
 
 /** What to do when a task in a batch fails. */
 export type SubagentFailurePolicy = 'continue' | 'fail-fast';
 
-/** Whether process isolation is required or best-effort. */
-export type SubagentProcessPolicy = 'required' | 'best-effort';
+/** A readonly workspace lease allocated by the workspace service. */
+export type SubagentReadonlyWorkspaceLease = {
+  readonly mode: 'readonly';
+  readonly cwd: string;
+  /** Parent repository path (the main worktree/repo root). */
+  readonly parentRepoPath: string;
+  /** Keeps legacy property reads narrowed to `undefined` for readonly leases. */
+  readonly worktreePath?: never;
+};
+
+/** A worktree workspace lease allocated by the workspace service. */
+export type SubagentWorktreeWorkspaceLease = {
+  readonly mode: 'worktree';
+  readonly cwd: string;
+  /** Parent repository path (the main worktree/repo root). */
+  readonly parentRepoPath: string;
+  /** Allocated worktree path. */
+  readonly worktreePath: string;
+  /** Allocated worktree branch. */
+  readonly worktreeBranch: string;
+  /** Exact parent HEAD used as the worktree base. */
+  readonly baseCommit: string;
+};
 
 /** A workspace lease allocated by the workspace service. */
-export type SubagentWorkspaceLease = {
-  mode: SubagentIsolationMode;
-  cwd: string;
-  /** Base commit the worktree was created from (worktree mode only). */
-  baseCommit?: string;
-  /** Allocated worktree path (worktree mode only). */
-  worktreePath?: string;
-  /** Allocated worktree branch (worktree mode only). */
-  worktreeBranch?: string;
-};
+export type SubagentWorkspaceLease =
+  | SubagentReadonlyWorkspaceLease
+  | SubagentWorktreeWorkspaceLease;
 
 /** A single task in a batch request. */
 export type SubagentTaskSpec = {
   id: string;
   parentSessionId: string;
   task: string;
+  /** Optional display name for the child session. */
+  sessionName?: string;
   profileId?: string;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
@@ -48,6 +106,14 @@ export type SubagentTaskSpec = {
   parallelGroup?: string;
   /** Caller may make the profile stricter (worktree → readonly), never wider. */
   isolationOverride?: SubagentIsolationMode;
+  /** Resolved application policy for worktree changes. */
+  applyPolicy?: SubagentApplyPolicy;
+  /** Whether a worktree should be retained after successful execution. */
+  retainWorktree?: boolean;
+  /** Resolved capability ceiling captured before dispatch. */
+  capabilities?: SubagentCapability[];
+  /** Resolved skill allowlist captured before dispatch. */
+  skillIds?: string[];
   allowedOutputPaths?: string[];
 };
 
@@ -57,8 +123,10 @@ export type SubagentBatchRequest = {
   tasks: SubagentTaskSpec[];
   maxConcurrency?: number;
   failurePolicy?: SubagentFailurePolicy;
-  processPolicy?: SubagentProcessPolicy;
 };
+
+/** Absolute product safety ceiling; Settings may only lower this value. */
+export const MAX_SUBAGENT_TASKS_PER_BATCH = 8 as const;
 
 /** Per-task result after orchestration. */
 export type SubagentTaskResult = {
@@ -75,12 +143,26 @@ export type SubagentTaskResult = {
   verification?: string;
   error?: string;
   worktreePath?: string;
+  /** Relative paths that the integration operation is allowed to apply. */
+  allowedOutputPaths?: string[];
 };
 
 /** Batch-level result after all tasks settle. */
 export type SubagentBatchResult = {
   runId: string;
   status: 'completed' | 'failed' | 'cancelled' | 'needs-integration';
+  results: SubagentTaskResult[];
+};
+
+/**
+ * Current batch projection returned by the status command.
+ *
+ * Active batches intentionally use a separate type from the terminal result
+ * so consumers cannot accidentally treat a running batch as completed.
+ */
+export type SubagentBatchProjection = {
+  runId: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled' | 'needs-integration' | 'unknown';
   results: SubagentTaskResult[];
 };
 
@@ -95,6 +177,67 @@ export type SubagentBatchValidationIssue = {
   taskId?: string;
   message: string;
 };
+
+
+/** Capabilities reported by the task runner backend. */
+export type SubagentTaskRunnerCapabilities = {
+  /** True when the backend runs tasks in isolated worker processes. */
+  processIsolation: boolean;
+};
+
+/** Frozen input for a task run — the runner does not re-read Settings or profiles. */
+export type SubagentTaskRunInput = {
+  taskRunId: string;
+  parentSessionId: string;
+  childSessionId: string;
+  runtimeGenerationId: string;
+  task: SubagentTaskSpec;
+  runtimeSnapshot: SubagentRuntimeSnapshot;
+  workspaceLease: SubagentWorkspaceLease;
+  /** JSON-safe compiled blueprint — frozen before backend dispatch. */
+  sessionBlueprint: BackendSessionBlueprint;
+  /** Prepared prompt text and images — frozen before dispatch. */
+  preparedPrompt: BackendPreparedPrompt;
+  /**
+   * Provider runtime envelope — frozen before backend dispatch.
+   *
+   * The worker must not resolve secrets itself (Phase 7 plan §6). The
+   * orchestrator compiles the provider runtimes and passes them through
+   * so the worker can construct model clients without reading settings.
+   * A provider-backed task requires at least one entry; `providers: []`
+   * is forbidden for tasks that need model access.
+   */
+  providers?: SubagentProviderEnvelope[];
+};
+
+/** Output from a task run. */
+export type SubagentTaskRunOutput = {
+  executionStatus: SubagentExecutionStatus;
+  summaryStatus: SubagentSummaryStatus;
+  integrationStatus: SubagentIntegrationStatus;
+  childSessionId?: string;
+  summaryPreview?: string;
+  changedFiles?: string[];
+  verification?: string;
+  error?: string;
+};
+
+/**
+ * Backend seam: runs a single task in an isolated Pi session/process.
+ *
+ * The input is frozen before dispatch. The runner does not re-read Settings,
+ * project trust, profiles, or prompt attachments.
+ *
+ * SC-06: Product concurrency above one requires `processIsolation=true`.
+ * SC-07: Isolation is a backend fact; callers do not send a process-policy switch.
+ */
+export interface SubagentTaskRunner {
+  readonly capabilities: SubagentTaskRunnerCapabilities;
+  runTask(
+    input: SubagentTaskRunInput,
+    signal: AbortSignal,
+  ): Promise<SubagentTaskRunOutput>;
+}
 
 /**
  * Validate a batch request. Returns issues (never throws); the caller
@@ -113,6 +256,11 @@ export function validateSubagentBatchRequest(
   if (request.tasks.length === 0) {
     issues.push({ message: 'batch must contain at least one task' });
     return issues;
+  }
+  if (request.tasks.length > MAX_SUBAGENT_TASKS_PER_BATCH) {
+    issues.push({
+      message: `batch cannot contain more than ${MAX_SUBAGENT_TASKS_PER_BATCH} tasks`,
+    });
   }
 
   const ids = new Set<string>();
@@ -137,6 +285,47 @@ export function validateSubagentBatchRequest(
           taskId: task.id,
           message: `unknown dependency "${dep}"`,
         });
+      }
+    }
+  }
+
+  // Check for dependency cycles using DFS.
+  const taskIds = new Set<string>();
+  for (const task of request.tasks) {
+    taskIds.add(task.id);
+  }
+
+  // Build adjacency list: task -> tasks it depends on.
+  const adj = new Map<string, string[]>();
+  for (const task of request.tasks) {
+    adj.set(task.id, task.dependsOn ?? []);
+  }
+
+  // DFS-based cycle detection (WHITE→GRAY→BLACK coloring).
+  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const color = new Map<string, number>();
+  for (const id of taskIds) {
+    color.set(id, WHITE);
+  }
+
+  function hasCycle(id: string): boolean {
+    const c = color.get(id);
+    if (c === GRAY) return true;  // back edge → cycle
+    if (c === BLACK) return false; // already processed
+    color.set(id, GRAY);
+    const deps = adj.get(id) ?? [];
+    for (const dep of deps) {
+      if (taskIds.has(dep) && hasCycle(dep)) return true;
+    }
+    color.set(id, BLACK);
+    return false;
+  }
+
+  for (const id of taskIds) {
+    if (color.get(id) === WHITE) {
+      if (hasCycle(id)) {
+        issues.push({ message: 'dependency cycle detected in task graph' });
+        break;
       }
     }
   }

@@ -9,7 +9,7 @@ describe('deriveRunStatus', () => {
       runPhase: 'aborting' as const,
       streaming: true,
     };
-    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
     expect(status.kind).toBe('stopping');
     expect(status.canStop).toBe(false);
   });
@@ -25,7 +25,7 @@ describe('deriveRunStatus', () => {
         defaultDecision: 'deny' as const,
       },
     };
-    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
     expect(status.kind).toBe('waiting-permission');
     expect(status.primaryAction).toBe('review-permission');
   });
@@ -43,7 +43,7 @@ describe('deriveRunStatus', () => {
         { toolCallId: 't2', toolName: 'search', status: 'done', output: 'ok' },
       ],
       plan: null,
-      processes: [],
+      jobs: [],
     });
     expect(status.kind).toBe('working');
     expect(status.activeToolName).toBe('read_file');
@@ -56,7 +56,7 @@ describe('deriveRunStatus', () => {
       ...createInitialChatUiState(),
       runTerminal: { kind: 'stopped' as const, at: 1 },
     };
-    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
     expect(status.kind).toBe('stopped');
   });
 
@@ -69,7 +69,7 @@ describe('deriveRunStatus', () => {
       runPhase: 'streaming' as const,
       streaming: true,
     };
-    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
     expect(status.kind).toBe('waiting-first-token');
     expect(status.summary).toContain('first model token');
     expect(status.canStop).toBe(true);
@@ -85,7 +85,7 @@ describe('deriveRunStatus', () => {
       runPhase: 'streaming' as const,
       streaming: true,
     };
-    const status = deriveRunStatus({ chat, tools: [], plan: null, processes: [] });
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
     expect(status.kind).toBe('preparing');
     expect(status.label).toBe('Describing');
     expect(status.summary).toBe('Describing image…');
@@ -110,7 +110,7 @@ describe('deriveRunStatus', () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    const status = deriveRunStatus({ chat, tools: [], plan, processes: [] });
+    const status = deriveRunStatus({ chat, tools: [], plan, jobs: [] });
     expect(status.kind).toBe('planning');
     expect(status.planStep).toBe('Add login');
   });

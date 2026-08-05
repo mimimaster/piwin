@@ -23,8 +23,10 @@
    - **R3 spikes:** Pi JSONL tree, RPC custom tools, MCP SSE  
    - **R4 later:** sub-agent, git DAG, content packs  
    - **R5 extensions follow-on:** mostly done (D-EXT-01..03,05..07); residual D-EXT-04 UI bridge; D-HOST-01b is absorbed by Runtime Refactor Phase 3
-5. **Settings + Runtime architecture refactor (ordered):** finish the Settings capability prerequisites, then execute Unified Job Control → Structured Concurrency → Agent Worker Isolation —
-   [`docs/specs/settings-capability-runtime-refactor.md`](./specs/settings-capability-runtime-refactor.md) · [`docs/specs/runtime-refactor.md`](./specs/runtime-refactor.md).
+5. **Settings + Runtime architecture refactor (ordered):** component scaffolding exists, but the production vertical slice is **not complete**. Execute the review-backed completion sequence: immutable session compilation → one Job authority → parent-owned tool authority → production SubagentOrchestrator → compatibility deletion —
+   [`docs/plans/2026-08-04-runtime-authority-completion.md`](./plans/2026-08-04-runtime-authority-completion.md) ·
+   [`docs/specs/settings-capability-runtime-refactor.md`](./specs/settings-capability-runtime-refactor.md) ·
+   [`docs/specs/runtime-refactor.md`](./specs/runtime-refactor.md).
 6. **Capability Expansion program (queued):** LiveAgent-class features via Pi ecosystem —  
    [`docs/specs/program-capability-expansion.md`](./specs/program-capability-expansion.md) · W1–W4 `docs/specs/w*.md` · backlog **CE-*** in §2.9.
 7. **Product Depth (recommended next for “too rough”):** main-path depth + competitive alignment —  
@@ -53,6 +55,7 @@
 | A-SESSION-RESUME | ~~Session transcript + resume hydrate~~ | session, host, desktop | **Done** — product transcript layer |
 | A-MCP-LIFE | ~~MCP health/start/stop lifecycle~~ | `mcp`, host, desktop | **Done 2026-07-20** — manager + IPC + McpPanel |
 | A-P6-MAIN | ~~P6 main-path M1–M5~~ | mcp, host, session, project, desktop, cli, docs | **Done 2026-07-20** — plan + ADR 0008/0009 |
+| A-RUNTIME-AUTH | Runtime authority completion | contracts, process, host-runtime, agent-host, session, git, CLI, Desktop | **Active** — do not advertise Job, worker tool, or parallel subagent completion until the ordered plan's deletion gates pass. |
 
 ---
 
@@ -66,6 +69,7 @@
 | D-MED-02 | ~~Historical attachment hydration~~ | Done via product transcript | done |
 | D-MED-03 | ~~File-picker attach~~ | Done | done |
 | D-MED-04 | Thumbnail cache / dimensions | optional quality | polish |
+| D-MED-05 | Composer paste latency (large images) | Three bottlenecks: (1) `fileToBase64` synchronous `String.fromCharCode` loop blocks main thread on 2MB+ images; (2) first paste with no active session triggers IPC `session/create` round-trip before image processing starts; (3) `media/save` IPC transmits full base64 string. Fix after media/IPC architecture refactor — candidate solutions: Web Worker for base64 encoding, optimistic preview via `URL.createObjectURL` before save, pre-create general session on startup, or Tauri native FS write to bypass JS encoding + IPC serialization entirely. | after architecture refactor |
 | D-WEB-01 | ~~Web settings + citations~~ | Done | done |
 | D-WEB-02 | ~~Project-remember network~~ | Done | done |
 | D-WEB-03 | ~~SSRF depth~~ | Done | done |

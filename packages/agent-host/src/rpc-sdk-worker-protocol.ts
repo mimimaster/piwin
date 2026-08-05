@@ -32,13 +32,23 @@ export type WorkerRequest = {
   type: 'request';
   id: string;
   method: WorkerRequestMethod;
+  context: WorkerFrameContext;
   payload: WorkerRequestPayload;
+};
+
+/** Identity carried by every non-handshake worker frame. */
+export type WorkerFrameContext = {
+  sessionId: string;
+  runtimeGenerationId: string;
+  runId?: string;
+  toolCallId?: string;
 };
 
 /** Worker response frame (worker → parent via stdout). */
 export type WorkerResponse = {
   type: 'response';
   id: string;
+  context: WorkerFrameContext;
   success: boolean;
   data?: unknown;
   error?: string;
@@ -47,7 +57,7 @@ export type WorkerResponse = {
 /** Worker event frame (worker → parent via stdout, streaming). */
 export type WorkerEvent = {
   type: 'event';
-  sessionId: string;
+  context: WorkerFrameContext;
   event: AgentEvent;
 };
 
@@ -58,7 +68,7 @@ export type WorkerEvent = {
 export type WorkerToolCallFrame = {
   type: 'tool-call';
   id: string;
-  sessionId: string;
+  context: WorkerFrameContext;
   toolName: string;
   args: unknown;
   /** Optional parent-side abort correlation id. */
@@ -73,10 +83,16 @@ export type WorkerToolCallFrame = {
 export type WorkerToolResultFrame = {
   type: 'tool-result';
   id: string;
+  context: WorkerFrameContext;
   ok: boolean;
   result?: unknown;
   error?: string;
-  code?: 'tool-not-available' | 'tool-disabled' | 'permission-denied' | 'aborted';
+  code?:
+    | 'tool-not-available'
+    | 'tool-disabled'
+    | 'permission-denied'
+    | 'aborted'
+    | 'execution-failed';
 };
 
 /** Worker → parent: startup handshake advertising protocol/capabilities. */
@@ -107,7 +123,7 @@ export type WorkerShutdownFrame = {
 export type WorkerExtensionUiRequestFrame = {
   type: 'extension-ui-request';
   id: string;
-  sessionId: string;
+  context: WorkerFrameContext;
   kind: 'confirm' | 'select' | 'input';
   title: string;
   message?: string;
@@ -119,6 +135,7 @@ export type WorkerExtensionUiRequestFrame = {
 export type WorkerExtensionUiResponseFrame = {
   type: 'extension-ui-response';
   id: string;
+  context: WorkerFrameContext;
   ok: boolean;
   result?:
     | { kind: 'confirm'; confirmed: boolean }
@@ -146,26 +163,13 @@ export type WorkerRequestPayload =
       providers?: SerializableProviderRuntime[];
     }
   | {
-      method: 'session/create';
-      /** Legacy subagent-task path (isolated task runner). */
-      projectPath: string;
-      workingDirectory: string;
-      profileId?: string;
-      modelProtocol?: string;
-      modelProviderId?: string;
-      modelModelId?: string;
-      thinkingLevel?: string;
-      capabilities?: string[];
-      skillIds?: string[];
-      isolation: 'readonly' | 'worktree';
-    }
-  | {
       method: 'session/prompt';
       sessionId: string;
       /** Prepared prompt text (parent owns PromptPreparation; no path injection). */
       text: string;
       /** Native image content parts (base64 over stdio). */
       images?: Array<{ mimeType: string; dataBase64: string }>;
+      streamingBehavior?: 'steer' | 'followUp';
       thinkingLevel?: string;
       model?: { providerId: string; modelId: string };
     }
@@ -193,16 +197,17 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
   try {
     const parsed = JSON.parse(line);
     if (parsed && typeof parsed === 'object') {
-      if (parsed.type === 'response' && typeof parsed.id === 'string') {
+      if (parsed.type === 'response' && typeof parsed.id === 'string' && isFrameContext(parsed.context)) {
         return parsed as WorkerResponse;
       }
-      if (parsed.type === 'event' && typeof parsed.sessionId === 'string') {
+      if (parsed.type === 'event' && isFrameContext(parsed.context)) {
         return parsed as WorkerEvent;
       }
       if (
         parsed.type === 'tool-call' &&
         typeof parsed.id === 'string' &&
-        typeof parsed.toolName === 'string'
+        typeof parsed.toolName === 'string' &&
+        isFrameContext(parsed.context)
       ) {
         return parsed as WorkerToolCallFrame;
       }
@@ -220,7 +225,7 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
       if (
         parsed.type === 'extension-ui-request' &&
         typeof parsed.id === 'string' &&
-        typeof parsed.sessionId === 'string' &&
+        isFrameContext(parsed.context) &&
         (parsed.kind === 'confirm' || parsed.kind === 'select' || parsed.kind === 'input')
       ) {
         return parsed as WorkerExtensionUiRequestFrame;
@@ -230,6 +235,19 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
   } catch {
     return undefined;
   }
+}
+
+function isFrameContext(value: unknown): value is WorkerFrameContext {
+  if (!value || typeof value !== 'object') return false;
+  const context = value as Record<string, unknown>;
+  return (
+    typeof context.sessionId === 'string' &&
+    context.sessionId.length > 0 &&
+    typeof context.runtimeGenerationId === 'string' &&
+    context.runtimeGenerationId.length > 0 &&
+    (context.runId === undefined || typeof context.runId === 'string') &&
+    (context.toolCallId === undefined || typeof context.toolCallId === 'string')
+  );
 }
 
 /** Serialize a WorkerRequest to a JSONL line. */

@@ -8,12 +8,11 @@
  * failed/interrupted state and retains its worktree.
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type {
   SubagentBatchRequest,
   SubagentFailurePolicy,
-  SubagentProcessPolicy,
   SubagentRuntimeSnapshot,
   SubagentTaskResult,
   SubagentWorkspaceLease,
@@ -34,7 +33,6 @@ export type SubagentRunManifest = {
   }>;
   maxConcurrency: number;
   failurePolicy: SubagentFailurePolicy;
-  processPolicy: SubagentProcessPolicy;
   /** Per-task runtime snapshot captured at dispatch time. */
   snapshots: Record<string, SubagentRuntimeSnapshot>;
   /** Per-task workspace lease allocated at dispatch time. */
@@ -81,7 +79,6 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
       })),
       maxConcurrency: request.maxConcurrency ?? 4,
       failurePolicy: request.failurePolicy ?? 'continue',
-      processPolicy: request.processPolicy ?? 'required',
       snapshots: {},
       leases: {},
       results: {},
@@ -149,6 +146,37 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     await saveManifest(manifest);
   }
 
+  async function requestCancel(runId: string): Promise<boolean> {
+    const manifest = await loadManifest(runId);
+    if (!manifest || manifest.status !== 'running') return false;
+    await ensureDir();
+    await writeFile(join(runsDir, `${runId}.cancel`), new Date().toISOString(), 'utf8');
+    return true;
+  }
+
+  async function isCancelRequested(runId: string): Promise<boolean> {
+    try {
+      await readFile(join(runsDir, `${runId}.cancel`), 'utf8');
+      return true;
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  async function clearCancelRequest(runId: string): Promise<void> {
+    try {
+      await unlink(join(runsDir, `${runId}.cancel`));
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    }
+  }
+
   /**
    * Reconcile a manifest after host restart: any task with a `running`
    * execution status but no live child is marked failed (interrupted).
@@ -189,6 +217,9 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     recordLease,
     recordResult,
     setStatus,
+    requestCancel,
+    isCancelRequested,
+    clearCancelRequest,
     reconcile,
   };
 }

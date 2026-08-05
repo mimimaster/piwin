@@ -3,7 +3,7 @@ import type { SerializableBlueprint } from './serializable-blueprint.js';
 import { buildWorkerProxyTools, buildSingleProxyTool } from './worker-proxy-tool-factory.js';
 import type { ToolProxyCall } from './worker-proxy-tool-factory.js';
 
-function blueprintWithTools(customToolNames: string[]): SerializableBlueprint {
+function blueprintWithTools(toolNames: string[]): SerializableBlueprint {
   return {
     protocolVersion: 1,
     snapshotId: 'snap-1',
@@ -15,7 +15,7 @@ function blueprintWithTools(customToolNames: string[]): SerializableBlueprint {
     tools: {
       enabledFamilies: [],
       piBuiltinToolNames: [],
-      customToolNames,
+      hostTools: toolNames.map((name) => ({ name, description: '', parameters: {} })),
       enabledMcpServerIds: [],
     },
     activeSkillPaths: [],
@@ -25,17 +25,18 @@ function blueprintWithTools(customToolNames: string[]): SerializableBlueprint {
 }
 
 describe('buildWorkerProxyTools', () => {
-  it('returns an empty array when customToolNames is empty (P7-08)', () => {
+  it('returns an empty array when hostTools is empty (P7-08)', () => {
     const proxyCall = vi.fn();
-    const tools = buildWorkerProxyTools(blueprintWithTools([]), proxyCall);
+    const tools = buildWorkerProxyTools(blueprintWithTools([]), proxyCall, 'sess-1');
     expect(tools).toEqual([]);
   });
 
-  it('builds one proxy tool per custom tool name', () => {
+  it('builds one proxy tool per Host tool descriptor', () => {
     const proxyCall = vi.fn();
     const tools = buildWorkerProxyTools(
       blueprintWithTools(['web_search', 'web_fetch', 'mcp__server__tool']),
       proxyCall,
+      'sess-1',
     );
     expect(tools).toHaveLength(3);
     expect(tools.map((t) => t.name).sort()).toEqual([
@@ -50,10 +51,10 @@ describe('buildWorkerProxyTools', () => {
       ok: true as true,
       output: 'search results here',
     }));
-    const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall);
+    const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall, 'sess-1');
     const tool = tools[0]!;
 
-    const result = await tool.execute('sess-1|tc-1', { query: 'piwin' }, undefined, undefined, undefined);
+    const result = await tool.execute('tc-1', { query: 'piwin' }, undefined, undefined, undefined);
 
     expect(proxyCall).toHaveBeenCalledWith('sess-1', 'web_search', { query: 'piwin' }, undefined);
     expect(result.content).toEqual([{ type: 'text', text: 'search results here' }]);
@@ -66,10 +67,10 @@ describe('buildWorkerProxyTools', () => {
       code: 'permission-denied',
       message: 'user denied bash execution',
     }));
-    const tools = buildWorkerProxyTools(blueprintWithTools(['bash']), proxyCall);
+    const tools = buildWorkerProxyTools(blueprintWithTools(['bash']), proxyCall, 'sess-1');
     const tool = tools[0]!;
 
-    const result = await tool.execute('sess-1|tc-1', { command: 'rm -rf /' }, undefined, undefined, undefined);
+    const result = await tool.execute('tc-1', { command: 'rm -rf /' }, undefined, undefined, undefined);
 
     expect(result.content[0]?.text).toContain('Permission denied');
     expect(result.details).toMatchObject({ error: 'permission-denied' });
@@ -81,9 +82,9 @@ describe('buildWorkerProxyTools', () => {
       code: 'aborted',
       message: 'tool execution aborted',
     }));
-    const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall);
+    const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall, 'sess-1');
 
-    const result = await tools[0]!.execute('s|tc', {}, undefined, undefined, undefined);
+    const result = await tools[0]!.execute('tc', {}, undefined, undefined, undefined);
 
     expect(result.content[0]?.text).toContain('aborted');
   });
@@ -94,9 +95,9 @@ describe('buildWorkerProxyTools', () => {
       code: 'tool-not-available',
       message: 'tool not in registry',
     }));
-    const tools = buildWorkerProxyTools(blueprintWithTools(['missing_tool']), proxyCall);
+    const tools = buildWorkerProxyTools(blueprintWithTools(['missing_tool']), proxyCall, 'sess-1');
 
-    const result = await tools[0]!.execute('s|tc', {}, undefined, undefined, undefined);
+    const result = await tools[0]!.execute('tc', {}, undefined, undefined, undefined);
 
     expect(result.content[0]?.text).toContain('Tool not available');
   });
@@ -107,26 +108,29 @@ describe('buildWorkerProxyTools', () => {
       code: 'tool-disabled',
       message: 'web tools family disabled',
     }));
-    const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall);
+    const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall, 'sess-1');
 
-    const result = await tools[0]!.execute('s|tc', {}, undefined, undefined, undefined);
+    const result = await tools[0]!.execute('tc', {}, undefined, undefined, undefined);
 
     expect(result.content[0]?.text).toContain('Tool disabled');
   });
 });
 
 describe('buildSingleProxyTool', () => {
-  it('generates typebox parameters for known tool names', () => {
+  it('preserves the complete descriptor schema', () => {
     const proxyCall = vi.fn();
-    const tool = buildSingleProxyTool('web_search', proxyCall);
-    // parametersForHostTool returns a typebox schema for web_search
-    expect(tool.parameters).toBeDefined();
+    const parameters = {
+      type: 'object',
+      properties: { query: { type: 'string' } },
+      required: ['query'],
+      additionalProperties: false,
+    };
+    const tool = buildSingleProxyTool(
+      { name: 'web_search', description: 'Search', parameters },
+      proxyCall,
+      'sess-1',
+    );
+    expect(tool.parameters).toEqual(parameters);
     expect(tool.name).toBe('web_search');
-  });
-
-  it('generates free-form parameters for unknown tool names', () => {
-    const proxyCall = vi.fn();
-    const tool = buildSingleProxyTool('custom_unknown_tool', proxyCall);
-    expect(tool.parameters).toBeDefined();
   });
 });

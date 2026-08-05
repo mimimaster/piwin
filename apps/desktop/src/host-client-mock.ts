@@ -2,6 +2,7 @@ import { isPlaceholderSessionName } from './title-display';
 /** Browser mock host backend — isolated from live Tauri transport. */
 import type {
   AgentEvent,
+  ExecutionRunRecord,
   HostCommand,
   HostMode,
   HostPush,
@@ -13,6 +14,7 @@ import type {
   SessionTranscriptMessage,
   WalkthroughArtifact,
 } from '@piwin/contracts';
+import { isJobTerminal } from '@piwin/contracts';
 
 export type MockEmit = (message: HostPush | HostServerMessage) => void;
 
@@ -47,8 +49,8 @@ export class MockHostBackend {
   private mockBundledExtensionsInstalled = true;
   private mockDisabledPromptIds = new Set<string>();
   private mockActiveThemeId: 'piwin-dark' | 'piwin-light' | 'piwin-orange-white' = 'piwin-dark';
-  private mockProcesses = new Map<string, import('@piwin/contracts').ManagedProcessRecord>();
-  private mockProcessLogs = new Map<string, string>();
+  private mockJobs = new Map<string, import('@piwin/contracts').JobRecord>();
+  private mockJobLogs = new Map<string, string>();
   private mockPtys = new Map<string, { projectPath: string }>();
   private mockRememberedPermissions = new Map<
     string,
@@ -66,6 +68,7 @@ export class MockHostBackend {
   private mockActiveRunIds = new Map<string, string>();
   /** Guards the exactly-once terminal transition for each mock run. */
   private mockTerminalRunIds = new Set<string>();
+  private mockRuns = new Map<string, ExecutionRunRecord>();
   private mockConfig: import('@piwin/contracts').PiwinConfig = {
     hostMode: 'sdk',
     providers: [],
@@ -83,48 +86,12 @@ export class MockHostBackend {
     this.getMode = getMode;
   }
 
-  private emitParentSubagentActivity(input: {
-    parentSessionId: string;
-    childSessionId: string;
-    displayName: string;
-    task: string;
-    state: 'started' | 'running' | 'completed' | 'failed' | 'cancelled' | 'merged';
-  }): void {
-    const parent = this.sessions.get(input.parentSessionId);
-    if (!parent) {
-      return;
-    }
-    const updatedAt = new Date().toISOString();
-    const activity = {
-      childSessionId: input.childSessionId,
-      displayName: input.displayName,
-      taskSummary: input.task,
-      state: input.state,
-      updatedAt,
-    };
-    const message: SessionTranscriptMessage = {
-      id: crypto.randomUUID(),
-      role: 'system',
-      text: `Subagent ${input.state}: ${input.displayName}
-Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
-      createdAt: updatedAt,
-      status: 'done',
-      subagentActivity: activity,
-    };
-    parent.transcript.push(message);
-    this.emitPush({
-      type: 'transcript/append',
-      sessionId: input.parentSessionId,
-      message,
-    });
-  }
-
   clear(): void {
     this.sessions.clear();
     this.plans.clear();
     this.childIndex.clear();
-    this.mockProcesses.clear();
-    this.mockProcessLogs.clear();
+    this.mockJobs.clear();
+    this.mockJobLogs.clear();
     this.mockPtys.clear();
     this.mockRememberedPermissions.clear();
     this.mockPromptAborts.clear();
@@ -199,7 +166,6 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
               sessionLifecycle: true,
               usage: true,
               pty: false,
-              shellPreview: true,
               subagentWorktree: true,
               marketplaceHub: true,
               automation: true,
@@ -552,20 +518,8 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         const now = new Date().toISOString();
         const runId = crypto.randomUUID();
         this.mockActiveRunIds.set(command.sessionId, runId);
-        this.pushEvent(command.sessionId, {
-          type: 'run/phase',
-          sessionId: command.sessionId,
-          runId,
-          phase: 'accepted',
-          at: now,
-        });
-        this.pushEvent(command.sessionId, {
-          type: 'run/phase',
-          sessionId: command.sessionId,
-          runId,
-          phase: 'preparing',
-          at: new Date().toISOString(),
-        });
+        this.pushMockRunUpdated(command.sessionId, runId, 'running', 'accepted', now);
+        this.pushMockRunUpdated(command.sessionId, runId, 'running', 'preparing');
         const userMessage: SessionTranscriptMessage = {
           id: crypto.randomUUID(),
           role: 'user',
@@ -638,13 +592,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
             },
           };
         }
-        this.pushEvent(command.sessionId, {
-          type: 'run/phase',
-          sessionId: command.sessionId,
-          runId: activeRunId,
-          phase: 'cancelling',
-          at: new Date().toISOString(),
-        });
+        this.pushMockRunUpdated(command.sessionId, activeRunId, 'cancelling', 'cancelling');
         this.mockPromptAborts.get(command.sessionId)?.abort();
         return {
           id,
@@ -725,68 +673,6 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           data: { enabled: command.enabled },
         };
 
-      case 'session/spawn': {
-        const parent = this.sessions.get(command.parentSessionId);
-        if (!parent) {
-          return {
-            id,
-            type: 'response',
-            command: 'session/spawn',
-            success: false,
-            error: `unknown parent ${command.parentSessionId}`,
-          };
-        }
-        const childId = crypto.randomUUID();
-        this.sessions.set(childId, {
-          projectPath: parent.projectPath,
-          scope:
-            parent.scope ??
-            (parent.projectPath
-              ? { kind: 'project', projectPath: parent.projectPath }
-              : { kind: 'general' }),
-          workingDirectory: parent.workingDirectory ?? parent.projectPath,
-          events: [],
-          transcript: [],
-        });
-        const childMeta = {
-          id: childId,
-          scope:
-            parent.scope ??
-            (parent.projectPath
-              ? { kind: 'project' as const, projectPath: parent.projectPath }
-              : { kind: 'general' as const }),
-          workingDirectory: parent.workingDirectory ?? parent.projectPath ?? 'general',
-          projectPath: parent.projectPath,
-          name: `subagent-${command.task.slice(0, 24)}`,
-          updatedAt: new Date().toISOString(),
-          messageCount: 0,
-          parentSessionId: command.parentSessionId,
-          depth: 1,
-          kind: 'subagent' as const,
-          subagentStatus: 'running' as const,
-          task: command.task,
-        };
-        if (!this.childIndex) {
-          this.childIndex = new Map();
-        }
-        const list = this.childIndex.get(command.parentSessionId) ?? [];
-        list.unshift(childMeta);
-        this.childIndex.set(command.parentSessionId, list);
-        this.emitParentSubagentActivity({
-          parentSessionId: command.parentSessionId,
-          childSessionId: childId,
-          displayName: childMeta.name,
-          task: command.task,
-          state: 'running',
-        });
-        return {
-          id,
-          type: 'response',
-          command: 'session/spawn',
-          success: true,
-          data: { sessionId: childId, parentSessionId: command.parentSessionId },
-        };
-      }
       case 'session/list-children': {
         const sessions = this.childIndex?.get(command.parentSessionId) ?? [];
         return {
@@ -797,128 +683,6 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
           data: { parentSessionId: command.parentSessionId, sessions },
         };
       }
-      case 'session/cancel-subagent': {
-        if (this.childIndex) {
-          for (const [parentId, list] of this.childIndex.entries()) {
-            const next = list.map((item) =>
-              item.id === command.sessionId
-                ? { ...item, subagentStatus: 'cancelled' as const }
-                : item,
-            );
-            this.childIndex.set(parentId, next);
-          }
-        }
-        if (this.childIndex) {
-          for (const [parentId, list] of this.childIndex.entries()) {
-            const child = list.find((item) => item.id === command.sessionId);
-            if (child) {
-              this.emitParentSubagentActivity({
-                parentSessionId: parentId,
-                childSessionId: child.id,
-                displayName: child.name ?? child.id,
-                task: child.task ?? '',
-                state: 'cancelled',
-              });
-            }
-          }
-        }
-        return {
-          id,
-          type: 'response',
-          command: 'session/cancel-subagent',
-          success: true,
-          data: { sessionId: command.sessionId, status: 'cancelled' },
-        };
-      }
-      case 'session/complete-subagent': {
-        if (this.childIndex) {
-          for (const [parentId, list] of this.childIndex.entries()) {
-            const next = list.map((item) =>
-              item.id === command.sessionId
-                ? {
-                    ...item,
-                    subagentStatus: (command.status === 'failed' ? 'failed' : 'done') as
-                      'done' | 'failed',
-                  }
-                : item,
-            );
-            this.childIndex.set(parentId, next);
-          }
-        }
-        return {
-          id,
-          type: 'response',
-          command: 'session/complete-subagent',
-          success: true,
-          data: {
-            sessionId: command.sessionId,
-            status: command.status === 'failed' ? 'failed' : 'done',
-          },
-        };
-      }
-      case 'session/merge-subagent': {
-        let parentSessionId: string | undefined;
-        let childName = 'sub-agent';
-        let childTask = '';
-        if (this.childIndex) {
-          for (const [parentId, list] of this.childIndex.entries()) {
-            const found = list.find((item) => item.id === command.childSessionId);
-            if (found) {
-              parentSessionId = parentId;
-              childName = found.name ?? childName;
-              childTask = found.task ?? '';
-              const messageId = crypto.randomUUID();
-              const now = new Date().toISOString();
-              const next: typeof list = list.map((item) => {
-                if (item.id !== command.childSessionId) {
-                  return item;
-                }
-                const updated = {
-                  ...item,
-                  mergedAt: now,
-                  mergeMessageId: messageId,
-                  summaryPreview: 'mock merge summary',
-                };
-                if (item.subagentStatus === 'running' || !item.subagentStatus) {
-                  updated.subagentStatus = 'done';
-                }
-                return updated;
-              });
-              this.childIndex.set(parentId, next);
-              const parent = this.sessions.get(parentId);
-              if (parent) {
-                parent.transcript.push({
-                  id: messageId,
-                  role: 'system',
-                  text: `Sub-agent “${childName}” finished (done)\nTask: ${childTask}\nSummary:\nmock merge summary\n\nchildSessionId=${command.childSessionId}`,
-                  createdAt: now,
-                  status: 'done',
-                });
-              }
-              return {
-                id,
-                type: 'response',
-                command: 'session/merge-subagent',
-                success: true,
-                data: {
-                  childSessionId: command.childSessionId,
-                  parentSessionId,
-                  messageId,
-                  alreadyMerged: false,
-                },
-              };
-            }
-          }
-        }
-        return {
-          id,
-          type: 'response',
-          command: 'session/merge-subagent',
-          success: false,
-          error: `unknown child ${command.childSessionId}`,
-        };
-      }
-
       case 'plan/get': {
         const plan = this.plans.get(command.sessionId) ?? null;
         return {
@@ -1667,102 +1431,167 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
         };
       }
 
-      case 'process/list':
+      case 'job/list':
         return {
           id,
           type: 'response',
-          command: 'process/list',
+          command: 'job/list',
           success: true,
-          data: { processes: [...this.mockProcesses.values()] },
+          data: { jobs: [...this.mockJobs.values()] },
         };
-      case 'process/get': {
-        const processRecord = this.mockProcesses.get(command.processId);
-        if (!processRecord) {
+      case 'job/get': {
+        const job = this.mockJobs.get(command.jobId);
+        if (!job) {
           return {
             id,
             type: 'response',
-            command: 'process/get',
+            command: 'job/get',
             success: false,
-            error: `Unknown process: ${command.processId}`,
+            error: `Unknown job: ${command.jobId}`,
           };
         }
         return {
           id,
           type: 'response',
-          command: 'process/get',
+          command: 'job/get',
           success: true,
-          data: { process: processRecord },
+          data: { job },
         };
       }
-      case 'process/start': {
-        const processId = crypto.randomUUID();
-        const record: import('@piwin/contracts').ManagedProcessRecord = {
-          id: processId,
+      case 'job/start': {
+        const jobId = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const record: import('@piwin/contracts').JobRecord = {
+          jobId,
+          kind: command.input.kind,
+          lifetime: command.input.lifetime,
           command: command.input.command,
           argv: [...command.input.argv],
           cwd: command.input.cwd,
           status: 'running',
-          startedAt: new Date().toISOString(),
-          pid: 0,
+          startedAt: now,
+          latestLogCursor: 0,
+          ...(command.input.ownerRunId ? { ownerRunId: command.input.ownerRunId } : {}),
+          ...(command.input.ownerSessionId ? { ownerSessionId: command.input.ownerSessionId } : {}),
+          ...(command.input.ownerProjectPath ? { ownerProjectPath: command.input.ownerProjectPath } : {}),
+          ...(command.input.label ? { label: command.input.label } : {}),
         };
-        if (command.input.sessionId) record.sessionId = command.input.sessionId;
-        if (command.input.projectPath) record.projectPath = command.input.projectPath;
-        if (command.input.label) record.label = command.input.label;
-        this.mockProcesses.set(processId, record);
-        this.mockProcessLogs.set(processId, `[mock] started ${command.input.command}\n`);
+        this.mockJobs.set(jobId, record);
+        this.mockJobLogs.set(jobId, `[mock] started ${command.input.command}\n`);
+        this.emitPush({ type: 'job/started', job: { ...record } });
+        this.emitPush({ type: 'job/updated', job: { ...record } });
         return {
           id,
           type: 'response',
-          command: 'process/start',
+          command: 'job/start',
           success: true,
-          data: { process: record },
+          data: { job: record },
         };
       }
-      case 'process/logs': {
-        const text = this.mockProcessLogs.get(command.query.processId) ?? '';
-        return {
-          id,
-          type: 'response',
-          command: 'process/logs',
-          success: true,
-          data: {
-            processId: command.query.processId,
-            chunks: text
-              ? [
-                  {
-                    processId: command.query.processId,
-                    stream: 'stdout' as const,
-                    text,
-                    at: new Date().toISOString(),
-                  },
-                ]
-              : [],
-          },
-        };
-      }
-      case 'process/stop': {
-        const existing = this.mockProcesses.get(command.processId);
+      case 'job/wait': {
+        const existing = this.mockJobs.get(command.input.jobId);
         if (!existing) {
           return {
             id,
             type: 'response',
-            command: 'process/stop',
+            command: 'job/wait',
             success: false,
-            error: `Unknown process: ${command.processId}`,
+            error: `Unknown job: ${command.input.jobId}`,
+          };
+        }
+        if (isJobTerminal(existing.status)) {
+          return {
+            id,
+            type: 'response',
+            command: 'job/wait',
+            success: true,
+            data: { job: existing },
+          };
+        }
+        // No mock child ever terminates on its own; a wait on an active job
+        // resolves only when the caller stops it (or the timeout elapses).
+        const timeoutMs = command.input.timeoutMs ?? 120_000;
+        const deadline = Date.now() + timeoutMs;
+        return await new Promise<HostResponse>((resolve) => {
+          const startedAt = Date.now();
+          const poll = (): void => {
+            const current = this.mockJobs.get(command.input.jobId);
+            if (current && isJobTerminal(current.status)) {
+              resolve({
+                id,
+                type: 'response',
+                command: 'job/wait',
+                success: true,
+                data: { job: current },
+              });
+              return;
+            }
+            if (Date.now() >= deadline || Date.now() - startedAt >= timeoutMs) {
+              resolve({
+                id,
+                type: 'response',
+                command: 'job/wait',
+                success: false,
+                error: `job wait timeout: ${command.input.jobId}`,
+              });
+              return;
+            }
+            setTimeout(poll, 50);
+          };
+          poll();
+        });
+      }
+      case 'job/logs': {
+        const text = this.mockJobLogs.get(command.input.jobId) ?? '';
+        return {
+          id,
+          type: 'response',
+          command: 'job/logs',
+          success: true,
+          data: {
+            jobId: command.input.jobId,
+            chunks: text
+              ? [
+                  {
+                    jobId: command.input.jobId,
+                    stream: 'stdout' as const,
+                    text,
+                    at: new Date().toISOString(),
+                    cursor: 0,
+                  },
+                ]
+              : [],
+            nextCursor: 0,
+            hasMore: false,
+          },
+        };
+      }
+      case 'job/stop': {
+        const existing = this.mockJobs.get(command.jobId);
+        if (!existing) {
+          return {
+            id,
+            type: 'response',
+            command: 'job/stop',
+            success: false,
+            error: `Unknown job: ${command.jobId}`,
           };
         }
         const stopped = {
           ...existing,
-          status: 'stopped' as const,
-          exitedAt: new Date().toISOString(),
+          status: 'cancelled' as const,
+          endedAt: new Date().toISOString(),
+          terminalReason: 'user-stop' as const,
         };
-        this.mockProcesses.set(command.processId, stopped);
+        this.mockJobs.set(command.jobId, stopped);
+        this.emitPush({ type: 'job/updated', job: { ...stopped } });
+        this.emitPush({ type: 'job/exited', job: { ...stopped } });
         return {
           id,
           type: 'response',
-          command: 'process/stop',
+          command: 'job/stop',
           success: true,
-          data: { process: stopped },
+          data: { job: stopped, cleanup: { requestedJobIds: [command.jobId], stoppedJobIds: [command.jobId], alreadyTerminalJobIds: [], failedJobIds: [] } },
         };
       }
       case 'mcp/status':
@@ -2041,28 +1870,6 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
               securityTightenedImmediately: mutation.domain === 'permissions',
             })),
           },
-        };
-      }
-      case 'config/set': {
-        if (!('config' in command) || !command.config) {
-          return {
-            id,
-            type: 'response',
-            command: 'config/set',
-            success: false,
-            error: 'config required',
-          };
-        }
-        this.mockConfig = command.config as import('@piwin/contracts').PiwinConfig;
-        this.mockSettingsRevision = `mock-settings-v${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 8)}`;
-        return {
-          id,
-          type: 'response',
-          command: 'config/set',
-          success: true,
-          data: { config: this.mockConfig },
         };
       }
       case 'secrets/set': {
@@ -3081,13 +2888,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       : wantsAbortWindow
         ? `piwin desktop mock reply.\nYou said: ${text}\n${'chunk '.repeat(80)}`
         : `piwin desktop mock reply.\nYou said: ${text}`;
-    this.pushEvent(sessionId, {
-      type: 'run/phase',
-      sessionId,
-      runId,
-      phase: 'waiting-first-token',
-      at: new Date().toISOString(),
-    });
+    this.pushMockRunUpdated(sessionId, runId, 'running', 'waiting-first-token');
     this.pushEvent(sessionId, {
       type: 'message/start',
       messageId: assistantId,
@@ -3101,13 +2902,7 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
       runId,
     });
     this.pushEvent(sessionId, { type: 'tool/end', toolCallId: toolId, isError: false, runId });
-    this.pushEvent(sessionId, {
-      type: 'run/phase',
-      sessionId,
-      runId,
-      phase: 'streaming',
-      at: new Date().toISOString(),
-    });
+    this.pushMockRunUpdated(sessionId, runId, 'running', 'streaming');
 
     let assembled = '';
     try {
@@ -3201,14 +2996,46 @@ Task: ${input.task}\nchildSessionId=${input.childSessionId}`,
     if (this.mockActiveRunIds.get(sessionId) === runId) {
       this.mockActiveRunIds.delete(sessionId);
     }
-    this.pushEvent(sessionId, {
-      type: 'run/terminal',
-      sessionId,
-      runId,
-      outcome,
-      at: new Date().toISOString(),
-      ...(code ? { code } : {}),
-    });
+    const existing = this.mockRuns.get(runId);
+    const terminalRun: ExecutionRunRecord = {
+      ...(existing ?? {
+        runId,
+        kind: 'session-turn' as const,
+        rootRunId: runId,
+        sessionId,
+      }),
+      status: outcome,
+      endedAt: new Date().toISOString(),
+      ...(code ? { terminalCode: code } : {}),
+    };
+    this.mockRuns.set(runId, terminalRun);
+    this.emitPush({ type: 'run/updated', run: terminalRun });
+    this.emitPush({ type: 'run/terminal', run: terminalRun });
+  }
+
+  private pushMockRunUpdated(
+    sessionId: string,
+    runId: string,
+    status: ExecutionRunRecord['status'],
+    phase: import('@piwin/contracts').SessionRunPhase,
+    at = new Date().toISOString(),
+  ): void {
+    const existing = this.mockRuns.get(runId);
+    const run: ExecutionRunRecord = {
+      ...(existing ?? {
+        runId,
+        kind: 'session-turn' as const,
+        rootRunId: runId,
+        sessionId,
+        firstTokenReceived: false,
+      }),
+      status,
+      phase,
+      phaseUpdatedAt: at,
+      ...(existing?.startedAt ? {} : { startedAt: at }),
+    };
+    this.mockRuns.set(runId, run);
+    this.emitPush({ type: 'run/updated', run });
   }
 
   /**

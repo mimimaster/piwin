@@ -6,21 +6,13 @@
  * @see D-EXT-04
  */
 
-export type ExtensionUiKind = 'confirm' | 'select' | 'input';
+import type {
+  ExtensionUiKind,
+  ExtensionUiRequest,
+  ExtensionUiResponse,
+} from '@piwin/contracts';
 
-export type ExtensionUiRequest = {
-  requestId: string;
-  kind: ExtensionUiKind;
-  title: string;
-  message?: string;
-  options?: string[];
-  placeholder?: string;
-};
-
-export type ExtensionUiResponse =
-  | { kind: 'confirm'; confirmed: boolean }
-  | { kind: 'select'; value?: string; cancelled?: boolean }
-  | { kind: 'input'; value?: string; cancelled?: boolean };
+export type { ExtensionUiKind, ExtensionUiRequest, ExtensionUiResponse } from '@piwin/contracts';
 
 export type ExtensionUiBridge = {
   request: (request: ExtensionUiRequest) => Promise<ExtensionUiResponse>;

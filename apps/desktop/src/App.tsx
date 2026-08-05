@@ -73,7 +73,7 @@ import {
 } from './subagent-activity-model';
 import { SubagentWorkingDock } from './subagent-working-dock';
 import { SubagentSessionDialog } from './subagent-session-dialog';
-import { useManagedProcesses } from './hooks/use-managed-processes';
+import { useJobs } from './hooks/use-jobs';
 import { Button, ConfirmDialog, Dialog, IconButton, Notice } from '@piwin/ui-kit';
 import { IconClose } from './shell-icons';
 import { useShellLayout, type ShellSettingsSection } from './hooks/use-shell-layout';
@@ -499,10 +499,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, [hostClient, state.projectPath]);
 
   const {
-    managedProcesses,
-    refreshManagedProcesses,
-    appendProcessLog: appendProcessLogBase,
-  } = useManagedProcesses(hostClient, {
+    jobs,
+    refreshJobs,
+    appendJobLog: appendJobLogBase,
+  } = useJobs(hostClient, {
     refreshWhenVisible: rightPanelOpen && shell.inspectorTab === 'terminal',
   });
 
@@ -513,12 +513,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     }
   }, []);
 
-  const appendProcessLog = useCallback(
-    (processId: string, text: string): void => {
-      appendProcessLogBase(processId, text);
+  const appendJobLog = useCallback(
+    (jobId: string, text: string): void => {
+      appendJobLogBase(jobId, text);
       markTerminalAttentionIfHidden();
     },
-    [appendProcessLogBase, markTerminalAttentionIfHidden],
+    [appendJobLogBase, markTerminalAttentionIfHidden],
   );
 
   const setPtyOutput = useCallback(
@@ -551,8 +551,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     hostClient,
     dispatch,
     dispatchNotification,
-    refreshManagedProcesses,
-    appendProcessLog,
+    refreshJobs,
+    appendJobLog,
     setPtyOutput,
     setHostLogEntries,
     setSelectedModelKey,
@@ -1423,9 +1423,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         chat: state,
         tools: sessionTools,
         plan: sessionPlan,
-        processes: managedProcesses,
+        jobs,
       }),
-    [state, sessionTools, sessionPlan, managedProcesses, runClock],
+    [state, sessionTools, sessionPlan, jobs, runClock],
   );
 
   const activitySignal = useMemo(() => {
@@ -2075,7 +2075,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 onResizePointerDown={rightPanelResize.onResizePointerDown}
                 onResizeReset={() => rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX)}
                 isOverlayPresentation={isOverlayPresentation}
-                runningProcessCount={managedProcesses.length}
+                runningJobCount={jobs.length}
                 terminalAttention={terminalAttention}
                 onTerminalAttentionClear={() => setTerminalAttention(false)}
                 onViewChange={setRightPanelView}
@@ -2341,6 +2341,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
             requestAutomation={requestAutomation}
             requestSubAgent={requestSubAgent as never}
             subagentChildren={state.subagentChildren}
+            subagentBatches={state.subagentBatches}
             activeSessionId={state.activeSessionId}
             onOpenSubagentSession={(sessionId) => {
               void handleResumeSession(sessionId);

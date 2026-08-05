@@ -21,23 +21,7 @@
   "dependencies": {
     "@earendil-works/pi-ai": "0.80.10",
     "@earendil-works/pi-coding-agent": "0.80.10",
-    "@piwin/automation": "workspace:*",
-    "@piwin/browser": "workspace:*",
     "@piwin/contracts": "workspace:*",
-    "@piwin/doc-rag": "workspace:*",
-    "@piwin/flashcards": "workspace:*",
-    "@piwin/git": "workspace:*",
-    "@piwin/marketplace": "workspace:*",
-    "@piwin/mcp": "workspace:*",
-    "@piwin/media": "workspace:*",
-    "@piwin/notes": "workspace:*",
-    "@piwin/pet": "workspace:*",
-    "@piwin/process": "workspace:*",
-    "@piwin/project": "workspace:*",
-    "@piwin/session": "workspace:*",
-    "@piwin/skills": "workspace:*",
-    "@piwin/theme": "workspace:*",
-    "@piwin/tools-web": "workspace:*",
     "typebox": "1.1.38"
   },
   "devDependencies": {

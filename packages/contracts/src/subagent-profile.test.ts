@@ -101,10 +101,9 @@ describe('createDefaultSubagentConfig', () => {
     expect(config.profiles).toEqual([]);
     expect(config.maxConcurrency).toBe(4);
     expect(config.maxTasksPerRun).toBe(8);
-    expect(config.maxParallelWriteTasks).toBe(4);
     expect(config.processIsolation).toBe('required');
     expect(config.parallelWritePolicy).toBe('worktree-only');
-    expect(config.requireCleanBaseForParallelWrites).toBe(true);
+    expect(config.dirtyBasePolicy).toBe('ask');
   });
 });
 

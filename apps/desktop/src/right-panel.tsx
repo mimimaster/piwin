@@ -43,7 +43,7 @@ export type RightPanelProps = {
   sideChatContent?: ReactNode;
   docPreviewContent?: ReactNode;
   changesCount?: number;
-  runningProcessCount?: number;
+  runningJobCount?: number;
   cardsDueCount?: number;
   terminalAttention?: boolean;
   onTerminalAttentionClear?: () => void;
@@ -81,7 +81,7 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
 export function RightPanel(props: RightPanelProps): ReactElement {
   const locale = props.locale ?? 'zh-CN';
   const changesCount = props.changesCount ?? 0;
-  const runningProcessCount = props.runningProcessCount ?? 0;
+  const runningJobCount = props.runningJobCount ?? 0;
   const cardsDueCount = props.cardsDueCount;
   const terminalAttention = props.terminalAttention === true;
 
@@ -246,8 +246,8 @@ export function RightPanel(props: RightPanelProps): ReactElement {
                     {sectionIcon(tab)}
                   </span>
                   <span className="right-panel-tab-label">{label}</span>
-                  {tab === 'terminal' && runningProcessCount > 0 ? (
-                    <span className="right-panel-tab-badge">{runningProcessCount}</span>
+                  {tab === 'terminal' && runningJobCount > 0 ? (
+                    <span className="right-panel-tab-badge">{runningJobCount}</span>
                   ) : null}
                   {tab === 'terminal' && terminalAttention ? (
                     <span className="right-panel-tab-attention" aria-hidden />

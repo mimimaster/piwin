@@ -1,5 +1,21 @@
 import { describe, expect, it } from 'vitest';
+import type { ExecutionRunRecord } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
+
+function makeRun(
+  runId: string,
+  overrides: Partial<ExecutionRunRecord> = {},
+): ExecutionRunRecord {
+  return {
+    runId,
+    kind: 'session-turn',
+    status: 'running',
+    rootRunId: runId,
+    sessionId: 's1',
+    startedAt: '2026-07-24T00:00:00.000Z',
+    ...overrides,
+  };
+}
 
 describe('chatUiReducer', () => {
   it('accumulates assistant text deltas', () => {
@@ -68,15 +84,13 @@ describe('chatUiReducer', () => {
     state = chatUiReducer(state, { type: 'user/send', text: 'first' });
     state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
     state = chatUiReducer(state, {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'run/terminal',
-        sessionId: 's1',
-        runId: 'run-1',
-        outcome: 'completed',
-        at: '2026-07-24T00:00:00.000Z',
-      },
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        phase: 'streaming',
+        endedAt: '2026-07-24T00:00:00.000Z',
+        terminalCode: 'completed',
+      }),
     });
     state = chatUiReducer(state, { type: 'user/send', text: 'second' });
     state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-2' });
@@ -127,29 +141,24 @@ describe('chatUiReducer', () => {
     expect(state.activeRunStartedAt).toBe(Date.parse('2026-07-24T00:00:00.000Z'));
 
     state = chatUiReducer(state, {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'run/phase',
-        sessionId: 's1',
-        runId: 'run-1',
+      type: 'run/updated',
+      run: makeRun('run-1', {
         phase: 'waiting-first-token',
-        at: '2026-07-24T00:00:01.000Z',
-      },
+        phaseUpdatedAt: '2026-07-24T00:00:01.000Z',
+      }),
     });
     expect(state.activeRunPhase).toBe('waiting-first-token');
     expect(state.activeRunId).toBe('run-1');
 
     state = chatUiReducer(state, {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'run/terminal',
-        sessionId: 's1',
-        runId: 'run-1',
-        outcome: 'completed',
-        at: '2026-07-24T00:00:02.000Z',
-      },
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        phase: 'waiting-first-token',
+        phaseUpdatedAt: '2026-07-24T00:00:01.000Z',
+        endedAt: '2026-07-24T00:00:02.000Z',
+        terminalCode: 'completed',
+      }),
     });
     expect(state.activeRunId).toBeNull();
     expect(state.activeRunPhase).toBeNull();
@@ -161,15 +170,12 @@ describe('chatUiReducer', () => {
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
     state = chatUiReducer(state, {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'run/terminal',
-        sessionId: 's1',
-        runId: 'run-1',
-        outcome: 'completed',
-        at: '2026-07-24T00:00:00.000Z',
-      },
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        endedAt: '2026-07-24T00:00:00.000Z',
+        terminalCode: 'completed',
+      }),
     });
 
     const beforeLateDelta = state;
@@ -262,15 +268,12 @@ describe('chatUiReducer', () => {
       },
     });
     state = chatUiReducer(state, {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'run/terminal',
-        sessionId: 's1',
-        runId: 'run-1',
-        outcome: 'completed',
-        at: '2026-07-24T00:00:00.000Z',
-      },
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        endedAt: '2026-07-24T00:00:00.000Z',
+        terminalCode: 'completed',
+      }),
     });
     state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-2' });
 
@@ -295,29 +298,23 @@ describe('chatUiReducer', () => {
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
     state = chatUiReducer(state, {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'run/terminal',
-        sessionId: 's1',
-        runId: 'run-1',
-        outcome: 'completed',
-        at: '2026-07-24T00:00:00.000Z',
-      },
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        endedAt: '2026-07-24T00:00:00.000Z',
+        terminalCode: 'completed',
+      }),
     });
 
     const beforeLateTerminal = state;
     const afterLateTerminal = chatUiReducer(state, {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'run/terminal',
-        sessionId: 's1',
-        runId: 'run-legacy',
-        outcome: 'failed',
-        at: '2026-07-24T00:00:01.000Z',
-        message: 'late failure',
-      },
+      type: 'run/terminal',
+      run: makeRun('run-legacy', {
+        status: 'failed',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'failed',
+        error: 'late failure',
+      }),
     });
 
     expect(afterLateTerminal.activeRunId).toBe(beforeLateTerminal.activeRunId);

@@ -3,21 +3,19 @@ import { createInterface } from 'node:readline';
 import { readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import {
-  createAgentHost,
   getPiwinRoot,
   getPiwinMediaDir,
   HostRuntime,
   type HostRuntimeTestFixture,
   initPiwinConfig,
   loadPiwinConfig,
-  savePiwinConfig,
   ensureBundledExtensionsInstalled,
   scanExtensions,
   ensureBundledPromptsInstalled,
   scanPrompts,
   createSecretResolver,
   getPiwinSessionIndexPath,
-} from '@piwin/agent-host';
+} from '@piwin/host-runtime';
 import type {
   AgentEvent,
   HostCommand,
@@ -447,12 +445,12 @@ async function commandDoctor(): Promise<void> {
 }
 
 async function commandHostMode(): Promise<void> {
-  const sdkHost = createAgentHost({ mode: 'sdk', mock: true });
-  const rpcHost = createAgentHost({ mode: 'rpc', mock: true });
-  console.log(`sdk adapter mode=${sdkHost.mode}`);
-  console.log(`rpc adapter mode=${rpcHost.mode}`);
-  await sdkHost.dispose();
-  await rpcHost.dispose();
+  const sdkRuntime = new HostRuntime({ mode: 'sdk', mock: true });
+  const rpcRuntime = new HostRuntime({ mode: 'rpc', mock: true });
+  console.log(`sdk runtime mode=${sdkRuntime.getMode()}`);
+  console.log(`rpc runtime mode=${rpcRuntime.getMode()}`);
+  await sdkRuntime.dispose();
+  await rpcRuntime.dispose();
 }
 
 async function commandConfig(argv: string[]): Promise<void> {
@@ -760,34 +758,53 @@ async function commandChat(argv: string[]): Promise<void> {
     process.exitCode = 1;
     return;
   }
-  const host = createAgentHost({
+  let resolvePromptCompletion: (() => void) | undefined;
+  const promptCompletion = new Promise<void>((resolve) => {
+    resolvePromptCompletion = resolve;
+  });
+  const display = createAssistantCliDisplay();
+  const runtime = new HostRuntime({
     mode,
     mock,
-    onExtensionUiRequest: createCliExtensionUiRequestHandler(),
+    onPush: (push) => {
+      if (push.type === 'run/terminal') {
+        resolvePromptCompletion?.();
+        return;
+      }
+      if (push.type !== 'event') {
+        return;
+      }
+      const line = display.feed(push.event);
+      if (line !== null) {
+        process.stdout.write(line);
+      }
+    },
     ...(permissionModeOverride !== undefined ? { permissionModeOverride } : {}),
-  });
-  const session = await host.createSession(
-    projectPath
-      ? { scope: { kind: 'project', projectPath }, projectPath }
-      : { scope: { kind: 'general' } },
-  );
-  const display = createAssistantCliDisplay();
-  const unsubscribe = session.subscribe((event) => {
-    const line = display.feed(event);
-    if (line !== null) {
-      process.stdout.write(line);
-    }
   });
 
   try {
-    await session.prompt({
-      text: message,
-      ...(attachments.length > 0 ? { attachments } : {}),
+    const createResponse = await runtime.handleCommand({
+      type: 'session/create',
+      input: projectPath
+        ? { scope: { kind: 'project', projectPath }, projectPath }
+        : { scope: { kind: 'general' } },
     });
+    if (!createResponse.success) {
+      throw new Error(createResponse.error);
+    }
+    const sessionId = (createResponse.data as { sessionId: string }).sessionId;
+    const promptResponse = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: message, ...(attachments.length > 0 ? { attachments } : {}) },
+    });
+    if (!promptResponse.success) {
+      throw new Error(promptResponse.error);
+    }
+    await promptCompletion;
     process.stdout.write('\n');
   } finally {
-    unsubscribe();
-    await host.dispose();
+    await runtime.dispose();
   }
 }
 
@@ -1223,99 +1240,6 @@ async function commandPlugin(argv: string[]): Promise<void> {
   process.exitCode = 1;
 }
 
-async function commandProcess(argv: string[]): Promise<void> {
-  const sub = argv[1] ?? 'list';
-  const mock = parseMock(argv);
-  const runtime = new HostRuntime({ mode: 'sdk', mock });
-
-  try {
-    if (sub === 'list') {
-      const projectPath = hasFlag(argv, '--project') ? parseProject(argv) : undefined;
-      const command: HostCommand = projectPath
-        ? { type: 'process/list', projectPath }
-        : { type: 'process/list' };
-      const response = await runtime.handleCommand(command);
-      if (!response.success) {
-        console.error(response.error);
-        process.exitCode = 1;
-        return;
-      }
-      const processes =
-        (response.data as { processes: Array<Record<string, unknown>> }).processes ?? [];
-      if (processes.length === 0) {
-        console.log('(no managed processes in this host process)');
-        console.log(
-          'Note: processes live in the host that started them (Desktop host serve or chat session).',
-        );
-        return;
-      }
-      for (const item of processes) {
-        const label = item.label ? String(item.label) : '';
-        const pid = item.pid !== undefined ? String(item.pid) : '-';
-        console.log(
-          `${item.status}\t${item.id}\tpid=${pid}\t${item.command} ${(item.argv as string[] | undefined)?.join(' ') ?? ''}\t${label}`.trimEnd(),
-        );
-      }
-      return;
-    }
-
-    if (sub === 'logs') {
-      const processId = argv[2];
-      if (!processId) {
-        console.error('Usage: piwin process logs <processId> [--limit N]');
-        process.exitCode = 1;
-        return;
-      }
-      const limitRaw = readOption(argv, '--limit');
-      const query: { processId: string; limit?: number } = { processId };
-      if (limitRaw) {
-        query.limit = Number(limitRaw);
-      }
-      const response = await runtime.handleCommand({ type: 'process/logs', query });
-      if (!response.success) {
-        console.error(response.error);
-        process.exitCode = 1;
-        return;
-      }
-      const chunks =
-        (response.data as { chunks: Array<{ stream: string; text: string; at: string }> }).chunks ??
-        [];
-      for (const chunk of chunks) {
-        process.stdout.write(`[${chunk.stream}] ${chunk.text}`);
-        if (!chunk.text.endsWith('\n')) process.stdout.write('\n');
-      }
-      if (chunks.length === 0) {
-        console.log('(no logs)');
-      }
-      return;
-    }
-
-    if (sub === 'stop') {
-      const processId = argv[2];
-      if (!processId) {
-        console.error('Usage: piwin process stop <processId>');
-        process.exitCode = 1;
-        return;
-      }
-      const response = await runtime.handleCommand({ type: 'process/stop', processId });
-      if (!response.success) {
-        console.error(response.error);
-        process.exitCode = 1;
-        return;
-      }
-      const processRecord = (response.data as { process: { id: string; status: string } }).process;
-      console.log(`${processRecord.status}\t${processRecord.id}`);
-      return;
-    }
-
-    console.error(`Unknown process subcommand: ${sub}`);
-    console.error('Usage: piwin process list|logs|stop');
-    process.exitCode = 1;
-  } finally {
-    await runtime.dispose();
-  }
-}
-
 async function commandNotes(argv: string[]): Promise<void> {
   const sub = argv[1] ?? 'list';
   const root = getPiwinRoot();
@@ -1436,7 +1360,7 @@ async function commandNotes(argv: string[]): Promise<void> {
 
       const searchOptions: import('@piwin/notes').SearchNotesOptions = {};
       if (config.notes?.embedding) {
-        const { resolveNotesEmbeddingApiKey } = await import('@piwin/agent-host');
+        const { resolveNotesEmbeddingApiKey } = await import('@piwin/host-runtime');
         const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
         const provider = createEmbeddingProvider({
           config: config.notes.embedding,
@@ -1513,7 +1437,7 @@ async function commandNotes(argv: string[]): Promise<void> {
 
       const searchOptions: import('@piwin/notes').SearchNotesOptions = {};
       if (config.notes?.embedding) {
-        const { resolveNotesEmbeddingApiKey } = await import('@piwin/agent-host');
+        const { resolveNotesEmbeddingApiKey } = await import('@piwin/host-runtime');
         const apiKey = await resolveNotesEmbeddingApiKey(config.notes.embedding);
         const provider = createEmbeddingProvider({
           config: config.notes.embedding,
@@ -1756,7 +1680,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
   } = await import('@piwin/doc-rag');
   const { createEmbeddingProvider } = await import('@piwin/notes');
   const { createCardStore } = await import('@piwin/flashcards');
-  const { resolveNotesEmbeddingApiKey } = await import('@piwin/agent-host');
+  const { resolveNotesEmbeddingApiKey } = await import('@piwin/host-runtime');
 
   let embeddingProvider: import('@piwin/contracts').EmbeddingProvider | undefined;
   if (config.notes?.embedding) {
@@ -1772,7 +1696,7 @@ async function commandDocCards(argv: string[]): Promise<void> {
     ...(embeddingProvider ? { embeddingProvider } : {}),
   });
   const store = createCardStore({ piwinRoot: root });
-  let host: import('@piwin/contracts').AgentHost | undefined;
+  let host: HostRuntime | undefined;
 
   try {
     if (sub === 'scan') {
@@ -1922,25 +1846,40 @@ async function commandDocCards(argv: string[]): Promise<void> {
       });
 
       // Step 3: start a chat session and stream the generation.
-      host = createAgentHost({ mode, mock, piwinRoot: root });
-      const sessionName = `Doc cards: ${basename(canonical)}`;
-      const session = await host.createSession({
-        scope: { kind: 'general' },
-        sessionName,
-      });
       const display = createAssistantCliDisplay();
-      const unsubscribe = session.subscribe((event) => {
-        const line = display.feed(event);
-        if (line !== null) {
-          process.stdout.write(line);
-        }
+      let resolvePromptCompletion: (() => void) | undefined;
+      const promptCompletion = new Promise<void>((resolve) => {
+        resolvePromptCompletion = resolve;
       });
-      try {
-        await session.prompt({ text: prompt });
-        process.stdout.write('\n');
-      } finally {
-        unsubscribe();
-      }
+      host = new HostRuntime({
+        mode,
+        mock,
+        piwinRoot: root,
+        onPush: (push) => {
+          if (push.type === 'run/terminal') {
+            resolvePromptCompletion?.();
+            return;
+          }
+          if (push.type !== 'event') return;
+          const line = display.feed(push.event);
+          if (line !== null) process.stdout.write(line);
+        },
+      });
+      const sessionName = `Doc cards: ${basename(canonical)}`;
+      const createResponse = await host.handleCommand({
+        type: 'session/create',
+        input: { scope: { kind: 'general' }, sessionName },
+      });
+      if (!createResponse.success) throw new Error(createResponse.error);
+      const sessionId = (createResponse.data as { sessionId: string }).sessionId;
+      const promptResponse = await host.handleCommand({
+        type: 'session/prompt',
+        sessionId,
+        input: { text: prompt },
+      });
+      if (!promptResponse.success) throw new Error(promptResponse.error);
+      await promptCompletion;
+      process.stdout.write('\n');
       return;
     }
 
@@ -2412,10 +2351,6 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'plugin') {
     await commandPlugin(argv);
-    return;
-  }
-  if (command === 'process') {
-    await commandProcess(argv);
     return;
   }
   if (command === 'cron') {

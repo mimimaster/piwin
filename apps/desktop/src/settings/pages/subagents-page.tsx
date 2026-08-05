@@ -105,10 +105,9 @@ export function SubagentProfilesPage(): ReactElement {
         limits: '并行与限制',
         maxConcurrency: '最大并发',
         maxTasksPerRun: '每次运行最大任务数',
-        maxParallelWriteTasks: '最大并行写入任务数',
         processIsolation: '进程隔离',
         parallelWritePolicy: '并行写入策略',
-        requireCleanBase: '并行写入要求干净基线',
+        dirtyBasePolicy: '脏基线并行写入策略',
       }
     : {
         title: 'Sub-agent profiles',
@@ -135,10 +134,9 @@ export function SubagentProfilesPage(): ReactElement {
         limits: 'Concurrency & limits',
         maxConcurrency: 'Max concurrency',
         maxTasksPerRun: 'Max tasks per run',
-        maxParallelWriteTasks: 'Max parallel write tasks',
         processIsolation: 'Process isolation',
         parallelWritePolicy: 'Parallel write policy',
-        requireCleanBase: 'Require clean base for parallel writes',
+        dirtyBasePolicy: 'Dirty-base parallel write policy',
       };
 
   const subagents: SubagentConfig = config?.subagents ?? createDefaultSubagentConfig();
@@ -151,17 +149,14 @@ export function SubagentProfilesPage(): ReactElement {
   );
   const [maxConcurrency, setMaxConcurrency] = useState<number>(subagents.maxConcurrency);
   const [maxTasksPerRun, setMaxTasksPerRun] = useState<number>(subagents.maxTasksPerRun);
-  const [maxParallelWriteTasks, setMaxParallelWriteTasks] = useState<number>(
-    subagents.maxParallelWriteTasks,
-  );
   const [processIsolation, setProcessIsolation] = useState<SubagentConfig['processIsolation']>(
     subagents.processIsolation,
   );
   const [parallelWritePolicy, setParallelWritePolicy] = useState<
     SubagentConfig['parallelWritePolicy']
   >(subagents.parallelWritePolicy);
-  const [requireCleanBase, setRequireCleanBase] = useState<boolean>(
-    subagents.requireCleanBaseForParallelWrites,
+  const [dirtyBasePolicy, setDirtyBasePolicy] = useState<SubagentConfig['dirtyBasePolicy']>(
+    subagents.dirtyBasePolicy,
   );
 
   useEffect(() => {
@@ -173,10 +168,9 @@ export function SubagentProfilesPage(): ReactElement {
     setDefaultProfileId(subagents.defaultProfileId ?? '');
     setMaxConcurrency(subagents.maxConcurrency);
     setMaxTasksPerRun(subagents.maxTasksPerRun);
-    setMaxParallelWriteTasks(subagents.maxParallelWriteTasks);
     setProcessIsolation(subagents.processIsolation);
     setParallelWritePolicy(subagents.parallelWritePolicy);
-    setRequireCleanBase(subagents.requireCleanBaseForParallelWrites);
+    setDirtyBasePolicy(subagents.dirtyBasePolicy);
     // We intentionally only re-sync on config identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
@@ -247,10 +241,9 @@ export function SubagentProfilesPage(): ReactElement {
       ...(defaultProfileId.trim() ? { defaultProfileId: defaultProfileId.trim() } : {}),
       maxConcurrency,
       maxTasksPerRun,
-      maxParallelWriteTasks,
       processIsolation,
       parallelWritePolicy,
-      requireCleanBaseForParallelWrites: requireCleanBase,
+      dirtyBasePolicy,
     };
     const ok = await saveConfig({ ...config, subagents: next });
     if (!ok) {
@@ -492,24 +485,19 @@ export function SubagentProfilesPage(): ReactElement {
                 onChange={(e) => setMaxTasksPerRun(Math.max(1, Number(e.target.value) || 1))}
               />
             </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: 13, fontWeight: 600 }}>{copy.maxParallelWriteTasks}</label>
-              <TextInput
-                type="number"
-                min={1}
-                value={String(maxParallelWriteTasks)}
-                onChange={(e) => setMaxParallelWriteTasks(Math.max(1, Number(e.target.value) || 1))}
-              />
-            </div>
           </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-            <input
-              type="checkbox"
-              checked={requireCleanBase}
-              onChange={(e) => setRequireCleanBase(e.target.checked)}
-            />
-            {copy.requireCleanBase}
-          </label>
+          <div>
+            <label style={{ fontSize: 13, fontWeight: 600 }}>{copy.dirtyBasePolicy}</label>
+            <Select
+              value={dirtyBasePolicy}
+              onChange={(e) =>
+                setDirtyBasePolicy(e.target.value as SubagentConfig['dirtyBasePolicy'])
+              }
+            >
+              <option value="ask">ask</option>
+              <option value="bypass">bypass</option>
+            </Select>
+          </div>
         </div>
       </div>
 

@@ -57,7 +57,12 @@ assets), not to a single file.
    compatibility spike against Pi's WASM + jiti usage.)
 4. **`resolve_host_command` gains a two-tier resolution**:
    1. packaged sidecar (production),
-   2. current `pnpm … tsx` path (development fallback, unchanged).
+   2. current `pnpm … tsx` path (development fallback, unchanged). This is a
+      packaging resolver fallback only; it is not an Agent backend fallback.
+
+The host bundle includes the piwin-owned `agent-worker.mjs` artifact beside
+`host-serve.mjs`; runtime worker ownership remains inside the single Product
+Host composition root.
 5. Dev workflow (`pnpm tauri dev`, CLI) is **unchanged**; bundling is a
    packaging-time concern only.
 

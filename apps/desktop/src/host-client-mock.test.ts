@@ -7,7 +7,7 @@ describe('MockHostBackend run lifecycle', () => {
     const pushes: HostPush[] = [];
     const backend = new MockHostBackend(
       (message) => {
-        if (message.type === 'event') {
+        if (message.type !== 'response') {
           pushes.push(message);
         }
       },
@@ -29,7 +29,10 @@ describe('MockHostBackend run lifecycle', () => {
     if (!promptResponse.success) return;
     const runId = (promptResponse.data as { runId: string }).runId;
 
-    await waitForPush(pushes, (push) => push.event.type === 'run/phase' && push.event.phase === 'streaming');
+    await waitForPush(
+      pushes,
+      (push) => push.type === 'run/updated' && push.run.phase === 'streaming',
+    );
     const staleAbort = await backend.handle(
       { type: 'session/abort', sessionId, runId: 'stale-run' },
       'stale-abort',
@@ -39,7 +42,7 @@ describe('MockHostBackend run lifecycle', () => {
       data: { cancelled: false, reason: 'run-mismatch', activeRunId: runId },
     });
     expect(
-      pushes.some((push) => push.type === 'event' && push.event.type === 'run/terminal'),
+      pushes.some((push) => push.type === 'run/terminal'),
     ).toBe(false);
 
     const abortResponse = await backend.handle(
@@ -47,31 +50,28 @@ describe('MockHostBackend run lifecycle', () => {
       'abort',
     );
     expect(abortResponse).toMatchObject({ success: true, data: { cancelled: true, runId } });
-    await waitForPush(pushes, (push) => push.event.type === 'run/terminal');
+    await waitForPush(pushes, (push) => push.type === 'run/terminal');
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     const terminalEvents = pushes.filter(
-      (push) =>
-        push.type === 'event' && push.event.type === 'run/terminal' && push.event.runId === runId,
+      (push) => push.type === 'run/terminal' && push.run.runId === runId,
     );
     expect(terminalEvents).toHaveLength(1);
     const terminalEvent = terminalEvents[0];
-    expect(terminalEvent?.type).toBe('event');
-    if (terminalEvent?.type === 'event') {
-      expect(terminalEvent.event).toMatchObject({ outcome: 'cancelled', code: 'cancelled' });
+    expect(terminalEvent?.type).toBe('run/terminal');
+    if (terminalEvent?.type === 'run/terminal') {
+      expect(terminalEvent.run).toMatchObject({ status: 'cancelled', terminalCode: 'cancelled' });
     }
   });
 });
 
 async function waitForPush(
   pushes: HostPush[],
-  predicate: (push: Extract<HostPush, { type: 'event' }>) => boolean,
+  predicate: (push: HostPush) => boolean,
 ): Promise<void> {
   const deadline = Date.now() + 1_000;
   while (Date.now() < deadline) {
-    const matchingPush = pushes.find((push): push is Extract<HostPush, { type: 'event' }> =>
-      push.type === 'event' && predicate(push),
-    );
+    const matchingPush = pushes.find(predicate);
     if (matchingPush) return;
     await new Promise((resolve) => setTimeout(resolve, 1));
   }

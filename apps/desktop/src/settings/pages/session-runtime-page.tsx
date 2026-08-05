@@ -1,16 +1,12 @@
 /**
  * Settings → Session Runtime page (spec §12.5).
- * Shows the active session's runtime state (lazy-shell/live/stale) and the
- * Pending Changes bar: "Settings are saved, but the current Agent still uses
- * the previous runtime schema." Actions:
- *   1. Start new session (safest — recommended)
- *   2. Apply after current run (queues runtime replacement)
- *   3. Advanced: reload current Agent (explicit context-reconstruction warning)
- *   4. Stop and apply now (only while running, requires confirmation)
+ * Shows the active session's runtime state and reports stale settings
+ * honestly. Runtime replacement remains unavailable until its full
+ * transaction and Run tree are complete, so users are directed to start a
+ * new session.
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { SessionRuntimeStatus } from '@piwin/contracts';
-import { Button } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
@@ -18,9 +14,8 @@ import { useSettings } from '../settings-context';
 export function SessionRuntimePage(): ReactElement {
   const { locale } = useDesktopLocale();
   const isZh = locale === 'zh-CN';
-  const { request, config, activeSessionId, setInfo, setError } = useSettings();
+  const { request, activeSessionId } = useSettings();
   const [runtimeStatus, setRuntimeStatus] = useState<SessionRuntimeStatus | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!activeSessionId) {
@@ -46,33 +41,6 @@ export function SessionRuntimePage(): ReactElement {
     }, 3000);
     return () => window.clearInterval(timer);
   }, [refresh]);
-
-  async function handleReload(when: 'now' | 'after-current-run'): Promise<void> {
-    if (!activeSessionId || !config) return;
-    setBusy(true);
-    setError(null);
-    const response = await request({
-      type: 'session/reload-runtime',
-      sessionId: activeSessionId,
-      expectedSettingsRevision: '', // Host runtime controller records revision at attach
-      when,
-    });
-    setBusy(false);
-    if (!response.success) {
-      setError(response.error);
-      return;
-    }
-    setInfo(
-      isZh
-        ? when === 'now'
-          ? '已重载当前 Agent 运行时。'
-          : '将在当前回合结束后应用新的运行时。'
-        : when === 'now'
-          ? 'Reloaded the current Agent runtime.'
-          : 'New runtime will apply after the current run.',
-    );
-    await refresh();
-  }
 
   const stale = runtimeStatus?.state === 'stale';
   const stateLabel =
@@ -131,27 +99,10 @@ export function SessionRuntimePage(): ReactElement {
                 {runtimeStatus.staleDomains.join(', ')}
               </p>
             ) : null}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-              <Button
-                data-testid="runtime-reload-now-button"
-                disabled={busy}
-                onClick={() => void handleReload('now')}
-              >
-                {isZh ? '现在重载当前 Agent' : 'Reload current Agent now'}
-              </Button>
-              <Button
-                variant="secondary"
-                data-testid="runtime-apply-after-run-button"
-                disabled={busy}
-                onClick={() => void handleReload('after-current-run')}
-              >
-                {isZh ? '当前回合结束后应用' : 'Apply after current run'}
-              </Button>
-            </div>
-            <p className="muted" style={{ marginTop: 8 }}>
+            <p className="muted" data-testid="runtime-reload-unavailable-note">
               {isZh
-                ? '重载会基于产品历史重建上下文（有损恢复）。更安全的做法是新建会话。'
-                : 'Reload reconstructs context from product history (lossy). Starting a new session is safer.'}
+                ? '当前运行时重载暂不可用。请新建会话以应用这些设置。'
+                : 'Runtime reload is currently unavailable. Start a new session to apply these settings.'}
             </p>
           </div>
         ) : (

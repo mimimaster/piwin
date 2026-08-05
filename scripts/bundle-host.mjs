@@ -16,11 +16,14 @@ import { spawnSync } from 'node:child_process';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const distHost = join(root, 'dist-host');
 const outfile = join(distHost, 'host-serve.mjs');
+const workerOutfile = join(distHost, 'agent-worker.mjs');
 
 /** Keep on disk for assets / WASM / dynamic loads (ADR 0017). */
 const EXTERNAL_DEPS = {
   '@earendil-works/pi-coding-agent': '0.80.10',
   '@silvia-odwyer/photon-node': '0.3.4',
+  esbuild: '0.25.12',
+  'playwright-core': '1.61.1',
 };
 
 function run(cmd, args, options = {}) {
@@ -68,6 +71,19 @@ async function main() {
     banner: {
       js: "import { createRequire as __piwinCreateRequire } from 'node:module'; const require = __piwinCreateRequire(import.meta.url);",
     },
+    logLevel: 'info',
+  });
+
+  console.log('[bundle-host] esbuild internal agent worker…');
+  await build({
+    entryPoints: [join(root, 'packages/agent-host/src/rpc-sdk-worker-entry.ts')],
+    bundle: true,
+    platform: 'node',
+    format: 'esm',
+    target: 'node20',
+    outfile: workerOutfile,
+    packages: 'bundle',
+    external: Object.keys(EXTERNAL_DEPS),
     logLevel: 'info',
   });
 

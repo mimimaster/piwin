@@ -21,6 +21,7 @@
     { "path": "packages/marketplace" },
     { "path": "packages/ui-kit" },
     { "path": "packages/browser" },
+    { "path": "packages/host-runtime" },
     { "path": "apps/cli" }
   ]
 }
