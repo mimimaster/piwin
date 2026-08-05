@@ -161,21 +161,45 @@
 }
 
 .border-tick-line {
+  position: relative;
   display: block;
   width: 12px;
   height: 2px;
   border-radius: 0 2px 2px 0;
   background: color-mix(in srgb, var(--text) 50%, transparent);
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   opacity: 0.5;
+  transform-origin: left center;
+  /* transform + opacity are compositor-friendly; animating width or
+     box-shadow would force layout + repaint on every hover frame. */
+  transition:
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Glow lives on a pseudo-element so only its opacity fades (compositor)
+   instead of re-rasterizing a box-shadow blur on every frame. */
+.border-tick-line::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 75%, transparent);
+  opacity: 0;
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
 }
 
 .border-tick-line:hover,
 .border-tick-line.is-hovered {
-  width: 16px;
+  transform: scaleX(1.4);
   opacity: 1;
   background: var(--accent);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 75%, transparent);
+}
+
+.border-tick-line:hover::after,
+.border-tick-line.is-hovered::after {
+  opacity: 0.9;
 }
 
 /* Expanded state: Pulled-out 100% solid drawer panel (No transparency, no backdrop-filter) */
@@ -294,7 +318,7 @@
   gap: 8px;
   cursor: pointer;
   padding: 2px 0;
-  transition: all 0.2s ease;
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
   opacity: 0.6;
 }
@@ -315,11 +339,27 @@
 
 /* Extended tick line inside drawer ("刻度线拉长", 不定长) */
 .history-tick-line {
+  position: relative;
   display: block;
   height: 2px;
   border-radius: 1px;
   background: color-mix(in srgb, var(--text) 25%, transparent);
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: left center;
+  transition:
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.history-tick-line::after {
+  content: '';
+  position: absolute;
+  inset: -3px 0;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+  opacity: 0;
+  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
 }
 
 .history-tick-item:hover .history-tick-label,
@@ -331,7 +371,12 @@
 .history-tick-item:hover .history-tick-line,
 .history-tick-item.is-hovered .history-tick-line {
   background: var(--accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
+  transform: scaleX(1.18);
+}
+
+.history-tick-item:hover .history-tick-line::after,
+.history-tick-item.is-hovered .history-tick-line::after {
+  opacity: 0.9;
 }
 
 /* History Message Bubble Popover (100% Solid Opaque Surface - NO Transparency, NO Backdrop Filter) */
@@ -388,13 +433,6 @@
   -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-.highlight-target {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  border-radius: 8px;
-  transition: outline 0.3s ease;
 }
 
 .highlight-target {

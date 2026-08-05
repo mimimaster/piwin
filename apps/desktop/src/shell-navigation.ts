@@ -27,6 +27,7 @@ export type ShellSettingsSection =
   | 'runtime'
   | 'usage'
   | 'shortcuts'
+  | 'artifact'
   // Legacy deep links preserved for backward compatibility; consumers should
   // normalize through the section registry before rendering.
   | 'agents'

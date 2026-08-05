@@ -752,11 +752,11 @@ describe('assembleSystemPrompt', () => {
 });
 
 describe('assembleUserPrompt', () => {
-  it('null prompt injects no user prompt — evidence only (Pi norm)', () => {
+  it('empty prompt falls back to default generation prompt + evidence', () => {
     const bounded = '{"userRequest":"test"}';
-    const prompt = assembleUserPrompt('default', null, bounded);
-    // No custom prompt text should be injected
-    expect(prompt).not.toContain(DEFAULT_WALKTHROUGH_PROMPT);
+    const prompt = assembleUserPrompt('default', '', bounded);
+    // Empty custom prompt falls back to DEFAULT_WALKTHROUGH_PROMPT (ADR 0026)
+    expect(prompt).toContain(DEFAULT_WALKTHROUGH_PROMPT);
     expect(prompt).toContain(EVIDENCE_DELIMITER_OPEN);
     expect(prompt).toContain(EVIDENCE_DELIMITER_CLOSE);
     expect(prompt).toContain(bounded);

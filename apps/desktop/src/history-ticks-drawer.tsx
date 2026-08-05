@@ -9,11 +9,12 @@
  * 5. Session change (first user message id) unpins and clears selection.
  */
 import {
+  memo,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  useCallback,
   type RefObject,
   type ReactElement,
 } from 'react';
@@ -70,7 +71,54 @@ export function getDynamicTickWidth(text: string, minWidth: number, maxWidth: nu
   return Math.round(minWidth + (maxWidth - minWidth) * ratio);
 }
 
-export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): ReactElement | null {
+type HistoryTickRowProps = {
+  message: ChatMessageUi;
+  index: number;
+  relativeTime: string;
+  linePx: number;
+  isCurrent: boolean;
+  onHover: (messageId: string) => void;
+  onJump: (messageId: string) => void;
+};
+
+/**
+ * Memoized single-row tick inside the expanded drawer. Hovering one row only
+ * re-renders that row (plus the preview bubble) instead of the whole list.
+ */
+const HistoryTickRow = memo(function HistoryTickRow({
+  message,
+  index,
+  relativeTime,
+  linePx,
+  isCurrent,
+  onHover,
+  onJump,
+}: HistoryTickRowProps): ReactElement {
+  return (
+    <div
+      className={`history-tick-item ${isCurrent ? 'is-hovered' : ''}`}
+      onMouseEnter={() => onHover(message.id)}
+      onClick={() => onJump(message.id)}
+      data-testid={`history-tick-${message.id}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`Jump to message ${index + 1}: ${truncateMessageText(message.text, 60)}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onJump(message.id);
+        }
+      }}
+    >
+      <span className="history-tick-label">{relativeTime}</span>
+      <span className="history-tick-line" style={{ width: `${linePx}px` }} />
+    </div>
+  );
+});
+
+export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
+  messages = [],
+}: HistoryTicksDrawerProps): ReactElement | null {
   /** Click pins open; not collapsed by mouse leave. */
   const [isPinnedOpen, setIsPinnedOpen] = useState(false);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
@@ -94,13 +142,9 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
     unpinClose();
   }, [firstUserMessageId, unpinClose]);
 
-  if (userMessages.length === 0) {
-    return null;
-  }
-
-  const now = new Date();
-
-  function handleTickJump(messageId: string): void {
+  // Jump target lookup is pure DOM work on a stable ref, so it can be memoized;
+  // a stable identity keeps memoized tick rows from re-rendering on hover.
+  const handleTickJump = useCallback((messageId: string): void => {
     const targetElem = document.getElementById(`msg-${messageId}`);
     if (targetElem) {
       targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -110,13 +154,11 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
       }, 2000);
     }
     // Keep the drawer usable after jump; scroll the active tick into view if needed.
-    const tickButton = rootRef.current?.querySelector(
-      `[data-testid="history-tick-${messageId}"]`,
-    );
+    const tickButton = rootRef.current?.querySelector(`[data-testid="history-tick-${messageId}"]`);
     if (tickButton instanceof HTMLElement) {
       tickButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-  }
+  }, []);
 
   function pinOpen(messageId?: string): void {
     setIsPinnedOpen(true);
@@ -125,6 +167,28 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
       setHoveredMessageId(messageId);
     }
   }
+
+  const handleTickHover = useCallback((messageId: string): void => {
+    setHoveredMessageId(messageId);
+  }, []);
+
+  // Stable per message list; jumped messages stay stable so memoized rows
+  // don't re-render when the drawer re-renders for a hover change.
+  const handleTickClick = useCallback(
+    (messageId: string): void => {
+      setActiveMessageId(messageId);
+      handleTickJump(messageId);
+    },
+    [handleTickJump],
+  );
+
+  // Keep this guard after every hook above; an empty session can become
+  // populated without remounting the drawer component.
+  if (userMessages.length === 0) {
+    return null;
+  }
+
+  const now = new Date();
 
   // Preview bubble is hover-only so it cannot freeze over the transcript.
   const previewMessage = isPinnedOpen
@@ -151,21 +215,13 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
       data-testid="history-ticks-drawer"
     >
       {!isPinnedOpen ? (
-        <div
-          className="history-ticks-border-strip"
-          data-testid="history-drawer-handle"
-        >
+        <div className="history-ticks-border-strip" data-testid="history-drawer-handle">
           <div className="border-ticks-list">
-            {userMessages.map((msg) => {
-              const isHovered = msg.id === hoveredMessageId;
-
+            {userMessages.map((msg, index) => {
               return (
                 <span
                   key={msg.id}
-                  className={`border-tick-line ${isHovered ? 'is-hovered' : ''}`}
-                  onMouseEnter={() => setHoveredMessageId(msg.id)}
-                  onMouseOver={() => setHoveredMessageId(msg.id)}
-                  onMouseLeave={() => setHoveredMessageId(null)}
+                  className="border-tick-line"
                   onClick={(e) => {
                     e.stopPropagation();
                     // Click collapsed tick: pin drawer open (no jump yet).
@@ -173,7 +229,7 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
                   }}
                   role="button"
                   tabIndex={0}
-                  title="Click to pin history ticks"
+                  aria-label={`History message ${index + 1}`}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
@@ -186,10 +242,7 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
           </div>
         </div>
       ) : (
-        <div
-          className="history-drawer-panel"
-          data-testid="history-drawer-panel"
-        >
+        <div className="history-drawer-panel" data-testid="history-drawer-panel">
           <div className="history-drawer-panel-head">
             <span className="history-drawer-panel-title">History</span>
             <button
@@ -215,33 +268,16 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
                 const linePx = getDynamicTickWidth(msg.text, 18, 44);
 
                 return (
-                  <div
+                  <HistoryTickRow
                     key={msg.id}
-                    className={`history-tick-item ${isCurrent ? 'is-hovered' : ''}`}
-                    onMouseEnter={() => setHoveredMessageId(msg.id)}
-                    onMouseOver={() => setHoveredMessageId(msg.id)}
-                    onClick={() => {
-                      // Click tick inside drawer: Scroll & jump to message
-                      setActiveMessageId(msg.id);
-                      handleTickJump(msg.id);
-                    }}
-                    data-testid={`history-tick-${msg.id}`}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setActiveMessageId(msg.id);
-                        handleTickJump(msg.id);
-                      }
-                    }}
-                  >
-                    <span className="history-tick-label">{relativeTime}</span>
-                    <span
-                      className="history-tick-line"
-                      style={{ width: `${linePx}px` }}
-                    />
-                  </div>
+                    message={msg}
+                    index={index}
+                    relativeTime={relativeTime}
+                    linePx={linePx}
+                    isCurrent={isCurrent}
+                    onHover={handleTickHover}
+                    onJump={handleTickClick}
+                  />
                 );
               })}
             </div>
@@ -259,14 +295,10 @@ export function HistoryTicksDrawer({ messages = [] }: HistoryTicksDrawerProps): 
           </div>
         </div>
       )}
-      <HistoryTicksPinEffects
-        isPinnedOpen={isPinnedOpen}
-        rootRef={rootRef}
-        onClose={unpinClose}
-      />
+      <HistoryTicksPinEffects isPinnedOpen={isPinnedOpen} rootRef={rootRef} onClose={unpinClose} />
     </div>
   );
-}
+});
 
 /**
  * Outside-click + Escape to unpin. Kept as a child so hooks run only when
