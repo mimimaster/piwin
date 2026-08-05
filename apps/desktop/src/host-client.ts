@@ -352,4 +352,36 @@ export class HostClient {
   async browserStop(): Promise<HostResponse> {
     return this.request({ type: 'browser/stop' });
   }
+
+  // --- Side Chat commands (spec §8) -----------------------------------------
+
+  /** Open a side chat from a main session. */
+  async sideChatOpen(
+    sourceSessionId: string,
+    options?: { name?: string; sourceMessageId?: string },
+  ): Promise<HostResponse> {
+    return this.request({
+      type: 'side-chat/open',
+      sourceSessionId,
+      ...(options?.name ? { name: options.name } : {}),
+      ...(options?.sourceMessageId ? { sourceMessageId: options.sourceMessageId } : {}),
+    });
+  }
+
+  /** List side chats for a source session. */
+  async sideChatList(
+    sourceSessionId: string,
+    options?: { includeArchived?: boolean },
+  ): Promise<HostResponse> {
+    return this.request({
+      type: 'side-chat/list',
+      sourceSessionId,
+      ...(options?.includeArchived ? { includeArchived: true } : {}),
+    });
+  }
+
+  /** Sync a side chat's context from its source session. */
+  async sideChatSync(sideChatSessionId: string): Promise<HostResponse> {
+    return this.request({ type: 'side-chat/sync', sideChatSessionId });
+  }
 }
