@@ -418,6 +418,13 @@ function buildToolPolicy(
   toolNamesFromComposed?: readonly string[],
   trusted?: boolean,
 ): SessionToolPolicy {
+  // SIDE §6.1: Side Chat compiles a fixed read-only tool profile. It is a
+  // product-level session kind, not a subagent capability ceiling, and can
+  // never gain write/execute/planning/delegate tools even under a yolo
+  // permission preset.
+  if (input.sessionKind === 'side-chat') {
+    return buildSideChatToolPolicy(config, hostToolDescriptors, toolNamesFromComposed);
+  }
   const enabledFamilies: SessionToolFamily[] = [];
   const customToolNames: string[] = [];
   const capabilityCeiling = input.subagent?.capabilities;
@@ -555,6 +562,41 @@ function buildToolPolicy(
     piBuiltinToolNames,
     hostTools: buildHostToolsForPolicy(effectiveToolNames, hostToolDescriptors),
     enabledMcpServerIds,
+  };
+}
+
+/**
+ * SIDE §6.1: exact read-only tool profile for Side Chat sessions.
+ *
+ * The manifest carries only the Pi built-in read family plus the product
+ * filesystem-read host tools. Optional web-search/web-fetch are enabled only
+ * when the product web config is on. Write, shell, process, browser, MCP,
+ * planning, delegate, notes/flashcard writes, and image generation are
+ * explicitly absent — no permission preset can widen this set.
+ */
+function buildSideChatToolPolicy(
+  config: PiwinConfig,
+  hostToolDescriptors?: readonly HostToolDescriptor[],
+  toolNamesFromComposed?: readonly string[],
+): SessionToolPolicy {
+  const enabledFamilies: SessionToolFamily[] = ['filesystem-read'];
+  const customToolNames: string[] = ['read_file', 'list_directory'];
+
+  // Optional P1: web search/fetch gated by the product web config.
+  if (config.web) {
+    enabledFamilies.push('web-search', 'web-fetch');
+    customToolNames.push('web_search', 'web_fetch');
+  }
+
+  const effectiveToolNames = toolNamesFromComposed
+    ? customToolNames.filter((name) => toolNamesFromComposed.includes(name))
+    : customToolNames;
+
+  return {
+    enabledFamilies,
+    piBuiltinToolNames: ['read', 'grep', 'find', 'ls'],
+    hostTools: buildHostToolsForPolicy(effectiveToolNames, hostToolDescriptors),
+    enabledMcpServerIds: [],
   };
 }
 

@@ -44,6 +44,10 @@ import {
   truncateTranscriptFrom,
   upsertSessionRecord,
 } from '@piwin/session';
+import {
+  formatSideChatContextBlock,
+  mergeSideChatContextIntoPrompt,
+} from '@piwin/session';
 import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
@@ -92,7 +96,7 @@ export type SessionLiveContext = {
     sessionName?: string,
     lineage?: {
       parentSessionId?: string;
-      kind?: 'main' | 'subagent';
+      kind?: 'main' | 'subagent' | 'side-chat';
       depth?: number;
       subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
       task?: string;
@@ -110,6 +114,17 @@ export type SessionLiveContext = {
     },
   ) => Promise<void>;
   loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
+  /** SIDE: resolved inherited context snapshot for a side-chat session (undefined otherwise). */
+  loadSideChatSnapshot: (
+    sessionId: string,
+  ) => Promise<import('@piwin/contracts').SideChatContextSnapshot | undefined>;
+  /**
+   * SIDE: last side-chat context version injected into a session's prompt.
+   * Host injects the snapshot whenever the stored version is newer than the
+   * injected one, so an explicit sync actually reaches the next prompt
+   * (SIDE §7.5(5)) while a version-stable session stays untouched.
+   */
+  sideChatSnapshotInjectedVersions: Map<string, number>;
   stopProcessesForSession: (sessionId: string) => Promise<void>;
   recordUserPrompt: (sessionId: string, input: PromptInput) => Promise<void>;
   touchSession: (sessionId: string, previewText: string) => Promise<void>;
@@ -260,6 +275,56 @@ async function preparePromptInput(
   }
   throwIfPromptPreparationAborted(context, run.runId);
 
+  // SIDE §7.5(5)/§9.2: inject the side chat's inherited context snapshot
+  // whenever the stored context version is newer than the version already
+  // injected into this session. This covers the first prompt after
+  // open/resume (no injected version yet) AND every explicit sync afterwards —
+  // a version-stable session is never re-injected. The side chat's own
+  // transcript is handled separately by product-history injection.
+  const sideChatSnapshot = await context.loadSideChatSnapshot(command.sessionId);
+  throwIfPromptPreparationAborted(context, run.runId);
+  if (sideChatSnapshot) {
+    const injectedVersion = context.sideChatSnapshotInjectedVersions.get(command.sessionId);
+    if (injectedVersion === undefined || injectedVersion < sideChatSnapshot.version) {
+      const sideBlock = formatSideChatContextBlock(sideChatSnapshot);
+      promptInput.text = mergeSideChatContextIntoPrompt(sideBlock, promptInput.text);
+      context.sideChatSnapshotInjectedVersions.set(command.sessionId, sideChatSnapshot.version);
+      // SIDE §7.2: refs captured at open/sync are part of the shared context —
+      // resolve them alongside the snapshot block on injection.
+      if (sideChatSnapshot.refs.length > 0) {
+        const refText = await resolvePromptContextRefs(context, sideChatSnapshot.refs);
+        throwIfPromptPreparationAborted(context, run.runId);
+        if (refText) {
+          promptInput.text = `${refText}\n\n${promptInput.text}`;
+        }
+      }
+    }
+  }
+  throwIfPromptPreparationAborted(context, run.runId);
+
+  // SIDE §8.2: resolve handoff context refs (side-chat-message / main-message
+  // / file / diff / terminal-output / error) into the model prompt without
+  // mutating the recorded user transcript.
+  if (command.input.contextRefs && command.input.contextRefs.length > 0) {
+    try {
+      const resolvedContext = await resolvePromptContextRefs(
+        context,
+        command.input.contextRefs,
+      );
+      if (resolvedContext) {
+        promptInput.text = `${resolvedContext}\n\n${promptInput.text}`;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `context ref resolve failed: ${message}`,
+      });
+    }
+  }
+  throwIfPromptPreparationAborted(context, run.runId);
+
   // Agent mode permission floor: when plan/ask mode is active, raise the
   // permission floor to ask-all + read-only so the gated tools enforce it.
   const agentMode = command.input.agentMode;
@@ -298,6 +363,107 @@ async function preparePromptInput(
   }
   throwIfPromptPreparationAborted(context, run.runId);
   return promptInput;
+}
+
+/**
+ * Resolve structured context refs (SIDE §8.2) into a bounded, labeled context
+ * block for the model prompt. The user transcript keeps the original text +
+ * refs; this resolution only shapes what the model sees. File refs are
+ * path-validated and size-capped by the host; the UI never reads files.
+ */
+async function resolvePromptContextRefs(
+  context: SessionLiveContext,
+  refs: import('@piwin/contracts').PromptContextRef[],
+): Promise<string> {
+  const blocks: string[] = [];
+  for (const ref of refs) {
+    switch (ref.kind) {
+      case 'side-chat-message': {
+        const messages = await context.loadTranscriptMessages(ref.sideChatSessionId);
+        const message = messages.find((item) => item.id === ref.messageId);
+        if (message) {
+          blocks.push(`[side-chat-reference: ${ref.label}]\n${message.text.trim().slice(0, 8000)}`);
+        }
+        break;
+      }
+      case 'main-message': {
+        const messages = await context.loadTranscriptMessages(ref.sourceSessionId);
+        const message = messages.find((item) => item.id === ref.messageId);
+        if (message) {
+          blocks.push(`[main-message-reference: ${ref.label}]\n${message.text.trim().slice(0, 8000)}`);
+        }
+        break;
+      }
+      case 'file': {
+        const content = await readBoundedFileForRef(ref.projectPath, ref.relativePath);
+        if (content !== undefined) {
+          const range = ref.lineStart !== undefined
+            ? `:${ref.lineStart}${ref.lineEnd !== undefined ? `-${ref.lineEnd}` : ''}`
+            : '';
+          blocks.push(`[file-reference: ${ref.relativePath}${range}]\n${content}`);
+        }
+        break;
+      }
+      case 'diff':
+        blocks.push(`[diff-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`);
+        break;
+      case 'terminal-output':
+        blocks.push(`[terminal-output-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`);
+        break;
+      case 'error':
+        blocks.push(`[error-reference: ${ref.title}]\n${ref.detail.slice(0, 8000)}`);
+        break;
+      default:
+        break;
+    }
+  }
+  return blocks.join('\n\n');
+}
+
+const MAX_CONTEXT_REF_FILE_BYTES = 32 * 1024;
+
+/** Read a path-validated file under a project root, bounded and text-only. */
+async function readBoundedFileForRef(
+  projectPath: string,
+  relativePath: string,
+): Promise<string | undefined> {
+  const { readFile, stat, realpath } = await import('node:fs/promises');
+  const { resolve: resolvePath, sep } = await import('node:path');
+  const rootAbsolute = resolvePath(projectPath);
+  const candidate = resolvePath(rootAbsolute, relativePath);
+  // Resolve symlinks before the prefix check so a project symlink that
+  // points outside the project root cannot escape the traversal guard.
+  let realCandidate: string;
+  let realRoot: string;
+  try {
+    [realCandidate, realRoot] = await Promise.all([
+      realpath(candidate),
+      realpath(rootAbsolute),
+    ]);
+  } catch {
+    return undefined;
+  }
+  if (!realCandidate.startsWith(`${realRoot}${sep}`) && realCandidate !== realRoot) {
+    return undefined;
+  }
+  let fileStats;
+  try {
+    fileStats = await stat(realCandidate);
+  } catch {
+    return undefined;
+  }
+  if (!fileStats.isFile() || fileStats.size > MAX_CONTEXT_REF_FILE_BYTES) {
+    return undefined;
+  }
+  try {
+    const buffer = await readFile(realCandidate);
+    if (buffer.subarray(0, 8000).includes(0)) {
+      return undefined; // binary — never inject into the prompt
+    }
+    return buffer.toString('utf8').slice(0, MAX_CONTEXT_REF_FILE_BYTES);
+  } catch {
+    return undefined;
+  }
 }
 
 export async function handleSessionLiveCommand(

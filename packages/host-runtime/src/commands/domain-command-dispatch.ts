@@ -16,6 +16,7 @@ import { handlePluginCommand } from './plugin-commands.js';
 import { handleSessionProductCommand } from './session-product-commands.js';
 import { handleUsageCommand } from './usage-commands.js';
 import type { SessionProductCommandContext } from './session-product-commands.js';
+import { handleSideChatCommand } from './side-chat-commands.js';
 import { handleWalkthroughList, handleWalkthroughGenerate } from './walkthrough-commands.js';
 
 export type DomainDispatchContext = HostCommandContext & {
@@ -44,6 +45,9 @@ export async function dispatchDomainCommands(
 
   const product = await handleSessionProductCommand(command, requestId, context.sessionProduct);
   if (product) return product;
+
+  const sideChat = await handleSideChatCommand(command, requestId, context.sessionProduct);
+  if (sideChat) return sideChat;
 
   const project = await handleProjectCommand(command, requestId, context.piwinRoot);
   if (project) return project;
