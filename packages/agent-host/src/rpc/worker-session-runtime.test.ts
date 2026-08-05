@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentEvent, AgentEventEnvelope } from '@piwin/contracts';
-import type { WorkerEvent, WorkerFrame, WorkerRequest } from '../rpc-sdk-worker-protocol.js';
+import type { WorkerEvent, WorkerFrame, WorkerFrameContext, WorkerRequest } from '../rpc-sdk-worker-protocol.js';
 import { WorkerSessionRuntime, type WorkerPiSessionLike } from './worker-session-runtime.js';
 import type { SerializableBlueprint } from './serializable-blueprint.js';
 
@@ -15,12 +15,17 @@ const minimalBlueprint: SerializableBlueprint = {
   tools: {
     enabledFamilies: [],
     piBuiltinToolNames: [],
-    customToolNames: [],
+    hostTools: [],
     enabledMcpServerIds: [],
   },
   activeSkillPaths: [],
   activeExtensionPaths: [],
   activePromptPaths: [],
+};
+
+const frameContext: WorkerFrameContext = {
+  sessionId: 'ps-1',
+  runtimeGenerationId: 'gen-1',
 };
 
 function fakeMapper() {
@@ -40,10 +45,13 @@ function fakeMapper() {
   };
 }
 
-function createMockPiSession(): WorkerPiSessionLike {
+function createMockPiSession(
+  sessionId = 'pi-s1',
+  unsubscribe = vi.fn(),
+): WorkerPiSessionLike {
   let listener: ((raw: unknown) => void) | null = null;
   return {
-    id: 'pi-s1',
+    id: sessionId,
     prompt: vi.fn(async () => {
       listener?.({ type: 'text', text: 'mock reply' });
     }),
@@ -58,6 +66,7 @@ function createMockPiSession(): WorkerPiSessionLike {
       listener = fn;
       return () => {
         listener = null;
+        unsubscribe();
       };
     },
   };
@@ -68,6 +77,7 @@ function createRequest(overrides: Partial<WorkerRequest> = {}): WorkerRequest {
     type: 'request',
     id: 'req-1',
     method: 'session/create',
+    context: frameContext,
     payload: {
       method: 'session/create',
       productSessionId: 'ps-1',
@@ -94,6 +104,7 @@ describe('WorkerSessionRuntime', () => {
     expect(frames).toContainEqual({
       type: 'response',
       id: 'req-1',
+      context: frameContext,
       success: true,
       data: { sessionId: 'pi-s1' },
     });
@@ -112,15 +123,89 @@ describe('WorkerSessionRuntime', () => {
       type: 'request',
       id: 'req-2',
       method: 'session/prompt',
+      context: frameContext,
       payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'hello' },
     });
 
     expect(frames).toContainEqual({
       type: 'event',
-      sessionId: 'pi-s1',
+      context: frameContext,
       event: { type: 'message/text_snapshot', messageId: 'm1', text: 'mock reply' },
     } satisfies WorkerEvent);
-    expect(frames).toContainEqual({ type: 'response', id: 'req-2', success: true, data: {} });
+    expect(frames).toContainEqual({ type: 'response', id: 'req-2', context: frameContext, success: true, data: {} });
+  });
+
+  it('supports distinct product and worker ids across the session lifecycle', async () => {
+    const frames: WorkerFrame[] = [];
+    const unsubscribe = vi.fn();
+    const piSession = createMockPiSession('worker-s1', unsubscribe);
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession: async () => piSession,
+      eventMapper: fakeMapper(),
+    });
+
+    await runtime.handleRequest(createRequest());
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'req-1',
+      context: frameContext,
+      success: true,
+      data: { sessionId: 'worker-s1' },
+    });
+
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'prompt-product',
+      method: 'session/prompt',
+      context: frameContext,
+      payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'product prompt' },
+    });
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'prompt-worker',
+      method: 'session/prompt',
+      context: frameContext,
+      payload: { method: 'session/prompt', sessionId: 'worker-s1', text: 'worker prompt' },
+    });
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'abort-worker',
+      method: 'session/abort',
+      context: frameContext,
+      payload: { method: 'session/abort', sessionId: 'worker-s1' },
+    });
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'drop-product',
+      method: 'session/drop',
+      context: frameContext,
+      payload: { method: 'session/drop', sessionId: 'ps-1' },
+    });
+
+    expect(piSession.prompt).toHaveBeenCalledTimes(2);
+    expect(piSession.abort).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(frames).toContainEqual({
+      type: 'event',
+      context: frameContext,
+      event: { type: 'message/text_snapshot', messageId: 'm1', text: 'mock reply' },
+    } satisfies WorkerEvent);
+
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'prompt-after-drop',
+      method: 'session/prompt',
+      context: frameContext,
+      payload: { method: 'session/prompt', sessionId: 'worker-s1', text: 'late' },
+    });
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'prompt-after-drop',
+      context: frameContext,
+      success: false,
+      error: 'unknown session: worker-s1',
+    });
   });
 
   it('prompting an unknown session fails loudly', async () => {
@@ -134,13 +219,50 @@ describe('WorkerSessionRuntime', () => {
       type: 'request',
       id: 'req-x',
       method: 'session/prompt',
+      context: frameContext,
       payload: { method: 'session/prompt', sessionId: 'nope', text: 'hi' },
     });
     expect(frames).toContainEqual({
       type: 'response',
       id: 'req-x',
+      context: frameContext,
       success: false,
       error: 'unknown session: nope',
+    });
+  });
+
+  it('rejects a malformed blueprint before creating a Pi session', async () => {
+    const frames: WorkerFrame[] = [];
+    const createPiSession = vi.fn(async () => createMockPiSession());
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession,
+      eventMapper: fakeMapper(),
+    });
+    const malformedBlueprint = {
+      ...minimalBlueprint,
+      protocolVersion: 2,
+    } as unknown as typeof minimalBlueprint;
+
+    await runtime.handleRequest({
+      type: 'request',
+      id: 'malformed-1',
+      method: 'session/create',
+      context: { sessionId: 'ps-malformed', runtimeGenerationId: 'gen-1' },
+      payload: {
+        method: 'session/create',
+        productSessionId: 'ps-malformed',
+        blueprint: malformedBlueprint,
+      },
+    });
+
+    expect(createPiSession).not.toHaveBeenCalled();
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'malformed-1',
+      context: { sessionId: 'ps-malformed', runtimeGenerationId: 'gen-1' },
+      success: false,
+      error: 'malformed SerializableBlueprint',
     });
   });
 
@@ -148,7 +270,7 @@ describe('WorkerSessionRuntime', () => {
     const frames: WorkerFrame[] = [];
     const runtime = new WorkerSessionRuntime({
       sendFrame: (frame) => frames.push(frame),
-      createPiSession: async () => createMockPiSession(),
+      createPiSession: async () => createMockPiSession('worker-s1'),
       eventMapper: fakeMapper(),
     });
     await runtime.handleRequest(createRequest());
@@ -157,23 +279,25 @@ describe('WorkerSessionRuntime', () => {
       type: 'request',
       id: 'r1',
       method: 'session/steer',
-      payload: { method: 'session/steer', sessionId: 'ps-1', message: 'go on' },
+      context: frameContext,
+      payload: { method: 'session/steer', sessionId: 'worker-s1', message: 'go on' },
     });
     await runtime.handleRequest({
       type: 'request',
       id: 'r2',
       method: 'session/follow-up',
-      payload: { method: 'session/follow-up', sessionId: 'ps-1', message: 'thanks' },
+      context: frameContext,
+      payload: { method: 'session/follow-up', sessionId: 'worker-s1', message: 'thanks' },
     });
 
     expect(frames).toContainEqual({
       type: 'event',
-      sessionId: 'pi-s1',
+      context: frameContext,
       event: { type: 'message/text_snapshot', messageId: 'm1', text: 'steered' },
     } satisfies WorkerEvent);
     expect(frames).toContainEqual({
       type: 'event',
-      sessionId: 'pi-s1',
+      context: frameContext,
       event: { type: 'message/text_snapshot', messageId: 'm1', text: 'followed' },
     } satisfies WorkerEvent);
   });
@@ -191,12 +315,14 @@ describe('WorkerSessionRuntime', () => {
       type: 'request',
       id: 'r3',
       method: 'session/abort',
+      context: frameContext,
       payload: { method: 'session/abort', sessionId: 'ps-1' },
     });
     await runtime.handleRequest({
       type: 'request',
       id: 'r4',
       method: 'session/drop',
+      context: frameContext,
       payload: { method: 'session/drop', sessionId: 'ps-1' },
     });
     // After drop, prompt fails.
@@ -204,41 +330,18 @@ describe('WorkerSessionRuntime', () => {
       type: 'request',
       id: 'r5',
       method: 'session/prompt',
+      context: frameContext,
       payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'late' },
     });
-    expect(frames).toContainEqual({ type: 'response', id: 'r3', success: true, data: {} });
-    expect(frames).toContainEqual({ type: 'response', id: 'r4', success: true, data: {} });
+    expect(frames).toContainEqual({ type: 'response', id: 'r3', context: frameContext, success: true, data: {} });
+    expect(frames).toContainEqual({ type: 'response', id: 'r4', context: frameContext, success: true, data: {} });
     expect(frames).toContainEqual({
       type: 'response',
       id: 'r5',
+      context: frameContext,
       success: false,
       error: 'unknown session: ps-1',
     });
   });
 
-  it('legacy subagent-task create returns a synthetic session id', async () => {
-    const frames: WorkerFrame[] = [];
-    const runtime = new WorkerSessionRuntime({
-      sendFrame: (frame) => frames.push(frame),
-      createPiSession: async () => createMockPiSession(),
-      eventMapper: fakeMapper(),
-    });
-    await runtime.handleRequest({
-      type: 'request',
-      id: 'r6',
-      method: 'session/create',
-      payload: {
-        method: 'session/create',
-        projectPath: '/tmp/p',
-        workingDirectory: '/tmp/p',
-        isolation: 'readonly',
-      },
-    });
-    const created = frames.find(
-      (frame): frame is Extract<WorkerFrame, { type: 'response' }> =>
-        frame.type === 'response' && frame.id === 'r6',
-    );
-    expect(created?.success).toBe(true);
-    expect(created?.data).toMatchObject({ projectPath: '/tmp/p' });
-  });
 });

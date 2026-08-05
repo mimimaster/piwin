@@ -15,14 +15,16 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { ThinkingLevel } from '@piwin/contracts';
+import type { ExtensionUiPort, ThinkingLevel } from '@piwin/contracts';
+import { bindExtensionUiToPiSession, createExtensionUiContext } from '../extension-ui-bridge.js';
 import { mapThinkingLevelToApi } from '../map-thinking-level.js';
 import {
   buildPiProviderRegistration,
   type PiModelRuntime,
+  type PiModelRegistration,
   type PiProviderApi,
 } from '../pi-model-runtime.js';
-import type { PiCustomToolDefinition } from '../pi-tool-adapter.js';
+import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
@@ -34,8 +36,9 @@ export type WorkerPiSessionFactoryInput = {
   productSessionId: string;
   blueprint: SerializableBlueprint;
   providers?: SerializableProviderRuntime[];
+  extensionUi?: ExtensionUiPort;
   /** Proxy tools to register as Pi customTools (WP4). */
-  proxyTools?: PiCustomToolDefinition[];
+  proxyTools?: PiBackendCustomToolDefinition[];
 };
 
 /** Options for the factory builder. */
@@ -76,26 +79,12 @@ export async function createBlueprintResourceLoader(
     reload: () => Promise<void>;
   };
 
-  // Append the artifact contract after any user/project APPEND_SYSTEM.md
-  // content via `appendSystemPromptOverride` (Pi expects string[] for the raw
-  // `appendSystemPrompt` option, which would also *replace* discovery).
-  const artifactAppendPrompt = blueprint.appendSystemPrompt?.trim();
   const loaderOptions: Record<string, unknown> = {
     cwd: blueprint.workingDirectory,
     agentDir,
-    additionalSkillPaths: blueprint.activeSkillPaths,
-    ...(blueprint.activeExtensionPaths.length > 0
-      ? { additionalExtensionPaths: blueprint.activeExtensionPaths }
-      : {}),
-    ...(blueprint.activePromptPaths.length > 0
-      ? { additionalPromptTemplatePaths: blueprint.activePromptPaths }
-      : {}),
-    ...(artifactAppendPrompt
-      ? {
-          appendSystemPromptOverride: (base: string[]) =>
-            base.includes(artifactAppendPrompt) ? base : [...base, artifactAppendPrompt],
-        }
-      : {}),
+    additionalSkillPaths: [...blueprint.activeSkillPaths],
+    additionalExtensionPaths: [...blueprint.activeExtensionPaths],
+    additionalPromptTemplatePaths: [...blueprint.activePromptPaths],
   };
 
   const loader = new LoaderCtor(loaderOptions);
@@ -252,10 +241,8 @@ export function createWorkerPiSessionFactory(
       );
     }
 
-    // Restrict Pi built-in tools to the blueprint allowlist when present.
-    if (blueprint.tools.piBuiltinToolNames.length > 0) {
-      sessionOptions.tools = blueprint.tools.piBuiltinToolNames;
-    }
+    // An empty list is intentional: it disables every Pi built-in tool.
+    sessionOptions.tools = [...blueprint.tools.piBuiltinToolNames];
 
     const result = (await (
       createAgentSession as (options: Record<string, unknown>) => Promise<unknown>
@@ -266,8 +253,24 @@ export function createWorkerPiSessionFactory(
       throw new Error('createAgentSession returned no session');
     }
 
-    return adaptPiSessionForWorker(piSession, input.productSessionId);
+    const extensionUiPort = input.extensionUi;
+    if (extensionUiPort) {
+      const uiContext = createExtensionUiContext(
+        input.productSessionId,
+        {
+          request: (request) => extensionUiPort.request(request, new AbortController().signal),
+        },
+        () => createWorkerRequestId(),
+      );
+      await bindExtensionUiToPiSession(piSession, uiContext);
+    }
+
+    return adaptPiSessionForWorker(piSession, input.productSessionId, modelRuntime, providers);
   };
+}
+
+function createWorkerRequestId(): string {
+  return `worker-ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 /** Pi session shape we need from `createAgentSession` inside the worker. */
@@ -275,11 +278,19 @@ type WorkerPiSessionHandle = {
   sessionId?: string;
   prompt: (
     text: string,
-    options?: { images?: Array<{ data: string; mimeType: string }> },
+    options?: {
+      images?: Array<{ data: string; mimeType: string }>;
+      streamingBehavior?: 'steer' | 'followUp';
+      thinkingLevel?: string;
+      model?: { providerId: string; modelId: string };
+    },
   ) => Promise<void>;
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;
   abort?: () => Promise<void>;
+  setModel?: (model: PiModelRegistration) => Promise<void> | void;
+  setThinkingLevel?: (level: string) => Promise<void> | void;
+  bindExtensions?: (bindings: Record<string, unknown>) => Promise<void>;
   subscribe: (listener: (raw: unknown) => void) => () => void;
 };
 
@@ -287,10 +298,34 @@ type WorkerPiSessionHandle = {
 function adaptPiSessionForWorker(
   piSession: WorkerPiSessionHandle,
   productSessionId: string,
+  modelRuntime: PiModelRuntime,
+  providers: SerializableProviderRuntime[] | undefined,
 ): WorkerPiSessionLike {
   return {
     id: piSession.sessionId ?? productSessionId,
-    prompt: (text, options) => piSession.prompt(text, options),
+    prompt: async (text, options) => {
+      if (options?.model && piSession.setModel) {
+        const selectedModel = modelRuntime.getModel(
+          options.model.providerId,
+          options.model.modelId,
+        );
+        if (!selectedModel) {
+          throw new Error(
+            `Configured model is unavailable: ${options.model.providerId}/${options.model.modelId}`,
+          );
+        }
+        await piSession.setModel(selectedModel);
+      }
+      if (options?.thinkingLevel && piSession.setThinkingLevel) {
+        const protocol = options.model
+          ? inferProtocolFromProviderId(providers, options.model.providerId)
+          : undefined;
+        await piSession.setThinkingLevel(
+          mapThinkingLevelToApi(options.thinkingLevel as ThinkingLevel, protocol),
+        );
+      }
+      await piSession.prompt(text, options);
+    },
     ...(piSession.steer ? { steer: (message) => piSession.steer!(message) } : {}),
     ...(piSession.followUp ? { followUp: (message) => piSession.followUp!(message) } : {}),
     ...(piSession.abort ? { abort: () => piSession.abort!() } : {}),

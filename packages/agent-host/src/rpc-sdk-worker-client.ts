@@ -10,13 +10,15 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { resolve as resolvePath } from 'node:path';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   parseWorkerFrame,
   serializeWorkerRequest,
   type WorkerExtensionUiRequestFrame,
   type WorkerExtensionUiResponseFrame,
   type WorkerFrame,
+  type WorkerFrameContext,
   type WorkerHelloFrame,
   type WorkerRequest,
   type WorkerRequestPayload,
@@ -24,13 +26,7 @@ import {
   type WorkerToolCallFrame,
   type WorkerToolResultFrame,
 } from './rpc-sdk-worker-protocol.js';
-import type {
-  AgentEvent,
-  SubagentTaskResult,
-  SubagentTaskSpec,
-  SubagentWorkspaceLease,
-} from '@piwin/contracts';
-import type { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
+import type { AgentEvent, HostToolExecutionResult } from '@piwin/contracts';
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
@@ -43,14 +39,15 @@ export type WorkerClientOptions = {
   nodeArgs?: string[];
   /** Env vars for the worker process. */
   env?: Record<string, string>;
+  /** Supervisor-owned identity for this worker generation. */
+  context?: Pick<WorkerFrameContext, 'sessionId' | 'runtimeGenerationId'>;
   /** Called when the worker emits a normalized event. */
   onEvent?: (sessionId: string, event: AgentEvent) => void;
-  /**
-   * WP4: parent-owned tool execution router. When provided, the client
-   * routes `tool-call` frames from the worker to this router and sends
-   * `tool-result` frames back. The router owns permission/MCP/process/browser.
-   */
-  toolRouter?: HostToolExecutionRouter;
+  /** Backend-neutral parent execution port for exact Host tool descriptors. */
+  onToolCall?: (
+    frame: WorkerToolCallFrame,
+    signal: AbortSignal,
+  ) => Promise<HostToolExecutionResult>;
   /**
    * Phase 7 §4.4: timeout (ms) for worker start/hello handshake.
    * Default 5000ms. If the worker does not send hello within this window,
@@ -63,10 +60,13 @@ export type WorkerClientOptions = {
    */
   createTimeoutMs?: number;
   /**
-   * Phase 7 §4.4: timeout (ms) for session/prompt ack.
-   * Default 2000ms. Long generation continues via events.
+   * Optional timeout (ms) for the full session/prompt completion.
+   *
+   * The worker sends this response only after Pi finishes the generation, so
+   * it is intentionally disabled by default. Worker exit and explicit abort
+   * still reject the pending prompt request.
    */
-  promptAckTimeoutMs?: number;
+  promptCompletionTimeoutMs?: number;
   /**
    * Phase 7 §4.4: timeout (ms) for tool-call roundtrip.
    * Default 600000ms (10 min). Parent may ask user for permission.
@@ -112,6 +112,12 @@ export class RpcSdkWorkerClient extends EventEmitter {
   private helloResolve: ((hello: WorkerHelloFrame) => void) | null = null;
   private helloReject: ((error: Error) => void) | null = null;
   private helloTimer: ReturnType<typeof setTimeout> | null = null;
+  private startPromise: Promise<void> | null = null;
+  private closePromise: Promise<void> | null = null;
+  private exitPromise: Promise<void> | null = null;
+  private resolveExit: (() => void) | null = null;
+  private stdoutBuffer = '';
+  private readonly toolCallControllers = new Map<string, AbortController>();
 
   constructor(options: WorkerClientOptions = {}) {
     super();
@@ -120,14 +126,43 @@ export class RpcSdkWorkerClient extends EventEmitter {
 
   /** Start the worker child process and wait for hello handshake. */
   async start(): Promise<void> {
-    if (this.child) return;
-    const script =
-      this.options.workerScript ??
-      resolvePath(new URL('./rpc-sdk-worker-entry.js', import.meta.url).pathname);
+    if (this.startPromise) return this.startPromise;
+    if (this.child && !this.exited) return;
+
+    this.startPromise = this.startWorker();
+    try {
+      await this.startPromise;
+    } finally {
+      this.startPromise = null;
+    }
+  }
+
+  private async startWorker(): Promise<void> {
+    const script = this.options.workerScript ?? resolveDefaultWorkerScript();
     const args = [...(this.options.nodeArgs ?? []), script];
-    this.child = spawn(process.execPath, args, {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, ...this.options.env },
+    const workerEnvironment: Record<string, string> = {};
+    if (process.env.PATH) workerEnvironment.PATH = process.env.PATH;
+    if (process.env.NODE_ENV) workerEnvironment.NODE_ENV = process.env.NODE_ENV;
+    Object.assign(workerEnvironment, this.options.env ?? {});
+
+    this.exited = false;
+    this.exitCode = null;
+    this.helloReceived = false;
+    this.stdoutBuffer = '';
+    try {
+      this.child = spawn(process.execPath, args, {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: workerEnvironment,
+      });
+    } catch (error) {
+      const startupError = error instanceof Error ? error : new Error(String(error));
+      await this.cleanupAfterStartupFailure(startupError);
+      throw startupError;
+    }
+
+    const child = this.child;
+    this.exitPromise = new Promise<void>((resolve) => {
+      this.resolveExit = resolve;
     });
     this.child.stdout?.setEncoding('utf8');
     this.child.stderr?.setEncoding('utf8');
@@ -136,17 +171,28 @@ export class RpcSdkWorkerClient extends EventEmitter {
       // Diagnostics only; never secrets.
       this.emit('log', chunk.trim());
     });
-    this.child.on('exit', (code) => {
+    child.on('error', (error) => {
+      if (!this.helloReceived) {
+        this.helloReject?.(error);
+        return;
+      }
+      this.rejectAllPending(`worker process error: ${error.message}`);
+      this.abortOutstandingToolCalls();
+      this.emit('log', `[worker-client] worker process error: ${error.message}`);
+    });
+    child.on('exit', (code) => {
       this.exited = true;
       this.exitCode = code;
       this.rejectAllPending(`worker exited with code ${code}`);
+      this.abortOutstandingToolCalls();
       if (this.helloReject && !this.helloReceived) {
         this.helloReject(new Error(`worker exited before hello (code ${code})`));
       }
-      if (this.helloTimer) {
-        clearTimeout(this.helloTimer);
-        this.helloTimer = null;
-      }
+      this.clearHelloWait();
+      this.resolveExit?.();
+      this.resolveExit = null;
+      this.exitPromise = null;
+      this.child = null;
       this.emit('exit', code);
     });
 
@@ -155,8 +201,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
     await new Promise<void>((resolve, reject) => {
       this.helloResolve = (hello) => {
         this.helloReceived = true;
-        this.helloTimer && clearTimeout(this.helloTimer);
-        this.helloTimer = null;
+        this.clearHelloWait();
         // Validate protocol version (§4.3: parent refuses incompatible workers).
         if (hello.protocolVersion !== 1) {
           reject(
@@ -176,11 +221,19 @@ export class RpcSdkWorkerClient extends EventEmitter {
           );
         }
       }, helloTimeout);
+    }).catch(async (error: unknown) => {
+      const startupError = error instanceof Error ? error : new Error(String(error));
+      await this.cleanupAfterStartupFailure(startupError);
+      throw startupError;
     });
   }
 
   /** Send a request and wait for the response with optional timeout. */
-  async request(payload: WorkerRequestPayload, timeoutMs?: number): Promise<WorkerResponse> {
+  async request(
+    payload: WorkerRequestPayload,
+    timeoutMs?: number,
+    contextOverrides?: Pick<WorkerFrameContext, 'runId'>,
+  ): Promise<WorkerResponse> {
     if (!this.child || this.exited) {
       throw new Error('worker not running');
     }
@@ -188,7 +241,14 @@ export class RpcSdkWorkerClient extends EventEmitter {
       throw new Error('worker hello not received — call start() first');
     }
     const id = randomUUID();
-    const request: WorkerRequest = { type: 'request', id, method: payload.method, payload };
+    const baseContext = this.options.context;
+    if (!baseContext) {
+      throw new Error('worker identity context is not configured');
+    }
+    const context: WorkerFrameContext = { ...baseContext, ...(contextOverrides ?? {}) };
+    const request: WorkerRequest = { type: 'request', id, method: payload.method, context, payload };
+    const child = this.child;
+    if (!child) throw new Error('worker stopped before request could be sent');
     return new Promise<WorkerResponse>((resolve, reject) => {
       const timer = timeoutMs
         ? setTimeout(() => {
@@ -206,40 +266,17 @@ export class RpcSdkWorkerClient extends EventEmitter {
           reject(error);
         },
       });
-      this.child!.stdin?.write(serializeWorkerRequest(request) + '\n');
+      try {
+        child.stdin?.write(serializeWorkerRequest(request) + '\n');
+      } catch (error) {
+        this.pending.delete(id);
+        if (timer) clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 
-  /** Create a session in the worker. */
-  async createSession(input: {
-    projectPath: string;
-    workingDirectory: string;
-    isolation: 'readonly' | 'worktree';
-    profileId?: string;
-    modelProtocol?: string;
-    modelProviderId?: string;
-    modelModelId?: string;
-    thinkingLevel?: string;
-    capabilities?: string[];
-    skillIds?: string[];
-  }): Promise<{ sessionId: string }>;
-  async createSession(input: {
-    productSessionId: string;
-    blueprint: SerializableBlueprint;
-    providers?: SerializableProviderRuntime[];
-  }): Promise<{ sessionId: string }>;
-  async createSession(input: {
-    projectPath: string;
-    workingDirectory: string;
-    isolation: 'readonly' | 'worktree';
-    profileId?: string;
-    modelProtocol?: string;
-    modelProviderId?: string;
-    modelModelId?: string;
-    thinkingLevel?: string;
-    capabilities?: string[];
-    skillIds?: string[];
-  }): Promise<{ sessionId: string }>;
+  /** Create a session in the worker from the compiled backend blueprint. */
   async createSession(input: {
     productSessionId: string;
     blueprint: SerializableBlueprint;
@@ -263,8 +300,10 @@ export class RpcSdkWorkerClient extends EventEmitter {
     text: string,
     options?: {
       images?: Array<{ mimeType: string; dataBase64: string }>;
+      streamingBehavior?: 'steer' | 'followUp';
       thinkingLevel?: string;
       model?: { providerId: string; modelId: string };
+      runId?: string;
     },
   ): Promise<void> {
     const response = await this.request(
@@ -273,16 +312,21 @@ export class RpcSdkWorkerClient extends EventEmitter {
         sessionId,
         text,
         ...(options?.images ? { images: options.images } : {}),
+        ...(options?.streamingBehavior
+          ? { streamingBehavior: options.streamingBehavior }
+          : {}),
         ...(options?.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
         ...(options?.model ? { model: options.model } : {}),
       },
-      this.options.promptAckTimeoutMs ?? 2000,
+      this.options.promptCompletionTimeoutMs,
+      options?.runId ? { runId: options.runId } : undefined,
     );
     if (!response.success) throw new Error(response.error ?? 'session/prompt failed');
   }
 
   /** Abort a running prompt in the worker. */
   async abort(sessionId: string): Promise<void> {
+    this.abortToolCallsForSession(sessionId);
     const response = await this.request(
       { method: 'session/abort', sessionId },
       this.options.abortTimeoutMs ?? 2000,
@@ -310,25 +354,69 @@ export class RpcSdkWorkerClient extends EventEmitter {
 
   /** Terminate the worker process. */
   async close(): Promise<void> {
-    if (!this.child) return;
-    this.child.kill('SIGTERM');
-    await new Promise<void>((resolve) => {
-      if (this.exited) {
-        resolve();
-        return;
-      }
-      this.once('exit', () => resolve());
+    if (this.closePromise) return this.closePromise;
+    this.closePromise = this.closeWorker().finally(() => {
+      this.closePromise = null;
     });
+    return this.closePromise;
+  }
+
+  private async closeWorker(): Promise<void> {
+    this.abortOutstandingToolCalls();
+    const child = this.child;
+    if (!child || this.exited) return;
+    child.kill('SIGTERM');
+    await this.exitPromise;
+  }
+
+  /** Force-kill the worker process with SIGKILL (no graceful shutdown). */
+  forceKill(): void {
+    if (!this.child || this.exited) return;
+    this.abortOutstandingToolCalls();
+    try {
+      this.child.kill('SIGKILL');
+    } catch {
+      // best-effort; process may have already exited
+    }
   }
 
   private handleStdout(chunk: string): void {
-    const lines = chunk.split('\n');
+    this.stdoutBuffer += chunk;
+    const lines = this.stdoutBuffer.split('\n');
+    this.stdoutBuffer = lines.pop() ?? '';
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
       const frame = parseWorkerFrame(trimmed);
-      if (!frame) continue;
-      this.handleFrame(frame);
+      if (frame) {
+        this.handleFrame(frame);
+      } else {
+        this.handleUnparsedLine(trimmed);
+      }
+    }
+  }
+
+  private handleUnparsedLine(line: string): void {
+    try {
+      const parsed: unknown = JSON.parse(line);
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        'type' in parsed &&
+        parsed.type === 'hello' &&
+        'protocolVersion' in parsed &&
+        typeof parsed.protocolVersion === 'number' &&
+        parsed.protocolVersion !== 1
+      ) {
+        this.helloReject?.(
+          new Error(
+            `worker protocol version ${parsed.protocolVersion} incompatible (expected 1)`,
+          ),
+        );
+      }
+    } catch {
+      // Non-protocol diagnostics on stdout are ignored; valid JSONL frames
+      // are still preserved by the persistent buffer above.
     }
   }
 
@@ -342,20 +430,36 @@ export class RpcSdkWorkerClient extends EventEmitter {
       this.emit('log', `[worker-client] worker shutdown: ${frame.reason}`);
       this.emit('shutdown', frame.reason);
     } else if (frame.type === 'response') {
+      if (!this.matchesWorkerContext(frame.context)) {
+        this.emit('log', '[worker-client] rejected response from stale worker context');
+        return;
+      }
       const pending = this.pending.get(frame.id);
       if (pending) {
         this.pending.delete(frame.id);
         pending.resolve(frame as WorkerResponse);
       }
     } else if (frame.type === 'event') {
-      this.options.onEvent?.(frame.sessionId, frame.event);
-      this.emit('event', frame.sessionId, frame.event);
+      if (!this.matchesWorkerContext(frame.context)) {
+        this.emit('log', '[worker-client] rejected event from stale worker context');
+        return;
+      }
+      this.options.onEvent?.(frame.context.sessionId, frame.event);
+      this.emit('event', frame.context.sessionId, frame.event);
     } else if (frame.type === 'tool-call') {
+      if (!this.matchesWorkerContext(frame.context)) {
+        this.emit('log', '[worker-client] rejected tool call from stale worker context');
+        return;
+      }
       void this.handleToolCall(frame).catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
         this.emit('log', `[worker-client] tool-call error: ${message}`);
       });
     } else if (frame.type === 'extension-ui-request') {
+      if (!this.matchesWorkerContext(frame.context)) {
+        this.emit('log', '[worker-client] rejected extension UI request from stale worker context');
+        return;
+      }
       void this.handleExtensionUiRequest(frame).catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
         this.emit('log', `[worker-client] extension-ui error: ${message}`);
@@ -364,22 +468,33 @@ export class RpcSdkWorkerClient extends EventEmitter {
   }
 
   /**
-   * WP4: route a tool-call frame from the worker to the parent's
-   * HostToolExecutionRouter and send the result back.
+   * WP4: route a tool-call frame from the worker through the injected parent
+   * execution port and send the result back.
    */
   private async handleToolCall(frame: WorkerToolCallFrame): Promise<void> {
-    const router = this.options.toolRouter;
-    if (!router) {
-      this.sendToolResult(frame.id, false, undefined, 'no tool router configured');
+    if (this.options.onToolCall) {
+      const controller = new AbortController();
+      this.toolCallControllers.set(frame.id, controller);
+      try {
+        const result = await this.options.onToolCall(frame, controller.signal);
+        if (result.ok) {
+          this.sendToolResult(frame.id, true, result.output, undefined, undefined, frame.context);
+        } else {
+          this.sendToolResult(frame.id, false, undefined, result.message, result.code, frame.context);
+        }
+      } finally {
+        this.toolCallControllers.delete(frame.id);
+      }
       return;
     }
-    const args = (frame.args ?? {}) as Record<string, unknown>;
-    const result = await router.execute(frame.toolName, args);
-    if (result.ok) {
-      this.sendToolResult(frame.id, true, result.output);
-    } else {
-      this.sendToolResult(frame.id, false, undefined, result.message, result.code);
-    }
+    this.sendToolResult(
+      frame.id,
+      false,
+      undefined,
+      'no HostToolExecutionPort configured',
+      undefined,
+      frame.context,
+    );
   }
 
   private sendToolResult(
@@ -387,15 +502,23 @@ export class RpcSdkWorkerClient extends EventEmitter {
     ok: boolean,
     result: unknown,
     error?: string,
-    code?: 'tool-not-available' | 'tool-disabled' | 'permission-denied' | 'aborted',
+    code?:
+      | 'tool-not-available'
+      | 'tool-disabled'
+      | 'permission-denied'
+      | 'aborted'
+      | 'execution-failed',
+    context?: WorkerFrameContext,
   ): void {
+    if (!context) return;
     let frame: WorkerToolResultFrame;
     if (ok) {
-      frame = { type: 'tool-result', id, ok: true, result };
+      frame = { type: 'tool-result', id, context, ok: true, result };
     } else {
       frame = {
         type: 'tool-result',
         id,
+        context,
         ok: false,
         error: error ?? 'unknown error',
         ...(code ? { code } : {}),
@@ -416,22 +539,23 @@ export class RpcSdkWorkerClient extends EventEmitter {
         false,
         undefined,
         'no extension UI handler configured',
+        frame.context,
       );
       return;
     }
     try {
       const result = await handler({
-        sessionId: frame.sessionId,
+        sessionId: frame.context.sessionId,
         kind: frame.kind,
         title: frame.title,
         ...(frame.message ? { message: frame.message } : {}),
         ...(frame.options ? { options: frame.options } : {}),
         ...(frame.placeholder ? { placeholder: frame.placeholder } : {}),
       });
-      this.sendExtensionUiResponse(frame.id, true, result);
+      this.sendExtensionUiResponse(frame.id, true, result, undefined, frame.context);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
-      this.sendExtensionUiResponse(frame.id, false, undefined, message);
+      this.sendExtensionUiResponse(frame.id, false, undefined, message, frame.context);
     }
   }
 
@@ -440,10 +564,13 @@ export class RpcSdkWorkerClient extends EventEmitter {
     ok: boolean,
     result?: WorkerExtensionUiResponseFrame['result'],
     error?: string,
+    context?: WorkerFrameContext,
   ): void {
+    if (!context) return;
     const frame: WorkerExtensionUiResponseFrame = {
       type: 'extension-ui-response',
       id,
+      context,
       ok,
       ...(result ? { result } : {}),
       ...(error ? { error } : {}),
@@ -451,10 +578,69 @@ export class RpcSdkWorkerClient extends EventEmitter {
     this.child?.stdin?.write(`${JSON.stringify(frame)}\n`);
   }
 
+  private matchesWorkerContext(context: WorkerFrameContext): boolean {
+    const expected = this.options.context;
+    return (
+      expected !== undefined &&
+      context.sessionId === expected.sessionId &&
+      context.runtimeGenerationId === expected.runtimeGenerationId
+    );
+  }
+
   private rejectAllPending(reason: string): void {
     for (const [id, pending] of this.pending) {
       this.pending.delete(id);
       pending.reject(new Error(reason));
+    }
+  }
+
+  private clearHelloWait(): void {
+    if (this.helloTimer) {
+      clearTimeout(this.helloTimer);
+      this.helloTimer = null;
+    }
+    this.helloResolve = null;
+    this.helloReject = null;
+  }
+
+  private abortOutstandingToolCalls(): void {
+    for (const controller of this.toolCallControllers.values()) {
+      controller.abort();
+    }
+    this.toolCallControllers.clear();
+  }
+
+  private abortToolCallsForSession(sessionId: string): void {
+    for (const [toolCallId, controller] of this.toolCallControllers) {
+      if (toolCallId === sessionId || toolCallId.startsWith(`${sessionId}|`)) {
+        controller.abort();
+        this.toolCallControllers.delete(toolCallId);
+      }
+    }
+  }
+
+  private async cleanupAfterStartupFailure(error: Error): Promise<void> {
+    this.clearHelloWait();
+    this.rejectAllPending(error.message);
+    this.abortOutstandingToolCalls();
+    const child = this.child;
+    if (!child || this.exited) {
+      return;
+    }
+    const exitPromise = this.exitPromise;
+    try {
+      child.kill('SIGTERM');
+    } finally {
+      if (!this.exited) {
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          // The child may have exited between the two kill attempts.
+        }
+      }
+    }
+    if (exitPromise) {
+      await exitPromise;
     }
   }
 
@@ -468,68 +654,12 @@ export class RpcSdkWorkerClient extends EventEmitter {
   }
 }
 
-/**
- * Create a `SubagentTaskRunner` backed by the worker client. The orchestrator
- * uses this to run tasks in an isolated process.
- */
-export function createWorkerTaskRunner(client: RpcSdkWorkerClient): {
-  start(
-    task: SubagentTaskSpec,
-    workspace: SubagentWorkspaceLease,
-    signal: AbortSignal,
-  ): Promise<SubagentTaskResult>;
-  cancel(childSessionId: string): Promise<void>;
-} {
-  return {
-    async start(task, workspace, signal) {
-      const session = await client.createSession({
-        projectPath: workspace.cwd,
-        workingDirectory: workspace.cwd,
-        isolation: workspace.mode,
-        ...(task.profileId ? { profileId: task.profileId } : {}),
-        ...(task.model
-          ? {
-              modelProtocol: task.model.protocol,
-              modelProviderId: task.model.providerId,
-              modelModelId: task.model.modelId,
-            }
-          : {}),
-        ...(task.thinkingLevel ? { thinkingLevel: task.thinkingLevel } : {}),
-      });
-      const childSessionId = session.sessionId;
-
-      // Abort propagation.
-      signal.addEventListener('abort', () => {
-        void client.abort(childSessionId).catch(() => {});
-      });
-
-      try {
-        await client.prompt(childSessionId, task.task);
-        return {
-          runId: 'worker',
-          taskId: task.id,
-          childSessionId,
-          executionStatus: 'completed',
-          summaryStatus: 'not-requested',
-          integrationStatus: workspace.mode === 'worktree' ? 'pending' : 'not-requested',
-        };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        const cancelled = signal.aborted;
-        return {
-          runId: 'worker',
-          taskId: task.id,
-          childSessionId,
-          executionStatus: cancelled ? 'cancelled' : 'failed',
-          summaryStatus: 'not-requested',
-          integrationStatus: 'not-requested',
-          error: message,
-          ...(workspace.worktreePath ? { worktreePath: workspace.worktreePath } : {}),
-        };
-      }
-    },
-    async cancel(childSessionId) {
-      await client.abort(childSessionId).catch(() => {});
-    },
-  };
+function resolveDefaultWorkerScript(): string {
+  const packagedWorker = fileURLToPath(new URL('./agent-worker.mjs', import.meta.url));
+  if (existsSync(packagedWorker)) return packagedWorker;
+  const compiledWorker = fileURLToPath(new URL('./rpc-sdk-worker-entry.js', import.meta.url));
+  if (existsSync(compiledWorker)) return compiledWorker;
+  throw new Error(
+    'packaged agent worker artifact is missing; run bundle:host or provide a test workerScript',
+  );
 }

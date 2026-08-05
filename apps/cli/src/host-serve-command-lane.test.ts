@@ -15,18 +15,6 @@ describe('classifyHostServeCommand', () => {
     expect(isControlLaneCommand(abort)).toBe(true);
   });
 
-  it('classifies config/set as serialized', () => {
-    const command: HostCommand = {
-      type: 'config/set',
-      config: {
-        version: 1,
-        hostMode: 'sdk',
-        providers: [],
-      } as never,
-    };
-    expect(classifyHostServeCommand(command)).toBe('serialized');
-  });
-
   it('classifies settings/apply as serialized', () => {
     const command: HostCommand = {
       type: 'settings/apply',

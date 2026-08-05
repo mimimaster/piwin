@@ -11,6 +11,7 @@ import type {
   PromptInput,
   SessionSummary,
 } from './host.js';
+import type { ExtensionUiKind } from './extension-ui.js';
 import type { WebElementPickResult } from './browser.js';
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import type { SavedMediaAsset, SaveMediaInput } from './media.js';
@@ -33,13 +34,11 @@ import type {
 import type { ThemeManifest, ThemeSummary } from './theme.js';
 import type { PlanStatus, PlanStepStatus, SessionPlan } from './plan.js';
 import type { PlanExecutionRequest, PlanExecutionState } from './plan-execution.js';
-import type { SubagentSpawnOptions } from './subagent.js';
 import type {
+  SubagentBatchProjection,
   SubagentBatchRequest,
-  SubagentBatchResult,
   SubagentTaskResult,
 } from './subagent-orchestration.js';
-import type { ModelRef, ThinkingLevel } from './host.js';
 import type { PtyOpenInput } from './pty.js';
 import type { CronJob, HookDefinition, SessionTodoList } from './automation.js';
 import type { McpServerConfig } from './mcp.js';
@@ -52,12 +51,6 @@ import type { IndexFolderOptions, RetrieveOptions } from './doc-rag.js';
 import type { NoteSearchQuery, NoteUpdateInput, NoteWriteInput } from './notes.js';
 import type { PetRuntimeSnapshot, PetStoreQuery } from './pet.js';
 import type {
-  ManagedProcessLogChunk,
-  ManagedProcessLogsQuery,
-  ManagedProcessRecord,
-  ManagedProcessStartInput,
-} from './process.js';
-import type {
   SessionSearchQuery,
   SessionSearchResult,
   SessionTruncateFromResult,
@@ -68,6 +61,15 @@ import type { WalkthroughArtifact } from './walkthrough-artifact.js';
 import type { PluginInstallSource } from './plugin.js';
 import type { WebSearchTestInput } from './web.js';
 import type { ApplySettingsInput } from './settings.js';
+import type {
+  JobHostPush,
+  JobListFilter,
+  JobTerminalReason,
+  ReadJobLogsInput,
+  StartJobInput,
+  WaitForJobInput,
+} from './job.js';
+import type { RunHostPush } from './run.js';
 
 /**
  * Bytes are base64 only while crossing the desktop-to-host transport.
@@ -144,47 +146,17 @@ export type HostCommand =
   | { id?: string; type: 'session/create'; input: CreateSessionInput }
   | {
       id?: string;
-      type: 'session/spawn';
-      parentSessionId: string;
-      task: string;
-      sessionName?: string;
-      mode?: SubagentSpawnOptions['mode'];
-      applyPolicy?: SubagentSpawnOptions['applyPolicy'];
-      allowedOutputPaths?: string[];
-      retainWorktree?: boolean;
-      role?: string;
-      /** CE-SUB-PROF: profile id resolved by the Host before child creation. */
-      profileId?: string;
-      /** CE-SUB-PROF: per-call model override (must reference a configured model). */
-      model?: ModelRef;
-      /** CE-SUB-PROF: per-call thinking level override. */
-      thinkingLevel?: ThinkingLevel;
-    }
-  | {
-      id?: string;
       type: 'session/message-child';
       parentSessionId: string;
       childSessionId: string;
       text: string;
     }
   | { id?: string; type: 'session/list-children'; parentSessionId: string }
-  | { id?: string; type: 'session/cancel-subagent'; sessionId: string }
-  | {
-      id?: string;
-      type: 'session/complete-subagent';
-      sessionId: string;
-      status?: 'done' | 'failed';
-    }
-  | {
-      id?: string;
-      type: 'session/merge-subagent';
-      childSessionId: string;
-      force?: boolean;
-    }
   | {
       id?: string;
       type: 'subagent/batch-start';
       request: SubagentBatchRequest;
+      parentRunId?: string;
     }
   | { id?: string; type: 'subagent/batch-status'; runId: string }
   | { id?: string; type: 'subagent/batch-cancel'; runId: string }
@@ -297,7 +269,6 @@ export type HostCommand =
   | { id?: string; type: 'plan/execute'; request: PlanExecutionRequest }
   | { id?: string; type: 'plan/abort'; sessionId: string; planId: string }
   | { id?: string; type: 'config/get' }
-  | { id?: string; type: 'config/set'; config: PiwinConfig }
   | { id?: string; type: 'settings/get' }
   | { id?: string; type: 'settings/apply'; input: ApplySettingsInput }
   | {
@@ -396,12 +367,6 @@ export type HostCommand =
   | { id?: string; type: 'doccards/rebind-folder'; oldPath: string; newPath: string }
   | { id?: string; type: 'doccards/forget-folder'; folderPath: string }
   | { id?: string; type: 'doccards/open-source'; cardId: string; openFile?: boolean }
-  /** CE-PROC: managed process registry. */
-  | { id?: string; type: 'process/list'; sessionId?: string; projectPath?: string }
-  | { id?: string; type: 'process/get'; processId: string }
-  | { id?: string; type: 'process/start'; input: ManagedProcessStartInput }
-  | { id?: string; type: 'process/logs'; query: ManagedProcessLogsQuery }
-  | { id?: string; type: 'process/stop'; processId: string }
   /** CE-CHAT: pin / search / product truncate-resend. */
   | { id?: string; type: 'session/pin'; sessionId: string }
   | { id?: string; type: 'session/unpin'; sessionId: string }
@@ -549,7 +514,13 @@ export type HostCommand =
       type: 'plugins/secrets/collect';
       pluginId: string;
       secrets: Record<string, string>;
-    };
+    }
+  | { id?: string; type: 'job/start'; input: StartJobInput }
+  | { id?: string; type: 'job/list'; filter?: JobListFilter }
+  | { id?: string; type: 'job/get'; jobId: string }
+  | { id?: string; type: 'job/logs'; input: ReadJobLogsInput }
+  | { id?: string; type: 'job/wait'; input: WaitForJobInput }
+  | { id?: string; type: 'job/stop'; jobId: string; reason?: JobTerminalReason };
 
 /** Host → UI / external client (responses + push) */
 export type HostResponse =
@@ -595,7 +566,7 @@ export type HostPushVariant =
       type: 'subagent/batch-updated';
       runId: string;
       parentSessionId: string;
-      result: SubagentBatchResult;
+      result: SubagentBatchProjection;
     }
   | {
       type: 'subagent/task-updated';
@@ -656,18 +627,12 @@ export type HostPushVariant =
       sinceSeq: number;
       /** Last seq emitted by this replay, or sinceSeq if nothing was buffered. */
       lastSeq?: number;
-    };
+    }
+  | JobHostPush
+  | RunHostPush;
 
 /** ADR 0027: HostPush is the variant union plus optional transport sequencing. */
 export type HostPush = HostPushVariant & HostPushSequencing;
-
-/** Pi ExtensionUIContext dialog kinds bridged to Desktop. */
-export type ExtensionUiKind = 'confirm' | 'select' | 'input';
-
-export type ExtensionUiResolveData = {
-  requestId: string;
-  ok: boolean;
-};
 
 export type HostServerMessage = HostResponse | HostPush;
 
@@ -691,12 +656,12 @@ export type HostStatusData = {
     extensions: boolean;
     /** Prompt templates under ~/.piwin/prompts. */
     prompts: boolean;
-    /** True when hostMode rpc uses SDK session backend (not stock pi --mode rpc). */
-    rpcSdkFallback?: boolean;
     /** Extension confirm/select/input routed to Desktop (D-EXT-04). */
     extensionUiBridge?: boolean;
     /** CE-PROC: managed process tools / IPC available. Default false until wired. */
     process?: boolean;
+    /** CE-JOB: unified job control (start/list/get/logs/wait/stop) available. */
+    jobs?: boolean;
     /** CE-CHAT: product session FTS search available. */
     sessionSearch?: boolean;
     /** CE-CHAT: session pin/unpin available. */
@@ -705,11 +670,9 @@ export type HostStatusData = {
     sessionLifecycle?: boolean;
     /**
      * True interactive PTY (Tauri + xterm). false until ADR 0013 ships.
-     * When false, desktop exposes Shell preview (line-oriented piped shell) only.
+    * When false, desktop exposes Shell preview (line-oriented piped shell) only.
      */
     pty?: boolean;
-    /** Line-oriented shell preview available (not a full TTY emulator). */
-    shellPreview?: boolean;
     /** CE-SUB worktree isolation. */
     subagentWorktree?: boolean;
     /** CE-HUB registry browse. */
@@ -887,28 +850,6 @@ export type ThemeInstallData = {
 export type SkillsInstallData = {
   skillId: string;
   targetPath: string;
-};
-
-/** CE-PROC command response payloads. */
-export type ProcessListData = {
-  processes: ManagedProcessRecord[];
-};
-
-export type ProcessGetData = {
-  process: ManagedProcessRecord;
-};
-
-export type ProcessStartData = {
-  process: ManagedProcessRecord;
-};
-
-export type ProcessLogsData = {
-  processId: string;
-  chunks: ManagedProcessLogChunk[];
-};
-
-export type ProcessStopData = {
-  process: ManagedProcessRecord;
 };
 
 /** CE-CHAT pin / search / truncate payloads. */

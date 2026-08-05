@@ -6,15 +6,12 @@
  * tool executors (web, MCP, process, browser, notes, etc.) — it only
  * declares the tool name + parameter schema and proxies execution.
  *
- * Parameter schemas are generated from the tool name using the same pure
- * `parametersForHostTool` function the SDK path uses, so the model sees
- * identical tool definitions in both modes.
+ * Parameter schemas and descriptions are copied from the exact descriptors
+ * in the compiled blueprint, so dynamic MCP schemas remain unchanged.
  */
 
-import Type from 'typebox';
-import type { HostToolDefinition } from '@piwin/tools-web';
-import type { PiCustomToolDefinition } from '../pi-tool-adapter.js';
-import { parametersForHostTool } from '../pi-tool-adapter.js';
+import type { HostToolDescriptor } from '@piwin/contracts';
+import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type { SerializableBlueprint } from './serializable-blueprint.js';
 
 /**
@@ -30,17 +27,18 @@ export type ToolProxyCall = (
 ) => Promise<{ ok: true; output: string } | { ok: false; code: string; message: string }>;
 
 /**
- * Build proxy tool definitions for every name in the blueprint's
- * `customToolNames`. Returns an empty array when the allowlist is empty
+ * Build proxy tool definitions for every descriptor in the blueprint's
+ * `hostTools`. Returns an empty array when the allowlist is empty
  * (Phase 7 plan P7-08: empty allowlist means no tools, not unrestricted).
  */
 export function buildWorkerProxyTools(
   blueprint: SerializableBlueprint,
   proxyCall: ToolProxyCall,
-): PiCustomToolDefinition[] {
-  const tools: PiCustomToolDefinition[] = [];
-  for (const toolName of blueprint.tools.customToolNames) {
-    tools.push(buildSingleProxyTool(toolName, proxyCall));
+  productSessionId: string,
+): PiBackendCustomToolDefinition[] {
+  const tools: PiBackendCustomToolDefinition[] = [];
+  for (const descriptor of blueprint.tools.hostTools) {
+    tools.push(buildSingleProxyTool(descriptor, proxyCall, productSessionId));
   }
   return tools;
 }
@@ -49,61 +47,32 @@ export function buildWorkerProxyTools(
  * Build a single proxy tool definition. Exported for testing.
  */
 export function buildSingleProxyTool(
-  toolName: string,
+  descriptor: HostToolDescriptor,
   proxyCall: ToolProxyCall,
-): PiCustomToolDefinition {
-  const parameters = parametersForProxyTool(toolName);
+  productSessionId: string,
+): PiBackendCustomToolDefinition {
   return {
-    name: toolName,
-    label: toolName,
-    description: `Proxied host tool: ${toolName}`,
-    parameters,
+    name: descriptor.name,
+    label: descriptor.name,
+    description: descriptor.description,
+    // The parent compiled this schema. Do not infer or widen it in the worker.
+    parameters: descriptor.parameters,
     async execute(toolCallId, params, signal) {
-      const sessionId = extractSessionIdFromToolCallId(toolCallId);
-      const result = await proxyCall(sessionId, toolName, params ?? {}, signal);
+      const result = await proxyCall(productSessionId, descriptor.name, params ?? {}, signal);
       if (result.ok) {
         return {
           content: [{ type: 'text', text: result.output }],
-          details: { toolName, toolCallId, proxied: true },
+          details: { toolName: descriptor.name, toolCallId, proxied: true },
         };
       }
       // Map parent error codes to model-facing text.
       const errorText = formatProxyError(result.code, result.message);
       return {
         content: [{ type: 'text', text: errorText }],
-        details: { toolName, toolCallId, proxied: true, error: result.code },
+        details: { toolName: descriptor.name, toolCallId, proxied: true, error: result.code },
       };
     },
   };
-}
-
-/**
- * Generate the parameter schema for a proxy tool. Uses the same pure
- * `parametersForHostTool` function as the SDK path so the model sees
- * identical schemas. Falls back to free-form for unknown tool names.
- */
-function parametersForProxyTool(toolName: string): unknown {
-  // Build a minimal HostToolDefinition so the pure schema function can
-  // generate the same typebox schema the SDK path uses. For mcp__ prefixed
-  // tools, parametersForHostTool reads tool.parameters (Unsafe).
-  const fakeTool: HostToolDefinition = {
-    name: toolName,
-    description: '',
-    parameters: {},
-    execute: async () => '',
-  };
-  return parametersForHostTool(fakeTool);
-}
-
-/**
- * Extract the product session id from a Pi tool call id. The worker runtime
- * prefixes tool call ids with the session id when proxying (see
- * WorkerSessionRuntime). If the prefix is absent, return empty string and
- * the parent will reject with session-not-found.
- */
-function extractSessionIdFromToolCallId(toolCallId: string): string {
-  const sep = toolCallId.indexOf('|');
-  return sep > 0 ? toolCallId.slice(0, sep) : '';
 }
 
 function formatProxyError(code: string, message: string): string {

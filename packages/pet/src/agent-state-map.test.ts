@@ -133,39 +133,12 @@ describe('reducePetAgentContext', () => {
     expect(ctx.permissionAction).toBeNull();
   });
 
-  it('tracks run phase from run/phase events', () => {
-    let ctx = createInitialPetAgentContext();
-    ctx = reducePetAgentContext(ctx, {
-      type: 'run/phase',
-      sessionId: 's1',
-      runId: 'r1',
-      phase: 'preparing',
-      at: '2026-01-01T00:00:00Z',
-    });
-    expect(ctx.runPhase).toBe('preparing');
-    ctx = reducePetAgentContext(ctx, {
-      type: 'run/phase',
-      sessionId: 's1',
-      runId: 'r1',
-      phase: 'tool-running',
-      at: '2026-01-01T00:00:01Z',
-    });
-    expect(ctx.runPhase).toBe('tool-running');
-  });
-
   it('resets all activity fields on session/ended', () => {
     let ctx = createInitialPetAgentContext();
     ctx = reducePetAgentContext(ctx, {
       type: 'tool/start',
       toolCallId: 't1',
       toolName: 'shell',
-    });
-    ctx = reducePetAgentContext(ctx, {
-      type: 'run/phase',
-      sessionId: 's1',
-      runId: 'r1',
-      phase: 'streaming',
-      at: '2026-01-01T00:00:00Z',
     });
     ctx = reducePetAgentContext(ctx, { type: 'session/ended', sessionId: 's1' });
     expect(ctx.activeToolName).toBeNull();

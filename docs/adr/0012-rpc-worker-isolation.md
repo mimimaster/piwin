@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Accepted design; implementation governed by Runtime Refactor Phase 3 |
+| Status | Accepted; implemented and guarded by the Runtime Refactor deletion gates |
 | Date | 2026-07-21 (design), 2026-08-04 (final target clarified) |
 | Related | ADR 0008, ADR 0011, ADR 0030, [`runtime-refactor.md`](../specs/runtime-refactor.md) |
 
@@ -18,8 +18,8 @@ Stock `pi --mode rpc` remains unsuitable for custom tools (ADR 0008).
 
 ## Decision
 
-1. **Do not claim isolation** for ADR 0011 fallback. It remains a transitional,
-   explicitly non-isolated state until Runtime Refactor Phase 3 exits.
+1. RPC product execution uses this worker boundary; the historical ADR 0011
+   in-process fallback and stock RPC escape path are no longer product paths.
 2. One worker process owns exactly one
    `(productSessionId, runtimeGenerationId)` and one Pi SDK session.
 3. Worker lifetime equals runtime-generation lifetime. Workers are not reused
@@ -34,6 +34,20 @@ Stock `pi --mode rpc` remains unsuitable for custom tools (ADR 0008).
    ToolManifest descriptors and pass one parameterized conformance suite.
 7. On Phase 3 exit, SDK fallback, stock Pi RPC, and temporary backend-selection
    environment switches are deleted.
+
+### Provider secret channel
+
+Provider authentication is compiled by the parent before a backend session is
+created:
+
+- `apiKeyEnv` is represented as an environment-variable reference. The raw
+  value is not included in the provider envelope.
+- `apiKeyRef` is parent-owned keychain state and has no worker JSONL secret
+  channel. RPC/worker compilation therefore fails closed instead of resolving
+  the key and serializing inline auth.
+- In-process SDK compilation may explicitly opt into inline auth for the
+  backend call. That opt-in is not valid for RPC and must never cross worker
+  JSONL. A future secret channel can replace this restriction.
 
 ## Non-goals for this ADR
 
@@ -50,3 +64,8 @@ Stock `pi --mode rpc` remains unsuitable for custom tools (ADR 0008).
   terminal product state with the real active `runId`.
 - Extension UI, prompt cancellation, native images, and Host tool cancellation
   are parity requirements rather than accepted permanent degradations.
+
+Implementation update (2026-08-05): `AgentWorkerSupervisor` is the sole
+production worker-client owner, the worker artifact is bundled as
+`agent-worker.mjs`, and unexpected worker exit terminalizes matching active
+Runs through the parent `RunRegistry` with `worker-crash`.

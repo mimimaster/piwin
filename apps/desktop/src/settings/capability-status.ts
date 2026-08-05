@@ -41,7 +41,7 @@ export type CapabilityStatusInput = {
 
 /**
  * Resolve the four-state model for the Agent-facing capabilities. Effective
- * mirrors the Host ToolManifest policy: an off family is never effective; a
+ * mirrors the Host SessionToolPolicy: an off family is never effective; a
  * stale runtime reports loaded=false so the UI can show Pending Changes.
  */
 export function resolveCapabilityStatuses(input: CapabilityStatusInput): CapabilityStatus[] {

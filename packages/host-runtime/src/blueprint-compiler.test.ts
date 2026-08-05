@@ -1,0 +1,472 @@
+/**
+ * Tests for blueprint-compiler: verifies that the real blueprint
+ * compilation produces a complete SerializableBlueprint with resource
+ * paths, tool policy, and provider envelope from live config.
+ */
+
+import { describe, expect, it, vi } from 'vitest';
+import { createDefaultWebConfig, type PiwinConfig, type SessionScope } from '@piwin/contracts';
+import {
+  compileBlueprintForWorker,
+  PROVIDER_SECRET_COMPILE_ERROR_CODE,
+} from './blueprint-compiler.js';
+import type { HostToolDescriptor } from '@piwin/contracts';
+import { BLUEPRINT_PROTOCOL_VERSION } from '@piwin/agent-host';
+
+function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
+  return {
+    hostMode: 'rpc',
+    providers: [
+      {
+        id: 'openai-1',
+        protocol: 'openai-compatible',
+        name: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKeyEnv: 'OPENAI_API_KEY',
+        models: [{ id: 'gpt-4', label: 'GPT-4', reasoning: true, input: ['text', 'image'] }],
+      },
+    ],
+    media: { maxPasteBytes: 10_000_000, allowedMimeTypes: ['image/png'] },
+    artifact: { maxBytes: 100_000, htmlUiModeDefault: false },
+    web: createDefaultWebConfig(),
+    skills: { extraPaths: [], disabledIds: [] },
+    extensions: { extraPaths: [], disabledIds: [] },
+    prompts: { extraPaths: [], disabledIds: [] },
+    notes: { enabled: true },
+    flashcards: { enabled: true },
+    ...overrides,
+  };
+}
+
+const generalScope: SessionScope = { kind: 'general' };
+
+describe('compileBlueprintForWorker', () => {
+  it('compiles a real blueprint with protocol version and snapshotId', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+    expect(result.blueprint.protocolVersion).toBe(BLUEPRINT_PROTOCOL_VERSION);
+    expect(result.blueprint.snapshotId).not.toBe('transitional');
+    expect(result.blueprint.snapshotId).toHaveLength(64); // sha256 hex
+  });
+
+  it('includes discovered resource paths in the blueprint', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({
+          skillPaths: ['/tmp/skills/s1'],
+          extensionPaths: ['/tmp/ext/e1'],
+          promptPaths: ['/tmp/prompts/p1'],
+        }),
+      },
+    );
+    expect(result.blueprint.activeSkillPaths).toEqual(['/tmp/skills/s1']);
+    expect(result.blueprint.activeExtensionPaths).toEqual(['/tmp/ext/e1']);
+    expect(result.blueprint.activePromptPaths).toEqual(['/tmp/prompts/p1']);
+  });
+
+  it('builds tool policy with web + shell + filesystem families', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [
+          { name: 'web_search', description: 'Search the web', parameters: {} },
+          { name: 'bash', description: 'Run bash', parameters: {} },
+          { name: 'read_file', description: 'Read a file', parameters: {} },
+          { name: 'write_file', description: 'Write a file', parameters: {} },
+          { name: 'list_directory', description: 'List a directory', parameters: {} },
+        ],
+      },
+    );
+    expect(result.blueprint.tools.enabledFamilies).toContain('web-search');
+    expect(result.blueprint.tools.enabledFamilies).toContain('web-fetch');
+    expect(result.blueprint.tools.enabledFamilies).toContain('shell');
+    expect(result.blueprint.tools.enabledFamilies).toContain('filesystem-read');
+    const hostToolNames = result.blueprint.tools.hostTools.map((tool) => tool.name);
+    expect(hostToolNames).toContain('web_search');
+    expect(hostToolNames).toContain('bash');
+  });
+
+  it('never exposes Pi-native edit or write tools to the worker', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+
+    expect(result.blueprint.tools.piBuiltinToolNames).not.toContain('edit');
+    expect(result.blueprint.tools.piBuiltinToolNames).not.toContain('write');
+    expect(result.blueprint.tools.piBuiltinToolNames).toEqual(['read', 'grep', 'ls']);
+  });
+
+  it('excludes process tools for readonly subagent', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope, subagent: { mode: 'readonly' } },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+    expect(result.blueprint.tools.enabledFamilies).not.toContain('shell');
+    expect(result.blueprint.tools.enabledFamilies).not.toContain('process');
+    const hostToolNames = result.blueprint.tools.hostTools.map((tool) => tool.name);
+    expect(hostToolNames).not.toContain('bash');
+    expect(hostToolNames).not.toContain('process_start');
+  });
+
+  it('excludes image_gen when imagegen skill is disabled', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig({ skills: { extraPaths: [], disabledIds: ['imagegen'] } }),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+    expect(result.blueprint.tools.enabledFamilies).not.toContain('image-generation');
+    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain('image_gen');
+  });
+
+  it('excludes notes when notes disabled in config', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig({ notes: { enabled: false } }),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+    expect(result.blueprint.tools.enabledFamilies).not.toContain('notes-read');
+    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain('notes_search');
+  });
+
+  it('builds provider envelope from enabled providers', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+    expect(result.providers).toHaveLength(1);
+    expect(result.providers[0]?.providerId).toBe('openai-1');
+    expect(result.providers[0]?.protocol).toBe('openai-compatible');
+    expect(result.providers[0]?.baseUrl).toBe('https://api.openai.com/v1');
+    expect(result.providers[0]?.auth.kind).toBe('env');
+    if (result.providers[0]?.auth.kind === 'env') {
+      expect(result.providers[0]?.auth.envName).toBe('OPENAI_API_KEY');
+    }
+    expect(result.providers[0]?.models).toHaveLength(1);
+    expect(result.providers[0]?.models[0]?.id).toBe('gpt-4');
+  });
+
+  it('keeps env-ref auth when an apiKeyRef is also configured', async () => {
+    const resolveProviderSecret = vi.fn(async () => 'must-not-enter-provider-envelope');
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig({
+          providers: [
+            {
+              id: 'openai-1',
+              protocol: 'openai-compatible',
+              name: 'OpenAI',
+              baseUrl: 'https://api.openai.com/v1',
+              apiKeyEnv: 'OPENAI_API_KEY',
+              apiKeyRef: 'keychain:piwin-openai',
+              models: [{ id: 'gpt-4' }],
+            },
+          ],
+        }),
+        secretResolver: { resolveProviderSecret },
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+
+    expect(result.providers[0]?.auth).toEqual({ kind: 'env', envName: 'OPENAI_API_KEY' });
+    expect(JSON.stringify(result.providers)).not.toContain('must-not-enter-provider-envelope');
+    expect(resolveProviderSecret).not.toHaveBeenCalled();
+  });
+
+  it('excludes disabled providers from envelope', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig({
+          providers: [
+            {
+              id: 'openai-1',
+              protocol: 'openai-compatible',
+              name: 'OpenAI',
+              baseUrl: 'https://api.openai.com/v1',
+              apiKeyEnv: 'OPENAI_API_KEY',
+              enabled: false,
+              models: [{ id: 'gpt-4' }],
+            },
+            {
+              id: 'anthropic-1',
+              protocol: 'anthropic-compatible',
+              name: 'Anthropic',
+              baseUrl: 'https://api.anthropic.com',
+              apiKeyEnv: 'ANTHROPIC_API_KEY',
+              models: [{ id: 'claude-3' }],
+            },
+          ],
+        }),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+    expect(result.providers).toHaveLength(1);
+    expect(result.providers[0]?.providerId).toBe('anthropic-1');
+  });
+
+  it('refuses apiKeyRef-only providers before resolving secrets for worker mode', async () => {
+    const resolveProviderSecret = vi.fn(async () => 'should-never-cross-worker-jsonl');
+
+    await expect(
+      compileBlueprintForWorker(
+        { scope: generalScope },
+        {
+          config: createConfig({
+            providers: [
+              {
+                id: 'custom-1',
+                protocol: 'openai-compatible',
+                name: 'Custom',
+                baseUrl: 'https://custom.api/v1',
+                apiKeyRef: 'keychain:piwin-custom',
+                models: [{ id: 'model-1' }],
+              },
+            ],
+          }),
+          secretResolver: { resolveProviderSecret },
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        },
+      ),
+    ).rejects.toMatchObject({
+      name: 'ProviderSecretCompileError',
+      code: PROVIDER_SECRET_COMPILE_ERROR_CODE,
+      providerId: 'custom-1',
+      message: expect.stringContaining(
+        'worker mode requires apiKeyEnv or a future secret channel; apiKeyRef secrets cannot cross worker JSONL',
+      ),
+    });
+    expect(resolveProviderSecret).not.toHaveBeenCalled();
+  });
+
+  it('allows inline apiKeyRef auth only when explicitly enabled for SDK use', async () => {
+    const apiKey = 'sdk-only-inline-secret';
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        allowInlineProviderSecrets: true,
+        secretResolver: { resolveProviderSecret: async () => apiKey },
+        config: createConfig({
+          providers: [
+            {
+              id: 'custom-1',
+              protocol: 'openai-compatible',
+              name: 'Custom',
+              baseUrl: 'https://custom.api/v1',
+              apiKeyRef: 'keychain:piwin-custom',
+              models: [{ id: 'model-1' }],
+            },
+          ],
+        }),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+
+    expect(result.providers[0]?.auth).toEqual({ kind: 'inline', apiKey });
+  });
+
+  it('descriptor-parity: compiled hostTools names match composed descriptors', async () => {
+    // Simulate the full set of descriptors that buildSessionHostTools would
+    // produce for a session with all services available.
+    const composedDescriptors: HostToolDescriptor[] = [
+      { name: 'web_search', description: 'Search the web', parameters: {} },
+      { name: 'web_fetch', description: 'Fetch a URL', parameters: {} },
+      { name: 'read_file', description: 'Read a file', parameters: {} },
+      { name: 'write_file', description: 'Write a file', parameters: {} },
+      { name: 'list_directory', description: 'List a directory', parameters: {} },
+      { name: 'bash', description: 'Run bash', parameters: {} },
+      { name: 'run_bash', description: 'Run bash (alias)', parameters: {} },
+      { name: 'process_start', description: 'Start a process', parameters: {} },
+      { name: 'process_list', description: 'List processes', parameters: {} },
+      { name: 'process_logs', description: 'Get process logs', parameters: {} },
+      { name: 'process_stop', description: 'Stop a process', parameters: {} },
+      { name: 'browser_navigate', description: 'Navigate browser', parameters: {} },
+      { name: 'browser_snapshot', description: 'Browser snapshot', parameters: {} },
+      { name: 'browser_click', description: 'Click element', parameters: {} },
+      { name: 'browser_type', description: 'Type text', parameters: {} },
+      { name: 'browser_fill_form', description: 'Fill form', parameters: {} },
+      { name: 'browser_scroll', description: 'Scroll', parameters: {} },
+      { name: 'browser_screenshot', description: 'Screenshot', parameters: {} },
+      { name: 'browser_find', description: 'Find element', parameters: {} },
+      { name: 'browser_back', description: 'Go back', parameters: {} },
+      { name: 'browser_forward', description: 'Go forward', parameters: {} },
+      { name: 'piwin_plan_create', description: 'Create plan', parameters: {} },
+      { name: 'piwin_plan_set_step', description: 'Set plan step', parameters: {} },
+      { name: 'note_search', description: 'Search notes', parameters: {} },
+      { name: 'note_list', description: 'List notes', parameters: {} },
+      { name: 'note_read', description: 'Read note', parameters: {} },
+      { name: 'note_write', description: 'Write note', parameters: {} },
+      { name: 'note_update', description: 'Update note', parameters: {} },
+      { name: 'note_delete', description: 'Delete note', parameters: {} },
+      { name: 'flashcard_create', description: 'Create flashcard', parameters: {} },
+      { name: 'flashcard_batch_create', description: 'Batch create flashcards', parameters: {} },
+      { name: 'flashcard_list', description: 'List flashcards', parameters: {} },
+      { name: 'flashcard_delete', description: 'Delete flashcard', parameters: {} },
+      { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
+      { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+      { name: 'image_gen', description: 'Generate image', parameters: {} },
+    ];
+
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: composedDescriptors,
+      },
+    );
+
+    const compiledNames = result.blueprint.tools.hostTools.map((t) => t.name).sort();
+    // Every compiled name must have a matching descriptor (no phantom tools).
+    for (const name of compiledNames) {
+      expect(composedDescriptors.some((d) => d.name === name)).toBe(true);
+    }
+    // Expected families' tools must appear.
+    expect(compiledNames).toContain('web_search');
+    expect(compiledNames).toContain('read_file');
+    expect(compiledNames).toContain('write_file');
+    expect(compiledNames).toContain('list_directory');
+    expect(compiledNames).toContain('bash');
+    expect(compiledNames).toContain('piwin_plan_create');
+    expect(compiledNames).toContain('piwin_plan_set_step');
+    expect(compiledNames).toContain('note_search');
+    expect(compiledNames).toContain('flashcard_create');
+    expect(compiledNames).toContain('mcp_gateway');
+    expect(compiledNames).toContain('piwin_subagent_run');
+    expect(compiledNames).toContain('image_gen');
+  });
+
+  it('untrusted project compiles no write/process/bash/delegate tools', async () => {
+    const projectScope: SessionScope = { kind: 'project', projectPath: '/tmp/untrusted-project' };
+    const result = await compileBlueprintForWorker(
+      { scope: projectScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        trustResolver: async () => false,
+        hostToolDescriptors: [
+          { name: 'bash', description: 'Run bash', parameters: {} },
+          { name: 'run_bash', description: 'Run bash alias', parameters: {} },
+          { name: 'write_file', description: 'Write a file', parameters: {} },
+          { name: 'read_file', description: 'Read a file', parameters: {} },
+          { name: 'list_directory', description: 'List a directory', parameters: {} },
+          { name: 'process_start', description: 'Start a process', parameters: {} },
+          { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+        ],
+      },
+    );
+
+    const hostToolNames = result.blueprint.tools.hostTools.map((t) => t.name);
+    expect(hostToolNames).not.toContain('bash');
+    expect(hostToolNames).not.toContain('run_bash');
+    expect(hostToolNames).not.toContain('write_file');
+    expect(hostToolNames).not.toContain('process_start');
+    expect(hostToolNames).not.toContain('piwin_subagent_run');
+    // Read-only tools should still be present.
+    expect(hostToolNames).toContain('read_file');
+    expect(hostToolNames).toContain('list_directory');
+    // Trust snapshot should reflect false.
+    if (result.blueprint.scope.kind === 'project') {
+      expect(result.blueprint.scope.trusted).toBe(false);
+    }
+  });
+
+  it('trusted project compiles write/process/bash/delegate tools', async () => {
+    const projectScope: SessionScope = { kind: 'project', projectPath: '/tmp/trusted-project' };
+    const result = await compileBlueprintForWorker(
+      { scope: projectScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        trustResolver: async () => true,
+        hostToolDescriptors: [
+          { name: 'bash', description: 'Run bash', parameters: {} },
+          { name: 'write_file', description: 'Write a file', parameters: {} },
+          { name: 'read_file', description: 'Read a file', parameters: {} },
+          { name: 'process_start', description: 'Start a process', parameters: {} },
+          { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+        ],
+      },
+    );
+
+    const hostToolNames = result.blueprint.tools.hostTools.map((t) => t.name);
+    expect(hostToolNames).toContain('bash');
+    expect(hostToolNames).toContain('write_file');
+    expect(hostToolNames).toContain('process_start');
+    expect(hostToolNames).toContain('piwin_subagent_run');
+    if (result.blueprint.scope.kind === 'project') {
+      expect(result.blueprint.scope.trusted).toBe(true);
+    }
+  });
+
+  it('uses the supplied product session ID independently from scope', async () => {
+    const projectScope: SessionScope = { kind: 'project', projectPath: '/tmp/myproject' };
+    const result = await compileBlueprintForWorker(
+      { scope: projectScope },
+      {
+        sessionId: 'session-project-1',
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+    expect(result.productSessionId).toBe('session-project-1');
+    expect(result.backendBlueprint.sessionId).toBe('session-project-1');
+    expect(result.blueprint.scope.kind).toBe('project');
+    if (result.blueprint.scope.kind === 'project') {
+      expect(result.blueprint.scope.projectPath).toBe('/tmp/myproject');
+      expect(result.blueprint.scope.trusted).toBe(true);
+    }
+  });
+
+  it('generates a product session ID when one is not supplied', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+    expect(result.productSessionId).toMatch(/^[-0-9a-f]{36}$/);
+    expect(result.backendBlueprint.sessionId).toBe(result.productSessionId);
+    expect(result.blueprint.scope.kind).toBe('general');
+  });
+
+  it('passes model + thinkingLevel from input into blueprint', async () => {
+    const result = await compileBlueprintForWorker(
+      {
+        scope: generalScope,
+        model: { protocol: 'openai-compatible', providerId: 'openai-1', modelId: 'gpt-4' },
+        thinkingLevel: 'high',
+      },
+      {
+        config: createConfig(),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+    expect(result.blueprint.model).toEqual({ providerId: 'openai-1', modelId: 'gpt-4' });
+    expect(result.blueprint.thinkingLevel).toBe('high');
+  });
+});

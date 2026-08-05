@@ -6,6 +6,7 @@ import type { SubagentCapability } from './subagent-profile.js';
 import type { ResourceId, ResourcePolicy } from './resource.js';
 import type { ResourceManifest } from './resource-manifest.js';
 import type { ContextPolicy, ContextManifest } from './context-manifest.js';
+import type { HostToolDescriptor } from './host-tool.js';
 
 /** High-level agent exposure of a tool family (spec §7.2). */
 export type CapabilityExposure = 'off' | 'manual-only' | 'agent';
@@ -37,18 +38,7 @@ export type SessionToolFamily =
 
 /** Compiled tool policy for one session (spec §9.3). */
 export type SessionToolPolicy = {
-  enabledFamilies: SessionToolFamily[];
-  piBuiltinToolNames: string[];
-  customToolNames: string[];
-  enabledMcpServerIds: string[];
-};
-
-/**
- * Exact model-visible tool manifest. Pi adapters consume only this; they must
- * not read Settings or project trust directly (SCR-03).
- */
-export type ToolManifest = {
-  customToolNames: string[];
+  hostTools: HostToolDescriptor[];
   piBuiltinToolNames: string[];
   enabledMcpServerIds: string[];
   enabledFamilies: SessionToolFamily[];
@@ -85,7 +75,7 @@ export type SessionCapabilitySnapshot = {
   inputs: CapabilityInputRevisions;
   scope: SessionScope;
   workingDirectory: string;
-  trust: { kind: 'general' } | { kind: 'project'; projectPath: string; trusted: true };
+  trust: { kind: 'general' } | { kind: 'project'; projectPath: string; trusted: boolean };
   resources: ResourcePolicy;
   resourceManifest: ResourceManifest;
   context: ContextPolicy;

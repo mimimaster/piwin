@@ -1,7 +1,8 @@
 /**
  * Presentation-only agent run status derived from existing desktop state.
  */
-import type { ManagedProcessRecord, SessionPlan } from '@piwin/contracts';
+import type { JobRecord, SessionPlan } from '@piwin/contracts';
+import { isJobActive } from '@piwin/contracts';
 import type { ChatUiState, ToolCardUi } from './chat-reducer';
 
 export type RunStatusKind =
@@ -26,7 +27,7 @@ export type RunStatusView = {
   summary: string;
   activeToolName?: string;
   completedToolCount: number;
-  runningProcessCount: number;
+  runningJobCount: number;
   primaryAction?: RunStatusPrimaryAction;
   canStop: boolean;
   elapsedMs?: number;
@@ -37,19 +38,17 @@ export type DeriveRunStatusInput = {
   chat: ChatUiState;
   tools: ToolCardUi[];
   plan: SessionPlan | null;
-  processes: ManagedProcessRecord[];
+  jobs: JobRecord[];
 };
 
 export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
   const tools = input.tools;
   const completedToolCount = tools.filter((tool) => tool.status === 'done').length;
   const runningTool = tools.find((tool) => tool.status === 'running');
-  const runningProcessCount = input.processes.filter(
-    (process) => process.status === 'running' || process.status === 'starting',
-  ).length;
+  const runningJobCount = input.jobs.filter((job) => isJobActive(job.status)).length;
   const baseCounts = {
     completedToolCount,
-    runningProcessCount,
+    runningJobCount,
   };
 
   const activePhase = input.chat.activeRunPhase;
@@ -129,7 +128,7 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
     };
   }
 
-  if (input.chat.runPhase === 'streaming' || runningTool || runningProcessCount > 0) {
+  if (input.chat.runPhase === 'streaming' || runningTool || runningJobCount > 0) {
     const planInProgress =
       input.plan &&
       (input.plan.status === 'draft' ||
@@ -158,8 +157,8 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
       label: 'Working',
       summary: runningTool
         ? `Running ${runningTool.toolName}`
-        : runningProcessCount > 0
-          ? `${runningProcessCount} process${runningProcessCount === 1 ? '' : 'es'} active`
+        : runningJobCount > 0
+          ? `${runningJobCount} process${runningJobCount === 1 ? '' : 'es'} active`
           : 'Agent is responding…',
       ...baseCounts,
       primaryAction: 'view-activity',
@@ -194,7 +193,7 @@ export function deriveRunStatus(input: DeriveRunStatusInput): RunStatusView {
   }
   if (
     terminal.kind === 'complete' &&
-    (completedToolCount > 0 || runningProcessCount > 0 || Boolean(input.plan))
+    (completedToolCount > 0 || runningJobCount > 0 || Boolean(input.plan))
   ) {
     return {
       kind: 'complete',

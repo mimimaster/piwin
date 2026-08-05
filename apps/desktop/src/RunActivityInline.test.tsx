@@ -53,7 +53,7 @@ describe('RunActivityInline', () => {
             label: 'Idle',
             summary: 'Ready',
             completedToolCount: 0,
-            runningProcessCount: 0,
+            runningJobCount: 0,
             canStop: false,
           }}
         />,
@@ -71,7 +71,7 @@ describe('RunActivityInline', () => {
             label: 'Working',
             summary: 'Working…',
             completedToolCount: 0,
-            runningProcessCount: 0,
+            runningJobCount: 0,
             canStop: true,
           }}
         />,
@@ -86,7 +86,7 @@ describe('RunActivityInline', () => {
       label: 'Idle',
       summary: 'Ready',
       completedToolCount: 0,
-      runningProcessCount: 0,
+      runningJobCount: 0,
       canStop: false,
     };
     const working: RunStatusView = {

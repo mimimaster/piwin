@@ -35,18 +35,6 @@ export type DiffWorktreeResult = {
   raw: string;
 };
 
-export type ApplyWorktreeInput = {
-  projectPath: string;
-  worktreePath: string;
-  /** Relative paths under project; when set only these are applied via checkout. */
-  allowedOutputPaths?: string[];
-};
-
-export type ApplyWorktreeResult = {
-  appliedPaths: string[];
-  strategy: 'checkout-paths' | 'none';
-};
-
 function sanitizeWorktreeName(name: string): string {
   const cleaned = name
     .trim()
@@ -171,35 +159,6 @@ export async function diffWorktreeAgainstMain(
     }
   }
   return { files, raw };
-}
-
-/**
- * Apply changed files from worktree into main project working tree via `git checkout <branch> -- paths`.
- * Does not create a commit.
- */
-export async function applyWorktreeToMain(input: ApplyWorktreeInput): Promise<ApplyWorktreeResult> {
-  const projectPath = resolve(input.projectPath);
-  const worktreePath = resolve(input.worktreePath);
-  const diff = await diffWorktreeAgainstMain({ projectPath, worktreePath });
-  let paths = diff.files.map((file) => file.path).filter(Boolean);
-  if (input.allowedOutputPaths && input.allowedOutputPaths.length > 0) {
-    const allow = new Set(input.allowedOutputPaths.map((item) => item.replace(/^\.\//, '')));
-    paths = paths.filter((path) => allow.has(path.replace(/^\.\//, '')));
-  }
-  if (paths.length === 0) {
-    return { appliedPaths: [], strategy: 'none' };
-  }
-  // Determine branch of worktree
-  const branchResult = await runGitCommand({
-    cwd: worktreePath,
-    args: ['rev-parse', '--abbrev-ref', 'HEAD'],
-  });
-  const branch = branchResult.stdout.trim();
-  await runGitCommand({
-    cwd: projectPath,
-    args: ['checkout', branch, '--', ...paths],
-  });
-  return { appliedPaths: paths, strategy: 'checkout-paths' };
 }
 
 export function worktreeDisplayName(worktreePath: string): string {

@@ -10,7 +10,7 @@
 import { writeFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runGitCommand } from './git-command-runner.js';
-import { diffWorktreeAgainstMain } from './worktree.js';
+import { assertSafeRef } from './path-safety.js';
 
 export type WorktreeIntegrationInput = {
   /** Parent project path (main worktree). */
@@ -19,6 +19,8 @@ export type WorktreeIntegrationInput = {
   worktreePath: string;
   /** Child worktree branch. */
   worktreeBranch: string;
+  /** Exact parent commit captured before the child worktree was created. */
+  baseCommit: string;
   /** Allowed output paths (relative to project root). When set, files
    * outside this list are rejected. */
   allowedOutputPaths?: string[];
@@ -45,16 +47,28 @@ export async function integrateWorktreeChanges(
   input: WorktreeIntegrationInput,
 ): Promise<WorktreeIntegrationResult> {
   const { projectPath, worktreePath, allowedOutputPaths } = input;
-
-  // Get the diff between the worktree branch and the main branch.
-  const diff = await diffWorktreeAgainstMain({
-    projectPath,
-    worktreePath,
-  });
-
-  const changedFiles = diff.files.map((f) => f.path);
+  const baseCommit = assertSafeRef(input.baseCommit);
   const rejectedFiles: string[] = [];
-  const integratedFiles: string[] = [];
+
+  // Compare the child working tree directly with the exact commit captured
+  // before worktree creation. This includes both committed and tracked
+  // uncommitted child changes without relying on branch names or HEAD~1.
+  let changedFiles: string[];
+  try {
+    const changedFilesResult = await runGitCommand({
+      cwd: worktreePath,
+      args: ['diff', '--name-status', baseCommit, '--'],
+    });
+    changedFiles = parseChangedFiles(changedFilesResult.stdout);
+  } catch (error) {
+    return {
+      status: 'conflict',
+      integratedFiles: [],
+      conflictedFiles: [],
+      rejectedFiles: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 
   // Check allowedOutputPaths.
   if (allowedOutputPaths && allowedOutputPaths.length > 0) {
@@ -81,7 +95,7 @@ export async function integrateWorktreeChanges(
   try {
     const diffOutput = await runGitCommand({
       cwd: worktreePath,
-      args: ['diff', 'HEAD~1', '--binary'],
+      args: ['diff', baseCommit, '--binary', '--'],
     });
 
     if (diffOutput.stdout.trim()) {
@@ -115,9 +129,27 @@ export async function integrateWorktreeChanges(
   }
 }
 
+function parseChangedFiles(nameStatusOutput: string): string[] {
+  const changedFiles: string[] = [];
+
+  for (const line of nameStatusOutput.split('\n')) {
+    const fields = line.split('\t');
+    if (fields.length < 2) {
+      continue;
+    }
+
+    const filePath = fields.at(-1)?.trim();
+    if (filePath) {
+      changedFiles.push(filePath);
+    }
+  }
+
+  return changedFiles;
+}
+
 /**
  * Check whether the parent working directory has uncommitted changes.
- * Used by the workspace service when `requireCleanBaseForParallelWrites` is true.
+ * Used by the workspace service when the dirty-base policy requires a check.
  */
 export async function isWorktreeBaseClean(projectPath: string): Promise<boolean> {
   try {

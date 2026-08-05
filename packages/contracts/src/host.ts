@@ -1,7 +1,6 @@
 /** Dual-mode agent host contracts. Implementations live in @piwin/agent-host. */
 
 import type { ContextUsageSnapshot } from './usage.js';
-import type { ManagedProcessLogChunk, ManagedProcessRecord } from './process.js';
 import type { SubagentSpawnOptions } from './subagent.js';
 import type { SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type {
@@ -269,6 +268,7 @@ export type SessionRunPhase =
 /** ADR 0015: stable terminal codes for run outcomes. */
 export type SessionRunTerminalCode =
   | 'cancelled'
+  | 'job-cleanup-failed'
   | 'model-connect-timeout'
   | 'model-first-token-timeout'
   | 'model-turn-timeout'
@@ -393,41 +393,12 @@ export type AgentEvent =
   | { type: 'error'; message: string; retriable?: boolean; runId?: string }
   /** CE-OBS: mapped from Pi contextUsage / assistant usage. */
   | { type: 'usage/update'; sessionId: string; usage: ContextUsageSnapshot }
-  /** CE-PROC lifecycle (shapes reserved; implementers may no-op until wired). */
-  | { type: 'process/started'; process: ManagedProcessRecord }
-  | { type: 'process/updated'; process: ManagedProcessRecord }
-  | {
-      type: 'process/exited';
-      processId: string;
-      exitCode?: number | null;
-      process?: ManagedProcessRecord;
-    }
-  | { type: 'process/log'; chunk: ManagedProcessLogChunk }
   /** CE-MEM-05 optional silent extract progress. */
   | { type: 'memory/extraction_start'; sessionId: string }
   | {
       type: 'memory/extraction_end';
       sessionId: string;
       written?: number;
-      message?: string;
-    }
-  /** ADR 0015: run lifecycle phase transition. */
-  | {
-      type: 'run/phase';
-      sessionId: string;
-      runId: string;
-      phase: SessionRunPhase;
-      at: string;
-      detail?: string;
-    }
-  /** ADR 0015: run terminal state (exactly one per run). */
-  | {
-      type: 'run/terminal';
-      sessionId: string;
-      runId: string;
-      outcome: SessionRunOutcome;
-      at: string;
-      code?: SessionRunTerminalCode;
       message?: string;
     };
 

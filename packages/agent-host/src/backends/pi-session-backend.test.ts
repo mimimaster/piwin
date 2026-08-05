@@ -3,44 +3,39 @@
  *
  * Tests that:
  * - InProcessSdkSessionBackend reports mode='sdk', isolated=false
- * - WorkerRpcSessionBackend reports mode='rpc-worker', isolated=true
- * - PiRpcAdapter.usesWorkerBackend / isIsolated / backendMode honor flags
- * - preparePromptInput strips empty attachments
+ * - WorkerSessionBackend reports mode='rpc-worker', isolated=true
+ * - PiRpcAdapter always uses worker backend in non-mock mode
  */
 
-import { describe, expect, it, vi } from 'vitest';
-import { preparePromptInput } from './pi-session-backend.js';
+import { describe, expect, it } from 'vitest';
+import type { BackendPreparedPrompt } from '@piwin/contracts';
 import { InProcessSdkSessionBackend } from './in-process-sdk-session-backend.js';
-import { WorkerRpcSessionBackend } from './worker-rpc-session-backend.js';
+import { WorkerSessionBackend } from './worker-rpc-session-backend.js';
+import { AgentWorkerSupervisor } from '../agent-worker-supervisor.js';
 import { PiRpcAdapter } from '../rpc-adapter.js';
 
-describe('preparePromptInput', () => {
-  it('returns text-only prepared prompt when no attachments', async () => {
-    const prepared = await preparePromptInput({ text: 'hello' }, {});
+describe('BackendPreparedPrompt', () => {
+  it('preserves text-only prompts without preparing media', () => {
+    const prepared: BackendPreparedPrompt = { text: 'hello' };
     expect(prepared.text).toBe('hello');
     expect(prepared.images).toBeUndefined();
   });
 
-  it('loads images when attachments are present', async () => {
-    const loadImages = vi.fn(async () => [{ data: 'AAAA', mimeType: 'image/png' }]);
-    const prepared = await preparePromptInput(
-      { text: 'describe', attachments: [{ kind: 'image', path: '/tmp/x.png' }] as never },
-      { loadImages },
-    );
-    expect(prepared.images).toEqual([{ data: 'AAAA', mimeType: 'image/png' }]);
-    expect(loadImages).toHaveBeenCalledOnce();
+  it('preserves native image content in the backend shape', () => {
+    const prepared: BackendPreparedPrompt = {
+      text: 'describe',
+      images: [{ dataBase64: 'AAAA', mimeType: 'image/png' }],
+    };
+    expect(prepared.images).toEqual([{ dataBase64: 'AAAA', mimeType: 'image/png' }]);
   });
 
-  it('preserves streamingBehavior and model', async () => {
-    const prepared = await preparePromptInput(
-      {
-        text: 'go',
-        streamingBehavior: 'steer',
-        model: { protocol: 'openai-compatible', providerId: 'p1', modelId: 'm1' },
-        thinkingLevel: 'high',
-      },
-      {},
-    );
+  it('preserves streaming behavior and model', () => {
+    const prepared: BackendPreparedPrompt = {
+      text: 'go',
+      streamingBehavior: 'steer',
+      model: { protocol: 'openai-compatible', providerId: 'p1', modelId: 'm1' },
+      thinkingLevel: 'high',
+    };
     expect(prepared.streamingBehavior).toBe('steer');
     expect(prepared.model).toEqual({
       protocol: 'openai-compatible',
@@ -53,86 +48,79 @@ describe('preparePromptInput', () => {
 
 describe('InProcessSdkSessionBackend', () => {
   it('reports mode=sdk, isolated=false', () => {
-    const fakeAdapter = {
-      createSession: vi.fn(),
-      dropSession: vi.fn(),
-      dispose: vi.fn(),
-    } as unknown as import('../sdk-adapter.js').PiSdkAdapter;
-    const backend = new InProcessSdkSessionBackend({
-      createAdapter: () => fakeAdapter,
-      adapterOptions: { mock: false },
-    });
+    const backend = new InProcessSdkSessionBackend({});
     expect(backend.mode).toBe('sdk');
     expect(backend.isolated).toBe(false);
   });
 });
 
-describe('WorkerRpcSessionBackend', () => {
+describe('WorkerSessionBackend', () => {
   it('reports mode=rpc-worker, isolated=true', () => {
-    const backend = new WorkerRpcSessionBackend({
-      worker: { workerScript: '/tmp/fake.ts' },
+    const backend = new WorkerSessionBackend({
+      supervisor: new AgentWorkerSupervisor({ worker: { workerScript: '/tmp/fake.ts' } }),
     });
     expect(backend.mode).toBe('rpc-worker');
     expect(backend.isolated).toBe(true);
   });
 });
 
-describe('PiRpcAdapter backend mode reporting', () => {
-  it('defaults to rpc-fallback when no flags set', () => {
+describe('PiRpcAdapter', () => {
+  it('always creates a worker backend in non-mock mode', () => {
     const adapter = new PiRpcAdapter({ command: 'pi' });
-    expect(adapter.backendMode()).toBe('rpc-fallback');
-    expect(adapter.usesWorkerBackend()).toBe(false);
+    expect(adapter.mode).toBe('rpc-worker');
+    expect(adapter.isIsolated()).toBe(true);
+  });
+
+  it('reports non-isolated when mock=true', () => {
+    const adapter = new PiRpcAdapter({ command: 'pi', mock: true });
     expect(adapter.isIsolated()).toBe(false);
   });
 
-  it('uses worker backend when useWorkerBackend=true', () => {
-    const adapter = new PiRpcAdapter({ command: 'pi', useWorkerBackend: true });
-    expect(adapter.backendMode()).toBe('rpc-worker');
-    expect(adapter.usesWorkerBackend()).toBe(true);
-    expect(adapter.isIsolated()).toBe(true);
-    expect(adapter.usesSdkFallback()).toBe(false);
-  });
-
-  it('uses worker backend when PIWIN_RPC_WORKER=1', () => {
-    process.env.PIWIN_RPC_WORKER = '1';
-    try {
-      const adapter = new PiRpcAdapter({ command: 'pi' });
-      expect(adapter.backendMode()).toBe('rpc-worker');
-      expect(adapter.isIsolated()).toBe(true);
-    } finally {
-      delete process.env.PIWIN_RPC_WORKER;
-    }
-  });
-
-  it('PIWIN_RPC_SDK_FALLBACK=1 forces SDK fallback even when worker enabled (§10.1)', () => {
-    process.env.PIWIN_RPC_WORKER = '1';
-    process.env.PIWIN_RPC_SDK_FALLBACK = '1';
-    try {
-      const adapter = new PiRpcAdapter({ command: 'pi', useWorkerBackend: true });
-      expect(adapter.usesWorkerBackend()).toBe(false);
-      expect(adapter.isIsolated()).toBe(false);
-      expect(adapter.backendMode()).toBe('rpc-fallback');
-    } finally {
-      delete process.env.PIWIN_RPC_WORKER;
-      delete process.env.PIWIN_RPC_SDK_FALLBACK;
-    }
-  });
-
-  it('reports mock mode when mock=true', () => {
+  it('rejects createSession when worker backend is not available (mock)', async () => {
     const adapter = new PiRpcAdapter({ command: 'pi', mock: true });
-    expect(adapter.backendMode()).toBe('mock');
-    expect(adapter.usesWorkerBackend()).toBe(false);
-    expect(adapter.usesSdkFallback()).toBe(false);
-  });
-
-  it('uses sdk fallback when PIWIN_RPC_STOCK=1 (not worker)', () => {
-    process.env.PIWIN_RPC_STOCK = '1';
-    try {
-      const adapter = new PiRpcAdapter({ command: 'pi' });
-      expect(adapter.usesSdkFallback()).toBe(false);
-      expect(adapter.backendMode()).toBe('sdk');
-    } finally {
-      delete process.env.PIWIN_RPC_STOCK;
-    }
+    await expect(
+      adapter.createSession({
+        blueprint: {
+          version: 1,
+          sessionId: 's1',
+          runtimeGenerationId: 'g1',
+          capabilitySnapshot: {
+            version: 1,
+            snapshotId: 'snap',
+            workingDirectory: '/tmp',
+            inputs: {
+              settingsRevision: 'r1',
+              projectRevision: 'r1',
+              mcpRevision: 'r1',
+              resourceCatalogRevision: 'r1',
+            },
+            trust: { kind: 'general' },
+            scope: { kind: 'general' },
+            resources: {
+              skills: { disabledIds: [], allowedSources: ['user', 'bundled', 'project'], allowlistedIds: null },
+              extensions: { disabledIds: [], allowedSources: ['user', 'bundled', 'project'], allowlistedIds: null },
+              prompts: { disabledIds: [], allowedSources: ['user', 'bundled', 'project'], allowlistedIds: null },
+            },
+            resourceManifest: { skills: [], extensions: [], prompts: [], diagnostics: [] },
+            context: {
+              allowPiNativeInstructions: true,
+              allowProjectAgentsFiles: false,
+              allowProjectSystemPrompts: false,
+            },
+            contextManifest: { agentsFiles: [] },
+            tools: {
+              hostTools: [],
+              piBuiltinToolNames: [],
+              enabledFamilies: [],
+              enabledMcpServerIds: [],
+            },
+          },
+        },
+        providers: [],
+        hostToolExecution: {
+          execute: async () => ({ ok: false, code: 'tool-not-available', message: 'test' }),
+        },
+      }),
+    ).rejects.toThrow('rpc-backend-not-ready');
   });
 });

@@ -50,7 +50,6 @@ export {
   createWorktree,
   removeWorktree,
   diffWorktreeAgainstMain,
-  applyWorktreeToMain,
   worktreeDisplayName,
 } from './worktree.js';
 export type {
@@ -59,8 +58,6 @@ export type {
   RemoveWorktreeInput,
   DiffWorktreeInput,
   DiffWorktreeResult,
-  ApplyWorktreeInput,
-  ApplyWorktreeResult,
 } from './worktree.js';
 
 export {

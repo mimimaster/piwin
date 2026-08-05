@@ -1,5 +1,5 @@
 import { createInterface } from 'node:readline/promises';
-import type { ExtensionUiRequest, ExtensionUiResponse } from '@piwin/agent-host';
+import type { ExtensionUiRequest, ExtensionUiResponse } from '@piwin/contracts';
 
 export type CliExtensionUiRequest = ExtensionUiRequest & { sessionId: string };
 
