@@ -41,7 +41,7 @@ const baseConfig = {
   defaultProviderId: 'openai',
   defaultModelId: 'gpt-image-1',
   media: { maxPasteBytes: 10 * 1024 * 1024, allowedMimeTypes: ['image/png', 'image/jpeg'] },
-  artifact: { maxBytes: 100_000, htmlUiModeDefault: false },
+  artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100_000 },
 };
 
 function configWith(overrides: Partial<PiwinConfig>): PiwinConfig {

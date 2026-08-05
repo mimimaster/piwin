@@ -74,7 +74,7 @@ describe('PiwinConfig.imageGeneration', () => {
       hostMode: 'sdk',
       providers: [],
       media: { maxPasteBytes: 0, allowedMimeTypes: [] },
-      artifact: { maxBytes: 0, htmlUiModeDefault: false },
+      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 0 },
       imageGeneration: {
         defaultModel: {
           protocol: 'openai-compatible',
@@ -93,7 +93,7 @@ describe('PiwinConfig.subagents', () => {
       hostMode: 'sdk',
       providers: [],
       media: { maxPasteBytes: 0, allowedMimeTypes: [] },
-      artifact: { maxBytes: 0, htmlUiModeDefault: false },
+      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 0 },
       subagents: {
         profiles: [
           {

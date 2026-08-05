@@ -126,6 +126,11 @@ export type ProjectSessionSidebarProps = {
   isResizing?: boolean;
   onResizePointerDown?: (event: React.PointerEvent<HTMLElement>) => void;
   onResizeReset?: () => void;
+  /**
+   * Session IDs that currently have an active run (streaming / tool-running).
+   * Sessions in this set show a pulsing left-edge animation.
+   */
+  workingSessionIds?: Record<string, true> | undefined;
 };
 
 function SessionRowItem({
@@ -133,6 +138,7 @@ function SessionRowItem({
   activeSessionId,
   onResumeSession,
   onOpenSessionMenu,
+  workingSessionIds,
   onTogglePin,
   onArchiveSession,
   onUnarchiveSession,
@@ -148,10 +154,12 @@ function SessionRowItem({
   onUnarchiveSession?: ((sessionId: string) => void) | undefined;
   onDeleteSession?: ((sessionId: string) => void) | undefined;
   copy: DesktopCopy['sidebar'];
+  workingSessionIds?: Record<string, true> | undefined;
 }): ReactElement {
   const isPinned = session.isPinned === true;
   const isArchived = session.isArchived === true;
   const isActive = session.id === activeSessionId;
+  const isWorking = workingSessionIds != null && session.id in workingSessionIds;
 
   return (
     <li key={session.id} className="session-row">
@@ -161,7 +169,15 @@ function SessionRowItem({
         data-session-id={session.id}
         data-pinned={isPinned ? 'true' : 'false'}
         data-archived={isArchived ? 'true' : 'false'}
-        className={isActive ? 'session-item active' : 'session-item'}
+        className={
+          isActive
+            ? isWorking
+              ? 'session-item active working'
+              : 'session-item active'
+            : isWorking
+              ? 'session-item working'
+              : 'session-item'
+        }
         onClick={() => onResumeSession(session.id)}
         onContextMenu={(event) => {
           event.preventDefault();
@@ -666,6 +682,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         activeSessionId={props.activeSessionId}
                         onResumeSession={props.onResumeSession}
                         onOpenSessionMenu={props.onOpenSessionMenu}
+                        workingSessionIds={props.workingSessionIds}
                         onTogglePin={props.onTogglePin}
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
@@ -740,6 +757,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         activeSessionId={props.activeSessionId}
                         onResumeSession={props.onResumeSession}
                         onOpenSessionMenu={props.onOpenSessionMenu}
+                        workingSessionIds={props.workingSessionIds}
                         onTogglePin={props.onTogglePin}
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}

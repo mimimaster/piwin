@@ -26,6 +26,8 @@ import type {
   ContextManifest,
 } from '@piwin/contracts';
 import { isProviderEnabled } from '@piwin/contracts';
+import { resolveArtifactDecisionPrompt } from '@piwin/contracts';
+import { ARTIFACT_RUNTIME_CONTRACT } from './artifact-runtime-contract.js';
 import { loadPiwinConfig } from './config-store.js';
 import { resolveSessionLocation, resolveAgentCwd } from './session-scope.js';
 import { createPiResourceLoader } from './pi-resource-loader.js';
@@ -40,6 +42,18 @@ import {
   type SerializableBlueprint,
   type SerializableProviderRuntime,
 } from './rpc/serializable-blueprint.js';
+
+/**
+ * Build the artifact system prompt (decision + runtime contract) for the
+ * worker blueprint. Returns undefined when artifacts are disabled.
+ */
+function buildArtifactAppendPrompt(config: PiwinConfig): string | undefined {
+  if (!config.artifact.enabled) {
+    return undefined;
+  }
+  const decisionPrompt = resolveArtifactDecisionPrompt(config.artifact);
+  return `${decisionPrompt}\n\n${ARTIFACT_RUNTIME_CONTRACT}`;
+}
 
 export type CompiledBlueprint = {
   blueprint: SerializableBlueprint;
@@ -139,11 +153,15 @@ export async function compileBlueprintForWorker(
   };
 
   const snapshot = compileSessionCapabilitySnapshot(compileInput);
+  // ADR 0029: resolve artifact system prompt (decision + runtime contract).
+  const artifactAppendPrompt = buildArtifactAppendPrompt(config);
   const blueprint = projectBlueprintForWorker(snapshot, {
     ...(input.model
       ? { model: { providerId: input.model.providerId, modelId: input.model.modelId } }
       : {}),
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+    // ADR 0029: inject artifact decision + runtime contract.
+    ...(artifactAppendPrompt ? { appendSystemPrompt: artifactAppendPrompt } : {}),
   });
 
   // Build provider envelope from live config.

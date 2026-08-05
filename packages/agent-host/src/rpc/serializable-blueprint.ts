@@ -47,6 +47,11 @@ export type SerializableBlueprint = {
   };
   model?: { providerId: string; modelId: string };
   thinkingLevel?: string;
+  /**
+   * Additional system prompt appended after all other system prompts.
+   * Used for product-level contracts (artifact decision + runtime, ADR 0029).
+   */
+  appendSystemPrompt?: string;
 };
 
 /** Provider runtime envelope (Phase 7 plan §6): worker must not resolve secrets itself. */
@@ -76,6 +81,7 @@ export function projectBlueprintForWorker(
   options?: {
     model?: { providerId: string; modelId: string };
     thinkingLevel?: string;
+    appendSystemPrompt?: string;
   },
 ): SerializableBlueprint {
   const blueprint: SerializableBlueprint = {
@@ -106,6 +112,9 @@ export function projectBlueprintForWorker(
   }
   if (options?.thinkingLevel) {
     blueprint.thinkingLevel = options.thinkingLevel;
+  }
+  if (options?.appendSystemPrompt) {
+    blueprint.appendSystemPrompt = options.appendSystemPrompt;
   }
   return blueprint;
 }

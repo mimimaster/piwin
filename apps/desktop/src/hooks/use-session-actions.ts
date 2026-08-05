@@ -235,6 +235,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             sessionId,
             messages: listedData.messages,
             outline,
+            live: data.live,
           });
           if (!data.live) {
             dispatchNotification(
@@ -259,6 +260,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         sessionId,
         messages,
         outline,
+        live: data.live,
       });
       if (!data.live) {
         dispatchNotification(

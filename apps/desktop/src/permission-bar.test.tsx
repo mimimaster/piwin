@@ -204,10 +204,10 @@ describe('PermissionBar', () => {
     const sessionBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="permission-bar-allow-session"]',
     );
-    expect(sessionBtn?.textContent).toBe('Allow for this session');
+    expect(sessionBtn?.textContent).toContain('Allow for this session');
     const denyBtn = container.querySelector<HTMLButtonElement>(
       '[data-testid="permission-bar-deny"]',
     );
-    expect(denyBtn?.textContent).toBe('Deny');
+    expect(denyBtn?.textContent).toContain('Deny');
   });
 });

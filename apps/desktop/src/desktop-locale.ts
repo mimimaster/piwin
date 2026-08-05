@@ -106,6 +106,7 @@ export type DesktopCopy = {
   interruption: {
     agentWaiting: string;
     answerInComposer: string;
+    selectOrCustomPlaceholder: string;
     cancelQuestion: string;
     continue: string;
     approvalRequired: string;
@@ -193,6 +194,7 @@ export type DesktopTranslator = {
   interruption: {
     agentWaiting: string;
     answerInComposer: string;
+    selectOrCustomPlaceholder: string;
     cancelQuestion: string;
     continue: string;
     approvalRequired: string;
@@ -218,6 +220,7 @@ export type DesktopTranslator = {
       models: string;
       vision: string;
       imageGeneration: string;
+      artifact: string;
       sessions: string;
       runtime: string;
       rules: string;
@@ -470,6 +473,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     interruption: {
       agentWaiting: 'Agent 正等待你的回答',
       answerInComposer: '在下方输入框中回答',
+      selectOrCustomPlaceholder: '选择上方选项，或在此输入自定义回答...',
       cancelQuestion: '取消问题',
       continue: '继续',
       approvalRequired: '需要你的批准',
@@ -633,6 +637,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     interruption: {
       agentWaiting: 'Agent is waiting for your answer',
       answerInComposer: 'Answer in the composer below',
+      selectOrCustomPlaceholder: 'Select an option above, or type your response here...',
       cancelQuestion: 'Cancel question',
       continue: 'Continue',
       approvalRequired: 'Approval required',
@@ -726,6 +731,9 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
     interruption: {
       agentWaiting: isChinese ? 'Agent 正等待你的回答' : 'Agent is waiting for your answer',
       answerInComposer: isChinese ? '在下方输入框中回答' : 'Answer in the composer below',
+      selectOrCustomPlaceholder: isChinese
+        ? '选择上方选项，或在此输入自定义回答...'
+        : 'Select an option above, or type your response here...',
       cancelQuestion: isChinese ? '取消问题' : 'Cancel question',
       continue: isChinese ? '继续' : 'Continue',
       approvalRequired: isChinese ? '需要你的批准' : 'Approval required',
@@ -751,6 +759,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         models: isChinese ? '模型' : 'Models',
         vision: isChinese ? '视觉' : 'Vision',
         imageGeneration: isChinese ? '图像生成' : 'Image Generation',
+        artifact: isChinese ? 'Artifact' : 'Artifact',
         sessions: 'Walkthrough',
         runtime: isChinese ? '会话运行时' : 'Session Runtime',
         rules: isChinese ? '规则' : 'Rules',

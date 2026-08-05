@@ -163,8 +163,9 @@ function getAgentPlaceholder(
 }
 
 export function ComposerCard(props: ComposerDockProps): ReactElement {
-  const { locale } = useDesktopLocale();
+  const { locale, translator } = useDesktopLocale();
   const copy = getDesktopCopy(locale).composer;
+  const interruptionCopy = translator.interruption;
   const agentModeDefinition = getAgentMode(props.agentMode);
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
@@ -175,7 +176,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   const canComposeText = !isExtensionUiActive;
   const composerValue = isExtensionUiInput ? extensionUiInput : props.composer;
   const hasContent = isExtensionUiActive
-    ? isExtensionUiInput && extensionUiInput.trim().length > 0
+    ? isExtensionUiInput
+      ? extensionUiInput.trim().length > 0
+      : props.composer.trim().length > 0
     : props.composer.trim().length > 0 || props.pendingAttachments.length > 0;
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
@@ -375,6 +378,18 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   }
 
   function triggerSend(): void {
+    if (isExtensionUiActive) {
+      const text = isExtensionUiInput ? extensionUiInput.trim() : props.composer.trim();
+      if (text.length > 0) {
+        props.onExtensionUiResolve?.({ value: text });
+        if (!isExtensionUiInput) {
+          props.onComposerChange('');
+        }
+      } else if (isExtensionUiInput) {
+        props.onExtensionUiResolve?.({ value: '' });
+      }
+      return;
+    }
     const trimmed = props.composer.trim();
     if (trimmed) {
       setHistoryStack((prev) => [trimmed, ...prev.filter((i) => i !== trimmed)]);
@@ -395,10 +410,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   }
 
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
-    if (isExtensionUiInput) {
+    if (isExtensionUiActive) {
       if (event.key === 'Escape') {
         event.preventDefault();
-        props.onExtensionUiResolve?.({ cancelled: true });
+        props.onExtensionUiResolve?.({ cancelled: true, confirmed: false });
         return;
       }
       if (
@@ -407,18 +422,20 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
         !event.nativeEvent.isComposing &&
         !isComposingRef.current
       ) {
-        event.preventDefault();
-        props.onExtensionUiResolve?.({ value: extensionUiInput });
+        const text = isExtensionUiInput ? extensionUiInput.trim() : props.composer.trim();
+        if (text.length > 0) {
+          event.preventDefault();
+          props.onExtensionUiResolve?.({ value: text });
+          if (!isExtensionUiInput) {
+            props.onComposerChange('');
+          }
+          return;
+        } else if (isExtensionUiInput) {
+          event.preventDefault();
+          props.onExtensionUiResolve?.({ value: '' });
+          return;
+        }
       }
-      return;
-    }
-
-    if (isExtensionUiActive) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        props.onExtensionUiResolve?.({ cancelled: true, confirmed: false });
-      }
-      return;
     }
 
     // 1. Slash Menu Navigation
@@ -722,12 +739,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           onDragLeave={() => props.onDropActiveChange(false)}
           onDrop={(event) => props.onDrop(event)}
           onKeyDown={handleComposerKeyDown}
-          readOnly={isExtensionUiActive && !isExtensionUiInput}
+          readOnly={false}
           placeholder={
             isExtensionUiInput
               ? (extensionUiRequest?.placeholder ?? copy.typeYourAnswer)
               : isExtensionUiActive
-                ? copy.chooseOption
+                ? interruptionCopy.selectOrCustomPlaceholder
                 : getAgentPlaceholder(props.agentMode, copy)
           }
           rows={1}

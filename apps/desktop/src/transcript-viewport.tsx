@@ -1,6 +1,8 @@
 /**
  * Scrollable transcript container with jump-to-latest affordance.
  * Quiet workbench: no right-edge message mini-nav rail (outline deferred).
+ * A custom floating scrollbar overlays the content so it never takes layout
+ * space, keeping the centered --chat-max column aligned with the composer dock.
  */
 import type { ReactElement, ReactNode } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
@@ -19,6 +21,12 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     messageCount: props.messageCount,
     activitySignal: props.activitySignal,
   });
+
+  // Floating scrollbar geometry: thumb height = ratio * track height,
+  // thumb top = progress * (track height - thumb height).
+  const thumbHeightPct = Math.max(8, scroll.scrollRatio * 100);
+  const thumbTopPct = scroll.scrollProgress * (100 - thumbHeightPct);
+  const showFloatingScrollbar = scroll.scrollRatio < 1;
 
   return (
     <div className="transcript-viewport">
@@ -58,6 +66,21 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
           </button>
         ) : null}
       </div>
+      {showFloatingScrollbar ? (
+        <div
+          className="chat-stream-floating-scrollbar"
+          data-testid="chat-stream-floating-scrollbar"
+          aria-hidden="true"
+        >
+          <div
+            className="chat-stream-floating-scrollbar-thumb"
+            style={{
+              height: `${thumbHeightPct}%`,
+              transform: `translateY(${thumbTopPct}%)`,
+            }}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

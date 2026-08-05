@@ -23,7 +23,7 @@ function baseConfig(): PiwinConfig {
     hostMode: 'sdk',
     providers: [],
     media: { maxPasteBytes: 1024, allowedMimeTypes: [] },
-    artifact: { maxBytes: 1024, htmlUiModeDefault: false },
+    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1024 },
     walkthrough: createDefaultWalkthroughConfig(),
   };
 }

@@ -211,7 +211,7 @@ describe('SettingsShell', () => {
       defaultProviderId: 'deepseek',
       defaultModelId: 'deepseek-chat',
       media: { maxPasteBytes: 1_000_000, allowedMimeTypes: [] },
-      artifact: { maxBytes: 1_000_000, htmlUiModeDefault: false },
+      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1_000_000 },
     };
     act(() => {
       root.render(

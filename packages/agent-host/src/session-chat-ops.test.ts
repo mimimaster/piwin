@@ -322,7 +322,7 @@ describe('CE-CHAT session ops', () => {
           maxPasteBytes: 10 * 1024 * 1024,
           allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
         },
-        artifact: { maxBytes: 100 * 1024, htmlUiModeDefault: false },
+        artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100 * 1024 },
         walkthrough: {
           ...createDefaultWalkthroughConfig(),
           autoGenerate: false,

@@ -24,6 +24,9 @@ import {
   failExecutionState,
   selectSubagentSteps,
 } from '../plan-execution-coordinator.js';
+import { startWalkthroughGeneration } from './walkthrough-commands.js';
+import { resolveConfiguredDefaultModelRef, findEnabledProvider } from '../provider-helpers.js';
+import { createDefaultWalkthroughConfig } from '@piwin/contracts';
 
 const TYPES = new Set<HostCommand['type']>([
   'plan/get',
@@ -293,7 +296,9 @@ async function runPlanExecution(
     context.push({ type: 'plan/updated', sessionId, plan: finalPlan });
     context.push({ type: 'plan/execution-updated', state });
 
-    // ADR 0026: no auto walkthrough after plan completion (or any run).
+    // Walkthrough is always generated when a plan completes.
+    // Find the final assistant message and trigger generation.
+    await triggerPlanCompletionWalkthrough(sessionId, context);
   };
 
   try {
@@ -446,6 +451,94 @@ async function runPlanExecution(
   }
 }
 
+/**
+ * Trigger walkthrough generation after plan completion.
+ * Finds the last assistant message in the transcript and starts a
+ * fire-and-forget generation via the walkthrough command pipeline.
+ */
+async function triggerPlanCompletionWalkthrough(
+  sessionId: string,
+  context: HostCommandContext,
+): Promise<void> {
+  const walkthroughBag = context.walkthrough;
+  if (!walkthroughBag) return;
+
+  try {
+    const messages = await walkthroughBag.context.loadTranscriptMessages(sessionId);
+    // Find the last assistant message with completed outcome.
+    let lastAssistantId: string | undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]!;
+      if (msg.role === 'assistant' && msg.status === 'done') {
+        lastAssistantId = msg.id;
+        break;
+      }
+    }
+    if (!lastAssistantId) return;
+
+    const config = await walkthroughBag.context.loadConfig();
+    const walkthrough = config.walkthrough ?? createDefaultWalkthroughConfig();
+    const targetMessage = messages.find((m) => m.id === lastAssistantId);
+    if (!targetMessage) return;
+
+    // Resolve model: message snapshot → session model → config default.
+    let model = targetMessage.model;
+    if (!model) {
+      model = walkthroughBag.context.resolveSessionModel(sessionId);
+    }
+    if (!model) {
+      model = resolveConfiguredDefaultModelRef(config);
+    }
+    if (!model) {
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `plan walkthrough: no model available for session ${sessionId}, skipping generation`,
+      });
+      return;
+    }
+
+    const provider = findEnabledProvider(config, model.providerId);
+    if (!provider) {
+      context.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `plan walkthrough: provider ${model.providerId} not found, skipping generation`,
+      });
+      return;
+    }
+
+    // Fire-and-forget: the generation runs asynchronously and pushes
+    // walkthrough/updated events as it progresses.
+    void startWalkthroughGeneration(
+      sessionId,
+      lastAssistantId,
+      model,
+      provider,
+      'default',
+      walkthrough,
+      targetMessage,
+      messages,
+      walkthroughBag.context,
+      walkthroughBag.registry,
+    ).catch((error: unknown) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      context.push({
+        type: 'host/log',
+        level: 'error',
+        message: `plan walkthrough generation failed: ${detail}`,
+      });
+    });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    context.push({
+      type: 'host/log',
+      level: 'error',
+      message: `plan walkthrough trigger failed: ${detail}`,
+    });
+  }
+}
+
 async function handlePlanAbort(
   command: Extract<HostCommand, { type: 'plan/abort' }>,
   requestId: string | undefined,
@@ -501,5 +594,3 @@ async function handlePlanAbort(
     status: 'aborted',
   });
 }
-
-

@@ -75,7 +75,7 @@ function createConfig(
     agentMock: false,
     providers: overrides.providers ?? [createProvider()],
     media: { maxPasteBytes: 1024, allowedMimeTypes: [] },
-    artifact: { maxBytes: 1024, htmlUiModeDefault: false },
+    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1024 },
     walkthrough: overrides.walkthrough ?? createDefaultWalkthroughConfig(),
     ...(overrides.defaultProviderId ? { defaultProviderId: overrides.defaultProviderId } : {}),
     ...(overrides.defaultModelId ? { defaultModelId: overrides.defaultModelId } : {}),
@@ -294,10 +294,12 @@ async function flush(): Promise<void> {
 /* ------------------------------------------------------------------ */
 
 describe('walkthrough-commands — §15.5', () => {
-  it('rejects walkthrough/generate when disabled', async () => {
-    const { context } = await createTestContext({
+  it('accepts walkthrough/generate regardless of enabled flag (always-on)', async () => {
+    const { context, pushCap } = await createTestContext({
       config: createConfig({
         walkthrough: { ...createDefaultWalkthroughConfig(), enabled: false },
+        defaultProviderId: 'prov',
+        defaultModelId: 'model-a',
       }),
     });
     const registry = new WalkthroughGenerationRegistry();
@@ -307,9 +309,12 @@ describe('walkthrough-commands — §15.5', () => {
       context,
       registry,
     );
-    expect(response.success).toBe(false);
-    const error = JSON.parse((response as { error?: string }).error ?? '{}');
-    expect(error.code).toBe('disabled');
+    // Walkthrough generation is no longer gated by `enabled`.
+    // `enabled` only controls whether a custom prompt is used.
+    expect(response.success).toBe(true);
+    const pushed = pushCap.pushes.find((m) => m.type === 'walkthrough/updated');
+    expect(pushed).toBeTruthy();
+    expect(pushed?.artifact?.status).toBe('generating');
   });
 
   it('accepts walkthrough/generate when enabled and returns generating', async () => {
@@ -381,4 +386,3 @@ describe('walkthrough-commands — §15.5', () => {
     expect(cancelData.aborted).toBe(false);
   });
 });
-

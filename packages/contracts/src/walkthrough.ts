@@ -19,29 +19,32 @@ export type WalkthroughCustomConfig = {
 
 export type WalkthroughConfig = {
   /**
-   * Opt-in master switch for walkthrough generation (IPC / CLI only).
-   * Host never auto-triggers after runs or plan completion (ADR 0026).
-   * When false, no new artifacts are created. Existing ones remain viewable.
+   * Whether to inject a custom generation prompt.
+   * Walkthrough is always generated when a plan completes (not gated by this flag).
+   * When true, `custom.prompt` is injected. When false, no prompt is injected —
+   * the model generates freely from the system prompt + evidence (Pi norm).
    */
   enabled: boolean;
   /**
-   * Retired (ADR 0026): per-turn auto-generation after every completed run.
-   * Always normalized to false; host does not trigger on ordinary turns.
+   * Retired: per-turn auto-generation after every completed run.
+   * Always normalized to false. Walkthrough generation now happens on plan
+   * completion, not on ordinary chat turns.
    */
   autoGenerate: boolean;
   /**
-   * Retired (ADR 0026): concise-prompt injection into live agent turns.
+   * Retired: concise-prompt injection into live agent turns.
    * Kept for config shape compatibility only.
    */
   concisePrompt: string;
   /**
-   * Retired product surface: always normalized to `default`.
-   * Generation always uses the session/message model (no separate model picker).
+   * Retired: always normalized to `default`.
+   * Generation always uses the session/message model.
    */
   mode: WalkthroughMode;
   /**
-   * `custom.prompt` is the user-editable generation prompt (always used).
-   * `custom.model` is ignored and always null (no separate walkthrough model).
+   * `custom.prompt` is the user-editable generation prompt.
+   * When `enabled` is true, this prompt is injected. When false, it is not injected.
+   * `custom.model` is ignored and always null.
    */
   custom: WalkthroughCustomConfig;
 };
@@ -141,10 +144,11 @@ const SUPPORTED_WALKTHROUGH_PROTOCOLS: readonly ModelRef['protocol'][] = [
 ];
 
 export function createDefaultWalkthroughConfig(): WalkthroughConfig {
-  // ADR 0026: no automatic generation. Prompt remains editable for optional
-  // manual/CLI generation when the user explicitly enables walkthrough.
+  // Walkthrough is always generated on plan completion. `enabled` controls
+  // whether a custom prompt is injected (true = inject, false = no prompt,
+  // model generates freely per Pi norm).
   return {
-    enabled: false,
+    enabled: true,
     autoGenerate: false,
     concisePrompt: DEFAULT_CONCISE_PROMPT,
     mode: 'default',
@@ -239,7 +243,8 @@ export function normalizeWalkthroughConfig(value: unknown): WalkthroughConfig {
   // - mode: always default (no custom-model mode)
   // - custom.model: always null (use session/message model)
   // - custom.prompt: preserved user-editable generation prompt
-  // - enabled: user-controlled; default false (opt-in only)
+  // - enabled: user-controlled; default true (inject custom prompt)
+  // - Walkthrough generation always happens on plan completion regardless of enabled
   const enabled = typeof record.enabled === 'boolean' ? record.enabled : defaults.enabled;
   const autoGenerate = false;
   const mode: WalkthroughMode = 'default';

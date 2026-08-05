@@ -17,6 +17,7 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'models',
   'vision',
   'image-generation',
+  'artifact',
   'skills',
   'extensions',
   'plugins',

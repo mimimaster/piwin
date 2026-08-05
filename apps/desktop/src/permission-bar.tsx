@@ -99,7 +99,8 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
           data-testid="permission-bar-allow-session"
           onClick={() => props.onPermission('allow', 'session')}
         >
-          {copy.allowForSession}
+          <span className="agent-interruption-choice-badge">A</span>
+          <span>{copy.allowForSession}</span>
         </Button>
         <Button
           variant="secondary"
@@ -108,7 +109,8 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
           data-testid="permission-bar-allow-once"
           onClick={() => props.onPermission('allow', 'once')}
         >
-          {copy.allowOnce}
+          <span className="agent-interruption-choice-badge">B</span>
+          <span>{copy.allowOnce}</span>
         </Button>
         {canRemember ? (
           <Button
@@ -119,7 +121,8 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
             title={copy.allowForProject}
             onClick={() => props.onPermission('allow', 'project')}
           >
-            {copy.allowForProject}
+            <span className="agent-interruption-choice-badge">C</span>
+            <span>{copy.allowForProject}</span>
           </Button>
         ) : null}
         <Button
@@ -129,7 +132,8 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
           data-testid="permission-bar-deny"
           onClick={() => props.onPermission('deny')}
         >
-          {copy.deny}
+          <span className="agent-interruption-choice-badge">{canRemember ? 'D' : 'C'}</span>
+          <span>{copy.deny}</span>
         </Button>
       </div>
     </AgentInterruptionFrame>
