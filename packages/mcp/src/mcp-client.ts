@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { McpServerConfig, McpToolSummary } from '@piwin/contracts';
 import { expandEnvMap } from './mcp-config.js';
 import { toMcpToolSummary } from './tool-names.js';
@@ -367,10 +368,37 @@ export async function listToolsForServer(
   }
 }
 
+/** Grace period after SIGTERM before escalating to SIGKILL (ms). */
+const CLOSE_GRACE_MS = 2_000;
+/** Hard deadline for the entire close sequence (ms). */
+const CLOSE_HARD_DEADLINE_MS = 5_000;
+
 async function closeChild(child: ChildProcessWithoutNullStreams): Promise<void> {
   if (child.killed) {
     return;
   }
   child.stdin.end();
   child.kill('SIGTERM');
+  await waitForExit(child, CLOSE_GRACE_MS, CLOSE_HARD_DEADLINE_MS);
+}
+
+/**
+ * Wait for a child process to exit, escalating SIGTERM to SIGKILL if needed.
+ * Returns when the process has exited or the hard deadline elapses.
+ */
+async function waitForExit(
+  child: ChildProcessWithoutNullStreams,
+  graceMs: number,
+  hardDeadlineMs: number,
+): Promise<void> {
+  const exitPromise = new Promise<void>((resolve) => {
+    child.once('close', () => resolve());
+  });
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return;
+  }
+  if (await Promise.race([exitPromise, delay(graceMs)]) === undefined) {
+    try { child.kill('SIGKILL'); } catch { /* already gone */ }
+  }
+  await Promise.race([exitPromise, delay(hardDeadlineMs - graceMs)]);
 }

@@ -1,10 +1,41 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { createMcpLifecycleManager } from './mcp-lifecycle-manager.js';
 
 describe('createMcpLifecycleManager', () => {
+  // Safety net: kill any MCP fixture child processes that survived dispose().
+  // This prevents orphaned node processes from accumulating across test runs
+  // when a fixture intentionally ignores SIGTERM (e.g. hanging-connect fixture).
+  // We scan for fixture-mcp-server processes whose parent PID is this process
+  // or PID 1 (orphaned) at afterAll time.
+  afterAll(async () => {
+    const { execSync } = await import('node:child_process');
+    try {
+      const output = execSync(
+        'ps -eo pid,ppid,command | grep "fixture-mcp-server" | grep -v grep',
+        { encoding: 'utf8' },
+      );
+      for (const line of output.trim().split('\n')) {
+        const parts = line.trim().split(/\s+/);
+        const pidStr = parts[0];
+        const ppidStr = parts[1];
+        if (pidStr === undefined || ppidStr === undefined) {
+          continue;
+        }
+        const pid = parseInt(pidStr, 10);
+        const ppid = parseInt(ppidStr, 10);
+        // Kill orphans (ppid=1) or children of this process
+        if (ppid === 1 || ppid === process.pid) {
+          try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+        }
+      }
+    } catch {
+      // ps found nothing or failed — no cleanup needed
+    }
+  });
+
   it('reports disabled and stopped servers from config', async () => {
     const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-'));
     await writeFile(
