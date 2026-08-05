@@ -30,6 +30,7 @@ import type { SettingsConfigRequest, SettingsContextValue } from './settings/set
 
 type SettingsPanelProps = {
   request: SettingsConfigRequest;
+  hostClient?: SettingsContextValue['hostClient'];
   onSaved?: (config: PiwinConfig) => void;
   preferences: DesktopPreferences;
   onPreferencesChange: (prefs: DesktopPreferences) => void;
@@ -61,6 +62,7 @@ type SettingsPanelProps = {
 
 export function SettingsPanel({
   request,
+  hostClient,
   onSaved,
   preferences,
   onPreferencesChange,
@@ -313,6 +315,7 @@ export function SettingsPanel({
   const contextValue = useMemo<SettingsContextValue>(
     () => ({
       request,
+      ...(hostClient ? { hostClient } : {}),
       config,
       root,
       saving,
@@ -354,6 +357,7 @@ export function SettingsPanel({
     }),
     [
       request,
+      hostClient,
       config,
       root,
       saving,

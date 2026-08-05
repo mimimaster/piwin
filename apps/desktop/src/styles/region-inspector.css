@@ -113,10 +113,10 @@
 
 .right-panel-tabstrip {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 2px;
-  min-height: 0;
-  padding: 6px 8px 0;
+  min-height: 32px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   background: transparent;
@@ -124,7 +124,7 @@
 
 .right-panel-tabs {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 2px;
   min-width: 0;
   flex: 1;
@@ -140,7 +140,7 @@
   display: inline-flex;
   align-items: center;
   max-width: 160px;
-  min-height: 28px;
+  min-height: 32px;
   border-radius: 6px 6px 0 0;
   border: 1px solid transparent;
   border-bottom: 0;
@@ -1325,27 +1325,20 @@
   min-height: 0;
 }
 
-.changes-panel-split {
-  display: grid;
-  grid-template-columns: minmax(160px, 42%) minmax(0, 1fr);
-  min-height: 0;
+.changes-panel-list {
   height: 100%;
-  gap: 0;
+  overflow: hidden;
+}
+
+.changes-panel-list .changes-list {
+  flex: 1;
+  max-height: none;
 }
 
 .changes-list-pane {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: 1px solid var(--line-soft);
-  overflow: hidden;
-}
-
-.changes-diff-pane {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
   overflow: hidden;
 }
 
@@ -1354,6 +1347,24 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.changes-toolbar-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.changes-toolbar-heading > strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .changes-branch {
@@ -1377,6 +1388,7 @@
 
 .changes-totals {
   font-size: 11px;
+  padding: 8px 10px 4px;
 }
 
 .changes-list {
@@ -1494,27 +1506,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding-top: 4px;
-}
-
-.changes-diff-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--line-soft);
-}
-
-@media (max-width: 1100px) {
-  .changes-panel-split {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(140px, 40%) minmax(160px, 1fr);
-  }
-  .changes-list-pane {
-    border-right: 0;
-    border-bottom: 1px solid var(--line-soft);
-  }
+  padding: 8px 10px;
+  border-top: 1px solid var(--line-soft);
 }
 
 /* ── Diff view ────────────────────────────────────────────────────── */

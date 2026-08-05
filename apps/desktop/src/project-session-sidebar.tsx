@@ -128,10 +128,50 @@ export type ProjectSessionSidebarProps = {
   onResizeReset?: () => void;
   /**
    * Session IDs that currently have an active run (streaming / tool-running).
-   * Sessions in this set show a pulsing left-edge animation.
+   * Sessions in this set show a right-side circular working indicator.
    */
   workingSessionIds?: Record<string, true> | undefined;
+  /**
+   * Session IDs that own an active backend service job. These take priority
+   * over the regular working indicator and show a wave of three dots instead.
+   */
+  backendServiceSessionIds?: Record<string, true> | undefined;
 };
+
+function SessionActivityIndicator(props: {
+  isWorking: boolean;
+  hasActiveBackendService: boolean;
+  workingLabel: string;
+  backendServiceLabel: string;
+}): ReactElement | null {
+  if (props.hasActiveBackendService) {
+    return (
+      <span
+        className="session-item-activity session-item-activity--service"
+        data-testid="session-service-indicator"
+        aria-label={props.backendServiceLabel}
+        role="status"
+      >
+        <span className="session-item-activity-dot" aria-hidden />
+        <span className="session-item-activity-dot" aria-hidden />
+        <span className="session-item-activity-dot" aria-hidden />
+      </span>
+    );
+  }
+
+  if (props.isWorking) {
+    return (
+      <span
+        className="session-item-activity session-item-activity--working"
+        data-testid="session-working-indicator"
+        aria-label={props.workingLabel}
+        role="status"
+      />
+    );
+  }
+
+  return null;
+}
 
 function SessionRowItem({
   session,
@@ -139,6 +179,7 @@ function SessionRowItem({
   onResumeSession,
   onOpenSessionMenu,
   workingSessionIds,
+  backendServiceSessionIds,
   onTogglePin,
   onArchiveSession,
   onUnarchiveSession,
@@ -155,11 +196,14 @@ function SessionRowItem({
   onDeleteSession?: ((sessionId: string) => void) | undefined;
   copy: DesktopCopy['sidebar'];
   workingSessionIds?: Record<string, true> | undefined;
+  backendServiceSessionIds?: Record<string, true> | undefined;
 }): ReactElement {
   const isPinned = session.isPinned === true;
   const isArchived = session.isArchived === true;
   const isActive = session.id === activeSessionId;
   const isWorking = workingSessionIds != null && session.id in workingSessionIds;
+  const hasActiveBackendService =
+    backendServiceSessionIds != null && session.id in backendServiceSessionIds;
 
   return (
     <li key={session.id} className="session-row">
@@ -199,7 +243,13 @@ function SessionRowItem({
             <span className="session-item-title-text">{session.name}</span>
           </span>
         </span>
-        {session.updatedAt ? (
+        <SessionActivityIndicator
+          isWorking={isWorking}
+          hasActiveBackendService={hasActiveBackendService}
+          workingLabel={copy.working}
+          backendServiceLabel={copy.backendServiceActive}
+        />
+        {session.updatedAt && !isWorking && !hasActiveBackendService ? (
           <span className="session-item-time" aria-label={session.updatedAt}>
             {formatRelativeTime(session.updatedAt)}
           </span>
@@ -683,6 +733,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onResumeSession={props.onResumeSession}
                         onOpenSessionMenu={props.onOpenSessionMenu}
                         workingSessionIds={props.workingSessionIds}
+                        backendServiceSessionIds={props.backendServiceSessionIds}
                         onTogglePin={props.onTogglePin}
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
