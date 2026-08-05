@@ -308,6 +308,46 @@ describe('ProviderSettings', () => {
     expect(container.querySelector('[data-testid="provider-name-input"]')).not.toBeNull();
   });
 
+  it('adds a second config for an already-configured preset with a unique id and name', async () => {
+    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
+    const { container, root } = renderProviderSettings(makeProps(onSave));
+    instances.push({ container, root });
+
+    const addBtn = container.querySelector<HTMLButtonElement>('[data-testid="provider-add-open"]');
+    await act(async () => {
+      addBtn?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // 'openai' is already configured in makeConfig(), so picking the preset
+    // must allocate a second instance instead of erroring out.
+    const openaiPreset = document.body.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-preset-openai"]',
+    );
+    expect(openaiPreset).not.toBeNull();
+    await act(async () => {
+      openaiPreset?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const nameInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="provider-name-input"]',
+    );
+    expect(nameInput?.value).toBe('OpenAI 2');
+
+    await act(async () => {
+      container.querySelector<HTMLButtonElement>('[data-testid="provider-save-btn"]')?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(onSave).toHaveBeenCalled();
+    const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
+    expect(saved?.providers.map((provider) => provider.id)).toContain('openai-2');
+    const second = saved?.providers.find((provider) => provider.id === 'openai-2');
+    expect(second?.name).toBe('OpenAI 2');
+    expect(second?.protocol).toBe('openai-compatible');
+  });
+
   it('filters providers by search query', () => {
     const { container, root } = renderProviderSettings(makeProps());
     instances.push({ container, root });

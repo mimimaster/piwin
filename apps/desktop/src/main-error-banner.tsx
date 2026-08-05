@@ -27,6 +27,7 @@ export function MainErrorBanner(props: MainErrorBannerProps): ReactElement | nul
           <Button
             variant="ghost"
             size="compact"
+            className="main-error-dismiss"
             data-testid="main-error-dismiss"
             onClick={props.onDismiss}
           >
