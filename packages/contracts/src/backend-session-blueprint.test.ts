@@ -10,6 +10,7 @@ function createBlueprint(): BackendSessionBlueprint {
       version: 1,
       snapshotId: 'snapshot-1',
       inputs: {
+        rulesRevision: 'rules-1',
         settingsRevision: 'settings-1',
         projectRevision: 'project-1',
         mcpRevision: 'mcp-1',

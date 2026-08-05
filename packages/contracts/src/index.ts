@@ -1,5 +1,7 @@
 export * from './host.js';
 export * from './host-tool.js';
+export * from './tool-result.js';
+export * from './tool-registration.js';
 export * from './backend-session-blueprint.js';
 export * from './backend-prepared-prompt.js';
 export * from './extension-ui.js';
