@@ -17,6 +17,7 @@ export function indexRecordToSummary(
     | 'parentSessionId'
     | 'depth'
     | 'kind'
+    | 'sideChatRelation'
     | 'subagentStatus'
     | 'task'
     | 'mergedAt'
@@ -51,6 +52,7 @@ export function indexRecordToSummary(
   if (record.parentSessionId) summary.parentSessionId = record.parentSessionId;
   if (typeof record.depth === 'number') summary.depth = record.depth;
   if (record.kind) summary.kind = record.kind;
+  if (record.sideChatRelation) summary.sideChatRelation = record.sideChatRelation;
   if (record.subagentStatus) summary.subagentStatus = record.subagentStatus;
   if (record.task) summary.task = record.task;
   if (record.mergedAt) summary.mergedAt = record.mergedAt;

@@ -27,6 +27,7 @@ import {
   upsertSessionRecord,
   filterListableSessions,
 } from '@piwin/session';
+import { markSideChatSourceState } from '@piwin/session';
 import {
   forkProductSession,
   ForkValidationError,
@@ -49,6 +50,8 @@ import { resolveListFilter } from '../session-scope.js';
 export type SessionProductCommandContext = {
   piwinRoot?: string;
   host: AgentHost;
+  /** Load the persisted product transcript for a session (side-chat snapshot source). */
+  loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
   /**
    * Abort a live handle if present (archive). Does not remove host maps.
    */
@@ -61,7 +64,7 @@ export type SessionProductCommandContext = {
     session: SessionHandle,
     projectPath?: string,
     sessionName?: string,
-    lineage?: { kind?: 'main' | 'subagent'; depth?: number },
+    lineage?: { kind?: 'main' | 'subagent' | 'side-chat'; depth?: number },
   ) => Promise<void>;
   pushStatus: () => void;
 };
@@ -180,6 +183,8 @@ export async function handleSessionProductCommand(
         return fail(requestId, 'session/archive', `Unknown session: ${command.sessionId}`);
       }
       await context.abortLiveSession(command.sessionId);
+      // SIDE §11.3: mark dependent side chats' source state as 'archived'.
+      await markSideChatSourceState(indexPath, command.sessionId, 'archived');
       return ok(requestId, 'session/archive', {
         sessionId: record.id,
         isArchived: true,
@@ -191,6 +196,11 @@ export async function handleSessionProductCommand(
       const record = await unarchiveSessionRecord(indexPath, command.sessionId);
       if (!record) {
         return fail(requestId, 'session/unarchive', `Unknown session: ${command.sessionId}`);
+      }
+      // SIDE §11.3: un-archiving a main session re-enables sync for its side
+      // chats by resetting their sourceState from 'archived' back to 'active'.
+      if (record.kind === 'main') {
+        await markSideChatSourceState(indexPath, command.sessionId, 'active');
       }
       return ok(requestId, 'session/unarchive', {
         sessionId: record.id,
@@ -215,6 +225,8 @@ export async function handleSessionProductCommand(
       if (!removed) {
         return fail(requestId, 'session/delete', `Unknown session: ${command.sessionId}`);
       }
+      // SIDE §11.3: mark dependent side chats' source state as 'missing'.
+      await markSideChatSourceState(indexPath, command.sessionId, 'missing');
       const sessionDir = getPiwinSessionDir(rootDir, command.sessionId);
       try {
         await rm(sessionDir, { recursive: true, force: true });

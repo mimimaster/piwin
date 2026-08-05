@@ -235,7 +235,7 @@ const NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE =
 
 type SessionLineage = {
   parentSessionId?: string;
-  kind?: 'main' | 'subagent';
+  kind?: 'main' | 'subagent' | 'side-chat';
   depth?: number;
   subagentStatus?: 'running' | 'done' | 'failed' | 'cancelled';
   task?: string;
@@ -285,6 +285,8 @@ export class HostRuntime {
   private readonly todoStore = new SessionTodoStore();
   /** CE-COMP: last files-touched block per session for prompt inject. */
   private readonly sessionFilesTouched = new Map<string, string>();
+  /** SIDE: last injected side-chat context version per session (§7.5(5)). */
+  private readonly sideChatSnapshotInjectedVersions = new Map<string, number>();
   /** Structured lifecycle authority for every foreground and descendant Run. */
   private readonly runRegistry: RunRegistry;
   /** Preserves the run identity across asynchronous SDK event callbacks. */
@@ -2440,9 +2442,10 @@ export class HostRuntime {
       host: this.host,
       createSession: (input) => this.createSession(input),
       sessions: this.sessions,
-      sessionFilesTouched: this.sessionFilesTouched,
-      sessionLastPromptText: this.sessionLastPromptText,
-      sessionModels: this.sessionModels,
+     sessionFilesTouched: this.sessionFilesTouched,
+     sessionLastPromptText: this.sessionLastPromptText,
+     sideChatSnapshotInjectedVersions: this.sideChatSnapshotInjectedVersions,
+     sessionModels: this.sessionModels,
       sessionAutoCompactionOverrides: this.sessionAutoCompactionOverrides,
       unsubscribers: this.unsubscribers,
       transcriptRecorders: this.transcriptRecorders,
@@ -2452,6 +2455,14 @@ export class HostRuntime {
       bindSession: (session, projectPath, sessionName, lineage) =>
         this.bindSession(session, projectPath, sessionName, lineage),
       loadTranscriptMessages: (sessionId) => this.loadTranscriptMessages(sessionId),
+      loadSideChatSnapshot: async (sessionId) => {
+        const rootDir = getPiwinRoot(this.options.piwinRoot);
+        const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
+        if (record?.kind !== 'side-chat') {
+          return undefined;
+        }
+        return record.sideChatContext;
+      },
       stopProcessesForSession: (sessionId) => this.stopProcessesForSession(sessionId),
       recordUserPrompt: (sessionId, input) => this.recordUserPrompt(sessionId, input),
       touchSession: (sessionId, previewText) => this.touchSession(sessionId, previewText),
@@ -2699,6 +2710,7 @@ export class HostRuntime {
       sessionProduct: {
         ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
         host: this.host,
+        loadTranscriptMessages: (sessionId) => this.loadTranscriptMessages(sessionId),
         abortLiveSession: (sessionId) => this.abortLiveSession(sessionId),
         disposeLiveSession: (sessionId) => this.disposeLiveSession(sessionId),
         bindSession: (session, projectPath, sessionName, lineage) =>
