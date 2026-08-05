@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { BrowserSnapshotNode, WebElementPickResult } from '@piwin/contracts';
+import type {
+  BrowserSnapshotNode,
+  HostToolRegistration,
+  ToolResult,
+  WebElementPickResult,
+} from '@piwin/contracts';
 import type { BrowserSession } from '@piwin/browser';
 import {
   createBrowserToolDefinitions,
@@ -7,6 +12,8 @@ import {
 } from './browser-tools.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 import type { PermissionRuleSet } from '@piwin/contracts';
+import { createHostToolPermissionGate } from './tools/host-tool-admission-gate.js';
+import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
 /** Minimal mock session that records calls and can be controlled in tests. */
 function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSession {
@@ -91,12 +98,55 @@ function createExclusiveQueue() {
   return { runExclusive };
 }
 
+async function executeTool(
+  tool: HostToolRegistration,
+  args: Record<string, unknown>,
+): Promise<ToolResult> {
+  return tool.execute(args, new AbortController().signal, {
+    sessionId: 'session-1',
+    runtimeGenerationId: 'generation-1',
+    runId: 'run-1',
+    toolName: tool.descriptor.name,
+  });
+}
+
+async function executeThroughAdmission(
+  tool: HostToolRegistration,
+  args: Record<string, unknown>,
+  requestPermission?: (input: {
+    action: string;
+    detail: string;
+    defaultDecision: 'allow' | 'ask' | 'deny';
+    signal?: AbortSignal;
+  }) => Promise<'allow' | 'ask' | 'deny'>,
+): Promise<ToolResult> {
+  const permissionGate = createHostToolPermissionGate({
+    rules: createBundledRuleSet(),
+    getPermissionMode: () => 'auto',
+    ...(requestPermission ? { requestPermission } : {}),
+    projectRoot: '/tmp',
+    mcpEnabledServerIds: [],
+  });
+  const router = new HostToolExecutionRouter({ tools: [tool], permissionGate });
+  return router.execute(tool.descriptor.name, args, new AbortController().signal, {
+    sessionId: 'session-1',
+    runtimeGenerationId: 'generation-1',
+    runId: 'run-1',
+    toolName: tool.descriptor.name,
+  });
+}
+
+function outputOf(result: ToolResult): string {
+  if (!result.ok) throw new Error(`${result.code}: ${result.message}`);
+  return result.output;
+}
+
 describe('createBrowserToolDefinitions — schema golden', () => {
   const session = createMockSession();
   const tools = createBrowserToolDefinitions(session);
 
   it('registers all 11 browser tools', () => {
-    expect(tools.map((t) => t.name).sort()).toEqual([
+    expect(tools.map((t) => t.descriptor.name).sort()).toEqual([
       'browser_back',
       'browser_click',
       'browser_fill_form',
@@ -112,8 +162,9 @@ describe('createBrowserToolDefinitions — schema golden', () => {
   });
 
   it('browser_navigate has url param required', () => {
-    const nav = tools.find((t) => t.name === 'browser_navigate')!;
-    expect(nav.parameters).toMatchObject({
+    const nav = tools.find((t) => t.descriptor.name === 'browser_navigate');
+    if (!nav) throw new Error('browser_navigate missing');
+    expect(nav.descriptor.parameters).toMatchObject({
       type: 'object',
       properties: { url: { type: 'string' } },
       required: ['url'],
@@ -121,8 +172,9 @@ describe('createBrowserToolDefinitions — schema golden', () => {
   });
 
   it('browser_click has ref and selector params', () => {
-    const click = tools.find((t) => t.name === 'browser_click')!;
-    expect(click.parameters).toMatchObject({
+    const click = tools.find((t) => t.descriptor.name === 'browser_click');
+    if (!click) throw new Error('browser_click missing');
+    expect(click.descriptor.parameters).toMatchObject({
       type: 'object',
       properties: {
         ref: { type: 'string' },
@@ -132,8 +184,9 @@ describe('createBrowserToolDefinitions — schema golden', () => {
   });
 
   it('browser_type has text required', () => {
-    const type = tools.find((t) => t.name === 'browser_type')!;
-    expect(type.parameters).toMatchObject({
+    const type = tools.find((t) => t.descriptor.name === 'browser_type');
+    if (!type) throw new Error('browser_type missing');
+    expect(type.descriptor.parameters).toMatchObject({
       type: 'object',
       properties: { text: { type: 'string' } },
       required: ['text'],
@@ -141,8 +194,9 @@ describe('createBrowserToolDefinitions — schema golden', () => {
   });
 
   it('browser_snapshot has no required params', () => {
-    const snap = tools.find((t) => t.name === 'browser_snapshot')!;
-    expect(snap.parameters).toMatchObject({ type: 'object', required: [] });
+    const snap = tools.find((t) => t.descriptor.name === 'browser_snapshot');
+    if (!snap) throw new Error('browser_snapshot missing');
+    expect(snap.descriptor.parameters).toMatchObject({ type: 'object', required: [] });
   });
 });
 
@@ -150,8 +204,9 @@ describe('createBrowserToolDefinitions — execute paths', () => {
   it('browser_snapshot returns JSON tree', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const snap = tools.find((t) => t.name === 'browser_snapshot')!;
-    const raw = await snap.execute({});
+    const snap = tools.find((t) => t.descriptor.name === 'browser_snapshot');
+    if (!snap) throw new Error('browser_snapshot missing');
+    const raw = outputOf(await executeTool(snap, {}));
     const tree = JSON.parse(raw) as BrowserSnapshotNode[];
     expect(tree).toHaveLength(1);
     expect(tree[0]?.role).toBe('button');
@@ -161,8 +216,9 @@ describe('createBrowserToolDefinitions — execute paths', () => {
   it('browser_click delegates to session.click with ref', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const click = tools.find((t) => t.name === 'browser_click')!;
-    const raw = await click.execute({ ref: 'e5' });
+    const click = tools.find((t) => t.descriptor.name === 'browser_click');
+    if (!click) throw new Error('browser_click missing');
+    const raw = outputOf(await executeTool(click, { ref: 'e5' }));
     const result = JSON.parse(raw) as { ok: boolean; target: string };
     expect(result.ok).toBe(true);
     expect(result.target).toBe('e5');
@@ -171,52 +227,60 @@ describe('createBrowserToolDefinitions — execute paths', () => {
   it('browser_click delegates to session.click with selector', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const click = tools.find((t) => t.name === 'browser_click')!;
-    const raw = await click.execute({ selector: 'button.submit' });
+    const click = tools.find((t) => t.descriptor.name === 'browser_click');
+    if (!click) throw new Error('browser_click missing');
+    const raw = outputOf(await executeTool(click, { selector: 'button.submit' }));
     expect((JSON.parse(raw) as { target: string }).target).toBe('button.submit');
   });
 
   it('browser_click throws when neither ref nor selector given', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const click = tools.find((t) => t.name === 'browser_click')!;
-    await expect(click.execute({})).rejects.toThrow();
+    const click = tools.find((t) => t.descriptor.name === 'browser_click');
+    if (!click) throw new Error('browser_click missing');
+    await expect(executeTool(click, {})).rejects.toThrow();
   });
 
   it('browser_type delegates to session.type', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const type = tools.find((t) => t.name === 'browser_type')!;
-    const raw = await type.execute({ ref: 'e3', text: 'hello' });
+    const type = tools.find((t) => t.descriptor.name === 'browser_type');
+    if (!type) throw new Error('browser_type missing');
+    const raw = outputOf(await executeTool(type, { ref: 'e3', text: 'hello' }));
     expect((JSON.parse(raw) as { length: number }).length).toBe(5);
   });
 
   it('browser_fill_form maps fields to ref/selector targets', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const fill = tools.find((t) => t.name === 'browser_fill_form')!;
-    const raw = await fill.execute({
-      fields: [
-        { ref: 'e1', value: 'a' },
-        { selector: 'input.email', value: 'b@x.com' },
-      ],
-    });
+    const fill = tools.find((t) => t.descriptor.name === 'browser_fill_form');
+    if (!fill) throw new Error('browser_fill_form missing');
+    const raw = outputOf(
+      await executeTool(fill, {
+        fields: [
+          { ref: 'e1', value: 'a' },
+          { selector: 'input.email', value: 'b@x.com' },
+        ],
+      }),
+    );
     expect((JSON.parse(raw) as { count: number }).count).toBe(2);
   });
 
   it('browser_scroll maps direction to delta', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const scroll = tools.find((t) => t.name === 'browser_scroll')!;
-    const raw = await scroll.execute({ direction: 'up' });
+    const scroll = tools.find((t) => t.descriptor.name === 'browser_scroll');
+    if (!scroll) throw new Error('browser_scroll missing');
+    const raw = outputOf(await executeTool(scroll, { direction: 'up' }));
     expect((JSON.parse(raw) as { direction: string }).direction).toBe('up');
   });
 
   it('browser_screenshot returns dimensions', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const ss = tools.find((t) => t.name === 'browser_screenshot')!;
-    const raw = await ss.execute({});
+    const ss = tools.find((t) => t.descriptor.name === 'browser_screenshot');
+    if (!ss) throw new Error('browser_screenshot missing');
+    const raw = outputOf(await executeTool(ss, {}));
     const result = JSON.parse(raw) as { width: number; height: number };
     expect(result.width).toBe(1280);
     expect(result.height).toBe(800);
@@ -225,16 +289,18 @@ describe('createBrowserToolDefinitions — execute paths', () => {
   it('browser_find returns count', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const find = tools.find((t) => t.name === 'browser_find')!;
-    const raw = await find.execute({ text: 'Submit' });
+    const find = tools.find((t) => t.descriptor.name === 'browser_find');
+    if (!find) throw new Error('browser_find missing');
+    const raw = outputOf(await executeTool(find, { text: 'Submit' }));
     expect((JSON.parse(raw) as { count: number }).count).toBe(1);
   });
 
   it('browser_wait delegates to session.wait', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const wait = tools.find((t) => t.name === 'browser_wait')!;
-    const raw = await wait.execute({ ms: 100 });
+    const wait = tools.find((t) => t.descriptor.name === 'browser_wait');
+    if (!wait) throw new Error('browser_wait missing');
+    const raw = outputOf(await executeTool(wait, { ms: 100 }));
     expect((JSON.parse(raw) as { ms: number }).ms).toBe(100);
   });
 });
@@ -356,9 +422,12 @@ describe('browser_navigate permission gate', () => {
   it('allows loopback without prompt', async () => {
     const session = createMockSession();
     const requestPermission = vi.fn().mockResolvedValue('allow' as const);
-    const tools = createBrowserToolDefinitions(session, { requestPermission });
-    const nav = tools.find((t) => t.name === 'browser_navigate')!;
-    const raw = await nav.execute({ url: 'http://localhost:3000' });
+    const tools = createBrowserToolDefinitions(session);
+    const nav = tools.find((t) => t.descriptor.name === 'browser_navigate');
+    if (!nav) throw new Error('browser_navigate missing');
+    const raw = outputOf(
+      await executeThroughAdmission(nav, { url: 'http://localhost:3000' }, requestPermission),
+    );
     expect(requestPermission).not.toHaveBeenCalled();
     expect((JSON.parse(raw) as { ok: boolean }).ok).toBe(true);
   });
@@ -366,34 +435,44 @@ describe('browser_navigate permission gate', () => {
   it('prompts for public host', async () => {
     const session = createMockSession();
     const requestPermission = vi.fn().mockResolvedValue('allow' as const);
-    const tools = createBrowserToolDefinitions(session, { requestPermission });
-    const nav = tools.find((t) => t.name === 'browser_navigate')!;
-    await nav.execute({ url: 'https://example.com' });
+    const tools = createBrowserToolDefinitions(session);
+    const nav = tools.find((t) => t.descriptor.name === 'browser_navigate');
+    if (!nav) throw new Error('browser_navigate missing');
+    await executeThroughAdmission(nav, { url: 'https://example.com' }, requestPermission);
     expect(requestPermission).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'browser:navigate', detail: 'https://example.com' }),
+      expect.objectContaining({ action: 'browser:navigate' }),
     );
   });
 
   it('denies when permission gate returns deny', async () => {
     const session = createMockSession();
     const requestPermission = vi.fn().mockResolvedValue('deny' as const);
-    const tools = createBrowserToolDefinitions(session, { requestPermission });
-    const nav = tools.find((t) => t.name === 'browser_navigate')!;
-    await expect(nav.execute({ url: 'https://example.com' })).rejects.toThrow(/Permission deny/);
+    const tools = createBrowserToolDefinitions(session);
+    const nav = tools.find((t) => t.descriptor.name === 'browser_navigate');
+    if (!nav) throw new Error('browser_navigate missing');
+    const result = await executeThroughAdmission(
+      nav,
+      { url: 'https://example.com' },
+      requestPermission,
+    );
+    expect(result).toMatchObject({ ok: false, code: 'permission-denied' });
   });
 
   it('non-interactive (no gate) denies ask for public host', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const nav = tools.find((t) => t.name === 'browser_navigate')!;
-    await expect(nav.execute({ url: 'https://example.com' })).rejects.toThrow(/Permission deny/);
+    const nav = tools.find((t) => t.descriptor.name === 'browser_navigate');
+    if (!nav) throw new Error('browser_navigate missing');
+    const result = await executeThroughAdmission(nav, { url: 'https://example.com' });
+    expect(result).toMatchObject({ ok: false, code: 'permission-denied' });
   });
 
   it('non-interactive (no gate) allows loopback', async () => {
     const session = createMockSession();
     const tools = createBrowserToolDefinitions(session);
-    const nav = tools.find((t) => t.name === 'browser_navigate')!;
-    const raw = await nav.execute({ url: 'http://127.0.0.1:4000' });
+    const nav = tools.find((t) => t.descriptor.name === 'browser_navigate');
+    if (!nav) throw new Error('browser_navigate missing');
+    const raw = outputOf(await executeThroughAdmission(nav, { url: 'http://127.0.0.1:4000' }));
     expect((JSON.parse(raw) as { ok: boolean }).ok).toBe(true);
   });
 });
@@ -426,10 +505,11 @@ describe('browser tool mutex serialization', () => {
     });
 
     const tools = createBrowserToolDefinitions(session);
-    const nav = tools.find((t) => t.name === 'browser_navigate')!;
+    const nav = tools.find((t) => t.descriptor.name === 'browser_navigate');
+    if (!nav) throw new Error('browser_navigate missing');
 
     // Start navigate (loopback → allowed, no prompt) — it blocks on the promise.
-    const navPromise = nav.execute({ url: 'http://localhost:3000' });
+    const navPromise = executeTool(nav, { url: 'http://localhost:3000' });
     // Give the navigate a chance to enter the mutex.
     await new Promise((r) => setImmediate(r));
 

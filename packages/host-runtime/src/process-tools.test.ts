@@ -6,6 +6,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type {
+  HostToolExecutionContext,
   JobCleanupResult,
   JobController,
   JobRecord,
@@ -14,9 +15,9 @@ import type {
   StartJobInput,
   WaitForJobInput,
   JobListFilter,
+  ToolResult,
 } from '@piwin/contracts';
 import { buildProcessTools } from './process-tools.js';
-import { HOST_TOOL_RUN_ID_ARGUMENT } from './tools/host-tool-execution-context.js';
 
 function makeRecord(overrides?: Partial<JobRecord>): JobRecord {
   return {
@@ -94,22 +95,34 @@ function createController(overrides?: Partial<JobController>): JobController & {
 async function runStartTool(
   controller: JobController,
   argumentsObject: Record<string, unknown>,
-  options: { sessionId?: string; projectPath?: string } = {},
-): Promise<string> {
+  options: { sessionId?: string; projectPath?: string; runId?: string } = {},
+): Promise<ToolResult> {
   const [startTool] = buildProcessTools({
     jobController: controller,
-    requestPermission: async () => 'allow',
     ...(options.sessionId ? { sessionId: options.sessionId } : {}),
     ...(options.projectPath ? { projectPath: options.projectPath } : {}),
   });
   if (startTool === undefined) {
     throw new Error('process_start tool was not registered');
   }
-  return startTool.execute(argumentsObject, new AbortController().signal);
+  const context: HostToolExecutionContext = {
+    sessionId: options.sessionId ?? 'session-test',
+    runtimeGenerationId: 'generation-test',
+    runId: options.runId ?? 'run-test',
+    toolName: startTool.descriptor.name,
+  };
+  return startTool.execute(argumentsObject, new AbortController().signal, context);
+}
+
+function outputOf(result: ToolResult): string {
+  if (!result.ok) {
+    throw new Error(`${result.code}: ${result.message}`);
+  }
+  return result.output;
 }
 
 describe('process_start (JobController-backed)', () => {
-  it('creates a run-owned Job from the injected internal run id', async () => {
+  it('creates a run-owned Job from the Host execution context', async () => {
     const controller = createController();
     await runStartTool(
       controller,
@@ -117,9 +130,8 @@ describe('process_start (JobController-backed)', () => {
         command: 'echo',
         argv: ['hello'],
         cwd: '/workspace',
-        [HOST_TOOL_RUN_ID_ARGUMENT]: 'run-42',
       },
-      { sessionId: 'session-1', projectPath: '/workspace' },
+      { sessionId: 'session-1', projectPath: '/workspace', runId: 'run-42' },
     );
 
     expect(controller.startCalls).toHaveLength(1);
@@ -130,12 +142,14 @@ describe('process_start (JobController-backed)', () => {
     expect(input.ownerProjectPath).toBe('/workspace');
   });
 
-  it('rejects a default run-lifetime start without a Host run context', async () => {
+  it('uses the context run id even when model arguments contain no hidden run field', async () => {
     const controller = createController();
-    await expect(
-      runStartTool(controller, { command: 'echo', argv: ['x'], cwd: '/workspace' }),
-    ).rejects.toThrow(/requires a Host run context/);
-    expect(controller.startCalls).toHaveLength(0);
+    await runStartTool(
+      controller,
+      { command: 'echo', argv: ['x'], cwd: '/workspace' },
+      { runId: 'run-from-context' },
+    );
+    expect(controller.startCalls[0]?.ownerRunId).toBe('run-from-context');
   });
 
   it('creates a session-owned Job for explicit session lifetime', async () => {
@@ -147,7 +161,6 @@ describe('process_start (JobController-backed)', () => {
         argv: [],
         cwd: '/workspace',
         lifetime: 'session',
-        [HOST_TOOL_RUN_ID_ARGUMENT]: 'run-7',
       },
       { sessionId: 'session-1' },
     );
@@ -160,15 +173,16 @@ describe('process_start (JobController-backed)', () => {
 
   it('returns the native JobRecord JSON', async () => {
     const controller = createController();
-    const output = await runStartTool(
-      controller,
-      {
-        command: 'echo',
-        argv: ['hello'],
-        cwd: '/workspace',
-        [HOST_TOOL_RUN_ID_ARGUMENT]: 'run-1',
-      },
-      { sessionId: 'session-1' },
+    const output = outputOf(
+      await runStartTool(
+        controller,
+        {
+          command: 'echo',
+          argv: ['hello'],
+          cwd: '/workspace',
+        },
+        { sessionId: 'session-1', runId: 'run-1' },
+      ),
     );
     const parsed = JSON.parse(output) as JobRecord;
     expect(parsed.jobId).toBe('job-1');
@@ -185,13 +199,19 @@ describe('process_list / process_logs / process_stop', () => {
     });
     const [, listTool] = buildProcessTools({
       jobController: controller,
-      requestPermission: async () => 'allow',
       sessionId: 'session-1',
     });
     if (listTool === undefined) {
       throw new Error('process_list tool was not registered');
     }
-    const output = await listTool.execute({}, new AbortController().signal);
+    const output = outputOf(
+      await listTool.execute({}, new AbortController().signal, {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'generation-1',
+        runId: 'run-1',
+        toolName: listTool.descriptor.name,
+      }),
+    );
     expect(JSON.parse(output)).toMatchObject({ jobs: [{ jobId: 'job-1' }] });
   });
 
@@ -205,12 +225,18 @@ describe('process_list / process_logs / process_stop', () => {
     const controller = createController({ readLogs });
     const [, , logsTool] = buildProcessTools({
       jobController: controller,
-      requestPermission: async () => 'allow',
     });
     if (logsTool === undefined) {
       throw new Error('process_logs tool was not registered');
     }
-    const output = await logsTool.execute({ jobId: 'job-9' }, new AbortController().signal);
+    const output = outputOf(
+      await logsTool.execute({ jobId: 'job-9' }, new AbortController().signal, {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'generation-1',
+        runId: 'run-1',
+        toolName: logsTool.descriptor.name,
+      }),
+    );
     expect(readLogs).toHaveBeenCalledWith({ jobId: 'job-9' });
     expect(JSON.parse(output)).toMatchObject({ jobId: 'job-9' });
   });
@@ -228,10 +254,17 @@ describe('process_list / process_logs / process_stop', () => {
     const controller = createController({ stop });
     const tools = buildProcessTools({
       jobController: controller,
-      requestPermission: async () => 'allow',
     });
-    const stopTool = tools.find((tool) => tool.name === 'process_stop')!;
-    const output = await stopTool.execute({ jobId: 'job-1' }, new AbortController().signal);
+    const stopTool = tools.find((tool) => tool.descriptor.name === 'process_stop');
+    if (!stopTool) throw new Error('process_stop tool was not registered');
+    const output = outputOf(
+      await stopTool.execute({ jobId: 'job-1' }, new AbortController().signal, {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'generation-1',
+        runId: 'run-1',
+        toolName: stopTool.descriptor.name,
+      }),
+    );
     expect(stop).toHaveBeenCalledWith('job-1', 'user-stop');
     expect(JSON.parse(output)).toMatchObject({ cleanup: { stoppedJobIds: ['job-1'] } });
   });

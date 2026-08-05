@@ -1,55 +1,87 @@
-/** Parent-owned tool execution router (Phase 7 plan §7.2, WP2). */
+/**
+ * Parent-owned tool execution router (Phase 7 plan §7.2, WP2).
+ *
+ * Repair spec WP0/WP2/WP3: the router is the mandatory admission point for
+ * every Host-owned tool. Production execution always passes both an immediate
+ * safety predicate and a permission admission gate; tests may inject fakes,
+ * but the production port never omits them.
+ */
 
-import type { HostToolDefinition } from '@piwin/tools-web';
+import type {
+  HostToolExecutionContext,
+  HostToolRegistration,
+  ToolResult,
+  ToolResultErrorCode,
+} from '@piwin/contracts';
+import { toolDisabledResult } from '@piwin/contracts';
+import { toolFamilyIndex } from './tool-family-index.js';
 
 /** Stable tool-execution error codes crossing the tool boundary. */
-export type HostToolErrorCode =
-  'tool-not-available' | 'tool-disabled' | 'permission-denied' | 'aborted';
+export type HostToolErrorCode = ToolResultErrorCode;
 
-export type ToolExecutionResult =
-  { ok: true; output: string } | { ok: false; code: HostToolErrorCode; message: string };
+export type ToolExecutionResult = ToolResult;
 
 /**
- * Optional parent-side permission gate. When provided, every tool execution
- * first asks the gate; `undefined` result means no gate configured for this
- * tool (gated tools that embed permission checks may rely on that).
+ * Immediate safety predicate: return the tightening `domain` and a stable
+ * user-safe reason when a tool family is disabled/stale and new executions
+ * must fail closed (repair spec WP2).
+ *
+ * The predicate receives the concrete registration, arguments and execution
+ * context — it must never decide from the tool name alone.
  */
-export type ToolPermissionGate = (
-  toolName: string,
+export type ToolDisablePredicate = (
+  registration: HostToolRegistration,
   args: Record<string, unknown>,
-  signal?: AbortSignal,
-) => Promise<{ allowed: boolean; message?: string } | undefined>;
+  context: HostToolExecutionContext,
+) => { domain: string; message: string } | null;
 
 /**
- * Optional immediate safety predicate: return a non-null reason when the tool
- * family is disabled/stale and new executions must fail (Phase 5 gates).
+ * Result of the permission admission gate for one tool invocation.
  */
-export type ToolDisablePredicate = (toolName: string) => string | null;
+export type HostToolAdmissionDecision =
+  | { allowed: true }
+  | { allowed: false; result: ToolResult };
+
+/**
+ * Unified permission admission gate (repair spec WP3). The gate decides
+ * allow/ask/deny from the registration's static `permissionSpec` and the
+ * frozen rule set; the executor never re-derives a permission decision.
+ */
+export type HostToolPermissionGate = (input: {
+  registration: HostToolRegistration;
+  args: Record<string, unknown>;
+  context: HostToolExecutionContext;
+  signal: AbortSignal;
+}) => Promise<HostToolAdmissionDecision>;
 
 export type HostToolExecutionRouterOptions = {
-  tools: HostToolDefinition[];
-  /** Immediate safety gate; null/undefined means allowed. */
+  tools: readonly HostToolRegistration[];
+  /** Immediate safety gate; when omitted (tests only) all tools are allowed. */
   isToolDisabled?: ToolDisablePredicate;
-  /** Optional permission gate for un-gated tools. */
-  permissionGate?: ToolPermissionGate;
+  /**
+   * Mandatory production permission gate. The production
+   * `SessionHostToolExecutionPort` always supplies one; tests may inject a
+   * fake. Omitting it is a configuration error that must fail loudly.
+   */
+  permissionGate: HostToolPermissionGate;
 };
 
 /**
- * Executes Host custom tools by name without going through Pi. The SDK adapter
- * already embeds permission checks in gated tools; the worker tool proxy will
- * use the same router in the parent so permissions/MCP/process/browser stay
- * parent-owned.
+ * Executes Host custom tools by name without going through Pi. Every tool
+ * invocation passes the immediate safety gate and the permission admission
+ * gate before reaching the concrete executor.
  */
 export class HostToolExecutionRouter {
-  private readonly toolsByName = new Map<string, HostToolDefinition>();
-  private readonly isToolDisabled: ToolDisablePredicate;
-  private readonly permissionGate: ToolPermissionGate | undefined;
+  private readonly toolsByName = new Map<string, HostToolRegistration>();
+  private readonly isToolDisabled: ToolDisablePredicate | undefined;
+  private readonly permissionGate: HostToolPermissionGate;
 
   constructor(options: HostToolExecutionRouterOptions) {
+    toolFamilyIndex(options.tools);
     for (const tool of options.tools) {
-      this.toolsByName.set(tool.name, tool);
+      this.toolsByName.set(tool.descriptor.name, tool);
     }
-    this.isToolDisabled = options.isToolDisabled ?? (() => null);
+    this.isToolDisabled = options.isToolDisabled;
     this.permissionGate = options.permissionGate;
   }
 
@@ -64,9 +96,10 @@ export class HostToolExecutionRouter {
   async execute(
     toolName: string,
     args: Record<string, unknown>,
-    signal?: AbortSignal,
+    signal: AbortSignal,
+    context: HostToolExecutionContext,
   ): Promise<ToolExecutionResult> {
-    if (signal?.aborted) {
+    if (signal.aborted) {
       return { ok: false, code: 'aborted', message: 'tool execution aborted before start' };
     }
 
@@ -75,31 +108,39 @@ export class HostToolExecutionRouter {
       return { ok: false, code: 'tool-not-available', message: `tool not available: ${toolName}` };
     }
 
-    const disabledReason = this.isToolDisabled(toolName);
-    if (disabledReason !== null) {
-      return { ok: false, code: 'tool-disabled', message: disabledReason };
+    const disabled = this.isToolDisabled?.(tool, args, context);
+    if (disabled) {
+      return toolDisabledResult({
+        message: disabled.message,
+        domain: disabled.domain,
+        runtimeGenerationId: context.runtimeGenerationId,
+      });
     }
 
-    if (this.permissionGate) {
-      const decision = await this.permissionGate(toolName, args, signal);
-      if (decision && !decision.allowed) {
-        return {
-          ok: false,
-          code: 'permission-denied',
-          message: decision.message ?? `permission denied for ${toolName}`,
-        };
-      }
+    const decision = await this.permissionGate({
+      registration: tool,
+      args,
+      context,
+      signal,
+    });
+    if (!decision.allowed) {
+      return decision.result;
+    }
+
+    // A permission prompt or asynchronous gate may yield while the caller
+    // aborts. Do not start a side effect after that boundary has closed.
+    if (signal.aborted) {
+      return { ok: false, code: 'aborted', message: 'tool execution aborted before executor' };
     }
 
     try {
-      const output = await tool.execute(args, signal);
-      return { ok: true, output };
+      return await tool.execute(args, signal, context);
     } catch (error) {
-      if (signal?.aborted) {
+      if (signal.aborted) {
         return { ok: false, code: 'aborted', message: 'tool execution aborted' };
       }
       const message = error instanceof Error ? error.message : String(error);
-      return { ok: false, code: 'tool-not-available', message };
+      return { ok: false, code: 'execution-failed', message };
     }
   }
 }

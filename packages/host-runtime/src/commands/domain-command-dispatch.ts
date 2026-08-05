@@ -17,6 +17,8 @@ import { handleSessionProductCommand } from './session-product-commands.js';
 import { handleUsageCommand } from './usage-commands.js';
 import type { SessionProductCommandContext } from './session-product-commands.js';
 import { handleWalkthroughList, handleWalkthroughGenerate } from './walkthrough-commands.js';
+import { handleKnowledgeCommand } from './knowledge-commands.js';
+import { handleSubagentCommand } from './subagent-commands.js';
 
 export type DomainDispatchContext = HostCommandContext & {
   sessionProduct: SessionProductCommandContext;
@@ -50,6 +52,12 @@ export async function dispatchDomainCommands(
 
   const usage = await handleUsageCommand(command, requestId, context);
   if (usage) return usage;
+
+  const knowledge = await handleKnowledgeCommand(command, requestId, context.knowledge);
+  if (knowledge) return knowledge;
+
+  const subagent = await handleSubagentCommand(command, requestId, context.subagent);
+  if (subagent) return subagent;
 
   for (const handler of [
     handleCatalogCommand,

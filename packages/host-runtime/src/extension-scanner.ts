@@ -1,8 +1,13 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import type { ExtensionSource, ExtensionSummary, ExtensionsConfig } from '@piwin/contracts';
-import { createDefaultExtensionsConfig } from '@piwin/contracts';
+import {
+  createDefaultExtensionsConfig,
+  normalizeResourceId,
+  type ExtensionSource,
+  type ExtensionSummary,
+  type ExtensionsConfig,
+} from '@piwin/contracts';
 import { getPiwinExtensionsDir } from './paths.js';
 
 export type ScanExtensionsOptions = {
@@ -38,9 +43,6 @@ export async function scanExtensions(
 
   for (const rootEntry of roots) {
     for (const extension of await scanExtensionRoot(rootEntry.path, rootEntry.source)) {
-      if (results.some((item) => item.id === extension.id)) {
-        continue;
-      }
       const enabled = !disabled.has(extension.id.toLowerCase());
       results.push({ ...extension, enabled });
     }
@@ -165,7 +167,7 @@ async function buildExtensionSummary(
   if (!name) {
     return null;
   }
-  const id = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  const id = normalizeResourceId(name);
   const description = await readExtensionDescription(entryPath);
   const pathForLoader = directoryPath ?? entryPath;
   const resolvedSource: ExtensionSource =

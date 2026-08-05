@@ -137,4 +137,20 @@ describe('resolveResourceActivations', () => {
     expect(byId.get('a')?.effectiveEnabled).toBe(true);
     expect(byId.get('b')?.effectiveEnabled).toBe(false);
   });
+
+  it('isolates disabled IDs by resource family', () => {
+    const result = resolveResourceActivations(
+      policyInput({
+        disabledIdsByKind: { skill: ['shared-id'] },
+        catalog: catalog([
+          entry({ resourceId: 'shared-id', kind: 'skill', source: 'user' }),
+          entry({ resourceId: 'shared-id', kind: 'prompt', source: 'user' }),
+        ]),
+      }),
+    );
+
+    const byKind = new Map(result.activations.map((activation) => [activation.kind, activation]));
+    expect(byKind.get('skill')?.effectiveEnabled).toBe(false);
+    expect(byKind.get('prompt')?.effectiveEnabled).toBe(true);
+  });
 });
