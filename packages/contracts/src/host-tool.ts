@@ -1,5 +1,7 @@
 /** Host-owned tool descriptors and execution port. */
 
+import type { ToolResult } from './tool-result.js';
+
 /** JSON-safe model-visible description of a Host-owned tool. */
 export type HostToolDescriptor = {
   name: string;
@@ -17,23 +19,9 @@ export type HostToolExecutionInput = {
 };
 
 /** Normalized result returned by the Host-owned tool execution port. */
-export type HostToolExecutionResult =
-  | { ok: true; output: string }
-  | {
-      ok: false;
-      code:
-        | 'tool-not-available'
-        | 'tool-disabled'
-        | 'permission-denied'
-        | 'aborted'
-        | 'execution-failed';
-      message: string;
-    };
+export type HostToolExecutionResult = ToolResult;
 
 /** In-process port used by an agent backend to invoke a Host-owned tool. */
 export interface HostToolExecutionPort {
-  execute(
-    input: HostToolExecutionInput,
-    signal: AbortSignal,
-  ): Promise<HostToolExecutionResult>;
+  execute(input: HostToolExecutionInput, signal: AbortSignal): Promise<HostToolExecutionResult>;
 }

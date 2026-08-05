@@ -39,6 +39,7 @@ export function normalizeResourceId(value: string): ResourceId {
 /** Stable diagnostics for shadowing/precedence collisions (spec §8.4). */
 export type ResourceShadowDiagnostic = {
   kind: 'shadowed' | 'duplicate-id';
+  resourceKind: ResourceKind;
   resourceId: ResourceId;
   winnerPath: string;
   winnerSource: ResourceSource;

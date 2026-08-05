@@ -66,7 +66,9 @@ export type PermissionSubject =
   | { kind: 'mcp'; selector: string }
   | { kind: 'git'; command: string }
   | { kind: 'process' }
-  | { kind: 'notes-mutate' };
+  | { kind: 'notes-mutate' }
+  /** Host-local fallback subject for side-effect tools without a rule target. */
+  | { kind: 'tool'; action: string };
 
 export type PermissionRule = {
   target: PermissionRuleTarget;
