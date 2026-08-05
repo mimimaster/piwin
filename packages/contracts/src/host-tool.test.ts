@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  HostToolDescriptor,
-  HostToolExecutionResult,
-} from './host-tool.js';
+import type { HostToolDescriptor, HostToolExecutionResult } from './host-tool.js';
 
 describe('Host tool contracts', () => {
   it('preserves a descriptor parameter schema through JSON', () => {
@@ -35,12 +32,16 @@ describe('Host tool contracts', () => {
       ok: false,
       code: 'execution-failed',
       message: 'tool process exited unexpectedly',
+      details: { jobId: 'job-1' },
+      retryable: true,
     };
 
     expect(result).toEqual({
       ok: false,
       code: 'execution-failed',
       message: 'tool process exited unexpectedly',
+      details: { jobId: 'job-1' },
+      retryable: true,
     });
   });
 });

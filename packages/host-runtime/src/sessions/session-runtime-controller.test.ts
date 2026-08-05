@@ -1,3 +1,4 @@
+import type { SessionRuntimeStatus } from '@piwin/contracts';
 import { describe, expect, it } from 'vitest';
 import { SessionRuntimeController } from './session-runtime-controller.js';
 
@@ -6,6 +7,21 @@ function createController(runInFlight = false): SessionRuntimeController {
 }
 
 describe('SessionRuntimeController', () => {
+  it('publishes normalized status after runtime mutations', () => {
+    const published: SessionRuntimeStatus[] = [];
+    const controller = new SessionRuntimeController({
+      isRunInFlight: () => false,
+      onChanged: (status) => published.push(status),
+    });
+
+    controller.attachGeneration('s1', 'gen-1', 'rev-1');
+    controller.recordSettingsChange('s1', ['web']);
+    controller.detachGeneration('s1');
+
+    expect(published.map((status) => status.state)).toEqual(['live', 'stale', 'lazy-shell']);
+    expect(published[1]?.staleDomains).toEqual(['web']);
+  });
+
   it('reports lazy-shell before any generation attaches', () => {
     const controller = createController();
     expect(controller.hasActiveGeneration('s1')).toBe(false);
@@ -75,5 +91,20 @@ describe('SessionRuntimeController', () => {
     controller.detachGeneration('s1');
     expect(controller.hasActiveGeneration('s1')).toBe(false);
     expect(controller.getStatus('s1').staleDomains).toEqual([]);
+  });
+
+  it('detach clears an unfinished replacement candidate', () => {
+    const controller = createController(false);
+    controller.attachGeneration('s1', 'gen-1', 'rev-1');
+    controller.beginCandidate('s1', 'gen-2');
+    controller.setCandidateState('s1', 'gen-2', 'rebuilding');
+
+    controller.detachGeneration('s1');
+
+    expect(controller.getStatus('s1')).toEqual({
+      sessionId: 's1',
+      state: 'lazy-shell',
+      staleDomains: [],
+    });
   });
 });

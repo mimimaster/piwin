@@ -2,26 +2,79 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import type {
+  HostToolExecutionContext,
+  HostToolRegistration,
+  PermissionDecision,
+  PermissionMode,
+} from '@piwin/contracts';
+import { createBundledRuleSet } from './permission-defaults.js';
 import { allowNetworkFetchHost, allowNetworkWebSearch, openOrCreateProject } from '@piwin/project';
 import { buildSessionTools } from './session-tools.js';
+import { createHostToolPermissionGate } from './tools/host-tool-admission-gate.js';
+import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
 
-describe('buildSessionTools permission gate', () => {
-  it('denies ask by default without interactive gate (no network)', async () => {
+const context: HostToolExecutionContext = {
+  sessionId: 'session-1',
+  runtimeGenerationId: 'generation-1',
+  runId: 'run-1',
+  toolName: 'web_search',
+};
+
+async function executeThroughAdmission(
+  tool: HostToolRegistration,
+  args: Record<string, unknown>,
+  mode: () => PermissionMode = () => 'auto',
+  requestPermission?: (input: {
+    action: string;
+    detail: string;
+    defaultDecision: PermissionDecision;
+    signal?: AbortSignal;
+  }) => Promise<PermissionDecision>,
+  projectPath?: string,
+  projectsFilePath?: string,
+) {
+  const permissionGate = createHostToolPermissionGate({
+    rules: createBundledRuleSet(),
+    getPermissionMode: mode,
+    ...(requestPermission ? { requestPermission } : {}),
+    projectRoot: projectPath ?? '/tmp',
+    ...(projectPath ? { projectPath } : {}),
+    ...(projectsFilePath ? { projectsFilePath } : {}),
+    mcpEnabledServerIds: [],
+  });
+  const router = new HostToolExecutionRouter({
+    tools: [tool],
+    permissionGate,
+  });
+  return router.execute(tool.descriptor.name, args, new AbortController().signal, {
+    ...context,
+    toolName: tool.descriptor.name,
+  });
+}
+
+describe('buildSessionTools', () => {
+  it('returns raw registrations; permission decisions belong to Host admission', async () => {
     const { tools } = buildSessionTools({ webConfig: { searchProvider: 'none' } as never });
-    const search = tools.find((tool) => tool.name === 'web_search');
-    expect(search).toBeTruthy();
-    await expect(search!.execute({ query: 'hello' })).rejects.toThrow(/Permission deny/);
+    const search = tools.find((tool) => tool.descriptor.name === 'web_search');
+    expect(search?.permissionSpec.action).toBe('network:web_search');
+    if (!search) throw new Error('web_search missing');
+    await expect(executeThroughAdmission(search, { query: 'hello' })).resolves.toMatchObject({
+      ok: false,
+      code: 'permission-denied',
+    });
   });
 
-  it('blocks private fetch before network', async () => {
+  it('blocks private fetch before the network executor', async () => {
     const { tools } = buildSessionTools({});
-    const fetchTool = tools.find((tool) => tool.name === 'web_fetch');
-    await expect(fetchTool!.execute({ url: 'http://127.0.0.1/' })).rejects.toThrow(
-      /Permission deny|private/,
-    );
+    const fetchTool = tools.find((tool) => tool.descriptor.name === 'web_fetch');
+    if (!fetchTool) throw new Error('web_fetch missing');
+    await expect(
+      executeThroughAdmission(fetchTool, { url: 'http://127.0.0.1/' }),
+    ).resolves.toMatchObject({ ok: false, code: 'permission-denied' });
   });
 
-  it('allows after interactive gate returns allow and then fails provider (no key)', async () => {
+  it('uses the shared interactive gate before the web executor', async () => {
     const requestPermission = vi.fn(async () => 'allow' as const);
     const { tools } = buildSessionTools({
       webConfig: {
@@ -44,27 +97,18 @@ describe('buildSessionTools permission gate', () => {
         fetchTimeoutMs: 1000,
         fetchBlockedUrlPrefixes: [],
       },
-      requestPermission,
     });
-    const search = tools.find((tool) => tool.name === 'web_search');
-    await expect(search!.execute({ query: 'hello world' })).rejects.toThrow();
+    const search = tools.find((tool) => tool.descriptor.name === 'web_search');
+    if (!search) throw new Error('web_search missing');
+    await expect(
+      executeThroughAdmission(search, { query: 'hello world' }, undefined, requestPermission),
+    ).resolves.toMatchObject({ ok: false, code: 'execution-failed' });
     expect(requestPermission).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'network:web_search',
-        detail: 'hello world',
-      }),
+      expect.objectContaining({ action: 'network:web_search', detail: 'hello world' }),
     );
   });
 
-  it('does not call gate when policy hard-denies', async () => {
-    const requestPermission = vi.fn(async () => 'allow' as const);
-    const { tools } = buildSessionTools({ requestPermission });
-    const fetchTool = tools.find((tool) => tool.name === 'web_fetch');
-    await expect(fetchTool!.execute({ url: 'file:///tmp/x' })).rejects.toThrow();
-    expect(requestPermission).not.toHaveBeenCalled();
-  });
-
-  it('skips gate when project remembers host / search', async () => {
+  it('keeps remembered project network approvals in the shared gate', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-session-tools-'));
     const projectsFile = join(dir, 'projects.json');
     const projectPath = '/tmp/remember-project';
@@ -74,9 +118,6 @@ describe('buildSessionTools permission gate', () => {
 
     const requestPermission = vi.fn(async () => 'deny' as const);
     const { tools } = buildSessionTools({
-      projectPath,
-      projectsFilePath: projectsFile,
-      requestPermission,
       webConfig: {
         searchProvider: 'brave',
         searchApiKeyEnv: 'MISSING_BRAVE_KEY_FOR_TEST',
@@ -99,22 +140,18 @@ describe('buildSessionTools permission gate', () => {
       },
     });
 
-    const search = tools.find((tool) => tool.name === 'web_search');
-    // remembered allow → gate not called; still fails on missing API key
-    await expect(search!.execute({ query: 'cached search' })).rejects.toThrow();
-    expect(requestPermission).not.toHaveBeenCalled();
-
-    const fetchTool = tools.find((tool) => tool.name === 'web_fetch');
-    // remembered host → gate not called; may fail later (DNS/network) but not on permission
-    let fetchError: unknown;
-    try {
-      await fetchTool!.execute({ url: 'https://example.com/' });
-    } catch (error) {
-      fetchError = error;
-    }
-    if (fetchError) {
-      expect(String(fetchError)).not.toMatch(/Permission/);
-    }
+    const search = tools.find((tool) => tool.descriptor.name === 'web_search');
+    if (!search) throw new Error('web_search missing');
+    await expect(
+      executeThroughAdmission(
+        search,
+        { query: 'cached search' },
+        undefined,
+        requestPermission,
+        projectPath,
+        projectsFile,
+      ),
+    ).resolves.toMatchObject({ ok: false, code: 'execution-failed' });
     expect(requestPermission).not.toHaveBeenCalled();
   });
 });

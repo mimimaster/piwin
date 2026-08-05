@@ -10,6 +10,8 @@ import type {
   SessionSummary,
   SessionTreeView,
   AgentMessageView,
+  McpConfigDocument,
+  SessionToolFamily,
 } from '@piwin/contracts';
 import {
   InProcessSdkSessionBackend,
@@ -22,11 +24,21 @@ import { createMockSessionHandle } from './mock-session.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
 import { loadPromptImages } from './prompt-images.js';
 
+export type ProductAgentHostToolRegistrationMode = 'active' | 'pending';
+
+export type PreparedProductSession = {
+  session: SessionHandle;
+  sessionId: string;
+  runtimeGenerationId: string;
+  settingsRevision: string;
+  registrationMode: ProductAgentHostToolRegistrationMode;
+};
+
 type ProductAgentHostCommonOptions = {
   mode: 'sdk' | 'rpc';
   piwinRoot?: string;
   onGenerationCreated?: (sessionId: string, generationId: string, settingsRevision: string) => void;
-  onGenerationDetached?: (sessionId: string) => void;
+  onGenerationDetached?: (sessionId: string) => void | Promise<void>;
   /**
    * Resolve whether a project path is trusted. When provided, the compiler
    * calls this to gate write/process/bash/delegate capabilities. When
@@ -37,6 +49,25 @@ type ProductAgentHostCommonOptions = {
   workerSupervisor?: AgentWorkerSupervisor;
   /** Current Run identity, supplied by HostRuntime's execution context. */
   getCurrentRunId?: () => string | undefined;
+  /** Derive the host-local family index from the same registrations as descriptors. */
+  buildToolFamilyIndex?: (
+    sessionId: string,
+    runtimeGenerationId: string,
+    mode?: ProductAgentHostToolRegistrationMode,
+  ) => Promise<ReadonlyMap<SessionToolFamily, readonly string[]>>;
+  /** Read the MCP document frozen for the same generation surface. */
+  getMcpConfig?: (sessionId: string, runtimeGenerationId: string) => Promise<McpConfigDocument>;
+  /** Read the permission-rule revision frozen for the same generation surface. */
+  getPermissionRulesRevision?: (
+    sessionId: string,
+    runtimeGenerationId: string,
+  ) => string | undefined;
+  /** Restrict the Host execution surface to the compiled manifest. */
+  restrictToolSurface?: (
+    sessionId: string,
+    runtimeGenerationId: string,
+    toolNames: readonly string[],
+  ) => void;
 };
 
 export type ProductAgentHostOptions =
@@ -48,12 +79,21 @@ export type ProductAgentHostOptions =
   | (ProductAgentHostCommonOptions & {
       mock: false;
       hostToolExecution: HostToolExecutionPort;
+      restrictToolSurface: (
+        sessionId: string,
+        runtimeGenerationId: string,
+        toolNames: readonly string[],
+      ) => void;
       /**
        * Build concrete Host tool descriptors for a session. Called before
        * blueprint compilation so the compiled manifest carries real
        * descriptions and parameter schemas instead of name-only guesses.
        */
-      buildToolDescriptors: (sessionId: string) => Promise<HostToolDescriptor[]>;
+      buildToolDescriptors: (
+        sessionId: string,
+        runtimeGenerationId: string,
+        mode?: ProductAgentHostToolRegistrationMode,
+      ) => Promise<HostToolDescriptor[]>;
     });
 
 /**
@@ -76,6 +116,11 @@ export class ProductAgentHost implements AgentHost {
         'ProductAgentHost requires a parent-owned HostToolExecutionPort in non-mock mode',
       );
     }
+    if (!options.mock && !options.restrictToolSurface) {
+      throw new Error(
+        'ProductAgentHost requires a Host tool-surface restriction callback in non-mock mode',
+      );
+    }
     this.options = options;
     this.mode = options.mode;
     this.ownedWorkerSupervisor =
@@ -87,7 +132,8 @@ export class ProductAgentHost implements AgentHost {
       : options.mode === 'sdk'
         ? new InProcessSdkSessionBackend()
         : new WorkerSessionBackend({
-            supervisor: options.workerSupervisor ?? this.ownedWorkerSupervisor ?? new AgentWorkerSupervisor(),
+            supervisor:
+              options.workerSupervisor ?? this.ownedWorkerSupervisor ?? new AgentWorkerSupervisor(),
             disposeSupervisor: this.ownedWorkerSupervisor !== null,
           });
   }
@@ -98,26 +144,64 @@ export class ProductAgentHost implements AgentHost {
     return this.createSessionWithIdentity(input, sessionId, runtimeGenerationId);
   }
 
-  /** Rebuild one stable product session on a caller-owned generation id. */
-  async replaceSession(
+  /**
+   * Prepare a candidate without replacing the active stable session. The
+   * candidate gets its own backend generation and pending Host tool surface;
+   * callers must commit or abort it explicitly.
+   */
+  async prepareSession(
     sessionId: string,
     input: CreateSessionInput,
     runtimeGenerationId: string,
-  ): Promise<SessionHandle> {
-    if (this.options.mock) {
-      this.sessions.delete(sessionId);
-      return this.createSessionWithIdentity(input, sessionId, runtimeGenerationId);
+  ): Promise<PreparedProductSession> {
+    return this.prepareSessionWithIdentity(input, sessionId, runtimeGenerationId, 'pending');
+  }
+
+  /** Promote a prepared candidate into the ProductAgentHost session map. */
+  commitPreparedSession(prepared: PreparedProductSession): SessionHandle {
+    this.sessions.set(prepared.sessionId, prepared.session);
+    if (prepared.registrationMode === 'active') {
+      this.options.onGenerationCreated?.(
+        prepared.sessionId,
+        prepared.runtimeGenerationId,
+        prepared.settingsRevision,
+      );
     }
-    if (!this.backend) {
-      throw new Error('ProductAgentHost backend is unavailable');
+    return prepared.session;
+  }
+
+  /** Restore the stable session handle after a failed replacement publication. */
+  restoreSession(sessionId: string, session: SessionHandle): void {
+    this.sessions.set(sessionId, session);
+  }
+
+  /** Abort a prepared candidate and release only its backend generation. */
+  async abortPreparedSession(prepared: PreparedProductSession): Promise<void> {
+    let abortError: unknown;
+    try {
+      await prepared.session.abort();
+    } catch (error) {
+      abortError = error;
     }
-    const previous = this.sessions.get(sessionId);
-    if (previous) {
-      await previous.abort().catch(() => undefined);
+    try {
+      await this.backend?.dropSessionGeneration(prepared.sessionId, prepared.runtimeGenerationId);
+    } catch (dropError) {
+      if (abortError !== undefined) {
+        throw new AggregateError(
+          [abortError, dropError],
+          `failed to abort prepared session ${prepared.sessionId}/${prepared.runtimeGenerationId}`,
+        );
+      }
+      throw dropError;
     }
-    this.sessions.delete(sessionId);
-    await this.backend.dropSession(sessionId);
-    return this.createSessionWithIdentity(input, sessionId, runtimeGenerationId);
+    if (abortError !== undefined) {
+      throw abortError;
+    }
+  }
+
+  /** Release a retired generation without detaching the current stable session. */
+  async releaseSessionGeneration(sessionId: string, runtimeGenerationId: string): Promise<void> {
+    await this.backend?.dropSessionGeneration(sessionId, runtimeGenerationId);
   }
 
   private async createSessionWithIdentity(
@@ -125,11 +209,30 @@ export class ProductAgentHost implements AgentHost {
     sessionId: string,
     runtimeGenerationId: string,
   ): Promise<SessionHandle> {
+    const prepared = await this.prepareSessionWithIdentity(
+      input,
+      sessionId,
+      runtimeGenerationId,
+      'active',
+    );
+    return this.commitPreparedSession(prepared);
+  }
+
+  private async prepareSessionWithIdentity(
+    input: CreateSessionInput,
+    sessionId: string,
+    runtimeGenerationId: string,
+    registrationMode: ProductAgentHostToolRegistrationMode,
+  ): Promise<PreparedProductSession> {
     if (this.options.mock) {
       const session = createMockSessionHandle({ ...input, sessionId });
-      this.sessions.set(session.id, session);
-      this.options.onGenerationCreated?.(session.id, runtimeGenerationId, 'live');
-      return session;
+      return {
+        session,
+        sessionId,
+        runtimeGenerationId,
+        settingsRevision: 'live',
+        registrationMode,
+      };
     }
     if (!this.backend) {
       throw new Error('ProductAgentHost backend is unavailable');
@@ -140,45 +243,85 @@ export class ProductAgentHost implements AgentHost {
         'ProductAgentHost requires a parent-owned HostToolExecutionPort in non-mock mode',
       );
     }
-
-    // Build concrete tool descriptors from real executors before compiling
-    // the blueprint. This ensures the model-visible manifest carries exact
-    // descriptions and parameter schemas rather than name-only guesses.
-    const hostToolDescriptors = await this.options.buildToolDescriptors(sessionId);
-
-    const compiled = await compileBlueprintForWorker(input, {
-      ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
-      sessionId,
-      runtimeGenerationId,
-      hostToolDescriptors,
-      // Inline keychain secrets are permitted only for the in-process SDK
-      // backend. RPC provider envelopes are serialized over worker JSONL and
-      // therefore fail closed in the compiler.
-      allowInlineProviderSecrets: this.options.mode === 'sdk',
-      ...(this.options.trustResolver ? { trustResolver: this.options.trustResolver } : {}),
-    });
+    if (!this.options.restrictToolSurface) {
+      throw new Error(
+        'ProductAgentHost requires a Host tool-surface restriction callback in non-mock mode',
+      );
+    }
 
     try {
+      // Build concrete tool descriptors from real executors before compiling
+      // the blueprint. This ensures the model-visible manifest carries exact
+      // descriptions and parameter schemas rather than name-only guesses.
+      const hostToolDescriptors = await this.options.buildToolDescriptors(
+        sessionId,
+        runtimeGenerationId,
+        registrationMode,
+      );
+      const hostToolFamilyIndex = await this.options.buildToolFamilyIndex?.(
+        sessionId,
+        runtimeGenerationId,
+        registrationMode,
+      );
+      const mcpConfig = await this.options.getMcpConfig?.(sessionId, runtimeGenerationId);
+      const rulesRevision = this.options.getPermissionRulesRevision?.(
+        sessionId,
+        runtimeGenerationId,
+      );
+
+      const compiled = await compileBlueprintForWorker(input, {
+        ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
+        sessionId,
+        runtimeGenerationId,
+        hostToolDescriptors,
+        ...(hostToolFamilyIndex ? { hostToolFamilyIndex } : {}),
+        ...(mcpConfig ? { mcpConfig } : {}),
+        ...(rulesRevision !== undefined ? { rulesRevision } : {}),
+        // Inline keychain secrets are permitted only for the in-process SDK
+        // backend. RPC provider envelopes are serialized over worker JSONL and
+        // therefore fail closed in the compiler.
+        allowInlineProviderSecrets: this.options.mode === 'sdk',
+        ...(this.options.trustResolver ? { trustResolver: this.options.trustResolver } : {}),
+      });
+      this.options.restrictToolSurface(
+        sessionId,
+        runtimeGenerationId,
+        compiled.sessionBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name),
+      );
+
       const backendHandle = await this.backend.createSession({
         blueprint: compiled.sessionBlueprint.backendBlueprint,
         providers: compiled.providers,
         hostToolExecution,
       });
       const session = createProductSessionHandle(backendHandle, this.options.getCurrentRunId);
-      this.sessions.set(session.id, session);
-      // Publish only after backend construction succeeds. HostRuntime binds
-      // the session subscription immediately after this returns, so failed
-      // creation can never leave a false active generation behind.
-      this.options.onGenerationCreated?.(
+      return {
+        session,
         sessionId,
         runtimeGenerationId,
-        compiled.settingsRevision ?? compiled.sessionBlueprint.capabilitySnapshot.inputs.settingsRevision,
-      );
-      return session;
+        settingsRevision:
+          compiled.settingsRevision ??
+          compiled.sessionBlueprint.capabilitySnapshot.inputs.settingsRevision,
+        registrationMode,
+      };
     } catch (error) {
-      // If backend creation fails, unregister the generation so the parent
-      // port rejects any late worker frames for this session.
-      this.options.onGenerationDetached?.(sessionId);
+      let cleanupError: unknown;
+      try {
+        await this.backend.dropSessionGeneration(sessionId, runtimeGenerationId);
+      } catch (errorDuringCleanup) {
+        cleanupError = errorDuringCleanup;
+      }
+      if (registrationMode === 'active') {
+        // If active generation creation fails, unregister the generation so
+        // the parent port rejects any late worker frames for this session.
+        await this.options.onGenerationDetached?.(sessionId);
+      }
+      if (cleanupError !== undefined) {
+        throw new AggregateError(
+          [error, cleanupError],
+          `failed to prepare session ${sessionId}/${runtimeGenerationId}`,
+        );
+      }
       throw error;
     }
   }
@@ -213,7 +356,7 @@ export class ProductAgentHost implements AgentHost {
   async dropSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
-    this.options.onGenerationDetached?.(sessionId);
+    await this.options.onGenerationDetached?.(sessionId);
     if (session) {
       await session.abort().catch(() => undefined);
     }
@@ -222,7 +365,7 @@ export class ProductAgentHost implements AgentHost {
 
   async dispose(): Promise<void> {
     for (const sessionId of this.sessions.keys()) {
-      this.options.onGenerationDetached?.(sessionId);
+      await this.options.onGenerationDetached?.(sessionId);
     }
     this.sessions.clear();
     await this.backend?.dispose();

@@ -2,23 +2,36 @@ import {
   formatMcpCallResult,
   formatMcpExposedName,
   listEnabledServers,
-  loadMcpConfig,
   parseMcpToolSelector,
+  createMcpGenerationSnapshot,
   type McpLifecycleManager,
   type McpMetadataCatalog,
+  type McpGenerationSnapshot,
 } from '@piwin/mcp';
-import type { HostToolDefinition } from '@piwin/tools-web';
-import type { PermissionRuleSet } from '@piwin/contracts';
-import { assertMcpToolCallAllowed } from './mcp-call-permission.js';
-import type { ToolPermissionGate } from './session-tools.js';
+import type { HostToolRegistration, McpConfigDocument, ToolResult } from '@piwin/contracts';
 
 export type BuildMcpGatewayToolOptions = {
-  piwinRoot: string;
   lifecycleManager: McpLifecycleManager;
+  /** Frozen MCP config captured when the runtime generation was composed. */
+  mcpConfig?: McpConfigDocument;
+  /** Explicit immutable generation snapshot used for transport calls. */
+  mcpSnapshot?: McpGenerationSnapshot;
   metadataCatalog?: McpMetadataCatalog;
-  rules?: PermissionRuleSet;
-  requestPermission?: ToolPermissionGate;
 };
+
+function invalidMcpInput(message: string): ToolResult {
+  return { ok: false, code: 'invalid-input', message };
+}
+
+function mcpFailure(message: string, selector?: string): ToolResult {
+  return {
+    ok: false,
+    code: 'mcp-failed',
+    message,
+    ...(selector ? { details: { selector } } : {}),
+    retryable: true,
+  };
+}
 
 /**
  * Stable MCP gateway custom tool for search/describe/call/status.
@@ -26,32 +39,50 @@ export type BuildMcpGatewayToolOptions = {
  */
 export function buildMcpGatewayToolDefinition(
   options: BuildMcpGatewayToolOptions,
-): HostToolDefinition {
+): HostToolRegistration {
   const catalog = options.metadataCatalog ?? options.lifecycleManager.getMetadataCatalog();
+  // The generation owns the MCP snapshot. Missing configuration is treated as
+  // an empty snapshot; tool execution must not reopen mutable config storage.
+  const snapshot =
+    options.mcpSnapshot ??
+    createMcpGenerationSnapshot(options.mcpConfig ?? { mcpServers: {} }, 'direct');
+  const config = snapshot.config;
 
   return {
-    name: 'mcp_gateway',
-    description:
-      'Discover and call MCP tools through a single gateway. ' +
-      "Use action='search' to find tools from cached metadata, " +
-      "action='describe' for a tool schema (selector like server.tool), " +
-      "action='call' to invoke a tool (lazy-connects only that server), " +
-      "action='status' for configured server health without starting servers.",
-    parameters: {
-      type: 'object',
-      properties: {
-        action: {
-          type: 'string',
-          enum: ['search', 'describe', 'call', 'status'],
+    descriptor: {
+      name: 'mcp_gateway',
+      description:
+        'Discover and call MCP tools through a single gateway. ' +
+        "Use action='search' to find tools from cached metadata, " +
+        "action='describe' for a tool schema (selector like server.tool), " +
+        "action='call' to invoke a tool (lazy-connects only that server), " +
+        "action='status' for configured server health without starting servers.",
+      parameters: {
+        type: 'object',
+        properties: {
+          action: {
+            type: 'string',
+            enum: ['search', 'describe', 'call', 'status'],
+          },
+          query: { type: 'string' },
+          serverId: { type: 'string' },
+          selector: { type: 'string' },
+          arguments: { type: 'object', additionalProperties: true },
+          limit: { type: 'number' },
         },
-        query: { type: 'string' },
-        serverId: { type: 'string' },
-        selector: { type: 'string' },
-        arguments: { type: 'object', additionalProperties: true },
-        limit: { type: 'number' },
+        required: ['action'],
+        additionalProperties: false,
       },
-      required: ['action'],
-      additionalProperties: false,
+    },
+    family: 'mcp',
+    permissionSpec: {
+      action: 'mcp:tool-call',
+      risk: 'mcp',
+      rememberable: false,
+      subjectBuilder: (args) => {
+        const selector = String(args.selector ?? '').trim();
+        return selector ? { kind: 'mcp', selector } : undefined;
+      },
     },
     async execute(args, signal) {
       const action = String(args.action ?? '').trim();
@@ -62,7 +93,6 @@ export function buildMcpGatewayToolDefinition(
           typeof args.limit === 'number' && Number.isFinite(args.limit)
             ? Math.max(1, Math.floor(args.limit))
             : 20;
-        const config = await loadMcpConfig(options.piwinRoot);
         const enabledServers = listEnabledServers(config);
         const validServerIds = new Set(
           (
@@ -94,34 +124,36 @@ export function buildMcpGatewayToolDefinition(
         const uncachedServers = enabledServers
           .map((server) => server.id)
           .filter((id) => !validServerIds.has(id));
-        return JSON.stringify(
-          {
-            tools: hits.map((hit) => ({
-              selector: hit.selector,
-              serverId: hit.serverId,
-              toolName: hit.toolName,
-              description: hit.description,
-            })),
-            uncachedOrEmptyServers: uncachedServers,
-            note: uncachedServers.length
-              ? 'Some servers have no cached metadata. Use describe on a known selector or Discover in Settings.'
-              : undefined,
-          },
-          null,
-          2,
-        );
+        return {
+          ok: true,
+          output: JSON.stringify(
+            {
+              tools: hits.map((hit) => ({
+                selector: hit.selector,
+                serverId: hit.serverId,
+                toolName: hit.toolName,
+                description: hit.description,
+              })),
+              uncachedOrEmptyServers: uncachedServers,
+              note: uncachedServers.length
+                ? 'Some servers have no cached metadata. Use describe on a known selector or Discover in Settings.'
+                : undefined,
+            },
+            null,
+            2,
+          ),
+        };
       }
 
       if (action === 'describe') {
         const selector = String(args.selector ?? '').trim();
         if (!selector) {
-          throw new Error('mcp_gateway describe requires selector');
+          return invalidMcpInput('mcp_gateway describe requires selector');
         }
         const parsed = parseMcpToolSelector(selector);
         if (!parsed) {
-          throw new Error(`Invalid MCP selector: ${selector}`);
+          return invalidMcpInput(`Invalid MCP selector: ${selector}`);
         }
-        const config = await loadMcpConfig(options.piwinRoot);
         const serverConfig = config.mcpServers[parsed.serverId];
         const hasValidCache =
           serverConfig !== undefined &&
@@ -129,78 +161,92 @@ export function buildMcpGatewayToolDefinition(
           (await catalog.isServerCacheValid(parsed.serverId, serverConfig));
         const cached = hasValidCache ? await catalog.describeCached(selector) : null;
         if (cached) {
-          return JSON.stringify(
+          return {
+            ok: true,
+            output: JSON.stringify(
+              {
+                selector: cached.selector,
+                description: cached.description,
+                inputSchema: cached.inputSchema,
+                source: 'cache',
+              },
+              null,
+              2,
+            ),
+          };
+        }
+        const discovered = await options.lifecycleManager.discoverTools(
+          parsed.serverId,
+          signal,
+          snapshot,
+        );
+        const match = discovered.find((tool) => tool.name === parsed.toolName);
+        if (!match) {
+          return invalidMcpInput(`Unknown MCP tool: ${selector}`);
+        }
+        return {
+          ok: true,
+          output: JSON.stringify(
             {
-              selector: cached.selector,
-              description: cached.description,
-              inputSchema: cached.inputSchema,
-              source: 'cache',
+              selector,
+              description: match.description,
+              inputSchema: match.inputSchema ?? { type: 'object', additionalProperties: true },
+              source: 'live-discover',
             },
             null,
             2,
-          );
-        }
-        const discovered = await options.lifecycleManager.discoverTools(parsed.serverId, signal);
-        const match = discovered.find((tool) => tool.name === parsed.toolName);
-        if (!match) {
-          throw new Error(`Unknown MCP tool: ${selector}`);
-        }
-        return JSON.stringify(
-          {
-            selector,
-            description: match.description,
-            inputSchema: match.inputSchema ?? { type: 'object', additionalProperties: true },
-            source: 'live-discover',
-          },
-          null,
-          2,
-        );
+          ),
+        };
       }
 
       if (action === 'status') {
-        const health = await options.lifecycleManager.listHealth();
+        const health = await options.lifecycleManager.listHealth(snapshot);
         const serverId = typeof args.serverId === 'string' ? args.serverId : undefined;
         const rows = serverId ? health.filter((item) => item.serverId === serverId) : health;
-        return JSON.stringify({ servers: rows }, null, 2);
+        return { ok: true, output: JSON.stringify({ servers: rows }, null, 2) };
       }
 
       if (action === 'call') {
         const selector = String(args.selector ?? '').trim();
         if (!selector) {
-          throw new Error('mcp_gateway call requires selector');
+          return invalidMcpInput('mcp_gateway call requires selector');
         }
         const parsed = parseMcpToolSelector(selector);
         if (!parsed) {
-          throw new Error(`Invalid MCP selector: ${selector}`);
+          return invalidMcpInput(`Invalid MCP selector: ${selector}`);
         }
         const toolArguments =
           args.arguments && typeof args.arguments === 'object'
             ? (args.arguments as Record<string, unknown>)
             : {};
 
-        await assertMcpToolCallAllowed({
-          serverId: parsed.serverId,
-          toolName: parsed.toolName,
-          arguments: toolArguments,
-          ...(options.rules ? { rules: options.rules } : {}),
-          ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
-          ...(signal ? { signal } : {}),
-        });
-
-        if (signal?.aborted) {
-          throw new Error(`MCP tool aborted: ${selector}`);
+        if (signal.aborted) {
+          return {
+            ok: false,
+            code: 'aborted',
+            message: `MCP tool aborted: ${selector}`,
+            details: { selector },
+            cancelled: true,
+          };
         }
 
-        const result = await options.lifecycleManager.callTool(
-          parsed.serverId,
-          parsed.toolName,
-          toolArguments,
-          signal,
-        );
-        return formatMcpCallResult(result);
+        let result: Awaited<ReturnType<McpLifecycleManager['callTool']>>;
+        try {
+          result = await options.lifecycleManager.callTool(
+            parsed.serverId,
+            parsed.toolName,
+            toolArguments,
+            signal,
+            snapshot,
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return mcpFailure(message, selector);
+        }
+        return { ok: true, output: formatMcpCallResult(result), details: { selector } };
       }
 
-      throw new Error(
+      return invalidMcpInput(
         `Unknown mcp_gateway action: ${action || '(empty)'}. Use search|describe|call|status.`,
       );
     },

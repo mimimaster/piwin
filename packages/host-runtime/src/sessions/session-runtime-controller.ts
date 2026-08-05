@@ -6,6 +6,8 @@ import { isImmediateTighteningDomain, isRuntimeStaleDomain } from '@piwin/contra
 export type SessionRuntimeControllerOptions = {
   /** Detect that a run is in flight (foreground prompt/steer). */
   isRunInFlight: (sessionId: string) => boolean;
+  /** Publish the normalized status after every runtime state mutation. */
+  onChanged?: (status: SessionRuntimeStatus) => void;
 };
 
 export type SessionRuntimeControllerSnapshot = {
@@ -20,11 +22,7 @@ export type SessionReloadPlan = {
 };
 
 export type SessionRuntimeCandidateState =
-  | 'compiling'
-  | 'creating-backend'
-  | 'rebuilding'
-  | 'active'
-  | 'failed';
+  'compiling' | 'creating-backend' | 'rebuilding' | 'active' | 'failed';
 
 export type SessionRuntimeCandidate = {
   sessionId: string;
@@ -45,9 +43,11 @@ export class SessionRuntimeController {
   private readonly pendingChangesBySession = new Map<string, Set<SettingsDomain>>();
   private readonly candidateBySession = new Map<string, SessionRuntimeCandidate>();
   private readonly isRunInFlight: (sessionId: string) => boolean;
+  private readonly onChanged: ((status: SessionRuntimeStatus) => void) | undefined;
 
   constructor(options: SessionRuntimeControllerOptions) {
     this.isRunInFlight = options.isRunInFlight;
+    this.onChanged = options.onChanged;
   }
 
   /** Record a new runtime generation for a session. */
@@ -55,12 +55,15 @@ export class SessionRuntimeController {
     this.generationBySession.set(sessionId, generationId);
     this.revisionBySession.set(sessionId, settingsRevision);
     this.pendingChangesBySession.delete(sessionId);
+    this.notifyChanged(sessionId);
   }
 
   detachGeneration(sessionId: string): void {
     this.generationBySession.delete(sessionId);
     this.revisionBySession.delete(sessionId);
     this.pendingChangesBySession.delete(sessionId);
+    this.candidateBySession.delete(sessionId);
+    this.notifyChanged(sessionId);
   }
 
   beginCandidate(sessionId: string, generationId: string): SessionRuntimeCandidate {
@@ -70,6 +73,7 @@ export class SessionRuntimeController {
       state: 'compiling',
     };
     this.candidateBySession.set(sessionId, candidate);
+    this.notifyChanged(sessionId);
     return { ...candidate };
   }
 
@@ -80,6 +84,7 @@ export class SessionRuntimeController {
   ): SessionRuntimeCandidate {
     const candidate = this.requireCandidate(sessionId, generationId);
     candidate.state = state;
+    this.notifyChanged(sessionId);
     return { ...candidate };
   }
 
@@ -99,6 +104,7 @@ export class SessionRuntimeController {
     const candidate = this.requireCandidate(sessionId, generationId);
     candidate.state = 'failed';
     candidate.error = error;
+    this.notifyChanged(sessionId);
     return { ...candidate };
   }
 
@@ -119,6 +125,7 @@ export class SessionRuntimeController {
       }
     }
     this.pendingChangesBySession.set(sessionId, pending);
+    this.notifyChanged(sessionId);
   }
 
   hasActiveGeneration(sessionId: string): boolean {
@@ -191,5 +198,9 @@ export class SessionRuntimeController {
       throw new Error(`runtime candidate not found: ${sessionId}/${generationId}`);
     }
     return candidate;
+  }
+
+  private notifyChanged(sessionId: string): void {
+    this.onChanged?.(this.getStatus(sessionId));
   }
 }

@@ -33,6 +33,7 @@ function createSnapshot(hostTools: HostToolDescriptor[]): SessionCapabilitySnaps
     version: 1,
     snapshotId: 'snapshot-1',
     inputs: {
+      rulesRevision: 'rules-1',
       settingsRevision: 'settings-1',
       projectRevision: 'project-1',
       mcpRevision: 'mcp-1',
@@ -153,11 +154,14 @@ describe('backend input conformance', () => {
         providers: [],
         hostToolExecution: createHostToolExecutionPort(() => undefined),
       },
-      { piModule: moduleFixture.piModule, modelRuntime: {
-        registerProvider: vi.fn(),
-        getModel: vi.fn(() => registeredModel),
-        refresh: vi.fn(async () => undefined),
-      } },
+      {
+        piModule: moduleFixture.piModule,
+        modelRuntime: {
+          registerProvider: vi.fn(),
+          getModel: vi.fn(() => registeredModel),
+          refresh: vi.fn(async () => undefined),
+        },
+      },
     );
     const sdkOptions = moduleFixture.getSessionOptions();
     const sdkTools = sdkOptions.customTools as PiBackendCustomToolDefinition[];
@@ -166,15 +170,19 @@ describe('backend input conformance', () => {
     );
     const workerTools = buildWorkerProxyTools(serializableBlueprint, vi.fn(), 'sess-test');
 
-    expect(sdkTools.map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters,
-    }))).toEqual(workerTools.map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters,
-    })));
+    expect(
+      sdkTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+      })),
+    ).toEqual(
+      workerTools.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters,
+      })),
+    );
 
     const sdkTool = sdkTools[0];
     if (!sdkTool) {
@@ -209,6 +217,49 @@ describe('backend input conformance', () => {
     expect(moduleFixture.createAgentSession).not.toHaveBeenCalled();
   });
 
+  it('rejects a capability snapshot with an incomplete revision set', async () => {
+    const moduleFixture = createPiModuleForTest();
+    const malformedBlueprint = structuredClone(
+      createBackendBlueprint([]),
+    ) as BackendSessionBlueprint;
+    malformedBlueprint.capabilitySnapshot.inputs.rulesRevision = '';
+
+    await expect(
+      createBackendSdkSession(
+        {
+          blueprint: malformedBlueprint,
+          providers: [],
+          hostToolExecution: createHostToolExecutionPort(() => undefined),
+        },
+        { piModule: moduleFixture.piModule },
+      ),
+    ).rejects.toThrow('malformed BackendSessionBlueprint');
+    expect(moduleFixture.createAgentSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-canonical Host tool names at the backend boundary', async () => {
+    const moduleFixture = createPiModuleForTest();
+    const malformedBlueprint = createBackendBlueprint([
+      {
+        name: ' known_tool ',
+        description: 'Known',
+        parameters: { type: 'object', properties: {} },
+      },
+    ]);
+
+    await expect(
+      createBackendSdkSession(
+        {
+          blueprint: malformedBlueprint,
+          providers: [],
+          hostToolExecution: createHostToolExecutionPort(() => undefined),
+        },
+        { piModule: moduleFixture.piModule },
+      ),
+    ).rejects.toThrow('malformed BackendSessionBlueprint');
+    expect(moduleFixture.createAgentSession).not.toHaveBeenCalled();
+  });
+
   it('rejects worker tool names absent from the compiled descriptor array', async () => {
     const descriptor: HostToolDescriptor = {
       name: 'known_tool',
@@ -229,7 +280,7 @@ describe('backend input conformance', () => {
       hostToolExecution: HostToolExecutionPort;
     };
     const sessions = Reflect.get(backend, 'sessions') as Map<string, TestActiveSession>;
-    sessions.set('session-1', {
+    sessions.set('session-1\u0000generation-1', {
       blueprint,
       productSessionId: 'session-1',
       runtimeGenerationId: 'generation-1',
@@ -241,19 +292,94 @@ describe('backend input conformance', () => {
     if (typeof executeHostTool !== 'function') {
       throw new Error('worker tool executor is unavailable');
     }
-    const result = await (executeHostTool as (
-      frame: { context: { sessionId: string; runtimeGenerationId: string }; toolName: string; id: string; args: unknown },
-      signal: AbortSignal,
-    ) => Promise<{ ok: boolean; code?: string }>).call(backend, {
-      context: { sessionId: 'session-1', runtimeGenerationId: 'generation-1' },
-      toolName: 'unknown_tool',
-      id: 'call-1',
-      args: {},
-    }, new AbortController().signal);
+    const result = await (
+      executeHostTool as (
+        frame: {
+          context: { sessionId: string; runtimeGenerationId: string };
+          toolName: string;
+          id: string;
+          args: unknown;
+        },
+        signal: AbortSignal,
+      ) => Promise<{ ok: boolean; code?: string }>
+    ).call(
+      backend,
+      {
+        context: { sessionId: 'session-1', runtimeGenerationId: 'generation-1' },
+        toolName: 'unknown_tool',
+        id: 'call-1',
+        args: {},
+      },
+      new AbortController().signal,
+    );
     expect(result).toEqual({
       ok: false,
       code: 'tool-not-available',
       message: 'tool is not present in the compiled blueprint: unknown_tool',
+    });
+    expect(executionInputs).toEqual([]);
+  });
+
+  it('does not route a stale frame to the current generation fallback', async () => {
+    const descriptor: HostToolDescriptor = {
+      name: 'known_tool',
+      description: 'Known',
+      parameters: { type: 'object', properties: {} },
+    };
+    const blueprint: SerializableBlueprint = projectBackendBlueprintForWorker(
+      createBackendBlueprint([descriptor]),
+    );
+    const executionInputs: string[] = [];
+    const backend = new WorkerSessionBackend({
+      supervisor: new AgentWorkerSupervisor({ worker: { workerScript: '/tmp/unused' } }),
+    });
+    type TestActiveSession = {
+      blueprint: SerializableBlueprint;
+      productSessionId: string;
+      runtimeGenerationId: string;
+      hostToolExecution: HostToolExecutionPort;
+    };
+    const sessions = Reflect.get(backend, 'sessions') as Map<string, TestActiveSession>;
+    sessions.set('session-1\u0000generation-current', {
+      blueprint,
+      productSessionId: 'session-1',
+      runtimeGenerationId: 'generation-current',
+      hostToolExecution: createHostToolExecutionPort((input) =>
+        executionInputs.push(input.runtimeGenerationId),
+      ),
+    });
+    const executeHostTool = Reflect.get(backend, 'executeHostTool');
+    if (typeof executeHostTool !== 'function') {
+      throw new Error('worker tool executor is unavailable');
+    }
+    const result = await (
+      executeHostTool as (
+        frame: {
+          context: { sessionId: string; runtimeGenerationId: string; runId: string };
+          toolName: string;
+          id: string;
+          args: unknown;
+        },
+        signal: AbortSignal,
+      ) => Promise<{ ok: boolean; code?: string; message?: string }>
+    ).call(
+      backend,
+      {
+        context: {
+          sessionId: 'session-1',
+          runtimeGenerationId: 'generation-stale',
+          runId: 'run-1',
+        },
+        toolName: 'known_tool',
+        id: 'call-1',
+        args: {},
+      },
+      new AbortController().signal,
+    );
+    expect(result).toEqual({
+      ok: false,
+      code: 'tool-not-available',
+      message: 'unknown worker session: session-1',
     });
     expect(executionInputs).toEqual([]);
   });

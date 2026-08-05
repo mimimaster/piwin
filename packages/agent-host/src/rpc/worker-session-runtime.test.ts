@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { AgentEvent, AgentEventEnvelope } from '@piwin/contracts';
-import type { WorkerEvent, WorkerFrame, WorkerFrameContext, WorkerRequest } from '../rpc-sdk-worker-protocol.js';
+import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
+import type {
+  WorkerEvent,
+  WorkerFrame,
+  WorkerFrameContext,
+  WorkerRequest,
+} from '../rpc-sdk-worker-protocol.js';
 import { WorkerSessionRuntime, type WorkerPiSessionLike } from './worker-session-runtime.js';
 import type { SerializableBlueprint } from './serializable-blueprint.js';
 
@@ -45,10 +51,7 @@ function fakeMapper() {
   };
 }
 
-function createMockPiSession(
-  sessionId = 'pi-s1',
-  unsubscribe = vi.fn(),
-): WorkerPiSessionLike {
+function createMockPiSession(sessionId = 'pi-s1', unsubscribe = vi.fn()): WorkerPiSessionLike {
   let listener: ((raw: unknown) => void) | null = null;
   return {
     id: sessionId,
@@ -110,6 +113,77 @@ describe('WorkerSessionRuntime', () => {
     });
   });
 
+  it('round-trips the complete ToolResult through the proxy frame', async () => {
+    const frames: WorkerFrame[] = [];
+    const createPiSession = vi.fn(
+      async (_options: { proxyTools?: PiBackendCustomToolDefinition[] }) => createMockPiSession(),
+    );
+    const runtime = new WorkerSessionRuntime({
+      sendFrame: (frame) => frames.push(frame),
+      createPiSession,
+      eventMapper: fakeMapper(),
+      enableToolProxy: true,
+    });
+    const blueprint: SerializableBlueprint = {
+      ...minimalBlueprint,
+      tools: {
+        ...minimalBlueprint.tools,
+        hostTools: [
+          {
+            name: 'web_search',
+            description: 'Search the web',
+            parameters: { type: 'object', properties: {} },
+          },
+        ],
+      },
+    };
+
+    await runtime.handleRequest(
+      createRequest({
+        payload: {
+          method: 'session/create',
+          productSessionId: 'ps-1',
+          blueprint,
+        },
+      }),
+    );
+
+    const proxyTool = createPiSession.mock.calls[0]?.[0]?.proxyTools?.[0];
+    if (!proxyTool) {
+      throw new Error('worker proxy tool was not created');
+    }
+    const resultPromise = proxyTool.execute(
+      'tool-call-1',
+      {},
+      new AbortController().signal,
+      undefined,
+      undefined,
+    );
+    const toolCall = frames.find(
+      (frame): frame is Extract<WorkerFrame, { type: 'tool-call' }> => frame.type === 'tool-call',
+    );
+    if (!toolCall) {
+      throw new Error('worker tool-call frame was not emitted');
+    }
+
+    runtime.handleToolResult({
+      type: 'tool-result',
+      id: toolCall.id,
+      context: toolCall.context,
+      ok: true,
+      result: {
+        ok: true,
+        output: 'parent output',
+        details: { runId: 'run-1' },
+      },
+    });
+
+    await expect(resultPromise).resolves.toMatchObject({
+      content: [{ type: 'text', text: 'parent output' }],
+      details: expect.objectContaining({ runId: 'run-1' }),
+    });
+  });
+
   it('prompts a session and streams normalized events', async () => {
     const frames: WorkerFrame[] = [];
     const runtime = new WorkerSessionRuntime({
@@ -132,7 +206,13 @@ describe('WorkerSessionRuntime', () => {
       context: frameContext,
       event: { type: 'message/text_snapshot', messageId: 'm1', text: 'mock reply' },
     } satisfies WorkerEvent);
-    expect(frames).toContainEqual({ type: 'response', id: 'req-2', context: frameContext, success: true, data: {} });
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'req-2',
+      context: frameContext,
+      success: true,
+      data: {},
+    });
   });
 
   it('supports distinct product and worker ids across the session lifecycle', async () => {
@@ -333,8 +413,20 @@ describe('WorkerSessionRuntime', () => {
       context: frameContext,
       payload: { method: 'session/prompt', sessionId: 'ps-1', text: 'late' },
     });
-    expect(frames).toContainEqual({ type: 'response', id: 'r3', context: frameContext, success: true, data: {} });
-    expect(frames).toContainEqual({ type: 'response', id: 'r4', context: frameContext, success: true, data: {} });
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'r3',
+      context: frameContext,
+      success: true,
+      data: {},
+    });
+    expect(frames).toContainEqual({
+      type: 'response',
+      id: 'r4',
+      context: frameContext,
+      success: true,
+      data: {},
+    });
     expect(frames).toContainEqual({
       type: 'response',
       id: 'r5',
@@ -343,5 +435,4 @@ describe('WorkerSessionRuntime', () => {
       error: 'unknown session: ps-1',
     });
   });
-
 });

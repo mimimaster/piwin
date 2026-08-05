@@ -6,6 +6,7 @@ import type {
   NotesAccess,
   SessionToolFamily,
   SessionToolPolicy,
+  SubagentCapability,
 } from '@piwin/contracts';
 
 /**
@@ -32,32 +33,32 @@ export type ToolExposureInput = {
   notes: NotesAccess;
   flashcards: FlashcardsAccess;
   availability: ToolBackingAvailability;
-};
-
-/** Concrete custom tool names per family. */
-export const FAMILY_CUSTOM_TOOLS: Readonly<Record<SessionToolFamily, readonly string[]>> = {
-  'filesystem-read': [],
-  'filesystem-write': [],
-  shell: [],
-  'web-search': ['web_search'],
-  'web-fetch': ['web_fetch'],
-  mcp: ['mcp_gateway'],
-  process: ['process_start', 'process_list', 'process_logs', 'process_stop'],
-  browser: ['browser_navigate', 'browser_snapshot', 'browser_click', 'browser_type'],
-  planning: ['piwin_plan_create', 'piwin_plan_set_step'],
-  delegate: ['piwin_subagent_run'],
-  'notes-read': ['note_search', 'note_list', 'note_read'],
-  'notes-write': ['note_write', 'note_update', 'note_delete'],
-  'flashcards-read': ['flashcard_list'],
-  'flashcards-write': ['flashcard_create', 'flashcard_batch_create', 'flashcard_delete'],
-  'image-generation': ['image_gen'],
+  /** Optional child ceiling used by the live Blueprint compiler. */
+  capabilities?: readonly SubagentCapability[];
+  /** Readonly child mode removes mutating/side-effecting families. */
+  readonly?: boolean;
+  /** Untrusted projects remove mutating/side-effecting families. */
+  trusted?: boolean;
+  /** Host registration families available in this generation. */
+  availableFamilies?: ReadonlySet<SessionToolFamily>;
+  /** Explicit exposure switches for families not represented by legacy settings. */
+  filesystemRead?: boolean;
+  filesystemWrite?: boolean;
+  shell?: boolean;
+  planning?: boolean;
+  delegate?: boolean;
+  notesEnabled?: boolean;
+  flashcardsEnabled?: boolean;
+  imageGenerationEnabled?: boolean;
 };
 
 /** Pi built-in tool names mapped from product capabilities (filesystem/shell). */
 export const FAMILY_PI_BUILTIN_TOOLS: Readonly<Record<SessionToolFamily, readonly string[]>> = {
-  'filesystem-read': ['read', 'grep', 'find', 'ls'],
-  'filesystem-write': ['write', 'edit'],
-  shell: ['bash'],
+  'filesystem-read': ['read', 'grep', 'ls'],
+  // Product writes and shell execution are Host-owned registrations. They are
+  // intentionally not delegated to Pi-native tools in the worker.
+  'filesystem-write': [],
+  shell: [],
   'web-search': [],
   'web-fetch': [],
   mcp: [],
@@ -76,59 +77,118 @@ export const FAMILY_PI_BUILTIN_TOOLS: Readonly<Record<SessionToolFamily, readonl
  * Compile the enabled tool families for a session from configured exposure
  * intersected with backing availability (spec §9.3 resolution order).
  */
+export type ResolvedToolPolicy = {
+  policy: SessionToolPolicy;
+  /** Static names for the enabled families; dynamic MCP names are added by Host. */
+  customToolNames: string[];
+};
+
 export function resolveToolPolicy(input: ToolExposureInput): SessionToolPolicy {
+  return resolveToolPolicyDetails(input).policy;
+}
+
+export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedToolPolicy {
   const enabledFamilies = new Set<SessionToolFamily>();
+  const capabilities = input.capabilities;
+  const hasCapability = (capability: SubagentCapability): boolean =>
+    capabilities === undefined || capabilities.includes(capability);
+  const canMutate = input.readonly !== true && input.trusted !== false;
+  const hasRead = hasCapability('read');
+  const hasWrite = hasCapability('write');
+  const hasExecute = hasCapability('execute');
+  const hasNetwork = hasCapability('network');
+  const hasBrowser = hasCapability('browser');
+  const hasPlanning = hasCapability('planning');
+  const hasDelegate = hasCapability('delegate');
+  const hasMcp = hasCapability('mcp');
+
+  if ((input.filesystemRead ?? hasRead) && hasRead) {
+    enabledFamilies.add('filesystem-read');
+  }
+  if ((input.filesystemWrite ?? hasWrite) && hasWrite && canMutate) {
+    enabledFamilies.add('filesystem-write');
+  }
+  if ((input.shell ?? input.process === 'agent') && hasExecute && canMutate) {
+    enabledFamilies.add('shell');
+  }
 
   // Web search: master AND at least one ready source.
-  if (input.webSearch && input.availability.webSearchReady) {
+  if (input.webSearch && input.availability.webSearchReady && hasNetwork) {
     enabledFamilies.add('web-search');
   }
   // Web fetch: independent master AND ready provider.
-  if (input.webFetch && input.availability.webFetchReady) {
+  if (input.webFetch && input.availability.webFetchReady && hasNetwork) {
     enabledFamilies.add('web-fetch');
   }
   // MCP: master AND at least one enabled server.
-  if (input.mcp && input.availability.mcpEnabledServerIds.length > 0) {
+  if (input.mcp && hasMcp && input.availability.mcpEnabledServerIds.length > 0) {
     enabledFamilies.add('mcp');
   }
   // Process: exposure 'agent' AND backing service ready.
-  if (input.process === 'agent' && input.availability.processReady) {
+  if (input.process === 'agent' && hasExecute && canMutate && input.availability.processReady) {
     enabledFamilies.add('process');
   }
   // Browser: exposure 'agent' AND browser backend available.
-  if (input.browser === 'agent' && input.availability.browserReady) {
+  if (input.browser === 'agent' && hasBrowser && canMutate && input.availability.browserReady) {
     enabledFamilies.add('browser');
   }
   // Notes: read level implies at least read; write level implies both.
-  if (input.notes === 'agent-read' || input.notes === 'agent-read-write') {
+  if (
+    input.notesEnabled !== false &&
+    capabilities === undefined &&
+    (input.notes === 'agent-read' || input.notes === 'agent-read-write')
+  ) {
     enabledFamilies.add('notes-read');
   }
-  if (input.notes === 'agent-read-write') {
+  if (
+    input.notesEnabled !== false &&
+    capabilities === undefined &&
+    input.notes === 'agent-read-write'
+  ) {
     enabledFamilies.add('notes-write');
   }
   // Flashcards: agent-create implies read (review) + create.
-  if (input.flashcards === 'agent-create') {
+  if (
+    input.flashcardsEnabled !== false &&
+    capabilities === undefined &&
+    input.flashcards === 'agent-create'
+  ) {
     enabledFamilies.add('flashcards-read');
     enabledFamilies.add('flashcards-write');
   }
   // Image generation: master AND valid model available.
-  if (input.imageGeneration && input.availability.imageGenerationReady) {
+  if (
+    input.imageGeneration &&
+    input.imageGenerationEnabled !== false &&
+    capabilities === undefined &&
+    input.availability.imageGenerationReady
+  ) {
     enabledFamilies.add('image-generation');
   }
-  // Subagents exposure does not gate tool registration by itself; it gates
-  // spawn commands via the session policy.
+  if ((input.delegate ?? input.subagents === 'agent') && hasDelegate && canMutate) {
+    enabledFamilies.add('delegate');
+  }
+  if ((input.planning ?? false) && hasPlanning) {
+    enabledFamilies.add('planning');
+  }
 
-  const customToolNames = new Set<string>();
+  const effectiveFamilies = input.availableFamilies
+    ? [...enabledFamilies].filter((family) => input.availableFamilies?.has(family))
+    : [...enabledFamilies];
+
   const piBuiltinToolNames = new Set<string>();
-  for (const family of enabledFamilies) {
-    for (const name of FAMILY_CUSTOM_TOOLS[family]) customToolNames.add(name);
+  for (const family of effectiveFamilies) {
     for (const name of FAMILY_PI_BUILTIN_TOOLS[family]) piBuiltinToolNames.add(name);
   }
 
-  return {
+  const policy: SessionToolPolicy = {
     hostTools: [],
-    enabledFamilies: [...enabledFamilies].sort(),
-    piBuiltinToolNames: [...piBuiltinToolNames].sort(),
+    enabledFamilies: effectiveFamilies.sort(),
+    piBuiltinToolNames: [...piBuiltinToolNames],
     enabledMcpServerIds: input.availability.mcpEnabledServerIds,
   };
+  // Concrete Host tool names come only from the generation's registration
+  // index. Returning an empty compatibility projection here prevents this
+  // resolver from becoming a second executable tool manifest.
+  return { policy, customToolNames: [] };
 }

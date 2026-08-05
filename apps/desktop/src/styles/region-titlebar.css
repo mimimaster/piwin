@@ -240,20 +240,26 @@
   pointer-events: none;
 }
 
-/* Display-only session title — centered, ellipsis when too long (Cursor-like). */
+/* Display-only session title — pinned beside the navigation controls so the
+   active conversation is always discoverable from the upper-left corner. */
 .titlebar-session-title {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
-  justify-content: center;
-  /* Leave room for traffic lights, history cluster, and right tools. */
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
+  margin-left: 2px;
+  /* Leave room for traffic lights, navigation, and right tools. */
   max-width: min(420px, calc(100% - 300px));
   overflow: hidden;
   pointer-events: none;
   -webkit-app-region: drag;
   app-region: drag;
+}
+
+.titlebar-session-icon {
+  flex: 0 0 auto;
+  color: var(--muted);
 }
 
 .titlebar-session-title-text {

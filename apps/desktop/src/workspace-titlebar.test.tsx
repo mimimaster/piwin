@@ -40,6 +40,7 @@ describe('WorkspaceTitlebar session title', () => {
     const title = container.querySelector('[data-testid="titlebar-session-title"]');
     expect(title).not.toBeNull();
     expect(title?.textContent).toBe('Auth / OAuth fix');
+    expect(title?.querySelector('.titlebar-session-icon')).not.toBeNull();
     expect(container.querySelector('.titlebar-project-name')).toBeNull();
     expect(container.querySelector('.titlebar-sep')).toBeNull();
     expect(container.querySelector('[data-testid="titlebar-mode-badge"]')).toBeNull();

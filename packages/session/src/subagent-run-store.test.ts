@@ -14,7 +14,10 @@ function makeTask(overrides: Partial<SubagentTaskSpec> = {}): SubagentTaskSpec {
   };
 }
 
-function makeBatch(tasks: SubagentTaskSpec[], overrides: Partial<SubagentBatchRequest> = {}): SubagentBatchRequest {
+function makeBatch(
+  tasks: SubagentTaskSpec[],
+  overrides: Partial<SubagentBatchRequest> = {},
+): SubagentBatchRequest {
   return {
     parentSessionId: 'parent-1',
     tasks,
@@ -80,6 +83,29 @@ describe('SubagentRunStore', () => {
 
     await store.clearCancelRequest('run-1');
     expect(await store.isCancelRequested('run-1')).toBe(false);
+  });
+
+  it('resolves a cancellation wait from the filesystem event', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]));
+
+    const wait = store.waitForCancel('run-1');
+    await new Promise<void>((resolve) => setTimeout(resolve, 20));
+    expect(await store.requestCancel('run-1')).toBe(true);
+    await expect(wait).resolves.toBe(true);
+  });
+
+  it('stops waiting when the cancellation signal is aborted', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]));
+    const controller = new AbortController();
+    const wait = store.waitForCancel('run-1', controller.signal);
+
+    controller.abort();
+
+    await expect(wait).resolves.toBe(false);
   });
 
   it('does not create a cancel request for a terminal batch', async () => {

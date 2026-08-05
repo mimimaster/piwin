@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import type { HostToolRegistration, ToolResult } from '@piwin/contracts';
 import { createSubagentRunTool } from './subagent-run-tool.js';
 
 type SpawnCall = {
@@ -29,46 +30,64 @@ function firstSpawnArg(seam: ReturnType<typeof fakeSeam>): SpawnCall {
   return arg;
 }
 
+async function executeTool(
+  tool: HostToolRegistration,
+  args: Record<string, unknown>,
+  signal = new AbortController().signal,
+): Promise<ToolResult> {
+  return tool.execute(args, signal, {
+    sessionId: 'session-1',
+    runtimeGenerationId: 'generation-1',
+    runId: 'run-1',
+    toolName: tool.descriptor.name,
+  });
+}
+
+function messageOf(result: ToolResult): string {
+  return result.ok ? result.output : result.message;
+}
+
 describe('createSubagentRunTool', () => {
   it('has correct tool name and required parameters', () => {
     const tool = createSubagentRunTool({
       sessionId: 's1',
       seam: fakeSeam(),
     });
-    expect(tool.name).toBe('piwin_subagent_run');
-    expect(tool.parameters.required).toEqual(['task']);
-    expect(tool.parameters.properties).toHaveProperty('task');
-    expect(tool.parameters.properties).toHaveProperty('mode');
-    expect(tool.parameters.properties).toHaveProperty('sessionName');
+    expect(tool.descriptor.name).toBe('piwin_subagent_run');
+    expect(tool.descriptor.parameters.required).toEqual(['task']);
+    expect(tool.descriptor.parameters.properties).toHaveProperty('task');
+    expect(tool.descriptor.parameters.properties).toHaveProperty('mode');
+    expect(tool.descriptor.parameters.properties).toHaveProperty('sessionName');
   });
 
   it('spawns, merges, and returns summary on success', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 'parent-1', seam });
-    const result = await tool.execute({ task: 'explore the auth module' });
+    const result = await executeTool(tool, { task: 'explore the auth module' });
     expect(seam.spawn).toHaveBeenCalledTimes(1);
     expect(firstSpawnArg(seam)).toEqual({
       parentSessionId: 'parent-1',
       task: 'explore the auth module',
       mode: 'readonly',
+      signal: expect.any(AbortSignal),
     });
     expect(seam.merge).toHaveBeenCalledTimes(1);
-    expect(result).toContain('subagent completed');
-    expect(result).toContain('did the thing');
-    expect(result).toContain('childSessionId=child-1');
+    expect(messageOf(result)).toContain('subagent completed');
+    expect(messageOf(result)).toContain('did the thing');
+    expect(messageOf(result)).toContain('childSessionId=child-1');
   });
 
   it('defaults to readonly mode', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    await tool.execute({ task: 'test' });
+    await executeTool(tool, { task: 'test' });
     expect(firstSpawnArg(seam).mode).toBe('readonly');
   });
 
   it('lets a selected profile provide isolation when mode is omitted', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    await tool.execute({ task: 'implement the change', profileId: 'implementer' });
+    await executeTool(tool, { task: 'implement the change', profileId: 'implementer' });
     expect(firstSpawnArg(seam).profileId).toBe('implementer');
     expect(firstSpawnArg(seam).mode).toBeUndefined();
   });
@@ -76,50 +95,50 @@ describe('createSubagentRunTool', () => {
   it('passes worktree mode through', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    await tool.execute({ task: 'test', mode: 'worktree' });
+    await executeTool(tool, { task: 'test', mode: 'worktree' });
     expect(firstSpawnArg(seam).mode).toBe('worktree');
   });
 
   it('passes sessionName through when provided', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    await tool.execute({ task: 'test', sessionName: 'explorer-1' });
+    await executeTool(tool, { task: 'test', sessionName: 'explorer-1' });
     expect(firstSpawnArg(seam).sessionName).toBe('explorer-1');
   });
 
   it('omits sessionName when not provided', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    await tool.execute({ task: 'test' });
+    await executeTool(tool, { task: 'test' });
     expect(firstSpawnArg(seam).sessionName).toBeUndefined();
   });
 
   it('forwards applyPolicy to spawn when provided', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 'parent-1', seam });
-    await tool.execute({ task: 't', mode: 'worktree', applyPolicy: 'auto' });
+    await executeTool(tool, { task: 't', mode: 'worktree', applyPolicy: 'auto' });
     expect(firstSpawnArg(seam).applyPolicy).toBe('auto');
   });
 
   it('forwards explicit applyPolicy with allowed paths intent', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 'parent-1', seam });
-    await tool.execute({ task: 't', mode: 'worktree', applyPolicy: 'explicit' });
+    await executeTool(tool, { task: 't', mode: 'worktree', applyPolicy: 'explicit' });
     expect(firstSpawnArg(seam).applyPolicy).toBe('explicit');
   });
 
   it('omits applyPolicy when none or invalid', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    await tool.execute({ task: 'test' });
+    await executeTool(tool, { task: 'test' });
     expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
-    await tool.execute({ task: 'test', applyPolicy: 'bogus' });
+    await executeTool(tool, { task: 'test', applyPolicy: 'bogus' });
     expect(firstSpawnArg(seam).applyPolicy).toBeUndefined();
   });
 
   it('declares applyPolicy in the tool schema', () => {
     const tool = createSubagentRunTool({ sessionId: 's1', seam: fakeSeam() });
-    const properties = tool.parameters.properties as Record<string, { enum?: string[] }>;
+    const properties = tool.descriptor.parameters.properties as Record<string, { enum?: string[] }>;
     expect(properties).toHaveProperty('applyPolicy');
     expect(properties.applyPolicy?.enum).toEqual(['none', 'auto', 'explicit']);
   });
@@ -127,16 +146,17 @@ describe('createSubagentRunTool', () => {
   it('rejects empty task', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    const result = await tool.execute({ task: '' });
-    expect(result).toBe('error: task is required');
+    const result = await executeTool(tool, { task: '' });
+    expect(result).toMatchObject({ ok: false, code: 'invalid-input' });
+    expect(messageOf(result)).toContain('task is required');
     expect(seam.spawn).not.toHaveBeenCalled();
   });
 
   it('rejects invalid mode', async () => {
     const seam = fakeSeam();
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    const result = await tool.execute({ task: 'test', mode: 'sandbox' });
-    expect(result).toContain('error: invalid mode');
+    const result = await executeTool(tool, { task: 'test', mode: 'sandbox' });
+    expect(messageOf(result)).toContain('invalid mode');
     expect(seam.spawn).not.toHaveBeenCalled();
   });
 
@@ -147,9 +167,9 @@ describe('createSubagentRunTool', () => {
       }),
     });
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    const result = await tool.execute({ task: 'test' });
-    expect(result).toContain('error: subagent spawn failed');
-    expect(result).toContain('depth max exceeded');
+    const result = await executeTool(tool, { task: 'test' });
+    expect(result).toMatchObject({ ok: false, code: 'subagent-failed' });
+    expect(messageOf(result)).toContain('depth max exceeded');
     expect(seam.merge).not.toHaveBeenCalled();
   });
 
@@ -160,9 +180,10 @@ describe('createSubagentRunTool', () => {
       }),
     });
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    const result = await tool.execute({ task: 'test' });
-    expect(result).toContain('error: subagent merge failed');
-    expect(result).toContain('unknown child');
+    const result = await executeTool(tool, { task: 'test' });
+    expect(result).toMatchObject({ ok: false, code: 'subagent-failed' });
+    expect(messageOf(result)).toContain('subagent merge failed');
+    expect(messageOf(result)).toContain('unknown child');
   });
 
   it('handles alreadyMerged from merge seam', async () => {
@@ -173,9 +194,9 @@ describe('createSubagentRunTool', () => {
       })),
     });
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    const result = await tool.execute({ task: 'test' });
-    expect(result).toContain('summary from prior merge');
-    expect(result).toContain('cached summary');
+    const result = await executeTool(tool, { task: 'test' });
+    expect(messageOf(result)).toContain('summary from prior merge');
+    expect(messageOf(result)).toContain('cached summary');
   });
 
   it('handles missing summaryPreview gracefully', async () => {
@@ -183,8 +204,8 @@ describe('createSubagentRunTool', () => {
       merge: vi.fn(async () => ({})),
     });
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
-    const result = await tool.execute({ task: 'test' });
-    expect(result).toContain('(no summary)');
+    const result = await executeTool(tool, { task: 'test' });
+    expect(messageOf(result)).toContain('(no summary)');
   });
 
   it('respects abort signal before spawn', async () => {
@@ -192,8 +213,8 @@ describe('createSubagentRunTool', () => {
     const tool = createSubagentRunTool({ sessionId: 's1', seam });
     const controller = new AbortController();
     controller.abort();
-    const result = await tool.execute({ task: 'test' }, controller.signal);
-    expect(result).toContain('error: aborted before spawn');
+    const result = await executeTool(tool, { task: 'test' }, controller.signal);
+    expect(messageOf(result)).toContain('aborted before spawn');
     expect(seam.spawn).not.toHaveBeenCalled();
   });
 });

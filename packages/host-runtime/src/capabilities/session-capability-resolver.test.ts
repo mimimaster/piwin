@@ -44,6 +44,7 @@ const ceiling: SubagentCapabilityCeiling = {
 function input(overrides: Partial<CompileSnapshotInput> = {}): CompileSnapshotInput {
   return {
     inputs: {
+      rulesRevision: 'rules-1',
       settingsRevision: 'r1',
       projectRevision: 'r2',
       mcpRevision: 'r3',
@@ -70,11 +71,12 @@ describe('compileSessionCapabilitySnapshot', () => {
     expect(snapshot.trust).toEqual({ kind: 'general' });
   });
 
-  it('revision inputs do not affect the snapshot id', () => {
+  it('revision inputs affect the snapshot id', () => {
     const base = compileSessionCapabilitySnapshot(input());
     const differentRevisions = compileSessionCapabilitySnapshot(
       input({
         inputs: {
+          rulesRevision: 'rules-x',
           settingsRevision: 'x',
           projectRevision: 'y',
           mcpRevision: 'z',
@@ -82,7 +84,7 @@ describe('compileSessionCapabilitySnapshot', () => {
         },
       }),
     );
-    expect(differentRevisions.snapshotId).toBe(base.snapshotId);
+    expect(differentRevisions.snapshotId).not.toBe(base.snapshotId);
   });
 
   it('a different tool policy changes the snapshot id', () => {

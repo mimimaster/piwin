@@ -70,6 +70,15 @@ export interface PiSessionBackend {
   /** Drop a session and release its resources. */
   dropSession(sessionId: string): Promise<void>;
 
+  /**
+   * Drop exactly one runtime generation for a stable product session.
+   *
+   * Runtime replacement may prepare a candidate while the previous
+   * generation is still active, so a session-only drop is not precise enough
+   * at that boundary.
+   */
+  dropSessionGeneration(sessionId: string, runtimeGenerationId: string): Promise<void>;
+
   /** Release all sessions and shut down the backend (worker process, etc.). */
   dispose(): Promise<void>;
 }
@@ -79,9 +88,7 @@ export interface PiSessionBackend {
  * This is intentionally structural: the parent owns policy compilation, but
  * the backend still rejects malformed cross-package input at its boundary.
  */
-export function isValidBackendSessionBlueprint(
-  value: unknown,
-): value is BackendSessionBlueprint {
+export function isValidBackendSessionBlueprint(value: unknown): value is BackendSessionBlueprint {
   if (!value || typeof value !== 'object') {
     return false;
   }
@@ -100,14 +107,33 @@ export function isValidBackendSessionBlueprint(
     return false;
   }
   const snapshotRecord = snapshot as Record<string, unknown>;
+  const inputs = snapshotRecord.inputs;
   if (
     snapshotRecord.version !== 1 ||
     typeof snapshotRecord.snapshotId !== 'string' ||
     snapshotRecord.snapshotId.trim().length === 0 ||
     typeof snapshotRecord.workingDirectory !== 'string' ||
     snapshotRecord.workingDirectory.trim().length === 0 ||
-    !snapshotRecord.inputs ||
-    typeof snapshotRecord.inputs !== 'object'
+    !inputs ||
+    typeof inputs !== 'object' ||
+    Array.isArray(inputs)
+  ) {
+    return false;
+  }
+  const inputRevisions = inputs as Record<string, unknown>;
+  const revisionKeys = [
+    'rulesRevision',
+    'settingsRevision',
+    'projectRevision',
+    'mcpRevision',
+    'resourceCatalogRevision',
+  ] as const;
+  if (
+    !revisionKeys.every(
+      (key) =>
+        typeof inputRevisions[key] === 'string' &&
+        (inputRevisions[key] as string).trim().length > 0,
+    )
   ) {
     return false;
   }
@@ -140,6 +166,7 @@ export function isValidBackendSessionBlueprint(
     descriptorNames.add(name);
     return (
       typeof descriptor.name === 'string' &&
+      descriptor.name === name &&
       name.length > 0 &&
       typeof descriptor.description === 'string' &&
       Boolean(descriptor.parameters) &&

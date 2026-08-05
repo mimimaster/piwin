@@ -9,7 +9,7 @@ import type {
   SettingsMutation,
   SettingsSnapshot,
 } from '@piwin/contracts';
-import { PIWIN_SETTINGS_SCHEMA_VERSION } from '@piwin/contracts';
+import { isImmediateTighteningDomain, PIWIN_SETTINGS_SCHEMA_VERSION } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from '../paths.js';
 import {
   createDefaultPiwinConfig,
@@ -123,7 +123,7 @@ function classifySettingsImpact(domain: SettingsDomain) {
   return {
     domain,
     timing,
-    securityTightenedImmediately: domain === 'permissions',
+    securityTightenedImmediately: isImmediateTighteningDomain(domain),
   } as const;
 }
 

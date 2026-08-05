@@ -7,6 +7,11 @@ import {
   useState,
   type SetStateAction,
 } from 'react';
+import {
+  isJobActive,
+  modeToPreset,
+  resolvePreset,
+} from '@piwin/contracts';
 import type {
   PermissionPreset,
   PiwinConfig,
@@ -16,7 +21,6 @@ import type {
   ThemeManifest,
   WalkthroughArtifact,
 } from '@piwin/contracts';
-import { modeToPreset, resolvePreset } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, type SessionListItemUi } from './chat-reducer';
 import { HostClient } from './host-client';
 import { useHostRequestAdapters } from './host-request-adapters';
@@ -33,10 +37,7 @@ import { ExtensionUiPrompt } from './extension-ui-prompt';
 import { FileTreePanel } from './file-tree-panel';
 import { ReviewPanel } from './review-panel';
 import { AppDialogs } from './app-dialogs';
-import {
-  createEmptyNotificationState,
-  notificationReducer,
-} from './notification-queue';
+import { createEmptyNotificationState, notificationReducer } from './notification-queue';
 import { GitPanel } from './GitPanel';
 import type { HostLogEntry } from './HostLogPanel';
 import { NotesPanel } from './NotesPanel';
@@ -228,22 +229,30 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     content?: string | undefined;
     filePath?: string | null | undefined;
   } | null>(null);
+  const [documentPreviewTarget, setDocumentPreviewTarget] = useState<'stage' | 'inspector'>(
+    'inspector',
+  );
 
   const handleOpenDocument = useCallback(
-    (doc: { title: string; path?: string; content?: string }) => {
+    (
+      doc: { title: string; path?: string; content?: string },
+      target: 'stage' | 'inspector' = 'inspector',
+    ) => {
       const filePath = doc.path ?? doc.title;
       const cleanPath = (filePath || '').replace(/^file:\/\//, '');
       const rawName = cleanPath ? cleanPath.split(/[\\/]/).pop() || doc.title : doc.title;
       const cleanTitle = (rawName || 'Implementation Plan').replace(/\.md$/i, '');
 
+      setDocumentPreviewTarget(target);
       setActiveDocument({
         title: cleanTitle,
         content: doc.content || (filePath ? '加载文档内容中...' : undefined),
         filePath: cleanPath,
       });
-      shell.setInspectorTab('docPreview');
+      const inspectorTab = target === 'stage' ? 'files' : 'docPreview';
+      shell.setInspectorTab(inspectorTab);
       if (!rightPanelOpen) {
-        shell.openInspector('docPreview');
+        shell.openInspector(inspectorTab);
       }
 
       if (!doc.content && cleanPath) {
@@ -277,7 +286,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         let projPath = state.projectPath;
         let relPath = cleanPath;
 
-        if (cleanPath.startsWith('/')) {
+        if (
+          state.projectPath &&
+          (cleanPath === state.projectPath ||
+            cleanPath.startsWith(`${state.projectPath}/`) ||
+            cleanPath.startsWith(`${state.projectPath}\\`))
+        ) {
+          projPath = state.projectPath;
+          relPath = cleanPath.slice(state.projectPath.length).replace(/^[/\\]+/, '');
+        } else if (cleanPath.startsWith('/')) {
           const lastSlash = cleanPath.lastIndexOf('/');
           if (lastSlash > 0) {
             projPath = cleanPath.slice(0, lastSlash);
@@ -519,6 +536,16 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   } = useJobs(hostClient, {
     refreshWhenVisible: rightPanelOpen && shell.inspectorTab === 'terminal',
   });
+  const backendServiceSessionIds = useMemo(() => {
+    const sessionIds: Record<string, true> = {};
+    for (const job of jobs) {
+      if (job.kind !== 'service' || !isJobActive(job.status) || !job.ownerSessionId) {
+        continue;
+      }
+      sessionIds[job.ownerSessionId] = true;
+    }
+    return sessionIds;
+  }, [jobs]);
 
   const markTerminalAttentionIfHidden = useCallback((): void => {
     // Hard rule: never auto-open the work panel; only pulse chrome.
@@ -1842,6 +1869,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onResizePointerDown={sidebarResize.onResizePointerDown}
               onResizeReset={() => sidebarResize.setWidthPx(SIDEBAR_DEFAULT_WIDTH_PX)}
               workingSessionIds={state.workingSessionIds}
+              backendServiceSessionIds={backendServiceSessionIds}
             />
           }
           contextBar={
@@ -1947,69 +1975,115 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   />
                 </div>
               ) : null}
-              <TranscriptViewport
-                messageCount={state.messages.length}
-                activitySignal={activitySignal}
-                messages={state.messages}
-              >
-                <ArtifactHeightSignalProvider value={artifactHeightSignal}>
-                  {state.messages.length > 0 ? (
-                    <ChatThread
-                      messages={state.messages}
-                      streaming={state.streaming}
-                      editingMessageId={editingMessageId}
-                      lastUserMessageId={lastUserMessageId}
-                      activeTheme={activeTheme}
-                      artifactThemeKey={artifactThemeKey}
-                      runRecordsById={state.runRecordsById}
-                      activeRunId={state.activeRunId}
-                      permissionPrompt={state.permissionPrompt}
-                      projectPath={state.projectPath}
-                      toolDiffRequest={requestGit as never}
-                      filesChangedRequest={requestGit as never}
-                      onReviewChanges={() => openRightTab('review')}
-                      onPermission={(decision, scope) => {
-                        void handlePermission(decision, scope);
-                      }}
-                      workDetailsExpanded={preferences.workDetailsExpanded}
-                      toolDensity={preferences.toolDensity}
-                      showThinking={preferences.verboseAgentChat}
-                      artifactPreviewEnabled={preferences.artifactPreviewEnabled}
-                      artifactCodeFirst={preferences.artifactCodeFirst}
-                      plan={sessionPlan}
-                      {...(config?.artifact?.maxBytes !== undefined
-                        ? { artifactMaxBytes: config.artifact.maxBytes }
-                        : {})}
-                      locale={desktopLocale}
-                      onInspectSubagent={handleInspectSubagent}
-                      onEdit={setEditingMessageId}
-                      onCancelEdit={handleCancelMessageEdit}
-                      onEditResend={handleEditAndResendMessage}
-                      onRetry={handleRetryMessage}
-                      onFeedback={handleMessageFeedback}
-                      onArtifactAction={handleArtifactAction}
-                      onOpenDocument={handleOpenDocument}
-                      onPlanExecute={handlePlanExecute}
-                      onPlanAbort={handlePlanAbort}
-                      composerCard={composerCard}
-                      walkthroughsByMessageId={state.walkthroughsByMessageId}
-                      walkthroughEnabled={config?.walkthrough?.enabled !== false}
-                      walkthroughAutoGenerate={false}
-                      onGenerateWalkthrough={handleGenerateWalkthrough}
-                      onCancelWalkthrough={handleCancelWalkthrough}
-                      {...(state.activeSessionId
-                        ? {
-                            onDuplicateSession: () =>
-                              void handleDuplicateSession(state.activeSessionId!),
-                            onForkFromMessage: (messageId: string) =>
-                              void handleForkSession(state.activeSessionId!, messageId),
-                          }
-                        : {})}
-                      derivedActionsDisabled={!state.activeSessionId || state.streaming}
-                    />
-                  ) : null}
-                </ArtifactHeightSignalProvider>
-              </TranscriptViewport>
+              {documentPreviewTarget === 'stage' && activeDocument ? (
+                <div className="workspace-document-stage" data-testid="workspace-document-stage">
+                  <DocPreviewPanel
+                    title={activeDocument.title}
+                    content={activeDocument.content}
+                    filePath={activeDocument.filePath}
+                    sessionDocuments={sessionDocuments}
+                    onClose={() => {
+                      setActiveDocument(null);
+                      setDocumentPreviewTarget('inspector');
+                    }}
+                    onOpenFile={(filePath) => {
+                      handleOpenDocument(
+                        {
+                          title: filePath.split(/[\\/]/).pop() || filePath,
+                          path: filePath,
+                        },
+                        'stage',
+                      );
+                    }}
+                    onCommentLine={handleCommentLine}
+                    comments={activeComments}
+                    onAddComment={handleAddDocComment}
+                    onEditComment={handleEditDocComment}
+                    onDeleteComment={handleDeleteDocComment}
+                    onSelectDocument={(doc) => {
+                      const walkthroughMatch = doc.path?.match(/^walkthroughs\/(.+)\.md$/);
+                      const walkthroughArtifact = walkthroughMatch
+                        ? state.walkthroughsByMessageId[walkthroughMatch[1] as string]
+                        : undefined;
+                      handleOpenDocument(
+                        {
+                          title: doc.title,
+                          ...(doc.path ? { path: doc.path } : {}),
+                          ...(walkthroughArtifact?.status === 'ready'
+                            ? { content: walkthroughArtifact.markdown }
+                            : {}),
+                        },
+                        'stage',
+                      );
+                    }}
+                    locale={desktopLocale}
+                  />
+                </div>
+              ) : (
+                <TranscriptViewport
+                  messageCount={state.messages.length}
+                  activitySignal={activitySignal}
+                  messages={state.messages}
+                >
+                  <ArtifactHeightSignalProvider value={artifactHeightSignal}>
+                    {state.messages.length > 0 ? (
+                      <ChatThread
+                        messages={state.messages}
+                        streaming={state.streaming}
+                        editingMessageId={editingMessageId}
+                        lastUserMessageId={lastUserMessageId}
+                        activeTheme={activeTheme}
+                        artifactThemeKey={artifactThemeKey}
+                        runRecordsById={state.runRecordsById}
+                        activeRunId={state.activeRunId}
+                        permissionPrompt={state.permissionPrompt}
+                        projectPath={state.projectPath}
+                        toolDiffRequest={requestGit as never}
+                        filesChangedRequest={requestGit as never}
+                        onReviewChanges={() => openRightTab('review')}
+                        onPermission={(decision, scope) => {
+                          void handlePermission(decision, scope);
+                        }}
+                        workDetailsExpanded={preferences.workDetailsExpanded}
+                        toolDensity={preferences.toolDensity}
+                        showThinking={preferences.verboseAgentChat}
+                        artifactPreviewEnabled={preferences.artifactPreviewEnabled}
+                        artifactCodeFirst={preferences.artifactCodeFirst}
+                        plan={sessionPlan}
+                        {...(config?.artifact?.maxBytes !== undefined
+                          ? { artifactMaxBytes: config.artifact.maxBytes }
+                          : {})}
+                        locale={desktopLocale}
+                        onInspectSubagent={handleInspectSubagent}
+                        onEdit={setEditingMessageId}
+                        onCancelEdit={handleCancelMessageEdit}
+                        onEditResend={handleEditAndResendMessage}
+                        onRetry={handleRetryMessage}
+                        onFeedback={handleMessageFeedback}
+                        onArtifactAction={handleArtifactAction}
+                        onOpenDocument={handleOpenDocument}
+                        onPlanExecute={handlePlanExecute}
+                        onPlanAbort={handlePlanAbort}
+                        composerCard={composerCard}
+                        walkthroughsByMessageId={state.walkthroughsByMessageId}
+                        walkthroughEnabled={config?.walkthrough?.enabled !== false}
+                        walkthroughAutoGenerate={false}
+                        onGenerateWalkthrough={handleGenerateWalkthrough}
+                        onCancelWalkthrough={handleCancelWalkthrough}
+                        {...(state.activeSessionId
+                          ? {
+                              onDuplicateSession: () =>
+                                void handleDuplicateSession(state.activeSessionId!),
+                              onForkFromMessage: (messageId: string) =>
+                                void handleForkSession(state.activeSessionId!, messageId),
+                            }
+                          : {})}
+                        derivedActionsDisabled={!state.activeSessionId || state.streaming}
+                      />
+                    ) : null}
+                  </ArtifactHeightSignalProvider>
+                </TranscriptViewport>
+              )}
               {state.compacting ? (
                 <Notice
                   tone="info"
@@ -2063,7 +2137,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               ) : null}
             </>
           }
-         permissionBar={
+          permissionBar={
             state.permissionPrompt ? (
               <PermissionBar
                 prompt={state.permissionPrompt}
@@ -2147,7 +2221,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       handleOpenDocument({
                         title: relativePath.split(/[\\/]/).pop() || relativePath,
                         path: absolutePath,
-                      });
+                      }, 'stage');
                     }}
                     locale={desktopLocale}
                   />
@@ -2211,7 +2285,19 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 reviewContent={
                   <ReviewPanel
                     changesContent={
-                      <ChangesPanel projectPath={state.projectPath} request={requestGit as never} />
+                      <ChangesPanel
+                        projectPath={state.projectPath}
+                        request={requestGit as never}
+                        onOpenFile={(absolutePath, relativePath) => {
+                          handleOpenDocument(
+                            {
+                              title: relativePath.split(/[\\/]/).pop() || relativePath,
+                              path: absolutePath,
+                            },
+                            'stage',
+                          );
+                        }}
+                      />
                     }
                     gitContent={
                       <GitPanel
@@ -2372,6 +2458,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         {settingsOpen ? (
           <SettingsPanel
             hostStatus={hostStatus}
+            hostClient={hostClient}
             request={requestConfig}
             preferences={preferences}
             activeTheme={activeTheme}

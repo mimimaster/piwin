@@ -2,7 +2,25 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { HostToolRegistration, ToolResult } from '@piwin/contracts';
 import { createPlanCreateTool } from './plan-create-tool.js';
+
+async function executeTool(
+  tool: HostToolRegistration,
+  args: Record<string, unknown>,
+): Promise<ToolResult> {
+  return tool.execute(args, new AbortController().signal, {
+    sessionId: 's1',
+    runtimeGenerationId: 'generation-1',
+    runId: 'run-1',
+    toolName: tool.descriptor.name,
+  });
+}
+
+function messageOf(result: ToolResult): string {
+  if (result.ok) return result.output;
+  return result.message;
+}
 
 async function readPlan(planPath: string): Promise<Record<string, unknown>> {
   const raw = await readFile(planPath, 'utf8');
@@ -14,49 +32,47 @@ describe('createPlanCreateTool', () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-create-missing-'));
     const planPath = join(rootDir, 'plan.json');
     const tool = createPlanCreateTool({ sessionId: 's1', projectPath: '/tmp', planPath });
-    await expect(tool.execute({ goal: 'g', steps: [] })).resolves.toContain('error: title');
-    await expect(
-      tool.execute({ title: 't', steps: [{ id: '1', title: 'A' }] }),
-    ).resolves.toContain('error: goal');
+    expect(messageOf(await executeTool(tool, { goal: 'g', steps: [] }))).toContain('title');
+    expect(
+      messageOf(await executeTool(tool, { title: 't', steps: [{ id: '1', title: 'A' }] })),
+    ).toContain('goal');
   });
 
   it('rejects empty steps', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-create-empty-'));
     const planPath = join(rootDir, 'plan.json');
     const tool = createPlanCreateTool({ sessionId: 's1', projectPath: '/tmp', planPath });
-    await expect(
-      tool.execute({ title: 't', goal: 'g', steps: [] }),
-    ).resolves.toContain('error: at least one step');
+    expect(messageOf(await executeTool(tool, { title: 't', goal: 'g', steps: [] }))).toContain(
+      'at least one step',
+    );
   });
 
   it('rejects duplicate step ids', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-create-dup-'));
     const planPath = join(rootDir, 'plan.json');
     const tool = createPlanCreateTool({ sessionId: 's1', projectPath: '/tmp', planPath });
-    await expect(
-      tool.execute({
-        title: 't',
-        goal: 'g',
-        steps: [
-          { id: '1', title: 'A' },
-          { id: '1', title: 'B' },
-        ],
-      }),
-    ).resolves.toContain('error: duplicate step id');
+    const result = await executeTool(tool, {
+      title: 't',
+      goal: 'g',
+      steps: [
+        { id: '1', title: 'A' },
+        { id: '1', title: 'B' },
+      ],
+    });
+    expect(messageOf(result)).toContain('duplicate step id');
   });
 
   it('rejects unknown independent step ids', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-create-unknown-'));
     const planPath = join(rootDir, 'plan.json');
     const tool = createPlanCreateTool({ sessionId: 's1', projectPath: '/tmp', planPath });
-    await expect(
-      tool.execute({
-        title: 't',
-        goal: 'g',
-        steps: [{ id: '1', title: 'A' }],
-        independentSteps: ['1', 'ghost'],
-      }),
-    ).resolves.toContain('error: independentSteps references unknown step id');
+    const result = await executeTool(tool, {
+      title: 't',
+      goal: 'g',
+      steps: [{ id: '1', title: 'A' }],
+      independentSteps: ['1', 'ghost'],
+    });
+    expect(messageOf(result)).toContain('independentSteps references unknown step id');
   });
 
   it('creates a draft plan with derived complexity and skill provenance', async () => {
@@ -71,7 +87,7 @@ describe('createPlanCreateTool', () => {
         updated = plan as unknown as Record<string, unknown>;
       },
     });
-    const result = await tool.execute({
+    const result = await executeTool(tool, {
       title: 'Add auth',
       goal: 'Add login flow',
       steps: [
@@ -84,8 +100,7 @@ describe('createPlanCreateTool', () => {
       source: 'skill',
       skillId: 'writing-plans',
     });
-    expect(result).toContain('ok:');
-    expect(result).toContain('complexity=long');
+    expect(messageOf(result)).toContain('complexity=long');
     const persisted = await readPlan(planPath);
     expect(persisted['status']).toBe('draft');
     expect(persisted['source']).toBe('skill');
@@ -99,12 +114,12 @@ describe('createPlanCreateTool', () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-create-short-'));
     const planPath = join(rootDir, 'plan.json');
     const tool = createPlanCreateTool({ sessionId: 's1', projectPath: '/tmp', planPath });
-    const result = await tool.execute({
+    const result = await executeTool(tool, {
       title: 'Tiny',
       goal: 'Fix typo',
       steps: [{ id: '1', title: 'Fix' }],
     });
-    expect(result).toContain('complexity=short');
+    expect(messageOf(result)).toContain('complexity=short');
   });
 
   it('refuses to clobber an approved plan', async () => {
@@ -130,11 +145,11 @@ describe('createPlanCreateTool', () => {
       'utf8',
     );
     const tool = createPlanCreateTool({ sessionId: 's1', projectPath: '/tmp', planPath });
-    const result = await tool.execute({
+    const result = await executeTool(tool, {
       title: 'New',
       goal: 'g',
       steps: [{ id: '1', title: 'A' }],
     });
-    expect(result).toContain('error: a plan is already approved');
+    expect(messageOf(result)).toContain('a plan is already approved');
   });
 });

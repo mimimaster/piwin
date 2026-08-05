@@ -70,6 +70,7 @@ import type {
   WaitForJobInput,
 } from './job.js';
 import type { RunHostPush } from './run.js';
+import type { SessionRuntimeStatus } from './session-runtime.js';
 
 /**
  * Bytes are base64 only while crossing the desktop-to-host transport.
@@ -581,6 +582,7 @@ export type HostPushVariant =
       event: AgentEvent;
       envelope?: AgentEventEnvelope;
     }
+  | { type: 'session/runtime-updated'; status: SessionRuntimeStatus }
   | {
       type: 'transcript/append';
       sessionId: string;
@@ -670,7 +672,7 @@ export type HostStatusData = {
     sessionLifecycle?: boolean;
     /**
      * True interactive PTY (Tauri + xterm). false until ADR 0013 ships.
-    * When false, desktop exposes Shell preview (line-oriented piped shell) only.
+     * When false, desktop exposes Shell preview (line-oriented piped shell) only.
      */
     pty?: boolean;
     /** CE-SUB worktree isolation. */

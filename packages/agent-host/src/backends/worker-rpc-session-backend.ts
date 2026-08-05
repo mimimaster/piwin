@@ -1,7 +1,12 @@
 /** Isolated worker implementation of the backend-neutral session seam. */
 
 import { EventEmitter } from 'node:events';
-import type { AgentEvent, ExtensionUiPort, HostToolExecutionPort, HostToolExecutionResult } from '@piwin/contracts';
+import type {
+  AgentEvent,
+  ExtensionUiPort,
+  HostToolExecutionPort,
+  HostToolExecutionResult,
+} from '@piwin/contracts';
 import type {
   BackendSessionHandle,
   CreateBackendSessionInput,
@@ -103,9 +108,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
           ...(preparedPrompt.streamingBehavior
             ? { streamingBehavior: preparedPrompt.streamingBehavior }
             : {}),
-          ...(preparedPrompt.thinkingLevel
-            ? { thinkingLevel: preparedPrompt.thinkingLevel }
-            : {}),
+          ...(preparedPrompt.thinkingLevel ? { thinkingLevel: preparedPrompt.thinkingLevel } : {}),
           ...(preparedPrompt.model
             ? {
                 model: {
@@ -131,7 +134,11 @@ export class WorkerSessionBackend implements PiSessionBackend {
       },
     };
 
-    this.sessions.set(input.blueprint.sessionId, {
+    const sessionKey = sessionGenerationKey(
+      input.blueprint.sessionId,
+      input.blueprint.runtimeGenerationId,
+    );
+    this.sessions.set(sessionKey, {
       handle,
       client,
       workerSessionId: created.sessionId,
@@ -148,7 +155,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
       }
     });
     client.on('exit', (code: number | null) => {
-      const session = this.sessions.get(input.blueprint.sessionId);
+      const session = this.sessions.get(sessionKey);
       if (!session) return;
       if (!this.disposing) {
         session.listeners.emit('event', {
@@ -158,7 +165,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
         } satisfies AgentEvent);
       }
       session.listeners.removeAllListeners();
-      this.sessions.delete(input.blueprint.sessionId);
+      this.sessions.delete(sessionKey);
     });
     return handle;
   }
@@ -167,7 +174,10 @@ export class WorkerSessionBackend implements PiSessionBackend {
     frame: WorkerToolCallFrame,
     signal: AbortSignal,
   ): Promise<HostToolExecutionResult> {
-    const session = this.findActiveSession(frame.context.sessionId);
+    const session = this.findActiveSession(
+      frame.context.sessionId,
+      frame.context.runtimeGenerationId,
+    );
     if (!session) {
       return {
         ok: false,
@@ -197,7 +207,10 @@ export class WorkerSessionBackend implements PiSessionBackend {
     return session.hostToolExecution.execute(
       {
         sessionId: frame.context.sessionId,
-        runtimeGenerationId: session.runtimeGenerationId,
+        // Preserve the identity supplied by the worker frame. The exact
+        // generation lookup above is part of the stale-frame boundary; never
+        // rewrite a frame's generation to the matched session as a fallback.
+        runtimeGenerationId: frame.context.runtimeGenerationId,
         runId,
         toolName: descriptor.name,
         arguments: argumentsRecord,
@@ -206,7 +219,16 @@ export class WorkerSessionBackend implements PiSessionBackend {
     );
   }
 
-  private findActiveSession(sessionId: string): ActiveSession | undefined {
+  private findActiveSession(
+    sessionId: string,
+    runtimeGenerationId?: string,
+  ): ActiveSession | undefined {
+    if (runtimeGenerationId !== undefined) {
+      // Tool frames carry a generation identity that must match exactly.
+      // Falling back to another generation would allow a late worker frame to
+      // be routed into the current session surface.
+      return this.sessions.get(sessionGenerationKey(sessionId, runtimeGenerationId));
+    }
     const directMatch = this.sessions.get(sessionId);
     if (directMatch) {
       return directMatch;
@@ -221,6 +243,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
 
   private async requestExtensionUi(request: {
     sessionId: string;
+    runtimeGenerationId: string;
     kind: 'confirm' | 'select' | 'input';
     title: string;
     message?: string;
@@ -231,7 +254,10 @@ export class WorkerSessionBackend implements PiSessionBackend {
     | { kind: 'select'; value?: string; cancelled?: boolean }
     | { kind: 'input'; value?: string; cancelled?: boolean }
   > {
-    const extensionUi = this.findActiveSession(request.sessionId)?.extensionUi;
+    const extensionUi = this.findActiveSession(
+      request.sessionId,
+      request.runtimeGenerationId,
+    )?.extensionUi;
     if (!extensionUi) {
       throw new Error('no extension UI port configured');
     }
@@ -249,14 +275,26 @@ export class WorkerSessionBackend implements PiSessionBackend {
   }
 
   async dropSession(sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId) ??
-      [...this.sessions.values()].find(
-        (candidate) => candidate.workerSessionId === sessionId,
-      );
+    const matching = [...this.sessions.entries()].filter(
+      ([key, candidate]) =>
+        key.startsWith(`${sessionId}\u0000`) || candidate.workerSessionId === sessionId,
+    );
+    for (const [key, session] of matching) {
+      await this.dropManagedSession(key, session);
+    }
+  }
+
+  async dropSessionGeneration(sessionId: string, runtimeGenerationId: string): Promise<void> {
+    const key = sessionGenerationKey(sessionId, runtimeGenerationId);
+    const session = this.sessions.get(key);
     if (!session) {
       return;
     }
-    this.sessions.delete(session.productSessionId);
+    await this.dropManagedSession(key, session);
+  }
+
+  private async dropManagedSession(key: string, session: ActiveSession): Promise<void> {
+    this.sessions.delete(key);
     session.listeners.removeAllListeners();
     await session.client.dropSession(session.workerSessionId).catch(() => {
       // The worker may already have exited; dropping remains best effort.
@@ -276,6 +314,10 @@ export class WorkerSessionBackend implements PiSessionBackend {
       await this.options.supervisor.dispose();
     }
   }
+}
+
+function sessionGenerationKey(sessionId: string, runtimeGenerationId: string): string {
+  return `${sessionId}\u0000${runtimeGenerationId}`;
 }
 
 function normalizeToolArguments(value: unknown): Record<string, unknown> {

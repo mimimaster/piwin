@@ -21,14 +21,14 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import type { BackendPreparedPrompt, SessionCapabilitySnapshot } from '@piwin/contracts';
-import {
-  BLUEPRINT_PROTOCOL_VERSION,
-  projectBlueprintForWorker,
-} from '@piwin/agent-host';
+import type {
+  BackendPreparedPrompt,
+  HostToolRegistration,
+  SessionCapabilitySnapshot,
+} from '@piwin/contracts';
+import { BLUEPRINT_PROTOCOL_VERSION, projectBlueprintForWorker } from '@piwin/agent-host';
 import { buildWorkerProxyTools } from '@piwin/agent-host';
 import { HostToolExecutionRouter } from './tools/host-tool-execution-router.js';
-import type { HostToolDefinition } from '@piwin/tools-web';
 
 function makeHostTools(toolNames: string[]) {
   return toolNames.map((name) => ({ name, description: '', parameters: {} }));
@@ -39,6 +39,7 @@ function snapshot(overrides: Partial<SessionCapabilitySnapshot> = {}): SessionCa
     version: 1,
     snapshotId: 'snap-test-1',
     inputs: {
+      rulesRevision: 'rules-1',
       settingsRevision: 'r1',
       projectRevision: 'r2',
       mcpRevision: 'r3',
@@ -148,20 +149,38 @@ describe('WP6 conformance: prepared prompt parity', () => {
 
 describe('WP6 conformance: tool router parity', () => {
   it('6. same permission decision context for gated bash', async () => {
-    const bashTool: HostToolDefinition = {
-      name: 'bash',
-      description: 'Run bash',
-      parameters: {},
-      execute: async () => 'ok',
+    const bashTool: HostToolRegistration = {
+      descriptor: { name: 'bash', description: 'Run bash', parameters: {} },
+      family: 'shell',
+      permissionSpec: {
+        action: 'bash',
+        risk: 'command',
+        rememberable: false,
+        subjectBuilder: (args) => ({ kind: 'bash', command: String(args.command ?? '') }),
+      },
+      execute: async () => ({ ok: true, output: 'ok' }),
     };
     // SDK path: tool is registered directly, permission gate is called.
     // Worker path: tool-call is proxied to parent, same permission gate.
     // Both paths use the same HostToolExecutionRouter.
     const router = new HostToolExecutionRouter({
       tools: [bashTool],
-      permissionGate: async () => ({ allowed: false, message: 'user denied' }),
+      permissionGate: async () => ({
+        allowed: false,
+        result: { ok: false, code: 'permission-denied', message: 'user denied' },
+      }),
     });
-    const result = await router.execute('bash', { command: 'rm -rf /' });
+    const result = await router.execute(
+      'bash',
+      { command: 'rm -rf /' },
+      new AbortController().signal,
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'generation-1',
+        runId: 'run-1',
+        toolName: 'bash',
+      },
+    );
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe('permission-denied');
@@ -172,8 +191,21 @@ describe('WP6 conformance: tool router parity', () => {
     // When a tool family is disabled, the tool is not in hostTools,
     // so the worker never registers a proxy for it and the SDK never
     // registers the tool. Both paths produce "tool-not-available".
-    const router = new HostToolExecutionRouter({ tools: [] });
-    const result = await router.execute('web_search', { query: 'test' });
+    const router = new HostToolExecutionRouter({
+      tools: [],
+      permissionGate: async () => ({ allowed: true }),
+    });
+    const result = await router.execute(
+      'web_search',
+      { query: 'test' },
+      new AbortController().signal,
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'generation-1',
+        runId: 'run-1',
+        toolName: 'web_search',
+      },
+    );
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.code).toBe('tool-not-available');
@@ -223,7 +255,10 @@ describe('WP6 conformance: tool router parity', () => {
       },
     });
     const t2Blueprint = projectBlueprintForWorker(t2Snap);
-    expect(t2Blueprint.tools.hostTools.map((tool) => tool.name)).toEqual(['web_search', 'image_gen']);
+    expect(t2Blueprint.tools.hostTools.map((tool) => tool.name)).toEqual([
+      'web_search',
+      'image_gen',
+    ]);
     // The T1 blueprint is unaffected by the T2 change.
     expect(t1Blueprint.tools.hostTools.map((tool) => tool.name)).toEqual(['web_search']);
   });

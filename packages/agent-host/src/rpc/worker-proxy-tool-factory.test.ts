@@ -64,13 +64,19 @@ describe('buildWorkerProxyTools', () => {
   it('proxy executor maps permission-denied to model-facing error text', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
       ok: false as false,
-      code: 'permission-denied',
+      code: 'permission-denied' as const,
       message: 'user denied bash execution',
     }));
     const tools = buildWorkerProxyTools(blueprintWithTools(['bash']), proxyCall, 'sess-1');
     const tool = tools[0]!;
 
-    const result = await tool.execute('tc-1', { command: 'rm -rf /' }, undefined, undefined, undefined);
+    const result = await tool.execute(
+      'tc-1',
+      { command: 'rm -rf /' },
+      undefined,
+      undefined,
+      undefined,
+    );
 
     expect(result.content[0]?.text).toContain('Permission denied');
     expect(result.details).toMatchObject({ error: 'permission-denied' });
@@ -79,7 +85,7 @@ describe('buildWorkerProxyTools', () => {
   it('proxy executor maps aborted to clean abort message', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
       ok: false as false,
-      code: 'aborted',
+      code: 'aborted' as const,
       message: 'tool execution aborted',
     }));
     const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall, 'sess-1');
@@ -92,7 +98,7 @@ describe('buildWorkerProxyTools', () => {
   it('proxy executor maps tool-not-available to error text', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
       ok: false as false,
-      code: 'tool-not-available',
+      code: 'tool-not-available' as const,
       message: 'tool not in registry',
     }));
     const tools = buildWorkerProxyTools(blueprintWithTools(['missing_tool']), proxyCall, 'sess-1');
@@ -105,7 +111,7 @@ describe('buildWorkerProxyTools', () => {
   it('proxy executor maps tool-disabled to error text', async () => {
     const proxyCall: ToolProxyCall = vi.fn(async () => ({
       ok: false as false,
-      code: 'tool-disabled',
+      code: 'tool-disabled' as const,
       message: 'web tools family disabled',
     }));
     const tools = buildWorkerProxyTools(blueprintWithTools(['web_search']), proxyCall, 'sess-1');

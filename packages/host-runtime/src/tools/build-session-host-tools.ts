@@ -9,10 +9,9 @@
  * Authority: @piwin/host-runtime (product composition root).
  */
 
-import type { PermissionMode } from '@piwin/contracts';
-import type { HostToolDefinition } from '@piwin/tools-web';
-import { buildSessionTools, type ToolPermissionGate } from '../session-tools.js';
-import { buildProcessTools, type ProcessToolPermissionGate } from '../process-tools.js';
+import type { HostToolRegistration, McpConfigDocument } from '@piwin/contracts';
+import { buildSessionTools } from '../session-tools.js';
+import { buildProcessTools } from '../process-tools.js';
 import { createBrowserToolDefinitions } from '../browser-tools.js';
 import { buildNotesTools } from '../notes-tools.js';
 import { buildFlashcardTools } from '../flashcard-tools.js';
@@ -23,14 +22,22 @@ import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-too
 import { buildImageGenTool, type ImageGenToolOptions } from '../image-gen-tool.js';
 import { buildHostFilesystemTools } from './host-filesystem-tools.js';
 import type { SecretResolver } from '../secret-resolver.js';
-import type { McpLifecycleManager } from '@piwin/mcp';
+import {
+  createMcpGenerationSnapshot,
+  listEnabledServers,
+  loadMcpConfig,
+  type McpGenerationSnapshot,
+  type McpLifecycleManager,
+} from '@piwin/mcp';
+import { resolveWebConfig } from '@piwin/tools-web';
 import type { BrowserSession } from '@piwin/browser';
 import type { NoteStore, NoteIndex, SearchNotesOptions } from '@piwin/notes';
 import type { CardStore } from '@piwin/flashcards';
 import type { JobController } from '@piwin/contracts';
 import type { PiwinConfig } from '@piwin/contracts';
 import { getPiwinSessionPlanPath, getPiwinRoot } from '../paths.js';
-import { getPiwinProjectsPath, getPiwinMediaDir } from '../paths.js';
+import { getPiwinMediaDir } from '../paths.js';
+import { buildCachedMcpToolDefinitions } from '../mcp-cached-tool-definitions.js';
 
 /**
  * Lazy provider for notes services. The Host owns the lifecycle; this
@@ -49,6 +56,11 @@ export type CardStoreProvider = () => Promise<CardStore>;
 /** Lazy provider for the browser session. */
 export type BrowserSessionProvider = () => BrowserSession | undefined;
 
+export type HostToolCompositionDiagnostic = {
+  capability: string;
+  message: string;
+};
+
 /** Options for composing per-session Host tools. */
 export type BuildSessionHostToolsOptions = {
   sessionId: string;
@@ -64,6 +76,13 @@ export type BuildSessionHostToolsOptions = {
 
   /** MCP lifecycle manager for the gateway tool. */
   mcpManager?: McpLifecycleManager | null;
+  /** Runtime generation identity used to scope MCP transports. */
+  runtimeGenerationId?: string;
+  /** Frozen MCP config and enabled server ids for this runtime generation. */
+  mcpConfig?: McpConfigDocument;
+  /** Frozen MCP snapshot; preferred over the compatibility config field. */
+  mcpSnapshot?: McpGenerationSnapshot;
+  mcpEnabledServerIds?: readonly string[];
 
   /** Config for tool availability checks (web, notes, flashcards, image-gen). */
   config?: PiwinConfig;
@@ -74,18 +93,13 @@ export type BuildSessionHostToolsOptions = {
   /** Subagent run seam for the delegate tool. */
   subagentSeam?: SubagentRunSeam;
 
-  /** Permission gate shared by all tools that need interactive approval. */
-  requestPermission?: ToolPermissionGate;
-
-  /** Static permission mode (from config). */
-  permissionMode?: PermissionMode;
-  /** Dynamic permission mode getter (from agent-mode override). */
-  getPermissionMode?: () => PermissionMode;
+  /** Observe optional capability failures while composing a generation. */
+  onDiagnostic?: (diagnostic: HostToolCompositionDiagnostic) => void;
 };
 
 /**
  * Compose the complete set of parent-owned Host tools for one session.
- * Returns concrete `HostToolDefinition[]` with real executors — not
+ * Returns concrete Host registrations with real executors — not
  * name-only descriptors.
  *
  * Tools that cannot be initialized (missing browser session, missing
@@ -94,43 +108,58 @@ export type BuildSessionHostToolsOptions = {
  */
 export async function buildSessionHostTools(
   options: BuildSessionHostToolsOptions,
-): Promise<HostToolDefinition[]> {
-  const tools: HostToolDefinition[] = [];
-  const rootDir = options.piwinRoot ? getPiwinRoot(options.piwinRoot) : undefined;
+): Promise<HostToolRegistration[]> {
+  const tools: HostToolRegistration[] = [];
+  const rootDir = getPiwinRoot(options.piwinRoot);
+
+  let mcpDocument = options.mcpConfig;
+  if (!mcpDocument && options.mcpManager) {
+    try {
+      mcpDocument = await loadMcpConfig(rootDir);
+    } catch (error) {
+      reportCompositionDiagnostic(options, 'mcp-config', error);
+      // Invalid/unreadable MCP config fails closed: no MCP tool surface.
+    }
+  }
+  const mcpSnapshot =
+    options.mcpSnapshot ??
+    createMcpGenerationSnapshot(
+      mcpDocument ?? { mcpServers: {} },
+      options.runtimeGenerationId ?? `${options.sessionId}:direct`,
+    );
+  const mcpConfig = mcpSnapshot.config;
+  const mcpEnabledServerIds =
+    options.mcpEnabledServerIds ?? listEnabledServers(mcpConfig).map((server) => server.id);
 
   // --- Web tools (web_search, web_fetch) ---
   if (options.config?.web) {
     const webRegistration = buildSessionTools({
       webConfig: options.config.web,
-      ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
-      ...(options.projectPath ? { projectPath: options.projectPath } : {}),
-      ...(rootDir
-        ? { projectsFilePath: getPiwinProjectsPath(rootDir) }
-        : {}),
     });
-    tools.push(...webRegistration.tools);
+    const webSearchReady = resolveWebConfig(options.config.web).searchSources.some(
+      (source) => source.enabled,
+    );
+    tools.push(
+      ...webRegistration.tools.filter(
+        (tool) => tool.descriptor.name !== 'web_search' || webSearchReady,
+      ),
+    );
   }
 
   // --- Filesystem + bash tools (read_file, write_file, list_directory, bash, run_bash) ---
   // These are Host-owned executors for the worker manifest. They supplement
   // (not replace) Pi's built-in read/grep/ls with parent-gated write/bash.
-  // The SDK path uses gated-bash-tool.ts / gated-file-tools.ts to override
-  // Pi built-ins by name; this module provides the worker/RPC equivalents.
+  // Pi built-ins remain owned by the Pi backend; these registrations provide
+  // the parent-owned surface shared by SDK and RPC execution.
   const fsTools = buildHostFilesystemTools({
     cwd: options.projectPath ?? rootDir ?? process.cwd(),
-    ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
-    ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}),
-    ...(options.getPermissionMode ? { getPermissionMode: options.getPermissionMode } : {}),
   });
   tools.push(...fsTools);
 
   // --- Process tools (process_start, process_list, process_logs, process_stop) ---
-  if (options.jobController) {
+  if (options.jobController && options.config?.process?.enabled !== false) {
     const processTools = buildProcessTools({
       jobController: options.jobController,
-      ...(options.requestPermission
-        ? { requestPermission: options.requestPermission as ProcessToolPermissionGate }
-        : {}),
       sessionId: options.sessionId,
       ...(options.projectPath ? { projectPath: options.projectPath } : {}),
     });
@@ -141,7 +170,7 @@ export async function buildSessionHostTools(
   const browserSession = options.getBrowserSession?.();
   if (browserSession) {
     const browserTools = createBrowserToolDefinitions(browserSession, {
-      ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
+      projectRoot: options.projectPath ?? rootDir ?? process.cwd(),
     });
     tools.push(...browserTools);
   }
@@ -163,10 +192,10 @@ export async function buildSessionHostTools(
         ...(notesServices.searchOptions.rrfK !== undefined
           ? { rrfK: notesServices.searchOptions.rrfK }
           : {}),
-        ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
       });
       tools.push(...notesTools);
-    } catch {
+    } catch (error) {
+      reportCompositionDiagnostic(options, 'notes', error);
       // Notes services unavailable — omit notes tools.
     }
   }
@@ -178,22 +207,33 @@ export async function buildSessionHostTools(
       const flashcardTools = buildFlashcardTools({
         store: cardStore,
         enabled: true,
-        ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
       });
       tools.push(...flashcardTools);
-    } catch {
+    } catch (error) {
+      reportCompositionDiagnostic(options, 'flashcards', error);
       // Flashcard store unavailable — omit flashcard tools.
     }
   }
 
   // --- MCP gateway tool ---
-  if (options.mcpManager && rootDir) {
+  if (options.mcpManager && mcpEnabledServerIds.length > 0) {
     const mcpTool = buildMcpGatewayToolDefinition({
-      piwinRoot: rootDir,
       lifecycleManager: options.mcpManager,
-      ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
+      mcpConfig,
+      mcpSnapshot,
     });
     tools.push(mcpTool);
+    try {
+      const cachedMcpTools = await buildCachedMcpToolDefinitions({
+        lifecycleManager: options.mcpManager,
+        mcpConfig,
+        mcpSnapshot,
+      });
+      tools.push(...cachedMcpTools.tools);
+    } catch (error) {
+      reportCompositionDiagnostic(options, 'mcp-cached-tools', error);
+      // Cached direct exposure is optional; the gateway remains available.
+    }
   }
 
   // --- Planning tools ---
@@ -243,7 +283,6 @@ export async function buildSessionHostTools(
         allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
       },
       secretResolver: options.secretResolver,
-      ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
     });
     if (imageGenTool) {
       tools.push(imageGenTool);
@@ -254,16 +293,32 @@ export async function buildSessionHostTools(
 }
 
 /**
- * Extract descriptors from concrete tool definitions. This is the only
+ * Extract descriptors from concrete tool registrations. This is the only
  * way to produce `HostToolDescriptor[]` for the blueprint compiler —
  * never generate descriptors from tool names alone.
  */
 export function descriptorsFromTools(
-  tools: readonly HostToolDefinition[],
+  tools: readonly HostToolRegistration[],
 ): import('@piwin/contracts').HostToolDescriptor[] {
   return tools.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    parameters: tool.parameters,
+    name: tool.descriptor.name,
+    description: tool.descriptor.description,
+    parameters: tool.descriptor.parameters,
   }));
+}
+
+function reportCompositionDiagnostic(
+  options: BuildSessionHostToolsOptions,
+  capability: string,
+  error: unknown,
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const diagnostic = {
+    capability,
+    message: `${capability} composition failed; capability omitted or degraded: ${message}`,
+  };
+  options.onDiagnostic?.(diagnostic);
+  if (!options.onDiagnostic) {
+    console.warn(`[host-runtime] ${diagnostic.message}`);
+  }
 }
