@@ -1,18 +1,13 @@
 import type {
+  HostToolRegistration,
   ModelCapability,
   ModelConfigEntry,
   ModelProviderConfig,
   ModelRouteConfig,
   PiwinConfig,
-  PermissionDecision,
-  PermissionRuleSet,
 } from '@piwin/contracts';
-import type { HostToolDefinition } from '@piwin/tools-web';
 import { createMediaService } from '@piwin/media';
 import type { SecretResolver } from './secret-resolver.js';
-import type { ToolPermissionGate } from './session-tools.js';
-import { resolveNonInteractiveDecision } from './permission-policy.js';
-import { findMatchingRule } from './permission-rule-engine.js';
 import { findEnabledProvider, getEnabledProviders } from './provider-helpers.js';
 
 export class ImageGenConfigError extends Error {
@@ -213,34 +208,10 @@ export type ImageGenToolOptions = {
   config: PiwinConfig;
   mediaConfig: { mediaRoot: string; maxPasteBytes: number; allowedMimeTypes: string[] };
   secretResolver: SecretResolver;
-  rules?: PermissionRuleSet;
-  requestPermission?: ToolPermissionGate;
 };
 
-/** Evaluate permission for an image generation network call.
- * Reuses the web-fetch rule engine subject with the provider's base URL host.
- * Defaults to `ask` (paid API call); degrades to `deny` in non-interactive sessions. */
-function evaluateImageGenPermission(
-  providerBaseUrl: string,
-  rules?: PermissionRuleSet,
-): { decision: PermissionDecision; reason: string } {
-  let host: string | undefined;
-  try {
-    host = new URL(providerBaseUrl).hostname.toLowerCase();
-  } catch {
-    host = undefined;
-  }
-  if (host && rules) {
-    const matched = findMatchingRule({ kind: 'web-fetch', host }, rules);
-    if (matched) {
-      return { decision: matched.decision, reason: matched.reason };
-    }
-  }
-  return { decision: 'ask', reason: host ? `image-gen:${host}` : 'image-gen' };
-}
-
 /** Build the image_gen host tool, or null when no image model is configured. */
-export function buildImageGenTool(options: ImageGenToolOptions): HostToolDefinition | null {
+export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistration | null {
   const { config, sessionId, mediaConfig, secretResolver } = options;
   try {
     resolveImageProvider(config);
@@ -249,62 +220,53 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolDefinit
   }
 
   return {
-    name: 'image_gen',
-    description:
-      'Generate a raster image from a text prompt using a configured image model. ' +
-      'Returns the absolute path(s) to saved images under the media store. ' +
-      'Use for photos, illustrations, icons, textures, mockups, or transparent cutouts. ' +
-      'Do not use for SVG/vector/code-native assets or HTML/CSS/canvas visuals.',
-    parameters: {
-      type: 'object',
-      properties: {
-        prompt: { type: 'string', description: 'Detailed prompt describing the image to generate' },
-        model: {
-          type: 'string',
-          description:
-            'Optional image model id (routed by name). Defaults to the configured default model.',
+    descriptor: {
+      name: 'image_gen',
+      description:
+        'Generate a raster image from a text prompt using a configured image model. ' +
+        'Returns the absolute path(s) to saved images under the media store. ' +
+        'Use for photos, illustrations, icons, textures, mockups, or transparent cutouts. ' +
+        'Do not use for SVG/vector/code-native assets or HTML/CSS/canvas visuals.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: {
+            type: 'string',
+            description: 'Detailed prompt describing the image to generate',
+          },
+          model: {
+            type: 'string',
+            description:
+              'Optional image model id (routed by name). Defaults to the configured default model.',
+          },
+          size: {
+            type: 'string',
+            description: 'Optional size (openai: e.g. 1024x1024; gemini: aspect ratio e.g. 1:1)',
+          },
+          quality: { type: 'string', description: 'Optional quality (openai only)' },
+          n: { type: 'number', description: 'Optional number of images (default 1)' },
         },
-        size: {
-          type: 'string',
-          description: 'Optional size (openai: e.g. 1024x1024; gemini: aspect ratio e.g. 1:1)',
-        },
-        quality: { type: 'string', description: 'Optional quality (openai only)' },
-        n: { type: 'number', description: 'Optional number of images (default 1)' },
+        required: ['prompt'],
+        additionalProperties: false,
       },
-      required: ['prompt'],
-      additionalProperties: false,
+    },
+    family: 'image-generation',
+    permissionSpec: {
+      action: 'network:image-gen',
+      risk: 'network',
+      rememberable: false,
+      subjectBuilder: () => ({ kind: 'tool', action: 'network:image-gen' }),
     },
     async execute(args, signal) {
       const prompt = String(args.prompt ?? '').trim();
-      if (!prompt) return JSON.stringify({ error: 'prompt is required' }, null, 2);
+      if (!prompt) {
+        return { ok: false, code: 'invalid-input', message: 'prompt is required' };
+      }
 
       const { provider, model } = resolveImageProvider(
         config,
         typeof args.model === 'string' ? args.model : undefined,
       );
-
-      // Permission gate — image gen is a paid network call, default ask.
-      const evaluation = evaluateImageGenPermission(provider.baseUrl, options.rules);
-      let decision: PermissionDecision = evaluation.decision;
-      if (decision === 'ask') {
-        if (options.requestPermission) {
-          decision = await options.requestPermission({
-            action: 'network:image-gen',
-            detail: prompt.slice(0, 160),
-            defaultDecision: 'ask',
-            ...(signal ? { signal } : {}),
-          });
-        } else {
-          decision = resolveNonInteractiveDecision(evaluation);
-        }
-      }
-      if (decision !== 'allow') {
-        return JSON.stringify(
-          { error: `image_gen permission ${decision}: ${evaluation.reason}` },
-          null,
-          2,
-        );
-      }
 
       const apiKey = await secretResolver.resolveProviderSecret(provider);
       const bytes = await callImageEndpoint(
@@ -333,11 +295,19 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolDefinit
         mimeType: 'image/png',
         source: 'generated',
       });
-      return JSON.stringify(
-        { paths: [asset.absolutePath], mimeType: asset.mimeType, byteSize: asset.byteSize },
-        null,
-        2,
-      );
+      return {
+        ok: true,
+        output: JSON.stringify(
+          { paths: [asset.absolutePath], mimeType: asset.mimeType, byteSize: asset.byteSize },
+          null,
+          2,
+        ),
+        details: {
+          paths: [asset.absolutePath],
+          mimeType: asset.mimeType,
+          byteSize: asset.byteSize,
+        },
+      };
     },
   };
 }

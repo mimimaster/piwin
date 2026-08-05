@@ -1,5 +1,13 @@
 import { join } from 'node:path';
-import type { ExtensionSummary, SessionScope } from '@piwin/contracts';
+import type {
+  ExtensionSummary,
+  ResourceCatalog,
+  ResourceCatalogEntry,
+  ResourceShadowDiagnostic,
+  SessionScope,
+} from '@piwin/contracts';
+import { normalizeResourceId } from '@piwin/contracts';
+import { scanSkills } from '@piwin/skills';
 import { collectExtensionEntryPaths, scanExtensions } from './extension-scanner.js';
 import { ensureBundledExtensionsInstalled } from './ensure-bundled-extensions.js';
 import { collectPromptEntryPaths, scanPrompts } from './prompt-scanner.js';
@@ -28,13 +36,12 @@ export type CreatePiResourceLoaderOptions = {
  * projection. Keeping discovery here prevents the backend from reading
  * product settings while avoiding a product package dependency on Pi.
  */
-export async function createPiResourceLoader(
-  options: CreatePiResourceLoaderOptions,
-): Promise<{
+export async function createPiResourceLoader(options: CreatePiResourceLoaderOptions): Promise<{
   resourceLoader: null;
   skillPaths: string[];
   extensionPaths: string[];
   promptPaths: string[];
+  resourceCatalog: ResourceCatalog;
 }> {
   const projectLocalPath =
     options.scope?.kind === 'general' ? undefined : options.projectPath?.trim() || undefined;
@@ -84,12 +91,96 @@ export async function createPiResourceLoader(
     return allowedSkillIds.size === 0 || allowedSkillIds.has(resourceId);
   });
 
+  const discoveredSkills = await scanSkills({
+    piwinRoot: options.piwinRoot,
+    ...(projectLocalPath ? { projectPath: projectLocalPath } : {}),
+    skillsConfig: {
+      extraPaths: options.extraSkillPaths ?? [],
+      disabledIds: options.disabledSkillIds ?? [],
+    },
+  });
+  const resourceEntries: ResourceCatalogEntry[] = [
+    ...discoveredSkills.map((resource) => ({
+      resourceId: normalizeResourceId(resource.id),
+      kind: 'skill' as const,
+      name: resource.name,
+      description: resource.description,
+      path: resource.path,
+      source: resource.source,
+    })),
+    ...discoveredExtensions.map((resource) => ({
+      resourceId: normalizeResourceId(resource.id),
+      kind: 'extension' as const,
+      name: resource.name,
+      description: resource.description,
+      path: resource.path,
+      source: resource.source,
+    })),
+    ...discoveredPrompts.map((resource) => ({
+      resourceId: normalizeResourceId(resource.id),
+      kind: 'prompt' as const,
+      name: resource.name,
+      description: resource.description,
+      path: resource.path,
+      source: resource.source,
+    })),
+  ];
+
   return {
     resourceLoader: null,
     skillPaths: filteredSkillPaths,
     extensionPaths,
     promptPaths,
+    resourceCatalog: {
+      version: 1,
+      entries: resourceEntries,
+      diagnostics: buildResourceShadowDiagnostics(resourceEntries),
+    },
   };
+}
+
+/** Keep all candidates in the catalog while making precedence collisions explicit. */
+export function buildResourceShadowDiagnostics(
+  entries: readonly ResourceCatalogEntry[],
+): ResourceShadowDiagnostic[] {
+  const sourceOrder = new Map([
+    ['bundled', 0],
+    ['user', 1],
+    ['project', 2],
+    ['mapped', 3],
+    ['pi-native', 4],
+  ] as const);
+  const winners = new Map<string, ResourceCatalogEntry>();
+  const diagnostics: ResourceShadowDiagnostic[] = [];
+  const ordered = entries
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (left, right) =>
+        (sourceOrder.get(left.entry.source) ?? Number.MAX_SAFE_INTEGER) -
+          (sourceOrder.get(right.entry.source) ?? Number.MAX_SAFE_INTEGER) ||
+        left.index - right.index,
+    )
+    .map(({ entry }) => entry);
+
+  for (const entry of ordered) {
+    const resourceId = normalizeResourceId(entry.resourceId);
+    const key = `${entry.kind}\u0000${resourceId}`;
+    const winner = winners.get(key);
+    if (!winner) {
+      winners.set(key, entry);
+      continue;
+    }
+    diagnostics.push({
+      kind: winner.source === entry.source ? 'duplicate-id' : 'shadowed',
+      resourceKind: entry.kind,
+      resourceId,
+      winnerPath: winner.path,
+      winnerSource: winner.source,
+      loserPath: entry.path,
+      loserSource: entry.source,
+    });
+  }
+  return diagnostics;
 }
 
 export function collectSkillPaths(options: {

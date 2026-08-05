@@ -10,8 +10,9 @@ import {
   compileBlueprintForWorker,
   PROVIDER_SECRET_COMPILE_ERROR_CODE,
 } from './blueprint-compiler.js';
-import type { HostToolDescriptor } from '@piwin/contracts';
+import type { HostToolDescriptor, HostToolRegistration, SessionToolFamily } from '@piwin/contracts';
 import { BLUEPRINT_PROTOCOL_VERSION } from '@piwin/agent-host';
+import { toolFamilyIndex } from './tools/tool-family-index.js';
 
 function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
   return {
@@ -27,7 +28,12 @@ function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
       },
     ],
     media: { maxPasteBytes: 10_000_000, allowedMimeTypes: ['image/png'] },
-    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100_000 },
+    artifact: {
+      enabled: true,
+      triggerMode: 'automatic',
+      decisionPrompt: { mode: 'default', customPrompt: '' },
+      maxBytes: 100_000,
+    },
     web: createDefaultWebConfig(),
     skills: { extraPaths: [], disabledIds: [] },
     extensions: { extraPaths: [], disabledIds: [] },
@@ -40,18 +46,56 @@ function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
 
 const generalScope: SessionScope = { kind: 'general' };
 
+function createFamilyIndex(
+  descriptors: readonly HostToolDescriptor[],
+  assignments: ReadonlyMap<string, SessionToolFamily>,
+): ReadonlyMap<SessionToolFamily, readonly string[]> {
+  const descriptorsByName = new Map(descriptors.map((descriptor) => [descriptor.name, descriptor]));
+  const registrations: HostToolRegistration[] = [];
+
+  for (const [name, family] of assignments) {
+    const descriptor = descriptorsByName.get(name);
+    if (!descriptor) {
+      throw new Error(`test family assignment has no descriptor: ${name}`);
+    }
+    registrations.push({
+      descriptor,
+      family,
+      permissionSpec: {
+        action: `test:${name}`,
+        risk: 'unknown',
+        rememberable: false,
+        readOnly: true,
+      },
+      execute: async () => ({ ok: true, output: name }),
+    });
+  }
+
+  return toolFamilyIndex(registrations);
+}
+
+function familyAssignments(
+  entries: ReadonlyArray<readonly [SessionToolFamily, readonly string[]]>,
+): ReadonlyMap<string, SessionToolFamily> {
+  return new Map(
+    entries.flatMap(([family, names]) => names.map((name) => [name, family] as const)),
+  );
+}
+
 describe('compileBlueprintForWorker', () => {
   it('compiles a real blueprint with protocol version and snapshotId', async () => {
     const result = await compileBlueprintForWorker(
       { scope: generalScope },
       {
         config: createConfig(),
+        rulesRevision: 'rules-test',
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
       },
     );
     expect(result.blueprint.protocolVersion).toBe(BLUEPRINT_PROTOCOL_VERSION);
     expect(result.blueprint.snapshotId).not.toBe('transitional');
     expect(result.blueprint.snapshotId).toHaveLength(64); // sha256 hex
+    expect(result.sessionBlueprint.capabilitySnapshot.inputs.rulesRevision).toBe('rules-test');
   });
 
   it('includes discovered resource paths in the blueprint', async () => {
@@ -79,11 +123,29 @@ describe('compileBlueprintForWorker', () => {
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
         hostToolDescriptors: [
           { name: 'web_search', description: 'Search the web', parameters: {} },
+          { name: 'web_fetch', description: 'Fetch a page', parameters: {} },
           { name: 'bash', description: 'Run bash', parameters: {} },
           { name: 'read_file', description: 'Read a file', parameters: {} },
           { name: 'write_file', description: 'Write a file', parameters: {} },
           { name: 'list_directory', description: 'List a directory', parameters: {} },
         ],
+        hostToolFamilyIndex: createFamilyIndex(
+          [
+            { name: 'web_search', description: 'Search the web', parameters: {} },
+            { name: 'web_fetch', description: 'Fetch a page', parameters: {} },
+            { name: 'bash', description: 'Run bash', parameters: {} },
+            { name: 'read_file', description: 'Read a file', parameters: {} },
+            { name: 'write_file', description: 'Write a file', parameters: {} },
+            { name: 'list_directory', description: 'List a directory', parameters: {} },
+          ],
+          familyAssignments([
+            ['web-search', ['web_search']],
+            ['web-fetch', ['web_fetch']],
+            ['shell', ['bash']],
+            ['filesystem-read', ['read_file', 'list_directory']],
+            ['filesystem-write', ['write_file']],
+          ]),
+        ),
       },
     );
     expect(result.blueprint.tools.enabledFamilies).toContain('web-search');
@@ -93,6 +155,37 @@ describe('compileBlueprintForWorker', () => {
     const hostToolNames = result.blueprint.tools.hostTools.map((tool) => tool.name);
     expect(hostToolNames).toContain('web_search');
     expect(hostToolNames).toContain('bash');
+  });
+
+  it('does not advertise web search when every search source is disabled', async () => {
+    const web = createDefaultWebConfig();
+    web.searchSources = web.searchSources.map((source) => ({ ...source, enabled: false }));
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig({ web }),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [
+          { name: 'web_search', description: 'Search the web', parameters: {} },
+          { name: 'web_fetch', description: 'Fetch a page', parameters: {} },
+        ],
+        hostToolFamilyIndex: createFamilyIndex(
+          [
+            { name: 'web_search', description: 'Search the web', parameters: {} },
+            { name: 'web_fetch', description: 'Fetch a page', parameters: {} },
+          ],
+          familyAssignments([
+            ['web-search', ['web_search']],
+            ['web-fetch', ['web_fetch']],
+          ]),
+        ),
+      },
+    );
+
+    expect(result.blueprint.tools.enabledFamilies).not.toContain('web-search');
+    expect(result.blueprint.tools.enabledFamilies).toContain('web-fetch');
+    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).not.toContain('web_search');
+    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toContain('web_fetch');
   });
 
   it('never exposes Pi-native edit or write tools to the worker', async () => {
@@ -326,6 +419,7 @@ describe('compileBlueprintForWorker', () => {
       { name: 'flashcard_list', description: 'List flashcards', parameters: {} },
       { name: 'flashcard_delete', description: 'Delete flashcard', parameters: {} },
       { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
+      { name: 'mcp__docs__search', description: 'MCP search', parameters: {} },
       { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
       { name: 'image_gen', description: 'Generate image', parameters: {} },
     ];
@@ -334,8 +428,46 @@ describe('compileBlueprintForWorker', () => {
       { scope: generalScope },
       {
         config: createConfig(),
+        mcpConfig: { mcpServers: { docs: { command: 'node', args: ['server.js'] } } },
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
         hostToolDescriptors: composedDescriptors,
+        hostToolFamilyIndex: createFamilyIndex(
+          composedDescriptors,
+          familyAssignments([
+            ['web-search', ['web_search']],
+            ['web-fetch', ['web_fetch']],
+            ['filesystem-read', ['read_file', 'list_directory']],
+            ['filesystem-write', ['write_file']],
+            ['shell', ['bash', 'run_bash']],
+            ['process', ['process_start', 'process_list', 'process_logs', 'process_stop']],
+            [
+              'browser',
+              [
+                'browser_navigate',
+                'browser_snapshot',
+                'browser_click',
+                'browser_type',
+                'browser_fill_form',
+                'browser_scroll',
+                'browser_screenshot',
+                'browser_find',
+                'browser_back',
+                'browser_forward',
+              ],
+            ],
+            ['planning', ['piwin_plan_create', 'piwin_plan_set_step']],
+            ['notes-read', ['note_search', 'note_list', 'note_read']],
+            ['notes-write', ['note_write', 'note_update', 'note_delete']],
+            ['flashcards-read', ['flashcard_list']],
+            [
+              'flashcards-write',
+              ['flashcard_create', 'flashcard_batch_create', 'flashcard_delete'],
+            ],
+            ['mcp', ['mcp_gateway', 'mcp__docs__search']],
+            ['delegate', ['piwin_subagent_run']],
+            ['image-generation', ['image_gen']],
+          ]),
+        ),
       },
     );
 
@@ -355,8 +487,35 @@ describe('compileBlueprintForWorker', () => {
     expect(compiledNames).toContain('note_search');
     expect(compiledNames).toContain('flashcard_create');
     expect(compiledNames).toContain('mcp_gateway');
+    expect(compiledNames).toContain('mcp__docs__search');
     expect(compiledNames).toContain('piwin_subagent_run');
     expect(compiledNames).toContain('image_gen');
+  });
+
+  it('does not advertise MCP tools when no enabled server exists', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig(),
+        mcpConfig: { mcpServers: { disabled: { command: 'node', disabled: true } } },
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [
+          { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
+          { name: 'mcp__disabled__search', description: 'Disabled MCP tool', parameters: {} },
+        ],
+        hostToolFamilyIndex: createFamilyIndex(
+          [
+            { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
+            { name: 'mcp__disabled__search', description: 'Disabled MCP tool', parameters: {} },
+          ],
+          familyAssignments([['mcp', ['mcp_gateway', 'mcp__disabled__search']]]),
+        ),
+      },
+    );
+
+    expect(result.blueprint.tools.enabledFamilies).not.toContain('mcp');
+    expect(result.blueprint.tools.enabledMcpServerIds).toEqual([]);
+    expect(result.blueprint.tools.hostTools).toEqual([]);
   });
 
   it('untrusted project compiles no write/process/bash/delegate tools', async () => {
@@ -376,6 +535,24 @@ describe('compileBlueprintForWorker', () => {
           { name: 'process_start', description: 'Start a process', parameters: {} },
           { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
         ],
+        hostToolFamilyIndex: createFamilyIndex(
+          [
+            { name: 'bash', description: 'Run bash', parameters: {} },
+            { name: 'run_bash', description: 'Run bash alias', parameters: {} },
+            { name: 'write_file', description: 'Write a file', parameters: {} },
+            { name: 'read_file', description: 'Read a file', parameters: {} },
+            { name: 'list_directory', description: 'List a directory', parameters: {} },
+            { name: 'process_start', description: 'Start a process', parameters: {} },
+            { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+          ],
+          familyAssignments([
+            ['shell', ['bash', 'run_bash']],
+            ['filesystem-write', ['write_file']],
+            ['filesystem-read', ['read_file', 'list_directory']],
+            ['process', ['process_start']],
+            ['delegate', ['piwin_subagent_run']],
+          ]),
+        ),
       },
     );
 
@@ -409,6 +586,22 @@ describe('compileBlueprintForWorker', () => {
           { name: 'process_start', description: 'Start a process', parameters: {} },
           { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
         ],
+        hostToolFamilyIndex: createFamilyIndex(
+          [
+            { name: 'bash', description: 'Run bash', parameters: {} },
+            { name: 'write_file', description: 'Write a file', parameters: {} },
+            { name: 'read_file', description: 'Read a file', parameters: {} },
+            { name: 'process_start', description: 'Start a process', parameters: {} },
+            { name: 'piwin_subagent_run', description: 'Run subagent', parameters: {} },
+          ],
+          familyAssignments([
+            ['shell', ['bash']],
+            ['filesystem-write', ['write_file']],
+            ['filesystem-read', ['read_file']],
+            ['process', ['process_start']],
+            ['delegate', ['piwin_subagent_run']],
+          ]),
+        ),
       },
     );
 

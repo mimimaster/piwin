@@ -1061,7 +1061,11 @@ describe('HostRuntime', () => {
     const cfgRes = await runtime.handleCommand({ type: 'settings/get' });
     expect(cfgRes.success).toBe(true);
     if (!cfgRes.success) throw new Error(cfgRes.error);
-    const snapshot = (cfgRes.data as { snapshot: { config: import('@piwin/contracts').PiwinConfig; revision: string } }).snapshot;
+    const snapshot = (
+      cfgRes.data as {
+        snapshot: { config: import('@piwin/contracts').PiwinConfig; revision: string };
+      }
+    ).snapshot;
     const config = snapshot.config;
     const enabledOnly = await runtime.handleCommand({
       type: 'settings/apply',
@@ -1289,7 +1293,7 @@ describe('HostRuntime', () => {
     const projectPath = join(rootDir, 'bash-project');
     await runtime.handleCommand({ type: 'project/open', path: projectPath });
 
-    // Detail format from gated-bash-tool is `<reason>: <command>`. The command
+    // Detail format from the parent-owned bash registration is `<reason>: <command>`. The command
     // after `: ` is what gets remembered, verbatim.
     const decision = await runtime.requestPermission({
       sessionId: 'sess-bash',
@@ -1486,7 +1490,6 @@ describe('HostRuntime', () => {
       console.warn = originalWarn;
     }
   });
-
 });
 
 async function waitForPushType(pushes: string[], type: string): Promise<void> {

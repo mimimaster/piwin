@@ -152,8 +152,9 @@ describe('session live control commands', () => {
     expect(context.getForegroundRun(session.id)).toBeTruthy();
     expect(
       events
-        .filter((message): message is Extract<HostPush, { type: 'run/updated' }> =>
-          message.type === 'run/updated',
+        .filter(
+          (message): message is Extract<HostPush, { type: 'run/updated' }> =>
+            message.type === 'run/updated',
         )
         .map((message) => message.run.phase),
     ).toEqual(['accepted', 'preparing']);
@@ -423,6 +424,7 @@ function createControlContext(
     runtimeController: new SessionRuntimeController({
       isRunInFlight: (sessionId) => registry.getForegroundRun(sessionId) !== undefined,
     }),
+    cancelRuntimeReplacement: async () => undefined,
     reloadRuntime: async () => ({ generationId: 'generation-2', settingsRevision: 'rev-2' }),
     loadConfig: async () => ({}) as any,
   };

@@ -11,8 +11,10 @@ import type {
   HostPush,
   HostResponse,
   HostStatusData,
+  HostToolRegistration,
   JobController,
   MediaAttachmentRef,
+  McpConfigDocument,
   MediaSaveData,
   ModelRef,
   PermissionDecision,
@@ -60,14 +62,17 @@ import {
   loadMcpConfig,
   saveMcpConfig,
   tryValidateMcpConfig,
+  createMcpGenerationSnapshot,
+  type McpGenerationSnapshot,
   type McpLifecycleManager,
 } from '@piwin/mcp';
+import { createFileRecordStore, createJobRegistry, type JobRegistryEvent } from '@piwin/process';
 import {
-  createFileRecordStore,
-  createJobRegistry,
-  type JobRegistryEvent,
-} from '@piwin/process';
-import { createGitService, removeWorktree, integrateWorktreeChanges, isWorktreeBaseClean } from '@piwin/git';
+  createGitService,
+  removeWorktree,
+  integrateWorktreeChanges,
+  isWorktreeBaseClean,
+} from '@piwin/git';
 import {
   deleteCronJob,
   getCronStorePath,
@@ -147,7 +152,11 @@ import { createTranscriptRecorder } from './transcript-recorder.js';
 import { createDelayedSessionHandle } from './delayed-session-fixture.js';
 import { createProductShellSession } from './product-shell-session.js';
 import { formatPlanForModelContext } from './format-plan-context.js';
-import { ProductAgentHost } from './product-agent-host.js';
+import {
+  ProductAgentHost,
+  type PreparedProductSession,
+  type ProductAgentHostToolRegistrationMode,
+} from './product-agent-host.js';
 import { loadPiwinConfig, savePiwinConfig } from './config-store.js';
 import { maybeAutoNameSession } from './session-naming-service.js';
 import { createSecretResolver } from './secret-resolver.js';
@@ -164,6 +173,9 @@ import {
   getPiwinUsageLedgerPath,
 } from './paths.js';
 import { buildPermissionRequestContext } from './permission-context.js';
+import { createBundledRuleSet } from './permission-defaults.js';
+import { computePermissionRulesRevision } from './permission-rule-revision.js';
+import { loadMergedPermissionRules } from './permission-rule-loader.js';
 import { SessionAllowlist } from './session-allowlist.js';
 import { fail, ok } from './response-helpers.js';
 import { indexRecordToSummary } from './session-summary-map.js';
@@ -175,6 +187,7 @@ import {
 } from './commands/session-live-commands.js';
 import type { HostCommandContext } from './commands/host-command-context.js';
 import { SessionRuntimeController } from './sessions/session-runtime-controller.js';
+import { createImmediateSafetyPredicate } from './sessions/immediate-safety-gate.js';
 import {
   SessionRuntimeReplacementEngine,
   type RuntimeReplacementCandidate,
@@ -190,12 +203,25 @@ import {
   type SessionHostToolExecutionPort,
 } from './tools/session-host-tool-port.js';
 import { buildSessionHostTools, descriptorsFromTools } from './tools/build-session-host-tools.js';
+import { createHostToolPermissionGate } from './tools/host-tool-admission-gate.js';
+import { toolFamilyIndex } from './tools/tool-family-index.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
-import type { SubagentOrchestratorOptions, SubagentTaskPreparationInput, PreparedSubagentTask } from './subagent-orchestrator.js';
+import type {
+  SubagentOrchestratorOptions,
+  SubagentTaskPreparationInput,
+  PreparedSubagentTask,
+} from './subagent-orchestrator.js';
 import { planSubagentSpawn } from './subagent-lifecycle-service.js';
 import { createSubagentWorkspaceService } from './subagent-workspace-service.js';
-import { createSubagentIntegrationCoordinator, createGitWorktreeIntegrationAdapter, type SubagentIntegrationCoordinator } from './subagent-integration-coordinator.js';
-import { createRuntimeResourceCoordinator, type RuntimeResourceCoordinator } from './runtime-resource-coordinator.js';
+import {
+  createSubagentIntegrationCoordinator,
+  createGitWorktreeIntegrationAdapter,
+  type SubagentIntegrationCoordinator,
+} from './subagent-integration-coordinator.js';
+import {
+  createRuntimeResourceCoordinator,
+  type RuntimeResourceCoordinator,
+} from './runtime-resource-coordinator.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
 import type {
@@ -225,13 +251,10 @@ export type HostRuntimeOptions = {
    * over `config.permissions.mode` without persisting to disk.
    */
   permissionModeOverride?: PermissionMode;
- };
+};
 
 export type HostRuntimeTestFixture =
   'hang-until-abort' | 'slow-first-token' | 'high-rate-tool-output';
-
-const NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE =
-  'subagent orchestration is not ready in this host runtime';
 
 type SessionLineage = {
   parentSessionId?: string;
@@ -250,6 +273,11 @@ type SessionLineage = {
   subagentRuntime?: import('@piwin/contracts').SubagentRuntimeSnapshot;
   /** CE-SUB-LIFE: orthogonal execution/summary/integration state axes. */
   subagentLifecycle?: import('@piwin/contracts').SubagentLifecycleState;
+};
+
+type ComposedSessionHostTools = {
+  tools: HostToolRegistration[];
+  permissionGate: import('./tools/host-tool-execution-router.js').HostToolPermissionGate;
 };
 
 export class HostRuntime {
@@ -319,6 +347,8 @@ export class HostRuntime {
   private readonly sessionAllowlists = new Map<string, SessionAllowlist>();
   /** Per-session permission mode overrides set by agent mode (Plan/Ask). */
   private readonly sessionPermissionOverrides = new Map<string, PermissionMode>();
+  /** Latest persisted permission mode; read dynamically by every admission gate. */
+  private permissionModeFromConfig: PermissionMode = 'auto';
   private readonly pendingExtensionUi = new Map<
     string,
     {
@@ -355,6 +385,17 @@ export class HostRuntime {
    * Mock mode leaves this null; capabilities.customTools follows the same flag.
    */
   private readonly sessionHostToolPort: SessionHostToolExecutionPort | null;
+  /** Frozen Host tool surface per (sessionId, runtimeGenerationId). */
+  private readonly generationToolSurfaces = new Map<string, Promise<ComposedSessionHostTools>>();
+  /** MCP config snapshot paired with each frozen tool surface. */
+  private readonly generationMcpConfigs = new Map<string, McpConfigDocument>();
+  private readonly generationMcpSnapshots = new Map<string, McpGenerationSnapshot>();
+  /** Permission-rule revision paired with each frozen tool surface. */
+  private readonly generationPermissionRuleRevisions = new Map<string, string>();
+  /** Candidate backend resources prepared before runtime commit. */
+  private readonly preparedRuntimeGenerations = new Map<string, PreparedProductSession>();
+  /** Retired active handles waiting for post-commit disposal. */
+  private readonly retiredRuntimeSessions = new Map<string, SessionHandle>();
   /**
    * ADR 0027: push sinks. The legacy `onPush` option is registered under
    * {@link LEGACY_LOCAL_SINK_ID} so existing single-sink callers keep working.
@@ -388,14 +429,17 @@ export class HostRuntime {
     this.runtimeController = new SessionRuntimeController({
       isRunInFlight: (sessionId) => {
         const generationId = this.runtimeController.getStatus(sessionId).generationId;
-        return this.runRegistry.list({
-          status: ['queued', 'running', 'cancelling'],
-        }).some(
-          (run) =>
-            run.sessionId === sessionId ||
-            (generationId !== undefined && run.runtimeGenerationId === generationId),
-        );
+        return this.runRegistry
+          .list({
+            status: ['queued', 'running', 'cancelling'],
+          })
+          .some(
+            (run) =>
+              run.sessionId === sessionId ||
+              (generationId !== undefined && run.runtimeGenerationId === generationId),
+          );
       },
+      onChanged: (status) => this.push({ type: 'session/runtime-updated', status }),
     });
     this.runtimeReplacementEngine = new SessionRuntimeReplacementEngine({
       controller: this.runtimeController,
@@ -411,8 +455,21 @@ export class HostRuntime {
       },
       compileCandidate: (sessionId, generationId, settingsRevision) =>
         this.compileRuntimeCandidate(sessionId, generationId, settingsRevision),
-      disposeGeneration: (sessionId, generationId) => this.disposeRuntimeGeneration(sessionId, generationId),
-      createGeneration: (sessionId, candidate) => this.createRuntimeGeneration(sessionId, candidate),
+      disposeGeneration: (sessionId, generationId) =>
+        this.disposeRuntimeGeneration(sessionId, generationId),
+      createGeneration: (sessionId, candidate) =>
+        this.createRuntimeGeneration(sessionId, candidate),
+      rollbackGeneration: (sessionId, generationId) =>
+        this.rollbackRuntimeGeneration(sessionId, generationId),
+      abortGeneration: (sessionId, generationId) =>
+        this.abortRuntimeGeneration(sessionId, generationId),
+      onCleanupError: ({ sessionId, generationId, error }) => {
+        this.push({
+          type: 'host/log',
+          level: 'error',
+          message: `runtime replacement cleanup failed for ${sessionId}/${generationId}: ${formatUnknownError(error)}`,
+        });
+      },
     });
     // Single process owner for Desktop UI lifecycle + SDK session tools.
     const rootDir = getPiwinRoot(options.piwinRoot);
@@ -421,9 +478,7 @@ export class HostRuntime {
     // CE-JOB: unified job controller — sole authority for non-interactive
     // OS child processes (ADR 0030 Phase B). No legacy compatibility layer.
     // ADR 0030: durable JobRecord persistence for host-start reconciliation.
-    const jobRecordStore = createFileRecordStore(
-      join(rootDir, 'jobs', 'records.json'),
-    );
+    const jobRecordStore = createFileRecordStore(join(rootDir, 'jobs', 'records.json'));
     const jobController = createJobRegistry({
       recordStore: jobRecordStore,
       // Admission policy is derived from the persisted settings on every
@@ -472,9 +527,27 @@ export class HostRuntime {
       ...(options.piwinRoot ? { piwinRoot: options.piwinRoot } : {}),
       onGenerationCreated: (sessionId: string, generationId: string, settingsRevision: string) =>
         this.runtimeController.attachGeneration(sessionId, generationId, settingsRevision),
-      onGenerationDetached: (sessionId: string) => {
+      onGenerationDetached: async (sessionId: string) => {
         this.runtimeController.detachGeneration(sessionId);
         this.sessionHostToolPort?.clearSession(sessionId);
+        await this.releaseGenerationToolSurfaces(sessionId);
+      },
+      getMcpConfig: async (sessionId: string, runtimeGenerationId: string) =>
+        this.getGenerationMcpConfig(sessionId, runtimeGenerationId),
+      getPermissionRulesRevision: (sessionId: string, runtimeGenerationId: string) =>
+        this.generationPermissionRuleRevisions.get(`${sessionId}\u0000${runtimeGenerationId}`),
+      restrictToolSurface: (
+        sessionId: string,
+        runtimeGenerationId: string,
+        toolNames: readonly string[],
+      ) => {
+        if (
+          !this.sessionHostToolPort?.restrictGeneration(sessionId, runtimeGenerationId, toolNames)
+        ) {
+          throw new Error(
+            `compiled Host tool surface is not registered: ${sessionId}/${runtimeGenerationId}`,
+          );
+        }
       },
       getCurrentRunId: () => this.runExecutionContext.getStore(),
     };
@@ -498,16 +571,40 @@ export class HostRuntime {
             run.runtimeGenerationId === runtimeGenerationId
           );
         },
-        buildToolsForSession: (sessionId) => this.buildSessionHostToolsForSession(sessionId),
+        // Repair spec WP2: the live safety predicate reads the controller's
+        // pending tightening domains on every tool call, so a settings
+        // tighten blocks new side effects immediately — before the candidate
+        // generation finishes compiling. Child task sessions inherit the
+        // parent's runtime generation and therefore read the parent's live
+        // tightening state as well.
+        isToolDisabled: createImmediateSafetyPredicate({
+          getPendingDomains: (sessionId) => {
+            const safetySessionId =
+              this.subagentSessionContexts.get(sessionId)?.parentSessionId ?? sessionId;
+            return this.runtimeController.getStatus(safetySessionId).staleDomains;
+          },
+        }),
       });
       this.agentWorkerSupervisor = this.createAgentWorkerSupervisor();
       this.host = new ProductAgentHost({
         ...commonHostOptions,
         mock: false,
         hostToolExecution: this.sessionHostToolPort,
-        buildToolDescriptors: async (sessionId) => {
-          const tools = await this.buildSessionHostToolsForSession(sessionId);
+        buildToolDescriptors: async (sessionId, runtimeGenerationId, mode = 'active') => {
+          const tools = await this.buildSessionHostToolsForSession(
+            sessionId,
+            runtimeGenerationId,
+            mode,
+          );
           return descriptorsFromTools(tools);
+        },
+        buildToolFamilyIndex: async (sessionId, runtimeGenerationId, mode = 'active') => {
+          const tools = await this.buildSessionHostToolsForSession(
+            sessionId,
+            runtimeGenerationId,
+            mode,
+          );
+          return toolFamilyIndex(tools);
         },
         // Resolve trust from the project store so untrusted projects
         // cannot compile write/process/bash/delegate capabilities.
@@ -527,7 +624,7 @@ export class HostRuntime {
       // ADR 0030 Phase D-3: compose the production SubagentOrchestrator.
       // Only non-mock mode gets real worker processes, workspace services,
       // and integration coordinators. Mock mode leaves the orchestrator null
-      // and batch IPC returns NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE.
+      // and batch IPC returns a normalized not-ready response.
       this.composeSubagentOrchestrator();
     }
   }
@@ -537,6 +634,7 @@ export class HostRuntime {
   }
 
   async dispose(): Promise<void> {
+    const replacementCleanup = this.runtimeReplacementEngine.cancelAll();
     const activeRuns = this.runRegistry.list({
       status: ['queued', 'running', 'cancelling'],
     });
@@ -573,13 +671,11 @@ export class HostRuntime {
       }
     }
     for (const run of activeRuns) {
-      this.runRegistry.terminate(
-        run.runId,
-        'cancelled',
-        'host-shutdown',
-        'host disposed',
-      );
+      this.runRegistry.terminate(run.runId, 'cancelled', 'host-shutdown', 'host disposed');
     }
+    // Replacement cleanup must finish before MCP/Host disposal so a cancelled
+    // candidate cannot recreate a generation against already-closed services.
+    await replacementCleanup;
     for (const pendingPermission of this.pendingPermissions.values()) {
       pendingPermission.resolve('deny');
     }
@@ -658,6 +754,25 @@ export class HostRuntime {
     this.subagentWorkspaceService = null;
     this.runtimeResourceCoordinator = null;
     await this.host.dispose();
+    this.subagentSessionContexts.clear();
+    this.generationToolSurfaces.clear();
+    this.generationMcpConfigs.clear();
+    this.generationMcpSnapshots.clear();
+    this.generationPermissionRuleRevisions.clear();
+    this.preparedRuntimeGenerations.clear();
+    this.retiredRuntimeSessions.clear();
+    this.sessionAllowlists.clear();
+    this.sessionPermissionOverrides.clear();
+    this.sessionUsage.clear();
+    this.sessionLastPromptText.clear();
+    this.sessionModels.clear();
+    this.sessionLastAssistantReply.clear();
+    this.assistantTextBuffers.clear();
+    this.sessionAutoCompactionOverrides.clear();
+    this.sessionFilesTouched.clear();
+    this.subagentTaskResults.clear();
+    this.workerCrashCleanupRoots.clear();
+    this.eventEnvelopeGenerators.clear();
     this.sessionHostToolPort?.clear();
     this.ready = false;
   }
@@ -690,9 +805,29 @@ export class HostRuntime {
             | undefined;
           if (Array.isArray(data?.changedDomains)) {
             const changedDomains = data.changedDomains.map((item) => item.domain);
+            const settingsConfig = (
+              domain.data as {
+                snapshot?: { config?: import('@piwin/contracts').PiwinConfig };
+              }
+            ).snapshot?.config;
+            if (settingsConfig?.permissions?.mode) {
+              this.permissionModeFromConfig = settingsConfig.permissions.mode;
+            }
             for (const sessionId of this.sessions.keys()) {
               this.runtimeController.recordSettingsChange(sessionId, changedDomains);
             }
+          }
+        }
+        if (
+          (command.type === 'mcp/save' ||
+            command.type === 'mcp/registry-install-draft' ||
+            command.type === 'plugins/install' ||
+            command.type === 'plugins/uninstall') &&
+          domain.type === 'response' &&
+          domain.success
+        ) {
+          for (const sessionId of this.sessions.keys()) {
+            this.runtimeController.recordSettingsChange(sessionId, ['mcp']);
           }
         }
         return domain;
@@ -711,313 +846,6 @@ export class HostRuntime {
         case 'host/status':
           return ok(requestId, 'host/status', this.getStatus());
 
-        case 'notes/list': {
-          const { store } = await this.getNotesServices();
-          const filter: { collection?: string; tags?: string[] } = {};
-          if (command.collection) filter.collection = command.collection;
-          if (command.tags && command.tags.length > 0) filter.tags = command.tags;
-          const records = await store.list(filter);
-          return ok(requestId, 'notes/list', { records });
-        }
-        case 'notes/read': {
-          const { store } = await this.getNotesServices();
-          const record = await store.read(command.noteId);
-          return ok(requestId, 'notes/read', { record });
-        }
-        case 'notes/search': {
-          const services = await this.getNotesServices();
-          const { searchNotes } = await import('@piwin/notes');
-          const hits = await searchNotes(services.index, command.query, services.searchOptions);
-          return ok(requestId, 'notes/search', { hits });
-        }
-        case 'notes/write': {
-          const { store } = await this.getNotesServices();
-          const record = await store.write(command.input);
-          return ok(requestId, 'notes/write', { record });
-        }
-        case 'notes/update': {
-          const { store } = await this.getNotesServices();
-          const record = await store.update(command.input);
-          return ok(requestId, 'notes/update', { record });
-        }
-        case 'notes/delete': {
-          const { store } = await this.getNotesServices();
-          const result = await store.delete(command.noteId);
-          return ok(requestId, 'notes/delete', result);
-        }
-        case 'notes/reindex': {
-          const { index } = await this.getNotesServices();
-          await index.rebuild();
-          return ok(requestId, 'notes/reindex', { rebuilt: true });
-        }
-        case 'notes/eval-run': {
-          const services = await this.getNotesServices();
-          const { loadGoldenSet, runRecallEval, searchNotes } = await import('@piwin/notes');
-          const { cases, warnings } = await loadGoldenSet(services.store.getNotesRoot());
-          if (cases.length === 0) {
-            return fail(
-              requestId,
-              'notes/eval-run',
-              'Golden set empty. Pin cases first (piwin notes pin / search result pin).',
-            );
-          }
-          const k = command.k && command.k > 0 ? Math.floor(command.k) : 5;
-          const modes: Array<'fts' | 'vector' | 'hybrid'> = services.searchOptions.embeddingProvider
-            ? ['fts', 'vector', 'hybrid']
-            : ['fts'];
-          const reports = [];
-          for (const mode of modes) {
-            // Detect embedding-provider degradation so the report never
-            // silently labels FTS numbers as vector/hybrid results.
-            let degraded = false;
-            const report = await runRecallEval({
-              cases,
-              mode,
-              k,
-              search: async (query, limit, searchMode) =>
-                searchNotes(
-                  services.index,
-                  { query, limit, mode: searchMode },
-                  { ...services.searchOptions, onWarning: () => (degraded = true) },
-                ),
-              wasDegraded: () => degraded,
-            });
-            services.index.saveEvalRun(report);
-            reports.push(report);
-          }
-          return ok(requestId, 'notes/eval-run', { reports, warnings });
-        }
-        case 'notes/eval-history': {
-          const { index } = await this.getNotesServices();
-          const runs = index.listEvalRuns();
-          return ok(requestId, 'notes/eval-history', { runs });
-        }
-
-        case 'flashcards/create': {
-          const store = await this.getCardStore();
-          const card = await store.create(command.input);
-          return ok(requestId, 'flashcards/create', { card });
-        }
-        case 'flashcards/list': {
-          const store = await this.getCardStore();
-          const filter: { deck?: string; sourceNoteId?: string; sourceFolder?: string } = {};
-          if (command.deck) filter.deck = command.deck;
-          if (command.sourceNoteId) filter.sourceNoteId = command.sourceNoteId;
-          if (command.sourceFolder) filter.sourceFolder = command.sourceFolder;
-          const cards = await store.list(filter);
-          return ok(requestId, 'flashcards/list', { cards });
-        }
-        case 'flashcards/batch-create': {
-          const store = await this.getCardStore();
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const config = await loadPiwinConfig(rootDir);
-          const maxBatchSize = config.flashcards?.maxBatchSize ?? 40;
-          const result = await store.batchCreate(command.input, maxBatchSize);
-          const { buildFlashcardBatchArtifactHtml } = await import('@piwin/flashcards');
-          const artifactHtml = buildFlashcardBatchArtifactHtml(result.created);
-          return ok(requestId, 'flashcards/batch-create', { ...result, artifactHtml });
-        }
-        case 'flashcards/delete': {
-          const store = await this.getCardStore();
-          const result = await store.delete(command.cardId);
-          return ok(requestId, 'flashcards/delete', result);
-        }
-        case 'flashcards/decks': {
-          const store = await this.getCardStore();
-          const decks = await store.listDecks();
-          return ok(requestId, 'flashcards/decks', { decks });
-        }
-        case 'flashcards/queue': {
-          const store = await this.getCardStore();
-          const rootDir = getPiwinRoot(this.options.piwinRoot);
-          const config = await loadPiwinConfig(rootDir);
-          const { buildReviewQueue } = await import('@piwin/flashcards');
-          const cards = await store.list();
-          const states = await store.loadReviewStates();
-          const queue = buildReviewQueue({
-            cards,
-            states,
-            ...(command.deck ? { deck: command.deck } : {}),
-            ...(typeof config.flashcards?.newPerDay === 'number'
-              ? { newPerDay: config.flashcards.newPerDay }
-              : {}),
-            ...(typeof config.flashcards?.maxReviewsPerDay === 'number'
-              ? { maxReviewsPerDay: config.flashcards.maxReviewsPerDay }
-              : {}),
-          });
-          return ok(requestId, 'flashcards/queue', { queue });
-        }
-        case 'flashcards/rate': {
-          // Direct user intent from UI (review panel / artifact rate button);
-          // no permission gate — equivalent to clicking in the product shell.
-          const store = await this.getCardStore();
-          const state = await store.rate(command.cardId, command.rating);
-          return ok(requestId, 'flashcards/rate', { state });
-        }
-        case 'flashcards/export': {
-          const store = await this.getCardStore();
-          const { exportCardsToTsv } = await import('@piwin/flashcards');
-          const cards = await store.list(command.deck ? { deck: command.deck } : undefined);
-          return ok(requestId, 'flashcards/export', {
-            tsv: exportCardsToTsv(cards),
-            count: cards.length,
-          });
-        }
-        case 'doccards/scan-folder': {
-          const rag = await this.getFolderRag();
-          const result = await rag.scanFolder(command.folderPath);
-          return ok(requestId, 'doccards/scan-folder', result);
-        }
-        case 'doccards/index-folder': {
-          const rag = await this.getFolderRag();
-          const result = await rag.indexFolder(
-            command.folderPath,
-            command.includeFiles ? { includeFiles: command.includeFiles } : undefined,
-          );
-          return ok(requestId, 'doccards/index-folder', result);
-        }
-        case 'doccards/retrieve': {
-          const rag = await this.getFolderRag();
-          const { canonicalizeFolderPath } = await import('@piwin/doc-rag');
-          const canonical = await canonicalizeFolderPath(command.folderPath);
-          const chunks = await rag.retrieve(command.folderPath, command.query, {
-            ...(command.limit !== undefined ? { limit: command.limit } : {}),
-            ...(command.fileAllowlist ? { fileAllowlist: command.fileAllowlist } : {}),
-            ...(command.maxTotalChars !== undefined
-              ? { maxTotalChars: command.maxTotalChars }
-              : {}),
-          });
-          return ok(requestId, 'doccards/retrieve', {
-            chunks,
-            canonicalPath: canonical ?? command.folderPath,
-            degraded: !rag.hasEmbeddingProvider,
-          });
-        }
-        case 'doccards/list-by-folder': {
-          const store = await this.getCardStore();
-          const { canonicalizeFolderPath } = await import('@piwin/doc-rag');
-          const canonical = await canonicalizeFolderPath(command.folderPath);
-          const records = await store.list(
-            canonical ? { sourceFolder: canonical } : { sourceFolder: command.folderPath },
-          );
-          return ok(requestId, 'doccards/list-by-folder', {
-            records,
-            folderExists: canonical !== null,
-            canonicalPath: canonical ?? command.folderPath,
-          });
-        }
-        case 'doccards/rebind-folder': {
-          const store = await this.getCardStore();
-          const { canonicalizeFolderPath } = await import('@piwin/doc-rag');
-          const oldCanonical = await canonicalizeFolderPath(command.oldPath);
-          const newCanonical = await canonicalizeFolderPath(command.newPath);
-          const result = await store.rebindSourceFolder(
-            oldCanonical ?? command.oldPath,
-            newCanonical ?? command.newPath,
-          );
-          return ok(requestId, 'doccards/rebind-folder', result);
-        }
-        case 'doccards/forget-folder': {
-          const store = await this.getCardStore();
-          const { canonicalizeFolderPath } = await import('@piwin/doc-rag');
-          const canonical = await canonicalizeFolderPath(command.folderPath);
-          const result = await store.deleteBySourceFolder(canonical ?? command.folderPath);
-          return ok(requestId, 'doccards/forget-folder', result);
-        }
-        case 'doccards/open-source': {
-          const store = await this.getCardStore();
-          const card = await store.read(command.cardId);
-          if (!card.sourceFolder || !card.sourceFile) {
-            throw new Error('Card has no folder source attribution');
-          }
-          const { canonicalizeFolderPath, isPathConfined } = await import('@piwin/doc-rag');
-          const canonical = await canonicalizeFolderPath(card.sourceFolder);
-          if (!canonical) {
-            throw new Error(`Source folder no longer exists: ${card.sourceFolder}`);
-          }
-          if (!(await isPathConfined(canonical, card.sourceFile))) {
-            throw new Error('Source file path is not confined to the folder');
-          }
-          const { join } = await import('node:path');
-          const absPath = join(canonical, card.sourceFile);
-          // Open via OS default; Tauri shell or $EDITOR in real desktop.
-          // For host-runtime, return the resolved path so the caller can open it.
-          return ok(requestId, 'doccards/open-source', { opened: true, path: absPath });
-        }
-        case 'job/start': {
-          const jobController = this.getJobController();
-          const job = await jobController.start(command.input);
-          return ok(requestId, 'job/start', { job });
-        }
-        case 'job/list': {
-          const jobController = this.getJobController();
-          const jobs = await jobController.list(command.filter);
-          return ok(requestId, 'job/list', { jobs });
-        }
-        case 'job/get': {
-          const jobController = this.getJobController();
-          const job = await jobController.get(command.jobId);
-          return ok(requestId, 'job/get', { job });
-        }
-        case 'job/logs': {
-          const jobController = this.getJobController();
-          const result = await jobController.readLogs(command.input);
-          return ok(requestId, 'job/logs', result);
-        }
-        case 'job/wait': {
-          const jobController = this.getJobController();
-          const abortController = new AbortController();
-          const job = await jobController.wait(command.input, abortController.signal);
-          return ok(requestId, 'job/wait', { job });
-        }
-        case 'job/stop': {
-          const jobController = this.getJobController();
-          const reason = command.reason ?? 'user-stop';
-          const result = await jobController.stop(command.jobId, reason);
-          return ok(requestId, 'job/stop', result);
-        }
-        case 'subagent/batch-start': {
-          if (!this.subagentOrchestrator) {
-            return fail(
-              requestId,
-              command.type,
-              NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE,
-            );
-          }
-          const preparedRequest = await this.prepareSubagentBatch(command.request);
-          const handle = this.subagentOrchestrator.startBatch(
-            preparedRequest,
-            command.parentRunId,
-          );
-          return ok(requestId, command.type, {
-            runId: handle.runId,
-            acceptedAt: new Date().toISOString(),
-          });
-        }
-        case 'subagent/batch-status': {
-          if (!this.subagentOrchestrator) {
-            return fail(
-              requestId,
-              command.type,
-              NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE,
-            );
-          }
-          // Status is a full projection: runId + status + per-task results.
-          const projection = await this.subagentOrchestrator.getBatchProjectionAsync(command.runId);
-          return ok(requestId, command.type, projection);
-        }
-        case 'subagent/batch-cancel': {
-          if (!this.subagentOrchestrator) {
-            return fail(
-              requestId,
-              command.type,
-              NOT_READY_SUBAGENT_ORCHESTRATION_MESSAGE,
-            );
-          }
-          // Cancel awaits owner cleanup before returning success.
-          await this.subagentOrchestrator.cancelBatch(command.runId);
-          return ok(requestId, command.type, { cancelled: true });
-        }
         default:
           return fail(requestId, 'unknown', 'Unhandled command');
       }
@@ -1035,7 +863,7 @@ export class HostRuntime {
 
   /**
    * Emit a permission request to the UI and wait for permission/resolve.
-   * Used by gated tools (web_search / web_fetch) during live sessions.
+   * Used by permission-aware tool registrations (web_search / web_fetch) during live sessions.
    */
   requestPermission(input: {
     sessionId: string;
@@ -1110,7 +938,7 @@ export class HostRuntime {
 
   /**
    * Get or create the in-memory session allowlist (ADR 0024 §4).
-   * Used by gated bash/file tools to check "Allow for session" approvals.
+   * Used by parent-owned bash/file registrations to check "Allow for session" approvals.
    */
   getOrCreateSessionAllowlist(sessionId: string): SessionAllowlist {
     let al = this.sessionAllowlists.get(sessionId);
@@ -1246,7 +1074,7 @@ export class HostRuntime {
     const projectsFile = getPiwinProjectsPath(rootDir);
 
     if (action === 'bash' || action.startsWith('bash:')) {
-      // Detail format from gated-bash-tool is `<reason>: <command>`. The command
+      // Detail format from the parent-owned bash registration is `<reason>: <command>`. The command
       // is the remainder after the first `": "` separator, remembered verbatim
       // so an exact-match allowlist cannot be widened by prefix tricks.
       const commandString = extractBashCommandFromDetail(detail);
@@ -1779,9 +1607,10 @@ export class HostRuntime {
           });
         });
       },
-      unregisterTaskSession: (childSessionId) => {
+      unregisterTaskSession: async (childSessionId) => {
         this.subagentSessionContexts.delete(childSessionId);
         this.sessionHostToolPort?.clearSession(childSessionId);
+        await this.releaseGenerationToolSurfaces(childSessionId);
       },
     });
   }
@@ -1799,12 +1628,13 @@ export class HostRuntime {
         });
       },
       onWorkerExit: ({ sessionId, runtimeGenerationId, code }) => {
-        const affectedRuns = this.runRegistry.list({
-          status: ['queued', 'running', 'cancelling'],
-        }).filter(
-          (run) =>
-            run.sessionId === sessionId && run.runtimeGenerationId === runtimeGenerationId,
-        );
+        const affectedRuns = this.runRegistry
+          .list({
+            status: ['queued', 'running', 'cancelling'],
+          })
+          .filter(
+            (run) => run.sessionId === sessionId && run.runtimeGenerationId === runtimeGenerationId,
+          );
         for (const run of affectedRuns) {
           void this.cleanupAfterWorkerCrash(
             run.runId,
@@ -1823,20 +1653,22 @@ export class HostRuntime {
         }
         return this.runExecutionContext.run(
           runId,
-          () => this.sessionHostToolPort?.execute(
-            {
-              sessionId: frame.context.sessionId,
-              runtimeGenerationId: frame.context.runtimeGenerationId,
-              runId,
-              toolName: frame.toolName,
-              arguments: (frame.args ?? {}) as Record<string, unknown>,
-            },
-            signal,
-          ) ?? Promise.resolve({
-            ok: false,
-            code: 'tool-not-available' as const,
-            message: 'host tool port not available',
-          }),
+          () =>
+            this.sessionHostToolPort?.execute(
+              {
+                sessionId: frame.context.sessionId,
+                runtimeGenerationId: frame.context.runtimeGenerationId,
+                runId,
+                toolName: frame.toolName,
+                arguments: (frame.args ?? {}) as Record<string, unknown>,
+              },
+              signal,
+            ) ??
+            Promise.resolve({
+              ok: false,
+              code: 'tool-not-available' as const,
+              message: 'host tool port not available',
+            }),
         );
       },
     });
@@ -1865,7 +1697,9 @@ export class HostRuntime {
       // Close admission for the complete tree, not only the crashed leaf.
       // This prevents sibling tasks from continuing after one worker has died.
       this.runRegistry.cancelRun(rootRunId);
-      await Promise.all(activeSiblingRuns.map((candidate) => this.runRegistry.join(candidate.runId)));
+      await Promise.all(
+        activeSiblingRuns.map((candidate) => this.runRegistry.join(candidate.runId)),
+      );
 
       for (const candidate of subtree) {
         if (this.jobController) {
@@ -1918,37 +1752,40 @@ export class HostRuntime {
     const lifecycle = {
       executionStatus: 'running' as const,
       summaryStatus: 'not-requested' as const,
-      integrationStatus: input.workspaceLease.mode === 'worktree'
-        ? ('pending' as const)
-        : ('not-requested' as const),
+      integrationStatus:
+        input.workspaceLease.mode === 'worktree'
+          ? ('pending' as const)
+          : ('not-requested' as const),
     };
     const current = await getSessionRecord(indexPath, input.childSessionId);
-    const record = current ?? createSessionRecord({
-      id: input.childSessionId,
-      projectPath,
-      scope,
-      workingDirectory: input.workingDirectory,
-      name: input.task.sessionName ?? `subagent-${input.task.id}`,
-      parentSessionId: input.parentSessionId,
-      depth: (parentRecord?.depth ?? 0) + 1,
-      kind: 'subagent',
-      subagentStatus: 'running',
-      task: input.task.task,
-      subagentMode: input.workspaceLease.mode,
-      subagentApplyPolicy: input.task.applyPolicy ?? 'none',
-      ...(input.task.allowedOutputPaths
-        ? { subagentAllowedOutputPaths: [...input.task.allowedOutputPaths] }
-        : {}),
-      subagentRetainWorktree: input.task.retainWorktree === true,
-      ...(input.workspaceLease.mode === 'worktree'
-        ? {
-            worktreePath: input.workspaceLease.worktreePath,
-            worktreeBranch: input.workspaceLease.worktreeBranch,
-          }
-        : {}),
-      subagentRuntime: runtimeSnapshot,
-      subagentLifecycle: lifecycle,
-    });
+    const record =
+      current ??
+      createSessionRecord({
+        id: input.childSessionId,
+        projectPath,
+        scope,
+        workingDirectory: input.workingDirectory,
+        name: input.task.sessionName ?? `subagent-${input.task.id}`,
+        parentSessionId: input.parentSessionId,
+        depth: (parentRecord?.depth ?? 0) + 1,
+        kind: 'subagent',
+        subagentStatus: 'running',
+        task: input.task.task,
+        subagentMode: input.workspaceLease.mode,
+        subagentApplyPolicy: input.task.applyPolicy ?? 'none',
+        ...(input.task.allowedOutputPaths
+          ? { subagentAllowedOutputPaths: [...input.task.allowedOutputPaths] }
+          : {}),
+        subagentRetainWorktree: input.task.retainWorktree === true,
+        ...(input.workspaceLease.mode === 'worktree'
+          ? {
+              worktreePath: input.workspaceLease.worktreePath,
+              worktreeBranch: input.workspaceLease.worktreeBranch,
+            }
+          : {}),
+        subagentRuntime: runtimeSnapshot,
+        subagentLifecycle: lifecycle,
+      });
 
     if (current) {
       current.parentSessionId = input.parentSessionId;
@@ -2068,8 +1905,7 @@ export class HostRuntime {
     // Resolve the project path for the parent session, falling back to
     // the general workspace path.
     const parentProjectPath =
-      this.sessionProjects.get(input.task.parentSessionId) ??
-      getPiwinGeneralWorkspacePath(rootDir);
+      this.sessionProjects.get(input.task.parentSessionId) ?? getPiwinGeneralWorkspacePath(rootDir);
 
     // Build the CreateSessionInput for the child session.
     const subagentOptions = {
@@ -2103,7 +1939,13 @@ export class HostRuntime {
       },
     };
 
-    const hostTools = await this.buildSessionHostToolsForSession(input.childSessionId);
+    const hostTools = await this.buildSessionHostToolsForSession(
+      input.childSessionId,
+      input.runtimeGenerationId,
+    );
+    const rulesRevision = this.generationPermissionRuleRevisions.get(
+      `${input.childSessionId}\u0000${input.runtimeGenerationId}`,
+    );
 
     // Compile the blueprint for the worker. The blueprint includes the
     // capability snapshot, model, thinking level, and resource manifest.
@@ -2113,7 +1955,10 @@ export class HostRuntime {
       runtimeGenerationId: input.runtimeGenerationId,
       allowInlineProviderSecrets: false,
       ...(config ? { config } : {}),
+      mcpConfig: this.getGenerationMcpConfig(input.childSessionId, input.runtimeGenerationId),
       hostToolDescriptors: descriptorsFromTools(hostTools),
+      hostToolFamilyIndex: toolFamilyIndex(hostTools),
+      ...(rulesRevision !== undefined ? { rulesRevision } : {}),
       // Resolve trust from the project store so untrusted projects
       // cannot compile write/process/bash/delegate capabilities.
       ...(createInput.scope?.kind === 'project'
@@ -2131,6 +1976,17 @@ export class HostRuntime {
           }
         : {}),
     });
+    if (
+      !this.sessionHostToolPort?.restrictGeneration(
+        input.childSessionId,
+        input.runtimeGenerationId,
+        compiled.backendBlueprint.capabilitySnapshot.tools.hostTools.map((tool) => tool.name),
+      )
+    ) {
+      throw new Error(
+        `compiled Host tool surface is not registered: ${input.childSessionId}/${input.runtimeGenerationId}`,
+      );
+    }
 
     // Build the prepared prompt from the task text.
     const preparedPrompt: BackendPreparedPrompt = {
@@ -2253,28 +2109,143 @@ export class HostRuntime {
   /**
    * Compose Host-owned tools for one session for the parent tool execution port.
    * Permission prompts are bound to this sessionId via requestPermission.
+   *
+   * `mode` selects where the composed surface is registered:
+   * - `active`: the session's current executable generation (initial create,
+   *   and the candidate commit step via `commitPendingGeneration`).
+   * - `pending`: a candidate generation that cannot execute tool calls until
+   *   it is committed (repair spec WP1).
    */
-  private async buildSessionHostToolsForSession(sessionId: string) {
+  private async buildSessionHostToolsForSession(
+    sessionId: string,
+    runtimeGenerationId: string,
+    mode: ProductAgentHostToolRegistrationMode = 'active',
+  ): Promise<HostToolRegistration[]> {
+    const surfaceKey = `${sessionId}\u0000${runtimeGenerationId}`;
+    let surfacePromise = this.generationToolSurfaces.get(surfaceKey);
+    if (!surfacePromise) {
+      surfacePromise = this.composeSessionHostToolsForSession(sessionId, runtimeGenerationId);
+      this.generationToolSurfaces.set(surfaceKey, surfacePromise);
+    }
+    try {
+      const { tools, permissionGate } = await surfacePromise;
+      if (mode === 'pending') {
+        this.sessionHostToolPort?.registerPendingGeneration(
+          sessionId,
+          runtimeGenerationId,
+          tools,
+          permissionGate,
+        );
+      } else {
+        this.sessionHostToolPort?.registerActiveGeneration(
+          sessionId,
+          runtimeGenerationId,
+          tools,
+          permissionGate,
+        );
+      }
+      return tools;
+    } catch (error) {
+      await this.releaseGenerationToolSurface(sessionId, runtimeGenerationId);
+      throw error;
+    }
+  }
+
+  private async composeSessionHostToolsForSession(
+    sessionId: string,
+    runtimeGenerationId: string,
+  ): Promise<ComposedSessionHostTools> {
     const childContext = this.subagentSessionContexts.get(sessionId);
     const projectPath = childContext?.workingDirectory ?? this.sessionProjects.get(sessionId);
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     let config: import('@piwin/contracts').PiwinConfig | undefined;
     try {
       config = await loadPiwinConfig(this.options.piwinRoot);
-    } catch {
+    } catch (error) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `config composition failed; config-dependent capabilities omitted: ${formatUnknownError(error)}`,
+      });
       // Config load failure — tools that need config will be omitted.
     }
-    return buildSessionHostTools({
+    this.permissionModeFromConfig = config?.permissions?.mode ?? 'auto';
+    let mcpConfig: McpConfigDocument | undefined;
+    let mcpEnabledServerIds: string[] = [];
+    try {
+      mcpConfig = await loadMcpConfig(rootDir);
+      mcpEnabledServerIds = listEnabledServers(mcpConfig)
+        .map((server) => server.id)
+        .sort((left, right) => left.localeCompare(right));
+    } catch (error) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `mcp-config composition failed; MCP capability omitted: ${formatUnknownError(error)}`,
+      });
+      // Invalid/unreadable MCP config fails closed for this generation.
+    }
+    const mcpSnapshot = createMcpGenerationSnapshot(
+      mcpConfig ?? { mcpServers: {} },
+      `${sessionId}\u0000${runtimeGenerationId}`,
+    );
+    this.generationMcpConfigs.set(`${sessionId}\u0000${runtimeGenerationId}`, mcpSnapshot.config);
+    this.generationMcpSnapshots.set(`${sessionId}\u0000${runtimeGenerationId}`, mcpSnapshot);
+    let rules = createBundledRuleSet();
+    try {
+      let projectTrusted = false;
+      if (projectPath) {
+        const projects = await listProjects(getPiwinProjectsPath(rootDir));
+        projectTrusted = projects.some(
+          (project) => project.path === projectPath && project.trust === 'trusted',
+        );
+      }
+      rules = await loadMergedPermissionRules({
+        piwinRoot: rootDir,
+        ...(projectPath ? { projectPath, projectTrusted } : {}),
+      });
+    } catch (error) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `permission-rule composition failed; bundled rules remain active: ${formatUnknownError(error)}`,
+      });
+      // Bundled rules remain the fail-closed baseline when user/project rules
+      // cannot be loaded; the generation still has a deterministic snapshot.
+    }
+    const tools = await buildSessionHostTools({
       sessionId,
-      ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
+      piwinRoot: rootDir,
       ...(projectPath !== undefined ? { projectPath } : {}),
       jobController: this.jobController,
       ...(this.mcpManager ? { mcpManager: this.mcpManager } : {}),
+      mcpConfig: mcpSnapshot.config,
+      mcpSnapshot,
+      runtimeGenerationId,
+      mcpEnabledServerIds,
       ...(config ? { config } : {}),
       ...(config ? { secretResolver: createSecretResolver() } : {}),
       getBrowserSession: () => this.browserSession ?? undefined,
       getNotesServices: () => this.getNotesServices(),
       getCardStore: () => this.getCardStore(),
+      onDiagnostic: ({ message }) => this.push({ type: 'host/log', level: 'warn', message }),
+      ...(childContext
+        ? {}
+        : (() => {
+            const seam = this.getSubagentSeam(sessionId);
+            return seam ? { subagentSeam: seam } : {};
+          })()),
+    });
+    // Repair spec WP3: the permission admission gate is bound to the frozen
+    // generation snapshot (rules + MCP allowlist) and reads the dynamic
+    // PermissionMode on every call. Executors never re-derive a decision.
+    const permissionGate = createHostToolPermissionGate({
+      rules,
+      getPermissionMode: () =>
+        this.sessionPermissionOverrides.get(sessionId) ??
+        this.options.permissionModeOverride ??
+        this.permissionModeFromConfig,
+      getSessionAllowlist: (currentSessionId) => this.sessionAllowlists.get(currentSessionId),
       requestPermission: (input) =>
         this.requestPermission({
           sessionId,
@@ -2284,24 +2255,118 @@ export class HostRuntime {
           defaultDecision: input.defaultDecision,
           ...(input.signal ? { signal: input.signal } : {}),
         }),
-      ...(this.options.permissionModeOverride
-        ? { permissionMode: this.options.permissionModeOverride }
-        : {}),
-      getPermissionMode: () =>
-        this.sessionPermissionOverrides.get(sessionId) ??
-        this.options.permissionModeOverride ??
-        'auto',
-      ...(childContext ? {} : ((() => {
-        const seam = this.getSubagentSeam(sessionId);
-        return seam ? { subagentSeam: seam } : {};
-      })())),
+      projectRoot: projectPath ?? rootDir ?? process.cwd(),
+      ...(projectPath !== undefined ? { projectPath } : {}),
+      projectsFilePath: getPiwinProjectsPath(rootDir),
+      mcpEnabledServerIds,
+      onDiagnostic: (message) => this.push({ type: 'host/log', level: 'warn', message }),
     });
+    this.generationPermissionRuleRevisions.set(
+      `${sessionId}\u0000${runtimeGenerationId}`,
+      computePermissionRulesRevision(rules),
+    );
+    return { tools, permissionGate };
+  }
+
+  private clearGenerationToolSurfaces(sessionId: string): void {
+    const prefix = `${sessionId}\u0000`;
+    for (const key of this.generationToolSurfaces.keys()) {
+      if (key.startsWith(prefix)) {
+        this.generationToolSurfaces.delete(key);
+      }
+    }
+    for (const key of this.generationMcpConfigs.keys()) {
+      if (key.startsWith(prefix)) {
+        this.generationMcpConfigs.delete(key);
+      }
+    }
+    for (const key of this.generationMcpSnapshots.keys()) {
+      if (key.startsWith(prefix)) {
+        this.generationMcpSnapshots.delete(key);
+      }
+    }
+    for (const key of this.generationPermissionRuleRevisions.keys()) {
+      if (key.startsWith(prefix)) {
+        this.generationPermissionRuleRevisions.delete(key);
+      }
+    }
+  }
+
+  private clearGenerationToolSurface(sessionId: string, runtimeGenerationId: string): void {
+    const key = `${sessionId}\u0000${runtimeGenerationId}`;
+    this.generationToolSurfaces.delete(key);
+    this.generationMcpConfigs.delete(key);
+    this.generationMcpSnapshots.delete(key);
+    this.generationPermissionRuleRevisions.delete(key);
+  }
+
+  /**
+   * Release the MCP runtime owned by one frozen tool surface before dropping
+   * its in-memory inputs. Clearing only the maps would leak generation-scoped
+   * MCP clients and their child processes.
+   */
+  private async releaseGenerationToolSurface(
+    sessionId: string,
+    runtimeGenerationId: string,
+  ): Promise<void> {
+    const key = `${sessionId}\u0000${runtimeGenerationId}`;
+    const snapshot = this.generationMcpSnapshots.get(key);
+    this.clearGenerationToolSurface(sessionId, runtimeGenerationId);
+    if (!snapshot || !this.mcpManager) {
+      return;
+    }
+    try {
+      await this.mcpManager.releaseGenerationSnapshot(snapshot.generationId);
+    } catch (error) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `MCP generation snapshot cleanup failed for ${sessionId}/${runtimeGenerationId}: ${formatUnknownError(error)}`,
+      });
+    }
+  }
+
+  /** Release all frozen tool surfaces owned by one product session. */
+  private async releaseGenerationToolSurfaces(sessionId: string): Promise<void> {
+    const prefix = `${sessionId}\u0000`;
+    const pendingSurfaces = [...this.generationToolSurfaces.entries()]
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([, surface]) => surface);
+    await Promise.allSettled(pendingSurfaces);
+    const generationIds = [...this.generationMcpSnapshots.entries()]
+      .filter(([key]) => key.startsWith(prefix))
+      .map(([, snapshot]) => snapshot.generationId);
+    this.clearGenerationToolSurfaces(sessionId);
+    if (!this.mcpManager) {
+      return;
+    }
+    const results = await Promise.allSettled(
+      generationIds.map((generationId) => this.mcpManager?.releaseGenerationSnapshot(generationId)),
+    );
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `MCP generation snapshot cleanup failed for ${sessionId}: ${formatUnknownError(result.reason)}`,
+        });
+      }
+    }
+  }
+
+  private getGenerationMcpConfig(
+    sessionId: string,
+    runtimeGenerationId: string,
+  ): McpConfigDocument {
+    return (
+      this.generationMcpConfigs.get(`${sessionId}\u0000${runtimeGenerationId}`) ?? {
+        mcpServers: {},
+      }
+    );
   }
 
   /** Resolve profile, model, capabilities, skills, and isolation before admission. */
-  private async prepareSubagentBatch(
-    request: SubagentBatchRequest,
-  ): Promise<SubagentBatchRequest> {
+  private async prepareSubagentBatch(request: SubagentBatchRequest): Promise<SubagentBatchRequest> {
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const config = await loadPiwinConfig(this.options.piwinRoot);
     const parentRecord = await getSessionRecord(
@@ -2313,11 +2378,13 @@ export class HostRuntime {
       parentRecord?.workingDirectory ??
       parentRecord?.projectPath ??
       getPiwinGeneralWorkspacePath(rootDir);
-    const enabledSkillIds = (await scanSkills({
-      piwinRoot: rootDir,
-      projectPath,
-      ...(config.skills ? { skillsConfig: config.skills } : {}),
-    }))
+    const enabledSkillIds = (
+      await scanSkills({
+        piwinRoot: rootDir,
+        projectPath,
+        ...(config.skills ? { skillsConfig: config.skills } : {}),
+      })
+    )
       .filter((skill) => skill.enabled)
       .map((skill) => skill.id);
 
@@ -2335,12 +2402,8 @@ export class HostRuntime {
           },
           ...(task.isolationOverride ? { mode: task.isolationOverride } : {}),
           ...(task.applyPolicy ? { applyPolicy: task.applyPolicy } : {}),
-          ...(task.allowedOutputPaths
-            ? { allowedOutputPaths: [...task.allowedOutputPaths] }
-            : {}),
-          ...(task.retainWorktree !== undefined
-            ? { retainWorktree: task.retainWorktree }
-            : {}),
+          ...(task.allowedOutputPaths ? { allowedOutputPaths: [...task.allowedOutputPaths] } : {}),
+          ...(task.retainWorktree !== undefined ? { retainWorktree: task.retainWorktree } : {}),
         },
         parentDepth: parentRecord?.depth ?? 0,
         parentKind: parentRecord?.kind,
@@ -2482,7 +2545,11 @@ export class HostRuntime {
       },
       terminateRun: async (sessionId, runId, outcome, code, message) => {
         const run = this.runRegistry.get(runId);
-        if (!run || run.sessionId !== sessionId || run.status === 'cancelling' && outcome === 'completed') {
+        if (
+          !run ||
+          run.sessionId !== sessionId ||
+          (run.status === 'cancelling' && outcome === 'completed')
+        ) {
           return false;
         }
         const jobReason =
@@ -2564,10 +2631,12 @@ export class HostRuntime {
       clearSessionPermissionOverride: (sessionId) => this.clearSessionPermissionOverride(sessionId),
       runtimeController: this.runtimeController,
       resetSessionEventState: (sessionId) => this.resetSessionEventState(sessionId),
-      reloadRuntime: (request) => this.runtimeReplacementEngine.replace(request).then((result) => ({
-        generationId: result.candidate.generationId,
-        settingsRevision: result.candidate.settingsRevision,
-      })),
+      cancelRuntimeReplacement: (sessionId) => this.runtimeReplacementEngine.cancel(sessionId),
+      reloadRuntime: (request) =>
+        this.runtimeReplacementEngine.replace(request).then((result) => ({
+          generationId: result.candidate.generationId,
+          settingsRevision: result.candidate.settingsRevision,
+        })),
     };
   }
 
@@ -2617,6 +2686,7 @@ export class HostRuntime {
   private async buildDomainContext(): Promise<
     import('./commands/domain-command-dispatch.js').DomainDispatchContext
   > {
+    const subagentOrchestrator = this.subagentOrchestrator;
     const hostContext: HostCommandContext = {
       ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
       push: (message) => this.push(message),
@@ -2693,6 +2763,24 @@ export class HostRuntime {
         context: this.buildWalkthroughContext(),
         registry: this.walkthroughRegistry,
       },
+      knowledge: {
+        getNotesServices: () => this.getNotesServices(),
+        getCardStore: () => this.getCardStore(),
+        getFolderRag: () => this.getFolderRag(),
+        loadConfig: () => loadPiwinConfig(this.options.piwinRoot),
+      },
+      ...(subagentOrchestrator
+        ? {
+            subagent: {
+              prepareBatch: (request: SubagentBatchRequest) => this.prepareSubagentBatch(request),
+              startBatch: (request: SubagentBatchRequest, parentRunId?: string) =>
+                subagentOrchestrator.startBatch(request, parentRunId),
+              getBatchProjection: (runId: string) =>
+                subagentOrchestrator.getBatchProjectionAsync(runId),
+              cancelBatch: (runId: string) => subagentOrchestrator.cancelBatch(runId),
+            },
+          }
+        : {}),
     };
     return {
       ...hostContext,
@@ -2726,8 +2814,8 @@ export class HostRuntime {
           this.host.mode === 'sdk' || this.options.mock === true || this.isRpcWorkerMode(),
         extensions:
           this.host.mode === 'sdk' || this.isRpcWorkerMode() || this.options.mock === true,
-       prompts: this.host.mode === 'sdk' || this.isRpcWorkerMode() || this.options.mock === true,
-       extensionUiBridge: true,
+        prompts: this.host.mode === 'sdk' || this.isRpcWorkerMode() || this.options.mock === true,
+        extensionUiBridge: true,
         sessionSearch: true,
         sessionPin: true,
         sessionLifecycle: true,
@@ -2777,6 +2865,7 @@ export class HostRuntime {
     projectPath?: string,
     sessionName?: string,
     lineage?: SessionLineage,
+    bindingGenerationId?: string,
   ): Promise<void> {
     const existing = this.unsubscribers.get(session.id);
     if (existing) {
@@ -2866,7 +2955,8 @@ export class HostRuntime {
 
     // Capture parent session id for subagent event forwarding (inline stream UX).
     const parentSessionId = lineage?.parentSessionId;
-    const boundRuntimeGenerationId = this.runtimeController.getStatus(session.id).generationId;
+    const boundRuntimeGenerationId =
+      bindingGenerationId ?? this.runtimeController.getStatus(session.id).generationId;
 
     const unsubscribe = session.subscribe((event: AgentEvent) => {
       const currentRuntimeGenerationId = this.runtimeController.getStatus(session.id).generationId;
@@ -2898,9 +2988,7 @@ export class HostRuntime {
       const correlatedEvent = correlation.event;
       const correlatedRunId = readEventRunId(correlatedEvent);
       const activeRunId = activeRun?.runId;
-      const correlatedRun = correlatedRunId
-        ? this.runRegistry.get(correlatedRunId)
-        : undefined;
+      const correlatedRun = correlatedRunId ? this.runRegistry.get(correlatedRunId) : undefined;
       if (
         correlatedRunId !== undefined &&
         ((correlatedRun !== undefined && isRunTerminal(correlatedRun.status)) ||
@@ -3330,6 +3418,7 @@ export class HostRuntime {
 
   private async disposeLiveSession(sessionId: string): Promise<void> {
     this.settlePendingExtensionUiForSession(sessionId);
+    const replacementCleanup = this.runtimeReplacementEngine.cancel(sessionId);
     const live = this.sessions.get(sessionId);
     const activeRun = this.runRegistry.getForegroundRun(sessionId);
     if (activeRun) {
@@ -3344,8 +3433,9 @@ export class HostRuntime {
       } catch {
         // best-effort
       }
-      this.sessions.delete(sessionId);
     }
+    await replacementCleanup;
+    this.sessions.delete(sessionId);
     const unsub = this.unsubscribers.get(sessionId);
     if (unsub) {
       unsub();
@@ -3367,6 +3457,12 @@ export class HostRuntime {
     this.resetSessionEventState(sessionId);
     this.runtimeController.detachGeneration(sessionId);
     this.sessionHostToolPort?.clearSession(sessionId);
+    this.clearSessionAllowlist(sessionId);
+    this.sessionUsage.delete(sessionId);
+    this.sessionLastPromptText.delete(sessionId);
+    this.sessionAutoCompactionOverrides.delete(sessionId);
+    this.sessionFilesTouched.delete(sessionId);
+    await this.host.dropSession(sessionId);
     // §11.3: abort in-flight walkthrough generations for the disposed session.
     this.walkthroughRegistry.abortSession(sessionId);
     // ADR 0030 Phase B: stop session-lifetime Jobs when the session is disposed.
@@ -3437,47 +3533,225 @@ export class HostRuntime {
     if (record.name !== undefined) input.sessionName = record.name;
     const model = this.sessionModels.get(sessionId);
     if (model !== undefined) input.model = model;
-    const compiled = await compileBlueprintForWorker(input, {
-      ...(this.options.piwinRoot ? { piwinRoot: this.options.piwinRoot } : {}),
-      sessionId,
-      runtimeGenerationId: generationId,
-      hostToolDescriptors: await this.buildSessionHostToolsForSession(sessionId).then(descriptorsFromTools),
-      allowInlineProviderSecrets: this.options.mode === 'sdk',
-    });
-    const settingsRevision = compiled.settingsRevision;
-    if (settingsRevision === undefined) {
-      throw new Error('runtime-reload-candidate-missing-settings-revision');
-    }
-    if (settingsRevision !== expectedSettingsRevision) {
+    const prepared = await this.host.prepareSession(sessionId, input, generationId);
+    this.preparedRuntimeGenerations.set(`${sessionId}\u0000${generationId}`, prepared);
+    if (prepared.settingsRevision !== expectedSettingsRevision) {
+      await this.abortRuntimeGeneration(sessionId, generationId);
       throw new Error('runtime-reload-revision-mismatch');
     }
-    return { generationId, settingsRevision };
+    return { generationId, settingsRevision: prepared.settingsRevision };
   }
 
   private async disposeRuntimeGeneration(sessionId: string, generationId: string): Promise<void> {
-    await this.host.dropSession(sessionId);
-    await this.agentWorkerSupervisor?.releaseGeneration(generationId);
+    const key = `${sessionId}\u0000${generationId}`;
+    const cleanupErrors: unknown[] = [];
+    const retiredSession = this.retiredRuntimeSessions.get(key);
+    if (retiredSession) {
+      try {
+        await retiredSession.abort();
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+      this.retiredRuntimeSessions.delete(key);
+    }
+    try {
+      await this.host.releaseSessionGeneration(sessionId, generationId);
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      await this.mcpManager?.releaseGenerationSnapshot(
+        this.generationMcpSnapshots.get(key)?.generationId ?? key,
+      );
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    this.sessionHostToolPort?.discardRetiredGeneration(sessionId, generationId);
+    this.clearGenerationToolSurface(sessionId, generationId);
+    for (const error of cleanupErrors) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `retired runtime generation cleanup failed for ${sessionId}/${generationId}: ${formatUnknownError(error)}`,
+      });
+    }
   }
 
   private async createRuntimeGeneration(
     sessionId: string,
     candidate: RuntimeReplacementCandidate,
   ): Promise<void> {
+    const key = `${sessionId}\u0000${candidate.generationId}`;
+    const prepared = this.preparedRuntimeGenerations.get(key);
+    if (!prepared) {
+      throw new Error(`runtime-reload-candidate-not-prepared: ${key}`);
+    }
+    const previousSession = this.sessions.get(sessionId);
+    const oldGenerationId = this.runtimeController.getStatus(sessionId).generationId;
     const rootDir = getPiwinRoot(this.options.piwinRoot);
     const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
-    if (!record) throw new Error(`Unknown session: ${sessionId}`);
-    const input: CreateSessionInput = { projectPath: record.projectPath };
-    if (record.scope !== undefined) input.scope = record.scope;
-    if (record.workingDirectory !== undefined) input.cwd = record.workingDirectory;
-    if (record.name !== undefined) input.sessionName = record.name;
-    const model = this.sessionModels.get(sessionId);
-    if (model !== undefined) input.model = model;
-    const session = await this.host.replaceSession(
-      sessionId,
-      input,
-      candidate.generationId,
-    );
-    await this.bindSession(session, record.projectPath, record.name);
+    if (!record) {
+      throw new Error(`Unknown session: ${sessionId}`);
+    }
+
+    let promoted = false;
+    try {
+      if (
+        this.sessionHostToolPort &&
+        !this.sessionHostToolPort.commitPendingGeneration(sessionId, candidate.generationId)
+      ) {
+        throw new Error(`runtime-reload-pending-surface-missing: ${key}`);
+      }
+      promoted = this.sessionHostToolPort !== null;
+      const session = this.host.commitPreparedSession(prepared);
+      if (previousSession && oldGenerationId) {
+        this.retiredRuntimeSessions.set(`${sessionId}\u0000${oldGenerationId}`, previousSession);
+      }
+      await this.bindSession(
+        session,
+        record.projectPath,
+        record.name,
+        undefined,
+        candidate.generationId,
+      );
+      this.preparedRuntimeGenerations.delete(key);
+    } catch (error) {
+      if (promoted) {
+        this.sessionHostToolPort?.rollbackCommittedGeneration(sessionId, candidate.generationId);
+      }
+      this.preparedRuntimeGenerations.delete(key);
+      try {
+        await this.host.abortPreparedSession(prepared);
+      } catch (cleanupError) {
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `candidate backend cleanup failed: ${formatUnknownError(cleanupError)}`,
+        });
+      }
+      if (previousSession && oldGenerationId) {
+        this.host.restoreSession(sessionId, previousSession);
+        this.sessions.set(sessionId, previousSession);
+        this.retiredRuntimeSessions.delete(`${sessionId}\u0000${oldGenerationId}`);
+        try {
+          await this.bindSession(
+            previousSession,
+            record.projectPath,
+            record.name,
+            undefined,
+            oldGenerationId,
+          );
+        } catch (restoreError) {
+          this.push({
+            type: 'host/log',
+            level: 'error',
+            message: `stable session binding restore failed: ${formatUnknownError(restoreError)}`,
+          });
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async rollbackRuntimeGeneration(sessionId: string, generationId: string): Promise<void> {
+    const key = `${sessionId}\u0000${generationId}`;
+    const prefix = `${sessionId}\u0000`;
+    const currentGenerationId = this.runtimeController.getStatus(sessionId).generationId;
+    let oldGenerationId =
+      currentGenerationId && currentGenerationId !== generationId ? currentGenerationId : undefined;
+    let oldSession = oldGenerationId
+      ? this.retiredRuntimeSessions.get(`${prefix}${oldGenerationId}`)
+      : undefined;
+    if (!oldSession) {
+      const retired = [...this.retiredRuntimeSessions.entries()].find(
+        ([retiredKey]) =>
+          retiredKey.startsWith(prefix) && retiredKey.slice(prefix.length) !== generationId,
+      );
+      if (retired) {
+        oldGenerationId = retired[0].slice(prefix.length);
+        oldSession = retired[1];
+      }
+    }
+    const cleanupErrors: unknown[] = [];
+    const candidateSession = this.sessions.get(sessionId);
+    if (candidateSession && candidateSession !== oldSession) {
+      try {
+        await candidateSession.abort();
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    this.sessionHostToolPort?.rollbackCommittedGeneration(sessionId, generationId);
+    try {
+      await this.host.releaseSessionGeneration(sessionId, generationId);
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    try {
+      await this.mcpManager?.releaseGenerationSnapshot(
+        this.generationMcpSnapshots.get(key)?.generationId ?? key,
+      );
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    this.clearGenerationToolSurface(sessionId, generationId);
+
+    if (oldSession && oldGenerationId) {
+      this.host.restoreSession(sessionId, oldSession);
+      this.sessions.set(sessionId, oldSession);
+      this.retiredRuntimeSessions.delete(`${sessionId}\u0000${oldGenerationId}`);
+      const rootDir = getPiwinRoot(this.options.piwinRoot);
+      const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
+      if (record) {
+        try {
+          await this.bindSession(
+            oldSession,
+            record.projectPath,
+            record.name,
+            undefined,
+            oldGenerationId,
+          );
+        } catch (error) {
+          cleanupErrors.push(error);
+        }
+      }
+    }
+    for (const error of cleanupErrors) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `runtime generation rollback cleanup failed for ${sessionId}/${generationId}: ${formatUnknownError(error)}`,
+      });
+    }
+  }
+
+  private async abortRuntimeGeneration(sessionId: string, generationId: string): Promise<void> {
+    const key = `${sessionId}\u0000${generationId}`;
+    this.sessionHostToolPort?.abortPendingGeneration(sessionId, generationId);
+    const prepared = this.preparedRuntimeGenerations.get(key);
+    this.preparedRuntimeGenerations.delete(key);
+    const cleanupErrors: unknown[] = [];
+    if (prepared) {
+      try {
+        await this.host.abortPreparedSession(prepared);
+      } catch (error) {
+        cleanupErrors.push(error);
+      }
+    }
+    try {
+      await this.mcpManager?.releaseGenerationSnapshot(
+        this.generationMcpSnapshots.get(key)?.generationId ?? key,
+      );
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    this.clearGenerationToolSurface(sessionId, generationId);
+    if (cleanupErrors.length > 0) {
+      throw new AggregateError(
+        cleanupErrors,
+        `runtime generation cleanup failed for ${sessionId}/${generationId}`,
+      );
+    }
   }
 
   private push(message: HostPush): void {
@@ -3527,15 +3801,14 @@ export class HostRuntime {
     }
     this.pushSinks.delete(id);
   }
-
 }
 
 /**
- * Extract the bash command from a gated-bash permission detail.
+ * Extract the bash command from a parent-owned bash permission detail.
  *
- * The gated bash tool formats detail as `<reason>: <command>` (see
- * `gated-bash-tool.ts`). The command is the remainder after the first
- * `": "` separator, so a reason containing `: ` cannot steal command text.
+ * The bash registration formats detail as `<reason>: <command>`. The command
+ * is the remainder after the first `": "` separator, so a reason containing
+ * `: ` cannot steal command text.
  * Returns the empty string when no separator is present (no command to
  * remember).
  */
@@ -3664,4 +3937,8 @@ function fallbackPetSnapshot(): PetRuntimeSnapshot {
       review: 6,
     },
   };
+}
+
+function formatUnknownError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

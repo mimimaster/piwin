@@ -27,8 +27,9 @@ export type CompileSnapshotInput = {
 };
 
 /** Stable snapshot id derived from every input so equal inputs hash equal. */
-export function computeSnapshotId(input: Omit<CompileSnapshotInput, 'inputs'>): string {
+export function computeSnapshotId(input: CompileSnapshotInput): string {
   const {
+    inputs,
     scope,
     workingDirectory,
     trust,
@@ -39,6 +40,7 @@ export function computeSnapshotId(input: Omit<CompileSnapshotInput, 'inputs'>): 
     tools,
   } = input;
   const payload = JSON.stringify({
+    inputs,
     scope,
     workingDirectory,
     trust,

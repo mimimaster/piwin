@@ -37,8 +37,9 @@ export {
 } from './permission-defaults.js';
 export { loadMergedPermissionRules } from './permission-rule-loader.js';
 export type { LoadMergedPermissionRulesInput } from './permission-rule-loader.js';
+export { computePermissionRulesRevision } from './permission-rule-revision.js';
 export { buildProcessTools } from './process-tools.js';
-export type { BuildProcessToolsOptions, ProcessToolPermissionGate } from './process-tools.js';
+export type { BuildProcessToolsOptions } from './process-tools.js';
 export {
   createDefaultPiwinConfig,
   initPiwinConfig,
@@ -72,12 +73,8 @@ export {
   deleteWalkthrough,
   deleteSessionWalkthroughs,
 } from './walkthrough-store.js';
-export { buildSessionTools, attachToolsToPiSession } from './session-tools.js';
-export type {
-  SessionToolRegistration,
-  ToolPermissionGate,
-  BuildSessionToolsOptions,
-} from './session-tools.js';
+export { buildSessionTools } from './session-tools.js';
+export type { SessionToolRegistration, BuildSessionToolsOptions } from './session-tools.js';
 export { ensureGeneralWorkspace } from './general-workspace.js';
 export {
   resolveSessionLocation,
@@ -107,14 +104,6 @@ export type {
   ExtensionUiResponse,
   ExtensionUiKind,
 } from '@piwin/agent-host';
-export { createMcpSessionBridge } from './mcp-session-bridge.js';
-export type { McpSessionBridge } from './mcp-session-bridge.js';
-
-export { buildGatedBashToolDefinition } from './gated-bash-tool.js';
-export type { BuildGatedBashToolOptions } from './gated-bash-tool.js';
-export { buildGatedFileToolsDefinition } from './gated-file-tools.js';
-export type { BuildGatedFileToolsOptions } from './gated-file-tools.js';
-
 export { createProductShellSession } from './product-shell-session.js';
 export type { CreateMockSessionOptions } from './mock-session.js';
 
@@ -138,7 +127,7 @@ export {
   createBrowserToolDefinitions,
   evaluateBrowserNavigatePermission,
 } from './browser-tools.js';
-export type { CreateBrowserToolsOptions, BrowserToolPermissionGate } from './browser-tools.js';
+export type { BrowserToolDefinitionOptions } from './browser-tools.js';
 export {
   handleBrowserCommand,
   isBrowserCommand,
@@ -207,12 +196,6 @@ export {
 } from './subagent-profile-resolver.js';
 export type { ResolveProfileIssue, ResolveProfileResult } from './subagent-profile-resolver.js';
 export {
-  resolveSubagentCapabilitiesToTools,
-  isPiToolAllowed,
-  isCustomToolAllowed,
-} from './subagent-capability-resolver.js';
-export type { SubagentToolAllowlist } from './subagent-capability-resolver.js';
-export {
   planSubagentSpawn,
   buildSubagentSeedPrompt,
   transitionExecutionStatus,
@@ -250,14 +233,11 @@ export type {
   ToolDisablePredicate,
   HostToolExecutionRouterOptions,
 } from './tools/host-tool-execution-router.js';
+export { HostToolRegistrationError, toolFamilyIndex } from './tools/tool-family-index.js';
 
 // Phase 2: Structured Concurrency
 export { RunRegistry } from './run-registry.js';
-export type {
-  CreateRunInput,
-  RunRegistryOptions,
-  CancelRunResult,
-} from './run-registry.js';
+export type { CreateRunInput, RunRegistryOptions, CancelRunResult } from './run-registry.js';
 export { createRuntimeResourceCoordinator } from './runtime-resource-coordinator.js';
 export type {
   RuntimeResourceCoordinator,

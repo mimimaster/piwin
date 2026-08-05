@@ -6,7 +6,7 @@ import type {
   PromptTemplateSummary,
   PromptsConfig,
 } from '@piwin/contracts';
-import { createDefaultPromptsConfig } from '@piwin/contracts';
+import { createDefaultPromptsConfig, normalizeResourceId } from '@piwin/contracts';
 import { getPiwinPromptsDir } from './paths.js';
 
 export type ScanPromptsOptions = {
@@ -42,9 +42,6 @@ export async function scanPrompts(
 
   for (const rootEntry of roots) {
     for (const prompt of await scanPromptRoot(rootEntry.path, rootEntry.source)) {
-      if (results.some((item) => item.id === prompt.id)) {
-        continue;
-      }
       results.push({
         ...prompt,
         enabled: !disabled.has(prompt.id.toLowerCase()),
@@ -127,7 +124,7 @@ async function buildPromptSummary(
   if (!name) {
     return null;
   }
-  const id = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  const id = normalizeResourceId(name);
   const description = await readPromptDescription(filePath);
   return {
     id,

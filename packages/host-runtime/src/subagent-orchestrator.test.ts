@@ -18,26 +18,28 @@ import type {
 import type { SubagentOrchestratorOptions } from './subagent-orchestrator.js';
 
 const RUNTIME_GENERATION_ID = 'generation-test';
- 
+
 /** Minimal fake integration coordinator for tests. */
 function makeFakeIntegrationCoordinator(
   options: { fail?: boolean; conflict?: boolean } = {},
- ): SubagentIntegrationCoordinator {
-   return {
-     async integrate(result, _lease) {
-       if (options.fail) {
-         return { ...result, integrationStatus: 'failed', error: 'fake integration failure' };
-       }
-       if (options.conflict) {
-         return { ...result, integrationStatus: 'conflict', error: 'fake integration conflict' };
-       }
-       return { ...result, integrationStatus: 'applied', changedFiles: ['src/a.ts'] };
-     },
-     async retain() {},
-     async isBaseClean() { return true; },
-     async dispose() {},
-   };
- }
+): SubagentIntegrationCoordinator {
+  return {
+    async integrate(result, _lease) {
+      if (options.fail) {
+        return { ...result, integrationStatus: 'failed', error: 'fake integration failure' };
+      }
+      if (options.conflict) {
+        return { ...result, integrationStatus: 'conflict', error: 'fake integration conflict' };
+      }
+      return { ...result, integrationStatus: 'applied', changedFiles: ['src/a.ts'] };
+    },
+    async retain() {},
+    async isBaseClean() {
+      return true;
+    },
+    async dispose() {},
+  };
+}
 
 function makePreparedTask(input: {
   childSessionId: string;
@@ -54,6 +56,7 @@ function makePreparedTask(input: {
     version: 1,
     snapshotId: `snapshot-${input.childSessionId}`,
     inputs: {
+      rulesRevision: 'rules-test',
       settingsRevision: 'settings-test',
       projectRevision: 'project-test',
       mcpRevision: 'mcp-test',
@@ -118,7 +121,10 @@ function makeTask(overrides: Partial<SubagentTaskSpec> = {}): SubagentTaskSpec {
   };
 }
 
-function makeBatch(tasks: SubagentTaskSpec[], overrides: Partial<SubagentBatchRequest> = {}): SubagentBatchRequest {
+function makeBatch(
+  tasks: SubagentTaskSpec[],
+  overrides: Partial<SubagentBatchRequest> = {},
+): SubagentBatchRequest {
   return {
     parentSessionId: 'parent-1',
     tasks,
@@ -165,9 +171,7 @@ function makeFakeBackend(options: {
       activeCount--;
       const failed = options.failTaskIds?.has(task.id);
       const output: SubagentTaskRunOutput = {
-        executionStatus: failed
-          ? 'failed'
-          : (options.executionStatus ?? 'completed'),
+        executionStatus: failed ? 'failed' : (options.executionStatus ?? 'completed'),
         summaryStatus: 'not-requested',
         integrationStatus: options.integrationStatus ?? 'not-requested',
         childSessionId: `child-${task.id}`,
@@ -255,6 +259,31 @@ describe('SubagentOrchestrator', () => {
     }
   });
 
+  it('waits for child-session cleanup before completing a task', async () => {
+    const backend = makeFakeBackend({});
+    const { push } = makePushCollector();
+    let cleanupFinished = false;
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+      registerTaskSession: async () => undefined,
+      unregisterTaskSession: async () => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 5));
+        cleanupFinished = true;
+      },
+    });
+
+    const result = await orchestrator.runBatch(makeBatch([makeTask({ id: 'cleanup' })]));
+
+    expect(result.status).toBe('completed');
+    expect(cleanupFinished).toBe(true);
+  });
+
   it('respects maxConcurrency', async () => {
     const backend = makeFakeBackend({ delayMs: 50 });
     const { push } = makePushCollector();
@@ -269,7 +298,12 @@ describe('SubagentOrchestrator', () => {
     });
     await orchestrator.runBatch(
       makeBatch(
-        [makeTask({ id: 'a' }), makeTask({ id: 'b' }), makeTask({ id: 'c' }), makeTask({ id: 'd' })],
+        [
+          makeTask({ id: 'a' }),
+          makeTask({ id: 'b' }),
+          makeTask({ id: 'c' }),
+          makeTask({ id: 'd' }),
+        ],
         { maxConcurrency: 2 },
       ),
     );
@@ -289,10 +323,7 @@ describe('SubagentOrchestrator', () => {
       getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
     });
     const result = await orchestrator.runBatch(
-      makeBatch([
-        makeTask({ id: 'a' }),
-        makeTask({ id: 'b', dependsOn: ['a'] }),
-      ]),
+      makeBatch([makeTask({ id: 'a' }), makeTask({ id: 'b', dependsOn: ['a'] })]),
     );
     expect(result.status).toBe('completed');
     // 'a' should start before 'b'.
@@ -367,22 +398,22 @@ describe('SubagentOrchestrator', () => {
     expect(result.status).toBe('completed');
   });
 
- it('emits task-updated events for each task', async () => {
-   const backend = makeFakeBackend({});
-   const { push, pushes } = makePushCollector();
-   const orchestrator = new SubagentOrchestrator({
-     taskRunner: backend.taskRunner,
-     workspaceService: backend.workspaceService,
-     prepareTask: backend.prepareTask,
-     runRegistry: new RunRegistry(),
-     integrationCoordinator: makeFakeIntegrationCoordinator(),
-     push,
-     getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
-   });
-   await orchestrator.runBatch(makeBatch([makeTask({ id: 'a' }), makeTask({ id: 'b' })]));
-   const taskUpdates = pushes.filter((p) => p.type === 'subagent/task-updated');
-   expect(taskUpdates).toHaveLength(2);
- });
+  it('emits task-updated events for each task', async () => {
+    const backend = makeFakeBackend({});
+    const { push, pushes } = makePushCollector();
+    const orchestrator = new SubagentOrchestrator({
+      taskRunner: backend.taskRunner,
+      workspaceService: backend.workspaceService,
+      prepareTask: backend.prepareTask,
+      runRegistry: new RunRegistry(),
+      integrationCoordinator: makeFakeIntegrationCoordinator(),
+      push,
+      getRuntimeGenerationId: () => RUNTIME_GENERATION_ID,
+    });
+    await orchestrator.runBatch(makeBatch([makeTask({ id: 'a' }), makeTask({ id: 'b' })]));
+    const taskUpdates = pushes.filter((p) => p.type === 'subagent/task-updated');
+    expect(taskUpdates).toHaveLength(2);
+  });
 
   it('rejects a cyclic batch at validation (A→B, B→A)', async () => {
     const backend = makeFakeBackend({});

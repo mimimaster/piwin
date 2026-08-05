@@ -22,7 +22,7 @@ export type SessionBlueprint = {
   capabilitySnapshot: SessionCapabilitySnapshot;
   resourceManifest: ResourceManifest;
   contextManifest: ContextManifest;
-  hostToolRegistrations: readonly HostToolDescriptor[];
+  /** Model-visible projection; Host-local registrations stay in HostRuntime. */
+  hostToolDescriptors: readonly HostToolDescriptor[];
   backendBlueprint: BackendSessionBlueprint;
 };
-
