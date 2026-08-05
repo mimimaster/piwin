@@ -44,6 +44,7 @@ export async function connectOfficialMcpStdio(
     { capabilities: {} },
   );
 
+  const connectPid = transport.pid;
   try {
     await client.connect(transport, signal ? { signal } : undefined);
   } catch (error) {
@@ -51,6 +52,11 @@ export async function connectOfficialMcpStdio(
       await transport.close();
     } catch {
       // Cleanup is best effort when connection setup is cancelled.
+    }
+    // Ensure the spawned process is dead — transport.close() may have
+    // cleared its internal _process ref before sending SIGKILL.
+    if (typeof connectPid === 'number') {
+      try { process.kill(connectPid, 'SIGKILL'); } catch { /* already gone */ }
     }
     throw error;
   }
@@ -107,6 +113,8 @@ export async function connectOfficialMcpStdio(
     },
     async close() {
       intentionalClose = true;
+      // Capture PID before transport.close() clears the internal _process ref.
+      const pid = transport.pid;
       try {
         await client.close();
       } catch {
@@ -116,6 +124,18 @@ export async function connectOfficialMcpStdio(
         await transport.close();
       } catch {
         // ignore close races
+      }
+      // Hard-kill the underlying process if it survived the graceful close.
+      // The SDK's transport.close() should handle SIGTERM → SIGKILL escalation,
+      // but we add a belt-and-suspenders kill to prevent orphaned processes
+      // when the transport's internal state is already cleared (e.g. after
+      // a connect timeout where _process was set to undefined before kill).
+      if (typeof pid === 'number') {
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch {
+          // already gone or no permission
+        }
       }
     },
     onExit(handler) {

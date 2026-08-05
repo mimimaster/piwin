@@ -296,16 +296,29 @@ export function createMcpLifecycleManager(
         entry.configFingerprint === startingFingerprint &&
         entry.startToken === startToken;
       try {
+        // Create an internal abort controller so we can abort the connection
+        // when the connect timeout fires. Without this, a hanging MCP server
+        // (one that never responds to initialize) would leave the connection
+        // promise pending forever, orphaning the spawned child process.
+        const connectAbort = new AbortController();
+        const abortConnect = (): void => connectAbort.abort();
+        // Also propagate external signal abortion.
+        signal?.addEventListener('abort', abortConnect, { once: true });
+
         const connectionPromise = connectMcpStdio(
           entry.serverId,
           entry.config,
-          signal ? { signal } : {},
+          { signal: connectAbort.signal },
         );
         const client = await withTimeout(
           connectionPromise,
           connectTimeoutMs,
           `MCP connect timeout for ${entry.serverId}`,
           () => {
+            // Abort the connection — this causes connectMcpStdio to reject,
+            // which triggers cleanup (transport.close + SIGKILL) in the
+            // client implementation.
+            abortConnect();
             void connectionPromise.then(
               (lateClient) => closeWithDeadline(lateClient),
               () => undefined,
@@ -598,12 +611,12 @@ function discardClientAfterFailure(
 
 async function closeWithDeadline(
   client: McpTransportClient,
-  timeoutMs = 2_000,
+  timeoutMs = 8_000,
 ): Promise<void> {
   await Promise.race([
     safeClose(client),
     new Promise<void>((resolve) => {
-      setTimeout(resolve, timeoutMs);
+      setTimeout(resolve, timeoutMs).unref();
     }),
   ]);
 }
