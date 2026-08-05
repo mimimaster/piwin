@@ -27,7 +27,7 @@ function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
       },
     ],
     media: { maxPasteBytes: 10_000_000, allowedMimeTypes: ['image/png'] },
-    artifact: { maxBytes: 100_000, htmlUiModeDefault: false },
+    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100_000 },
     web: createDefaultWebConfig(),
     skills: { extraPaths: [], disabledIds: [] },
     extensions: { extraPaths: [], disabledIds: [] },

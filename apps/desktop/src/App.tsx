@@ -1977,11 +1977,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       artifactPreviewEnabled={preferences.artifactPreviewEnabled}
                       artifactCodeFirst={preferences.artifactCodeFirst}
                       plan={sessionPlan}
-                      {...(config?.artifact
-                        ? {
-                            artifactMaxBytes: config.artifact.maxBytes,
-                            artifactPreviewEnabled: config.artifact.enabled,
-                          }
+                      {...(config?.artifact?.maxBytes !== undefined
+                        ? { artifactMaxBytes: config.artifact.maxBytes }
                         : {})}
                       locale={desktopLocale}
                       onInspectSubagent={handleInspectSubagent}

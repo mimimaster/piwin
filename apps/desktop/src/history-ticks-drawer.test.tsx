@@ -114,6 +114,19 @@ describe('HistoryTicksDrawer component', () => {
     expect(container?.querySelector('.history-ticks-drawer')).toBeNull();
   });
 
+  it('transitions from an empty session to messages without changing hook order', () => {
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={[]} />);
+    });
+
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    expect(container?.querySelector('.history-ticks-drawer')).not.toBeNull();
+    expect(container?.querySelectorAll('.border-tick-line').length).toBe(2);
+  });
+
   it('renders collapsed handle initially and expands on tick line click', () => {
     act(() => {
       root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
