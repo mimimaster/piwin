@@ -6,6 +6,11 @@
 **Related:** ADR 0012 (RPC worker isolation), ADR 0024 (run modes and sandbox)
 **Implementation:** [`runtime-refactor.md`](../specs/runtime-refactor.md), Phases 2 and 3
 
+**Implementation status (2026-08-05):** Implemented. Plan, model-tool, Desktop,
+and CLI batch entry points share the production `SubagentOrchestrator`; Run
+identity, dirty-base consent, worktree integration, and worker isolation are
+enforced by Host-owned services.
+
 ## Context
 
 piwin supports subagent-driven plan execution where independent steps run in
@@ -73,11 +78,17 @@ subagents because stock Pi RPC cannot register piwin custom tools.
 
 ### Worktree-only parallel writes
 
-Parallel write tasks require a clean base (or explicit product snapshot) and
-one worktree per child. Integration uses three-way diff+apply (not
-`git checkout <branch> -- <paths>`) to preserve parent branch history.
+Parallel write tasks use one worktree per child. Integration uses three-way
+diff+apply (not `git checkout <branch> -- <paths>`) to preserve parent branch
+history.
 
-A dirty parent is rejected when `requireCleanBaseForParallelWrites` is true.
+The original hard-reject rule for dirty parent working trees is superseded by
+[ADR 0031](./0031-dirty-base-parallel-write-consent.md). The current rule is
+to ask the user before acquiring a worktree lease for a write-capable parallel
+task. The safe persisted default is `ask`; an explicit one-run continue choice
+is recorded in the Run diagnostic trail, while the Host never commits or
+stashes automatically. Worktree isolation, serialized integration, and
+conflict retention remain mandatory regardless of the dirty-base decision.
 
 ### Conflict retention
 

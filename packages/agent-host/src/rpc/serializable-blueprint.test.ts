@@ -46,7 +46,7 @@ function snapshot(overrides: Partial<SessionCapabilitySnapshot> = {}): SessionCa
     tools: {
       enabledFamilies: ['web-search'],
       piBuiltinToolNames: ['read'],
-      customToolNames: ['web_search'],
+      hostTools: [{ name: 'web_search', description: 'Search the web', parameters: {} }],
       enabledMcpServerIds: [],
     },
     ...overrides,
@@ -61,7 +61,7 @@ describe('projectBlueprintForWorker', () => {
     expect(blueprint.settingsRevision).toBe('r1');
     expect(blueprint.workingDirectory).toBe('/tmp/work');
     expect(blueprint.scope).toEqual({ kind: 'general' });
-    expect(blueprint.tools.customToolNames).toEqual(['web_search']);
+    expect(blueprint.tools.hostTools.map((tool) => tool.name)).toEqual(['web_search']);
     expect(blueprint.activeSkillPaths).toEqual(['/a/s1', '/a/s2']);
     expect(blueprint.activeExtensionPaths).toEqual(['/a/e1']);
     expect(blueprint.activePromptPaths).toEqual([]);

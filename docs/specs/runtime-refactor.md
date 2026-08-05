@@ -2,13 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Status | Ready for staged implementation after Settings capability compilation prerequisites |
+| Status | Implemented; deletion gates and runtime replacement are active |
 | Date | 2026-08-04 |
 | Scope | `contracts`, new `host-runtime`, `agent-host`, `process`, `session`, `git`, `mcp`, `browser`, `desktop`, `cli`, packaging, docs |
 | Prerequisite | [`settings-capability-runtime-refactor.md`](./settings-capability-runtime-refactor.md): SettingsService, exact manifests, SessionBlueprint, PromptPreparation, runtime generation identity |
 | Supersedes | [`phase7-rpc-worker-parity-plan.md`](./phase7-rpc-worker-parity-plan.md), the runtime portions of W1/W2, and the old foreground-only run/process paths |
-| Related | ADR 0003, ADR 0011, ADR 0012, ADR 0013, ADR 0015, ADR 0019, ADR 0024, ADR 0025, ADR 0030 |
+| Related | ADR 0003, ADR 0011, ADR 0012, ADR 0013, ADR 0015, ADR 0019, ADR 0024, ADR 0025, ADR 0030, ADR 0031 |
 | Binding rule | Implement Phase 1, then Phase 2, then Phase 3. A later phase may depend only on the explicit handoff contracts of the previous phase. |
+| Dependency-order note | The Settings prerequisite asks for complete runtime replacement semantics, but full replacement needs Run cancellation and join from Phase 2. Implementation order: before Phase 1, implement Blueprint compilation, initial generation allocation, active publication, and late-generation event filtering. Keep `session/reload-runtime` disabled until Phase 2 is complete and all execution surfaces (including Plan/subagent) are Run descendants. |
 
 ---
 
@@ -23,7 +24,7 @@ isolation:
   lifecycle state;
 - scheduling, cancellation, worktree integration, and resource limits are not
   controlled by one run tree;
-- `hostMode=rpc` can still use an in-process SDK fallback;
+- `hostMode=rpc` uses the piwin-owned worker backend;
 - Pi session construction, tool registration, Settings interpretation, and
   prompt preparation are spread across adapters and product services;
 - one event vocabulary is being asked to represent both Pi-native session
@@ -226,7 +227,7 @@ interactive terminal.
 | JC-01 | `@piwin/process` owns Job implementation. Do not add a generic `jobs` package. |
 | JC-02 | `@piwin/host-runtime` constructs one `JobController` and is the only product Job authority. |
 | JC-03 | Jobs and Runs remain separate and are linked by owner identities. |
-| JC-04 | `run`, `session`, `project`, and `host` are the only lifetimes. |
+| JC-04 | `run`, `session`, and `host` are the supported automatic-cleanup lifetimes. Project-lifetime Jobs were removed because no real project-close boundary exists to stop them (ADR 0030 Unit B). `ownerProjectPath` remains as project attribution metadata on any Job. |
 | JC-05 | Run-lifetime Jobs stop on every Run terminal path, including normal completion. |
 | JC-06 | Stop targets the process group/tree with graceful then forceful termination. |
 | JC-07 | Logs use monotonic cursors, a bounded memory tail, disk spool, and redaction. |
@@ -241,7 +242,7 @@ interactive terminal.
 ```ts
 export type JobKind = 'command' | 'service';
 
-export type JobLifetime = 'run' | 'session' | 'project' | 'host';
+export type JobLifetime = 'run' | 'session' | 'host';
 
 export type JobStatus =
   | 'starting'
@@ -259,7 +260,6 @@ export type JobTerminalReason =
   | 'run-completed'
   | 'run-cancelled'
   | 'session-closed'
-  | 'project-closed'
   | 'host-shutdown'
   | 'startup-failed'
   | 'readiness-failed'
@@ -307,7 +307,6 @@ Owner requirements are structural:
 
 - `run` requires `ownerRunId`;
 - `session` requires `ownerSessionId`;
-- `project` requires `ownerProjectPath`;
 - `host` requires no lower owner;
 - `env` is input-only and must never be persisted or returned.
 
@@ -323,7 +322,6 @@ export interface JobController {
   stop(jobId: string, reason: JobTerminalReason): Promise<JobStopResult>;
   stopByRun(runId: string, reason: JobTerminalReason): Promise<JobCleanupResult>;
   stopBySession(sessionId: string, reason: JobTerminalReason): Promise<JobCleanupResult>;
-  stopByProject(projectPath: string, reason: JobTerminalReason): Promise<JobCleanupResult>;
   dispose(): Promise<JobCleanupResult>;
 }
 ```
@@ -332,7 +330,7 @@ Public commands are `job/start`, `job/list`, `job/get`, `job/logs`,
 `job/wait`, and `job/stop`. Model tools may keep the small `process_*` family
 as product language, but they must call the same controller.
 
-Model tools may select `run`, `session`, or `project` lifetime only. A
+Model tools may select `run` or `session` lifetime only. A
 Host-lifetime Job requires an explicit product action and is never inferred or
 promoted automatically.
 
@@ -435,6 +433,7 @@ is clamped to one and the product reports that fact.
 | SC-12 | Integration conflict makes the Run failed with `integration-required`. |
 | SC-13 | No automatic task retry. Retry creates new run/task identities. |
 | SC-14 | Resource owners count their own resources; the coordinator is not a second counter. |
+| SC-15 | Dirty-base admission for write-capable parallel tasks uses the explicit consent flow in ADR 0031; the safe persisted policy is `ask`, and `bypass` is explicit advanced configuration. |
 
 ### 3.3 Run contracts
 
@@ -583,13 +582,21 @@ without consuming a slot.
 
 1. Readonly tasks may share the parent cwd.
 2. Parallel write tasks require one worktree per child.
-3. Parallel writes require a clean captured base unless a future ADR defines a
-   product snapshot mechanism.
+3. A clean captured base proceeds normally. A dirty base is detected before a
+   worktree lease is acquired and raises the Host ask
+   `subagent:dirty-base`, unless the user has explicitly configured
+   `parallelWrites.dirtyBase = 'bypass'`. The ask and its three choices are
+   defined by [ADR 0031](../adr/0031-dirty-base-parallel-write-consent.md).
 4. Integration is serialized by normalized repository identity, not session ID.
 5. Use three-way diff/apply semantics; do not use concurrent checkout-based
    file copying.
 6. Conflicted or failed worktrees with unintegrated changes are retained.
 7. Cleanup may never discard unintegrated work.
+
+The legacy `requireCleanBaseForParallelWrites` boolean is migrated to the
+safe `ask` policy for both persisted boolean values. The Host never commits or
+stashes automatically, and a one-run continue decision is not remembered for
+future batches.
 
 ### 3.10 Persistence and restart
 

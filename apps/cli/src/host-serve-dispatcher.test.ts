@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HostCommand, HostResponse, HostServerMessage } from '@piwin/contracts';
-import type { HostRuntime } from '@piwin/agent-host';
+import type { HostRuntime } from '@piwin/host-runtime';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import type { HostServeSend } from './host-serve-dispatcher.js';
 
@@ -23,7 +23,7 @@ describe('createHostServeDispatcher', () => {
     const runtime = createMockRuntime({
       onCommand: async (command) => {
         order.push(`start:${command.type}`);
-        if (command.type === 'config/set') {
+        if (command.type === 'settings/apply') {
           await serializedGate;
         }
         order.push(`end:${command.type}`);
@@ -50,8 +50,8 @@ describe('createHostServeDispatcher', () => {
     });
 
     dispatcher.dispatch({
-      type: 'config/set',
-      config: { version: 1, hostMode: 'sdk', providers: [] } as never,
+      type: 'settings/apply',
+      input: { mutations: [] },
     });
     // Give serialized task a tick to start.
     await new Promise((resolve) => setTimeout(resolve, 10));
@@ -60,19 +60,19 @@ describe('createHostServeDispatcher', () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     // Abort should have finished while config/set is still gated.
-    expect(order).toContain('start:config/set');
+    expect(order).toContain('start:settings/apply');
     expect(order).toContain('start:session/abort');
     expect(order).toContain('end:session/abort');
-    expect(order).not.toContain('end:config/set');
+    expect(order).not.toContain('end:settings/apply');
 
     if (releaseSerialized === undefined) {
       throw new Error('serialized command gate was not initialized');
     }
     releaseSerialized();
     await dispatcher.drain();
-    expect(order).toContain('end:config/set');
+    expect(order).toContain('end:settings/apply');
     expect(written).toContain('session/abort');
-    expect(written).toContain('config/set');
+    expect(written).toContain('settings/apply');
   });
 
   it('waits for active concurrent commands before draining', async () => {

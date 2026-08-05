@@ -1,124 +1,118 @@
-/**
- * Phase 7 WP5: WorkerRpcSessionBackend.
- *
- * Uses `RpcSdkWorkerClient` to run Pi sessions in a piwin-owned worker
- * process. The worker receives the exact `SerializableBlueprint` +
- * `SerializableProviderRuntime` envelope and creates the Pi session
- * inside its own process. Tool calls are proxied back to the parent via
- * the `HostToolExecutionRouter`.
- *
- * This backend provides real process isolation (mode='rpc-worker',
- * isolated=true).
- */
+/** Isolated worker implementation of the backend-neutral session seam. */
 
-import type { AgentEvent } from '@piwin/contracts';
+import { EventEmitter } from 'node:events';
+import type { AgentEvent, ExtensionUiPort, HostToolExecutionPort, HostToolExecutionResult } from '@piwin/contracts';
 import type {
-  PiSessionBackend,
   BackendSessionHandle,
   CreateBackendSessionInput,
-  PreparedPromptInput,
+  PiSessionBackend,
 } from './pi-session-backend.js';
-import { RpcSdkWorkerClient, type WorkerClientOptions } from '../rpc-sdk-worker-client.js';
-import type { HostToolExecutionRouter } from '../tools/host-tool-execution-router.js';
-import { EventEmitter } from 'node:events';
+import { assertValidBackendSessionBlueprint } from './pi-session-backend.js';
+import {
+  projectBackendBlueprintForWorker,
+  type SerializableBlueprint,
+} from '../rpc/serializable-blueprint.js';
+import { AgentWorkerSupervisor } from '../agent-worker-supervisor.js';
+import type { WorkerClientOptions, RpcSdkWorkerClient } from '../rpc-sdk-worker-client.js';
+import type { WorkerToolCallFrame } from '../rpc-sdk-worker-protocol.js';
 
-export type WorkerRpcSessionBackendOptions = {
-  /** Worker client options (script path, env, etc.). */
-  worker: WorkerClientOptions;
-  /** Parent-owned tool execution router for proxy tool calls. */
-  toolRouter?: HostToolExecutionRouter;
+export type WorkerSessionBackendOptions = {
+  /** Sole owner of worker process creation and release. */
+  supervisor: AgentWorkerSupervisor;
+  /** Source-mode/test overrides for the supervisor-owned worker. */
+  worker?: Omit<WorkerClientOptions, 'onEvent' | 'onToolCall' | 'onExtensionUiRequest'>;
+  /** Standalone adapters may transfer ownership; HostRuntime keeps shared ownership. */
+  disposeSupervisor?: boolean;
 };
 
 type ActiveSession = {
   handle: BackendSessionHandle;
+  client: RpcSdkWorkerClient;
+  workerSessionId: string;
   listeners: EventEmitter;
+  blueprint: SerializableBlueprint;
+  productSessionId: string;
+  runtimeGenerationId: string;
+  hostToolExecution: HostToolExecutionPort;
+  extensionUi?: ExtensionUiPort;
 };
 
-export class WorkerRpcSessionBackend implements PiSessionBackend {
+export class WorkerSessionBackend implements PiSessionBackend {
   readonly mode = 'rpc-worker' as const;
   readonly isolated = true;
-  private client: RpcSdkWorkerClient | null = null;
   private readonly sessions = new Map<string, ActiveSession>();
-  private readonly options: WorkerRpcSessionBackendOptions;
+  private readonly options: WorkerSessionBackendOptions;
   private disposing = false;
-  private startupError: Error | null = null;
 
-  constructor(options: WorkerRpcSessionBackendOptions) {
+  constructor(options: WorkerSessionBackendOptions) {
     this.options = options;
   }
 
-  private ensureClient(): RpcSdkWorkerClient {
-    if (!this.client) {
-      const clientOptions: WorkerClientOptions = {
-        ...this.options.worker,
-        onEvent: (sessionId, event) => {
-          const session = this.sessions.get(sessionId);
-          if (session) {
-            session.listeners.emit('event', event);
-          }
-          this.options.worker.onEvent?.(sessionId, event);
-        },
-        ...(this.options.toolRouter ? { toolRouter: this.options.toolRouter } : {}),
-      };
-      this.client = new RpcSdkWorkerClient(clientOptions);
-      // Crash semantics (§9.3): when the worker exits unexpectedly,
-      // all active sessions are marked as failed with a terminal error event.
-      this.client.on('exit', (code: number | null) => {
-        const wasIntentional = this.disposing;
-        for (const [sessionId, session] of this.sessions) {
-          if (!wasIntentional) {
-            // Emit a terminal error event so the UI knows the session is dead.
-            session.listeners.emit('event', {
-              type: 'run/terminal',
-              sessionId,
-              runId: 'worker-crash',
-              outcome: 'failed' as const,
-              at: new Date().toISOString(),
-              code: 'host-shutdown' as const,
-              message: `worker process exited (code ${code}); session failed`,
-            } as AgentEvent);
-          }
-          session.listeners.removeAllListeners();
-        }
-        this.sessions.clear();
-        this.client = null;
-      });
-      void this.client.start().catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        // Hello timeout or protocol mismatch — surface to caller.
-        this.startupError = new Error(`worker start failed: ${message}`);
-      });
-    }
-    return this.client;
-  }
-
   async createSession(input: CreateBackendSessionInput): Promise<BackendSessionHandle> {
-    const client = this.ensureClient();
-    if (this.startupError) {
-      throw this.startupError;
+    assertValidBackendSessionBlueprint(input.blueprint);
+    // Inject only explicitly required apiKeyEnv values into this generation's
+    // worker environment. The supervisor never inherits the host environment.
+    const env: Record<string, string> = { ...(this.options.worker?.env ?? {}) };
+    for (const provider of input.providers) {
+      if (provider.auth.kind === 'env') {
+        const value = process.env[provider.auth.envName];
+        if (value !== undefined) env[provider.auth.envName] = value;
+      }
     }
-    const created = await client.createSession({
-      productSessionId: input.productSessionId,
-      blueprint: input.serializable,
-      ...(input.providers.length > 0 ? { providers: input.providers } : {}),
-    });
+    const client = await this.options.supervisor.acquireWorker(
+      input.blueprint.sessionId,
+      input.blueprint.runtimeGenerationId,
+      {
+        ...this.options.worker,
+        ...(Object.keys(env).length > 0 ? { env } : {}),
+        onToolCall: (frame, signal) => this.executeHostTool(frame, signal),
+        onExtensionUiRequest: (request) => this.requestExtensionUi(request),
+      },
+    );
+    const serializableBlueprint = projectBackendBlueprintForWorker(input.blueprint);
+    let created: { sessionId: string };
+    try {
+      created = await client.createSession({
+        productSessionId: input.blueprint.sessionId,
+        blueprint: serializableBlueprint,
+        providers: input.providers,
+      });
+    } catch (error) {
+      await this.options.supervisor
+        .releaseWorker(input.blueprint.sessionId, input.blueprint.runtimeGenerationId)
+        .catch(() => {});
+      throw error;
+    }
 
     const listeners = new EventEmitter();
     const handle: BackendSessionHandle = {
-      id: created.sessionId,
-      async prompt(prepared: PreparedPromptInput) {
-        await client.prompt(created.sessionId, prepared.text, {
-          ...(prepared.images && prepared.images.length > 0
+      // Product session ids are the stable Host identity. The worker may use
+      // a different internal id; that translation stays inside this backend.
+      id: input.blueprint.sessionId,
+      async prompt(preparedPrompt) {
+        await client.prompt(created.sessionId, preparedPrompt.text, {
+          ...(preparedPrompt.runId ? { runId: preparedPrompt.runId } : {}),
+          ...(preparedPrompt.images && preparedPrompt.images.length > 0
             ? {
-                images: prepared.images.map((img) => ({
-                  dataBase64: img.data,
-                  mimeType: img.mimeType,
+                images: preparedPrompt.images.map((image) => ({
+                  dataBase64: image.dataBase64,
+                  mimeType: image.mimeType,
                 })),
               }
             : {}),
-          ...(prepared.thinkingLevel ? { thinkingLevel: prepared.thinkingLevel } : {}),
-          ...(prepared.model
-            ? { model: { providerId: prepared.model.providerId, modelId: prepared.model.modelId } }
+          ...(preparedPrompt.streamingBehavior
+            ? { streamingBehavior: preparedPrompt.streamingBehavior }
+            : {}),
+          ...(preparedPrompt.thinkingLevel
+            ? { thinkingLevel: preparedPrompt.thinkingLevel }
+            : {}),
+          ...(preparedPrompt.model
+            ? {
+                model: {
+                  providerId: preparedPrompt.model.providerId,
+                  modelId: preparedPrompt.model.modelId,
+                },
+              }
             : {}),
         });
       },
@@ -137,31 +131,156 @@ export class WorkerRpcSessionBackend implements PiSessionBackend {
       },
     };
 
-    this.sessions.set(created.sessionId, { handle, listeners });
+    this.sessions.set(input.blueprint.sessionId, {
+      handle,
+      client,
+      workerSessionId: created.sessionId,
+      listeners,
+      blueprint: serializableBlueprint,
+      productSessionId: input.blueprint.sessionId,
+      runtimeGenerationId: input.blueprint.runtimeGenerationId,
+      hostToolExecution: input.hostToolExecution,
+      ...(input.extensionUi ? { extensionUi: input.extensionUi } : {}),
+    });
+    client.on('event', (sessionId: string, event: AgentEvent) => {
+      if (sessionId === created.sessionId || sessionId === input.blueprint.sessionId) {
+        listeners.emit('event', event);
+      }
+    });
+    client.on('exit', (code: number | null) => {
+      const session = this.sessions.get(input.blueprint.sessionId);
+      if (!session) return;
+      if (!this.disposing) {
+        session.listeners.emit('event', {
+          type: 'error',
+          message: `worker process exited (code ${code ?? 'unknown'})`,
+          retriable: false,
+        } satisfies AgentEvent);
+      }
+      session.listeners.removeAllListeners();
+      this.sessions.delete(input.blueprint.sessionId);
+    });
     return handle;
   }
 
-  async dropSession(sessionId: string): Promise<void> {
-    const session = this.sessions.get(sessionId);
-    if (session) {
-      this.sessions.delete(sessionId);
-      session.listeners.removeAllListeners();
-      try {
-        await this.client?.dropSession(sessionId);
-      } catch {
-        // best-effort
+  private async executeHostTool(
+    frame: WorkerToolCallFrame,
+    signal: AbortSignal,
+  ): Promise<HostToolExecutionResult> {
+    const session = this.findActiveSession(frame.context.sessionId);
+    if (!session) {
+      return {
+        ok: false,
+        code: 'tool-not-available',
+        message: `unknown worker session: ${frame.context.sessionId}`,
+      };
+    }
+    const descriptor = session.blueprint.tools.hostTools.find(
+      (tool) => tool.name === frame.toolName,
+    );
+    if (!descriptor) {
+      return {
+        ok: false,
+        code: 'tool-not-available',
+        message: `tool is not present in the compiled blueprint: ${frame.toolName}`,
+      };
+    }
+    const argumentsRecord = normalizeToolArguments(frame.args);
+    const runId = frame.context.runId;
+    if (!runId) {
+      return {
+        ok: false,
+        code: 'tool-not-available',
+        message: 'worker tool call has no active Run identity',
+      };
+    }
+    return session.hostToolExecution.execute(
+      {
+        sessionId: frame.context.sessionId,
+        runtimeGenerationId: session.runtimeGenerationId,
+        runId,
+        toolName: descriptor.name,
+        arguments: argumentsRecord,
+      },
+      signal,
+    );
+  }
+
+  private findActiveSession(sessionId: string): ActiveSession | undefined {
+    const directMatch = this.sessions.get(sessionId);
+    if (directMatch) {
+      return directMatch;
+    }
+    for (const session of this.sessions.values()) {
+      if (session.productSessionId === sessionId || session.workerSessionId === sessionId) {
+        return session;
       }
     }
+    return undefined;
+  }
+
+  private async requestExtensionUi(request: {
+    sessionId: string;
+    kind: 'confirm' | 'select' | 'input';
+    title: string;
+    message?: string;
+    options?: string[];
+    placeholder?: string;
+  }): Promise<
+    | { kind: 'confirm'; confirmed: boolean }
+    | { kind: 'select'; value?: string; cancelled?: boolean }
+    | { kind: 'input'; value?: string; cancelled?: boolean }
+  > {
+    const extensionUi = this.findActiveSession(request.sessionId)?.extensionUi;
+    if (!extensionUi) {
+      throw new Error('no extension UI port configured');
+    }
+    return extensionUi.request(
+      {
+        requestId: `worker-ui-${Date.now().toString(36)}`,
+        kind: request.kind,
+        title: request.title,
+        ...(request.message ? { message: request.message } : {}),
+        ...(request.options ? { options: request.options } : {}),
+        ...(request.placeholder ? { placeholder: request.placeholder } : {}),
+      },
+      new AbortController().signal,
+    );
+  }
+
+  async dropSession(sessionId: string): Promise<void> {
+    const session = this.sessions.get(sessionId) ??
+      [...this.sessions.values()].find(
+        (candidate) => candidate.workerSessionId === sessionId,
+      );
+    if (!session) {
+      return;
+    }
+    this.sessions.delete(session.productSessionId);
+    session.listeners.removeAllListeners();
+    await session.client.dropSession(session.workerSessionId).catch(() => {
+      // The worker may already have exited; dropping remains best effort.
+    });
+    await this.options.supervisor.releaseWorker(
+      session.productSessionId,
+      session.runtimeGenerationId,
+    );
   }
 
   async dispose(): Promise<void> {
     this.disposing = true;
-    for (const sessionId of this.sessions.keys()) {
+    for (const sessionId of [...this.sessions.keys()]) {
       await this.dropSession(sessionId);
     }
-    if (this.client) {
-      await this.client.close();
-      this.client = null;
+    if (this.options.disposeSupervisor) {
+      await this.options.supervisor.dispose();
     }
   }
+}
+
+function normalizeToolArguments(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+  return value as Record<string, unknown>;
 }

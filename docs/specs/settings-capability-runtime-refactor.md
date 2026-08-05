@@ -2,11 +2,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Ready for implementation |
+| Status | Implemented; capability compilation and runtime replacement are active |
 | Date | 2026-08-04 |
-| Scope | `contracts`, `agent-resources` (new), `host-runtime` (new composition root), `agent-host`, `project`, `skills`, `mcp`, `tools-web`, `process`, `notes`, `flashcards`, `desktop`, `cli`, docs |
+| Scope | `contracts`, `host-runtime` (new composition root), `agent-host`, `project`, `skills`, `mcp`, `tools-web`, `process`, `notes`, `flashcards`, `desktop`, `cli`, docs |
 | Primary owners | Settings control plane and product composition in `host-runtime`; Pi backend boundary in `agent-host`; Desktop/CLI product surfaces |
-| Related | [`architecture.md`](../architecture.md), [`prd.md`](../prd.md), [`settings-ui-redesign.md`](./settings-ui-redesign.md), [`vision-delegation.md`](./vision-delegation.md), ADR 0002/0003/0005/0008/0010/0011/0012/0014/0019/0020/0021/0024/0030 |
+| Related | [`architecture.md`](../architecture.md), [`prd.md`](../prd.md), [`settings-ui-redesign.md`](./settings-ui-redesign.md), [`vision-delegation.md`](./vision-delegation.md), ADR 0002/0003/0005/0008/0010/0011/0012/0014/0019/0020/0021/0024/0030/0031 |
 | Trigger | Audit found settings-off resources/tools still entering Pi sessions, inconsistent runtime application, and multiple competing config writers |
 | Binding rules | `AGENTS.md`: contracts first, only `agent-host` imports Pi, dual host modes remain real, no cross-layer temporary hacks |
 
@@ -142,7 +142,7 @@ The work must be deliverable as vertical, reviewable phases. Each phase must lea
 | SCR-03 | Pi adapters consume a `SessionBlueprint`; they do not read Settings or project trust. |
 | SCR-04 | Safety disable/revocation blocks new execution immediately, including calls from stale live sessions. |
 | SCR-05 | Tool/resource schema changes apply to a new Agent Runtime, not through partial hot reload. |
-| SCR-06 | The default product action for a stale runtime is `Start new session`; runtime reload is explicit and warns about reconstructed context. |
+| SCR-06 | The default product action for a stale runtime is `Start new session`; once the complete Run tree and replacement transaction are available, runtime replacement is an explicit action that reports rebuilding/failed/active truthfully and warns about reconstructed context. |
 | SCR-07 | Project-scoped Agent sessions require an explicitly trusted project. Opening a folder does not automatically trust it. |
 | SCR-08 | ResourcePolicy still defensively excludes project resources when project trust is absent, even if session creation should already have been rejected. |
 | SCR-09 | Resource IDs use one canonical function from `@piwin/contracts`. A logical ID toggle applies to all copies with that ID; the UI shows the effective source and shadowed copies. |
@@ -155,6 +155,7 @@ The work must be deliverable as vertical, reviewable phases. Each phase must lea
 | SCR-16 | Pi/global/project `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md`, and `APPEND_SYSTEM.md` are represented by an explicit `ContextManifest`; adapters may not rely on invisible default context discovery. |
 | SCR-17 | ToolManifest contains complete descriptors for Host custom/dynamic tools. Pi built-ins are the explicit name-selected exception resolved by the same pinned Pi version in each backend. |
 | SCR-18 | `SessionRuntimeController` in `@piwin/host-runtime` owns `runtimeGenerationId` allocation, replacement ordering, and active-generation publication. |
+| SCR-19 | Dirty-base admission for parallel writes follows [ADR 0031](../adr/0031-dirty-base-parallel-write-consent.md): the safe persisted policy is `ask`, explicit `bypass` is advanced configuration, and legacy boolean values migrate to `ask`. |
 
 ---
 
@@ -246,7 +247,6 @@ apps/desktop, apps/cli
         v
 @piwin/host-runtime public commands/contracts
         |
-        +--> @piwin/agent-resources (new, pure inventory; no Pi)
         +--> @piwin/project
         +--> @piwin/mcp
         +--> @piwin/tools-web
@@ -260,35 +260,20 @@ apps/desktop, apps/cli
 Only @piwin/agent-host imports @earendil-works/pi-*.
 ```
 
-### 6.2 New package: `@piwin/agent-resources`
+### 6.2 Resource inventory ownership
 
-Purpose: one pure filesystem inventory for Skills, Extensions, Prompt Commands, and Pi instruction/context files across Pi and piwin roots.
+The product currently keeps one pure filesystem inventory boundary without
+introducing a speculative package:
 
-```text
-packages/agent-resources/
-  package.json
-  tsconfig.json
-  src/
-    index.ts
-    resource-catalog.ts
-    resource-discovery.ts
-    resource-precedence.ts
-    resource-diagnostics.ts
-    context-discovery.ts
-    resource-catalog.test.ts
-```
+- Skills discovery remains in `@piwin/skills`.
+- Extension scanning, bundled prompts/extensions, and context discovery remain
+  in `@piwin/host-runtime`.
+- These scanners do not import Pi packages and are covered by resolver and
+  parity tests.
 
-Allowed dependencies:
-
-- `@piwin/contracts`
-- Node filesystem/path APIs
-
-Forbidden:
-
-- Pi packages
-- HostRuntime
-- Desktop UI
-- Settings persistence
+Do not create `@piwin/agent-resources` for this refactor. If a second
+independent consumer emerges, extract the pure inventory APIs in a separate
+ADR without moving Settings persistence or Host composition into that package.
 
 ### 6.3 Host Runtime and Agent Host target layouts
 
@@ -385,6 +370,7 @@ export type PiwinConfigV2 = {
   marketplace?: MarketplaceConfig;
   walkthrough?: WalkthroughConfig;
   subagents?: SubagentConfig;
+  parallelWrites?: ParallelWriteConfig;
   remote?: RemoteConfig;
   desktop?: DesktopRestoreConfig;
   thinking?: ThinkingConfig;
@@ -1090,6 +1076,19 @@ export type SessionRuntimeStatus = {
 
 `SessionRuntimeController` is the only runtime-generation identity authority.
 Replacement order is binding:
+However, full replacement requires Run cancellation and join, which depends
+on Runtime Refactor Phase 2 (`RunRegistry`). The implementation order is:
+
+1. **Before Runtime Refactor Phase 1:** implement Blueprint compilation,
+   initial generation allocation, successful-backend active publication, and
+   late-generation event filtering.
+2. Keep `session/reload-runtime` returning a stable not-ready response while
+   foreground execution still uses `ActiveRunRegistry`.
+3. **During Runtime Refactor Phase 2:** after `RunRegistry` becomes
+   authoritative and all execution surfaces (including Plan/subagent) are Run
+   descendants, implement full replacement ordering and enable reload.
+
+The binding replacement transaction is:
 
 1. Compile a new blueprint with a new `runtimeGenerationId`.
 2. Publish `rebuilding` without publishing the generation as active.
@@ -1460,7 +1459,9 @@ Create/update:
 
 - `docs/adr/0028-versioned-settings-and-runtime-application.md`
 - `docs/adr/0029-resource-inventory-trust-and-activation.md`
-- `docs/adr/0030-session-capability-blueprints.md`
+- ~~`docs/adr/0030-session-capability-blueprints.md`~~ — ADR 0030 is
+  `safe-parallel-subagent-execution.md`; the capability-blueprint decision is
+  authoritative in this spec itself. Do not create a duplicate ADR.
 - update `docs/adr/0005-artifact-and-media.md`
 - update `docs/adr/0008-skills-mcp-pi-wiring.md`
 - update `docs/adr/0010-pi-extensions-channel.md`

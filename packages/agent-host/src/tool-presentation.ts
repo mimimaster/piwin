@@ -6,7 +6,17 @@
  *   [icon] [actionVerb] [path pill | query preview] [countTag] … [status] [duration]
  */
 import type { ToolErrorView, ToolKind, ToolOutputView, ToolPresentation } from '@piwin/contracts';
-import { looksLikeCancelledToolOutput } from './run-abort-reason.js';
+
+function looksLikeCancelledToolOutput(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  return (
+    normalized.includes('command aborted') ||
+    normalized.includes('was interrupted') ||
+    normalized.includes('was cancelled') ||
+    normalized.includes('user stopped this run') ||
+    normalized.includes('superseded by a newer')
+  );
+}
 
 const MAX_TOOL_OUTPUT_CHARS = 8_000;
 const MAX_SUMMARY_CHARS = 96;

@@ -11,27 +11,14 @@
  * so the backend does not need to track active sessions itself.
  */
 
-import type { AgentEvent, ModelRef, ThinkingLevel } from '@piwin/contracts';
-import type { PromptInput } from '@piwin/contracts';
 import type {
-  SerializableBlueprint,
-  SerializableProviderRuntime,
-} from '../rpc/serializable-blueprint.js';
-
-/**
- * A prepared prompt is the host-internal form after attachment resolution,
- * image loading, and per-turn model/thinking resolution. Backends receive
- * this instead of the raw `PromptInput` so both SDK and worker paths share
- * the same preparation logic.
- */
-export type PreparedPromptInput = {
-  text: string;
-  images?: Array<{ data: string; mimeType: string }>;
-  streamingBehavior?: 'steer' | 'followUp';
-  /** Per-turn model ref (already validated against the provider envelope). */
-  model?: ModelRef;
-  thinkingLevel?: ThinkingLevel;
-};
+  AgentEvent,
+  BackendPreparedPrompt,
+  BackendSessionBlueprint,
+  ExtensionUiPort,
+  HostToolExecutionPort,
+} from '@piwin/contracts';
+import type { SerializableProviderRuntime } from '../rpc/serializable-blueprint.js';
 
 /**
  * Handle returned by a backend's `createSession`. Mirrors the subset of
@@ -39,7 +26,7 @@ export type PreparedPromptInput = {
  */
 export type BackendSessionHandle = {
   id: string;
-  prompt(prepared: PreparedPromptInput): Promise<void>;
+  prompt(prepared: BackendPreparedPrompt): Promise<void>;
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
   abort(): Promise<void>;
@@ -49,38 +36,19 @@ export type BackendSessionHandle = {
 /**
  * Input passed to `PiSessionBackend.createSession`.
  *
- * The `serializable` blueprint is the exact, parent-compiled envelope that
- * the worker receives. The SDK backend may also use it directly since it
- * contains the same paths/providers/tools — the only difference is that
- * the SDK backend resolves providers from the live Settings runtime
- * instead of the envelope, but the envelope is the source of truth for
- * resource paths and tool allowlists.
+ * The `blueprint` is the exact parent-compiled projection. Providers remain
+ * an ephemeral runtime envelope and Host-owned side effects remain ports;
+ * neither backend discovers product settings or policy at this seam.
  */
 export type CreateBackendSessionInput = {
-  productSessionId: string;
-  /** Exact serializable blueprint (source of truth for paths/tools/providers). */
-  serializable: SerializableBlueprint;
-  /** Provider runtime envelope (worker path uses this directly). */
+  /** Exact parent-compiled projection; no product settings are re-read here. */
+  blueprint: BackendSessionBlueprint;
+  /** Ephemeral provider runtime data; credentials are never persisted by a backend. */
   providers: SerializableProviderRuntime[];
-  /**
-   * Optional host-internal context for the SDK backend (e.g. live model
-   * runtime, resource loader). The worker backend ignores this.
-   */
-  sdkContext?: SdkBackendContext;
-};
-
-/**
- * Host-internal context for the in-process SDK backend. The worker backend
- * does not use this — it reconstructs everything from the serializable
- * envelope.
- */
-export type SdkBackendContext = {
-  /** Live model runtime (already has providers registered). */
-  modelRuntime: unknown;
-  /** Live resource loader (already built from Settings paths). */
-  resourceLoader: unknown;
-  /** Pi module handle (createAgentSession, etc.). */
-  piModule: unknown;
+  /** Parent-owned execution port for descriptors in the blueprint. */
+  hostToolExecution: HostToolExecutionPort;
+  /** Optional parent-owned extension UI bridge. */
+  extensionUi?: ExtensionUiPort;
 };
 
 /**
@@ -88,7 +56,7 @@ export type SdkBackendContext = {
  */
 export interface PiSessionBackend {
   /** Backend mode identifier for doctor/status reporting. */
-  readonly mode: 'sdk' | 'rpc-worker' | 'rpc-fallback';
+  readonly mode: 'sdk' | 'rpc-worker';
 
   /** True when the backend provides real process isolation. */
   readonly isolated: boolean;
@@ -107,38 +75,84 @@ export interface PiSessionBackend {
 }
 
 /**
- * Helper to prepare a `PromptInput` into a `PreparedPromptInput` before
- * passing it to a backend. Both SDK and worker backends receive the same
- * prepared form so image loading and per-turn resolution happen once.
- *
- * NOTE: image loading (base64 encoding from `~/.piwin/media/`) is done
- * here so the worker does not need filesystem access to media paths.
+ * Validate the backend projection before any Pi module or session is created.
+ * This is intentionally structural: the parent owns policy compilation, but
+ * the backend still rejects malformed cross-package input at its boundary.
  */
-export async function preparePromptInput(
-  input: PromptInput,
-  options: {
-    loadImages?: (
-      attachments: PromptInput['attachments'],
-    ) => Promise<Array<{ data: string; mimeType: string }>>;
-  },
-): Promise<PreparedPromptInput> {
-  const prepared: PreparedPromptInput = {
-    text: input.text,
-  };
-  if (input.streamingBehavior) {
-    prepared.streamingBehavior = input.streamingBehavior;
+export function isValidBackendSessionBlueprint(
+  value: unknown,
+): value is BackendSessionBlueprint {
+  if (!value || typeof value !== 'object') {
+    return false;
   }
-  if (input.model) {
-    prepared.model = input.model;
+  const record = value as Record<string, unknown>;
+  if (
+    record.version !== 1 ||
+    typeof record.sessionId !== 'string' ||
+    record.sessionId.trim().length === 0 ||
+    typeof record.runtimeGenerationId !== 'string' ||
+    record.runtimeGenerationId.trim().length === 0
+  ) {
+    return false;
   }
-  if (input.thinkingLevel) {
-    prepared.thinkingLevel = input.thinkingLevel;
+  const snapshot = record.capabilitySnapshot;
+  if (!snapshot || typeof snapshot !== 'object') {
+    return false;
   }
-  if (input.attachments && input.attachments.length > 0 && options.loadImages) {
-    const images = await options.loadImages(input.attachments);
-    if (images.length > 0) {
-      prepared.images = images;
+  const snapshotRecord = snapshot as Record<string, unknown>;
+  if (
+    snapshotRecord.version !== 1 ||
+    typeof snapshotRecord.snapshotId !== 'string' ||
+    snapshotRecord.snapshotId.trim().length === 0 ||
+    typeof snapshotRecord.workingDirectory !== 'string' ||
+    snapshotRecord.workingDirectory.trim().length === 0 ||
+    !snapshotRecord.inputs ||
+    typeof snapshotRecord.inputs !== 'object'
+  ) {
+    return false;
+  }
+  const tools = snapshotRecord.tools;
+  if (!tools || typeof tools !== 'object') {
+    return false;
+  }
+  const toolRecord = tools as Record<string, unknown>;
+  if (
+    !Array.isArray(toolRecord.piBuiltinToolNames) ||
+    !toolRecord.piBuiltinToolNames.every((name): name is string => typeof name === 'string') ||
+    !Array.isArray(toolRecord.enabledFamilies) ||
+    !Array.isArray(toolRecord.enabledMcpServerIds) ||
+    !toolRecord.enabledMcpServerIds.every((id): id is string => typeof id === 'string') ||
+    !Array.isArray(toolRecord.hostTools) ||
+    !toolRecord.enabledFamilies.every((family): family is string => typeof family === 'string')
+  ) {
+    return false;
+  }
+  const descriptorNames = new Set<string>();
+  return toolRecord.hostTools.every((tool): boolean => {
+    if (!tool || typeof tool !== 'object') {
+      return false;
     }
+    const descriptor = tool as Record<string, unknown>;
+    const name = typeof descriptor.name === 'string' ? descriptor.name.trim() : '';
+    if (descriptorNames.has(name)) {
+      return false;
+    }
+    descriptorNames.add(name);
+    return (
+      typeof descriptor.name === 'string' &&
+      name.length > 0 &&
+      typeof descriptor.description === 'string' &&
+      Boolean(descriptor.parameters) &&
+      typeof descriptor.parameters === 'object' &&
+      !Array.isArray(descriptor.parameters)
+    );
+  });
+}
+
+export function assertValidBackendSessionBlueprint(
+  value: unknown,
+): asserts value is BackendSessionBlueprint {
+  if (!isValidBackendSessionBlueprint(value)) {
+    throw new Error('malformed BackendSessionBlueprint');
   }
-  return prepared;
 }

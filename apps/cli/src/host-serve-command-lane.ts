@@ -20,7 +20,6 @@ const CONTROL_COMMAND_TYPES = new Set<HostCommand['type']>([
 ]);
 
 const SERIALIZED_COMMAND_TYPES = new Set<HostCommand['type']>([
-  'config/set',
   'settings/apply',
   'mcp/save',
   'mcp/start',

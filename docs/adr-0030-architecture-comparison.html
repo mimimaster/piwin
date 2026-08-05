@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ADR 0030 架构对比</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+    background: #0d1117;
+    color: #e6edf3;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  h1 { text-align: center; font-size: 28px; margin-bottom: 8px; }
+  .subtitle { text-align: center; color: #8b949e; margin-bottom: 40px; font-size: 15px; }
+
+  /* ── After-only detailed diagram ── */
+  .detailed {
+    background: #161b22; border: 1px solid #3fb95040; border-radius: 12px;
+    padding: 32px; margin-bottom: 40px;
+  }
+  .detailed h2 {
+    font-size: 20px; margin-bottom: 8px; color: #3fb950;
+  }
+  .detailed .desc { color: #8b949e; font-size: 14px; margin-bottom: 24px; }
+
+  .tier {
+    border-radius: 10px; padding: 16px; margin-bottom: 12px;
+    position: relative;
+  }
+  .tier-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.5px; margin-bottom: 10px;
+  }
+  .tier-desc { font-size: 12px; margin-bottom: 10px; line-height: 1.5; }
+
+  .tier-orchestrator { background: #3fb9500a; border: 1px solid #3fb95030; }
+  .tier-orchestrator .tier-label { color: #3fb950; }
+
+  .tier-supervisor { background: #a371f70a; border: 1px solid #a371f730; }
+  .tier-supervisor .tier-label { color: #a371f7; }
+
+  .tier-worker { background: #f0883e0a; border: 1px solid #f0883e30; }
+  .tier-worker .tier-label { color: #f0883e; }
+
+  .tier-port { background: #58a6ff0a; border: 1px solid #58a6ff30; }
+  .tier-port .tier-label { color: #58a6ff; }
+
+  .tier-job { background: #d299220a; border: 1px solid #d2992230; }
+  .tier-job .tier-label { color: #d29922; }
+
+  .boxes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .box {
+    padding: 10px 14px; border-radius: 8px; font-size: 13px;
+    text-align: center; min-width: 100px; flex: 1;
+    border: 1px solid; transition: transform .15s;
+  }
+  .box:hover { transform: translateY(-2px); }
+  .box small { display: block; font-size: 11px; opacity: .7; margin-top: 2px; }
+
+  .box-green { background: #3fb95015; border-color: #3fb95050; color: #3fb950; }
+  .box-purple { background: #a371f715; border-color: #a371f750; color: #c792ea; }
+  .box-orange { background: #f0883e15; border-color: #f0883e50; color: #f0883e; }
+  .box-blue { background: #58a6ff15; border-color: #58a6ff50; color: #79c0ff; }
+  .box-yellow { background: #d2992215; border-color: #d2992250; color: #e3b341; }
+  .box-red { background: #da363315; border-color: #da363350; color: #ff7b72; }
+  .box-removed { background: #da363310; border-color: #da363330; color: #6e7681; text-decoration: line-through; opacity: .5; }
+  .box-gray { background: #30363d; border-color: #484f58; color: #8b949e; }
+
+  .arrow-down {
+    text-align: center; color: #484f58; font-size: 18px;
+    margin: 2px 0; line-height: 1;
+  }
+  .arrow-label {
+    font-size: 10px; color: #6e7681; text-align: center; margin: -2px 0 2px;
+  }
+
+  .note { font-size: 12px; color: #8b949e; margin-top: 8px; line-height: 1.5; }
+
+  /* ── Before/After comparison ── */
+  .comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .comparison { grid-template-columns: 1fr; } }
+  .panel {
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px;
+  }
+  .panel-before { border-color: #da3633; }
+  .panel-after { border-color: #3fb950; }
+  .panel-title {
+    font-size: 18px; font-weight: 700; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .badge {
+    font-size: 11px; padding: 2px 10px; border-radius: 20px; font-weight: 600;
+  }
+  .badge-before { background: #da363340; color: #ff7b72; border: 1px solid #da3633; }
+  .badge-after { background: #3fb95040; color: #3fb950; border: 1px solid #3fb950; }
+  .layer { margin-bottom: 16px; border-radius: 8px; padding: 14px; }
+  .layer-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; margin-bottom: 10px; color: #8b949e;
+  }
+
+  /* ── Summary ── */
+  .summary {
+    margin-top: 40px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 12px; padding: 28px;
+  }
+  .summary h2 { font-size: 18px; margin-bottom: 16px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
+  .summary-item { padding: 14px; border-radius: 8px; background: #0d1117; border: 1px solid #30363d; }
+  .summary-item .label { font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .summary-item .before { color: #ff7b72; font-size: 13px; margin-bottom: 4px; }
+  .summary-item .after { color: #3fb950; font-size: 13px; }
+  .summary-item .arrow-sm { color: #484f58; font-size: 12px; margin: 2px 0; }
+
+  .legend { display: flex; gap: 16px; justify-content: center; margin-bottom: 24px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #8b949e; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>ADR 0030 架构改造对比</h1>
+  <p class="subtitle">安全并行子代理执行 — 三层分离: 调度 / 进程监督 / 会话执行</p>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- 改造后完整组合链 (重点展示 Supervisor 角色) -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <div class="detailed">
+    <h2>改造后 — 完整组合链</h2>
+    <p class="desc">三层分离: Orchestrator 管调度策略, Supervisor 管进程生命周期, Worker 管会话执行</p>
+
+    <!-- Orchestrator 层 -->
+    <div class="tier tier-orchestrator">
+      <div class="tier-label">① 调度层 — SubagentOrchestrator</div>
+      <div class="tier-desc">批量调度 + 失败策略 + 并发控制。不碰进程, 不碰 Git, 不碰 Pi</div>
+      <div class="boxes">
+        <div class="box box-green">SubagentOrchestrator<br><small>调度 + 失败策略</small></div>
+        <div class="box box-green">RuntimeResourceCoordinator<br><small>并发槽位</small></div>
+        <div class="box box-green">SubagentWorkspaceService<br><small>worktree 租约</small></div>
+        <div class="box box-green">SubagentIntegrationCoordinator<br><small>序列化三方合并</small></div>
+        <div class="box box-green">RunRegistry<br><small>Run 生命周期</small></div>
+      </div>
+    </div>
+
+    <div class="arrow-down">↓</div>
+    <div class="arrow-label">taskRunner.runTask() — 适配层 WorkerTaskRunner</div>
+
+    <!-- Supervisor 层 -->
+    <div class="tier tier-supervisor">
+      <div class="tier-label">② 进程监督层 — AgentWorkerSupervisor</div>
+      <div class="tier-desc">隔离 Pi worker 进程的生命周期权威。一个 worker = 一个 (sessionId, generationId) 对。容量管理 + 启停 + 工具调用转发</div>
+      <div class="boxes">
+        <div class="box box-purple">AgentWorkerSupervisor<br><small>进程生命周期 + 容量</small></div>
+        <div class="box box-purple">WorkerTaskRunner<br><small>适配 SubagentTaskRunner</small></div>
+      </div>
+      <div class="note">onToolCall → 转发到父级 SessionHostToolExecutionPort<br>onEvent → 转发 normalized AgentEvent 到 push channel</div>
+    </div>
+
+    <div class="arrow-down">↓</div>
+    <div class="arrow-label">acquireWorker(sessionId, generationId) — spawn 子进程</div>
+
+    <!-- Worker 层 -->
+    <div class="tier tier-worker">
+      <div class="tier-label">③ 会话执行层 — Isolated Worker 进程</div>
+      <div class="tier-desc">每个 worker 是一个独立 Node 子进程, 通过 JSONL IPC 通信。只做 Pi 会话执行 + 事件映射, 不碰文件系统/进程/密钥</div>
+      <div class="boxes">
+        <div class="box box-orange">Worker 1<br><small>session-A / gen-1</small></div>
+        <div class="box box-orange">Worker 2<br><small>session-B / gen-2</small></div>
+        <div class="box box-orange">Worker N<br><small>≤ maxActiveWorkers</small></div>
+      </div>
+      <div class="note">工具调用通过 JSONL → Supervisor → SessionHostToolExecutionPort (回到父级)</div>
+    </div>
+
+    <!-- 横向: 父级工具执行边界 -->
+    <div style="margin-top:16px">
+      <div class="arrow-down">↔ 工具调用回流</div>
+    </div>
+
+    <div class="tier tier-port">
+      <div class="tier-label">④ 父级工具执行边界 — SessionHostToolExecutionPort</div>
+      <div class="tier-desc">验证 (sessionId, generationId, runId, toolName) → 路由到具体执行器。Worker 的所有副作用都经过这里</div>
+      <div class="boxes">
+        <div class="box box-blue">SessionHostToolExecutionPort<br><small>验证 + 路由</small></div>
+        <div class="box box-blue">HostToolExecutionRouter<br><small>按名称分发</small></div>
+        <div class="box box-blue">buildSessionHostTools()<br><small>冻结蓝图 → 具体执行器</small></div>
+      </div>
+    </div>
+
+    <!-- 横向: Job 权威 -->
+    <div class="tier tier-job" style="margin-top:12px">
+      <div class="tier-label">⑤ 子进程权威 — JobController (唯一)</div>
+      <div class="tier-desc">所有非交互式 OS 子进程的唯一权威。Worker 进程不算 Job (内部基础设施)</div>
+      <div class="boxes">
+        <div class="box box-yellow">JobController<br><small>唯一非交互进程权威</small></div>
+        <div class="box box-yellow">JobRecordStore<br><small>持久化 + 重启协调</small></div>
+        <div class="box box-removed">ProcessRegistry</div>
+        <div class="box box-removed">PtyHost</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- 前后对比 -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#da363340;border:1px solid #da3633"></div>问题/遗留</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#d2992233;border:1px solid #d29922"></div>部分实现</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#3fb95015;border:1px solid #3fb950"></div>完成</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a371f715;border:1px solid #a371f7"></div>Supervisor 层</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f0883e15;border:1px solid #f0883e"></div>Worker 层</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#da363310;border:1px solid #da363330;opacity:.5"></div>已删除</div>
+  </div>
+
+  <div class="comparison">
+    <!-- BEFORE -->
+    <div class="panel panel-before">
+      <div class="panel-title">改造前 <span class="badge badge-before">Before</span></div>
+
+      <div class="layer" style="background:#da363308;border:1px solid #da363320;border-radius:8px">
+        <div class="layer-label">子进程管理</div>
+        <div class="boxes">
+          <div class="box box-red">ProcessRegistry<br><small>遗留权威</small></div>
+          <div class="box box-gray">JobController<br><small>新建但没独占</small></div>
+          <div class="box box-red">PtyHost<br><small>第三个权威</small></div>
+        </div>
+      </div>
+
+      <div class="layer" style="background:#da363308;border:1px solid #da363320;border-radius:8px">
+        <div class="layer-label">工具执行</div>
+        <div class="boxes">
+          <div class="box box-red" style="flex:1">createNotReadyPort<br><small>永远返回 "not wired"</small></div>
+        </div>
+      </div>
+
+      <div class="layer" style="background:#da363308;border:1px solid #da363320;border-radius:8px">
+        <div class="layer-label">子代理编排</div>
+        <div class="boxes">
+          <div class="box box-gray">Orchestrator<br><small>存在但未组合</small></div>
+          <div class="box box-red">batch-* IPC<br><small>→ "not ready"</small></div>
+        </div>
+        <div class="note" style="margin-top:8px">Supervisor 存在但没被 Orchestrator 调用, 没有生产 worker</div>
+      </div>
+
+      <div class="layer" style="background:#da363308;border:1px solid #da363320;border-radius:8px">
+        <div class="layer-label">Plan 执行</div>
+        <div class="boxes">
+          <div class="box box-gray">有 DAG → orchestrator</div>
+          <div class="box box-red">无 DAG → 顺序循环<br><small>遗留路径</small></div>
+        </div>
+      </div>
+
+      <div class="layer" style="background:#da363308;border:1px solid #da363320;border-radius:8px">
+        <div class="layer-label">Worker 侧</div>
+        <div class="boxes">
+          <div class="box box-red">从 toolCallId<br><small>解析 session ID</small></div>
+          <div class="box box-red">环境缺 apiKeyEnv</div>
+          <div class="box box-red">Generation<br><small>创建后才注册</small></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="panel panel-after">
+      <div class="panel-title">改造后 <span class="badge badge-after">After</span></div>
+
+      <div class="layer" style="background:#3fb95008;border:1px solid #3fb95020;border-radius:8px">
+        <div class="layer-label">子进程管理</div>
+        <div class="boxes">
+          <div class="box box-yellow">JobController<br><small>唯一权威 + 持久化</small></div>
+          <div class="box box-removed">ProcessRegistry</div>
+          <div class="box box-removed">PtyHost</div>
+        </div>
+      </div>
+
+      <div class="layer" style="background:#3fb95008;border:1px solid #3fb95020;border-radius:8px">
+        <div class="layer-label">工具执行</div>
+        <div class="boxes">
+          <div class="box box-blue" style="flex:1">SessionHostToolExecutionPort<br><small>验证 session → generation → 工具 → 执行</small></div>
+        </div>
+      </div>
+
+      <div class="layer" style="background:#3fb95008;border:1px solid #3fb95020;border-radius:8px">
+        <div class="layer-label">子代理编排 (三层分离)</div>
+        <div class="boxes">
+          <div class="box box-green">Orchestrator<br><small>调度层</small></div>
+          <div class="box box-purple">Supervisor<br><small>进程监督层</small></div>
+          <div class="box box-orange">Worker N<br><small>会话执行层</small></div>
+        </div>
+        <div class="note" style="margin-top:8px">batch-start/status/cancel 全部可用。Supervisor 管理 worker 进程生命周期</div>
+      </div>
+
+      <div class="layer" style="background:#3fb95008;border:1px solid #3fb95020;border-radius:8px">
+        <div class="layer-label">Plan 执行</div>
+        <div class="boxes">
+          <div class="box box-green" style="flex:1">全部走 orchestrator<br><small>顺序循环已删除</small></div>
+          <div class="box box-removed">遗留顺序路径</div>
+        </div>
+      </div>
+
+      <div class="layer" style="background:#3fb95008;border:1px solid #3fb95020;border-radius:8px">
+        <div class="layer-label">Worker 侧</div>
+        <div class="boxes">
+          <div class="box box-green">构造时绑定<br><small>session ID</small></div>
+          <div class="box box-green">仅注入<br><small>所需 apiKeyEnv</small></div>
+          <div class="box box-green">创建前注册<br><small>失败时取消</small></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="summary">
+    <h2>核心变化</h2>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="label">子进程权威</div>
+        <div class="before">3 套并存</div>
+        <div class="arrow-sm">↓</div>
+        <div class="after">JobController 唯一</div>
+      </div>
+      <div class="summary-item">
+        <div class="label">工具执行</div>
+        <div class="before">永远失败 (not wired)</div>
+        <div class="arrow-sm">↓</div>
+        <div class="after">真实边界 + 路由执行</div>
+      </div>
+      <div class="summary-item">
+        <div class="label">子代理编排</div>
+        <div class="before">未组合, IPC 不可用</div>
+        <div class="arrow-sm">↓</div>
+        <div class="after">三层分离: 调度/监督/执行</div>
+      </div>
+      <div class="summary-item">
+        <div class="label">Supervisor 角色</div>
+        <div class="before">存在但没被调用</div>
+        <div class="arrow-sm">↓</div>
+        <div class="after">生产组合, 管理 worker 进程</div>
+      </div>
+      <div class="summary-item">
+        <div class="label">Plan 执行</div>
+        <div class="before">两条路径并存</div>
+        <div class="arrow-sm">↓</div>
+        <div class="after">统一走 orchestrator</div>
+      </div>
+      <div class="summary-item">
+        <div class="label">Worker 身份</div>
+        <div class="before">从 opaque ID 解析</div>
+        <div class="arrow-sm">↓</div>
+        <div class="after">构造时绑定</div>
+      </div>
+      <div class="summary-item">
+        <div class="label">Worker 密钥</div>
+        <div class="before">缺 apiKeyEnv</div>
+        <div class="arrow-sm">↓</div>
+        <div class="after">仅注入所需值</div>
+      </div>
+      <div class="summary-item">
+        <div class="label">Generation 时序</div>
+        <div class="before">创建后注册</div>
+        <div class="arrow-sm">↓</div>
+        <div class="after">创建前注册, 失败取消</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

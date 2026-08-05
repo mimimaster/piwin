@@ -2,9 +2,7 @@
  * WP3 integration test: worker process hello + create + drop lifecycle.
  *
  * Spawns the real worker entry via tsx and exercises the JSONL protocol
- * without requiring Pi to be installed. The legacy subagent-task create
- * path returns a synthetic session id without calling the Pi session
- * factory, so the full lifecycle (hello → create → drop) works offline.
+ * without bypassing the blueprint-first session factory.
  */
 import { describe, expect, it } from 'vitest';
 import { resolve as resolvePath } from 'node:path';
@@ -16,6 +14,7 @@ function createWorkerClient(): RpcSdkWorkerClient {
   return new RpcSdkWorkerClient({
     workerScript,
     nodeArgs: ['--import', 'tsx'],
+    context: { sessionId: 'integration-session', runtimeGenerationId: 'integration-generation' },
   });
 }
 
@@ -41,30 +40,6 @@ describe('worker process lifecycle (integration)', () => {
     await client.close();
     void helloPromise; // suppress unused warning
   }, 10_000);
-
-  it('creates a legacy session and drops it (full lifecycle)', async () => {
-    const client = createWorkerClient();
-    client.start();
-
-    // Wait for hello to be emitted.
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    expect(client.isRunning).toBe(true);
-
-    try {
-      // Legacy subagent-task create (no Pi needed).
-      const created = await client.createSession({
-        projectPath: '/tmp/test-project',
-        workingDirectory: '/tmp/test-project',
-        isolation: 'readonly',
-      });
-      expect(created.sessionId).toBeTruthy();
-
-      // Drop the session.
-      await client.dropSession(created.sessionId);
-    } finally {
-      await client.close();
-    }
-  }, 15_000);
 
   it('reports worker exit on close', async () => {
     const client = createWorkerClient();

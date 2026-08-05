@@ -1,6 +1,7 @@
 /** Serializable SessionBlueprint projection for the RPC worker (spec §15.3, Phase 7 plan §5). */
 
 import type {
+  BackendSessionBlueprint,
   ContextManifest,
   ResourceManifest,
   ResourceInstance,
@@ -28,7 +29,7 @@ export type SerializableBlueprint = {
   /** Settings revision the parent compiled this snapshot from (diagnostics). */
   settingsRevision: string;
   workingDirectory: string;
-  scope: { kind: 'general' } | { kind: 'project'; projectPath: string; trusted: true };
+  scope: { kind: 'general' } | { kind: 'project'; projectPath: string; trusted: boolean };
   resourceManifest: ResourceManifest;
   contextManifest: ContextManifest;
   tools: SessionToolPolicy;
@@ -85,7 +86,7 @@ export function projectBlueprintForWorker(
     workingDirectory: snapshot.workingDirectory,
     scope:
       snapshot.trust.kind === 'project'
-        ? { kind: 'project', projectPath: snapshot.trust.projectPath, trusted: true }
+        ? { kind: 'project', projectPath: snapshot.trust.projectPath, trusted: snapshot.trust.trusted }
         : { kind: 'general' },
     resourceManifest: snapshot.resourceManifest,
     contextManifest: snapshot.contextManifest,
@@ -110,13 +111,47 @@ export function projectBlueprintForWorker(
   return blueprint;
 }
 
+/** Project the exact backend contract into the worker's wire representation. */
+export function projectBackendBlueprintForWorker(
+  backendBlueprint: BackendSessionBlueprint,
+): SerializableBlueprint {
+  const blueprint = projectBlueprintForWorker(backendBlueprint.capabilitySnapshot, {
+    ...(backendBlueprint.model
+      ? {
+          model: {
+            providerId: backendBlueprint.model.providerId,
+            modelId: backendBlueprint.model.modelId,
+          },
+        }
+      : {}),
+    ...(backendBlueprint.thinkingLevel
+      ? { thinkingLevel: backendBlueprint.thinkingLevel }
+      : {}),
+  });
+  return {
+    ...blueprint,
+    snapshotId: backendBlueprint.capabilitySnapshot.snapshotId,
+    // The worker protocol keeps this revision for diagnostics. It is copied
+    // from the already-compiled snapshot and is never resolved by the worker.
+    settingsRevision: backendBlueprint.capabilitySnapshot.inputs.settingsRevision,
+  };
+}
+
 /** Assert the projection survives JSON round-trip (protocol boundary). */
 export function isSerializableBlueprint(value: unknown): value is SerializableBlueprint {
   if (!value || typeof value !== 'object') {
     return false;
   }
   const record = value as Record<string, unknown>;
-  if (typeof record.snapshotId !== 'string' || typeof record.workingDirectory !== 'string') {
+  if (
+    typeof record.snapshotId !== 'string' ||
+    typeof record.settingsRevision !== 'string' ||
+    typeof record.workingDirectory !== 'string' ||
+    !record.resourceManifest ||
+    typeof record.resourceManifest !== 'object' ||
+    !record.contextManifest ||
+    typeof record.contextManifest !== 'object'
+  ) {
     return false;
   }
   if (record.protocolVersion !== BLUEPRINT_PROTOCOL_VERSION) {
@@ -126,6 +161,53 @@ export function isSerializableBlueprint(value: unknown): value is SerializableBl
     !Array.isArray(record.activeSkillPaths) ||
     !Array.isArray(record.activeExtensionPaths) ||
     !Array.isArray(record.activePromptPaths)
+  ) {
+    return false;
+  }
+  const tools = record.tools;
+  if (!tools || typeof tools !== 'object') {
+    return false;
+  }
+  const toolRecord = tools as Record<string, unknown>;
+  if (
+    !Array.isArray(toolRecord.piBuiltinToolNames) ||
+    !toolRecord.piBuiltinToolNames.every((name): name is string => typeof name === 'string') ||
+    !Array.isArray(toolRecord.enabledFamilies) ||
+    !toolRecord.enabledFamilies.every((family): family is string => typeof family === 'string') ||
+    !Array.isArray(toolRecord.enabledMcpServerIds) ||
+    !toolRecord.enabledMcpServerIds.every((id): id is string => typeof id === 'string') ||
+    !Array.isArray(toolRecord.hostTools) ||
+    !toolRecord.hostTools.every((tool): boolean => {
+      if (!tool || typeof tool !== 'object') {
+        return false;
+      }
+      const descriptor = tool as Record<string, unknown>;
+      return (
+        typeof descriptor.name === 'string' &&
+        descriptor.name.trim().length > 0 &&
+        typeof descriptor.description === 'string' &&
+        Boolean(descriptor.parameters) &&
+        typeof descriptor.parameters === 'object' &&
+        !Array.isArray(descriptor.parameters)
+      );
+    })
+  ) {
+    return false;
+  }
+  const descriptorNames = new Set<string>();
+  if (
+    !toolRecord.hostTools.every((tool): boolean => {
+      if (!tool || typeof tool !== 'object') {
+        return false;
+      }
+      const descriptor = tool as Record<string, unknown>;
+      const name = typeof descriptor.name === 'string' ? descriptor.name.trim() : '';
+      if (descriptorNames.has(name)) {
+        return false;
+      }
+      descriptorNames.add(name);
+      return name.length > 0;
+    })
   ) {
     return false;
   }

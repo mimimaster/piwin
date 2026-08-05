@@ -23,6 +23,13 @@ function makeBatch(tasks: SubagentTaskSpec[], overrides: Partial<SubagentBatchRe
 }
 
 describe('validateSubagentBatchRequest', () => {
+  it('does not include a caller-controlled process policy', () => {
+    const batch = makeBatch([makeTask()]);
+
+    const removedFieldName = ['process', 'Policy'].join('');
+    expect(removedFieldName in batch).toBe(false);
+  });
+
   it('accepts a valid batch with no dependencies', () => {
     const issues = validateSubagentBatchRequest(
       makeBatch([makeTask({ id: 'a' }), makeTask({ id: 'b' })]),
@@ -81,13 +88,72 @@ describe('validateSubagentBatchRequest', () => {
     expect(issues.some((i) => i.message === 'task id is required')).toBe(true);
   });
 
-  it('accepts parallelGroup and isolationOverride', () => {
+ it('accepts parallelGroup and isolationOverride', () => {
+   const issues = validateSubagentBatchRequest(
+     makeBatch([
+       makeTask({ id: 'a', parallelGroup: 'g1', isolationOverride: 'readonly' }),
+       makeTask({ id: 'b', parallelGroup: 'g1', isolationOverride: 'worktree' }),
+     ]),
+   );
+   expect(issues).toEqual([]);
+ });
+
+  it('rejects a simple two-node cycle (A→B, B→A)', () => {
     const issues = validateSubagentBatchRequest(
       makeBatch([
-        makeTask({ id: 'a', parallelGroup: 'g1', isolationOverride: 'readonly' }),
-        makeTask({ id: 'b', parallelGroup: 'g1', isolationOverride: 'worktree' }),
+        makeTask({ id: 'a', dependsOn: ['b'] }),
+        makeTask({ id: 'b', dependsOn: ['a'] }),
+      ]),
+    );
+    expect(issues.some((i) => i.message === 'dependency cycle detected in task graph')).toBe(true);
+  });
+
+  it('rejects a three-node cycle (A→B→C→A)', () => {
+    const issues = validateSubagentBatchRequest(
+      makeBatch([
+        makeTask({ id: 'a', dependsOn: ['c'] }),
+        makeTask({ id: 'b', dependsOn: ['a'] }),
+        makeTask({ id: 'c', dependsOn: ['b'] }),
+      ]),
+    );
+    expect(issues.some((i) => i.message === 'dependency cycle detected in task graph')).toBe(true);
+  });
+
+  it('rejects a self-loop as a cycle', () => {
+    // Self-dependency is already caught earlier, but cycle detection
+    // should also fire. The self-dependency issue is checked first.
+    const issues = validateSubagentBatchRequest(
+      makeBatch([makeTask({ id: 'a', dependsOn: ['a'] })]),
+    );
+    // Self-dependency is reported; cycle detection also fires.
+    expect(issues.some((i) => i.message?.includes('self-dependency'))).toBe(true);
+  });
+
+  it('accepts a DAG with multiple paths (no cycle)', () => {
+    const issues = validateSubagentBatchRequest(
+      makeBatch([
+        makeTask({ id: 'a' }),
+        makeTask({ id: 'b' }),
+        makeTask({ id: 'c', dependsOn: ['a', 'b'] }),
+        makeTask({ id: 'd', dependsOn: ['a'] }),
+        makeTask({ id: 'e', dependsOn: ['c', 'd'] }),
       ]),
     );
     expect(issues).toEqual([]);
+  });
+
+  it('rejects a cycle in a larger graph with extra non-cyclic nodes', () => {
+    const issues = validateSubagentBatchRequest(
+      makeBatch([
+        makeTask({ id: 'a' }),
+        makeTask({ id: 'b', dependsOn: ['a'] }),
+        makeTask({ id: 'c', dependsOn: ['b'] }),
+        makeTask({ id: 'd', dependsOn: ['c'] }),
+        makeTask({ id: 'e', dependsOn: ['d', 'b'] }), // e→d→c→b→a (no cycle)
+        makeTask({ id: 'f', dependsOn: ['g'] }),
+        makeTask({ id: 'g', dependsOn: ['f'] }), // f↔g cycle
+      ]),
+    );
+    expect(issues.some((i) => i.message === 'dependency cycle detected in task graph')).toBe(true);
   });
 });

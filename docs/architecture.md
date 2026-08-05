@@ -63,12 +63,11 @@ Violations are architecture bugs.
 | **RPC** (`PiRpcAdapter`) | Isolation, external IDE clients, crash boundary | Process isolation | JSONL overhead |
 
 Both adapters remain behind one backend contract. SDK is an in-process Pi
-backend. The target RPC mode is a piwin-owned child process with one worker per
-live runtime generation. The current SDK fallback and stock Pi RPC escape path
-are transitional implementation state and are deleted by Runtime Refactor
-Phase 3. The authoritative three-phase migration is
-[`runtime-refactor.md`](./specs/runtime-refactor.md); ADR 0011 records the
-transition and ADR 0012 records the worker boundary.
+backend. RPC uses a piwin-owned child process supervised by the Product Host,
+with one worker keyed by exactly `(sessionId, runtimeGenerationId)`. Desktop
+has one Tauri-supervised Product Host; CLI constructs the same composition root
+locally. The worker is an execution boundary only: Settings, permissions,
+Host tools, Jobs, Runs, and prompt preparation remain parent-owned.
 
 ### 3.2 Core contracts (packages/contracts)
 
@@ -292,6 +291,14 @@ Configured concurrency greater than one is effective only when the backend
 reports real process isolation. Write tasks use per-child worktrees and
 repository-keyed serialized integration.
 
+Runtime reload is a Host-owned replacement transaction. A candidate Blueprint
+is compiled first, the current generation and all Run descendants are joined,
+the old worker generation is disposed, and the replacement is published only
+after the new backend is active. Failed candidates never replace the active
+generation. Dirty-base parallel writes default to an explicit one-run `ask`
+decision; worktrees are retained on integration conflicts and no automatic
+retry or conflict resolution is performed.
+
 ## 4. Package map
 
 | Package | Responsibility |
@@ -501,11 +508,10 @@ must not be claimed:
    signing/notarization, and clean-machine verification — planned in
    [ADR 0017](./adr/0017-host-sidecar-bundling.md).
 2. **Runtime Refactor Phases 1-3:** Job control, structured concurrency, and
-   true RPC worker isolation are specified in
-   [`runtime-refactor.md`](./specs/runtime-refactor.md). ADR 0030 defines safe
-   parallel subagent execution. SDK fallback is explicitly not process
-   isolation, and effective concurrency remains one until the backend reports
-   `processIsolation=true`.
+   true RPC worker isolation are implemented and guarded by
+   [`runtime-refactor.md`](./specs/runtime-refactor.md), ADR 0030, and the
+   architecture check. The remaining deferred item is packaged desktop
+   distribution, not runtime authority.
 3. **Follow-up turn lifecycle:** `session/follow_up` now validates run
    ownership, but a distinct foreground lifecycle is not introduced here.
    Decide in a separate ADR/plan whether it appends to an existing run or

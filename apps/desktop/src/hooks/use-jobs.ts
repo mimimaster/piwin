@@ -1,0 +1,78 @@
+import { useCallback, useEffect, useState } from 'react';
+import type { JobRecord } from '@piwin/contracts';
+import type { HostClient } from '../host-client';
+
+export function useJobs(hostClient: HostClient, options: { refreshWhenVisible: boolean }) {
+  const [jobs, setJobs] = useState<JobRecord[]>([]);
+  const [jobLogsById, setJobLogsById] = useState<Record<string, string>>({});
+
+  const refreshJobs = useCallback(async (): Promise<void> => {
+    const response = await hostClient.request({ type: 'job/list' });
+    if (!response.success) {
+      return;
+    }
+    const listedJobs = (response.data as { jobs?: JobRecord[] } | undefined)?.jobs ?? [];
+    setJobs(listedJobs);
+  }, [hostClient]);
+
+  const loadJobLogs = useCallback(
+    async (jobId: string): Promise<void> => {
+      const response = await hostClient.request({
+        type: 'job/logs',
+        input: { jobId },
+      });
+      if (!response.success) {
+        return;
+      }
+      const chunks =
+        (response.data as { chunks?: Array<{ text: string }> } | undefined)?.chunks ?? [];
+      const text = chunks.map((chunk) => chunk.text).join('');
+      setJobLogsById((current) => ({
+        ...current,
+        [jobId]: limitJobLog(text),
+      }));
+    },
+    [hostClient],
+  );
+
+  const stopJob = useCallback(
+    async (jobId: string): Promise<void> => {
+      const response = await hostClient.request({ type: 'job/stop', jobId });
+      if (response.success) {
+        await refreshJobs();
+        await loadJobLogs(jobId);
+      }
+    },
+    [hostClient, refreshJobs, loadJobLogs],
+  );
+
+  const appendJobLog = useCallback((jobId: string, text: string): void => {
+    setJobLogsById((current) => ({
+      ...current,
+      [jobId]: limitJobLog(`${current[jobId] ?? ''}${text}`),
+    }));
+  }, []);
+
+  useEffect(() => {
+    if (options.refreshWhenVisible) {
+      void refreshJobs();
+    }
+  }, [options.refreshWhenVisible, refreshJobs]);
+
+  return {
+    jobs,
+    jobLogsById,
+    refreshJobs,
+    loadJobLogs,
+    stopJob,
+    appendJobLog,
+  };
+}
+
+function limitJobLog(text: string): string {
+  const MAX_JOB_LOG_BYTES = 512_000;
+  if (text.length <= MAX_JOB_LOG_BYTES) {
+    return text;
+  }
+  return `[earlier job output truncated]\n${text.slice(-MAX_JOB_LOG_BYTES)}`;
+}

@@ -3,7 +3,7 @@
  * ADR 0027: transport-agnostic — takes a `send` function, not a JsonlWriter.
  */
 import type { HostCommand, HostResponse, HostServerMessage } from '@piwin/contracts';
-import type { HostRuntime } from '@piwin/agent-host';
+import type { HostRuntime } from '@piwin/host-runtime';
 import { classifyHostServeCommand } from './host-serve-command-lane.js';
 
 /** Frame sender the dispatcher uses to write responses. Transport-agnostic. */

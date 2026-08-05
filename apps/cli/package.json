@@ -14,11 +14,11 @@
     "lint": "echo \"lint ok (cli)\""
   },
   "dependencies": {
-    "@piwin/agent-host": "workspace:*",
     "@piwin/browser": "workspace:*",
     "@piwin/contracts": "workspace:*",
     "@piwin/doc-rag": "workspace:*",
     "@piwin/flashcards": "workspace:*",
+    "@piwin/host-runtime": "workspace:*",
     "@piwin/marketplace": "workspace:*",
     "@piwin/mcp": "workspace:*",
     "@piwin/media": "workspace:*",

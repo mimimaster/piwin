@@ -21,7 +21,7 @@ function createIdleRunStatus(): RunStatusView {
     label: 'Idle',
     summary: 'Ready',
     completedToolCount: 0,
-    runningProcessCount: 0,
+    runningJobCount: 0,
     canStop: false,
   };
 }
@@ -33,7 +33,7 @@ function createWorkingRunStatus(): RunStatusView {
     summary: 'Running read_file',
     activeToolName: 'read_file',
     completedToolCount: 1,
-    runningProcessCount: 0,
+    runningJobCount: 0,
     primaryAction: 'view-activity',
     canStop: true,
     elapsedMs: 12_500,
@@ -46,7 +46,7 @@ function createFailedRunStatus(): RunStatusView {
     label: 'Run failed',
     summary: 'Model unavailable',
     completedToolCount: 0,
-    runningProcessCount: 0,
+    runningJobCount: 0,
     primaryAction: 'retry',
     canStop: false,
   };
@@ -58,7 +58,7 @@ function createStoppingRunStatus(): RunStatusView {
     label: 'Stopping',
     summary: 'Stopping the current agent run…',
     completedToolCount: 0,
-    runningProcessCount: 0,
+    runningJobCount: 0,
     canStop: false,
     elapsedMs: 3_000,
   };

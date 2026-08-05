@@ -11,6 +11,7 @@ import type {
   ModelProviderConfig,
   PiwinConfig,
   SessionSummary,
+  SubagentBatchProjection,
 } from '@piwin/contracts';
 import type { SkillsPanelProps } from '../SkillsPanel';
 import type { McpPanelProps } from '../McpPanel';
@@ -42,8 +43,7 @@ export type SettingsConfigRequest = (command: {
     | 'project/permissions-list'
     | 'project/permissions-revoke'
     | 'usage/get-rollup'
-    | 'session/runtime-status'
-    | 'session/reload-runtime';
+    | 'session/runtime-status';
   config?: PiwinConfig;
   provider?: ModelProviderConfig;
   apiKey?: string;
@@ -57,8 +57,6 @@ export type SettingsConfigRequest = (command: {
   window?: { from?: string; to?: string };
   topSessions?: number;
   sessionId?: string;
-  expectedSettingsRevision?: string;
-  when?: 'now' | 'after-current-run';
   input?:
     | import('@piwin/contracts').ModelCatalogSearchRequest
     | import('@piwin/contracts').VisionDelegateInput;
@@ -99,6 +97,8 @@ export type SettingsContextValue = {
   requestSubAgent: SubAgentPanelProps['request'] | undefined;
   /** Live child summaries from host pushes (keyed by childSessionId). */
   subagentChildren?: Record<string, SessionSummary>;
+  /** Live batch projections keyed by batch Run id. */
+  subagentBatches?: Record<string, SubagentBatchProjection>;
   onThemeApplied: ThemePanelProps['onApplied'];
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
   discoverProviderModels: (

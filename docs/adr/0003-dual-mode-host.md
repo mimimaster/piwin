@@ -33,6 +33,11 @@ The composition boundary is clarified by the 2026-08-04 Runtime Refactor:
   when it uses the piwin-owned worker described by ADR 0012 and
   [`runtime-refactor.md`](../specs/runtime-refactor.md) Phase 3.
 
+Implementation update (2026-08-05): RPC now uses the Product Host's
+`AgentWorkerSupervisor`; foreground and subagent workers are keyed by the exact
+`(sessionId, runtimeGenerationId)` pair. The Product Host remains the sole
+authority for Runs, Jobs, permissions, tools, and prompt preparation.
+
 ## Consequences
 
 - Normalized `AgentEvent` bus required

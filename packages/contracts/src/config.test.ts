@@ -113,10 +113,9 @@ describe('PiwinConfig.subagents', () => {
         defaultProfileId: 'fast-explorer',
         maxConcurrency: 4,
         maxTasksPerRun: 8,
-        maxParallelWriteTasks: 4,
         processIsolation: 'required',
         parallelWritePolicy: 'worktree-only',
-        requireCleanBaseForParallelWrites: true,
+        dirtyBasePolicy: 'ask',
       },
     };
     expect(config.subagents?.profiles[0]?.id).toBe('fast-explorer');
@@ -129,7 +128,7 @@ describe('PiwinConfig.subagents', () => {
     expect(defaults.maxConcurrency).toBe(4);
     expect(defaults.processIsolation).toBe('required');
     expect(defaults.parallelWritePolicy).toBe('worktree-only');
-    expect(defaults.requireCleanBaseForParallelWrites).toBe(true);
+    expect(defaults.dirtyBasePolicy).toBe('ask');
   });
 
   it('SubagentConfig type accepts empty profiles', () => {
@@ -137,10 +136,9 @@ describe('PiwinConfig.subagents', () => {
       profiles: [],
       maxConcurrency: 2,
       maxTasksPerRun: 4,
-      maxParallelWriteTasks: 2,
       processIsolation: 'best-effort',
       parallelWritePolicy: 'disabled',
-      requireCleanBaseForParallelWrites: false,
+      dirtyBasePolicy: 'ask',
     };
     expect(cfg.profiles).toHaveLength(0);
     expect(cfg.processIsolation).toBe('best-effort');

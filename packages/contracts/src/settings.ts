@@ -1,5 +1,5 @@
 import type { AutomationConfig } from './automation.js';
-import type { CompactionConfig, ThinkingConfig } from './config.js';
+import type { CompactionConfig, ProcessConfig, ThinkingConfig } from './config.js';
 import type { DesktopRestoreConfig, ImageGenerationConfig, PiwinConfig } from './config.js';
 import type { ExtensionsConfig } from './extensions.js';
 import type { FlashcardsConfig } from './flashcards.js';
@@ -7,7 +7,6 @@ import type { MarketplaceConfig } from './marketplace-registry.js';
 import type { ModelProviderConfig } from './config.js';
 import type { NotesConfig } from './notes.js';
 import type { PermissionConfig } from './permission.js';
-import type { ProcessConfig } from './process.js';
 import type { PromptsConfig } from './prompts.js';
 import type { RemoteConfig } from './remote.js';
 import type { SessionConfig, SubagentConfig, VisionDelegationConfig } from './config.js';
