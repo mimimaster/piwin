@@ -188,6 +188,26 @@ export type HostCommand =
       sessionId: string;
       enabled: boolean;
     }
+  | {
+      id?: string;
+      type: 'side-chat/open';
+      sourceSessionId: string;
+      sourceMessageId?: string;
+      name?: string;
+      refs?: import('./side-chat.js').SideChatContextRef[];
+    }
+  | {
+      id?: string;
+      type: 'side-chat/list';
+      sourceSessionId: string;
+      includeArchived?: boolean;
+    }
+  | {
+      id?: string;
+      type: 'side-chat/sync';
+      sideChatSessionId: string;
+      refs?: import('./side-chat.js').SideChatContextRef[];
+    }
   | { id?: string; type: 'media/save'; input: MediaSaveCommandInput }
   | { id?: string; type: 'skills/list'; projectPath?: string }
   | { id?: string; type: 'skills/set_enabled'; skillId: string; enabled: boolean }
