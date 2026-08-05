@@ -11,6 +11,7 @@ function snapshot(overrides: Partial<SessionCapabilitySnapshot> = {}): SessionCa
     version: 1,
     snapshotId: 'snap-1',
     inputs: {
+      rulesRevision: 'rules-1',
       settingsRevision: 'r1',
       projectRevision: 'r2',
       mcpRevision: 'r3',

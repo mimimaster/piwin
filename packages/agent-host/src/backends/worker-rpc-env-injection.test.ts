@@ -55,13 +55,13 @@ describe('WorkerSessionBackend env injection (ADR 0030 C-2)', () => {
       hostToolExecution: { execute: vi.fn() },
     });
 
-    const sessions = Reflect.get(backend, 'sessions') as Map<string, { client: RpcSdkWorkerClient }>;
+    const sessions = Reflect.get(backend, 'sessions') as Map<
+      string,
+      { client: RpcSdkWorkerClient }
+    >;
     const client = sessions.values().next().value?.client ?? null;
     expect(client).not.toBeNull();
-    const options = Reflect.get(
-      client as object,
-      'options',
-    ) as WorkerClientOptions;
+    const options = Reflect.get(client as object, 'options') as WorkerClientOptions;
     expect(options.env).toBeDefined();
     expect(options.env!.OPENAI_API_KEY).toBe('sk-test-secret-value');
   });
@@ -85,13 +85,13 @@ describe('WorkerSessionBackend env injection (ADR 0030 C-2)', () => {
       hostToolExecution: { execute: vi.fn() },
     });
 
-    const sessions = Reflect.get(backend, 'sessions') as Map<string, { client: RpcSdkWorkerClient }>;
+    const sessions = Reflect.get(backend, 'sessions') as Map<
+      string,
+      { client: RpcSdkWorkerClient }
+    >;
     const client = sessions.values().next().value?.client ?? null;
     expect(client).not.toBeNull();
-    const options = Reflect.get(
-      client as object,
-      'options',
-    ) as WorkerClientOptions;
+    const options = Reflect.get(client as object, 'options') as WorkerClientOptions;
     // env should be undefined or empty — no required env names collected.
     if (options.env) {
       expect(Object.keys(options.env)).toEqual([]);
@@ -117,13 +117,13 @@ describe('WorkerSessionBackend env injection (ADR 0030 C-2)', () => {
       hostToolExecution: { execute: vi.fn() },
     });
 
-    const sessions = Reflect.get(backend, 'sessions') as Map<string, { client: RpcSdkWorkerClient }>;
+    const sessions = Reflect.get(backend, 'sessions') as Map<
+      string,
+      { client: RpcSdkWorkerClient }
+    >;
     const client = sessions.values().next().value?.client ?? null;
     expect(client).not.toBeNull();
-    const options = Reflect.get(
-      client as object,
-      'options',
-    ) as WorkerClientOptions;
+    const options = Reflect.get(client as object, 'options') as WorkerClientOptions;
     // env should be undefined or empty — inline secrets go in the JSONL payload.
     if (options.env) {
       expect(Object.keys(options.env)).toEqual([]);
@@ -151,13 +151,13 @@ describe('WorkerSessionBackend env injection (ADR 0030 C-2)', () => {
       hostToolExecution: { execute: vi.fn() },
     });
 
-    const sessions = Reflect.get(backend, 'sessions') as Map<string, { client: RpcSdkWorkerClient }>;
+    const sessions = Reflect.get(backend, 'sessions') as Map<
+      string,
+      { client: RpcSdkWorkerClient }
+    >;
     const client = sessions.values().next().value?.client ?? null;
     expect(client).not.toBeNull();
-    const options = Reflect.get(
-      client as object,
-      'options',
-    ) as WorkerClientOptions;
+    const options = Reflect.get(client as object, 'options') as WorkerClientOptions;
     // The env var was not set, so it should not appear in the worker env.
     if (options.env) {
       expect(options.env.UNSET_PROVIDER_KEY).toBeUndefined();
@@ -175,6 +175,7 @@ function createValidBlueprint(): BackendSessionBlueprint {
       version: 1,
       snapshotId: 'snap-1',
       inputs: {
+        rulesRevision: 'rules-1',
         settingsRevision: 'r1',
         projectRevision: 'p1',
         mcpRevision: 'm1',

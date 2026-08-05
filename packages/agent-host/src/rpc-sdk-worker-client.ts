@@ -85,6 +85,7 @@ export type WorkerClientOptions = {
    */
   onExtensionUiRequest?: (request: {
     sessionId: string;
+    runtimeGenerationId: string;
     kind: 'confirm' | 'select' | 'input';
     title: string;
     message?: string;
@@ -117,7 +118,10 @@ export class RpcSdkWorkerClient extends EventEmitter {
   private exitPromise: Promise<void> | null = null;
   private resolveExit: (() => void) | null = null;
   private stdoutBuffer = '';
-  private readonly toolCallControllers = new Map<string, AbortController>();
+  private readonly toolCallControllers = new Map<
+    string,
+    { sessionId: string; controller: AbortController }
+  >();
 
   constructor(options: WorkerClientOptions = {}) {
     super();
@@ -246,7 +250,13 @@ export class RpcSdkWorkerClient extends EventEmitter {
       throw new Error('worker identity context is not configured');
     }
     const context: WorkerFrameContext = { ...baseContext, ...(contextOverrides ?? {}) };
-    const request: WorkerRequest = { type: 'request', id, method: payload.method, context, payload };
+    const request: WorkerRequest = {
+      type: 'request',
+      id,
+      method: payload.method,
+      context,
+      payload,
+    };
     const child = this.child;
     if (!child) throw new Error('worker stopped before request could be sent');
     return new Promise<WorkerResponse>((resolve, reject) => {
@@ -312,9 +322,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
         sessionId,
         text,
         ...(options?.images ? { images: options.images } : {}),
-        ...(options?.streamingBehavior
-          ? { streamingBehavior: options.streamingBehavior }
-          : {}),
+        ...(options?.streamingBehavior ? { streamingBehavior: options.streamingBehavior } : {}),
         ...(options?.thinkingLevel ? { thinkingLevel: options.thinkingLevel } : {}),
         ...(options?.model ? { model: options.model } : {}),
       },
@@ -409,9 +417,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
         parsed.protocolVersion !== 1
       ) {
         this.helloReject?.(
-          new Error(
-            `worker protocol version ${parsed.protocolVersion} incompatible (expected 1)`,
-          ),
+          new Error(`worker protocol version ${parsed.protocolVersion} incompatible (expected 1)`),
         );
       }
     } catch {
@@ -474,14 +480,22 @@ export class RpcSdkWorkerClient extends EventEmitter {
   private async handleToolCall(frame: WorkerToolCallFrame): Promise<void> {
     if (this.options.onToolCall) {
       const controller = new AbortController();
-      this.toolCallControllers.set(frame.id, controller);
+      this.toolCallControllers.set(frame.id, {
+        sessionId: frame.context.sessionId,
+        controller,
+      });
       try {
         const result = await this.options.onToolCall(frame, controller.signal);
-        if (result.ok) {
-          this.sendToolResult(frame.id, true, result.output, undefined, undefined, frame.context);
-        } else {
-          this.sendToolResult(frame.id, false, undefined, result.message, result.code, frame.context);
-        }
+        this.sendToolResult(frame.id, result, frame.context);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.sendToolResult(
+          frame.id,
+          controller.signal.aborted
+            ? { ok: false, code: 'aborted', message: 'tool execution aborted' }
+            : { ok: false, code: 'execution-failed', message },
+          frame.context,
+        );
       } finally {
         this.toolCallControllers.delete(frame.id);
       }
@@ -489,41 +503,36 @@ export class RpcSdkWorkerClient extends EventEmitter {
     }
     this.sendToolResult(
       frame.id,
-      false,
-      undefined,
-      'no HostToolExecutionPort configured',
-      undefined,
+      {
+        ok: false,
+        code: 'tool-not-available',
+        message: 'no HostToolExecutionPort configured',
+      },
       frame.context,
     );
   }
 
   private sendToolResult(
     id: string,
-    ok: boolean,
-    result: unknown,
-    error?: string,
-    code?:
-      | 'tool-not-available'
-      | 'tool-disabled'
-      | 'permission-denied'
-      | 'aborted'
-      | 'execution-failed',
-    context?: WorkerFrameContext,
+    result: HostToolExecutionResult,
+    context: WorkerFrameContext,
   ): void {
-    if (!context) return;
-    let frame: WorkerToolResultFrame;
-    if (ok) {
-      frame = { type: 'tool-result', id, context, ok: true, result };
-    } else {
-      frame = {
-        type: 'tool-result',
-        id,
-        context,
-        ok: false,
-        error: error ?? 'unknown error',
-        ...(code ? { code } : {}),
-      };
-    }
+    // Keep the complete transport-neutral result under `result`. The worker
+    // runtime consumes this field so structured output, details, cancellation
+    // and retry metadata survive the RPC boundary. Legacy top-level fields
+    // remain present for older worker parsers.
+    const frame: WorkerToolResultFrame = result.ok
+      ? { type: 'tool-result', id, context, ok: true, result }
+      : {
+          type: 'tool-result',
+          id,
+          context,
+          ok: false,
+          result,
+          code: result.code,
+          error: result.message,
+          message: result.message,
+        };
     this.child?.stdin?.write(`${JSON.stringify(frame)}\n`);
   }
 
@@ -546,6 +555,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
     try {
       const result = await handler({
         sessionId: frame.context.sessionId,
+        runtimeGenerationId: frame.context.runtimeGenerationId,
         kind: frame.kind,
         title: frame.title,
         ...(frame.message ? { message: frame.message } : {}),
@@ -604,16 +614,16 @@ export class RpcSdkWorkerClient extends EventEmitter {
   }
 
   private abortOutstandingToolCalls(): void {
-    for (const controller of this.toolCallControllers.values()) {
-      controller.abort();
+    for (const entry of this.toolCallControllers.values()) {
+      entry.controller.abort();
     }
     this.toolCallControllers.clear();
   }
 
   private abortToolCallsForSession(sessionId: string): void {
-    for (const [toolCallId, controller] of this.toolCallControllers) {
-      if (toolCallId === sessionId || toolCallId.startsWith(`${sessionId}|`)) {
-        controller.abort();
+    for (const [toolCallId, entry] of this.toolCallControllers) {
+      if (entry.sessionId === sessionId) {
+        entry.controller.abort();
         this.toolCallControllers.delete(toolCallId);
       }
     }
