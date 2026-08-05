@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Active architecture |
-| Date | 2026-08-04 |
+| Date | 2026-08-05 |
 | Related | [PRD](./prd.md), [ADRs](./adr/), [Artifact research](./artifact-research.md) |
 
 ## 1. Goals
@@ -117,8 +117,32 @@ Pi backends normalize Pi SDK and worker events into one `AgentEvent` union:
 
 Product transport uses a broader `HostPush` union. `agent/event` carries the
 normalized Agent stream; Job, Run, Plan, subagent, permission, browser, and
-diagnostic pushes are sibling variants. Product services never manufacture
-fake Pi-native `AgentEvent` variants for operational state.
+diagnostic pushes are sibling variants, including `session/runtime-updated` for
+runtime-generation status. Product services never manufacture fake Pi-native
+`AgentEvent` variants for operational state.
+
+### 3.3 Tool surface
+
+`@piwin/host-runtime` is the only product composition root and
+`buildSessionHostTools()` is the only Host tool composition point. It produces
+Host-local registrations containing the descriptor, family, permission facts,
+and executor. The current generation freezes that surface; SDK and RPC receive
+the same descriptor projection, while the execution port only accepts a
+previously registered `(sessionId, runtimeGenerationId)` surface.
+
+```text
+Application tool providers
+        ↓
+buildSessionHostTools()
+        ↓
+HostToolRegistration[] ──→ family index + permission specs + executor
+        ↓
+HostToolDescriptor[] ────→ Session Blueprint → SDK / RPC / Pi schema
+```
+
+`PermissionMode` remains dynamic and is read once at the start of each tool
+call. The merged rule set and static permission facts are generation inputs;
+the concrete allow/ask/deny decision is not frozen in the descriptor.
 
 ### 3.4 Permission system
 
@@ -161,8 +185,15 @@ Rule files use `version: 1`. Project shared/local **`allow` arrays are dropped
 at load time when the project is untrusted** (a repo can only make the agent
 *more* cautious, not less); project `deny`/`ask` always apply. User-global
 allow always applies (the user's machine, their choice). The merged rule set is
-an in-memory construct loaded at **session create**; mid-session edits take
-effect on the next session (no hot-reload).
+an in-memory construct loaded when a **Runtime Generation** is created;
+mid-session edits mark the runtime stale and take effect when the Host replaces
+that generation (no in-place mutation).
+
+The merged rule set is the frozen policy input for a Runtime Generation.
+`PermissionMode` is deliberately not part of that snapshot: the Host reads the
+current session override, host override, or config mode at each tool admission.
+The concrete allow/ask/deny result is calculated only after the tool arguments
+have been converted into a `PermissionSubject`.
 
 #### Permission modes
 
@@ -189,27 +220,29 @@ CLI: `ask` resolves to `deny` (`resolveNonInteractiveDecision`).
 
 #### File-write gate
 
-`gated-file-tools.ts` wraps Pi's `write`/`edit` tools (same shape as
-`gated-bash-tool.ts`): resolves the path (`realpath` when the file exists,
-pre-realpath absolute path for new files), checks the project remembered
-allowlist, evaluates `evaluateFileWritePermission` against the merged rules,
-then prompts on `ask` via the interactive gate. Both `writeFile` and `mkdir`
-are gated (recursive mkdir can create trees outside the project before a
-write). Bundled deny covers secret paths (`~/.ssh/**`, `~/.piwin/**`,
-`**/.env`, `**/*.pem`, `**/id_rsa`, …); `~/.config/**` is bundled **ask**
-(sensitive but sometimes legitimate). The legacy `path-guard` Pi extension
-remains as a defense-in-depth second layer; the primary gate is the host rule
-engine so it is configurable, testable, and rememberable.
+File writes and Bash are Host-owned registrations. Their static
+`permissionSpec` stays outside the model-visible descriptor. The unified Host
+admission gate converts the actual path or command into a subject, checks the
+remembered project allowlist, evaluates the domain policy, and prompts on
+`ask` through the interactive gate; executors only validate arguments and
+perform the operation. Both `writeFile` and `mkdir` are gated. Bundled deny
+covers secret paths (`~/.ssh/**`,
+`~/.piwin/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …); `~/.config/**` is
+bundled **ask**. The execution port is shared by SDK and RPC, so there is no
+second Pi-native filesystem/Bash gate in the product path.
 
 #### MCP: server-level trust (supersedes ADR 0014 §5)
 
 **Once an MCP server is enabled in config, its tools run without per-call
-permission prompts.** Server enablement is the deliberate trust boundary (the
-moment of trust is adding the server in `~/.piwin/mcp.json` / Settings, not each
-tool call). `assertMcpToolCallAllowed` consults the rule engine for explicit
-`deny`/`ask` MCP rules; on `allow` or `no-match` it allows. Risk classification
-(`evaluateMcpToolCallRisk`) and argument redaction still run for UI display but
-no longer drive an `ask` decision. Users who want per-tool gating add
+permission prompts by default.** Server enablement is the deliberate trust
+boundary (the moment of trust is adding the server in `~/.piwin/mcp.json` /
+Settings, not each tool call). The unified Host admission gate first checks the
+generation's frozen enabled-server allowlist, then applies explicit `deny`/`ask`
+MCP rules and the dynamic mode (`ask-all` asks on an unmatched call; `auto` and
+`bypass` allow an unmatched call). The MCP lifecycle manager executes against
+the same generation-scoped config snapshot; it never reloads disk config during
+a tool call. Risk classification (`evaluateMcpToolCallRisk`) and argument
+redaction still run for UI display. Users who want per-tool gating add
 `deny`/`ask` MCP rules in `permissions.json`.
 
 #### Project remember (scope extended)
@@ -228,9 +261,9 @@ extends to the new keys; `listRememberedPermissions` surfaces them in Settings.
 
 #### Dual host modes
 
-File-write gate, bash gate, rule loading, and the bypass guard apply on every
+File-write gate, Bash gate, rule loading, and the bypass guard apply on every
 Host tool execution path. `@piwin/host-runtime` owns those gates and injects a
-runtime-generation-scoped tool router into either backend. SDK calls it
+runtime-generation-scoped tool surface into either backend. SDK calls it
 directly; the isolated worker proxies calls back to the parent. Apps never
 import Pi, and `@piwin/agent-host` never owns product permission policy.
 
@@ -298,6 +331,10 @@ after the new backend is active. Failed candidates never replace the active
 generation. Dirty-base parallel writes default to an explicit one-run `ask`
 decision; worktrees are retained on integration conflicts and no automatic
 retry or conflict resolution is performed.
+
+Subagent cancellation waits on the Run/AbortSignal path rather than polling a
+cancel marker. Desktop runtime Settings consumes the HostPush status stream and
+performs only an initial status read.
 
 ## 4. Package map
 
@@ -391,7 +428,7 @@ the user sees == what the agent controls".
 - **Agent tools** — `browser_navigate` / `browser_snapshot` / `browser_click` /
   `browser_type` / `browser_fill_form` / `browser_scroll` / `browser_screenshot` /
   `browser_find` / `browser_back` / `browser_forward` / `browser_wait`, registered
-  by `@piwin/agent-host` (`browser-tools.ts`). Snapshots use the **same ref
+  by `@piwin/host-runtime` (`browser-tools.ts`). Snapshots use the **same ref
   grammar as `@playwright/mcp`**: `locator('html').ariaSnapshot({ mode: 'ai',
   boxes: true })` emits `[ref=eN]` + `[box=x,y,w,h]` annotations, and refs resolve
   via `locator('aria-ref=e5')`. The snapshot output is **not** parseable YAML
