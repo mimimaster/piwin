@@ -2160,7 +2160,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     agentRunning={state.streaming}
                   />
                 }
-                sideChatContent={<SideChatPanel sessionId={state.activeSessionId} />}
+               sideChatContent={<SideChatPanel sessionId={state.activeSessionId} hostClient={hostClient} />}
                 docPreviewContent={
                   <DocPreviewPanel
                     title={activeDocument?.title}
