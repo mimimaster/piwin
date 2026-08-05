@@ -10,7 +10,7 @@
  * in the compiled blueprint, so dynamic MCP schemas remain unchanged.
  */
 
-import type { HostToolDescriptor } from '@piwin/contracts';
+import type { HostToolDescriptor, ToolResult } from '@piwin/contracts';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
 import type { SerializableBlueprint } from './serializable-blueprint.js';
 
@@ -24,7 +24,7 @@ export type ToolProxyCall = (
   toolName: string,
   args: Record<string, unknown>,
   signal?: AbortSignal,
-) => Promise<{ ok: true; output: string } | { ok: false; code: string; message: string }>;
+) => Promise<ToolResult>;
 
 /**
  * Build proxy tool definitions for every descriptor in the blueprint's
@@ -62,14 +62,27 @@ export function buildSingleProxyTool(
       if (result.ok) {
         return {
           content: [{ type: 'text', text: result.output }],
-          details: { toolName: descriptor.name, toolCallId, proxied: true },
+          details: {
+            toolName: descriptor.name,
+            toolCallId,
+            proxied: true,
+            ...(result.details ?? {}),
+          },
         };
       }
       // Map parent error codes to model-facing text.
       const errorText = formatProxyError(result.code, result.message);
       return {
         content: [{ type: 'text', text: errorText }],
-        details: { toolName: descriptor.name, toolCallId, proxied: true, error: result.code },
+        details: {
+          toolName: descriptor.name,
+          toolCallId,
+          proxied: true,
+          error: result.code,
+          ...(result.details ?? {}),
+          ...(result.cancelled ? { cancelled: true } : {}),
+          ...(result.retryable ? { retryable: true } : {}),
+        },
       };
     },
   };

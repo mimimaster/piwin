@@ -4,6 +4,7 @@ import {
   serializeWorkerRequest,
   type WorkerFrameContext,
   type WorkerRequest,
+  type WorkerToolCallFrame,
 } from './rpc-sdk-worker-protocol.js';
 import { RpcSdkWorkerClient } from './rpc-sdk-worker-client.js';
 import type { SerializableBlueprint } from './rpc/serializable-blueprint.js';
@@ -167,10 +168,56 @@ describe('serializeWorkerRequest', () => {
     expect(JSON.parse(serializeWorkerRequest(steer)).method).toBe('session/steer');
     expect(JSON.parse(serializeWorkerRequest(followUp)).method).toBe('session/follow-up');
   });
-
 });
 
 describe('RpcSdkWorkerClient startup and framing', () => {
+  it('returns a ToolResult when the parent tool handler throws', async () => {
+    const client = new RpcSdkWorkerClient({
+      onToolCall: async () => {
+        throw new Error('parent tool failed');
+      },
+    });
+    let written = '';
+    Reflect.set(client, 'child', {
+      stdin: {
+        write: (chunk: string) => {
+          written += chunk;
+          return true;
+        },
+      },
+    });
+    const frame: WorkerToolCallFrame = {
+      type: 'tool-call',
+      id: 'tool-call-1',
+      context: { sessionId: 'session-1', runtimeGenerationId: 'generation-1' },
+      toolName: 'bash',
+      args: { command: 'false' },
+    };
+    const handleToolCall = Reflect.get(client, 'handleToolCall') as (
+      input: WorkerToolCallFrame,
+      signal: AbortSignal,
+    ) => Promise<void>;
+
+    await handleToolCall.call(client, frame, new AbortController().signal);
+
+    const result = JSON.parse(written) as {
+      type: string;
+      ok: boolean;
+      code?: string;
+      message?: string;
+      result?: { ok: boolean; code?: string; message?: string };
+    };
+    expect(result.type).toBe('tool-result');
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe('execution-failed');
+    expect(result.message).toBe('parent tool failed');
+    expect(result.result).toEqual({
+      ok: false,
+      code: 'execution-failed',
+      message: 'parent tool failed',
+    });
+  });
+
   it('preserves a hello frame split across stdout chunks', async () => {
     const helloFrame = JSON.stringify({
       type: 'hello',

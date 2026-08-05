@@ -7,10 +7,7 @@
  * normalized AgentEvent before emission.
  */
 
-import type {
-  AgentEvent,
-  ExtensionUiPort,
-} from '@piwin/contracts';
+import type { AgentEvent, ExtensionUiPort, ToolResult } from '@piwin/contracts';
 import { createPiSessionEventMapper, type PiSessionEventMapper } from '../event-map.js';
 import type {
   SerializableBlueprint,
@@ -65,11 +62,7 @@ export type CreateWorkerPiSessionInput = {
 export type WorkerSessionRuntimeOptions = {
   /** Frame sink to stdout (responses, events, tool-call proxies). */
   sendFrame: (
-    frame:
-      | WorkerResponse
-      | WorkerEvent
-      | WorkerToolCallFrame
-      | WorkerExtensionUiRequestFrame,
+    frame: WorkerResponse | WorkerEvent | WorkerToolCallFrame | WorkerExtensionUiRequestFrame,
   ) => void;
   /** Creates a Pi session inside this process from the exact blueprint. */
   createPiSession: (input: CreateWorkerPiSessionInput) => Promise<WorkerPiSessionLike>;
@@ -97,9 +90,7 @@ type PendingToolCall = {
   sessionId: string;
   context: WorkerFrameContext;
   controller: AbortController;
-  resolve: (
-    result: { ok: true; output: string } | { ok: false; code: string; message: string },
-  ) => void;
+  resolve: (result: ToolResult) => void;
   reject: (error: Error) => void;
 };
 
@@ -256,7 +247,9 @@ export class WorkerSessionRuntime {
             }
           }
         });
-    }, sessionId);
+      },
+      sessionId,
+    );
   }
 
   private async handlePrompt(
@@ -369,17 +362,21 @@ export class WorkerSessionRuntime {
     }
     this.pendingToolCalls.delete(frame.id);
     this.removeSessionToolCallController(pending);
-    if (frame.ok) {
-      const output =
-        typeof frame.result === 'string' ? frame.result : JSON.stringify(frame.result ?? '');
-      pending.resolve({ ok: true, output });
-    } else {
-      pending.resolve({
-        ok: false,
-        code: frame.code ?? 'tool-not-available',
-        message: frame.error ?? 'tool proxy failed',
-      });
+    if (frame.result) {
+      pending.resolve(frame.result);
+      return;
     }
+    // Parse-compatible fallback for older workers that split error fields
+    // instead of carrying the complete ToolResult object.
+    if (frame.ok) {
+      pending.resolve({ ok: true, output: '' });
+      return;
+    }
+    pending.resolve({
+      ok: false,
+      code: frame.code ?? 'tool-not-available',
+      message: frame.error ?? 'tool proxy failed',
+    });
   }
 
   handleExtensionUiResponse(frame: WorkerExtensionUiResponseFrame): void {
@@ -426,13 +423,17 @@ export class WorkerSessionRuntime {
             reject(new Error('extension UI request aborted'));
             return;
           }
-          signal.addEventListener('abort', () => {
-            const pendingRequest = this.pendingExtensionUiRequests.get(requestId);
-            if (pendingRequest) {
-              this.pendingExtensionUiRequests.delete(requestId);
-              pendingRequest.reject(new Error('extension UI request aborted'));
-            }
-          }, { once: true });
+          signal.addEventListener(
+            'abort',
+            () => {
+              const pendingRequest = this.pendingExtensionUiRequests.get(requestId);
+              if (pendingRequest) {
+                this.pendingExtensionUiRequests.delete(requestId);
+                pendingRequest.reject(new Error('extension UI request aborted'));
+              }
+            },
+            { once: true },
+          );
           try {
             this.options.sendFrame(frame);
           } catch (error) {

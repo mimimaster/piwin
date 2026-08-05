@@ -35,9 +35,7 @@ export type AgentWorkerRuntimeSettings = {
 export function computeDefaultWorkerSettings(): AgentWorkerRuntimeSettings {
   const maybeParallelism = (globalThis as unknown as Record<string, unknown>).availableParallelism;
   const availableParallelism =
-    typeof maybeParallelism === 'function'
-      ? (maybeParallelism as () => number)()
-      : 4;
+    typeof maybeParallelism === 'function' ? (maybeParallelism as () => number)() : 4;
   const maxActiveWorkers = Math.min(Math.max(2, availableParallelism - 1), 8);
   return {
     maxActiveWorkers,
@@ -60,10 +58,7 @@ interface ManagedWorker {
 export type AgentWorkerSupervisorOptions = {
   settings?: Partial<AgentWorkerRuntimeSettings>;
   /** Source-mode/test overrides for the packaged worker process. */
-  worker?: Omit<
-    WorkerClientOptions,
-    'onEvent' | 'onToolCall' | 'onExtensionUiRequest'
-  >;
+  worker?: Omit<WorkerClientOptions, 'onEvent' | 'onToolCall' | 'onExtensionUiRequest'>;
   /** Parent-owned execution port for compiled Host tool descriptors. */
   onToolCall?: (
     frame: WorkerToolCallFrame,
@@ -80,6 +75,7 @@ export type AgentWorkerSupervisorOptions = {
   /** Extension UI request handler. */
   onExtensionUiRequest?: (request: {
     sessionId: string;
+    runtimeGenerationId: string;
     kind: 'confirm' | 'select' | 'input';
     title: string;
     message?: string;
@@ -203,7 +199,6 @@ export class AgentWorkerSupervisor {
     key: string,
     workerOptions?: WorkerClientOptions,
   ): Promise<RpcSdkWorkerClient> {
-
     if (!this.hasCapacity()) {
       throw new Error(
         `worker capacity exhausted (${this.workers.size}/${this.settings.maxActiveWorkers})`,
@@ -268,10 +263,7 @@ export class AgentWorkerSupervisor {
    * Release a worker for a (sessionId, runtimeGenerationId) pair.
    * WI-04: Worker lifetime equals runtime-generation lifetime.
    */
-  async releaseWorker(
-    sessionId: string,
-    runtimeGenerationId: string,
-  ): Promise<void> {
+  async releaseWorker(sessionId: string, runtimeGenerationId: string): Promise<void> {
     const key = `${sessionId}:${runtimeGenerationId}`;
     const workerId = this.bySessionGeneration.get(key);
     if (!workerId) return;
@@ -300,10 +292,7 @@ export class AgentWorkerSupervisor {
   }
 
   /** Get the worker for a session/generation pair, if it exists. */
-  getWorker(
-    sessionId: string,
-    runtimeGenerationId: string,
-  ): RpcSdkWorkerClient | undefined {
+  getWorker(sessionId: string, runtimeGenerationId: string): RpcSdkWorkerClient | undefined {
     const key = `${sessionId}:${runtimeGenerationId}`;
     const workerId = this.bySessionGeneration.get(key);
     if (!workerId) return undefined;
@@ -346,9 +335,7 @@ export class AgentWorkerSupervisor {
           // Race graceful shutdown against a force-kill timeout
           await Promise.race([
             worker.client.close(),
-            new Promise<void>((resolve) =>
-              setTimeout(resolve, this.settings.shutdownTimeoutMs),
-            ),
+            new Promise<void>((resolve) => setTimeout(resolve, this.settings.shutdownTimeoutMs)),
           ]);
         } catch {
           // Ignore graceful shutdown errors
