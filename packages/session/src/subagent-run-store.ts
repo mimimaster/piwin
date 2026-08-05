@@ -9,6 +9,7 @@
  */
 
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { watch } from 'node:fs';
 import { join } from 'node:path';
 import type {
   SubagentBatchRequest,
@@ -136,10 +137,7 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     await saveManifest(manifest);
   }
 
-  async function setStatus(
-    runId: string,
-    status: SubagentRunManifest['status'],
-  ): Promise<void> {
+  async function setStatus(runId: string, status: SubagentRunManifest['status']): Promise<void> {
     const manifest = await loadManifest(runId);
     if (!manifest) return;
     manifest.status = status;
@@ -164,6 +162,73 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
       }
       throw error;
     }
+  }
+
+  /**
+   * Wait for a persisted cancellation marker without polling the filesystem.
+   * The second read after installing the watcher closes the create-between-
+   * check-and-watch race; the initial read handles markers that predate this
+   * host process.
+   */
+  async function waitForCancel(runId: string, signal?: AbortSignal): Promise<boolean> {
+    if (await isCancelRequested(runId)) return true;
+    await ensureDir();
+    if (signal?.aborted) return false;
+
+    return new Promise<boolean>((resolve, reject) => {
+      let settled = false;
+      let closeWatcher: (() => void) | undefined;
+      let onAbort: (() => void) | undefined;
+
+      const cleanup = (): void => {
+        closeWatcher?.();
+        if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+      };
+
+      const settle = (value: boolean): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      };
+
+      const fail = (error: unknown): void => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      onAbort = (): void => settle(false);
+      const checkMarker = async (): Promise<void> => {
+        if (settled) return;
+        try {
+          if (await isCancelRequested(runId)) settle(true);
+        } catch (error) {
+          fail(error);
+        }
+      };
+
+      try {
+        const watcher = watch(runsDir, { persistent: false }, (_eventType, filename) => {
+          if (settled || filename === null) return;
+          if (filename.toString() !== `${runId}.cancel`) return;
+          // Re-read the marker so a directory event cannot acknowledge a
+          // transient or unrelated filesystem notification.
+          void checkMarker();
+        });
+        closeWatcher = () => watcher.close();
+        watcher.on('error', fail);
+      } catch (error) {
+        fail(error);
+        return;
+      }
+
+      if (signal && onAbort) signal.addEventListener('abort', onAbort, { once: true });
+      // Re-check after the watcher is live to close the write-before-watch
+      // race without introducing a timer or polling loop.
+      void checkMarker();
+    });
   }
 
   async function clearCancelRequest(runId: string): Promise<void> {
@@ -219,6 +284,7 @@ export function createSubagentRunStore(options: SubagentRunStoreOptions) {
     setStatus,
     requestCancel,
     isCancelRequested,
+    waitForCancel,
     clearCancelRequest,
     reconcile,
   };
