@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { PiwinConfig, SessionRuntimeStatus } from '@piwin/contracts';
+import type { HostServerMessage, PiwinConfig, SessionRuntimeStatus } from '@piwin/contracts';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from '../../appearance-tokens';
 import { DesktopLocaleProvider } from '../../desktop-locale-context';
@@ -23,7 +23,12 @@ function baseConfig(): PiwinConfig {
     hostMode: 'sdk',
     providers: [],
     media: { maxPasteBytes: 1024, allowedMimeTypes: [] },
-    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1024 },
+    artifact: {
+      enabled: true,
+      triggerMode: 'automatic',
+      decisionPrompt: { mode: 'default', customPrompt: '' },
+      maxBytes: 1024,
+    },
   };
 }
 
@@ -38,6 +43,17 @@ function staleStatus(): SessionRuntimeStatus {
 
 function liveStatus(): SessionRuntimeStatus {
   return { sessionId: 's1', state: 'live', generationId: 's1-gen-1', staleDomains: [] };
+}
+
+function failedStatus(): SessionRuntimeStatus {
+  return {
+    sessionId: 's1',
+    state: 'failed',
+    generationId: 's1-gen-1',
+    staleDomains: ['web'],
+    candidateState: 'failed',
+    candidateError: 'candidate backend failed',
+  };
 }
 
 function createContextValue(overrides: Partial<SettingsContextValue> = {}): SettingsContextValue {
@@ -150,7 +166,9 @@ describe('SessionRuntimePage', () => {
     expect(container!.querySelector('[data-testid="runtime-state-value"]')?.textContent).toContain(
       'Stale',
     );
-    expect(container!.querySelector('[data-testid="runtime-reload-unavailable-note"]')).toBeTruthy();
+    expect(
+      container!.querySelector('[data-testid="runtime-reload-unavailable-note"]'),
+    ).toBeTruthy();
     expect(container!.querySelector('[data-testid="runtime-reload-now-button"]')).toBeNull();
     expect(container!.querySelector('[data-testid="runtime-apply-after-run-button"]')).toBeNull();
   });
@@ -170,4 +188,72 @@ describe('SessionRuntimePage', () => {
     expect(container!.querySelector('[data-testid="runtime-fresh-note"]')).toBeTruthy();
   });
 
+  it('applies a pushed runtime status without polling', async () => {
+    let listener: ((message: HostServerMessage) => void) | undefined;
+    const hostClient = {
+      subscribe: (next: (message: HostServerMessage) => void): (() => void) => {
+        listener = next;
+        return () => {
+          listener = undefined;
+        };
+      },
+    };
+    container = renderPage(createContextValue({ hostClient }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      listener?.({ type: 'session/runtime-updated', status: staleStatus() });
+    });
+
+    expect(container!.querySelector('[data-testid="pending-changes-bar"]')).toBeTruthy();
+    expect(container!.querySelector('[data-testid="runtime-state-value"]')?.textContent).toContain(
+      'Stale',
+    );
+  });
+
+  it('shows rebuilding and failed states with candidate diagnostics', async () => {
+    let listener: ((message: HostServerMessage) => void) | undefined;
+    const hostClient = {
+      subscribe: (next: (message: HostServerMessage) => void): (() => void) => {
+        listener = next;
+        return () => {
+          listener = undefined;
+        };
+      },
+    };
+    container = renderPage(createContextValue({ hostClient }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      listener?.({
+        type: 'session/runtime-updated',
+        status: {
+          ...liveStatus(),
+          state: 'rebuilding',
+          candidateState: 'rebuilding',
+        },
+      });
+    });
+    expect(container!.querySelector('[data-testid="runtime-state-value"]')?.textContent).toContain(
+      'Rebuilding',
+    );
+
+    await act(async () => {
+      listener?.({
+        type: 'session/runtime-updated',
+        status: failedStatus(),
+      });
+    });
+    expect(container!.querySelector('[data-testid="runtime-state-value"]')?.textContent).toContain(
+      'Failed',
+    );
+    expect(container!.querySelector('[data-testid="runtime-failed-bar"]')).toBeTruthy();
+    expect(container!.querySelector('[data-testid="runtime-candidate-error"]')?.textContent).toContain(
+      'candidate backend failed',
+    );
+  });
 });

@@ -174,6 +174,33 @@ it('renders archived session rows with archived mark and data attribute', () => 
   expect(container.querySelector('.session-archived-mark')).not.toBeNull();
 });
 
+it('renders a circular indicator for a working session instead of its timestamp', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    workingSessionIds: { 'session-1': true },
+  });
+
+  expect(container.querySelector('[data-testid="session-working-indicator"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-service-indicator"]')).toBeNull();
+  expect(container.querySelector('.session-item-time')).toBeNull();
+});
+
+it('renders the three-dot service indicator in preference to the working spinner', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    workingSessionIds: { 'session-1': true },
+    backendServiceSessionIds: { 'session-1': true },
+  });
+
+  const serviceIndicator = container.querySelector('[data-testid="session-service-indicator"]');
+  expect(serviceIndicator).not.toBeNull();
+  expect(serviceIndicator?.querySelectorAll('.session-item-activity-dot')).toHaveLength(3);
+  expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
+  expect(container.querySelector('.session-item-time')).toBeNull();
+});
+
 it('archived row shows pin, unarchive, and delete actions', () => {
   const sessions: SessionListItemUi[] = [
     {
