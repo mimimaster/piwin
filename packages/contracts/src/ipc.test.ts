@@ -46,12 +46,15 @@ describe('ipc types', () => {
   });
 
   it('accepts CE process/session command shapes', () => {
-    const processStart: HostCommand = {
-      type: 'process/start',
+    const jobStart: HostCommand = {
+      type: 'job/start',
       input: {
+        kind: 'service',
+        lifetime: 'session',
         command: 'node',
         argv: ['server.js'],
         cwd: '/tmp/project',
+        ownerSessionId: 's1',
       },
     };
     const sessionPin: HostCommand = { type: 'session/pin', sessionId: 's1' };
@@ -68,7 +71,7 @@ describe('ipc types', () => {
       sessionId: 's1',
       messageId: 'm1',
     };
-    expect(processStart.type).toBe('process/start');
+    expect(jobStart.type).toBe("job/start");
     expect(sessionPin.type).toBe('session/pin');
     expect(sessionRename.type).toBe('session/rename');
     expect(sessionArchive.type).toBe('session/archive');
@@ -89,44 +92,6 @@ describe('ipc types', () => {
     expect(revoke.type).toBe('project/permissions-revoke');
   });
 
-  it('accepts session/spawn with profileId, model, and thinkingLevel', () => {
-    const spawn: HostCommand = {
-      type: 'session/spawn',
-      parentSessionId: 's1',
-      task: 'explore the auth module',
-      profileId: 'explorer',
-      model: {
-        protocol: 'openai-compatible',
-        providerId: 'local-provider',
-        modelId: 'fast-coder',
-      },
-      thinkingLevel: 'low',
-    };
-    expect(spawn.type).toBe('session/spawn');
-    if (spawn.type === 'session/spawn') {
-      expect(spawn.profileId).toBe('explorer');
-      expect(spawn.model?.modelId).toBe('fast-coder');
-      expect(spawn.thinkingLevel).toBe('low');
-    }
-  });
-
-  it('accepts legacy session/spawn without profile fields (backward compat)', () => {
-    const spawn: HostCommand = {
-      type: 'session/spawn',
-      parentSessionId: 's1',
-      task: 'do a thing',
-      mode: 'worktree',
-      applyPolicy: 'auto',
-    };
-    expect(spawn.type).toBe('session/spawn');
-    if (spawn.type === 'session/spawn') {
-      expect(spawn.profileId).toBeUndefined();
-      expect(spawn.model).toBeUndefined();
-      expect(spawn.thinkingLevel).toBeUndefined();
-      expect(spawn.mode).toBe('worktree');
-    }
-  });
-
   it('accepts session/aborted AgentEvent via HostPush', () => {
     const abortedPush: HostPush = {
       type: 'event',
@@ -141,7 +106,7 @@ describe('ipc types', () => {
     expect(abortedPush.event.type).toBe('session/aborted');
   });
 
-  it('accepts usage/update and process AgentEvent shapes via HostPush', () => {
+  it('accepts usage/update AgentEvent and job/started HostPush shapes', () => {
     const usagePush: HostPush = {
       type: 'event',
       sessionId: 's1',
@@ -156,50 +121,49 @@ describe('ipc types', () => {
         },
       },
     };
-    const processPush: HostPush = {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'process/started',
-        process: {
-          id: 'p1',
-          command: 'node',
-          argv: ['server.js'],
-          cwd: '/tmp/project',
-          status: 'running',
-          startedAt: new Date().toISOString(),
-        },
+    const jobPush: HostPush = {
+      type: 'job/started',
+      job: {
+        jobId: 'j1',
+        kind: 'service',
+        lifetime: 'session',
+        command: 'node',
+        argv: ['server.js'],
+        cwd: '/tmp/project',
+        status: 'running',
+        startedAt: new Date().toISOString(),
+        latestLogCursor: 0,
       },
     };
     expect(usagePush.event.type).toBe('usage/update');
-    expect(processPush.event.type).toBe('process/started');
+    expect(jobPush.type).toBe('job/started');
   });
 
-  it('accepts run/phase and run/terminal AgentEvent shapes', () => {
+  it('accepts top-level run lifecycle pushes', () => {
     const phase: HostPush = {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'run/phase',
-        sessionId: 's1',
+      type: 'run/updated',
+      run: {
         runId: 'r1',
+        kind: 'session-turn',
+        status: 'running',
+        rootRunId: 'r1',
+        sessionId: 's1',
         phase: 'accepted',
-        at: new Date().toISOString(),
       },
     };
     const terminal: HostPush = {
-      type: 'event',
-      sessionId: 's1',
-      event: {
-        type: 'run/terminal',
-        sessionId: 's1',
+      type: 'run/terminal',
+      run: {
         runId: 'r1',
-        outcome: 'completed',
-        at: new Date().toISOString(),
+        kind: 'session-turn',
+        status: 'completed',
+        rootRunId: 'r1',
+        sessionId: 's1',
+        phase: 'streaming',
       },
     };
-    expect(phase.event.type).toBe('run/phase');
-    expect(terminal.event.type).toBe('run/terminal');
+    expect(phase.type).toBe('run/updated');
+    expect(terminal.type).toBe('run/terminal');
   });
 
   describe('C1: AgentEventEnvelope', () => {

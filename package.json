@@ -10,13 +10,13 @@
   "scripts": {
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
-    "test": "pnpm -r run test",
+    "test": "pnpm --workspace-concurrency=1 -r run test",
     "lint": "pnpm -r run lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "dev:cli": "pnpm --filter @piwin/cli dev",
     "dev:desktop": "pnpm --dir apps/desktop dev",
-    "check": "pnpm typecheck && pnpm test",
+    "check": "pnpm typecheck && pnpm test && pnpm test:architecture",
     "dev:tauri": "pnpm ensure:packaging-placeholders && pnpm --dir apps/desktop dev:tauri",
     "bundle:host": "node scripts/bundle-host.mjs",
     "fetch:node-runtime": "node scripts/fetch-node-runtime.mjs",
@@ -25,6 +25,7 @@
     "package:desktop": "pnpm bundle:host && pnpm fetch:node-runtime && pnpm --dir apps/desktop package",
     "e2e:smoke": "tsx scripts/e2e-host-smoke.mjs",
     "e2e:host-jsonl": "NODE_ENV=test node scripts/e2e-host-jsonl.mjs",
+    "test:architecture": "node scripts/check-package-boundaries.mjs",
     "audit:prod": "pnpm audit --prod || true",
     "e2e:desktop": "pnpm --dir apps/desktop e2e",
     "automated-prerequisite-gate": "pnpm check && pnpm e2e:desktop && pnpm e2e:host-jsonl && cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml"

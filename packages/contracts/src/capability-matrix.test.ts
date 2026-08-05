@@ -13,10 +13,8 @@ const baseCaps: HostStatusData['capabilities'] = {
   sessionPin: true,
   sessionSearch: true,
   pty: false,
-  shellPreview: true,
   automation: true,
   process: true,
-  rpcSdkFallback: true,
 };
 
 describe('capability-matrix', () => {
@@ -26,8 +24,7 @@ describe('capability-matrix', () => {
     expect(pty?.available).toBe(false);
     expect(pty?.note).toMatch(/Shell preview|ADR 0013/i);
     const isolation = rows.find((row) => row.id === 'rpcIsolation');
-    expect(isolation?.available).toBe(false);
-    expect(isolation?.note).toMatch(/SDK backend/i);
+    expect(isolation?.available).toBe(true);
   });
 
   it('formats doctor lines', () => {

@@ -21,6 +21,8 @@ export type PlanExecutionState = {
   planId: string;
   mode: PlanExecutionMode;
   status: PlanExecutionStatus;
+  /** Source RunRegistry parent for this execution. */
+  runId?: string;
   /** Step currently being worked on, if any. */
   currentStepId?: string;
   /** Child session ids created by subagent-driven execution. */

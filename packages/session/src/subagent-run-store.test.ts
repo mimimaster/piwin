@@ -45,6 +45,7 @@ describe('SubagentRunStore', () => {
     await store.recordLease('run-1', 'a', {
       mode: 'readonly',
       cwd: '/tmp/project',
+      parentRepoPath: '/tmp/project',
     });
     await store.recordResult('run-1', 'a', {
       runId: 'run-1',
@@ -66,6 +67,29 @@ describe('SubagentRunStore', () => {
     await store.setStatus('run-1', 'completed');
     const loaded = await store.loadManifest('run-1');
     expect(loaded?.status).toBe('completed');
+  });
+
+  it('persists a cross-process cancel request and clears it after settlement', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]));
+
+    expect(await store.isCancelRequested('run-1')).toBe(false);
+    expect(await store.requestCancel('run-1')).toBe(true);
+    expect(await store.isCancelRequested('run-1')).toBe(true);
+
+    await store.clearCancelRequest('run-1');
+    expect(await store.isCancelRequested('run-1')).toBe(false);
+  });
+
+  it('does not create a cancel request for a terminal batch', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-run-store-'));
+    const store = createSubagentRunStore({ runsDir: dir });
+    await store.createManifest('run-1', makeBatch([makeTask({ id: 'a' })]));
+    await store.setStatus('run-1', 'completed');
+
+    expect(await store.requestCancel('run-1')).toBe(false);
+    expect(await store.isCancelRequested('run-1')).toBe(false);
   });
 
   it('reconciles running tasks without live children on restart', async () => {

@@ -14,6 +14,8 @@ export type SessionRuntimeStatus = {
   capabilitySnapshotId?: string;
   staleDomains: SettingsDomain[];
   reconstructionMode?: 'native-live' | 'product-history';
+  candidateState?: 'compiling' | 'creating-backend' | 'rebuilding' | 'active' | 'failed';
+  candidateError?: string;
 };
 
 /**

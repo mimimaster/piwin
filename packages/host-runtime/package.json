@@ -1,0 +1,53 @@
+{
+  "name": "@piwin/host-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./testing": {
+      "types": "./src/testing.ts",
+      "import": "./src/testing.ts",
+      "default": "./src/testing.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "lint": "echo \"lint ok (host-runtime)\""
+  },
+  "dependencies": {
+    "@piwin/agent-host": "workspace:*",
+    "@piwin/artifact": "workspace:*",
+    "@piwin/automation": "workspace:*",
+    "@piwin/browser": "workspace:*",
+    "@piwin/contracts": "workspace:*",
+    "@piwin/doc-rag": "workspace:*",
+    "@piwin/flashcards": "workspace:*",
+    "@piwin/git": "workspace:*",
+    "@piwin/marketplace": "workspace:*",
+    "@piwin/mcp": "workspace:*",
+    "@piwin/media": "workspace:*",
+    "@piwin/notes": "workspace:*",
+    "@piwin/pet": "workspace:*",
+    "@piwin/process": "workspace:*",
+    "@piwin/project": "workspace:*",
+    "@piwin/session": "workspace:*",
+    "@piwin/skills": "workspace:*",
+    "@piwin/theme": "workspace:*",
+    "@piwin/tools-web": "workspace:*",
+    "typebox": "1.1.38"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

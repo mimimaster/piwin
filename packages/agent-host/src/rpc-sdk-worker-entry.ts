@@ -11,7 +11,11 @@
  */
 
 import { createInterface } from 'node:readline';
-import type { WorkerRequest, WorkerToolResultFrame } from './rpc-sdk-worker-protocol.js';
+import type {
+  WorkerExtensionUiResponseFrame,
+  WorkerRequest,
+  WorkerToolResultFrame,
+} from './rpc-sdk-worker-protocol.js';
 import { WorkerSessionRuntime } from './rpc/worker-session-runtime.js';
 import { createWorkerPiSessionFactory } from './rpc/worker-pi-session-factory.js';
 
@@ -46,6 +50,10 @@ rl.on('line', (line: string) => {
     if (parsed.type === 'tool-result') {
       // Parent → worker: tool result for a pending proxy call.
       runtime.handleToolResult(parsed as WorkerToolResultFrame);
+      return;
+    }
+    if (parsed.type === 'extension-ui-response') {
+      runtime.handleExtensionUiResponse(parsed as WorkerExtensionUiResponseFrame);
       return;
     }
     const request = parsed as WorkerRequest;

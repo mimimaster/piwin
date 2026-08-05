@@ -4,7 +4,6 @@ import type { WebConfig } from './web.js';
 import type { SkillsConfig } from './skills.js';
 import type { ExtensionsConfig } from './extensions.js';
 import type { PromptsConfig } from './prompts.js';
-import type { ProcessConfig } from './process.js';
 import type { NotesConfig } from './notes.js';
 import type { FlashcardsConfig } from './flashcards.js';
 import type { AutomationConfig } from './automation.js';
@@ -179,6 +178,29 @@ export type CompactionConfig = {
   writeTranscriptNote?: boolean;
 };
 
+/**
+ * Persisted Job settings retained under the historical `process` config key.
+ * Runtime lifecycle data belongs to JobRecord/JobController, not this config.
+ */
+export type ProcessConfig = {
+  enabled?: boolean;
+  /** Admission cap for concurrently active Jobs. */
+  maxProcesses?: number;
+  /** Default lifetime choice for manually configured process tools. */
+  killOnSessionEnd?: boolean;
+  /** Whether Host disposal stops remaining Jobs. */
+  killOnHostDispose?: boolean;
+};
+
+export function createDefaultProcessConfig(): ProcessConfig {
+  return {
+    enabled: true,
+    maxProcesses: 8,
+    killOnSessionEnd: false,
+    killOnHostDispose: true,
+  };
+}
+
 /** Product opt-in for the enhanced Ultra composer effort stop. */
 export type ThinkingConfig = {
   ultraEnabled: boolean;
@@ -201,14 +223,12 @@ export type SubagentConfig = {
   maxConcurrency: number;
   /** Hard ceiling on total tasks in one batch request. */
   maxTasksPerRun: number;
-  /** Hard ceiling on parallel write (worktree) tasks in one batch. */
-  maxParallelWriteTasks: number;
   /** Whether process isolation is required for parallel runs. */
   processIsolation: 'required' | 'best-effort';
   /** Whether parallel writes are allowed (worktree-only) or disabled. */
   parallelWritePolicy: 'worktree-only' | 'disabled';
-  /** When true, parallel writes require a clean parent working tree. */
-  requireCleanBaseForParallelWrites: boolean;
+  /** Explicit consent policy for dirty-base parallel writes. */
+  dirtyBasePolicy: 'ask' | 'bypass';
 };
 
 /** Safe defaults for `PiwinConfig.subagents` when absent or partial. */
@@ -217,10 +237,9 @@ export function createDefaultSubagentConfig(): SubagentConfig {
     profiles: [],
     maxConcurrency: 4,
     maxTasksPerRun: 8,
-    maxParallelWriteTasks: 4,
     processIsolation: 'required',
     parallelWritePolicy: 'worktree-only',
-    requireCleanBaseForParallelWrites: true,
+    dirtyBasePolicy: 'ask',
   };
 }
 

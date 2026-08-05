@@ -18,6 +18,10 @@ Desktop must use the same `@piwin/agent-host` as CLI without importing Pi into t
    - Tauri runtime → invoke + `host-message` events
 5. Apps never import `@earendil-works/*`.
 
+The Desktop process contains one Product Host composition root. Pi execution
+workers are internal children of that Host; they are not additional Host
+sidecars and are never exposed as user-visible Jobs.
+
 ## Commands (Rust)
 
 | Command | Role |

@@ -2,9 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   parseWorkerFrame,
   serializeWorkerRequest,
+  type WorkerFrameContext,
   type WorkerRequest,
 } from './rpc-sdk-worker-protocol.js';
+import { RpcSdkWorkerClient } from './rpc-sdk-worker-client.js';
 import type { SerializableBlueprint } from './rpc/serializable-blueprint.js';
+
+const frameContext: WorkerFrameContext = {
+  sessionId: 'ps-1',
+  runtimeGenerationId: 'gen-1',
+};
 
 const minimalBlueprint: SerializableBlueprint = {
   protocolVersion: 1,
@@ -17,7 +24,7 @@ const minimalBlueprint: SerializableBlueprint = {
   tools: {
     enabledFamilies: [],
     piBuiltinToolNames: [],
-    customToolNames: [],
+    hostTools: [],
     enabledMcpServerIds: [],
   },
   activeSkillPaths: [],
@@ -30,6 +37,7 @@ describe('parseWorkerFrame', () => {
     const line = JSON.stringify({
       type: 'response',
       id: 'req-1',
+      context: frameContext,
       success: true,
       data: { sessionId: 's1' },
     });
@@ -41,7 +49,7 @@ describe('parseWorkerFrame', () => {
   it('parses a valid event frame', () => {
     const line = JSON.stringify({
       type: 'event',
-      sessionId: 's1',
+      context: { sessionId: 's1', runtimeGenerationId: 'g1' },
       event: { type: 'text', text: 'hello' },
     });
     const frame = parseWorkerFrame(line);
@@ -52,7 +60,7 @@ describe('parseWorkerFrame', () => {
     const line = JSON.stringify({
       type: 'tool-call',
       id: 'tc-1',
-      sessionId: 's1',
+      context: { sessionId: 's1', runtimeGenerationId: 'g1', toolCallId: 'tc-1' },
       toolName: 'web_search',
       args: { query: 'piwin' },
     });
@@ -106,6 +114,7 @@ describe('serializeWorkerRequest', () => {
       type: 'request',
       id: 'req-1',
       method: 'session/create',
+      context: frameContext,
       payload: {
         method: 'session/create',
         productSessionId: 'ps-1',
@@ -124,6 +133,7 @@ describe('serializeWorkerRequest', () => {
       type: 'request',
       id: 'r2',
       method: 'session/prompt',
+      context: frameContext,
       payload: {
         method: 'session/prompt',
         sessionId: 's1',
@@ -144,32 +154,149 @@ describe('serializeWorkerRequest', () => {
       type: 'request',
       id: 'r1',
       method: 'session/steer',
+      context: frameContext,
       payload: { method: 'session/steer', sessionId: 's1', message: 'go on' },
     };
     const followUp: WorkerRequest = {
       type: 'request',
       id: 'r2',
       method: 'session/follow-up',
+      context: frameContext,
       payload: { method: 'session/follow-up', sessionId: 's1', message: 'thanks' },
     };
     expect(JSON.parse(serializeWorkerRequest(steer)).method).toBe('session/steer');
     expect(JSON.parse(serializeWorkerRequest(followUp)).method).toBe('session/follow-up');
   });
 
-  it('serializes the legacy subagent-task create payload', () => {
-    const request: WorkerRequest = {
-      type: 'request',
-      id: 'r3',
-      method: 'session/create',
-      payload: {
-        method: 'session/create',
-        projectPath: '/tmp/project',
-        workingDirectory: '/tmp/project',
-        isolation: 'readonly',
-      },
-    };
-    const parsed = JSON.parse(serializeWorkerRequest(request));
-    expect(parsed.payload.projectPath).toBe('/tmp/project');
-    expect(parsed.payload.isolation).toBe('readonly');
+});
+
+describe('RpcSdkWorkerClient startup and framing', () => {
+  it('preserves a hello frame split across stdout chunks', async () => {
+    const helloFrame = JSON.stringify({
+      type: 'hello',
+      protocolVersion: 1,
+      workerPid: 1234,
+      capabilities: { toolProxy: true, steer: true, followUp: true, preparedPrompt: true },
+    });
+    const workerCode = [
+      `const helloFrame = ${JSON.stringify(helloFrame)};`,
+      'process.stdout.write(helloFrame.slice(0, 9));',
+      "setTimeout(() => process.stdout.write(helloFrame.slice(9) + '\\n'), 10);",
+      'setInterval(() => {}, 1000);',
+    ].join(' ');
+    const client = new RpcSdkWorkerClient({
+      workerScript: 'unused-worker-script',
+      nodeArgs: ['-e', workerCode],
+      helloTimeoutMs: 1_000,
+      context: { sessionId: 'test-session', runtimeGenerationId: 'test-generation' },
+    });
+
+    await client.start();
+    expect(client.isReady).toBe(true);
+    await client.close();
   });
+
+  it('kills a worker that times out during hello startup', async () => {
+    const client = new RpcSdkWorkerClient({
+      workerScript: 'unused-worker-script',
+      nodeArgs: ['-e', 'setInterval(() => {}, 1000);'],
+      helloTimeoutMs: 25,
+      context: { sessionId: 'test-session', runtimeGenerationId: 'test-generation' },
+    });
+
+    await expect(client.start()).rejects.toThrow(/hello timeout/);
+    expect(client.isRunning).toBe(false);
+    expect(client.isReady).toBe(false);
+  });
+
+  it('does not inherit arbitrary parent environment variables', async () => {
+    const secretEnvironmentKey = 'PIWIN_WORKER_TEST_SECRET';
+    const previousSecret = process.env[secretEnvironmentKey];
+    process.env[secretEnvironmentKey] = 'must-not-cross-worker-boundary';
+    const helloFrame = JSON.stringify({
+      type: 'hello',
+      protocolVersion: 1,
+      workerPid: 1234,
+      capabilities: { toolProxy: true, steer: true, followUp: true, preparedPrompt: true },
+    });
+    const workerCode = [
+      `if (process.env.${secretEnvironmentKey}) process.exit(2);`,
+      `process.stdout.write(${JSON.stringify(helloFrame)} + '\\n');`,
+      'setInterval(() => {}, 1000);',
+    ].join(' ');
+    const client = new RpcSdkWorkerClient({
+      workerScript: 'unused-worker-script',
+      nodeArgs: ['-e', workerCode],
+      helloTimeoutMs: 1_000,
+      context: { sessionId: 'test-session', runtimeGenerationId: 'test-generation' },
+    });
+
+    try {
+      await client.start();
+      expect(client.isReady).toBe(true);
+    } finally {
+      await client.close();
+      if (previousSecret === undefined) {
+        delete process.env[secretEnvironmentKey];
+      } else {
+        process.env[secretEnvironmentKey] = previousSecret;
+      }
+    }
+  });
+
+  it('cleans up a worker that advertises an incompatible protocol', async () => {
+    const incompatibleHello = JSON.stringify({
+      type: 'hello',
+      protocolVersion: 2,
+      workerPid: 1234,
+      capabilities: {},
+    });
+    const client = new RpcSdkWorkerClient({
+      workerScript: 'unused-worker-script',
+      nodeArgs: [
+        '-e',
+        [
+          `process.stdout.write(${JSON.stringify(incompatibleHello)} + '\\n');`,
+          'setInterval(() => {}, 1000);',
+        ].join(' '),
+      ],
+      helloTimeoutMs: 1_000,
+      context: { sessionId: 'test-session', runtimeGenerationId: 'test-generation' },
+    });
+
+    await expect(client.start()).rejects.toThrow(/protocol version 2 incompatible/);
+    expect(client.isRunning).toBe(false);
+  });
+
+  it('waits for prompt completion beyond the removed two-second default', async () => {
+    const helloFrame = JSON.stringify({
+      type: 'hello',
+      protocolVersion: 1,
+      workerPid: 1234,
+      capabilities: { toolProxy: true, steer: true, followUp: true, preparedPrompt: true },
+    });
+    const workerCode = [
+      `process.stdout.write(${JSON.stringify(helloFrame)} + '\\n');`,
+      "process.stdin.on('data', (chunk) => {",
+      '  const request = JSON.parse(chunk.toString());',
+      "  if (request.payload?.method === 'session/prompt') {",
+      "    setTimeout(() => process.stdout.write(JSON.stringify({ type: 'response', id: request.id, context: request.context, success: true, data: {} }) + '\\n'), 2_100);",
+      '  }',
+      '});',
+      'setInterval(() => {}, 1000);',
+    ].join(' ');
+    const client = new RpcSdkWorkerClient({
+      workerScript: 'unused-worker-script',
+      nodeArgs: ['-e', workerCode],
+      helloTimeoutMs: 1_000,
+      context: { sessionId: 'session-1', runtimeGenerationId: 'generation-1' },
+    });
+
+    try {
+      await client.start();
+      await expect(client.prompt('session-1', 'long generation')).resolves.toBeUndefined();
+    } finally {
+      await client.close();
+    }
+  }, 10_000);
 });

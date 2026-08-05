@@ -19,7 +19,7 @@ const blueprint: SerializableBlueprint = {
   tools: {
     enabledFamilies: [],
     piBuiltinToolNames: [],
-    customToolNames: [],
+    hostTools: [],
     enabledMcpServerIds: [],
   },
   activeSkillPaths: ['/tmp/skills-a', '/tmp/skills-b'],
@@ -75,7 +75,7 @@ describe('createBlueprintResourceLoader', () => {
     });
   });
 
-  it('omits extension/prompt path arrays when empty (clean options)', async () => {
+  it('preserves empty extension/prompt path arrays exactly', async () => {
     const piModule = createMockPiModule({});
     const emptyBlueprint: SerializableBlueprint = {
       ...blueprint,
@@ -87,8 +87,8 @@ describe('createBlueprintResourceLoader', () => {
       mock: { calls: unknown[][] };
     };
     const call = LoaderCtor.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(call).not.toHaveProperty('additionalExtensionPaths');
-    expect(call).not.toHaveProperty('additionalPromptTemplatePaths');
+    expect(call.additionalExtensionPaths).toEqual([]);
+    expect(call.additionalPromptTemplatePaths).toEqual([]);
   });
 });
 
@@ -200,6 +200,53 @@ describe('createWorkerPiSessionFactory', () => {
     expect(opts).toMatchObject({ cwd: '/tmp/work', agentDir: '/tmp/agent' });
     expect(opts).toHaveProperty('resourceLoader');
     expect(opts).toHaveProperty('modelRuntime');
+  });
+
+  it('binds extension UI to the created Pi session', async () => {
+    const lifecycle: string[] = [];
+    let boundUiContext: Record<string, unknown> | undefined;
+    const session = {
+      sessionId: 'pi-extension-ui-1',
+      prompt: vi.fn(async () => undefined),
+      subscribe: vi.fn(() => () => undefined),
+      bindExtensions: vi.fn(async (bindings: Record<string, unknown>) => {
+        lifecycle.push('bindExtensions');
+        boundUiContext = bindings.uiContext as Record<string, unknown>;
+      }),
+    };
+    const piModule = createMockPiModule({ session });
+    const extensionUiRequest = vi.fn(async (_request, _signal) => ({
+      kind: 'confirm' as const,
+      confirmed: true,
+    }));
+    const factory = createWorkerPiSessionFactory({
+      agentDir: '/tmp/agent',
+      piModule,
+    });
+
+    lifecycle.push('beforeCreate');
+    await factory({
+      productSessionId: 'ps-1',
+      blueprint,
+      extensionUi: { request: extensionUiRequest },
+    });
+
+    expect(lifecycle).toEqual(['beforeCreate', 'bindExtensions']);
+    expect(session.bindExtensions).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: 'rpc', uiContext: expect.any(Object) }),
+    );
+    const confirm = boundUiContext?.confirm as
+      | ((title: string, message: string) => Promise<boolean>)
+      | undefined;
+    await expect(confirm?.('Approve action', 'Continue?')).resolves.toBe(true);
+    expect(extensionUiRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'confirm',
+        title: 'Approve action',
+        message: 'Continue?',
+      }),
+      expect.any(AbortSignal),
+    );
   });
 
   it('throws when the configured model is not in the provider envelope', async () => {

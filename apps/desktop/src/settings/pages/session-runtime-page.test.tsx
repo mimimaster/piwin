@@ -150,8 +150,9 @@ describe('SessionRuntimePage', () => {
     expect(container!.querySelector('[data-testid="runtime-state-value"]')?.textContent).toContain(
       'Stale',
     );
-    expect(container!.querySelector('[data-testid="runtime-reload-now-button"]')).toBeTruthy();
-    expect(container!.querySelector('[data-testid="runtime-apply-after-run-button"]')).toBeTruthy();
+    expect(container!.querySelector('[data-testid="runtime-reload-unavailable-note"]')).toBeTruthy();
+    expect(container!.querySelector('[data-testid="runtime-reload-now-button"]')).toBeNull();
+    expect(container!.querySelector('[data-testid="runtime-apply-after-run-button"]')).toBeNull();
   });
 
   it('renders a fresh runtime without the Pending Changes bar', async () => {
@@ -169,30 +170,4 @@ describe('SessionRuntimePage', () => {
     expect(container!.querySelector('[data-testid="runtime-fresh-note"]')).toBeTruthy();
   });
 
-  it('reload button issues session/reload-runtime with the session id', async () => {
-    const request = vi.fn(async (): Promise<import('@piwin/contracts').HostResponse> => ({
-      type: 'response',
-      command: 'session/runtime-status',
-      success: true,
-      data: { status: staleStatus() },
-    }));
-    container = renderPage(createContextValue({ request }));
-    await act(async () => {
-      await Promise.resolve();
-    });
-    await act(async () => {
-      (
-        container!.querySelector('[data-testid="runtime-reload-now-button"]') as HTMLButtonElement
-      )?.click();
-    });
-    const reloadCall = request.mock.calls.find(
-      (call: unknown[]) =>
-        (call[0] as { type?: string } | undefined)?.type === 'session/reload-runtime',
-    );
-    expect(reloadCall).toBeTruthy();
-    expect((reloadCall as unknown[] | undefined)?.[0]).toMatchObject({
-      sessionId: 's1',
-      when: 'now',
-    });
-  });
 });

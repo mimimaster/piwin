@@ -134,23 +134,20 @@ describe('HostServeStreamBatcher', () => {
       event: { type: 'message/end', messageId: 'message-4' },
     });
     batcher.push({
-      type: 'event',
-      sessionId: 'session-1',
-      event: {
-        type: 'run/terminal',
-        sessionId: 'session-1',
+      type: 'run/terminal',
+      run: {
         runId: 'run-1',
-        outcome: 'completed',
-        at: new Date().toISOString(),
+        kind: 'session-turn',
+        status: 'completed',
+        rootRunId: 'run-1',
+        sessionId: 'session-1',
       },
     });
 
     releaseFirstWrite?.();
     await batcher.flush();
 
-    expect(written.at(-1)).toMatchObject({
-      event: { type: 'run/terminal', runId: 'run-1' },
-    });
+    expect(written.at(-1)).toMatchObject({ type: 'run/terminal', run: { runId: 'run-1' } });
     expect(written.filter((message) => message.type === 'event')).toContainEqual(
       expect.objectContaining({ event: { type: 'message/end', messageId: 'message-4' } }),
     );

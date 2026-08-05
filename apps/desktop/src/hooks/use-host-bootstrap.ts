@@ -42,8 +42,8 @@ export type UseHostBootstrapArgs = {
   hostClient: HostClient;
   dispatch: Dispatch<ChatUiAction>;
   dispatchNotification: Dispatch<NotificationAction>;
-  refreshManagedProcesses: () => Promise<void>;
-  appendProcessLog: (processId: string, text: string) => void;
+  refreshJobs: () => Promise<void>;
+  appendJobLog: (jobId: string, text: string) => void;
   setPtyOutput: Dispatch<SetStateAction<PtyOutputLine[]>>;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
   setSelectedModelKey: Dispatch<SetStateAction<string>>;
@@ -120,27 +120,34 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
       }
       if (message.type === 'event') {
         streamEventBuffer.push(message.sessionId, message.event, message.envelope);
+        return;
+      }
+      if (message.type === 'run/updated') {
+        dispatch({ type: 'run/updated', run: message.run });
+        return;
+      }
+      if (message.type === 'run/terminal') {
+        dispatch({ type: 'run/terminal', run: message.run });
         const currentExtensionUiRequest = extensionUiRequestRef.current;
-        if (
-          message.event.type === 'run/terminal' &&
-          currentExtensionUiRequest?.sessionId === message.sessionId
-        ) {
-          // Stop settles the host-side Extension UI promise. Clear the modal
-          // when the corresponding run terminal arrives so the user is not
-          // left staring at a dialog whose request no longer exists.
+        if (currentExtensionUiRequest?.sessionId === message.run.sessionId) {
           clearExtensionUiRequest(currentExtensionUiRequest.requestId);
         }
-        if (
-          message.event.type === 'process/started' ||
-          message.event.type === 'process/updated' ||
-          message.event.type === 'process/exited'
-        ) {
-          void args.refreshManagedProcesses();
-        }
-        if (message.event.type === 'process/log') {
-          const chunk = message.event.chunk;
-          args.appendProcessLog(chunk.processId, chunk.text);
-        }
+        return;
+      }
+      // Job lifecycle pushes are top-level HostPush variants, not AgentEvent
+      // envelopes. Refresh the Job list on state changes and stream logs.
+      if (
+        message.type === 'job/started' ||
+        message.type === 'job/updated' ||
+        message.type === 'job/ready' ||
+        message.type === 'job/exited'
+      ) {
+        void args.refreshJobs();
+        return;
+      }
+      if (message.type === 'job/log') {
+        const chunk = message.chunk;
+        args.appendJobLog(chunk.jobId, chunk.text);
         return;
       }
       if (message.type === 'pty/output') {
@@ -298,7 +305,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         if (
           message.command === 'models/discover' ||
           message.command === 'config/get' ||
-          message.command === 'config/set'
+          message.command === 'settings/apply'
         ) {
           return;
         }

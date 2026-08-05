@@ -3,6 +3,7 @@ import type {
   AgentEvent,
   AgentEventEnvelope,
   ContextUsageSnapshot,
+  ExecutionRunRecord,
   PromptAttachment,
   PermissionDecision,
   PermissionRequestContext,
@@ -12,7 +13,7 @@ import type {
   SessionSummary,
   SessionTranscriptMessage,
   SubagentActivityView,
-  SubagentBatchResult,
+  SubagentBatchProjection,
   SubagentTaskResult,
   ToolPresentation,
   WalkthroughArtifact,
@@ -185,7 +186,7 @@ export type ChatUiState = {
   /** Latest child session summaries keyed by childSessionId (live list sync). */
   subagentChildren: Record<string, SessionSummary>;
   /** CE-SUB-ORCH: batch results keyed by runId (parallel subagent visibility). */
-  subagentBatches: Record<string, SubagentBatchResult>;
+  subagentBatches: Record<string, SubagentBatchProjection>;
   /** CE-SUB-ORCH: latest per-task results keyed by `${runId}:${taskId}`. */
   subagentTaskResults: Record<string, SubagentTaskResult>;
   /**
@@ -228,6 +229,8 @@ export type ChatUiAction =
   | { type: 'user/send'; text: string; attachments?: PromptAttachment[] }
   | { type: 'run/aborting' }
   | { type: 'run/accepted'; runId: string; acceptedAt?: string }
+  | { type: 'run/updated'; run: ExecutionRunRecord }
+  | { type: 'run/terminal'; run: ExecutionRunRecord }
   | { type: 'run/terminal-dismiss' }
   | { type: 'host/status'; ready: boolean; mock: boolean }
   | { type: 'permission/show'; prompt: PermissionPromptUi }
@@ -265,7 +268,7 @@ export type ChatUiAction =
       type: 'subagent/batch-updated';
       runId: string;
       parentSessionId: string;
-      result: SubagentBatchResult;
+      result: SubagentBatchProjection;
     }
   | {
       type: 'subagent/task-updated';
@@ -794,6 +797,12 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
           },
         };
       }
+    case 'run/updated':
+      if (state.activeSessionId !== action.run.sessionId) return state;
+      return applyRunRecord(state, action.run);
+    case 'run/terminal':
+      if (state.activeSessionId !== action.run.sessionId) return state;
+      return applyRunRecord(state, action.run);
     case 'run/terminal-dismiss':
       return {
         ...state,
@@ -1490,187 +1499,6 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
           runTerminal: { kind: 'failed', message: event.message, at: Date.now() },
         };
       }
-    case 'run/phase':
-      if (isStaleRunEvent(state, event.runId)) {
-        return state;
-      }
-      {
-        const phaseAt = parseEventTime(event.at);
-        const previousRecord = state.runRecordsById[event.runId];
-        const nextPhaseEntry: RunRecordUi['phaseHistory'][number] = {
-          phase: event.phase,
-          at: phaseAt,
-          ...(event.detail ? { detail: event.detail } : {}),
-        };
-        const nextRunRecord: RunRecordUi = {
-          runId: event.runId,
-          phaseHistory: [...(previousRecord?.phaseHistory ?? []), nextPhaseEntry],
-          startedAt:
-            previousRecord?.startedAt ??
-            (state.activeRunId === event.runId && state.activeRunStartedAt !== null
-              ? state.activeRunStartedAt
-              : phaseAt),
-          endedAt: previousRecord?.endedAt ?? null,
-          ...(previousRecord?.outcome ? { outcome: previousRecord.outcome } : {}),
-          ...(previousRecord?.terminalMessage
-            ? { terminalMessage: previousRecord.terminalMessage }
-            : {}),
-        };
-        if (event.phase === 'cancelling') {
-          return {
-            ...state,
-            activeRunId: event.runId,
-            activeRunPhase: event.phase,
-            activeRunPhaseDetail: event.detail ?? null,
-            runPhase: 'aborting',
-            streaming: true,
-            runRecordsById: {
-              ...state.runRecordsById,
-              [event.runId]: nextRunRecord,
-            },
-          };
-        }
-        return {
-          ...state,
-          runPhase: 'streaming',
-          activeRunId: event.runId,
-          activeRunPhase: event.phase,
-          activeRunPhaseDetail: event.detail ?? null,
-          activeRunStartedAt:
-            state.activeRunId === event.runId && state.activeRunStartedAt !== null
-              ? state.activeRunStartedAt
-              : parseEventTime(event.at),
-          lastTerminalRunId: null,
-          streaming: true,
-          runTerminal: { kind: 'none' },
-          runRecordsById: {
-            ...state.runRecordsById,
-            [event.runId]: {
-              ...nextRunRecord,
-              startedAt:
-                state.activeRunId === event.runId && state.activeRunStartedAt !== null
-                  ? state.activeRunStartedAt
-                  : nextRunRecord.startedAt,
-            },
-          },
-        };
-      }
-    case 'run/terminal':
-      // Historical / late terminals must never clear a different active run.
-      if (state.activeRunId !== null && state.activeRunId !== event.runId) {
-        const previousRecord = state.runRecordsById[event.runId];
-        if (previousRecord?.outcome) {
-          // Already terminal — ignore replay for global and record state.
-          return state;
-        }
-        const endedAt = parseEventTime(event.at);
-        return {
-          ...state,
-          runRecordsById: {
-            ...state.runRecordsById,
-            [event.runId]: {
-              runId: event.runId,
-              phaseHistory: previousRecord?.phaseHistory ?? [],
-              startedAt: previousRecord?.startedAt ?? null,
-              endedAt,
-              outcome: event.outcome,
-              ...(event.message ? { terminalMessage: event.message } : {}),
-            },
-          },
-        };
-      }
-      if (
-        state.activeRunId === null &&
-        state.lastTerminalRunId !== null &&
-        state.lastTerminalRunId !== event.runId
-      ) {
-        // A terminal from any run other than the most recently settled run is
-        // historical. Keep its record for inspection, but never replace the
-        // global terminal indicator or reopen a settled transcript.
-        const previousRecord = state.runRecordsById[event.runId];
-        if (previousRecord?.outcome) {
-          return state;
-        }
-        return {
-          ...state,
-          runRecordsById: {
-            ...state.runRecordsById,
-            [event.runId]: {
-              runId: event.runId,
-              phaseHistory: previousRecord?.phaseHistory ?? [],
-              startedAt: previousRecord?.startedAt ?? null,
-              endedAt: parseEventTime(event.at),
-              outcome: event.outcome,
-              ...(event.message ? { terminalMessage: event.message } : {}),
-            },
-          },
-        };
-      }
-      if (state.activeRunId === null && state.lastTerminalRunId === event.runId) {
-        // Duplicate terminal for the already-settled active run.
-        return state;
-      }
-      {
-        const endedAt = parseEventTime(event.at);
-        const previousRecord = state.runRecordsById[event.runId];
-        const terminalRecord: RunRecordUi = {
-          runId: event.runId,
-          phaseHistory: previousRecord?.phaseHistory ?? [],
-          startedAt: previousRecord?.startedAt ?? state.activeRunStartedAt,
-          endedAt,
-          outcome: event.outcome,
-          ...(event.message ? { terminalMessage: event.message } : {}),
-        };
-        const withRecord = {
-          ...state,
-          runRecordsById: {
-            ...state.runRecordsById,
-            [event.runId]: terminalRecord,
-          },
-        };
-        if (event.outcome === 'cancelled') {
-          return {
-            ...withRecord,
-            activeRunId: null,
-            activeRunPhase: null,
-            activeRunPhaseDetail: null,
-            activeRunStartedAt: null,
-            lastTerminalRunId: event.runId,
-            runPhase: 'idle',
-            streaming: false,
-            runTerminal: { kind: 'stopped', at: Date.now() },
-          };
-        }
-        if (event.outcome === 'failed') {
-          return {
-            ...withRecord,
-            activeRunId: null,
-            activeRunPhase: null,
-            activeRunPhaseDetail: null,
-            activeRunStartedAt: null,
-            lastTerminalRunId: event.runId,
-            error: event.message ?? 'Run failed',
-            runPhase: 'idle',
-            streaming: false,
-            runTerminal: {
-              kind: 'failed',
-              message: event.message ?? 'Run failed',
-              at: Date.now(),
-            },
-          };
-        }
-        return {
-          ...withRecord,
-          activeRunId: null,
-          activeRunPhase: null,
-          activeRunPhaseDetail: null,
-          activeRunStartedAt: null,
-          lastTerminalRunId: event.runId,
-          runPhase: 'idle',
-          streaming: false,
-          runTerminal: { kind: 'complete', at: Date.now() },
-        };
-      }
     default:
       return state;
   }
@@ -1681,6 +1509,94 @@ function isStaleRunEvent(state: ChatUiState, runId: string): boolean {
     (state.activeRunId !== null && state.activeRunId !== runId) ||
     (state.activeRunId === null && state.lastTerminalRunId === runId)
   );
+}
+
+/** Reduce the authoritative top-level RunHostPush projection. */
+function applyRunRecord(state: ChatUiState, run: ExecutionRunRecord): ChatUiState {
+  const previousRecord = state.runRecordsById[run.runId];
+  const phaseAt = parseEventTime(run.phaseUpdatedAt ?? run.startedAt ?? run.endedAt ?? '');
+  const lastPhase = previousRecord?.phaseHistory.at(-1);
+  const phaseHistory =
+    run.phase !== undefined &&
+    (lastPhase?.phase !== run.phase || lastPhase.detail !== run.phaseDetail)
+      ? [
+          ...(previousRecord?.phaseHistory ?? []),
+          {
+            phase: run.phase,
+            at: phaseAt,
+            ...(run.phaseDetail ? { detail: run.phaseDetail } : {}),
+          },
+        ]
+      : (previousRecord?.phaseHistory ?? []);
+  const outcome =
+    run.status === 'completed'
+      ? ('completed' as const)
+      : run.status === 'cancelled' || run.status === 'interrupted'
+        ? ('cancelled' as const)
+        : run.status === 'failed'
+          ? ('failed' as const)
+          : undefined;
+  const nextRecord: RunRecordUi = {
+    runId: run.runId,
+    phaseHistory,
+    startedAt: run.startedAt ? parseEventTime(run.startedAt) : (previousRecord?.startedAt ?? null),
+    endedAt: run.endedAt ? parseEventTime(run.endedAt) : (previousRecord?.endedAt ?? null),
+    ...(outcome ? { outcome } : previousRecord?.outcome ? { outcome: previousRecord.outcome } : {}),
+    ...(run.error
+      ? { terminalMessage: run.error }
+      : previousRecord?.terminalMessage
+        ? { terminalMessage: previousRecord.terminalMessage }
+        : {}),
+  };
+  const records = { ...state.runRecordsById, [run.runId]: nextRecord };
+
+  if (run.kind !== 'session-turn') {
+    return { ...state, runRecordsById: records };
+  }
+  if (outcome === undefined) {
+    return {
+      ...state,
+      activeRunId: run.runId,
+      activeRunPhase: run.phase ?? state.activeRunPhase,
+      activeRunPhaseDetail: run.phaseDetail ?? null,
+      activeRunStartedAt: run.startedAt
+        ? parseEventTime(run.startedAt)
+        : state.activeRunStartedAt,
+      runPhase: run.status === 'cancelling' ? 'aborting' : 'streaming',
+      streaming: true,
+      lastTerminalRunId: null,
+      runTerminal: { kind: 'none' },
+      runRecordsById: records,
+    };
+  }
+
+  if (state.activeRunId !== null && state.activeRunId !== run.runId) {
+    return { ...state, runRecordsById: records };
+  }
+  if (state.activeRunId === null && state.lastTerminalRunId !== null && state.lastTerminalRunId !== run.runId) {
+    return { ...state, runRecordsById: records };
+  }
+  if (state.activeRunId === null && state.lastTerminalRunId === run.runId) {
+    return state;
+  }
+  return {
+    ...state,
+    activeRunId: null,
+    activeRunPhase: null,
+    activeRunPhaseDetail: null,
+    activeRunStartedAt: null,
+    lastTerminalRunId: run.runId,
+    runPhase: 'idle',
+    streaming: false,
+    error: outcome === 'failed' ? (run.error ?? 'Run failed') : state.error,
+    runTerminal:
+      outcome === 'cancelled'
+        ? { kind: 'stopped', at: Date.now() }
+        : outcome === 'failed'
+          ? { kind: 'failed', message: run.error ?? 'Run failed', at: Date.now() }
+          : { kind: 'complete', at: Date.now() },
+    runRecordsById: records,
+  };
 }
 
 function isStaleOptionalRunEvent(state: ChatUiState, runId: string | undefined): boolean {
