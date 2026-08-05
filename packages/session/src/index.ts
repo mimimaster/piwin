@@ -110,6 +110,25 @@ export type { SessionSearchOptions } from './session-search.js';
 export { buildProductHistoryContext, mergeProductHistoryIntoPrompt } from './product-context.js';
 export type { ProductHistoryContextOptions } from './product-context.js';
 
+export {
+  buildSideChatContextSnapshot,
+  formatSideChatContextBlock,
+  mergeSideChatContextIntoPrompt,
+} from './side-chat-context.js';
+export type { SideChatSnapshotInput } from './side-chat-context.js';
+
+export {
+  createSideChatSessionRecord,
+  getSideChatSessionRecord,
+  listSideChatSessions,
+  updateSideChatContext,
+  markSideChatSourceState,
+} from './side-chat-store.js';
+export type {
+  SideChatCreateInput,
+  ListSideChatSessionsOptions,
+} from './side-chat-store.js';
+
 export { buildSessionOutline } from './session-outline.js';
 
 export { validateSessionPlan } from './validate-plan.js';

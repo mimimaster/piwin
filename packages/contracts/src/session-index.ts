@@ -40,7 +40,11 @@ export type SessionIndexRecord = {
   parentSessionId?: string;
   /** 0 = main, 1 = sub-agent (max depth). */
   depth?: number;
-  kind?: 'main' | 'subagent';
+  kind?: 'main' | 'subagent' | 'side-chat';
+  /** SIDE: relation binding a side chat to its source main session. */
+  sideChatRelation?: import('./side-chat.js').SideChatRelation;
+  /** SIDE: bounded inherited context snapshot (JSON-safe; persisted with index). */
+  sideChatContext?: import('./side-chat.js').SideChatContextSnapshot;
   subagentStatus?: SubagentStatus;
   /** Brief task description for sub-agents. */
   task?: string;

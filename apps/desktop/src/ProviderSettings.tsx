@@ -19,6 +19,10 @@ import { ProviderAddDialog } from './provider-add-dialog.js';
 import { ProviderDrawer } from './provider-drawer.js';
 import { ProviderKeyManagerDialog } from './ProviderKeyManagerDialog.js';
 import { ProviderList, type ModelTestState } from './provider-list.js';
+import {
+  allocateUniqueProviderId,
+  allocateUniqueProviderName,
+} from './provider-instance-id.js';
 import type { ProviderPreset } from './provider-presets.js';
 import type { ProviderTestStatus } from './provider-status.js';
 import { useDesktopLocale } from './desktop-locale-context.js';
@@ -304,15 +308,20 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
   }
 
   function handleAddFromPreset(preset: ProviderPreset): void {
-    const id = preset.id;
-    if (config.providers.find((p) => p.id === id)) {
-      onError(isChinese ? '提供商已存在。' : 'Provider already exists.');
-      return;
-    }
+    // One vendor may back many channels (own baseUrl + key each), so a preset
+    // that is already configured still yields a new unique provider entry.
+    const id = allocateUniqueProviderId(
+      preset.id,
+      config.providers.map((provider) => provider.id),
+    );
+    const name = allocateUniqueProviderName(
+      preset.name,
+      config.providers.map((provider) => provider.name),
+    );
     const provider: ModelProviderConfig = {
       id,
       protocol: preset.protocol,
-      name: preset.name,
+      name,
       baseUrl: preset.baseUrl,
       enabled: true,
       models: preset.models.map((model) => ({

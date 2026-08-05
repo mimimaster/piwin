@@ -391,6 +391,8 @@ function createControlContext(
     requireSession: (): SessionHandle => session,
     bindSession: async (): Promise<void> => undefined,
     loadTranscriptMessages: async () => [],
+    loadSideChatSnapshot: async () => undefined,
+    sideChatSnapshotInjectedVersions: new Map(),
     stopProcessesForSession: async (): Promise<void> => {
       if (cleanupDelayMs > 0) {
         await new Promise<void>((resolve) => setTimeout(resolve, cleanupDelayMs));
