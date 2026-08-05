@@ -309,9 +309,82 @@ input.project-path-input {
 }
 
 .main-error-banner .ui-notice {
+  position: relative;
+  align-items: center;
+  min-height: 64px;
+  padding: 13px 14px 13px 50px;
   margin: 0;
   border-radius: 9px;
-  box-shadow: var(--shadow-overlay);
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border));
+  background: color-mix(in srgb, var(--danger) 7%, var(--panel));
+  box-shadow:
+    var(--shadow-overlay),
+    inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.main-error-banner .ui-notice::before {
+  content: '!';
+  position: absolute;
+  top: 15px;
+  left: 16px;
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 16%, var(--panel));
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.main-error-banner .ui-notice-body {
+  min-width: 0;
+}
+
+.main-error-banner .ui-notice-title {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.main-error-banner .ui-notice-message {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.main-error-banner .ui-notice-action {
+  align-self: center;
+}
+
+.main-error-banner .main-error-dismiss {
+  border: 1px solid color-mix(in srgb, var(--danger) 38%, var(--border));
+  background: color-mix(in srgb, var(--danger) 10%, var(--panel));
+  color: var(--danger);
+  font-weight: 650;
+}
+
+.main-error-banner .main-error-dismiss:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--border));
+  background: color-mix(in srgb, var(--danger) 17%, var(--panel));
+  color: var(--danger);
+}
+
+@media (max-width: 560px) {
+  .main-error-banner .ui-notice {
+    align-items: flex-start;
+    padding-right: 12px;
+  }
+
+  .main-error-banner .ui-notice-action {
+    align-self: flex-start;
+  }
 }
 
 .notification-toast {

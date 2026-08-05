@@ -31,9 +31,12 @@ export async function searchSessions(
   const scopeFilter: string | SessionScope | undefined =
     query.scope ?? query.projectPath;
   const records = await listAllSessionRecords(options.indexPath, scopeFilter);
+  // SIDE-D9: side chats are reachable through side-chat/list, never through
+  // the main session search surface.
+  const mainSessions = records.filter((record) => record.kind !== 'side-chat');
   const candidates = query.pinnedOnly
-    ? records.filter((record) => record.isPinned === true)
-    : records;
+    ? mainSessions.filter((record) => record.isPinned === true)
+    : mainSessions;
 
   if (!normalizedQuery) {
     return {

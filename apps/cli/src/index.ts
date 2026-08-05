@@ -51,6 +51,14 @@ import {
   runWalkthroughExport,
   type WalkthroughHostClient,
 } from './walkthrough-command.js';
+import {
+  runSideChatList,
+  runSideChatOpen,
+  runSideChatSync,
+  runSideChatSend,
+  runSideChatResume,
+  type SideChatHostClient,
+} from './side-chat-command.js';
 
 function printHelp(): void {
   console.log(`piwin — private coding agent shell
@@ -107,6 +115,11 @@ Usage:
   piwin walkthrough export <session-id> <message-id> [--output <path>]
   piwin subagent status <runId>
   piwin subagent cancel <runId>
+  piwin side-chat list <source-session-id> [--include-archived]
+  piwin side-chat open <source-session-id> [--name <name>] [--message <message-id>]
+  piwin side-chat sync <side-chat-session-id>
+  piwin side-chat send <side-chat-session-id> <text>
+  piwin side-chat resume <side-chat-session-id>
 
 Host modes: sdk | rpc
 Offline: --mock or PIWIN_MOCK=1
@@ -2273,6 +2286,152 @@ async function commandSubagent(argv: string[]): Promise<void> {
 }
 
 /**
+ * CLI side-chat commands (spec §12).
+ * Usage: piwin side-chat list|open|sync|send|resume
+ */
+async function commandSideChat(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? '';
+  const mock = parseMock(argv);
+  const mode = parseMode(argv);
+
+  if (sub === 'list') {
+    const sourceSessionId = argv[2];
+    if (!sourceSessionId || sourceSessionId.startsWith('--')) {
+      console.error('Usage: piwin side-chat list <source-session-id> [--include-archived] [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const includeArchived = hasFlag(argv, '--include-archived');
+    const client = createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatList(client, sourceSessionId, console.log, {
+        ...(includeArchived ? { includeArchived: true } : {}),
+      });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'open') {
+    const sourceSessionId = argv[2];
+    if (!sourceSessionId || sourceSessionId.startsWith('--')) {
+      console.error('Usage: piwin side-chat open <source-session-id> [--name <name>] [--message <message-id>] [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const name = readOption(argv, '--name');
+    const sourceMessageId = readOption(argv, '--message');
+    const client = createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatOpen(client, sourceSessionId, console.log, {
+        ...(name ? { name } : {}),
+        ...(sourceMessageId ? { sourceMessageId } : {}),
+      });
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'sync') {
+    const sideChatSessionId = argv[2];
+    if (!sideChatSessionId || sideChatSessionId.startsWith('--')) {
+      console.error('Usage: piwin side-chat sync <side-chat-session-id> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatSync(client, sideChatSessionId, console.log);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'send') {
+    const sideChatSessionId = argv[2];
+    const text = argv.slice(3).filter((arg) => !arg.startsWith('--')).join(' ');
+    if (!sideChatSessionId || !text || sideChatSessionId.startsWith('--')) {
+      console.error('Usage: piwin side-chat send <side-chat-session-id> <text> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatSend(client, sideChatSessionId, text, console.log);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  if (sub === 'resume') {
+    const sideChatSessionId = argv[2];
+    if (!sideChatSessionId || sideChatSessionId.startsWith('--')) {
+      console.error('Usage: piwin side-chat resume <side-chat-session-id> [--mock]');
+      process.exitCode = 1;
+      return;
+    }
+    const client = createSideChatHostClient(mode, mock);
+    try {
+      await runSideChatResume(client, sideChatSessionId, console.log);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    } finally {
+      await client.dispose();
+    }
+    return;
+  }
+
+  console.error(`Unknown side-chat subcommand: ${sub || '(none)'}`);
+  console.error('Usage: piwin side-chat list|open|sync|send|resume');
+  process.exitCode = 1;
+}
+
+/**
+ * Build a {@link SideChatHostClient} backed by a real {@link HostRuntime}.
+ */
+function createSideChatHostClient(mode: HostMode, mock: boolean): SideChatHostClient {
+  const pushHandlers = new Set<(message: HostPush) => void>();
+  const runtime = new HostRuntime({
+    mode,
+    mock,
+    onPush: (message) => {
+      for (const handler of pushHandlers) {
+        handler(message);
+      }
+    },
+  });
+  return {
+    handleCommand: (command) => runtime.handleCommand(command),
+    onPush: (handler) => {
+      pushHandlers.add(handler);
+      return () => {
+        pushHandlers.delete(handler);
+      };
+    },
+    dispose: async () => {
+      await runtime.dispose();
+    },
+  };
+}
+
+/**
  * Build a {@link WalkthroughHostClient} backed by a real {@link HostRuntime}.
  * The runtime's `onPush` is bridged into the client's `onPush` registry so
  * `generate` can wait for `walkthrough/updated` pushes.
@@ -2383,6 +2542,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'subagent') {
     await commandSubagent(argv);
+    return;
+  }
+  if (command === 'side-chat') {
+    await commandSideChat(argv);
     return;
   }
 
