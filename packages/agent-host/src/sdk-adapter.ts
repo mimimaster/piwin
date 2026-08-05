@@ -33,6 +33,10 @@ export class PiSdkAdapter implements PiSessionBackend {
     return this.backend.dropSession(sessionId);
   }
 
+  dropSessionGeneration(sessionId: string, runtimeGenerationId: string): Promise<void> {
+    return this.backend.dropSessionGeneration(sessionId, runtimeGenerationId);
+  }
+
   dispose(): Promise<void> {
     return this.backend.dispose();
   }

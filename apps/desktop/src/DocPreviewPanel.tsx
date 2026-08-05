@@ -6,6 +6,7 @@ import {
   IconCopy,
   IconDocument,
   IconDownload,
+  IconClose,
   IconLink,
   IconMenuList,
   IconMore,
@@ -55,7 +56,7 @@ export function DocPreviewPanel({
   filePath = null,
   sessionDocuments,
   onSelectDocument,
-  onClose: _onClose,
+  onClose,
   onOpenFile,
   comments = [],
   onAddComment,
@@ -129,6 +130,16 @@ export function DocPreviewPanel({
           ) : null}
         </div>
         <div className="doc-preview-actions">
+          {onClose ? (
+            <IconButton
+              label={locale === 'zh-CN' ? '返回会话' : 'Back to conversation'}
+              title={locale === 'zh-CN' ? '返回会话' : 'Back to conversation'}
+              data-testid="doc-preview-close"
+              onClick={onClose}
+            >
+              <IconClose width={14} height={14} />
+            </IconButton>
+          ) : null}
           <DropdownMenu
             trigger={
               <IconButton label={locale === 'zh-CN' ? '更多选项' : 'More options'}>

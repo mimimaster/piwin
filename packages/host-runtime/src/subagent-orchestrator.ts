@@ -67,17 +67,20 @@ export type SubagentWorkspaceService = {
 /** Optional durable run manifest store. */
 export type SubagentRunStorePort = {
   createManifest(runId: string, request: SubagentBatchRequest): Promise<unknown>;
-  loadManifest?: (runId: string) => Promise<{
-    status: 'running' | 'completed' | 'failed' | 'cancelled' | 'needs-integration';
-    results: Record<string, SubagentTaskResult>;
-  } | undefined>;
+  loadManifest?: (runId: string) => Promise<
+    | {
+        status: 'running' | 'completed' | 'failed' | 'cancelled' | 'needs-integration';
+        results: Record<string, SubagentTaskResult>;
+      }
+    | undefined
+  >;
   recordResult(runId: string, taskId: string, result: SubagentTaskResult): Promise<void>;
   setStatus(
     runId: string,
     status: 'running' | 'completed' | 'failed' | 'cancelled' | 'needs-integration',
   ): Promise<void>;
   requestCancel?: (runId: string) => Promise<boolean>;
-  isCancelRequested?: (runId: string) => Promise<boolean>;
+  waitForCancel?: (runId: string, signal?: AbortSignal) => Promise<boolean>;
   clearCancelRequest?: (runId: string) => Promise<void>;
 };
 
@@ -143,7 +146,7 @@ export type SubagentOrchestratorOptions = {
     workspaceLease: SubagentWorkspaceLease;
   }) => void | Promise<void>;
   /** Remove the transient child context after the task runner has joined. */
-  unregisterTaskSession?: (childSessionId: string) => void;
+  unregisterTaskSession?: (childSessionId: string) => void | Promise<void>;
 };
 
 /** Internal state for an active batch. */
@@ -194,7 +197,9 @@ function createCompletionLatch(): {
 export class SubagentOrchestrator {
   private readonly taskRunner: SubagentTaskRunner;
   private readonly workspaceService: SubagentWorkspaceService;
-  private readonly prepareTask: (input: SubagentTaskPreparationInput) => Promise<PreparedSubagentTask>;
+  private readonly prepareTask: (
+    input: SubagentTaskPreparationInput,
+  ) => Promise<PreparedSubagentTask>;
   private readonly integrationCoordinator: SubagentIntegrationCoordinator;
   private readonly resourceCoordinator: RuntimeResourceCoordinator | undefined;
   private readonly runRegistry: RunRegistry;
@@ -208,7 +213,9 @@ export class SubagentOrchestrator {
 
   constructor(options: SubagentOrchestratorOptions) {
     if (typeof options.prepareTask !== 'function') {
-      throw new Error('SubagentOrchestrator requires prepareTask; task session inputs cannot be fabricated');
+      throw new Error(
+        'SubagentOrchestrator requires prepareTask; task session inputs cannot be fabricated',
+      );
     }
     if (typeof options.getRuntimeGenerationId !== 'function') {
       throw new Error('SubagentOrchestrator requires a getRuntimeGenerationId function');
@@ -236,7 +243,9 @@ export class SubagentOrchestrator {
   startBatch(request: SubagentBatchRequest, parentRunId?: string): SubagentBatchHandle {
     const issues = validateSubagentBatchRequest(request);
     if (issues.length > 0) {
-      throw new Error(`invalid subagent batch request: ${issues.map((issue) => issue.message).join('; ')}`);
+      throw new Error(
+        `invalid subagent batch request: ${issues.map((issue) => issue.message).join('; ')}`,
+      );
     }
 
     const schedulerState = initSchedulerState(request);
@@ -297,17 +306,22 @@ export class SubagentOrchestrator {
 
   private async executeBatch(batchState: BatchState): Promise<void> {
     let fatalError: Error | undefined;
-    const cancelPoll = this.runStore?.isCancelRequested
-      ? setInterval(() => {
-          void this.runStore?.isCancelRequested?.(batchState.runId).then((requested) => {
-            if (requested) this.cancelBatchState(batchState);
-          }).catch((error: unknown) => {
-            batchState.errors.push(toError(error));
-          });
-        }, 100)
-      : undefined;
+    const cancelWaitController = new AbortController();
+    let cancelWait: Promise<void> | undefined;
 
     try {
+      if (this.runStore?.waitForCancel) {
+        cancelWait = this.runStore
+          .waitForCancel(batchState.runId, cancelWaitController.signal)
+          .then((requested) => {
+            if (requested) this.cancelBatchState(batchState);
+          })
+          .catch((error: unknown) => {
+            if (!cancelWaitController.signal.aborted) {
+              batchState.errors.push(toError(error));
+            }
+          });
+      }
       await this.runStore?.createManifest(batchState.runId, batchState.request);
       this.emitPush(batchState, {
         type: 'subagent/batch-updated',
@@ -328,7 +342,8 @@ export class SubagentOrchestrator {
       cancelAll(batchState.schedulerState);
       this.runRegistry.cancelRun(batchState.runId);
     } finally {
-      if (cancelPoll !== undefined) clearInterval(cancelPoll);
+      cancelWaitController.abort();
+      if (cancelWait) await cancelWait;
     }
 
     try {
@@ -340,7 +355,10 @@ export class SubagentOrchestrator {
     }
 
     if (!fatalError && batchState.errors.length > 0) {
-      fatalError = combineErrors(batchState.errors, 'subagent batch encountered persistence or push errors');
+      fatalError = combineErrors(
+        batchState.errors,
+        'subagent batch encountered persistence or push errors',
+      );
     }
 
     try {
@@ -372,7 +390,10 @@ export class SubagentOrchestrator {
         const task = batchState.schedulerState.tasks.get(taskId);
         if (!task || batchState.schedulerState.status.get(taskId) !== 'pending') continue;
         markTaskRunning(batchState.schedulerState, taskId);
-        inFlight.set(taskId, this.dispatchTask(batchState.runId, task, batchState.schedulerState, batchState));
+        inFlight.set(
+          taskId,
+          this.dispatchTask(batchState.runId, task, batchState.schedulerState, batchState),
+        );
       }
 
       if (inFlight.size === 0) {
@@ -445,10 +466,7 @@ export class SubagentOrchestrator {
     if (batchStatus !== 'cancelled' && (hasIntegrationConflict || hasExplicitIntegrationPending)) {
       batchStatus = 'needs-integration';
     }
-    if (
-      batchStatus === 'completed' &&
-      (hasIntegrationFailure || fatalError)
-    ) {
+    if (batchStatus === 'completed' && (hasIntegrationFailure || fatalError)) {
       batchStatus = 'failed';
     }
 
@@ -464,34 +482,37 @@ export class SubagentOrchestrator {
       }
     }
 
-    const terminalStatus = batchStatus === 'completed'
-      ? 'completed'
-      : batchStatus === 'cancelled'
-        ? 'cancelled'
-        : 'failed';
-    const terminalCode = batchStatus === 'needs-integration'
-      ? 'integration-required'
-      : batchStatus === 'failed'
-        ? 'failed'
+    const terminalStatus =
+      batchStatus === 'completed'
+        ? 'completed'
         : batchStatus === 'cancelled'
           ? 'cancelled'
-          : 'completed';
+          : 'failed';
+    const terminalCode =
+      batchStatus === 'needs-integration'
+        ? 'integration-required'
+        : batchStatus === 'failed'
+          ? 'failed'
+          : batchStatus === 'cancelled'
+            ? 'cancelled'
+            : 'completed';
     this.runRegistry.terminate(batchState.runId, terminalStatus, terminalCode);
 
     const result: SubagentBatchResult = {
       runId: batchState.runId,
       status: batchStatus,
-      results: batchState.request.tasks.map((task) =>
-        batchState.results.get(task.id) ?? {
-          runId: batchState.runId,
-          taskId: task.id,
-          executionStatus: 'cancelled',
-          summaryStatus: 'not-requested',
-          integrationStatus: 'not-requested',
-          ...(task.allowedOutputPaths !== undefined
-            ? { allowedOutputPaths: [...task.allowedOutputPaths] }
-            : {}),
-        },
+      results: batchState.request.tasks.map(
+        (task) =>
+          batchState.results.get(task.id) ?? {
+            runId: batchState.runId,
+            taskId: task.id,
+            executionStatus: 'cancelled',
+            summaryStatus: 'not-requested',
+            integrationStatus: 'not-requested',
+            ...(task.allowedOutputPaths !== undefined
+              ? { allowedOutputPaths: [...task.allowedOutputPaths] }
+              : {}),
+          },
       ),
     };
 
@@ -522,8 +543,7 @@ export class SubagentOrchestrator {
   ): Promise<void> {
     let lease: SubagentWorkspaceLease | undefined;
     let resourceLease:
-      | { resourceKind: 'agent-execution'; runId: string; acquiredAt: string }
-      | undefined;
+      { resourceKind: 'agent-execution'; runId: string; acquiredAt: string } | undefined;
     let taskRunId: string | undefined;
     let childSessionId: string | undefined;
     const runtimeGenerationId = batchState.runtimeGenerationId;
@@ -537,10 +557,7 @@ export class SubagentOrchestrator {
         if (!signal) {
           throw new Error(`batch run signal unavailable: ${runId}`);
         }
-        resourceLease = await this.resourceCoordinator.acquire(
-          `${runId}:${task.id}`,
-          signal,
-        );
+        resourceLease = await this.resourceCoordinator.acquire(`${runId}:${task.id}`, signal);
       }
 
       lease = await this.workspaceService.acquire(task);
@@ -642,8 +659,7 @@ export class SubagentOrchestrator {
       if (
         result.executionStatus === 'completed' &&
         lease.mode === 'worktree' &&
-        (result.integrationStatus === 'pending' ||
-          result.integrationStatus === 'not-requested')
+        (result.integrationStatus === 'pending' || result.integrationStatus === 'not-requested')
       ) {
         const applyPolicy = task.applyPolicy ?? 'auto';
         if (applyPolicy === 'auto' && task.retainWorktree !== true) {
@@ -674,7 +690,7 @@ export class SubagentOrchestrator {
           ? 'completed'
           : result.executionStatus === 'cancelled'
             ? 'cancelled'
-          : 'failed',
+            : 'failed',
       );
 
       if (taskRunId) {
@@ -743,7 +759,7 @@ export class SubagentOrchestrator {
         this.runRegistry.terminate(taskRunId, 'cancelled', 'cancelled');
       }
       if (taskSessionRegistered && childSessionId) {
-        this.unregisterTaskSession?.(childSessionId);
+        await this.unregisterTaskSession?.(childSessionId);
       }
       if (lease?.mode === 'worktree' && !worktreeHandled) {
         await this.integrationCoordinator.retain(
@@ -789,11 +805,7 @@ export class SubagentOrchestrator {
     }
   }
 
-  private isTaskAdmitted(
-    state: SchedulerState,
-    taskId: string,
-    batchState: BatchState,
-  ): boolean {
+  private isTaskAdmitted(state: SchedulerState, taskId: string, batchState: BatchState): boolean {
     return (
       !state.cancelled &&
       this.runRegistry.get(batchState.runId)?.status !== 'cancelling' &&
@@ -928,9 +940,7 @@ export class SubagentOrchestrator {
       // run store for persisted results if needed.
       return { runId, status: 'unknown', results: [] };
     }
-    const results = [...batch.results.values()].sort((a, b) =>
-      a.taskId.localeCompare(b.taskId),
-    );
+    const results = [...batch.results.values()].sort((a, b) => a.taskId.localeCompare(b.taskId));
     return {
       runId,
       status: 'running',

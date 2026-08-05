@@ -89,6 +89,7 @@ describe('PiRpcAdapter', () => {
             snapshotId: 'snap',
             workingDirectory: '/tmp',
             inputs: {
+              rulesRevision: 'rules-1',
               settingsRevision: 'r1',
               projectRevision: 'r1',
               mcpRevision: 'r1',
@@ -97,9 +98,21 @@ describe('PiRpcAdapter', () => {
             trust: { kind: 'general' },
             scope: { kind: 'general' },
             resources: {
-              skills: { disabledIds: [], allowedSources: ['user', 'bundled', 'project'], allowlistedIds: null },
-              extensions: { disabledIds: [], allowedSources: ['user', 'bundled', 'project'], allowlistedIds: null },
-              prompts: { disabledIds: [], allowedSources: ['user', 'bundled', 'project'], allowlistedIds: null },
+              skills: {
+                disabledIds: [],
+                allowedSources: ['user', 'bundled', 'project'],
+                allowlistedIds: null,
+              },
+              extensions: {
+                disabledIds: [],
+                allowedSources: ['user', 'bundled', 'project'],
+                allowlistedIds: null,
+              },
+              prompts: {
+                disabledIds: [],
+                allowedSources: ['user', 'bundled', 'project'],
+                allowlistedIds: null,
+              },
             },
             resourceManifest: { skills: [], extensions: [], prompts: [], diagnostics: [] },
             context: {

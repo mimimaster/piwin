@@ -19,8 +19,9 @@ import type {
   CreateSessionInput,
   ModelProviderConfig,
   PiwinConfig,
+  ResourceCatalog,
+  ResourceInstance,
   ResourceManifest,
-  ResourcePolicy,
   SessionCapabilitySnapshot,
   SessionScope,
   SessionToolFamily,
@@ -29,11 +30,14 @@ import type {
   ContextManifest,
   BackendSessionBlueprint,
   HostToolDescriptor,
+  McpConfigDocument,
 } from '@piwin/contracts';
-import { loadMcpConfig } from '@piwin/mcp';
+import { normalizeResourceId } from '@piwin/contracts';
+import { listEnabledServers, loadMcpConfig } from '@piwin/mcp';
+import { resolveWebConfig } from '@piwin/tools-web';
 import { loadPiwinConfig } from './config-store.js';
 import { resolveSessionLocation, resolveAgentCwd } from './session-scope.js';
-import { createPiResourceLoader } from './pi-resource-loader.js';
+import { buildResourceShadowDiagnostics, createPiResourceLoader } from './pi-resource-loader.js';
 import { createSecretResolver, type SecretResolver } from './secret-resolver.js';
 import { getEnabledProviders } from './provider-helpers.js';
 import {
@@ -48,6 +52,10 @@ import {
 import { getPiwinRoot } from './paths.js';
 import type { SessionBlueprint } from './session-blueprint.js';
 import { resolveContextManifest } from './capabilities/context-policy-resolver.js';
+import { resolveResourceActivations } from './capabilities/resource-policy-resolver.js';
+import { resolveToolPolicyDetails } from './capabilities/tool-policy-resolver.js';
+import { createBundledRuleSet } from './permission-defaults.js';
+import { computePermissionRulesRevision } from './permission-rule-revision.js';
 
 export type CompiledBlueprint = {
   /** Host-owned exact decision set; never sent over the worker boundary. */
@@ -100,6 +108,12 @@ export type CompileBlueprintOptions = {
    * set is used (no host tools advertised).
    */
   hostToolDescriptors?: HostToolDescriptor[];
+  /** Override MCP config for deterministic compilation/tests. */
+  mcpConfig?: McpConfigDocument;
+  /** Host-local family index derived from the concrete registrations. */
+  hostToolFamilyIndex?: ReadonlyMap<SessionToolFamily, readonly string[]>;
+  /** Revision of the exact permission rules frozen for this generation. */
+  rulesRevision?: string;
   /**
    * Resolve whether a project scope is trusted. When omitted, the compiler
    * assumes the parent has already validated trust (backward compat with
@@ -119,6 +133,7 @@ export type DiscoveredResources = {
   skillPaths: string[];
   extensionPaths: string[];
   promptPaths: string[];
+  catalog?: ResourceCatalog;
 };
 
 /**
@@ -130,6 +145,14 @@ export async function compileBlueprintForWorker(
   options: CompileBlueprintOptions = {},
 ): Promise<CompiledBlueprint> {
   const config = options.config ?? (await loadPiwinConfig(options.piwinRoot));
+  const mcpConfig =
+    options.mcpConfig ??
+    (options.config === undefined || options.piwinRoot !== undefined
+      ? await loadMcpConfig(getPiwinRoot(options.piwinRoot))
+      : { mcpServers: {} });
+  const mcpEnabledServerIds = listEnabledServers(mcpConfig)
+    .map((server) => server.id)
+    .sort((left, right) => left.localeCompare(right));
   const location = await resolveSessionLocation(input, options.piwinRoot);
   const agentCwd = resolveAgentCwd(location, input.cwd);
 
@@ -164,29 +187,40 @@ export async function compileBlueprintForWorker(
         }
       : { kind: 'general' };
 
-  // Build tool policy from config + scope. When the parent provides
-  // concrete descriptors, also pass their names so buildToolPolicy can
+  // Resolve tool policy from config + scope. When the parent provides
+  // concrete descriptors, pass their names so the compiler can intersect
   // intersect customToolNames with the actual composed executor names.
   const composedToolNames = options.hostToolDescriptors
     ? options.hostToolDescriptors.map((d) => d.name)
     : undefined;
 
-  // Build tool policy from config + scope. Pass the resolved trust so
+  // Resolve tool policy from config + scope. Pass the resolved trust so
   // untrusted projects cannot compile write/process/bash/delegate tools.
-  const tools = buildToolPolicy(
+  const tools = compileToolPolicy(
     config,
-    location.scope,
     input,
     options.hostToolDescriptors,
     composedToolNames,
     projectTrusted,
+    mcpEnabledServerIds,
+    options.hostToolFamilyIndex,
   );
 
-  // Build resource manifest from discovered paths.
-  const resourceManifest = buildResourceManifest(resources);
-
-  // Build resource policy (disabled IDs from config).
-  const resourcePolicy = buildResourcePolicy(config);
+  const resourceResolution = resolveResourceActivations({
+    catalog: resources.catalog ?? buildFallbackResourceCatalog(resources),
+    disabledIdsByKind: {
+      skill: normalizeDisabledResourceIds(config.skills?.disabledIds ?? []),
+      extension: normalizeDisabledResourceIds(config.extensions?.disabledIds ?? []),
+      prompt: normalizeDisabledResourceIds(config.prompts?.disabledIds ?? []),
+    },
+    familyDisabled: {},
+    projectTrusted: location.scope.kind === 'project' && projectTrusted,
+  });
+  const resourceManifest = buildResourceManifest(
+    resourceResolution.activeEntries,
+    resourceResolution.catalog,
+  );
+  const resourcePolicy = resourceResolution.policy;
 
   // Build context policy + manifest.
   const contextPolicy: ContextPolicy = {
@@ -200,14 +234,15 @@ export async function compileBlueprintForWorker(
   // placeholder 'live' strings. This makes the snapshot id deterministic
   // and enables stale-generation detection after settings changes.
   const settingsRevision = computeConfigRevision(config);
+  const rulesRevision =
+    options.rulesRevision ?? computePermissionRulesRevision(createBundledRuleSet());
   const projectRevision = computeProjectRevision(location.scope);
-  const mcpRevision = await computeMcpRevision(options.piwinRoot);
-  const resourceCatalogRevision = computeResourceRevision(resources);
-
-
+  const mcpRevision = computeMcpRevision(mcpConfig);
+  const resourceCatalogRevision = computeResourceRevision(resourceResolution.catalog);
 
   const compileInput: CompileSnapshotInput = {
     inputs: {
+      rulesRevision,
       settingsRevision,
       projectRevision,
       mcpRevision,
@@ -258,7 +293,7 @@ export async function compileBlueprintForWorker(
     capabilitySnapshot: snapshot,
     resourceManifest,
     contextManifest,
-    hostToolRegistrations: [...snapshot.tools.hostTools],
+    hostToolDescriptors: [...snapshot.tools.hostTools],
     backendBlueprint,
   };
 
@@ -278,12 +313,13 @@ function computeConfigRevision(config: PiwinConfig): string {
   // volatile fields (like timestamps) by hashing only the structural
   // config object. The hash is short (first 12 hex chars) for readability.
   const payload = JSON.stringify({
-    providers: config.providers?.map((provider) => ({
-      id: provider.id,
-      protocol: provider.protocol,
-      baseUrl: provider.baseUrl,
-      models: provider.models?.map((model) => ({ id: model.id })),
-    })) ?? [],
+    providers:
+      config.providers?.map((provider) => ({
+        id: provider.id,
+        protocol: provider.protocol,
+        baseUrl: provider.baseUrl,
+        models: provider.models?.map((model) => ({ id: model.id })),
+      })) ?? [],
     permissions: config.permissions,
     web: config.web,
     notes: config.notes,
@@ -303,9 +339,7 @@ function computeConfigRevision(config: PiwinConfig): string {
 }
 
 /** Compute a revision from MCP server configuration. */
-async function computeMcpRevision(piwinRootOverride?: string): Promise<string> {
-  const rootDir = getPiwinRoot(piwinRootOverride);
-  const document = await loadMcpConfig(rootDir);
+function computeMcpRevision(document: McpConfigDocument): string {
   const payload = JSON.stringify(document);
   return createHash('sha256').update(payload).digest('hex').slice(0, 12);
 }
@@ -364,12 +398,15 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-/** Compute a revision from discovered resource paths. */
-function computeResourceRevision(resources: DiscoveredResources): string {
+/** Compute a revision from the resource catalog before activation filtering. */
+function computeResourceRevision(catalog: ResourceCatalog): string {
   const payload = JSON.stringify({
-    skills: [...resources.skillPaths].sort(),
-    extensions: [...resources.extensionPaths].sort(),
-    prompts: [...resources.promptPaths].sort(),
+    entries: [...catalog.entries].sort((left, right) =>
+      `${left.kind}:${left.resourceId}:${left.path}`.localeCompare(
+        `${right.kind}:${right.resourceId}:${right.path}`,
+      ),
+    ),
+    diagnostics: catalog.diagnostics,
   });
   return createHash('sha256').update(payload).digest('hex').slice(0, 12);
 }
@@ -389,156 +426,89 @@ async function discoverResourcesDefault(
   const extraPromptPaths = options.config.prompts?.extraPaths ?? [];
   const disabledPromptIds = options.config.prompts?.disabledIds ?? [];
 
-  const { skillPaths, extensionPaths, promptPaths } = await createPiResourceLoader({
-    cwd: options.cwd,
-    agentDir,
-    piwinRoot: options.piwinRoot,
-    scope: options.scope,
-    ...(options.scope.kind === 'project' ? { projectPath: options.scope.projectPath } : {}),
-    ...(extraSkillPaths.length > 0 ? { extraSkillPaths } : {}),
-    ...(disabledSkillIds.length > 0 ? { disabledSkillIds } : {}),
-    ...(extraExtensionPaths.length > 0 ? { extraExtensionPaths } : {}),
-    ...(disabledExtensionIds.length > 0 ? { disabledExtensionIds } : {}),
-    ...(extraPromptPaths.length > 0 ? { extraPromptPaths } : {}),
-    ...(disabledPromptIds.length > 0 ? { disabledPromptIds } : {}),
-  });
+  const { skillPaths, extensionPaths, promptPaths, resourceCatalog } = await createPiResourceLoader(
+    {
+      cwd: options.cwd,
+      agentDir,
+      piwinRoot: options.piwinRoot,
+      scope: options.scope,
+      ...(options.scope.kind === 'project' ? { projectPath: options.scope.projectPath } : {}),
+      ...(extraSkillPaths.length > 0 ? { extraSkillPaths } : {}),
+      ...(disabledSkillIds.length > 0 ? { disabledSkillIds } : {}),
+      ...(extraExtensionPaths.length > 0 ? { extraExtensionPaths } : {}),
+      ...(disabledExtensionIds.length > 0 ? { disabledExtensionIds } : {}),
+      ...(extraPromptPaths.length > 0 ? { extraPromptPaths } : {}),
+      ...(disabledPromptIds.length > 0 ? { disabledPromptIds } : {}),
+    },
+  );
 
-  return { skillPaths, extensionPaths, promptPaths };
+  return { skillPaths, extensionPaths, promptPaths, catalog: resourceCatalog };
 }
 
 /**
  * Build tool policy from config + scope.
  * Maps product capability exposure to exact tool families + custom tool names.
  */
-function buildToolPolicy(
+function compileToolPolicy(
   config: PiwinConfig,
-  scope: SessionScope,
   input: CreateSessionInput,
   hostToolDescriptors?: readonly HostToolDescriptor[],
   toolNamesFromComposed?: readonly string[],
   trusted?: boolean,
+  mcpEnabledServerIds: readonly string[] = [],
+  hostToolFamilyIndex?: ReadonlyMap<SessionToolFamily, readonly string[]>,
 ): SessionToolPolicy {
-  const enabledFamilies: SessionToolFamily[] = [];
-  const customToolNames: string[] = [];
   const capabilityCeiling = input.subagent?.capabilities;
-  const hasCapability = (capability: import('@piwin/contracts').SubagentCapability): boolean =>
-    capabilityCeiling === undefined || capabilityCeiling.includes(capability);
-  const hasRead = hasCapability('read');
-  const hasWrite = hasCapability('write');
-  const hasExecute = hasCapability('execute');
-  const hasNetwork = hasCapability('network');
-  const hasBrowser = hasCapability('browser');
-  const hasPlanning = hasCapability('planning');
-  const hasDelegate = hasCapability('delegate');
-  const hasMcp = hasCapability('mcp');
 
-  // Web tools (web_search, web_fetch).
-  if (config.web && hasNetwork) {
-    enabledFamilies.push('web-search', 'web-fetch');
-    customToolNames.push('web_search', 'web_fetch');
-  }
-
-  // Shell (gated bash) — only for trusted projects.
-  if (input.subagent?.mode !== 'readonly' && hasExecute && trusted !== false) {
-    enabledFamilies.push('shell');
-    customToolNames.push('bash', 'run_bash');
-  }
-
-  // Filesystem tools — read is always available; write requires trust.
-  if (hasRead) {
-    enabledFamilies.push('filesystem-read');
-    customToolNames.push('read_file', 'list_directory');
-  }
-  if (hasWrite && input.subagent?.mode !== 'readonly' && trusted !== false) {
-    enabledFamilies.push('filesystem-write');
-    customToolNames.push('write_file');
-  }
-
-  // MCP tools.
-  if (hasMcp) {
-    enabledFamilies.push('mcp');
-  }
-
-  // Process tools (CE-PROC) — only for trusted projects.
-  if (input.subagent?.mode !== 'readonly' && hasExecute && trusted !== false) {
-    enabledFamilies.push('process');
-    customToolNames.push('process_start', 'process_list', 'process_logs', 'process_stop');
-  }
-
-  // Browser tools.
-  if (input.subagent?.mode !== 'readonly' && hasBrowser) {
-    enabledFamilies.push('browser');
-    customToolNames.push(
-      'browser_navigate',
-      'browser_snapshot',
-      'browser_click',
-      'browser_type',
-      'browser_fill_form',
-      'browser_scroll',
-      'browser_screenshot',
-      'browser_find',
-      'browser_back',
-      'browser_forward',
-    );
-  }
-
-  // Planning tools.
-  if (hasPlanning) {
-    enabledFamilies.push('planning');
-    customToolNames.push('piwin_plan_create', 'piwin_plan_set_step');
-  }
-
-  // Notes tools.
-  if (capabilityCeiling === undefined && config.notes?.enabled !== false) {
-    enabledFamilies.push('notes-read', 'notes-write');
-    customToolNames.push(
-      'note_search',
-      'note_list',
-      'note_read',
-      'note_write',
-      'note_update',
-      'note_delete',
-    );
-  }
-
-  // Flashcards tools.
-  if (capabilityCeiling === undefined && config.flashcards?.enabled !== false) {
-    enabledFamilies.push('flashcards-read', 'flashcards-write');
-    customToolNames.push(
-      'flashcard_create',
-      'flashcard_batch_create',
-      'flashcard_list',
-      'flashcard_delete',
-    );
-  }
-
-  // Image generation.
+  const resolvedWebConfig = config.web ? resolveWebConfig(config.web) : undefined;
+  const webSearchReady = resolvedWebConfig?.searchSources.some((source) => source.enabled) ?? false;
+  const webFetchReady = resolvedWebConfig !== undefined;
   const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
-  if (capabilityCeiling === undefined && !imagegenDisabled) {
-    enabledFamilies.push('image-generation');
-    customToolNames.push('image_gen');
-  }
 
-  // Delegate (subagent run) — only for trusted projects.
-  if (input.subagent?.mode !== 'readonly' && hasDelegate && trusted !== false) {
-    enabledFamilies.push('delegate');
-    customToolNames.push('piwin_subagent_run');
-  }
+  const resolvedToolPolicy = resolveToolPolicyDetails({
+    webSearch: resolvedWebConfig !== undefined,
+    webFetch: resolvedWebConfig !== undefined,
+    mcp: true,
+    imageGeneration: !imagegenDisabled,
+    process: 'agent',
+    browser: 'agent',
+    subagents: 'agent',
+    notes: config.notes?.enabled === false ? 'off' : 'agent-read-write',
+    flashcards: config.flashcards?.enabled === false ? 'off' : 'agent-create',
+    availability: {
+      webSearchReady,
+      webFetchReady,
+      mcpEnabledServerIds: [...mcpEnabledServerIds],
+      processReady: config.process?.enabled !== false,
+      // Browser and image generation readiness are intersected with the
+      // concrete registration index below. The resolver remains pure and
+      // does not instantiate either backend.
+      browserReady: true,
+      imageGenerationReady: true,
+    },
+    readonly: input.subagent?.mode === 'readonly',
+    ...(capabilityCeiling ? { capabilities: capabilityCeiling } : {}),
+    ...(trusted !== undefined ? { trusted } : {}),
+    ...(hostToolFamilyIndex ? { availableFamilies: new Set(hostToolFamilyIndex.keys()) } : {}),
+    filesystemRead: capabilityCeiling === undefined || capabilityCeiling.includes('read'),
+    filesystemWrite: capabilityCeiling === undefined || capabilityCeiling.includes('write'),
+    shell: true,
+    planning: true,
+    delegate: true,
+    notesEnabled: capabilityCeiling === undefined && config.notes?.enabled !== false,
+    flashcardsEnabled: capabilityCeiling === undefined && config.flashcards?.enabled !== false,
+    imageGenerationEnabled: capabilityCeiling === undefined && !imagegenDisabled,
+  });
 
-  // MCP gateway tool — advertised when MCP is enabled. The actual executor
-  // is only present when mcpManager is wired in buildSessionHostTools; the
-  // descriptor filter below removes it if no executor exists.
-  if (hasMcp) {
-    customToolNames.push('mcp_gateway');
-  }
+  const resolvedPolicy = resolvedToolPolicy.policy;
+  const customToolNames = hostToolFamilyIndex
+    ? resolvedPolicy.enabledFamilies.flatMap((family) => hostToolFamilyIndex.get(family) ?? [])
+    : resolvedToolPolicy.customToolNames;
 
   // Only expose Pi's non-mutating inspection tools to the worker. Product
   // filesystem writes are Host-owned tools and must never use Pi-native edit
   // or write capabilities in the worker.
-  const piBuiltinToolNames: string[] = hasRead ? ['read', 'grep', 'ls'] : [];
-
-  // MCP server IDs from config (empty for now — MCP lifecycle is parent-owned).
-  const enabledMcpServerIds: string[] = [];
+  const piBuiltinToolNames = resolvedPolicy.piBuiltinToolNames;
 
   // When the parent provides the composed tool names (the single source of
   // truth from buildSessionHostTools), intersect customToolNames with them.
@@ -546,15 +516,16 @@ function buildToolPolicy(
   // executor (invariant 5). When not provided (test/legacy path), the
   // descriptor filter in buildHostToolsForPolicy still removes names without
   // a matching descriptor.
+  const familyDerivedToolNames = customToolNames;
   const effectiveToolNames = toolNamesFromComposed
-    ? customToolNames.filter((name) => toolNamesFromComposed.includes(name))
-    : customToolNames;
+    ? familyDerivedToolNames.filter((name) => toolNamesFromComposed.includes(name))
+    : familyDerivedToolNames;
 
   return {
-    enabledFamilies,
+    enabledFamilies: resolvedPolicy.enabledFamilies,
     piBuiltinToolNames,
     hostTools: buildHostToolsForPolicy(effectiveToolNames, hostToolDescriptors),
-    enabledMcpServerIds,
+    enabledMcpServerIds: [...mcpEnabledServerIds],
   };
 }
 
@@ -577,66 +548,72 @@ function buildHostToolsForPolicy(
     // Fail-closed: no concrete executors → no host tools advertised.
     return [];
   }
-  const descriptorByName = new Map(hostToolDescriptors.map((descriptor) => [descriptor.name, descriptor]));
-  return customToolNames
-    .filter((name) => descriptorByName.has(name))
-    .map((name) => descriptorByName.get(name)!)
-    .sort((left, right) => left.name.localeCompare(right.name));
+  const descriptorByName = new Map(
+    hostToolDescriptors.map((descriptor) => [descriptor.name, descriptor]),
+  );
+  const selected: HostToolDescriptor[] = [];
+  for (const name of customToolNames) {
+    const descriptor = descriptorByName.get(name);
+    if (descriptor) selected.push(descriptor);
+  }
+  return selected.sort((left, right) => left.name.localeCompare(right.name));
 }
 
-/**
- * Build a minimal ResourceManifest from discovered paths.
- * The worker uses activeSkillPaths/activeExtensionPaths/activePromptPaths
- * for loading; the manifest is for diagnostics only.
- */
-function buildResourceManifest(resources: DiscoveredResources): ResourceManifest {
+/** Project the resolver's active catalog entries into the worker manifest. */
+function buildResourceManifest(
+  activeEntries: ResourceCatalog['entries'],
+  catalog: ResourceCatalog,
+): ResourceManifest {
+  const instances: ResourceInstance[] = activeEntries.map((entry) => ({
+    resourceId: entry.resourceId,
+    kind: entry.kind,
+    name: entry.name,
+    ...(entry.description !== undefined ? { description: entry.description } : {}),
+    path: entry.path,
+    source: entry.source,
+    ...(entry.piNativeRoot !== undefined ? { piNativeRoot: entry.piNativeRoot } : {}),
+  }));
   return {
-    skills: resources.skillPaths.map((path) => ({
-      resourceId: path,
-      kind: 'skill' as const,
-      name: path,
-      path,
-      source: 'user' as const,
-    })),
-    extensions: resources.extensionPaths.map((path) => ({
-      resourceId: path,
-      kind: 'extension' as const,
-      name: path,
-      path,
-      source: 'user' as const,
-    })),
-    prompts: resources.promptPaths.map((path) => ({
-      resourceId: path,
-      kind: 'prompt' as const,
-      name: path,
-      path,
-      source: 'user' as const,
-    })),
-    diagnostics: [],
+    skills: instances.filter((entry) => entry.kind === 'skill'),
+    extensions: instances.filter((entry) => entry.kind === 'extension'),
+    prompts: instances.filter((entry) => entry.kind === 'prompt'),
+    diagnostics: catalog.diagnostics,
   };
 }
 
-/**
- * Build resource policy from config (disabled IDs).
- */
-function buildResourcePolicy(config: PiwinConfig): ResourcePolicy {
+function buildFallbackResourceCatalog(resources: DiscoveredResources): ResourceCatalog {
+  const entries = [
+    ...resources.skillPaths.map((path) => fallbackResourceEntry(path, 'skill')),
+    ...resources.extensionPaths.map((path) => fallbackResourceEntry(path, 'extension')),
+    ...resources.promptPaths.map((path) => fallbackResourceEntry(path, 'prompt')),
+  ];
+  return { version: 1, entries, diagnostics: buildResourceShadowDiagnostics(entries) };
+}
+
+function fallbackResourceEntry(
+  path: string,
+  kind: 'skill' | 'extension' | 'prompt',
+): ResourceCatalog['entries'][number] {
   return {
-    skills: {
-      disabledIds: config.skills?.disabledIds ?? [],
-      allowedSources: ['user'],
-      allowlistedIds: null,
-    },
-    extensions: {
-      disabledIds: config.extensions?.disabledIds ?? [],
-      allowedSources: ['user'],
-      allowlistedIds: null,
-    },
-    prompts: {
-      disabledIds: config.prompts?.disabledIds ?? [],
-      allowedSources: ['user'],
-      allowlistedIds: null,
-    },
+    resourceId: normalizeResourceId(path),
+    kind,
+    name: path,
+    path,
+    source: 'user',
   };
+}
+
+function normalizeDisabledResourceIds(ids: readonly string[]): string[] {
+  const normalized = new Set<string>();
+  for (const id of ids) {
+    try {
+      normalized.add(normalizeResourceId(id));
+    } catch {
+      // Invalid ids are ignored at the compiler edge; config validation owns
+      // the user-facing diagnostic and the resolver remains fail-closed.
+    }
+  }
+  return [...normalized].sort((left, right) => left.localeCompare(right));
 }
 
 /**

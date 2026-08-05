@@ -6,6 +6,7 @@ import type { ReactElement } from 'react';
 import {
   IconChevronLeft,
   IconChevronRight,
+  IconDocument,
   IconMcp,
   IconMoon,
   IconMore,
@@ -131,6 +132,7 @@ export function WorkspaceTitlebar(props: WorkspaceTitlebarProps): ReactElement {
           data-testid="titlebar-session-title"
           title={tooltip}
         >
+          <IconDocument className="titlebar-session-icon" width={14} height={14} />
           <span className="titlebar-session-title-text">{sessionName}</span>
         </div>
       ) : null}

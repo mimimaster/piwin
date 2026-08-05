@@ -27,6 +27,8 @@ export type {
 
 export { createMcpLifecycleManager } from './mcp-lifecycle-manager.js';
 export type { McpLifecycleManager, McpLifecycleManagerOptions } from './mcp-lifecycle-manager.js';
+export { createMcpGenerationSnapshot } from './mcp-generation-snapshot.js';
+export type { McpGenerationSnapshot } from './mcp-generation-snapshot.js';
 
 export {
   fingerprintMcpServerConfig,

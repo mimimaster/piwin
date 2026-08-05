@@ -6,6 +6,7 @@
 import { createContext, useContext, type PropsWithChildren, type ReactElement } from 'react';
 import type {
   HostResponse,
+  HostServerMessage,
   HostStatusData,
   ModelDiscoveryResult,
   ModelProviderConfig,
@@ -66,6 +67,10 @@ export type SettingsConfigRequest = (command: {
 
 export type SettingsContextValue = {
   request: SettingsConfigRequest;
+  /** Optional push source for live host-owned runtime status updates. */
+  hostClient?: {
+    subscribe: (listener: (message: HostServerMessage) => void) => () => void;
+  };
   config: PiwinConfig | null;
   root: string;
   saving: boolean;

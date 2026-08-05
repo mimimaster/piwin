@@ -65,6 +65,10 @@ export class PiRpcAdapter implements PiSessionBackend {
     await this.workerBackend?.dropSession(sessionId);
   }
 
+  async dropSessionGeneration(sessionId: string, runtimeGenerationId: string): Promise<void> {
+    await this.workerBackend?.dropSessionGeneration(sessionId, runtimeGenerationId);
+  }
+
   async dispose(): Promise<void> {
     await this.workerBackend?.dispose();
   }

@@ -2,15 +2,33 @@ import { mkdtemp, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { HostToolRegistration, ToolResult } from '@piwin/contracts';
 import { createPlanStepTool } from './plan-step-tool.js';
+
+async function executeTool(
+  tool: HostToolRegistration,
+  args: Record<string, unknown>,
+): Promise<ToolResult> {
+  return tool.execute(args, new AbortController().signal, {
+    sessionId: 's1',
+    runtimeGenerationId: 'generation-1',
+    runId: 'run-1',
+    toolName: tool.descriptor.name,
+  });
+}
+
+function outputOf(result: ToolResult): string {
+  if (!result.ok) return result.message;
+  return result.output;
+}
 
 describe('createPlanStepTool', () => {
   it('rejects when no plan file', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-plan-tool-'));
     const planPath = join(rootDir, 'plan.json');
     const tool = createPlanStepTool({ sessionId: 's1', planPath });
-    const result = await tool.execute({ stepId: '1', status: 'done' });
-    expect(result).toContain('no plan');
+    const result = await executeTool(tool, { stepId: '1', status: 'done' });
+    expect(outputOf(result)).toContain('no plan');
   });
 
   it('updates plan step when approved', async () => {
@@ -36,9 +54,8 @@ describe('createPlanStepTool', () => {
       'utf8',
     );
     const tool = createPlanStepTool({ sessionId: 's1', planPath });
-    const result = await tool.execute({ stepId: '1', status: 'done', note: 'finished' });
-    expect(result).toContain('ok:');
-    expect(result).toContain('done');
+    const result = await executeTool(tool, { stepId: '1', status: 'done', note: 'finished' });
+    expect(outputOf(result)).toContain('done');
   });
 
   it('calls onUpdated after a successful step update', async () => {
@@ -66,7 +83,8 @@ describe('createPlanStepTool', () => {
       }),
       'utf8',
     );
-    let pushed: { id: string; status: string; steps: Array<{ id: string; status: string }> } | undefined;
+    let pushed:
+      { id: string; status: string; steps: Array<{ id: string; status: string }> } | undefined;
     const tool = createPlanStepTool({
       sessionId: 's1',
       planPath,
@@ -78,10 +96,8 @@ describe('createPlanStepTool', () => {
         };
       },
     });
-    const result = await tool.execute({ stepId: '1', status: 'done' });
-    expect(result).toContain('ok:');
+    const result = await executeTool(tool, { stepId: '1', status: 'done' });
     expect(pushed).toBeDefined();
     expect(pushed?.steps.find((step) => step.id === '1')?.status).toBe('done');
   });
-
 });

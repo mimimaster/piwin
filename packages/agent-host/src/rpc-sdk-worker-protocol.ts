@@ -12,7 +12,7 @@
  * MCP, process, browser, notes, flashcards, or image generation executors.
  */
 
-import type { AgentEvent } from '@piwin/contracts';
+import type { AgentEvent, ToolResult, ToolResultErrorCode } from '@piwin/contracts';
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
@@ -85,14 +85,12 @@ export type WorkerToolResultFrame = {
   id: string;
   context: WorkerFrameContext;
   ok: boolean;
-  result?: unknown;
+  /** Complete Host result; legacy error/code fields remain parse-compatible. */
+  result?: ToolResult;
   error?: string;
-  code?:
-    | 'tool-not-available'
-    | 'tool-disabled'
-    | 'permission-denied'
-    | 'aborted'
-    | 'execution-failed';
+  /** Legacy top-level error message kept for older worker parsers. */
+  message?: string;
+  code?: ToolResultErrorCode;
 };
 
 /** Worker → parent: startup handshake advertising protocol/capabilities. */
@@ -197,7 +195,11 @@ export function parseWorkerFrame(line: string): WorkerFrame | undefined {
   try {
     const parsed = JSON.parse(line);
     if (parsed && typeof parsed === 'object') {
-      if (parsed.type === 'response' && typeof parsed.id === 'string' && isFrameContext(parsed.context)) {
+      if (
+        parsed.type === 'response' &&
+        typeof parsed.id === 'string' &&
+        isFrameContext(parsed.context)
+      ) {
         return parsed as WorkerResponse;
       }
       if (parsed.type === 'event' && isFrameContext(parsed.context)) {

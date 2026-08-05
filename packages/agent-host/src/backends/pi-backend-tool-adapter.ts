@@ -72,7 +72,12 @@ export function toPiBackendCustomTool(
           toolName: descriptor.name,
           toolCallId,
           byteSize: truncated.length,
+          ...(executionResult.ok ? executionResult.details ?? {} : executionResult.details ?? {}),
           ...(executionResult.ok ? {} : { error: executionResult.code }),
+          ...(!executionResult.ok && executionResult.cancelled
+            ? { cancelled: true }
+            : {}),
+          ...(!executionResult.ok && executionResult.retryable ? { retryable: true } : {}),
         },
       };
     },

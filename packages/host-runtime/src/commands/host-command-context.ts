@@ -20,6 +20,8 @@ import type {
   WalkthroughCommandContext,
   WalkthroughGenerationRegistry,
 } from './walkthrough-commands.js';
+import type { KnowledgeCommandContext } from './knowledge-commands.js';
+import type { SubagentCommandContext } from './subagent-commands.js';
 
 /**
  * Optional seam used by plan/execute to drive subagent-driven and inline
@@ -84,9 +86,13 @@ export type HostCommandContext = {
   rememberSessionPermission: (sessionId: string, action: string, detail: string) => void;
   /** Optional plan execution orchestration seam. */
   planExecution?: PlanExecutionSeam;
+  /** Lazy application services for notes, flashcards, and document cards. */
+  knowledge?: KnowledgeCommandContext;
+  /** Durable subagent batch orchestration seam. */
+  subagent?: SubagentCommandContext;
   /**
    * Per-session permission mode overrides set by agent mode (Plan/Ask).
-   * When a session has an entry, the gated bash/file tools use it instead
+   * When a session has an entry, the parent-owned bash/file registrations use it instead
    * of the static session-level permission mode.
    */
   sessionPermissionOverrides: Map<string, PermissionMode>;

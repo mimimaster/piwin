@@ -59,6 +59,7 @@ export type SubagentCapabilityCeiling = {
 };
 
 export type CapabilityInputRevisions = {
+  rulesRevision: string;
   settingsRevision: string;
   projectRevision: string;
   mcpRevision: string;

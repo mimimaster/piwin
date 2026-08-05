@@ -17,10 +17,8 @@ import { connectMcpStdio } from './mcp-client.js';
 import type { McpTransportClient } from './mcp-transport.js';
 import { toMcpToolSummary } from './tool-names.js';
 import { fingerprintMcpServerConfig } from './mcp-fingerprint.js';
-import {
-  createMcpMetadataCatalog,
-  type McpMetadataCatalog,
-} from './mcp-metadata-catalog.js';
+import { createMcpMetadataCatalog, type McpMetadataCatalog } from './mcp-metadata-catalog.js';
+import type { McpGenerationSnapshot } from './mcp-generation-snapshot.js';
 
 /** Backoff before a single crash restart (ms). */
 const CRASH_RESTART_BACKOFF_MS = 500;
@@ -39,6 +37,8 @@ export type McpLifecycleManagerOptions = {
 
 type RuntimeEntry = {
   serverId: string;
+  /** Set only for generation-scoped entries; management entries use disk config. */
+  generationId?: string;
   config: McpServerConfig;
   configFingerprint: string;
   status: McpServerRuntimeStatus;
@@ -59,7 +59,7 @@ type RuntimeEntry = {
 
 export type McpLifecycleManager = {
   refreshConfig: () => Promise<McpConfigDocument>;
-  listHealth: () => Promise<McpServerHealth[]>;
+  listHealth: (snapshot?: McpGenerationSnapshot) => Promise<McpServerHealth[]>;
   start: (serverId: string, signal?: AbortSignal) => Promise<McpServerHealth>;
   stop: (serverId: string) => Promise<McpServerHealth>;
   /** Connect + initialize only (no tools/list). */
@@ -67,15 +67,26 @@ export type McpLifecycleManager = {
   /** @deprecated Prefer ensureConnected — alias for compatibility. */
   ensureStarted: (serverId: string) => Promise<McpTransportClient>;
   getClient: (serverId: string) => McpTransportClient | null;
-  listTools: (serverId: string, signal?: AbortSignal) => Promise<McpToolSummary[]>;
+  listTools: (
+    serverId: string,
+    signal?: AbortSignal,
+    snapshot?: McpGenerationSnapshot,
+  ) => Promise<McpToolSummary[]>;
   /** Discover tools over a live connection and update the metadata catalog. */
-  discoverTools: (serverId: string, signal?: AbortSignal) => Promise<McpToolSummary[]>;
+  discoverTools: (
+    serverId: string,
+    signal?: AbortSignal,
+    snapshot?: McpGenerationSnapshot,
+  ) => Promise<McpToolSummary[]>;
   callTool: (
     serverId: string,
     toolName: string,
     args: Record<string, unknown>,
     signal?: AbortSignal,
+    snapshot?: McpGenerationSnapshot,
   ) => Promise<unknown>;
+  /** Release transports owned by one generation without refreshing disk config. */
+  releaseGenerationSnapshot: (generationId: string) => Promise<void>;
   getMetadataCatalog: () => McpMetadataCatalog;
   dispose: () => Promise<void>;
 };
@@ -113,13 +124,31 @@ export function createMcpLifecycleManager(
   options: McpLifecycleManagerOptions = {},
 ): McpLifecycleManager {
   const connectTimeoutMs = options.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
-  const listToolsTimeoutMs =
-    options.listToolsTimeoutMs ?? DEFAULT_LIST_TOOLS_TIMEOUT_MS;
+  const listToolsTimeoutMs = options.listToolsTimeoutMs ?? DEFAULT_LIST_TOOLS_TIMEOUT_MS;
   const callTimeoutMs = options.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
   const entries = new Map<string, RuntimeEntry>();
+  const generationEntries = new Map<string, RuntimeEntry>();
   let document: McpConfigDocument = { mcpServers: {} };
   let disposed = false;
   const metadataCatalog = createMcpMetadataCatalog(piwinRoot);
+
+  function createRuntimeEntry(
+    serverId: string,
+    config: McpServerConfig,
+    generationId?: string,
+  ): RuntimeEntry {
+    return {
+      serverId,
+      ...(generationId ? { generationId } : {}),
+      config,
+      configFingerprint: fingerprintMcpServerConfig(serverId, config),
+      status: config.disabled ? 'disabled' : 'stopped',
+      client: null,
+      toolCount: 0,
+      intentionalStop: false,
+      crashRestartUsed: false,
+    };
+  }
 
   async function refreshConfig(): Promise<McpConfigDocument> {
     document = await loadMcpConfig(piwinRoot);
@@ -127,16 +156,7 @@ export function createMcpLifecycleManager(
       const fingerprint = fingerprintMcpServerConfig(serverId, config);
       const existing = entries.get(serverId);
       if (!existing) {
-        entries.set(serverId, {
-          serverId,
-          config,
-          configFingerprint: fingerprint,
-          status: config.disabled ? 'disabled' : 'stopped',
-          client: null,
-          toolCount: 0,
-          intentionalStop: false,
-          crashRestartUsed: false,
-        });
+        entries.set(serverId, createRuntimeEntry(serverId, config));
         continue;
       }
       if (existing.configFingerprint !== fingerprint) {
@@ -203,7 +223,41 @@ export function createMcpLifecycleManager(
     return health;
   }
 
-  async function listHealth(): Promise<McpServerHealth[]> {
+  function generationEntryKey(snapshot: McpGenerationSnapshot, serverId: string): string {
+    return `${snapshot.generationId}\u0000${serverId}\u0000${snapshot.serverFingerprints[serverId] ?? ''}`;
+  }
+
+  function getGenerationEntry(
+    snapshot: McpGenerationSnapshot,
+    serverId: string,
+  ): RuntimeEntry | undefined {
+    const config = snapshot.config.mcpServers[serverId];
+    if (!config) {
+      return undefined;
+    }
+    const expectedFingerprint = snapshot.serverFingerprints[serverId];
+    const actualFingerprint = fingerprintMcpServerConfig(serverId, config);
+    if (!expectedFingerprint || actualFingerprint !== expectedFingerprint) {
+      throw new Error(`MCP generation snapshot is internally inconsistent for ${serverId}`);
+    }
+    const key = generationEntryKey(snapshot, serverId);
+    const existing = generationEntries.get(key);
+    if (existing) {
+      return existing;
+    }
+    const entry = createRuntimeEntry(serverId, config, snapshot.generationId);
+    generationEntries.set(key, entry);
+    return entry;
+  }
+
+  async function listHealth(snapshot?: McpGenerationSnapshot): Promise<McpServerHealth[]> {
+    if (snapshot) {
+      return Object.keys(snapshot.config.mcpServers)
+        .map((serverId) => getGenerationEntry(snapshot, serverId))
+        .filter((entry): entry is RuntimeEntry => entry !== undefined)
+        .map(toHealth)
+        .sort((left, right) => left.serverId.localeCompare(right.serverId));
+    }
     await refreshConfig();
     return [...entries.values()]
       .map(toHealth)
@@ -224,10 +278,7 @@ export function createMcpLifecycleManager(
     });
   }
 
-  async function handleUnexpectedExit(
-    entry: RuntimeEntry,
-    reason: string,
-  ): Promise<void> {
+  async function handleUnexpectedExit(entry: RuntimeEntry, reason: string): Promise<void> {
     if (disposed || entry.intentionalStop) {
       return;
     }
@@ -244,8 +295,7 @@ export function createMcpLifecycleManager(
     entry.status = 'error';
     entry.lastError = reason;
 
-    const shouldRestart =
-      entry.config.restartOnCrash === true && !entry.crashRestartUsed;
+    const shouldRestart = entry.config.restartOnCrash === true && !entry.crashRestartUsed;
     if (!shouldRestart) {
       return;
     }
@@ -293,8 +343,7 @@ export function createMcpLifecycleManager(
     const startOperation = (async () => {
       const startingFingerprint = entry.configFingerprint;
       const isCurrentStart = (): boolean =>
-        entry.configFingerprint === startingFingerprint &&
-        entry.startToken === startToken;
+        entry.configFingerprint === startingFingerprint && entry.startToken === startToken;
       try {
         // Create an internal abort controller so we can abort the connection
         // when the connect timeout fires. Without this, a hanging MCP server
@@ -305,11 +354,9 @@ export function createMcpLifecycleManager(
         // Also propagate external signal abortion.
         signal?.addEventListener('abort', abortConnect, { once: true });
 
-        const connectionPromise = connectMcpStdio(
-          entry.serverId,
-          entry.config,
-          { signal: connectAbort.signal },
-        );
+        const connectionPromise = connectMcpStdio(entry.serverId, entry.config, {
+          signal: connectAbort.signal,
+        });
         const client = await withTimeout(
           connectionPromise,
           connectTimeoutMs,
@@ -326,11 +373,7 @@ export function createMcpLifecycleManager(
           },
           signal,
         );
-        if (
-          disposed ||
-          entry.intentionalStop ||
-          entry.configFingerprint !== startingFingerprint
-        ) {
+        if (disposed || entry.intentionalStop || entry.configFingerprint !== startingFingerprint) {
           await closeWithDeadline(client);
           return;
         }
@@ -422,6 +465,27 @@ export function createMcpLifecycleManager(
     return entry.client;
   }
 
+  async function ensureConnectedForSnapshot(
+    snapshot: McpGenerationSnapshot,
+    serverId: string,
+    signal?: AbortSignal,
+  ): Promise<{ client: McpTransportClient; entry: RuntimeEntry }> {
+    throwIfAborted(signal);
+    if (!snapshot.enabledServerIds.includes(serverId)) {
+      throw new Error(`MCP server ${serverId} is not enabled in the generation snapshot`);
+    }
+    const entry = getGenerationEntry(snapshot, serverId);
+    if (!entry || entry.config.disabled === true) {
+      throw new Error(`MCP server ${serverId} is not enabled in the generation snapshot`);
+    }
+    await startInternal(entry, { resetCrashBudget: true }, signal);
+    throwIfAborted(signal);
+    if (!entry.client || entry.status !== 'running') {
+      throw new Error(entry.lastError ?? `MCP server ${serverId} is not running (${entry.status})`);
+    }
+    return { client: entry.client, entry };
+  }
+
   function getClient(serverId: string): McpTransportClient | null {
     return entries.get(serverId)?.client ?? null;
   }
@@ -429,29 +493,41 @@ export function createMcpLifecycleManager(
   async function listTools(
     serverId: string,
     signal?: AbortSignal,
+    snapshot?: McpGenerationSnapshot,
   ): Promise<McpToolSummary[]> {
-    return discoverTools(serverId, signal);
+    return discoverTools(serverId, signal, snapshot);
   }
 
   async function discoverTools(
     serverId: string,
     signal?: AbortSignal,
+    snapshot?: McpGenerationSnapshot,
   ): Promise<McpToolSummary[]> {
     throwIfAborted(signal);
-    await refreshConfig();
-    const entry = entries.get(serverId);
-    if (!entry) {
-      throw new Error(`unknown MCP server: ${serverId}`);
-    }
-    if (entry.config.disabled) {
-      return [];
+    let entry: RuntimeEntry | undefined;
+    if (snapshot) {
+      entry = getGenerationEntry(snapshot, serverId);
+      if (!entry || !snapshot.enabledServerIds.includes(serverId)) {
+        throw new Error(`MCP server ${serverId} is not enabled in the generation snapshot`);
+      }
+    } else {
+      await refreshConfig();
+      entry = entries.get(serverId);
+      if (!entry) {
+        throw new Error(`unknown MCP server: ${serverId}`);
+      }
+      if (entry.config.disabled) {
+        return [];
+      }
     }
     if (entry.discoverPromise) {
       return entry.discoverPromise;
     }
 
     const discoverPromise = (async () => {
-      const client = await ensureConnected(serverId, signal);
+      const { client } = snapshot
+        ? await ensureConnectedForSnapshot(snapshot, serverId, signal)
+        : { client: await ensureConnected(serverId, signal) };
       throwIfAborted(signal);
       const listed = await withTimeout(
         client.listTools(signal),
@@ -463,12 +539,7 @@ export function createMcpLifecycleManager(
       entry.toolCount = listed.length;
       await metadataCatalog.replaceServerMetadata(serverId, entry.config, listed);
       return listed.map((tool) =>
-        toMcpToolSummary(
-          serverId,
-          tool.name,
-          tool.description ?? '',
-          tool.inputSchema,
-        ),
+        toMcpToolSummary(serverId, tool.name, tool.description ?? '', tool.inputSchema),
       );
     })().finally(() => {
       delete entry.discoverPromise;
@@ -483,10 +554,13 @@ export function createMcpLifecycleManager(
     toolName: string,
     args: Record<string, unknown>,
     signal?: AbortSignal,
+    snapshot?: McpGenerationSnapshot,
   ): Promise<unknown> {
     throwIfAborted(signal);
-    const client = await ensureConnected(serverId, signal);
-    const entry = entries.get(serverId);
+    const connected = snapshot
+      ? await ensureConnectedForSnapshot(snapshot, serverId, signal)
+      : { client: await ensureConnected(serverId, signal), entry: entries.get(serverId) };
+    const { client, entry } = connected;
     if (!entry) {
       throw new Error(`unknown MCP server: ${serverId}`);
     }
@@ -500,10 +574,28 @@ export function createMcpLifecycleManager(
     );
   }
 
+  async function releaseGenerationSnapshot(generationId: string): Promise<void> {
+    const ownedEntries = [...generationEntries.entries()].filter(
+      ([, entry]) => entry.generationId === generationId,
+    );
+    await Promise.all(
+      ownedEntries.map(async ([key, entry]) => {
+        entry.intentionalStop = true;
+        if (entry.client) {
+          await safeClose(entry.client);
+        }
+        clearRuntimeFields(entry);
+        entry.status = entry.config.disabled ? 'disabled' : 'stopped';
+        generationEntries.delete(key);
+      }),
+    );
+  }
+
   async function dispose(): Promise<void> {
     disposed = true;
+    const allEntries = [...entries.values(), ...generationEntries.values()];
     await Promise.all(
-      [...entries.values()].map(async (entry) => {
+      allEntries.map(async (entry) => {
         entry.intentionalStop = true;
         if (entry.client) {
           await safeClose(entry.client);
@@ -512,6 +604,8 @@ export function createMcpLifecycleManager(
         entry.status = entry.config.disabled ? 'disabled' : 'stopped';
       }),
     );
+    entries.clear();
+    generationEntries.clear();
   }
 
   return {
@@ -525,6 +619,7 @@ export function createMcpLifecycleManager(
     listTools,
     discoverTools,
     callTool,
+    releaseGenerationSnapshot,
     getMetadataCatalog: () => metadataCatalog,
     dispose,
   };
@@ -609,10 +704,7 @@ function discardClientAfterFailure(
   void closeWithDeadline(client);
 }
 
-async function closeWithDeadline(
-  client: McpTransportClient,
-  timeoutMs = 8_000,
-): Promise<void> {
+async function closeWithDeadline(client: McpTransportClient, timeoutMs = 8_000): Promise<void> {
   await Promise.race([
     safeClose(client),
     new Promise<void>((resolve) => {

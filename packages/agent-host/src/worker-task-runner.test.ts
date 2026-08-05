@@ -60,6 +60,7 @@ describe('WorkerTaskRunner', () => {
           version: 1,
           snapshotId: 'snap-1',
           inputs: {
+            rulesRevision: 'rules-1',
             settingsRevision: 's-1',
             projectRevision: 'p-1',
             mcpRevision: 'm-1',
@@ -127,6 +128,7 @@ describe('WorkerTaskRunner', () => {
           version: 1,
           snapshotId: 'snap-1',
           inputs: {
+            rulesRevision: 'rules-1',
             settingsRevision: 's-1',
             projectRevision: 'p-1',
             mcpRevision: 'm-1',

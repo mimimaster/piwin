@@ -49,6 +49,8 @@ export type DesktopCopy = {
   };
   sidebar: {
     archived: string;
+    working: string;
+    backendServiceActive: string;
     pinSession: string;
     unpinSession: string;
     restoreSession: string;
@@ -415,6 +417,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     },
     sidebar: {
       archived: '已归档',
+      working: '会话正在工作',
+      backendServiceActive: '后台服务运行中',
       pinSession: '置顶会话',
       unpinSession: '取消置顶',
       restoreSession: '恢复会话',
@@ -578,6 +582,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     },
     sidebar: {
       archived: 'Archived',
+      working: 'Session is working',
+      backendServiceActive: 'Backend service is active',
       pinSession: 'Pin session',
       unpinSession: 'Unpin session',
       restoreSession: 'Restore session',

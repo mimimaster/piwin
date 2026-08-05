@@ -1,19 +1,13 @@
 /**
- * Changes + file diff — VS Code SCM style:
- * left file list (checkbox for stage multi-select, click for diff),
- * right unified / side-by-side patch.
+ * Uncommitted file list — VS Code SCM style.
+ * Selecting a file delegates to the shared workspace file preview instead of
+ * maintaining a second diff/document surface inside the Changes tab.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import type {
-  GitDiffSummary,
-  GitFileDiff,
-  GitStatusSnapshot,
-  HostResponse,
-} from '@piwin/contracts';
+import type { GitDiffSummary, GitStatusSnapshot, HostResponse } from '@piwin/contracts';
 import { Button, Notice } from '@piwin/ui-kit';
 import { IconRefresh } from './shell-icons';
 import { useConfirmDialog } from './use-confirm-dialog';
-import { DiffView, type DiffViewMode } from './diff-view';
 
 type GitReadRequest =
   | { type: 'git/status'; projectPath: string }
@@ -36,6 +30,8 @@ type GitReadRequest =
 export type ChangesPanelProps = {
   projectPath: string | null;
   request: (command: GitReadRequest) => Promise<HostResponse>;
+  /** Open a changed file through the shared workspace file-preview flow. */
+  onOpenFile?: (absolutePath: string, relativePath: string) => void;
 };
 
 type ChangeRow = {
@@ -72,9 +68,6 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
   const [diff, setDiff] = useState<GitDiffSummary | null>(null);
   const [checkedPaths, setCheckedPaths] = useState<string[]>([]);
   const [activePath, setActivePath] = useState<string | null>(null);
-  const [fileDiff, setFileDiff] = useState<GitFileDiff | null>(null);
-  const [diffMode, setDiffMode] = useState<DiffViewMode>('split');
-  const [diffLoading, setDiffLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -85,7 +78,6 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
       setSnapshot(null);
       setDiff(null);
       setError(null);
-      setFileDiff(null);
       setActivePath(null);
       return;
     }
@@ -101,18 +93,17 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
       setError(statusResponse.error);
       return;
     }
-    if (!diffResponse.success) {
-      setError(diffResponse.error);
-      return;
-    }
     const nextStatus = (statusResponse.data as { snapshot: GitStatusSnapshot }).snapshot;
-    const nextDiff = (diffResponse.data as { summary: GitDiffSummary }).summary;
     setSnapshot(nextStatus);
-    setDiff(nextDiff);
+    if (diffResponse.success) {
+      setDiff((diffResponse.data as { summary: GitDiffSummary }).summary);
+    } else {
+      // Status is the source of truth for the file list. A diff summary can
+      // fail for binary/untracked files without hiding the changed files.
+      setDiff(null);
+    }
     setCheckedPaths((current) =>
-      current.filter((filePath) =>
-        nextStatus.changedFiles.some((file) => file.path === filePath),
-      ),
+      current.filter((filePath) => nextStatus.changedFiles.some((file) => file.path === filePath)),
     );
     setActivePath((current) => {
       if (current && nextStatus.changedFiles.some((file) => file.path === current)) {
@@ -125,36 +116,6 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
   useEffect(() => {
     void reload();
   }, [reload]);
-
-  const loadFileDiff = useCallback(
-    async (filePath: string): Promise<void> => {
-      if (!props.projectPath) return;
-      setDiffLoading(true);
-      setError(null);
-      const response = await props.request({
-        type: 'git/diff-file',
-        projectPath: props.projectPath,
-        path: filePath,
-        scope: 'combined',
-      });
-      setDiffLoading(false);
-      if (!response.success) {
-        setError(response.error);
-        setFileDiff(null);
-        return;
-      }
-      setFileDiff((response.data as { diff: GitFileDiff }).diff);
-    },
-    [props],
-  );
-
-  useEffect(() => {
-    if (!activePath) {
-      setFileDiff(null);
-      return;
-    }
-    void loadFileDiff(activePath);
-  }, [activePath, loadFileDiff]);
 
   const rows: ChangeRow[] = useMemo(() => {
     if (!snapshot) {
@@ -221,9 +182,14 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
     }
     setInfo(kind === 'stage' ? 'Staged' : 'Unstaged');
     await reload();
-    if (activePath) {
-      await loadFileDiff(activePath);
+  }
+
+  function absolutePathFor(relativePath: string): string {
+    if (!props.projectPath) {
+      return relativePath;
     }
+    const projectPath = props.projectPath.replace(/[\\/]+$/, '');
+    return `${projectPath}/${relativePath}`;
   }
 
   if (!props.projectPath) {
@@ -240,18 +206,21 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
   const branchLabel = snapshot?.branch
     ? snapshot.branch.isDetached
       ? `detached @ ${snapshot.branch.headCommit?.slice(0, 7) ?? '?'}`
-      : snapshot.branch.currentBranch ?? 'unknown'
+      : (snapshot.branch.currentBranch ?? 'unknown')
     : '…';
 
   return (
     <>
       {confirmDialog.dialog}
-      <div className="changes-panel changes-panel-split" data-testid="changes-panel">
+      <div className="changes-panel changes-panel-list" data-testid="changes-panel">
         <div className="changes-list-pane">
           <div className="changes-toolbar">
-            <div className="changes-branch muted" title={branchLabel}>
-              <span className="changes-branch-dot" aria-hidden />
-              {branchLabel}
+            <div className="changes-toolbar-heading">
+              <strong>Uncommitted changes</strong>
+              <div className="changes-branch muted" title={branchLabel}>
+                <span className="changes-branch-dot" aria-hidden />
+                {branchLabel}
+              </div>
             </div>
             <button
               type="button"
@@ -281,7 +250,7 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
             </div>
           ) : (
             <>
-              <div className="changes-totals muted">
+              <div className="changes-totals muted" data-testid="changes-count">
                 {rows.length} file{rows.length === 1 ? '' : 's'}
                 {diff ? ` · +${diff.totalAdditions} −${diff.totalDeletions}` : ''}
               </div>
@@ -289,11 +258,7 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
                 {rows.map((row) => (
                   <li key={row.path}>
                     <div
-                      className={
-                        activePath === row.path
-                          ? 'changes-row selected'
-                          : 'changes-row'
-                      }
+                      className={activePath === row.path ? 'changes-row selected' : 'changes-row'}
                       data-testid="changes-row"
                     >
                       <input
@@ -307,7 +272,10 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
                       <button
                         type="button"
                         className="changes-row-main"
-                        onClick={() => setActivePath(row.path)}
+                        onClick={() => {
+                          setActivePath(row.path);
+                          props.onOpenFile?.(absolutePathFor(row.path), row.path);
+                        }}
                       >
                         <span className={`changes-code status-${row.status}`}>
                           {statusShort(row.status)}
@@ -316,12 +284,8 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
                           {row.path}
                         </span>
                         <span className="changes-stats">
-                          {row.additions > 0 ? (
-                            <span className="add">+{row.additions}</span>
-                          ) : null}
-                          {row.deletions > 0 ? (
-                            <span className="del">−{row.deletions}</span>
-                          ) : null}
+                          {row.additions > 0 ? <span className="add">+{row.additions}</span> : null}
+                          {row.deletions > 0 ? <span className="del">−{row.deletions}</span> : null}
                         </span>
                         {row.staged ? <span className="changes-chip">S</span> : null}
                       </button>
@@ -338,45 +302,6 @@ export function ChangesPanel(props: ChangesPanelProps): ReactElement {
                 </Button>
               </div>
             </>
-          )}
-        </div>
-
-        <div className="changes-diff-pane" data-testid="changes-diff-pane">
-          <div className="changes-diff-toolbar">
-            <span className="muted">Review</span>
-            <div className="diff-mode-toggle" role="group" aria-label="Diff layout">
-              <button
-                type="button"
-                className={diffMode === 'split' ? 'active' : undefined}
-                onClick={() => setDiffMode('split')}
-              >
-                Side by side
-              </button>
-              <button
-                type="button"
-                className={diffMode === 'unified' ? 'active' : undefined}
-                onClick={() => setDiffMode('unified')}
-              >
-                Unified
-              </button>
-            </div>
-          </div>
-          {diffLoading ? (
-            <div className="right-panel-empty muted">Loading patch…</div>
-          ) : (
-            <DiffView
-              mode={diffMode}
-              patch={fileDiff?.patch ?? ''}
-              {...(fileDiff?.path || activePath
-                ? { path: fileDiff?.path ?? activePath ?? '' }
-                : {})}
-              {...(fileDiff?.isBinary !== undefined
-                ? { isBinary: fileDiff.isBinary }
-                : {})}
-              {...(fileDiff?.truncated !== undefined
-                ? { truncated: fileDiff.truncated }
-                : {})}
-            />
           )}
         </div>
       </div>

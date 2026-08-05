@@ -1,38 +1,66 @@
-import type { McpToolMetadata, PermissionRuleSet } from '@piwin/contracts';
+import type {
+  HostToolRegistration,
+  McpConfigDocument,
+  McpToolMetadata,
+  ToolResult,
+} from '@piwin/contracts';
 import { createDefaultMcpExposurePolicy } from '@piwin/contracts';
 import {
   formatMcpCallResult,
   formatMcpExposedName,
   listEnabledServers,
-  loadMcpConfig,
+  createMcpGenerationSnapshot,
   type McpLifecycleManager,
+  type McpGenerationSnapshot,
   type McpMetadataCatalog,
 } from '@piwin/mcp';
-import type { HostToolDefinition } from '@piwin/tools-web';
 import { selectDirectMcpTools } from './mcp-exposure-policy.js';
-import { assertMcpToolCallAllowed } from './mcp-call-permission.js';
-import type { ToolPermissionGate } from './session-tools.js';
 
 export type BuildCachedMcpToolsOptions = {
-  piwinRoot: string;
   lifecycleManager: McpLifecycleManager;
+  /** Frozen MCP config captured when the runtime generation was composed. */
+  mcpConfig?: McpConfigDocument;
+  /** Explicit immutable generation snapshot used for transport calls. */
+  mcpSnapshot?: McpGenerationSnapshot;
   metadataCatalog?: McpMetadataCatalog;
-  rules?: PermissionRuleSet;
-  requestPermission?: ToolPermissionGate;
 };
+
+function mcpFailure(message: string, selector: string, signal: AbortSignal): ToolResult {
+  if (signal.aborted) {
+    return {
+      ok: false,
+      code: 'aborted',
+      message,
+      details: { selector },
+      cancelled: true,
+    };
+  }
+  return {
+    ok: false,
+    code: 'mcp-failed',
+    message,
+    details: { selector },
+    retryable: true,
+  };
+}
 
 /**
  * Build direct MCP host tools from **cached metadata only**.
  * Never performs MCP transport I/O.
  */
 export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpToolsOptions): Promise<{
-  tools: HostToolDefinition[];
+  tools: HostToolRegistration[];
   directCount: number;
   cachedToolCount: number;
   warnings: string[];
 }> {
   const catalog = options.metadataCatalog ?? options.lifecycleManager.getMetadataCatalog();
-  const document = await loadMcpConfig(options.piwinRoot);
+  // The generation owns the MCP snapshot. Missing configuration is an empty
+  // snapshot; execution must never reopen the mutable config store.
+  const snapshot =
+    options.mcpSnapshot ??
+    createMcpGenerationSnapshot(options.mcpConfig ?? { mcpServers: {} }, 'direct');
+  const document = snapshot.config;
   const enabled = listEnabledServers(document);
   const warnings: string[] = [];
   const validTools: McpToolMetadata[] = [];
@@ -51,7 +79,7 @@ export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpTools
 
   const { direct } = selectDirectMcpTools(validTools, createDefaultMcpExposurePolicy());
 
-  const hostTools = direct.map((metadata) => buildDirectHostTool(metadata, options));
+  const hostTools = direct.map((metadata) => buildDirectHostTool(metadata, options, snapshot));
 
   return {
     tools: hostTools,
@@ -64,34 +92,57 @@ export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpTools
 function buildDirectHostTool(
   metadata: McpToolMetadata,
   options: BuildCachedMcpToolsOptions,
-): HostToolDefinition {
+  snapshot: McpGenerationSnapshot,
+): HostToolRegistration {
   const exposedName = formatMcpExposedName(metadata.serverId, metadata.toolName);
   return {
-    name: exposedName,
-    description:
-      metadata.description.trim() ||
-      `MCP tool ${metadata.toolName} from server ${metadata.serverId}`,
-    parameters: metadata.inputSchema,
+    descriptor: {
+      name: exposedName,
+      description:
+        metadata.description.trim() ||
+        `MCP tool ${metadata.toolName} from server ${metadata.serverId}`,
+      parameters: metadata.inputSchema,
+    },
+    family: 'mcp',
+    permissionSpec: {
+      action: 'mcp:tool-call',
+      risk: 'mcp',
+      rememberable: false,
+      subjectBuilder: () => ({
+        kind: 'mcp',
+        selector: `${metadata.serverId}.${metadata.toolName}`,
+      }),
+    },
     async execute(args, signal) {
-      await assertMcpToolCallAllowed({
-        serverId: metadata.serverId,
-        toolName: metadata.toolName,
-        arguments: args,
-        ...(options.rules ? { rules: options.rules } : {}),
-        ...(options.requestPermission ? { requestPermission: options.requestPermission } : {}),
-        ...(signal ? { signal } : {}),
-      });
-      if (signal?.aborted) {
-        throw new Error(`MCP tool aborted: ${exposedName}`);
+      const selector = `${metadata.serverId}.${metadata.toolName}`;
+      if (signal.aborted) {
+        return {
+          ok: false,
+          code: 'aborted',
+          message: `MCP tool aborted: ${exposedName}`,
+          details: { selector },
+          cancelled: true,
+        };
       }
       // Resolve live client at call time — never close over a create-time client.
-      const result = await options.lifecycleManager.callTool(
-        metadata.serverId,
-        metadata.toolName,
-        args,
-        signal,
-      );
-      return formatMcpCallResult(result);
+      let result: Awaited<ReturnType<McpLifecycleManager['callTool']>>;
+      try {
+        result = await options.lifecycleManager.callTool(
+          metadata.serverId,
+          metadata.toolName,
+          args,
+          signal,
+          snapshot,
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return mcpFailure(message, selector, signal);
+      }
+      return {
+        ok: true,
+        output: formatMcpCallResult(result),
+        details: { selector },
+      };
     },
   };
 }

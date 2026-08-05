@@ -1,18 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import type { HostToolDefinition } from '@piwin/tools-web';
+import type { HostToolRegistration } from '@piwin/contracts';
 import {
   SessionHostToolExecutionPort,
   createSessionHostToolExecutionPort,
 } from './session-host-tool-port.js';
-import { HOST_TOOL_RUN_ID_ARGUMENT } from './host-tool-execution-context.js';
+import type { HostToolPermissionGate } from './host-tool-execution-router.js';
 
-function makeTool(name: string): HostToolDefinition {
+const allowPermission: HostToolPermissionGate = async () => ({ allowed: true });
+
+function makeTool(name: string): HostToolRegistration {
   return {
-    name,
-    description: `${name} tool`,
-    parameters: { type: 'object', properties: {} },
+    descriptor: {
+      name,
+      description: `${name} tool`,
+      parameters: { type: 'object', properties: {} },
+    },
+    family: name.startsWith('process') ? 'process' : 'web-search',
+    permissionSpec: {
+      action: `${name}:execute`,
+      risk: 'unknown',
+      rememberable: false,
+      readOnly: true,
+    },
     async execute(args) {
-      return `${name}:${typeof args.value === 'string' ? args.value : 'ok'}`;
+      return {
+        ok: true,
+        output: `${name}:${typeof args.value === 'string' ? args.value : 'ok'}`,
+      };
     },
   };
 }
@@ -21,18 +35,22 @@ function makePort(
   overrides: Partial<{
     isSessionKnown: (sessionId: string) => boolean;
     getRuntimeGenerationId: (sessionId: string) => string | undefined;
-    buildToolsForSession: (sessionId: string) => Promise<HostToolDefinition[]>;
+    tools: readonly HostToolRegistration[];
   }> = {},
 ): SessionHostToolExecutionPort {
-  return createSessionHostToolExecutionPort({
+  const port = createSessionHostToolExecutionPort({
     isSessionKnown: overrides.isSessionKnown ?? ((sessionId) => sessionId === 'session-1'),
     getRuntimeGenerationId:
       overrides.getRuntimeGenerationId ??
       ((sessionId: string) => (sessionId === 'session-1' ? 'gen-1' : undefined)),
-    buildToolsForSession:
-      overrides.buildToolsForSession ??
-      (async () => [makeTool('web_search'), makeTool('process_start')]),
   });
+  port.registerActiveGeneration(
+    'session-1',
+    'gen-1',
+    overrides.tools ?? [makeTool('web_search'), makeTool('process_start')],
+    allowPermission,
+  );
+  return port;
 }
 
 describe('SessionHostToolExecutionPort', () => {
@@ -89,6 +107,25 @@ describe('SessionHostToolExecutionPort', () => {
     }
   });
 
+  it('fails closed when the session has no active runtime generation', async () => {
+    const port = makePort({ getRuntimeGenerationId: () => undefined });
+    const result = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-1',
+        toolName: 'web_search',
+        arguments: {},
+      },
+      new AbortController().signal,
+    );
+    expect(result).toEqual({
+      ok: false,
+      code: 'tool-not-available',
+      message: 'stale runtime generation: expected none, got gen-1',
+    });
+  });
+
   it('rejects tool not in session manifest', async () => {
     const port = makePort();
     const result = await port.execute(
@@ -128,18 +165,14 @@ describe('SessionHostToolExecutionPort', () => {
     }
   });
 
-  it('caches tools per session+generation and rebuilds on generation change', async () => {
-    let buildCount = 0;
+  it('reads only the registered frozen surface for each generation', async () => {
+    let activeGeneration = 'gen-1';
     const port = makePort({
       getRuntimeGenerationId: (sessionId) =>
-        sessionId === 'session-1' ? 'gen-1' : undefined,
-      buildToolsForSession: async () => {
-        buildCount++;
-        return [makeTool('web_search')];
-      },
+        sessionId === 'session-1' ? activeGeneration : undefined,
+      tools: [makeTool('web_search')],
     });
 
-    // First call builds tools.
     await port.execute(
       {
         sessionId: 'session-1',
@@ -150,9 +183,7 @@ describe('SessionHostToolExecutionPort', () => {
       },
       new AbortController().signal,
     );
-    expect(buildCount).toBe(1);
 
-    // Second call uses cached tools.
     await port.execute(
       {
         sessionId: 'session-1',
@@ -163,36 +194,28 @@ describe('SessionHostToolExecutionPort', () => {
       },
       new AbortController().signal,
     );
-    expect(buildCount).toBe(1);
 
-    // Generation change forces rebuild.
-    port.clearSession('session-1');
-    const port2 = makePort({
-      getRuntimeGenerationId: (sessionId) =>
-        sessionId === 'session-1' ? 'gen-2' : undefined,
-      buildToolsForSession: async () => {
-        buildCount++;
-        return [makeTool('web_search')];
-      },
-    });
-    await port2.execute(
+    const newGeneration = makeTool('web_fetch');
+    activeGeneration = 'gen-2';
+    port.registerPendingGeneration('session-1', 'gen-2', [newGeneration], allowPermission);
+    expect(port.commitPendingGeneration('session-1', 'gen-2')).toBe(true);
+    const newGenerationResult = await port.execute(
       {
         sessionId: 'session-1',
         runtimeGenerationId: 'gen-2',
         runId: 'run-3',
-        toolName: 'web_search',
+        toolName: 'web_fetch',
         arguments: {},
       },
       new AbortController().signal,
     );
-    expect(buildCount).toBe(2);
+    expect(newGenerationResult).toEqual({ ok: true, output: 'web_fetch:ok' });
   });
 
-  it('returns execution-failed when buildToolsForSession throws', async () => {
-    const port = makePort({
-      buildToolsForSession: async () => {
-        throw new Error('config load failed');
-      },
+  it('rejects a generation that has not registered its frozen surface', async () => {
+    const port = createSessionHostToolExecutionPort({
+      isSessionKnown: () => true,
+      getRuntimeGenerationId: () => 'gen-1',
     });
     const result = await port.execute(
       {
@@ -206,8 +229,84 @@ describe('SessionHostToolExecutionPort', () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.code).toBe('execution-failed');
-      expect(result.message).toContain('config load failed');
+      expect(result.code).toBe('tool-not-available');
+      expect(result.message).toContain('surface is not registered');
     }
+  });
+
+  it('rejects tools filtered out of the compiled manifest', async () => {
+    const port = makePort();
+    expect(port.restrictGeneration('session-1', 'gen-1', ['web_search'])).toBe(true);
+
+    const filtered = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-filtered',
+        toolName: 'process_start',
+        arguments: {},
+      },
+      new AbortController().signal,
+    );
+    expect(filtered).toEqual({
+      ok: false,
+      code: 'tool-not-available',
+      message: 'tool not in session manifest: process_start',
+    });
+  });
+
+  it('restores the previous active surface when a promoted candidate is rolled back', async () => {
+    let activeGeneration = 'gen-1';
+    const port = makePort({
+      getRuntimeGenerationId: () => activeGeneration,
+      tools: [makeTool('web_search')],
+    });
+    port.registerPendingGeneration('session-1', 'gen-2', [makeTool('web_fetch')], allowPermission);
+    expect(port.commitPendingGeneration('session-1', 'gen-2')).toBe(true);
+    activeGeneration = 'gen-2';
+
+    expect(port.rollbackCommittedGeneration('session-1', 'gen-2')).toBe(true);
+    activeGeneration = 'gen-1';
+    const result = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-1',
+        runId: 'run-rollback',
+        toolName: 'web_search',
+        arguments: {},
+      },
+      new AbortController().signal,
+    );
+
+    expect(result).toEqual({ ok: true, output: 'web_search:ok' });
+  });
+
+  it('rejects a candidate prepared against an older active generation', async () => {
+    let activeGeneration = 'gen-3';
+    const port = makePort({
+      getRuntimeGenerationId: () => activeGeneration,
+      tools: [makeTool('web_search')],
+    });
+    port.registerPendingGeneration('session-1', 'gen-2', [makeTool('web_fetch')], allowPermission);
+    port.registerActiveGeneration(
+      'session-1',
+      'gen-3',
+      [makeTool('process_start')],
+      allowPermission,
+    );
+
+    expect(port.commitPendingGeneration('session-1', 'gen-2')).toBe(false);
+    activeGeneration = 'gen-3';
+    const result = await port.execute(
+      {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'gen-3',
+        runId: 'run-current',
+        toolName: 'process_start',
+        arguments: {},
+      },
+      new AbortController().signal,
+    );
+    expect(result).toEqual({ ok: true, output: 'process_start:ok' });
   });
 });

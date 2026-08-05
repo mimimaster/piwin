@@ -13,6 +13,7 @@ import type { SessionConfig, SubagentConfig, VisionDelegationConfig } from './co
 import type { SkillsConfig } from './skills.js';
 import type { WalkthroughConfig } from './walkthrough.js';
 import type { WebConfig } from './web.js';
+import type { McpConfigDocument } from './mcp.js';
 
 /** Persisted settings document version managed by SettingsService. */
 export const PIWIN_SETTINGS_SCHEMA_VERSION = 2 as const;
@@ -43,7 +44,8 @@ export type SettingsDomain =
   | 'permissions'
   | 'walkthrough'
   | 'subagents'
-  | 'remote';
+  | 'remote'
+  | 'mcp';
 
 /** Type map used to make domain replacement mutations compile-time checked. */
 export type SettingsDomainValueMap = {
@@ -73,6 +75,7 @@ export type SettingsDomainValueMap = {
   walkthrough: WalkthroughConfig | undefined;
   subagents: SubagentConfig | undefined;
   remote: RemoteConfig | undefined;
+  mcp: McpConfigDocument | undefined;
 };
 
 export type ReplaceSettingsDomainMutation = {
@@ -128,6 +131,13 @@ export function buildSettingsDomainMutations(
   const mutations: SettingsMutation[] = [];
   const domains = Object.keys(settingsDomainValueMap) as SettingsDomain[];
   for (const domain of domains) {
+    // MCP is a separate on-disk document (`mcp.json`) managed by the
+    // `mcp/save` command; it never flows through the PiwinConfig document.
+    // Runtime invalidation for MCP changes is triggered by `mcp/save` via the
+    // `mcp` SettingsDomain (repair spec WP4).
+    if (domain === 'mcp') {
+      continue;
+    }
     const previousValue = previous[domain];
     const nextValue = next[domain];
     if (JSON.stringify(previousValue) === JSON.stringify(nextValue)) {
@@ -169,4 +179,5 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   walkthrough: true,
   subagents: true,
   remote: true,
+  mcp: true,
 };

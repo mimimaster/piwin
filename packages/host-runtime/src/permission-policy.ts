@@ -102,6 +102,7 @@ export function evaluateWebPermission(
   action: WebPermissionAction,
   target: string,
   rules?: PermissionRuleSet,
+  mode?: PermissionMode,
 ): PermissionEvaluation {
   const normalized = target.trim();
   if (!normalized) {
@@ -144,6 +145,9 @@ export function evaluateWebPermission(
     if (isPrivateOrLocalHostname(host)) {
       return { decision: 'deny', reason: 'private-or-local-target' };
     }
+    if (mode === 'bypass') {
+      return { decision: 'allow', reason: 'bypass-public-fetch' };
+    }
     return {
       decision: 'ask',
       reason: `fetch:${host}`,
@@ -153,6 +157,9 @@ export function evaluateWebPermission(
   // web_search
   if (normalized.length > 500) {
     return { decision: 'deny', reason: 'query-too-long' };
+  }
+  if (mode === 'bypass') {
+    return { decision: 'allow', reason: 'bypass-web-search' };
   }
   return {
     decision: 'ask',
@@ -170,14 +177,25 @@ export type NotesPermissionAction =
 export function evaluateNotesPermission(
   action: NotesPermissionAction,
   detail: string,
+  mode?: PermissionMode,
+  rules?: PermissionRuleSet,
 ): PermissionEvaluation {
   const normalized = detail.trim();
   if (action === 'note_write' || action === 'note_update' || action === 'note_delete') {
+    if (rules) {
+      const matched = findMatchingRule({ kind: 'notes-mutate' }, rules);
+      if (matched) {
+        return { decision: matched.decision, reason: matched.reason };
+      }
+    }
     if (normalized.length === 0) {
       return {
         decision: 'deny',
         reason: action === 'note_write' ? 'empty-content' : 'empty-note-id',
       };
+    }
+    if (mode === 'bypass') {
+      return { decision: 'allow', reason: 'bypass-notes-mutation' };
     }
     return { decision: 'ask', reason: `notes-mutate:${action}` };
   }
@@ -193,11 +211,27 @@ export type ProcessPermissionAction = 'process:start' | 'process:stop';
  * Managed process tools: start/stop always ask (Desktop) or deny non-interactive.
  * list/logs are read-only and are not gated here.
  */
-export function evaluateProcessPermission(action: ProcessPermissionAction): PermissionEvaluation {
+export function evaluateProcessPermission(
+  action: ProcessPermissionAction,
+  rules?: PermissionRuleSet,
+  mode?: PermissionMode,
+): PermissionEvaluation {
+  if (rules) {
+    const matched = findMatchingRule({ kind: 'process' }, rules);
+    if (matched) {
+      return { decision: matched.decision, reason: matched.reason };
+    }
+  }
   if (action === 'process:start') {
+    if (mode === 'bypass') {
+      return { decision: 'allow', reason: 'bypass-process-start' };
+    }
     return { decision: 'ask', reason: 'process-start' };
   }
   if (action === 'process:stop') {
+    if (mode === 'bypass') {
+      return { decision: 'allow', reason: 'bypass-process-stop' };
+    }
     return { decision: 'ask', reason: 'process-stop' };
   }
   return { decision: 'deny', reason: 'unknown-process-action' };
@@ -231,8 +265,8 @@ const SECRET_ARG_KEYS =
  *
  * Pure function — server descriptions are untrusted hints only. The returned
  * `decision`/`reason` are used for surfacing risk to the user; the actual
- * call/allow decision for MCP tools is driven by the rule engine in
- * `assertMcpToolCallAllowed` (ADR 0019 §5). This classification is display-only.
+ * call/allow decision for MCP tools is driven by the Host admission gate
+ * (ADR 0019 §5). This classification is display-only.
  */
 export function evaluateMcpToolCallRisk(input: {
   serverId: string;

@@ -132,7 +132,11 @@ export type SessionLiveContext = {
     runId?: string,
     reason?: RunAbortReason,
   ) => ExecutionRunRecord | undefined;
-  updateRunPhase: (runId: string, phase: import('@piwin/contracts').SessionRunPhase, detail?: string) => void;
+  updateRunPhase: (
+    runId: string,
+    phase: import('@piwin/contracts').SessionRunPhase,
+    detail?: string,
+  ) => void;
   terminateRun: (
     sessionId: string,
     runId: string,
@@ -153,6 +157,8 @@ export type SessionLiveContext = {
    * rebuilt shells do not inherit stale ownership from the aborted handle.
    */
   resetSessionEventState?: (sessionId: string) => void;
+  /** Cancel an in-flight runtime replacement before dropping the live session. */
+  cancelRuntimeReplacement: (sessionId: string) => Promise<void>;
   reloadRuntime: (request: {
     sessionId: string;
     expectedSettingsRevision: string;
@@ -261,7 +267,7 @@ async function preparePromptInput(
   throwIfPromptPreparationAborted(context, run.runId);
 
   // Agent mode permission floor: when plan/ask mode is active, raise the
-  // permission floor to ask-all + read-only so the gated tools enforce it.
+  // permission floor to ask-all + read-only so parent-owned registrations enforce it.
   const agentMode = command.input.agentMode;
   if (agentMode === 'plan' || agentMode === 'ask') {
     try {
@@ -379,6 +385,7 @@ export async function handleSessionLiveCommand(
           `Message not found in transcript: ${command.messageId}`,
         );
       }
+      const replacementCleanup = context.cancelRuntimeReplacement(command.sessionId);
       // Drop live handle so next prompt rebuilds from product transcript only.
       const live = context.sessions.get(command.sessionId);
       if (live) {
@@ -398,7 +405,6 @@ export async function handleSessionLiveCommand(
           recorder.dispose();
           context.transcriptRecorders.delete(command.sessionId);
         }
-        context.sessions.delete(command.sessionId);
       } else {
         const recorder = context.transcriptRecorders.get(command.sessionId);
         if (recorder) {
@@ -406,6 +412,8 @@ export async function handleSessionLiveCommand(
           context.transcriptRecorders.delete(command.sessionId);
         }
       }
+      await replacementCleanup;
+      context.sessions.delete(command.sessionId);
       // Clear run correlation so late events from the aborted handle cannot
       // poison the rebuilt shell's next prompt.
       context.resetSessionEventState?.(command.sessionId);
@@ -517,7 +525,11 @@ export async function handleSessionLiveCommand(
       const existingRun = context.getForegroundRun(command.sessionId);
       if (existingRun) {
         const supersedeReason = createSupersededByNewPromptAbortReason();
-        context.updateRunPhase(existingRun.runId, 'cancelling', 'Superseded by a newer user message');
+        context.updateRunPhase(
+          existingRun.runId,
+          'cancelling',
+          'Superseded by a newer user message',
+        );
         context.requestCancelRun(command.sessionId, existingRun.runId, supersedeReason);
         context.settlePendingPermissionsForSession(command.sessionId);
         context.settlePendingExtensionUiForSession(command.sessionId);

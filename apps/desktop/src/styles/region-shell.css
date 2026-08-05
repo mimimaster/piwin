@@ -164,6 +164,26 @@
   width: 100%;
 }
 
+/* File selections replace the transcript in the stage while the Files
+   inspector remains open as the navigation rail on the right. */
+.workspace-document-stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--canvas, var(--bg));
+}
+
+.workspace-document-stage .doc-preview-panel {
+  background: var(--canvas, var(--bg));
+}
+
+.workspace-document-stage .doc-preview-header {
+  background: var(--canvas, var(--bg));
+}
+
 /* A new session is composer-first: no landing page, just the prompt card. */
 .chat-column-empty {
   padding: 0;
