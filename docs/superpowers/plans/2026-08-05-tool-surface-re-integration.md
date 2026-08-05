@@ -166,8 +166,9 @@
    CLAUDE.md/SYSTEM.md/APPEND_SYSTEM.md 进入编译；
  - `resolveToolPolicy`（family × backing availability）替换 `buildToolPolicy` 手写版，
    让 `enabledMcpServerIds` 来自真实 enabled MCP 服务器列表（G4）；
- - 顺带修 placeholder revision：`settingsRevision/projectRevision/mcpRevision/
-   resourceCatalogRevision` 使用真实修订（`project-scope`/`mcp-static` 全部替换）。
+ - 顺带修 placeholder revision：`rulesRevision/settingsRevision/projectRevision/mcpRevision/
+   resourceCatalogRevision` 使用真实修订（规则合并结果、`project-scope`、`mcp-static`
+   全部替换）。
 
  ### T6. 调用方式现代化（修 G12）
 

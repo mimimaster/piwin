@@ -6,9 +6,16 @@ Accepted (2026-07-29) · Implemented (Tasks 1–10 of the execution plan)
 
 ### Implementation notes
 
+The Host runtime freezes the merged rule set and permission subject shape when
+it composes a Runtime Generation. `PermissionMode` is intentionally dynamic:
+the admission gate reads the session override, host override, or current config
+mode for each invocation, then calculates the concrete allow/ask/deny result.
+When a settings change tightens safety, the live generation is fail-closed for
+new side-effect calls immediately while the replacement generation rebuilds.
+
 **Built (Tasks 1–10):**
 
-- **Rule engine** (`packages/agent-host/src/permission-rule-engine.ts`) — pure
+- **Rule engine** (`packages/host-runtime/src/permission-rule-engine.ts`) — pure
   `evaluateRules` with deny→ask→allow, first-match-wins. Matchers: `matchBashGlob`
   (glob with `*`, plus `re:` regex prefix for bundled precision),
   `matchPathGlob` (`*` within a segment, `**` across segments),
@@ -16,24 +23,26 @@ Accepted (2026-07-29) · Implemented (Tasks 1–10 of the execution plan)
   `packages/contracts/src/permission.ts` (`PermissionRuleTarget` vs
   `PermissionSubject` kept distinct; `PermissionRulesFile` `version: 1`;
   `PermissionConfig { mode }`; `mergeRuleSets`).
-- **Bundled defaults** (`permission-defaults.ts`) — non-regression baseline:
+- **Bundled defaults** (`packages/host-runtime/src/permission-defaults.ts`) — non-regression baseline:
   every prior `DENY_PATTERNS` → bundled deny, every prior `ASK_PATTERNS` →
   bundled ask, plus safe-prefix allowlist. File-write deny for secret paths,
   `~/.config/**` ask. `~` expanded to `homedir()` in `createBundledRuleSet`.
-- **Trust-aware loader** (`permission-rule-loader.ts`) — loads user global +
+- **Trust-aware loader** (`packages/host-runtime/src/permission-rule-loader.ts`) — loads user global +
   project shared/local, validates `version: 1`, drops malformed rules with a
   warning, strips project-layer `allow` when untrusted.
-- **File-write gate** (`gated-file-tools.ts`) — wraps Pi `write`/`edit` via
-  injected local operations; realpath-resolves, checks remembered allowlist,
-  evaluates rules, prompts on ask. Both `writeFile` and `mkdir` gated.
-- **Bash gate** (`gated-bash-tool.ts`) — delegates to `evaluateBashPermission`
-  which runs the rule engine then applies the mode-aware unmatched default.
-- **MCP server-level trust** (`mcp-call-permission.ts`) — enabled server =
-  trusted; `assertMcpToolCallAllowed` consults the rule engine for explicit
-  deny/ask only; risk classification kept for display.
-- **Permission modes + bypass guard** — `resolveBypassGuard` in `sdk-adapter.ts`
-  refuses `bypass` for untrusted projects (downgrades to `auto` + `host/log`).
-  Non-interactive `ask` → `deny` via `resolveNonInteractiveDecision`.
+- **Host-owned file/shell admission** — filesystem and shell capabilities are
+  registered by `buildSessionHostTools` and pass through the unified admission
+  gate; the model-visible descriptor contains no permission metadata. The gate
+  realpath-resolves writes, checks remembered allowlists, evaluates rules, and
+  gates both `writeFile` and `mkdir`.
+- **Unified Host admission** (`packages/host-runtime/src/tools/host-tool-admission-gate.ts`)
+  — every Agent-facing tool is admitted from its Host-local registration;
+  enabled MCP server IDs and explicit MCP `deny`/`ask` rules are checked before
+  the generation-scoped lifecycle manager executes the call.
+- **Permission modes + trust ceiling** — Runtime Blueprint compilation removes
+  mutating families for untrusted projects; the admission gate still enforces
+  deny/ask rules and non-interactive `ask` → `deny` via
+  `resolveNonInteractiveDecision`.
 - **Remember scope extended** — `ProjectRecord.bashAllowlist` (exact match) and
   `fileWriteAllowlist` (path-safe prefix) in `packages/project`; revoke +
   `listRememberedPermissions` extended.
@@ -44,8 +53,8 @@ Accepted (2026-07-29) · Implemented (Tasks 1–10 of the execution plan)
 - **Desktop UI** — Settings → Permissions mode switcher with trust-aware
   notices; context-bar mode badge (`bypass` warning tone); "Allow for project"
   button in the permission dialog for bash/file-write subjects.
-- **Dual host** — RPC adapter uses SDK fallback (ADR 0011), so both gates run
-  on both host modes.
+- **Dual host** — SDK and RPC use the same compiled descriptor projection and
+  parent-owned execution port, so the same admission gate runs in both modes.
 
 **Deferred (per §8, unchanged):**
 
@@ -63,6 +72,11 @@ Accepted (2026-07-29) · Implemented (Tasks 1–10 of the execution plan)
 The `re:` regex prefix for bash patterns is a pragmatic implementation detail
 (not a separate kind) to preserve non-regression while keeping the public API
 glob-based; it is documented in `matchBashGlob` and the architecture doc.
+
+The lower Decision section preserves the original ADR's design record. Its
+early file/Bash wrapper sketches and historical package paths predate the
+2026-08 tool-surface reintegration; the implementation notes above and
+`docs/architecture.md` describe the current source of truth.
 
 ## Context
 
@@ -248,11 +262,12 @@ export type PermissionConfig = {
   mode: PermissionMode;  // 'auto' | 'ask-all' | 'bypass'
 };
 ```
-Rule files are loaded by the host at **session create** and merged with bundled
+Rule files are loaded by the host when a **Runtime Generation** is created and merged with bundled
 defaults. The merged `PermissionRuleSet` is an in-memory construct, not
 persisted — persistence is per-layer in the respective `permissions.json`.
-Mid-session edits to rule files or mode take effect on the **next session**
-(document in Settings; no hot-reload in this ADR).
+Mid-session rule edits mark the active generation stale and take effect when
+the Host replaces that generation; `PermissionMode` remains dynamic and takes
+effect on the next admission.
 
 `~` in path globs is expanded when materializing rules in the loader (to
 `os.homedir()`), so the pure matcher only sees absolute patterns.
@@ -366,17 +381,20 @@ the host rule engine so it is configurable, testable, and rememberable.
 ### 5. MCP: server-enablement is the trust boundary (supersedes ADR 0014 §5)
 
 **Once an MCP server is enabled in config, its tools run without per-call
-permission prompts.** This reverses the ADR 0014 Slice 1 choice ("every tool
-call asks"):
+permission prompts by default.** This reverses the ADR 0014 Slice 1 choice
+("every tool call asks"):
 
 - MCP server **enablement** is the deliberate, trusted action (already
   configured in `~/.piwin/mcp.json` / Settings). Adding a server is the moment
   of trust, not each tool call.
-- `assertMcpToolCallAllowed` no longer prompts per call. It still:
-  - redacts secret argument keys for logs/UI (`redactMcpArgumentsSummary`),
-  - computes `McpToolRisk` for UI presentation (kept, but informational only).
-  - Disabled-server checks remain upstream in the lifecycle manager / gateway
-    (they already refuse to connect or call tools on disabled servers).
+- `host-tool-admission-gate.ts` checks the generation's frozen enabled-server
+  allowlist before execution. It then applies explicit `deny`/`ask` rules and
+  the current `PermissionMode`; `ask-all` asks on an unmatched call, while
+  `auto` and `bypass` allow an unmatched call.
+- The generation-scoped MCP lifecycle manager receives the same frozen config
+  snapshot and never reloads disk configuration during execution.
+- The gate still redacts secret argument keys for logs/UI
+  (`redactMcpArgumentsSummary`) and keeps risk classification informational.
 - `evaluateMcpToolCallRisk` is retained for risk display but no longer drives
   an `ask` decision.
 - Users who want per-tool gating can still add `deny`/`ask` MCP rules in
