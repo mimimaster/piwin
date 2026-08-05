@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import type { SkillSource, SkillSummary, SkillsConfig } from '@piwin/contracts';
+import { normalizeResourceId, type SkillSource, type SkillSummary, type SkillsConfig } from '@piwin/contracts';
 import { createDefaultSkillsConfig } from '@piwin/contracts';
 
 export type ScanSkillsOptions = {
@@ -27,7 +27,6 @@ export async function scanSkills(options: ScanSkillsOptions): Promise<SkillSumma
   }
   for (const rootEntry of roots) {
     for (const skill of await scanSkillRoot(rootEntry.path, rootEntry.source)) {
-      if (results.some((item) => item.id === skill.id)) continue;
       results.push({ ...skill, enabled: !disabled.has(skill.id) });
     }
   }
@@ -79,7 +78,7 @@ async function parseSkillMarkdown(
   const name = (fm.name ?? basename(directoryPath ?? filePath).replace(/\.md$/i, '')).trim();
   if (!name) return null;
   const description = (fm.description ?? '').trim() || '(no description)';
-  const id = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
+  const id = normalizeResourceId(name);
   const hiddenRaw = (fm.hidden ?? '').trim().toLowerCase();
   const hidden = hiddenRaw === 'true' || hiddenRaw === '1';
   return {

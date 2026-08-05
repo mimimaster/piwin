@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { createMcpLifecycleManager } from './mcp-lifecycle-manager.js';
+import { createMcpGenerationSnapshot } from './mcp-generation-snapshot.js';
 
 describe('createMcpLifecycleManager', () => {
   // Safety net: kill any MCP fixture child processes that survived dispose().
@@ -28,7 +29,11 @@ describe('createMcpLifecycleManager', () => {
         const ppid = parseInt(ppidStr, 10);
         // Kill orphans (ppid=1) or children of this process
         if (ppid === 1 || ppid === process.pid) {
-          try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ }
+          try {
+            process.kill(pid, 'SIGKILL');
+          } catch {
+            /* already gone */
+          }
         }
       }
     } catch {
@@ -371,6 +376,71 @@ describe('createMcpLifecycleManager', () => {
       expect(typeof secondHealth.pid).toBe('number');
       expect(manager.getClient('fixture')).not.toBeNull();
     } finally {
+      await manager.dispose();
+    }
+  });
+
+  it('executes against the generation snapshot after disk config changes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-snapshot-'));
+    const { fileURLToPath } = await import('node:url');
+    const fixtureServerPath = fileURLToPath(
+      new URL('./fixtures/fixture-mcp-server-official.mjs', import.meta.url),
+    );
+    const originalConfig = {
+      mcpServers: {
+        fixture: {
+          command: process.execPath,
+          args: [fixtureServerPath],
+        },
+      },
+    };
+    await writeFile(join(root, 'mcp.json'), JSON.stringify(originalConfig), 'utf8');
+
+    const manager = createMcpLifecycleManager(root);
+    const snapshot = createMcpGenerationSnapshot(originalConfig, 'generation-a');
+    expect(Object.isFrozen(snapshot.config)).toBe(true);
+    expect(Object.isFrozen(snapshot.config.mcpServers)).toBe(true);
+    expect(Object.isFrozen(snapshot.config.mcpServers.fixture)).toBe(true);
+    expect(Object.isFrozen(snapshot.serverFingerprints)).toBe(true);
+    try {
+      const first = await manager.callTool('fixture', 'ping', {}, undefined, snapshot);
+      expect(first).toMatchObject({
+        content: [{ type: 'text', text: 'pong' }],
+      });
+
+      await writeFile(
+        join(root, 'mcp.json'),
+        JSON.stringify({
+          mcpServers: {
+            fixture: { command: 'piwin-definitely-missing-binary-xyz' },
+          },
+        }),
+        'utf8',
+      );
+
+      const second = await manager.callTool('fixture', 'ping', {}, undefined, snapshot);
+      expect(second).toMatchObject({
+        content: [{ type: 'text', text: 'pong' }],
+      });
+    } finally {
+      await manager.releaseGenerationSnapshot(snapshot.generationId);
+      await manager.dispose();
+    }
+  });
+
+  it('rejects a server outside the generation enabled allowlist', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-snapshot-deny-'));
+    const manager = createMcpLifecycleManager(root);
+    const snapshot = createMcpGenerationSnapshot(
+      { mcpServers: { disabled: { command: 'false', disabled: true } } },
+      'generation-disabled',
+    );
+    try {
+      await expect(manager.callTool('disabled', 'ping', {}, undefined, snapshot)).rejects.toThrow(
+        'not enabled in the generation snapshot',
+      );
+    } finally {
+      await manager.releaseGenerationSnapshot(snapshot.generationId);
       await manager.dispose();
     }
   });
