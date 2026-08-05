@@ -515,4 +515,32 @@ must not be claimed:
 3. **Follow-up turn lifecycle:** `session/follow_up` now validates run
    ownership, but a distinct foreground lifecycle is not introduced here.
    Decide in a separate ADR/plan whether it appends to an existing run or
-   starts a new run with its own `runId` and terminal event.
+  starts a new run with its own `runId` and terminal event.
+
+## Side Chat (ADR 0032)
+
+Side Chat is a persistent, read-only, Host-backed chat session that inherits
+bounded context from a main session. It is a distinct product session kind
+(`sessionKind: 'side-chat'`) with its own `SideChatRelation` — it does **not**
+use `parentSessionId` and does **not** enter subagent lineage/merge/worktree
+flows.
+
+Key invariants:
+
+- **Read-only tool profile**: Host compiles a fixed capability profile
+  (`filesystem-read` + `read/grep/find/ls` pi builtins + optional
+  `web-search`/`web-fetch`). Write/shell/process/browser/mcp/planning/delegate
+  tools are explicitly absent. UI hiding is not the security boundary.
+- **Context snapshot, not live mirror**: Side Chat captures a bounded context
+  snapshot at creation time (24k chars / 40 messages). Subsequent updates
+  require explicit `side-chat/sync`, which bumps `contextVersion`.
+- **Run isolation**: Main and side runs are independent (keyed by sessionId).
+  `session/prompt` and `session/abort` work identically for side-chat sessions.
+- **Main list invisibility**: Side chats are excluded from `session/list` and
+  `session/search` by default (SIDE-D9).
+- **Source state tracking**: Archiving the main session marks side chats'
+  `sourceState: 'archived'`; deleting marks `'missing'`. Sync is disabled
+  when source is not active.
+
+See [ADR 0032](./adr/0032-side-chat-context-branch.md) and
+[spec](./specs/side-chat-session.md) for full details.
