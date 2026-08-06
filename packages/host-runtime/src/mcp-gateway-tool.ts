@@ -3,7 +3,6 @@ import {
   formatMcpExposedName,
   listEnabledServers,
   parseMcpToolSelector,
-  createMcpGenerationSnapshot,
   type McpLifecycleManager,
   type McpMetadataCatalog,
   type McpGenerationSnapshot,
@@ -41,13 +40,6 @@ export function buildMcpGatewayToolDefinition(
   options: BuildMcpGatewayToolOptions,
 ): HostToolRegistration {
   const catalog = options.metadataCatalog ?? options.lifecycleManager.getMetadataCatalog();
-  // The generation owns the MCP snapshot. Missing configuration is treated as
-  // an empty snapshot; tool execution must not reopen mutable config storage.
-  const snapshot =
-    options.mcpSnapshot ??
-    createMcpGenerationSnapshot(options.mcpConfig ?? { mcpServers: {} }, 'direct');
-  const config = snapshot.config;
-
   return {
     descriptor: {
       name: 'mcp_gateway',
@@ -76,15 +68,16 @@ export function buildMcpGatewayToolDefinition(
     },
     family: 'mcp',
     permissionSpec: {
-      action: 'mcp:tool-call',
+      action: 'mcp:trusted',
       risk: 'mcp',
       rememberable: false,
-      subjectBuilder: (args) => {
-        const selector = String(args.selector ?? '').trim();
-        return selector ? { kind: 'mcp', selector } : undefined;
-      },
+      admission: 'trusted',
     },
     async execute(args, signal) {
+      // The gateway is intentionally live: config changes are applied by the
+      // Supervisor and do not require rebuilding every session's tool shell.
+      await options.lifecycleManager.refreshConfig();
+      const config = options.lifecycleManager.getConfig();
       const action = String(args.action ?? '').trim();
       if (action === 'search') {
         const query = String(args.query ?? '');
@@ -178,7 +171,6 @@ export function buildMcpGatewayToolDefinition(
         const discovered = await options.lifecycleManager.discoverTools(
           parsed.serverId,
           signal,
-          snapshot,
         );
         const match = discovered.find((tool) => tool.name === parsed.toolName);
         if (!match) {
@@ -200,7 +192,7 @@ export function buildMcpGatewayToolDefinition(
       }
 
       if (action === 'status') {
-        const health = await options.lifecycleManager.listHealth(snapshot);
+        const health = await options.lifecycleManager.listHealth();
         const serverId = typeof args.serverId === 'string' ? args.serverId : undefined;
         const rows = serverId ? health.filter((item) => item.serverId === serverId) : health;
         return { ok: true, output: JSON.stringify({ servers: rows }, null, 2) };
@@ -237,7 +229,6 @@ export function buildMcpGatewayToolDefinition(
             parsed.toolName,
             toolArguments,
             signal,
-            snapshot,
           );
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);

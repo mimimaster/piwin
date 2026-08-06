@@ -200,8 +200,8 @@ function sanitizeRule(
 
 /**
  * Narrow a target record into a typed {@link PermissionRuleTarget}, expanding
- * `~` in `file-write` pathGlobs. Returns `undefined` if required fields for
- * the kind are missing or not strings.
+ * `~` in `file-write` pathGlobs. Legacy MCP targets return `undefined` because
+ * MCP is configuration-trusted and no longer has a permission rule surface.
  */
 function normalizeTarget(
   target: Record<string, unknown>,
@@ -229,9 +229,8 @@ function normalizeTarget(
     case 'web-search':
       return { kind: 'web-search' };
     case 'mcp':
-      if (typeof target.selectorGlob === 'string') {
-        return { kind: 'mcp', selectorGlob: target.selectorGlob };
-      }
+      // MCP is configuration-trusted and no longer has a permission rule
+      // surface. Keep parsing old files tolerant, but drop legacy MCP rules.
       return undefined;
     case 'process':
       return { kind: 'process' };

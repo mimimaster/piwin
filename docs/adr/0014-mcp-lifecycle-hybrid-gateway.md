@@ -2,15 +2,13 @@
 
 ## Status
 
-Accepted (2026-07-24) · Implemented (hybrid gateway + lazy lifecycle + structured call risk)
+Accepted (2026-07-24) · Superseded by [ADR 0033](./0033-mcp-supervisor-architecture.md)
 
-> **Superseded in part by [ADR 0019](./0019-permission-rule-engine.md) §5:**
-> Decision 5's "per-call until a later structured risk policy lands" MCP
-> approval is superseded. ADR 0019 makes **server enablement the trust
-> boundary** — once an MCP server is enabled in config, its tools run without
-> per-call prompts; explicit `deny`/`ask` MCP rules in `permissions.json` still
-> apply. ADR 0014's other decisions (hybrid gateway, lazy lifecycle, metadata
-> cache, "MCP is not a sandbox") stand.
+> **Superseded by ADR 0033:**
+> ADR 0033 replaces the hybrid direct exposure default with gateway-first plus
+> explicit pinned selectors, removes MCP from the permission rule engine, and
+> makes one Host-scoped Supervisor the sole process owner. The metadata cache
+> and "MCP is not a sandbox" constraints remain.
 
 ## Context
 

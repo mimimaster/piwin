@@ -59,9 +59,14 @@ describe('resolveToolPolicy', () => {
     expect(noProvider.enabledFamilies).not.toContain('web-fetch');
   });
 
-  it('MCP requires master and at least one enabled server', () => {
+  it('MCP gateway requires the host family, but servers may be enabled later', () => {
     const noServer = resolveToolPolicy(baseExposure({ mcp: true }));
     expect(noServer.enabledFamilies).not.toContain('mcp');
+    const gatewayOnly = resolveToolPolicy(
+      baseExposure({ mcp: true, availableFamilies: new Set(['mcp']) }),
+    );
+    expect(gatewayOnly.enabledFamilies).toContain('mcp');
+    expect(gatewayOnly.enabledMcpServerIds).toEqual([]);
     const withServer = resolveToolPolicy(
       baseExposure({
         mcp: true,

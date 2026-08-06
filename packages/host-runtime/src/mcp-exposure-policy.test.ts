@@ -26,27 +26,38 @@ describe('selectDirectMcpTools', () => {
       tool('c.three', 10),
     ];
     const result = selectDirectMcpTools(tools, {
-      mode: 'hybrid',
+      mode: 'pinned',
       maxDirectTools: 2,
       maxDirectSchemaBytes: 100_000,
       pinnedSelectors: ['c.three'],
     });
     expect(result.direct.map((item) => item.selector)).toEqual([
       'c.three',
-      'a.one',
     ]);
-    expect(result.gatewayOnly.map((item) => item.selector)).toEqual(['b.two']);
+    expect(result.gatewayOnly.map((item) => item.selector)).toEqual(['a.one', 'b.two']);
   });
 
   it('respects schema byte budget', () => {
     const tools = [tool('a.big', 80), tool('b.small', 10)];
     const result = selectDirectMcpTools(tools, {
-      mode: 'hybrid',
+      mode: 'pinned',
       maxDirectTools: 10,
       maxDirectSchemaBytes: 50,
-      pinnedSelectors: [],
+      pinnedSelectors: ['b.small', 'a.big'],
     });
     expect(result.direct.map((item) => item.selector)).toEqual(['b.small']);
     expect(result.gatewayOnly.map((item) => item.selector)).toEqual(['a.big']);
+    expect(result.overflow.map((item) => item.selector)).toEqual(['a.big']);
+  });
+
+  it('keeps every tool behind the gateway in gateway mode', () => {
+    const result = selectDirectMcpTools([tool('a.one', 10)], {
+      mode: 'gateway',
+      maxDirectTools: 10,
+      maxDirectSchemaBytes: 10_000,
+      pinnedSelectors: [],
+    });
+    expect(result.direct).toEqual([]);
+    expect(result.gatewayOnly.map((item) => item.selector)).toEqual(['a.one']);
   });
 });

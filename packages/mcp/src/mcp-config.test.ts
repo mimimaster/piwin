@@ -25,6 +25,20 @@ describe('validateMcpConfig', () => {
     });
     expect(result.ok).toBe(false);
   });
+
+  it('normalizes exact pinned selectors and rejects wildcard pins', () => {
+    const document = validateMcpConfig({
+      mcpServers: { github: { command: 'npx' } },
+      pinnedSelectors: ['github.list_repos', 'github.list_repos'],
+    });
+    expect(document.pinnedSelectors).toEqual(['github.list_repos']);
+
+    const invalid = tryValidateMcpConfig({
+      mcpServers: { github: { command: 'npx' } },
+      pinnedSelectors: ['github.*'],
+    });
+    expect(invalid.ok).toBe(false);
+  });
 });
 
 describe('tool names', () => {

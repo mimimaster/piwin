@@ -26,7 +26,6 @@ export {
   matchBashGlob,
   matchPathGlob,
   matchHostGlob,
-  matchSelectorGlob,
 } from './permission-rule-engine.js';
 export {
   BUNDLED_DENY,

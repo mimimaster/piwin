@@ -364,6 +364,8 @@ export class HostRuntime {
     ReturnType<typeof createTranscriptRecorder>
   >();
   private mcpManager: McpLifecycleManager | null = null;
+  private hostClosing = false;
+  private disposePromise: Promise<void> | null = null;
   private jobController: JobController | null = null;
   private cardStore: import('@piwin/flashcards').CardStore | null = null;
   /** Host-owned browser session (ADR 0020); lazily created on first access. */
@@ -636,6 +638,15 @@ export class HostRuntime {
   }
 
   async dispose(): Promise<void> {
+    if (this.disposePromise) {
+      return this.disposePromise;
+    }
+    this.hostClosing = true;
+    this.disposePromise = this.disposeInternal();
+    return this.disposePromise;
+  }
+
+  private async disposeInternal(): Promise<void> {
     const replacementCleanup = this.runtimeReplacementEngine.cancelAll();
     const activeRuns = this.runRegistry.list({
       status: ['queued', 'running', 'cancelling'],
@@ -818,18 +829,6 @@ export class HostRuntime {
             for (const sessionId of this.sessions.keys()) {
               this.runtimeController.recordSettingsChange(sessionId, changedDomains);
             }
-          }
-        }
-        if (
-          (command.type === 'mcp/save' ||
-            command.type === 'mcp/registry-install-draft' ||
-            command.type === 'plugins/install' ||
-            command.type === 'plugins/uninstall') &&
-          domain.type === 'response' &&
-          domain.success
-        ) {
-          for (const sessionId of this.sessions.keys()) {
-            this.runtimeController.recordSettingsChange(sessionId, ['mcp']);
           }
         }
         return domain;
@@ -2224,7 +2223,6 @@ export class HostRuntime {
       mcpConfig: mcpSnapshot.config,
       mcpSnapshot,
       runtimeGenerationId,
-      mcpEnabledServerIds,
       ...(config ? { config } : {}),
       ...(config ? { secretResolver: createSecretResolver() } : {}),
       getBrowserSession: () => this.browserSession ?? undefined,
@@ -2465,8 +2463,10 @@ export class HostRuntime {
   }
 
   private getMcpManager(): McpLifecycleManager {
+    if (this.hostClosing) {
+      throw new Error('host-closing');
+    }
     if (!this.mcpManager) {
-      // dispose() nulls the manager; recreate only if commands arrive after partial teardown.
       this.mcpManager = createMcpLifecycleManager(getPiwinRoot(this.options.piwinRoot));
     }
     return this.mcpManager;
@@ -3511,18 +3511,22 @@ export class HostRuntime {
           toolOutputChunkBytes: 64 * 1024,
         });
       case undefined: {
-        // Ensure the browser session exists before creating the Pi session so
-        // `browser_*` tools register (ADR 0020). Best-effort: a launch failure
-        // here must not block session creation — the tools simply won't appear.
-        try {
-          await this.ensureBrowserSession();
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error);
-          this.push({
-            type: 'host/log',
-            level: 'warn',
-            message: `browser session init failed: ${detail}`,
-          });
+        // Mock hosts expose no `browser_*` tools, so eager-launching Chromium
+        // (ADR 0020) here would only spawn a process nobody uses. Real hosts
+        // need the browser session registered before the Pi session so the
+        // tools appear. Best-effort: a launch failure must not block session
+        // creation — the tools simply won't appear.
+        if (this.options.mock !== true) {
+          try {
+            await this.ensureBrowserSession();
+          } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            this.push({
+              type: 'host/log',
+              level: 'warn',
+              message: `browser session init failed: ${detail}`,
+            });
+          }
         }
         return this.host.createSession(input);
       }

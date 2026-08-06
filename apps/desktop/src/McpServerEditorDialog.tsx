@@ -24,6 +24,7 @@ export type McpServerEditorDialogProps = {
   onValidateRaw: (document: unknown) => Promise<{ valid: boolean; document?: McpConfigDocument; issues?: Array<{ path: string; message: string }> }>;
   onSaveRaw: (document: McpConfigDocument) => Promise<boolean>;
   onPreviewTools: (serverId: string, config: McpServerConfig) => Promise<McpToolSummary[]>;
+  onTogglePinned: (selector: string, pinned: boolean) => Promise<boolean>;
 };
 
 type ServerFormDraft = {
@@ -32,6 +33,20 @@ type ServerFormDraft = {
   argsText: string;
   envText: string;
 };
+
+function McpPinIcon({ pinned }: { pinned: boolean }): ReactElement {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path
+        d="M5 2h6l-.7 3.3 2.2 2.2v1H8.7v4.5L8 14l-.7-1V8.5H3.5v-1l2.2-2.2L5 2Z"
+        fill={pinned ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 function emptyDraft(): ServerFormDraft {
   return { id: '', command: '', argsText: '', envText: '' };
@@ -260,9 +275,45 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
                   <h5>{isChinese ? '工具预览' : 'Tools preview'}</h5>
                   <ul className="mcp-tools-list">
                     {tools.map((tool) => (
-                      <li key={tool.exposedName}>
-                        <strong>{tool.exposedName}</strong>
-                        <span className="muted">{tool.description || tool.name}</span>
+                      <li key={tool.exposedName} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Button
+                          variant="ghost"
+                          size="compact"
+                          title={
+                            (props.document.pinnedSelectors ?? []).includes(`${tool.serverId}.${tool.name}`)
+                              ? isChinese
+                                ? '取消固定直接调用'
+                                : 'Unpin direct call'
+                              : isChinese
+                                ? '固定为直接调用工具'
+                                : 'Pin as direct tool'
+                          }
+                          aria-label={
+                            (props.document.pinnedSelectors ?? []).includes(`${tool.serverId}.${tool.name}`)
+                              ? isChinese
+                                ? '取消固定'
+                                : 'Unpin'
+                              : isChinese
+                                ? '固定为直接调用工具'
+                                : 'Pin as direct tool'
+                          }
+                          aria-pressed={(props.document.pinnedSelectors ?? []).includes(`${tool.serverId}.${tool.name}`)}
+                          onClick={() => {
+                            const selector = `${tool.serverId}.${tool.name}`;
+                            const pinned = (props.document.pinnedSelectors ?? []).includes(selector);
+                            void props.onTogglePinned(selector, !pinned);
+                          }}
+                        >
+                          <McpPinIcon
+                            pinned={(props.document.pinnedSelectors ?? []).includes(
+                              `${tool.serverId}.${tool.name}`,
+                            )}
+                          />
+                        </Button>
+                        <span>
+                          <strong>{tool.exposedName}</strong>
+                          <span className="muted" style={{ display: 'block' }}>{tool.description || tool.name}</span>
+                        </span>
                       </li>
                     ))}
                   </ul>

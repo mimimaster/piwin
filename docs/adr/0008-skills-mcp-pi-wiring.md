@@ -39,10 +39,10 @@ Earlier piwin code incorrectly used:
      the same server id for UI Start + session tools).
    - Bridge close does **not** stop host-owned clients; host/manager dispose does.
 5. MCP transport: `McpTransportClient` interface with dual implementations —
-   **official** `@modelcontextprotocol/sdk` stdio client (default / auto) and
-   **handcrafted** NDJSON fallback when official connect fails. Override via
-   `PIWIN_MCP_CLIENT=official|handcrafted|auto`. Handcrafted retained until
-   official is proven across all user servers.
+   the official `@modelcontextprotocol/sdk` `Client` over piwin-owned stdio
+   transport (default / auto), and a handcrafted NDJSON compatibility fallback
+   when official connect fails. Both use the same owned process-tree close
+   contract. Override via `PIWIN_MCP_CLIENT=official|handcrafted|auto`.
 6. Register `mcp__<server>__<tool>` custom tools with a route table that keeps
    the original tool name (do not reverse-parse sanitized names alone).
 
@@ -59,8 +59,10 @@ Until a piwin-owned RPC worker or Pi extension channel exists:
 
 - `typebox` is a direct dependency of `@piwin/agent-host` (same major as Pi).
 - `@modelcontextprotocol/sdk` is a direct dependency of `@piwin/mcp`.
-- Dual MCP client is temporary; prefer official for Content-Length servers.
-- Host-owned permission gate wraps tool `execute` before network/MCP I/O.
+- The official SDK is preferred; the handcrafted path remains a compatibility
+  fallback for servers that do not work with the official client.
+- Host-owned permission gate wraps permissioned tool `execute`; MCP uses the
+  trusted Supervisor admission path defined by ADR 0033.
 - Desktop permission modal already resolves `permission/request`; tools must emit
   through HostRuntime.
 - Future: bash hard-gate via Pi extension `tool_call` hook (separate from custom tools).

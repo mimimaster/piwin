@@ -120,8 +120,12 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
   if (input.webFetch && input.availability.webFetchReady && hasNetwork) {
     enabledFamilies.add('web-fetch');
   }
-  // MCP: master AND at least one enabled server.
-  if (input.mcp && hasMcp && input.availability.mcpEnabledServerIds.length > 0) {
+  // MCP is a stable gateway family. The gateway remains exposed when there
+  // are currently no enabled servers; the Supervisor resolves the selector
+  // at call time and reports the current server/tool state.
+  const mcpGatewayAvailable =
+    input.availableFamilies?.has('mcp') ?? input.availability.mcpEnabledServerIds.length > 0;
+  if (input.mcp && hasMcp && mcpGatewayAvailable) {
     enabledFamilies.add('mcp');
   }
   // Process: exposure 'agent' AND backing service ready.

@@ -1,9 +1,10 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import type { McpConfigDocument, McpServerConfig } from '@piwin/contracts';
 
 export function createEmptyMcpConfig(): McpConfigDocument {
-  return { mcpServers: {} };
+  return { mcpServers: {}, pinnedSelectors: [] };
 }
 
 export function getMcpConfigPath(piwinRoot: string): string {
@@ -30,7 +31,18 @@ export async function saveMcpConfig(
   const validated = validateMcpConfig(document);
   const configPath = getMcpConfigPath(piwinRoot);
   await mkdir(dirname(configPath), { recursive: true });
-  await writeFile(configPath, `${JSON.stringify(validated, null, 2)}\n`, 'utf8');
+  const temporaryPath = `${configPath}.tmp-${process.pid}-${randomUUID()}`;
+  try {
+    await writeFile(temporaryPath, `${JSON.stringify(validated, null, 2)}\n`, 'utf8');
+    await rename(temporaryPath, configPath);
+  } catch (error) {
+    try {
+      await unlink(temporaryPath);
+    } catch {
+      // The original write/rename error is the actionable one.
+    }
+    throw error;
+  }
   return configPath;
 }
 
@@ -153,10 +165,37 @@ export function tryValidateMcpConfig(value: unknown): McpValidationResult {
     }
     normalized[serverId] = config;
   }
+
+  const pinnedSelectors: string[] = [];
+  const rawPinnedSelectors = record.pinnedSelectors;
+  if (rawPinnedSelectors !== undefined) {
+    if (!Array.isArray(rawPinnedSelectors)) {
+      issues.push({
+        path: 'pinnedSelectors',
+        message: 'pinnedSelectors must be an array of exact server.tool selectors',
+      });
+    } else {
+      const seen = new Set<string>();
+      for (const [index, selectorValue] of rawPinnedSelectors.entries()) {
+        if (typeof selectorValue !== 'string' || !isValidPinnedSelector(selectorValue)) {
+          issues.push({
+            path: `pinnedSelectors.${index}`,
+            message:
+              'selector must be an exact server.tool value (wildcards and whitespace are not allowed)',
+          });
+          continue;
+        }
+        if (!seen.has(selectorValue)) {
+          seen.add(selectorValue);
+          pinnedSelectors.push(selectorValue);
+        }
+      }
+    }
+  }
   if (issues.length > 0) {
     return { ok: false, issues };
   }
-  return { ok: true, document: { mcpServers: normalized } };
+  return { ok: true, document: { mcpServers: normalized, pinnedSelectors } };
 }
 
 export function validateMcpConfig(value: unknown): McpConfigDocument {
@@ -200,4 +239,8 @@ function isNotFound(error: unknown): boolean {
       'code' in error &&
       (error as { code?: string }).code === 'ENOENT',
   );
+}
+
+function isValidPinnedSelector(selector: string): boolean {
+  return /^[a-zA-Z0-9_-]+\.[^\s*]+$/.test(selector);
 }

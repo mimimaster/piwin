@@ -7,7 +7,6 @@ import {
   matchBashGlob,
   matchHostGlob,
   matchPathGlob,
-  matchSelectorGlob,
 } from './permission-rule-engine.js';
 import { createBundledRuleSet } from './permission-defaults.js';
 
@@ -25,14 +24,6 @@ function fileWriteRule(
   reason: string,
 ): PermissionRule {
   return { target: { kind: 'file-write', pathGlob }, decision, reason };
-}
-
-function mcpRule(
-  selectorGlob: string,
-  decision: PermissionRule['decision'],
-  reason: string,
-): PermissionRule {
-  return { target: { kind: 'mcp', selectorGlob }, decision, reason };
 }
 
 function webFetchRule(
@@ -108,17 +99,6 @@ describe('matchHostGlob', () => {
   });
 });
 
-describe('matchSelectorGlob', () => {
-  it('matches a server wildcard', () => {
-    expect(matchSelectorGlob('github.*', 'github.create_issue')).toBe(true);
-    expect(matchSelectorGlob('github.*', 'gitlab.create_issue')).toBe(false);
-  });
-
-  it('matches an exact selector', () => {
-    expect(matchSelectorGlob('github.create_issue', 'github.create_issue')).toBe(true);
-  });
-});
-
 describe('evaluateRules', () => {
   it('returns no-match when no rules apply', () => {
     const rules = createEmptyRuleSet();
@@ -167,16 +147,6 @@ describe('evaluateRules', () => {
     };
     const subject: PermissionSubject = { kind: 'file-write', path: '/abs/.env' };
     expect(evaluateRules({ subject, rules })).toBe('deny');
-  });
-
-  it('evaluates an mcp subject against selectorGlob rules', () => {
-    const rules: PermissionRuleSet = {
-      deny: [],
-      ask: [mcpRule('github.*', 'ask', 'github-write')],
-      allow: [],
-    };
-    const subject: PermissionSubject = { kind: 'mcp', selector: 'github.create_issue' };
-    expect(evaluateRules({ subject, rules })).toBe('ask');
   });
 
   it('evaluates a web-fetch subject against hostGlob rules', () => {

@@ -48,7 +48,9 @@ import {
   projectBlueprintForWorker,
   type SerializableBlueprint,
   type SerializableProviderRuntime,
+  ARTIFACT_RUNTIME_CONTRACT,
 } from '@piwin/agent-host';
+import { resolveArtifactDecisionPrompt } from '@piwin/contracts';
 import { getPiwinRoot } from './paths.js';
 import type { SessionBlueprint } from './session-blueprint.js';
 import { resolveContextManifest } from './capabilities/context-policy-resolver.js';
@@ -262,11 +264,22 @@ export async function compileBlueprintForWorker(
   const model = input.model
     ? { providerId: input.model.providerId, modelId: input.model.modelId }
     : undefined;
+
+  // Compose artifact system prompt from config (ADR 0029).
+  // The decision prompt is configurable; the runtime contract is fixed.
+  // Only inject when artifacts are enabled — otherwise the heavy path is disabled.
+  const artifactAppendPrompt = config.artifact.enabled
+    ? resolveArtifactDecisionPrompt(config.artifact) +
+      '\n\n' +
+      ARTIFACT_RUNTIME_CONTRACT
+    : undefined;
+
   const blueprint = projectBlueprintForWorker(snapshot, {
     ...(input.model
       ? { model: { providerId: input.model.providerId, modelId: input.model.modelId } }
       : {}),
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+    ...(artifactAppendPrompt ? { appendSystemPrompt: artifactAppendPrompt } : {}),
   });
 
   // Build provider envelope from live config.
@@ -283,6 +296,7 @@ export async function compileBlueprintForWorker(
     capabilitySnapshot: snapshot,
     ...(model ? { model: input.model } : {}),
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+    ...(artifactAppendPrompt ? { appendSystemPrompt: artifactAppendPrompt } : {}),
   };
 
   const sessionBlueprint: SessionBlueprint = {

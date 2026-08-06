@@ -33,15 +33,30 @@ describe('runtime stale domain classification (contracts)', () => {
   });
 
   it('appearance/artifact/media domains are not runtime-stale', () => {
-    for (const domain of ['desktop', 'artifact', 'media', 'visionDelegation', 'automation']) {
+    for (const domain of [
+      'desktop',
+      'artifact',
+      'media',
+      'visionDelegation',
+      'automation',
+      'mcp',
+    ]) {
       expect(isRuntimeStaleDomain(domain as never)).toBe(false);
     }
   });
 
   it('safety domains tighten immediately', () => {
-    for (const domain of ['permissions', 'web', 'process', 'notes', 'flashcards', 'subagents']) {
+    for (const domain of [
+      'permissions',
+      'web',
+      'process',
+      'notes',
+      'flashcards',
+      'subagents',
+    ]) {
       expect(isImmediateTighteningDomain(domain as never)).toBe(true);
     }
+    expect(isImmediateTighteningDomain('mcp' as never)).toBe(false);
   });
 });
 

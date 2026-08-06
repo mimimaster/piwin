@@ -443,7 +443,9 @@ Rules:
 - `ProcessConfig.enabled`, `NotesConfig.enabled`, and `FlashcardsConfig.enabled` are removed after migration.
 - `imagegen` Skill state no longer controls `image_gen` registration.
 - `web.searchSources[].enabled` remains source participation, not the Web Search master switch.
-- `mcp.json.mcpServers[id].disabled` remains server-level trust/availability, not the MCP family master switch.
+- `mcp.json.mcpServers[id].disabled` remains server availability. MCP trust is
+  configuration-based and outside the permission engine; lifecycle belongs to
+  the Host Supervisor (ADR 0033).
 
 ### 7.3 Settings commands
 
@@ -846,7 +848,7 @@ configured capability exposure
 |---|---|---|
 | Web Search | master on and at least one ready enabled source | Re-read exposure; deny when off |
 | Web Fetch | master on and configured provider ready | Re-read exposure; deny when off |
-| MCP | master on and at least one enabled server | Reconcile latest config; deny disabled family/server |
+| MCP | master on and the Host MCP gateway family is available; server inventory may be empty | Supervisor resolves current config at call time; disabled/removed selectors fail closed |
 | Process | exposure `agent` | Prevent new starts when no longer `agent`; list/stop existing remain available to manual product UI |
 | Browser | exposure `agent` and browser backend available | Deny Agent actions when downgraded; manual panel follows manual/off state |
 | Notes | `agent-read` or `agent-read-write` | Enforce current read/write level per call |
@@ -1106,7 +1108,6 @@ Changes that mark a runtime stale include:
 - resource enable/disable/install/path changes;
 - project trust changes;
 - Agent tool exposure changes;
-- MCP direct-tool inventory changes;
 - permission rule snapshot changes where the rule design remains session-bound;
 - subagent parent tool exposure changes.
 
@@ -1617,7 +1618,7 @@ Steps:
 4. Apply subagent ceiling to built-in and custom tools.
 5. Convert readonly behavior to capability policy.
 6. Remove Web Search when no source is ready.
-7. Remove MCP gateway/direct tools when family/server inventory is empty.
+7. Keep the MCP gateway when server inventory is empty; omit only unavailable cached direct tools.
 8. Remove Process/Browser/Notes/Flashcards/Image Generation tools according to exposure.
 9. Keep runtime execution gates for immediate tightening.
 10. Compile exact `SessionBlueprint`.

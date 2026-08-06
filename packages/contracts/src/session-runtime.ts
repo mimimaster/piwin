@@ -39,7 +39,6 @@ export const RUNTIME_STALE_DOMAINS: ReadonlySet<SettingsDomain> = new Set<Settin
   'flashcards',
   'permissions',
   'subagents',
-  'mcp',
 ]);
 
 /** Domains that tighten safety immediately even before runtime replacement. */
@@ -50,7 +49,6 @@ export const IMMEDIATE_TIGHTENING_DOMAINS: ReadonlySet<SettingsDomain> = new Set
   'notes',
   'flashcards',
   'subagents',
-  'mcp',
 ]);
 
 export function isRuntimeStaleDomain(domain: SettingsDomain): boolean {

@@ -65,6 +65,11 @@
 
 ### 3.2 MCP
 
+> 本节的 MCP 生命周期与 Pi 工具映射描述已由
+> [ADR 0033](../adr/0033-mcp-supervisor-architecture.md) supersede：实际接入
+> 使用 Host-scoped `McpSupervisor`，默认 gateway，只有 `pinnedSelectors` 中
+> 的精确工具才注册 direct 出口；`@piwin/agent-host` 不拥有 MCP 进程。
+
 | 来源 | 能抄什么 |
 |------|----------|
 | **[@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk)** | Client：stdio/SSE、`listTools`、`callTool` |
@@ -150,6 +155,7 @@ type McpServerConfig = {
 
 type McpConfigDocument = {
   mcpServers: Record<string, McpServerConfig>;
+  pinnedSelectors?: string[]; // exact server.tool selectors; no wildcards
 };
 
 type InstallSource =

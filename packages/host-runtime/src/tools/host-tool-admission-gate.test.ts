@@ -19,13 +19,10 @@ function gatewayRegistration(): HostToolRegistration {
     },
     family: 'mcp',
     permissionSpec: {
-      action: 'mcp:tool-call',
+      action: 'mcp:trusted',
       risk: 'mcp',
       rememberable: false,
-      subjectBuilder: (args) => {
-        const selector = typeof args.selector === 'string' ? args.selector.trim() : '';
-        return selector ? { kind: 'mcp', selector } : undefined;
-      },
+      admission: 'trusted',
     },
     execute: async () => ({ ok: true, output: 'ok' }),
   };
@@ -39,7 +36,7 @@ const context: HostToolExecutionContext = {
 };
 
 describe('createHostToolPermissionGate', () => {
-  it('does not infer gateway action from descriptor enum ordering', async () => {
+  it('treats MCP as local trusted execution without permission prompts', async () => {
     const gate = createHostToolPermissionGate({
       rules: createEmptyRuleSet(),
       getPermissionMode: () => 'auto',
@@ -54,13 +51,10 @@ describe('createHostToolPermissionGate', () => {
       signal: new AbortController().signal,
     });
 
-    expect(decision.allowed).toBe(false);
-    if (!decision.allowed && !decision.result.ok) {
-      expect(decision.result.code).toBe('invalid-input');
-    }
+    expect(decision.allowed).toBe(true);
   });
 
-  it('applies the dynamic ask-all mode to unmatched MCP calls', async () => {
+  it('does not enter ask-all mode for MCP calls', async () => {
     let mode: PermissionMode = 'auto';
     let promptCount = 0;
     const gate = createHostToolPermissionGate({
@@ -92,7 +86,7 @@ describe('createHostToolPermissionGate', () => {
       signal: new AbortController().signal,
     });
     expect(second.allowed).toBe(true);
-    expect(promptCount).toBe(1);
+    expect(promptCount).toBe(0);
   });
 
   it('uses session-scoped bash approvals without overriding an explicit deny', async () => {

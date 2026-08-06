@@ -25,7 +25,6 @@ import type {
   PermissionSubject,
   ToolResult,
 } from '@piwin/contracts';
-import { toolDisabledResult } from '@piwin/contracts';
 import { createEmptyNetworkPolicy } from '@piwin/contracts';
 import { getProjectNetworkPolicy } from '@piwin/project';
 import {
@@ -34,13 +33,11 @@ import {
   evaluateNotesPermission,
   evaluateProcessPermission,
   evaluateWebPermission,
-  redactMcpArgumentsSummary,
   resolveNonInteractiveDecision,
   type NotesPermissionAction,
   type PermissionEvaluation,
   type WebPermissionAction,
 } from '../permission-policy.js';
-import { findMatchingRule } from '../permission-rule-engine.js';
 import { evaluateBrowserNavigatePermission } from '../browser-tools.js';
 import type {
   HostToolAdmissionDecision,
@@ -87,6 +84,13 @@ export function createHostToolPermissionGate(
   return async ({ registration, args, context, signal }) => {
     try {
       const spec = registration.permissionSpec;
+
+      // MCP is explicitly local-trust scoped. It is still routed through the
+      // Host execution gate for generation/session ownership, but never enters
+      // the permission rule engine or asks the user for a prompt.
+      if (spec.admission === 'trusted') {
+        return { allowed: true };
+      }
 
       // Read-only tools pass the gate directly — but they still pass through
       // the port/router, never bypassing the execution path.
@@ -138,13 +142,6 @@ async function evaluateAdmission(
 ): Promise<AdmissionOutcome> {
   const action = registration.permissionSpec.action;
   const mode = options.getPermissionMode();
-
-  // MCP calls must always belong to the generation's enabled server allowlist
-  // before any rule evaluation (repair spec WP4).
-  if (action === 'mcp:tool-call') {
-    const selector = subject?.kind === 'mcp' ? subject.selector : undefined;
-    return evaluateMcpAdmission(selector, registration, args, context, options, mode, signal);
-  }
 
   // Tools that require a concrete subject must produce one; an undefined
   // subject here means argument parsing failed before admission and must not
@@ -362,114 +359,6 @@ function resolveDomainPolicy(
       }
       return { decision: 'allow', reason: 'unclassified-tool' };
   }
-}
-
-/**
- * MCP admission: generation allowlist + frozen selector rules. An enabled
- * server remains the trust boundary (ADR 0019 §5); explicit deny/ask rules
- * are never bypassed by PermissionMode.
- */
-async function evaluateMcpAdmission(
-  selector: string | undefined,
-  registration: HostToolRegistration,
-  args: Record<string, unknown>,
-  context: HostToolExecutionContext,
-  options: HostToolAdmissionGateOptions,
-  mode: PermissionMode,
-  signal: AbortSignal,
-): Promise<AdmissionOutcome> {
-  if (!selector) {
-    // Only gateway search/status are selector-free read-only operations.
-    // Read the actual invocation action; descriptor enum ordering is not a
-    // permission input and must never be used as a runtime default.
-    const action = registration.descriptor.name === 'mcp_gateway' ? String(args.action ?? '') : '';
-    const isReadOnlyGatewayAction = action === 'search' || action === 'status';
-    if (isReadOnlyGatewayAction || registration.descriptor.name !== 'mcp_gateway') {
-      return { kind: 'allowed' };
-    }
-    return {
-      kind: 'denied',
-      result: {
-        ok: false,
-        code: 'invalid-input',
-        message: `mcp_gateway call requires a selector`,
-      },
-    };
-  }
-
-  const serverId = selector.split('.')[0] ?? '';
-  if (!options.mcpEnabledServerIds.includes(serverId)) {
-    return {
-      kind: 'denied',
-      result: toolDisabledResult({
-        message: `MCP server "${serverId}" is not enabled for this runtime generation`,
-        domain: 'mcp',
-        runtimeGenerationId: context.runtimeGenerationId,
-      }),
-    };
-  }
-
-  const matched = findMatchingRule({ kind: 'mcp', selector }, options.rules);
-  if (matched && matched.decision === 'deny') {
-    return {
-      kind: 'denied',
-      result: {
-        ok: false,
-        code: 'permission-denied',
-        message: `Permission deny for MCP tool ${selector}: ${matched.reason}`,
-      },
-    };
-  }
-  if (matched && matched.decision === 'ask') {
-    let decision: PermissionDecision = 'ask';
-    if (options.requestPermission && !signal.aborted) {
-      decision = await options.requestPermission({
-        action: 'mcp:tool-call',
-        detail: `${selector} risk=mcp args=${redactMcpArgumentsSummary(args)}`,
-        defaultDecision: 'ask',
-        ...(signal ? { signal } : {}),
-      });
-    } else {
-      decision = 'deny';
-    }
-    if (decision !== 'allow') {
-      return {
-        kind: 'denied',
-        result: {
-          ok: false,
-          code: 'permission-denied',
-          message: `Permission ${decision} for MCP tool ${selector}`,
-        },
-      };
-    }
-  }
-
-  if (!matched && mode === 'ask-all') {
-    let decision: PermissionDecision = 'ask';
-    if (options.requestPermission && !signal.aborted) {
-      decision = await options.requestPermission({
-        action: 'mcp:tool-call',
-        detail: `${selector} risk=mcp args=${redactMcpArgumentsSummary(args)}`,
-        defaultDecision: 'ask',
-        ...(signal ? { signal } : {}),
-      });
-    } else {
-      decision = 'deny';
-    }
-    if (decision !== 'allow') {
-      return {
-        kind: 'denied',
-        result: {
-          ok: false,
-          code: 'permission-denied',
-          message: `Permission ${decision} for MCP tool ${selector}`,
-        },
-      };
-    }
-  }
-
-  // No-match / allow: enabled server is the trust boundary.
-  return { kind: 'allowed' };
 }
 
 /** Project-remembered network allow (web_search / web_fetch). */

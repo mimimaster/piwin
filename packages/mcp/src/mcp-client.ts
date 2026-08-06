@@ -1,12 +1,13 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { setTimeout as delay } from 'node:timers/promises';
+import { spawn } from 'node:child_process';
 import type { McpServerConfig, McpToolSummary } from '@piwin/contracts';
 import { expandEnvMap } from './mcp-config.js';
+import { closeMcpProcessTree } from './mcp-process-tree.js';
 import { toMcpToolSummary } from './tool-names.js';
 import type {
   CreateMcpClientOptions,
   McpClientKind,
   McpListedTool,
+  McpOwnedProcess,
   McpTransportClient,
 } from './mcp-transport.js';
 
@@ -15,13 +16,20 @@ import type {
  * Prefer @modelcontextprotocol/sdk when fully wired; this path keeps M4 testable
  * without requiring the SDK at package-load time if install fails.
  */
-export async function connectHandcraftedMcpStdio(
+export function spawnHandcraftedMcpStdio(
   serverId: string,
   config: McpServerConfig,
   signal?: AbortSignal,
-): Promise<McpTransportClient> {
+): McpOwnedProcess {
   if (signal?.aborted) {
-    throw new Error(`MCP connect aborted: ${serverId}`);
+    const error = Promise.reject<McpTransportClient>(
+      new Error(`MCP connect aborted: ${serverId}`),
+    );
+    return {
+      pid: undefined,
+      ready: error,
+      close: async () => undefined,
+    };
   }
   const env = {
     ...process.env,
@@ -30,7 +38,11 @@ export async function connectHandcraftedMcpStdio(
   const child = spawn(config.command, config.args ?? [], {
     env,
     stdio: ['pipe', 'pipe', 'pipe'],
+    // Give local compatibility transports their own process group so close
+    // can terminate npx/node descendants together on Unix.
+    detached: process.platform !== 'win32',
   });
+  const spawnedPid = child.pid ?? undefined;
 
   const pending = new Map<
     number,
@@ -40,7 +52,14 @@ export async function connectHandcraftedMcpStdio(
   let buffer = '';
   let closed = false;
   let intentionalClose = false;
+  let closePromise: Promise<void> | null = null;
   const exitHandlers = new Set<(reason: string) => void>();
+
+  function closeOwnedProcess(): Promise<void> {
+    intentionalClose = true;
+    closePromise ??= closeMcpProcessTree(child, spawnedPid);
+    return closePromise;
+  }
 
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (chunk: string) => {
@@ -141,7 +160,9 @@ export async function connectHandcraftedMcpStdio(
       const abortHandler = (): void => {
         pending.delete(id);
         reject(new Error(`MCP operation aborted: ${serverId}`));
-        void closeChild(child);
+        // Abort is the caller's cancellation edge; the Supervisor still
+        // awaits the owned handle through the enclosing ready/call path.
+        void closeOwnedProcess();
       };
       if (signal) {
         signal.addEventListener('abort', abortHandler, { once: true });
@@ -166,68 +187,103 @@ export async function connectHandcraftedMcpStdio(
     });
   }
 
-  // Initialize handshake (MCP lifecycle)
+  const ready = (async (): Promise<McpTransportClient> => {
+    try {
+      await send(
+        'initialize',
+        {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'piwin', version: '0.0.0' },
+        },
+        signal,
+      );
+      // notifications/initialized (no id)
+      child.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+        })}\n`,
+      );
+
+      const session: McpTransportClient = {
+        serverId,
+        async listTools(operationSignal) {
+          const result = (await send('tools/list', {}, operationSignal)) as {
+            tools?: Array<{
+              name: string;
+              description?: string;
+              inputSchema?: Record<string, unknown>;
+            }>;
+          };
+          return (result.tools ?? []).map((tool) => {
+            const item: McpListedTool = { name: tool.name };
+            if (typeof tool.description === 'string') {
+              item.description = tool.description;
+            }
+            if (tool.inputSchema && typeof tool.inputSchema === 'object') {
+              item.inputSchema = tool.inputSchema;
+            }
+            return item;
+          });
+        },
+        async callTool(name, args, operationSignal) {
+          return send('tools/call', { name, arguments: args }, operationSignal);
+        },
+        async close() {
+          await closeOwnedProcess();
+        },
+        onExit(handler) {
+          exitHandlers.add(handler);
+          if (closed && !intentionalClose) {
+            // Already exited before subscribe — notify next tick so the manager can wire first.
+            queueMicrotask(() => {
+              if (!intentionalClose) {
+                handler(`MCP server ${serverId} already exited`);
+              }
+            });
+          }
+          return () => {
+            exitHandlers.delete(handler);
+          };
+        },
+      };
+      if (spawnedPid !== undefined) {
+        session.pid = spawnedPid;
+      }
+      return session;
+    } catch (error) {
+      await closeOwnedProcess();
+      throw error;
+    }
+  })();
+
+  // The supervisor normally awaits this promise. Attach a rejection handler as
+  // well so a caller that only wants to close a failed handle cannot create an
+  // unhandled-rejection process warning.
+  // Keep rejection handled for a close-before-ready caller.
+  void ready.catch(() => undefined);
+  return {
+    get pid(): number | undefined {
+      return spawnedPid;
+    },
+    ready,
+    close: closeOwnedProcess,
+  };
+}
+
+export async function connectHandcraftedMcpStdio(
+  serverId: string,
+  config: McpServerConfig,
+  signal?: AbortSignal,
+): Promise<McpTransportClient> {
+  const owned = spawnHandcraftedMcpStdio(serverId, config, signal);
   try {
-    await send('initialize', {
-      protocolVersion: '2024-11-05',
-      capabilities: {},
-      clientInfo: { name: 'piwin', version: '0.0.0' },
-    }, signal);
-    // notifications/initialized (no id)
-    child.stdin.write(
-      `${JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'notifications/initialized',
-      })}\n`,
-    );
+    return await owned.ready;
   } catch (error) {
-    await closeChild(child);
+    await owned.close();
     throw error;
   }
-
-  const session: McpTransportClient = {
-    serverId,
-    async listTools(signal) {
-      const result = (await send('tools/list', {}, signal)) as {
-        tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
-      };
-      return (result.tools ?? []).map((tool) => {
-        const item: McpListedTool = { name: tool.name };
-        if (typeof tool.description === 'string') {
-          item.description = tool.description;
-        }
-        if (tool.inputSchema && typeof tool.inputSchema === 'object') {
-          item.inputSchema = tool.inputSchema;
-        }
-        return item;
-      });
-    },
-    async callTool(name, args, signal) {
-      return send('tools/call', { name, arguments: args }, signal);
-    },
-    async close() {
-      intentionalClose = true;
-      await closeChild(child);
-    },
-    onExit(handler) {
-      exitHandlers.add(handler);
-      if (closed && !intentionalClose) {
-        // Already exited before subscribe — notify next tick so manager can wire first.
-        queueMicrotask(() => {
-          if (!intentionalClose) {
-            handler(`MCP server ${serverId} already exited`);
-          }
-        });
-      }
-      return () => {
-        exitHandlers.delete(handler);
-      };
-    },
-  };
-  if (typeof child.pid === 'number') {
-    session.pid = child.pid;
-  }
-  return session;
 }
 
 /**
@@ -236,67 +292,141 @@ export async function connectHandcraftedMcpStdio(
  *
  * Override with options.prefer or env PIWIN_MCP_CLIENT=official|handcrafted|auto.
  */
+export function spawnMcpStdio(
+  serverId: string,
+  config: McpServerConfig,
+  options: CreateMcpClientOptions = {},
+): McpOwnedProcess {
+  if (options.signal?.aborted) {
+    const ready = Promise.reject<McpTransportClient>(
+      new Error(`MCP connect aborted: ${serverId}`),
+    );
+    return { pid: undefined, ready, close: async () => undefined };
+  }
+  const prefer = resolveClientPreference(options.prefer);
+
+  let currentProcess: McpOwnedProcess | null = null;
+  let closeRequested = false;
+  let resolveProcessCreated: (() => void) | undefined;
+  const processCreated = new Promise<void>((resolve) => {
+    resolveProcessCreated = resolve;
+  });
+
+  async function awaitProcess(
+    processPromise: Promise<McpOwnedProcess>,
+  ): Promise<McpTransportClient> {
+    const owned = await processPromise;
+    currentProcess = owned;
+    resolveProcessCreated?.();
+    if (closeRequested) {
+      await owned.close();
+      throw new Error(`MCP connect aborted: ${serverId}`);
+    }
+    return owned.ready;
+  }
+
+  const ready = (async (): Promise<McpTransportClient> => {
+    try {
+      if (prefer === 'handcrafted') {
+        return await awaitProcess(
+          Promise.resolve(spawnHandcraftedMcpStdio(serverId, config, options.signal)),
+        );
+      }
+
+      const { spawnOfficialMcpStdio } = await import('./mcp-client-official.js');
+      if (prefer === 'official') {
+        return await awaitProcess(spawnOfficialMcpStdio(serverId, config, options.signal));
+      }
+
+      // auto: official first, handcrafted fallback. The wrapper remains the
+      // owned handle throughout the fallback so the supervisor never loses
+      // the process it must close.
+      let officialError: unknown;
+      try {
+        const officialProcess = await spawnOfficialMcpStdio(
+          serverId,
+          config,
+          options.signal,
+        );
+        currentProcess = officialProcess;
+        resolveProcessCreated?.();
+        const officialReady = withTimeout(
+          officialProcess.ready,
+          8_000,
+          `official MCP connect timeout for ${serverId}`,
+          options.signal,
+        );
+        if (closeRequested) {
+          await officialProcess.close();
+          throw new Error(`MCP connect aborted: ${serverId}`);
+        }
+        return await officialReady;
+      } catch (error) {
+        officialError = error;
+        await currentProcess?.close();
+        if (closeRequested || options.signal?.aborted) {
+          throw error;
+        }
+      }
+
+      const officialMessage =
+        officialError instanceof Error ? officialError.message : String(officialError);
+      const handcraftedProcess = spawnHandcraftedMcpStdio(
+        serverId,
+        config,
+        options.signal,
+      );
+      currentProcess = handcraftedProcess;
+      resolveProcessCreated?.();
+      if (closeRequested) {
+        await handcraftedProcess.close();
+        throw new Error(`MCP connect aborted: ${serverId}`);
+      }
+      try {
+        const client = await handcraftedProcess.ready;
+        console.warn(
+          `[piwin/mcp] official MCP client failed for ${serverId} (${officialMessage}); using handcrafted fallback`,
+        );
+        return client;
+      } catch (handcraftedError) {
+        const handcraftedMessage =
+          handcraftedError instanceof Error
+            ? handcraftedError.message
+            : String(handcraftedError);
+        throw new Error(
+          `MCP connect failed for ${serverId}: official=${officialMessage}; handcrafted=${handcraftedMessage}`,
+        );
+      }
+    } finally {
+      resolveProcessCreated?.();
+    }
+  })();
+
+  void ready.catch(() => undefined);
+  return {
+    get pid(): number | undefined {
+      return currentProcess?.pid;
+    },
+    ready,
+    close: async () => {
+      closeRequested = true;
+      await processCreated;
+      await currentProcess?.close();
+    },
+  };
+}
+
 export async function connectMcpStdio(
   serverId: string,
   config: McpServerConfig,
   options: CreateMcpClientOptions = {},
 ): Promise<McpTransportClient> {
-  if (options.signal?.aborted) {
-    throw new Error(`MCP connect aborted: ${serverId}`);
-  }
-  const prefer = resolveClientPreference(options.prefer);
-
-  if (prefer === 'handcrafted') {
-    return connectHandcraftedMcpStdio(serverId, config, options.signal);
-  }
-
-  if (prefer === 'official') {
-    const { connectOfficialMcpStdio } = await import('./mcp-client-official.js');
-    return connectOfficialMcpStdio(serverId, config, options.signal);
-  }
-
-  // auto: official first, handcrafted fallback
+  const owned = spawnMcpStdio(serverId, config, options);
   try {
-    const { connectOfficialMcpStdio } = await import('./mcp-client-official.js');
-    const officialConnection = connectOfficialMcpStdio(
-      serverId,
-      config,
-      options.signal,
-    );
-    return await withTimeout(
-      officialConnection,
-      8_000,
-      `official MCP connect timeout for ${serverId}`,
-      options.signal,
-      () => {
-        void officialConnection.then(
-          (lateClient) => lateClient.close(),
-          () => undefined,
-        );
-      },
-    );
-  } catch (officialError) {
-    const officialMessage =
-      officialError instanceof Error ? officialError.message : String(officialError);
-    try {
-      const client = await connectHandcraftedMcpStdio(
-        serverId,
-        config,
-        options.signal,
-      );
-      console.warn(
-        `[piwin/mcp] official MCP client failed for ${serverId} (${officialMessage}); using handcrafted fallback`,
-      );
-      return client;
-    } catch (handcraftedError) {
-      const handcraftedMessage =
-        handcraftedError instanceof Error
-          ? handcraftedError.message
-          : String(handcraftedError);
-      throw new Error(
-        `MCP connect failed for ${serverId}: official=${officialMessage}; handcrafted=${handcraftedMessage}`,
-      );
-    }
+    return await owned.ready;
+  } catch (error) {
+    await owned.close();
+    throw error;
   }
 }
 
@@ -366,39 +496,4 @@ export async function listToolsForServer(
   } finally {
     await session.close();
   }
-}
-
-/** Grace period after SIGTERM before escalating to SIGKILL (ms). */
-const CLOSE_GRACE_MS = 2_000;
-/** Hard deadline for the entire close sequence (ms). */
-const CLOSE_HARD_DEADLINE_MS = 5_000;
-
-async function closeChild(child: ChildProcessWithoutNullStreams): Promise<void> {
-  if (child.killed) {
-    return;
-  }
-  child.stdin.end();
-  child.kill('SIGTERM');
-  await waitForExit(child, CLOSE_GRACE_MS, CLOSE_HARD_DEADLINE_MS);
-}
-
-/**
- * Wait for a child process to exit, escalating SIGTERM to SIGKILL if needed.
- * Returns when the process has exited or the hard deadline elapses.
- */
-async function waitForExit(
-  child: ChildProcessWithoutNullStreams,
-  graceMs: number,
-  hardDeadlineMs: number,
-): Promise<void> {
-  const exitPromise = new Promise<void>((resolve) => {
-    child.once('close', () => resolve());
-  });
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-  if (await Promise.race([exitPromise, delay(graceMs)]) === undefined) {
-    try { child.kill('SIGKILL'); } catch { /* already gone */ }
-  }
-  await Promise.race([exitPromise, delay(hardDeadlineMs - graceMs)]);
 }

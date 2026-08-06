@@ -77,9 +77,27 @@ export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpTools
     validTools.push(...tools);
   }
 
-  const { direct } = selectDirectMcpTools(validTools, createDefaultMcpExposurePolicy());
+  const pinnedSelectors = document.pinnedSelectors ?? [];
+  const selection = selectDirectMcpTools(validTools, {
+    ...createDefaultMcpExposurePolicy(),
+    mode: pinnedSelectors.length > 0 ? 'pinned' : 'gateway',
+    pinnedSelectors,
+  });
+  const cachedSelectors = new Set(validTools.map((tool) => tool.selector));
+  for (const selector of pinnedSelectors) {
+    if (!cachedSelectors.has(selector)) {
+      warnings.push(`pinned MCP selector ${selector} has no valid cached metadata`);
+    }
+  }
+  for (const metadata of selection.overflow) {
+    warnings.push(
+      `pinned MCP selector ${metadata.selector} exceeds the direct exposure budget and remains gateway-only`,
+    );
+  }
 
-  const hostTools = direct.map((metadata) => buildDirectHostTool(metadata, options, snapshot));
+  const hostTools = selection.direct.map((metadata) =>
+    buildDirectHostTool(metadata, options, snapshot),
+  );
 
   return {
     tools: hostTools,
@@ -105,13 +123,10 @@ function buildDirectHostTool(
     },
     family: 'mcp',
     permissionSpec: {
-      action: 'mcp:tool-call',
+      action: 'mcp:trusted',
       risk: 'mcp',
       rememberable: false,
-      subjectBuilder: () => ({
-        kind: 'mcp',
-        selector: `${metadata.serverId}.${metadata.toolName}`,
-      }),
+      admission: 'trusted',
     },
     async execute(args, signal) {
       const selector = `${metadata.serverId}.${metadata.toolName}`;
@@ -132,7 +147,6 @@ function buildDirectHostTool(
           metadata.toolName,
           args,
           signal,
-          snapshot,
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

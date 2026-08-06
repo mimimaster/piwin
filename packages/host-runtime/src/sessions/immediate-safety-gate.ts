@@ -60,10 +60,6 @@ export function isToolBlockedByTightening(
       return family === 'flashcards-write';
     case 'subagents':
       return family === 'delegate';
-    case 'mcp':
-      // Removed / disabled / trust-tightened servers cannot be mapped per
-      // selector here; fail closed for the whole mcp family.
-      return family === 'mcp';
     default:
       return false;
   }
