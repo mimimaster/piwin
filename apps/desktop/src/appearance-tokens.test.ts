@@ -279,16 +279,16 @@ describe('applyAppearanceToDocument Paper/Noir projection', () => {
   it('projects Noir dark derived ramp with inverted accent', () => {
     applyAppearanceToDocument(PIWIN_APPEARANCE_DARK);
     const s = document.documentElement.style;
-    expect(s.getPropertyValue('--canvas').trim()).toBe('#0f0f0f');
-    expect(s.getPropertyValue('--card').trim()).toBe('#1a1a1a');
-    expect(s.getPropertyValue('--sidebar').trim()).toBe('#1c1c1c');
-    expect(s.getPropertyValue('--composer').trim()).toBe('#1c1c1c');
-    expect(s.getPropertyValue('--sunken').trim()).toBe('#0a0a0a');
-    expect(s.getPropertyValue('--faint').trim()).toBe('#6e6e76');
-    expect(s.getPropertyValue('--text').trim()).toBe('#e0e0e3');
-    expect(s.getPropertyValue('--muted').trim()).toBe('#8a8a92');
-    expect(s.getPropertyValue('--accent').trim()).toBe('#d8d8dc');
-    expect(s.getPropertyValue('--border').trim()).toBe('rgba(255, 255, 255, 0.10)');
+    expect(s.getPropertyValue('--canvas').trim()).toBe('#141416');
+    expect(s.getPropertyValue('--card').trim()).toBe('#1d1e24');
+    expect(s.getPropertyValue('--sidebar').trim()).toBe('#1e1f24');
+    expect(s.getPropertyValue('--composer').trim()).toBe('#1c1c21');
+    expect(s.getPropertyValue('--sunken').trim()).toBe('#101012');
+    expect(s.getPropertyValue('--faint').trim()).toBe('#585862');
+    expect(s.getPropertyValue('--text').trim()).toBe('#e4e4e7');
+    expect(s.getPropertyValue('--muted').trim()).toBe('#8e8e98');
+    expect(s.getPropertyValue('--accent').trim()).toBe('#6366f1');
+    expect(s.getPropertyValue('--border').trim()).toBe('rgba(255, 255, 255, 0.05)');
     // Column chrome is intentionally stronger than card borders.
     expect(s.getPropertyValue('--column-divider').trim()).toBe('rgba(255, 255, 255, 0.16)');
     // Noir: accent 是浅灰，accent 上的字必须是近黑

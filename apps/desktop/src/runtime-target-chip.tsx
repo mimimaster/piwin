@@ -7,7 +7,7 @@ import type { ReactElement } from 'react';
 import { DropdownMenu, DropdownMenuItem } from '@piwin/ui-kit';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
-import { IconCloud, IconLaptop } from './shell-icons';
+import { IconChevronDown, IconCloud, IconLaptop } from './shell-icons';
 
 export type RuntimeTargetChipProps = {
   /**
@@ -43,7 +43,7 @@ export function RuntimeTargetChip(props: RuntimeTargetChipProps): ReactElement {
             {copy.runtimeLocalLabel}
           </span>
           <span className="composer-context-link-caret" aria-hidden>
-            ▾
+            <IconChevronDown width={13} height={13} />
           </span>
         </button>
       }

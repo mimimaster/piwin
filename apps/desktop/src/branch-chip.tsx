@@ -21,7 +21,7 @@ import { DropdownMenu, DropdownMenuItem } from '@piwin/ui-kit';
 import { useConfirmDialog } from './use-confirm-dialog';
 import { useDesktopLocale } from './desktop-locale-context';
 import { getDesktopCopy } from './desktop-locale';
-import { IconGit } from './shell-icons';
+import { IconChevronDown, IconGit } from './shell-icons';
 
 export type BranchChipRequest =
   | { type: 'git/status'; projectPath: string }
@@ -237,9 +237,8 @@ export function BranchChip(props: BranchChipProps): ReactElement | null {
               <IconGit width={13} height={13} />
             </span>
             <span className="composer-context-link-label">{label}</span>
-            {dirty ? <span className="composer-context-link-dot" aria-hidden /> : null}
             <span className="composer-context-link-caret" aria-hidden>
-              ▾
+              <IconChevronDown width={13} height={13} />
             </span>
           </button>
         }

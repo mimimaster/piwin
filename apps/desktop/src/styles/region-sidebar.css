@@ -22,15 +22,17 @@
   min-height: 0;
   gap: 0;
   padding: 0 8px 10px;
-  background: var(--sidebar);
+  /* Slightly more open glass so all three columns share one translucency. */
+  background: color-mix(in srgb, var(--sidebar) 70%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-right: none;
   transition:
     opacity 200ms ease,
     transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
   backface-visibility: hidden;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
 }
+
 
 
 .sidebar.is-resizing {
@@ -103,7 +105,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 4px;
   min-height: 0;
   margin-bottom: 6px;
   padding-bottom: 8px;
@@ -116,63 +118,79 @@
   margin-bottom: 8px;
 }
 
-.sidebar-new-agent {
+.sidebar-primary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Flat menu-row actions (New Agent / Search), Cursor-style. */
+.sidebar-action-row {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
-  height: 30px;
-  min-height: 30px;
-  margin: 0 0 6px;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  min-height: 32px;
+  margin: 0;
   padding: 0 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  color: var(--muted, #94a3b8);
+  color: var(--text-secondary, var(--muted, #94a3b8));
   cursor: pointer;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-align: left;
   box-shadow: none;
   transition:
     background 140ms ease,
     color 140ms ease;
 }
 
-.sidebar-new-agent:hover:not(:disabled) {
+.sidebar-action-row:hover:not(:disabled) {
   background: var(--hover, rgba(255, 255, 255, 0.06));
   color: var(--text, #f8fafc);
 }
 
-.sidebar-new-agent:active:not(:disabled) {
+.sidebar-action-row:active:not(:disabled) {
   background: var(--active, rgba(255, 255, 255, 0.1));
 }
 
-.sidebar-new-agent:disabled {
+.sidebar-action-row:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.sidebar-new-agent svg {
-  width: 14px;
-  height: 14px;
+.sidebar-action-row svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  opacity: 0.88;
 }
 
 .search-field {
   display: flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
-  min-height: 30px;
-  margin-bottom: 8px;
-  padding: 0 9px;
-  color: var(--faint);
+  height: 32px;
+  min-height: 32px;
+  margin: 0;
+  padding: 0 10px;
+  color: var(--muted);
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
   background: color-mix(in srgb, var(--text) 5%, var(--sidebar));
-  font-size: 12px;
+  font-size: 13px;
   transition:
     box-shadow 140ms ease,
     background 140ms ease;
+}
+
+.sidebar-search-field {
+  margin: 0;
 }
 
 .search-field:focus-within {
@@ -187,7 +205,7 @@
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   padding: 0;
 }
 
@@ -199,11 +217,11 @@
 .search-field .kbd {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--faint);
   border: 1px solid var(--line);
   border-radius: 4px;
-  padding: 0 4px;
+  padding: 0 5px;
 }
 
 /* ── Section scaffolding ──────────────────────────────────────────── */
@@ -219,10 +237,10 @@
   margin: 12px 0 4px;
   min-height: 22px;
   padding: 0 6px;
-  color: var(--faint);
-  font-size: 11.5px;
+  color: var(--muted);
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
@@ -658,17 +676,20 @@ html[data-theme-mode='light'] .sidebar-see-all-btn:hover {
 .session-row .session-item {
   position: relative;
   width: 100%;
-  padding: 5px 10px;
-  padding-right: 36px;
+  /* Compact history row: title size stays, vertical chrome shrinks. */
+  min-height: 26px;
+  padding: 0 8px;
+  padding-right: 44px;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text);
   cursor: pointer;
   text-align: left;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  line-height: 1.2;
   transition:
     background 140ms ease,
     color 140ms ease,
@@ -678,7 +699,7 @@ html[data-theme-mode='light'] .sidebar-see-all-btn:hover {
 
 .session-row:hover .session-item,
 .session-row:focus-within .session-item {
-  padding-right: 108px;
+  padding-right: 84px;
 }
 
 .session-item:hover:not(.active),
@@ -709,6 +730,7 @@ html[data-theme-mode='light'] .session-item.active {
   font-size: 13.5px;
   font-weight: 500;
   letter-spacing: -0.012em;
+  line-height: 1.2;
   color: color-mix(in srgb, var(--text) 92%, transparent);
   white-space: nowrap;
   overflow: hidden;
@@ -908,10 +930,10 @@ html[data-theme-mode='light'] .session-item.active {
 
 .session-action-btn {
   flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
+  width: 22px;
+  height: 22px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: transparent;
   color: var(--faint);
   cursor: pointer;
@@ -1356,12 +1378,40 @@ html[data-theme-mode='light'] .repository-row.active > svg {
   align-items: center;
   justify-content: space-between;
   gap: 2px;
-  height: 38px;
-  min-height: 38px;
+  height: var(--titleband-height, 36px);
+  min-height: var(--titleband-height, 36px);
   margin-bottom: 4px;
   padding-left: 78px; /* Clearance gap for macOS traffic lights 🔴🟡🟢 */
   padding-right: 4px;
   box-sizing: border-box;
+}
+
+/* Titleband is a drag surface; interactive children opt out. */
+.sidebar-titlebar-box {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.sidebar-titlebar-drag {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 24px;
+  min-height: 100%;
+  cursor: default;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.sidebar-titlebar-box [data-no-window-drag],
+.sidebar-titlebar-box button,
+.sidebar-titlebar-box a,
+.sidebar-titlebar-box input,
+.sidebar-titlebar-box .piwin-icon-button,
+.sidebar-titlebar-box .sidebar-header-left,
+.sidebar-titlebar-box .sidebar-header-right,
+.sidebar-titlebar-box .sidebar-history {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .sidebar-header-left {

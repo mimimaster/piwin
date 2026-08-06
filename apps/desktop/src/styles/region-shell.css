@@ -94,7 +94,10 @@
   min-width: 0;
   min-height: 0;
   /* Conversation stage: deepest (dark) / white (light) surface. */
-  background: var(--canvas, var(--bg));
+  /* Glass stage so wallpaper / shell field can read through the conversation. */
+  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .chat-column {
@@ -105,7 +108,9 @@
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  background: var(--canvas, var(--bg));
+  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   /* Panel open/close changes stage width; avoid width transitions on chrome. */
   transition: none;
 }
@@ -130,15 +135,17 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--canvas, var(--bg));
+  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .workspace-document-stage .doc-preview-panel {
-  background: var(--canvas, var(--bg));
+  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
 }
 
 .workspace-document-stage .doc-preview-header {
-  background: var(--canvas, var(--bg));
+  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
 }
 
 /* A new session is composer-first: no landing page, just the prompt card. */

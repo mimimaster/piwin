@@ -9,6 +9,7 @@ import {
   PET_SPRITE_ROWS,
 } from '@piwin/contracts';
 import { PetBubble } from './PetBubble';
+import { defaultPetContentBounds, detectPetContentBounds, type PetContentBounds } from './pet-content-bounds.js';
 import {
   PET_BUBBLE_MAX_WIDTH_PX,
   PET_OVERLAY_PAD_Y_PX,
@@ -63,6 +64,11 @@ export function PetSprite(props: PetSpriteProps) {
   const tempActionUntil = useRef<number>(0);
   const hoverRef = useRef<boolean>(false);
   const lastStateRef = useRef<PetAnimationState | null>(null);
+  const [contentBounds, setContentBounds] = useState<PetContentBounds>(() =>
+    defaultPetContentBounds(props.pet.cellWidth, props.pet.cellHeight),
+  );
+  const boundsRef = useRef<PetContentBounds>(contentBounds);
+  boundsRef.current = contentBounds;
 
   petRef.current = props.pet;
 
@@ -71,13 +77,13 @@ export function PetSprite(props: PetSpriteProps) {
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    if (canvas.width !== props.pet.cellWidth) {
-      canvas.width = props.pet.cellWidth;
+    if (canvas.width !== contentBounds.width) {
+      canvas.width = contentBounds.width;
     }
-    if (canvas.height !== props.pet.cellHeight) {
-      canvas.height = props.pet.cellHeight;
+    if (canvas.height !== contentBounds.height) {
+      canvas.height = contentBounds.height;
     }
-  }, [props.pet.cellWidth, props.pet.cellHeight]);
+  }, [contentBounds.width, contentBounds.height]);
 
   // Load spritesheet with immediate cache lookup.
   useEffect(() => {
@@ -86,18 +92,35 @@ export function PetSprite(props: PetSpriteProps) {
     const cached = imageCacheMap.get(src);
     if (cached && (cached.naturalWidth > 0 || cached.complete)) {
       imageRef.current = cached;
+      const detected = detectPetContentBounds(
+        cached,
+        props.pet.cellWidth,
+        props.pet.cellHeight,
+        props.pet.cols,
+        props.pet.rows,
+      );
+      setContentBounds(detected);
       return;
     }
 
     // Switching pets: drop the previous sheet so the loop does not slice the
     // old image with the new pet's cell geometry/rows while this one loads.
     imageRef.current = null;
+    setContentBounds(defaultPetContentBounds(props.pet.cellWidth, props.pet.cellHeight));
 
     const img = new Image();
     img.src = src;
     img.onload = () => {
       imageCacheMap.set(src, img);
       imageRef.current = img;
+      const detected = detectPetContentBounds(
+        img,
+        props.pet.cellWidth,
+        props.pet.cellHeight,
+        props.pet.cols,
+        props.pet.rows,
+      );
+      setContentBounds(detected);
     };
     img.onerror = () => {};
     return () => {
@@ -143,14 +166,15 @@ export function PetSprite(props: PetSpriteProps) {
           const imgWidth = img.naturalWidth || img.width;
           const imgHeight = img.naturalHeight || img.height;
 
+          const bounds = boundsRef.current;
           if (!imgWidth || !imgHeight || (srcX < imgWidth && srcY < imgHeight)) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(
               img,
-              srcX,
-              srcY,
-              pet.cellWidth,
-              pet.cellHeight,
+              srcX + bounds.x,
+              srcY + bounds.y,
+              bounds.width,
+              bounds.height,
               0,
               0,
               canvas.width,
@@ -253,7 +277,7 @@ export function PetSprite(props: PetSpriteProps) {
 
   const displaySize = useMemo(
     () => resolvePetDisplaySize(props.pet.cellWidth, props.pet.cellHeight),
-    [props.pet.cellWidth, props.pet.cellHeight],
+    [contentBounds.width, contentBounds.height],
   );
 
   const style: React.CSSProperties = {

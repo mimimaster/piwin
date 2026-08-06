@@ -17,15 +17,16 @@
   min-width: 0;
   min-height: 0;
   margin: 0;
-  background: var(--sidebar);
+  /* Match left-rail glass: translucent column over the shell field. */
+  background: color-mix(in srgb, var(--sidebar) 70%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 0;
   border-left: none;
   box-shadow: none;
   overflow: hidden;
   /* Instant show/hide — opacity/transform open felt like a full-shell flash. */
   transition: none;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
 }
 
 /* Collapsed: keep-mounted (PTY) but out of layout and focus. */
@@ -127,12 +128,41 @@
   box-sizing: border-box;
 }
 
+/* Titleband is a drag surface; tabs/actions opt out. */
+.right-panel-titlebar-box {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.right-panel-titlebar-drag {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 24px;
+  min-height: 100%;
+  cursor: default;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.right-panel-tabstrip [data-no-window-drag],
+.right-panel-tabstrip button,
+.right-panel-tabstrip a,
+.right-panel-tabstrip input,
+.right-panel-tabstrip .piwin-icon-button,
+.right-panel-tabstrip .right-panel-tabs,
+.right-panel-tabstrip .right-panel-tab,
+.right-panel-tabstrip .right-panel-actions {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 .right-panel-tabs {
   display: flex;
   align-items: stretch;
   gap: 2px;
   min-width: 0;
-  flex: 1;
+  /* Grow only with tab content so the titlebar drag strip can claim free space. */
+  flex: 0 1 auto;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -359,10 +389,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   flex: 1;
   min-height: 0;
-  padding: 44px 20px 20px;
+  padding: 20px;
   overflow: auto;
 }
 
@@ -381,9 +411,9 @@
   gap: 8px;
   aspect-ratio: 1;
   padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+  border: 1px solid transparent;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--panel) 30%, transparent);
+  background: color-mix(in srgb, var(--panel) 40%, transparent);
   color: var(--text-muted, var(--muted));
   font-size: 12.5px;
   font-weight: 500;
@@ -397,7 +427,7 @@
 
 .right-panel-home-tile:hover {
   background: var(--wb-hover, var(--surface-hover));
-  border-color: color-mix(in srgb, var(--text) 14%, transparent);
+  border-color: transparent;
   color: var(--text);
 }
 
@@ -579,12 +609,12 @@
 }
 
 .right-panel[data-view='home'] {
-  background: var(--sidebar);
+  background: color-mix(in srgb, var(--sidebar) 70%, transparent);
 }
 
 /* Match left sidebar surface; no column divider stroke. */
 .right-panel {
-  background: var(--sidebar);
+  background: color-mix(in srgb, var(--sidebar) 70%, transparent);
   border-left: none;
 }
 

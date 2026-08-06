@@ -258,6 +258,16 @@ export function IconSearch(props: IconProps): ReactElement {
   );
 }
 
+/** Paper-plane / new-agent glyph (Cursor-style sidebar action). */
+export function IconPaperPlane(props: IconProps): ReactElement {
+  return (
+    <IconBase strokeWidth={1.7} {...props}>
+      <path d="M4.2 11.8 19.5 4.5 12.2 19.8l-1.7-6.3-6.3-1.7Z" />
+      <path d="M10.5 13.5 19.5 4.5" />
+    </IconBase>
+  );
+}
+
 export function IconSend(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>

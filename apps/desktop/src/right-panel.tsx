@@ -8,8 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { IconClose, IconMcp, IconMoon, IconMore, IconPanelLeft, IconPanelRight, IconSkill, IconSun } from './shell-icons';
-import { DropdownMenu, DropdownMenuItem } from '@piwin/ui-kit';
+import { IconClose, IconMoon, IconPanelRight, IconSun } from './shell-icons';
 import { getDesktopCopy } from './desktop-locale';
 import type { DesktopLocale } from './desktop-locale';
 import { IconButton } from '@piwin/ui-kit';
@@ -18,6 +17,7 @@ import { sectionLabel, sectionIcon, type RightPanelTab } from './right-panel-sec
 import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
 import { RIGHT_PANEL_MAX_WIDTH_PX, RIGHT_PANEL_MIN_WIDTH_PX } from './right-panel-width';
+import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
 
 /** @deprecated use presence of open tabs; kept for App attention gating. */
 export type RightPanelView = 'home' | 'detail';
@@ -228,8 +228,23 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       />
 
       {/* Cursor-style tab strip */}
-      <div className="right-panel-tabstrip right-panel-titlebar-box" data-testid="right-panel-tabstrip" role="tablist">
-        <div className="right-panel-tabs">
+      <div
+        className="right-panel-tabstrip right-panel-titlebar-box"
+        data-testid="right-panel-tabstrip"
+        role="tablist"
+        data-tauri-drag-region
+        onMouseDown={handleNativeWindowDragMouseDown}
+      >
+        <RightPanelPlusMenu
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          locale={locale}
+          openTabs={openTabs}
+          onSelect={openTab}
+          active={pickerOpen}
+        />
+
+        <div className="right-panel-tabs" data-no-window-drag>
           {openTabs.map((tab) => {
             const isActive = tab === active;
             const label = sectionLabel(tab, locale);
@@ -282,18 +297,15 @@ export function RightPanel(props: RightPanelProps): ReactElement {
               </div>
             );
           })}
-
-          <RightPanelPlusMenu
-            open={pickerOpen}
-            onOpenChange={setPickerOpen}
-            locale={locale}
-            openTabs={openTabs}
-            onSelect={openTab}
-            active={pickerOpen}
-          />
         </div>
 
-        <div className="right-panel-actions">
+        <WindowDragRegion
+          className="right-panel-titlebar-drag"
+          data-testid="right-panel-titlebar-drag"
+          aria-label={getDesktopCopy(locale).titlebar.dragWindow}
+        />
+
+        <div className="right-panel-actions" data-no-window-drag>
           {props.onToggleAppearance ? (
             <IconButton
               className="right-panel-action-btn"
@@ -307,43 +319,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             </IconButton>
           ) : null}
 
-          {props.onOpenSettings || props.onOpenSkills || props.onOpenMcp ? (
-            <div className="right-panel-more-wrap">
-              <DropdownMenu
-                label={getDesktopCopy(locale).titlebar.moreTools}
-                trigger={
-                  <IconButton
-                    title={getDesktopCopy(locale).titlebar.more}
-                    label={getDesktopCopy(locale).titlebar.moreTools}
-                    data-testid="titlebar-more-menu"
-                  >
-                    <IconMore />
-                  </IconButton>
-                }
-              >
-                {props.onToggleSessions ? (
-                  <DropdownMenuItem testId="more-sessions" onSelect={props.onToggleSessions}>
-                    <IconPanelLeft /> {getDesktopCopy(locale).titlebar.sessions}
-                  </DropdownMenuItem>
-                ) : null}
-                {props.onOpenSkills ? (
-                  <DropdownMenuItem testId="more-skills" onSelect={props.onOpenSkills}>
-                    <IconSkill width={16} height={16} /> {getDesktopCopy(locale).titlebar.skills}
-                  </DropdownMenuItem>
-                ) : null}
-                {props.onOpenMcp ? (
-                  <DropdownMenuItem testId="more-mcp" onSelect={props.onOpenMcp}>
-                    <IconMcp width={16} height={16} /> MCP
-                  </DropdownMenuItem>
-                ) : null}
-                {props.onOpenSettings ? (
-                  <DropdownMenuItem testId="more-settings" onSelect={props.onOpenSettings}>
-                    {getDesktopCopy(locale).settings}
-                  </DropdownMenuItem>
-                ) : null}
-              </DropdownMenu>
-            </div>
-          ) : null}
+
 
           <IconButton
             className="right-panel-action-btn active"

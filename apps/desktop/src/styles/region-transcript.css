@@ -30,7 +30,7 @@
   bottom: 28px;
   left: 0;
   height: 32px;
-  background: var(--canvas, var(--bg, #f4f4f5));
+  background: color-mix(in srgb, var(--canvas, var(--bg, #f4f4f5)) 70%, transparent);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
@@ -448,11 +448,11 @@
    onto the existing .bubble.role-user article element. */
 .bubble.role-user {
   background: var(--user-bubble);
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
   border-radius: 12px 12px 4px 12px;
   padding: 9px 14px;
   font-size: var(--chat-font-size, 13.5px);
-  line-height: 1.6;
+  line-height: 1.35;
 }
 
 /* In-place edit reuses the bottom ComposerCard. Reset the bubble frame so the
@@ -1857,9 +1857,10 @@
   max-width: 100%;
   margin-left: 0;
   margin-right: 0;
-  padding: 14px 16px 12px;
+  /* Compact history record chrome; message text size stays below. */
+  padding: 6px 12px;
   border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-  border-radius: 16px;
+  border-radius: 12px;
   /* Same surface as the composer input card (history records = input color). */
   background: var(--composer, var(--user-bubble, var(--sidebar)));
   box-shadow: none;
@@ -1880,17 +1881,19 @@ html[data-theme-mode='dark'] .bubble.role-user {
 
 .bubble.role-user .message-text {
   font-size: 14.5px;
-  line-height: 1.55;
+  line-height: 1.35;
   letter-spacing: -0.01em;
   color: var(--text);
 }
 
 .user-message-wrapper {
   display: flex;
-  align-items: flex-start;
+  /* Keep prompt text and trailing time/actions on one optical midline. */
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   width: 100%;
+  min-height: 28px;
 }
 
 .user-message-wrapper .message-text {
@@ -1898,6 +1901,10 @@ html[data-theme-mode='dark'] .bubble.role-user {
   min-width: 0;
   white-space: pre-wrap;
   word-break: break-word;
+  /* Kill inherited bubble line-height so single-line text sits centered. */
+  display: block;
+  margin: 0;
+  padding: 0;
 }
 
 /* ── Collapsible user message ──────────────────────────────────────────── */
@@ -1908,6 +1915,7 @@ html[data-theme-mode='dark'] .bubble.role-user {
   position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: center;
 }
 
 .user-message-collapsible.is-clickable {
@@ -1918,7 +1926,7 @@ html[data-theme-mode='dark'] .bubble.role-user {
    history headers compact even when the prompt contains image attachments. */
 .user-message-collapsible.is-collapsed {
   overflow: hidden;
-  max-height: 64px;
+  max-height: 40px;
   /* Fade mask: sharp at top, ghostly at bottom */
   -webkit-mask-image: linear-gradient(
     to bottom,
@@ -1937,7 +1945,7 @@ html[data-theme-mode='dark'] .bubble.role-user {
 }
 
 .user-message-collapsible.has-attachments.is-collapsed {
-  max-height: 80px;
+  max-height: 56px;
 }
 
 .user-message-collapsible.has-attachments.is-collapsed .media-preview-image {
@@ -1956,13 +1964,15 @@ html[data-theme-mode='dark'] .bubble.role-user {
 .user-message-actions {
   display: inline-flex;
   align-items: center;
+  align-self: center;
   gap: 4px;
   flex: 0 0 auto;
-  padding: 2px 6px;
+  height: 22px;
+  padding: 0 6px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--panel, #fff) 45%, transparent);
   border: 1px solid color-mix(in srgb, var(--line, #ccc) 35%, transparent);
-  font-size: 11.5px;
+  font-size: 11px;
   line-height: 1;
   color: var(--muted);
   user-select: none;
@@ -1978,10 +1988,15 @@ html[data-theme-mode='dark'] .bubble.role-user {
 }
 
 .user-message-time {
-  font-size: 18px !important;
-  font-family: var(--font-mono, monospace), sans-serif;
+  /* Secondary meta next to actions — normal small size, not title-sized. */
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  font-family: inherit;
   color: var(--muted);
-  opacity: 0.85;
+  opacity: 0.8;
   padding-right: 2px;
 }
 
@@ -2159,18 +2174,17 @@ html[data-theme-mode='dark'] .bubble.role-user {
 }
 
 .md-code-block {
-  margin: 8px 0;
-  border: none;
+  margin: 10px 0;
+  border: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
   border-radius: 12px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--surface-inset) 80%, var(--canvas));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 5%, transparent);
+  background: var(--card, #18191e);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .md-code-block[data-is-shell='true'] {
-  border: 1px solid
-    color-mix(in srgb, var(--accent) 25%, color-mix(in srgb, var(--text) 12%, transparent));
-  background: color-mix(in srgb, var(--surface-inset) 92%, #0d1117);
+  border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+  background: #18191e;
 }
 
 .md-code-header {
@@ -2178,19 +2192,28 @@ html[data-theme-mode='dark'] .bubble.role-user {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 5%, transparent);
+  padding: 8px 14px;
+  background: #18191e;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 4%, transparent);
+  transition: background 160ms ease, box-shadow 160ms ease;
 }
 
 .md-code-block[data-is-shell='true'] .md-code-header {
-  background: color-mix(in srgb, var(--accent) 8%, color-mix(in srgb, var(--text) 4%, transparent));
-  border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  background: #18191e;
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 4%, transparent);
+  padding: 9px 14px;
+}
+
+.md-code-header:hover,
+.md-code-block:hover .md-code-header {
+  background: color-mix(in srgb, var(--accent) 7%, #18191e);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 30%, transparent), 0 2px 10px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .md-code-header-title {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .md-code-shell-icon {
@@ -2200,17 +2223,44 @@ html[data-theme-mode='dark'] .bubble.role-user {
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
-  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: transparent;
+  color: var(--muted);
   font-family: var(--mono);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
 }
 
 .md-code-lang {
-  font-size: 11px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
   text-transform: lowercase;
+}
+
+.md-code-block[data-is-shell='true'] .md-code-line-num {
+  display: none;
+}
+
+.md-code-block[data-is-shell='true'] .md-code {
+  padding: 4px 14px 12px;
+}
+
+.md-code-block[data-is-shell='true'] .md-code-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.md-code-block[data-is-shell='true'] .md-code-line::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  flex-shrink: 0;
 }
 
 .md-code-block .md-code {
