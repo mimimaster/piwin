@@ -1,10 +1,12 @@
 // @vitest-environment happy-dom
 /**
- * FileTreePanel component tests (Task 3: tree-first layout).
+ * FileTreePanel component tests.
  *
  * Verifies:
- *  - Full-height tree renders without the split preview pane.
- *  - Clicking a file row calls onOpenFile with absolute + relative path.
+ *  - Tree-only layout until a file is opened.
+ *  - Clicking a file opens an inline left/right split (preview | tree) inside the panel.
+ *  - Directory rows are pure-text expand controls (no folder icon).
+ *  - Optional onOpenFile still fires with absolute + relative path.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
@@ -91,6 +93,24 @@ describe('FileTreePanel', () => {
           { name: 'src', relativePath: 'src', kind: 'directory' },
         ]);
       }
+      if (cmd.type === 'project/read-file') {
+        return {
+          id: '2',
+          type: 'response',
+          command: 'project/read-file',
+          success: true,
+          data: {
+            projectPath: '/proj',
+            relativePath: 'README.md',
+            absolutePath: '/proj/README.md',
+            content: '# Hello\n\npreview body',
+            byteSize: 20,
+            truncated: false,
+            isBinary: false,
+            mimeHint: 'text/markdown',
+          },
+        };
+      }
       return {
         id: '1',
         type: 'response',
@@ -112,16 +132,33 @@ describe('FileTreePanel', () => {
     );
     expect(readmeRow).toBeTruthy();
 
-    // No split layout class, no preview pane.
+    // Before open: no split layout class, no preview pane.
     expect(document.querySelector('.file-tree-panel-split')).toBeNull();
     expect(queryByTestId('file-tree-preview')).toBeNull();
 
-    act(() => {
+    await act(async () => {
       readmeRow?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(onOpenFile).toHaveBeenCalledTimes(1);
     expect(onOpenFile).toHaveBeenCalledWith('/proj/README.md', 'README.md');
+
+    // After open: split stays inside the file-tree panel (left content, right tree).
+    const panel = queryByTestId('file-tree-panel');
+    expect(panel?.className).toContain('file-tree-panel-split');
+    expect(panel?.getAttribute('data-split')).toBe('true');
+    expect(queryByTestId('file-tree-preview')).toBeTruthy();
+    expect(queryByTestId('file-tree-browser')).toBeTruthy();
+    expect(queryByTestId('code-preview-view')?.textContent).toContain('preview body');
+
+    // Directory row is pure text: no folder icon svg under the src row.
+    const srcRow = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find(
+      (row) => row.textContent?.includes('src'),
+    );
+    expect(srcRow).toBeTruthy();
+    expect(srcRow?.querySelector('.file-tree-icon')).toBeNull();
+    expect(srcRow?.querySelector('.file-tree-twist')).toBeTruthy();
   });
 
   it('filters visible names by query', async () => {
@@ -176,6 +213,23 @@ describe('FileTreePanel', () => {
           { name: 'main.ts', relativePath: 'main.ts', kind: 'file' },
         ]);
       }
+      if (cmd.type === 'project/read-file') {
+        return {
+          id: '2',
+          type: 'response',
+          command: 'project/read-file',
+          success: true,
+          data: {
+            projectPath: '/proj',
+            relativePath: 'README.md',
+            absolutePath: '/proj/README.md',
+            content: 'readme content',
+            byteSize: 14,
+            truncated: false,
+            isBinary: false,
+          },
+        };
+      }
       return {
         id: '1',
         type: 'response',
@@ -199,12 +253,14 @@ describe('FileTreePanel', () => {
       list.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
     });
 
-    act(() => {
+    await act(async () => {
       list.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
     expect(onOpenFile).toHaveBeenCalledTimes(1);
     expect(onOpenFile).toHaveBeenCalledWith('/proj/README.md', 'README.md');
+    expect(queryByTestId('file-tree-preview')).toBeTruthy();
   });
 
   it('shows M badge for a modified file from git/status', async () => {

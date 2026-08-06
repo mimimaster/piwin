@@ -1,7 +1,9 @@
 /**
  * Workspace file tree (right inspector Files tab).
  * Lazy-loads children via host project/list-dir.
- * File click → opens document preview via onOpenFile; drag / Insert path → composer.
+ * File click → split layout inside the right panel (left: content, right: tree).
+ * Directory rows are pure-text expand/collapse controls (no folder icon).
+ * Optional onOpenFile still fires for host/App integration; drag / Insert path → composer.
  */
 import {
   useCallback,
@@ -18,10 +20,12 @@ import type {
   HostResponse,
   ProjectDirEntry,
   ProjectListDirData,
+  ProjectReadFileData,
 } from '@piwin/contracts';
 import { Button, EmptyState, IconButton, Notice, Spinner } from '@piwin/ui-kit';
-import { IconChevronDown, IconChevronRight, IconRefresh } from './shell-icons';
+import { IconChevronDown, IconChevronRight, IconClose, IconRefresh } from './shell-icons';
 import { FileTypeIcon } from './file-type-icon';
+import { CodePreviewView } from './code-preview-view';
 import {
   buildGitStatusByPath,
   filterTreeNodes,
@@ -55,10 +59,21 @@ export type FileTreePanelProps = {
   request: (command: FileTreeRequest) => Promise<HostResponse>;
   /** Insert absolute/relative path into composer (text models). */
   onInsertPath?: (absolutePath: string, relativePath: string) => void;
-  /** Open file in DocPreview (App handleOpenDocument). */
+  /**
+   * Optional external open hook (e.g. DocPreview). Primary UX is the inline
+   * split preview inside this panel — content stays in the right column.
+   */
   onOpenFile?: (absolutePath: string, relativePath: string) => void;
   /** Desktop locale for locale-aware UI strings. */
   locale?: DesktopLocale;
+};
+
+type FilePreviewState = {
+  relativePath: string;
+  absolutePath: string;
+  content: string;
+  truncated: boolean;
+  isBinary: boolean;
 };
 
 function entryToNode(entry: ProjectDirEntry): FileTreeNodeState {
@@ -166,6 +181,10 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [filterQuery, setFilterQuery] = useState('');
   const [gitStatusMap, setGitStatusMap] = useState<Map<string, GitFileStatusCode>>(() => new Map());
+  const [preview, setPreview] = useState<FilePreviewState | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const locale = props.locale ?? 'zh-CN';
 
   const loadDirectory = useCallback(
     async (relativePath: string): Promise<ProjectDirEntry[]> => {
@@ -344,8 +363,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     if (result.expandPath) void setExpanded(result.expandPath, true);
     if (result.collapsePath) void setExpanded(result.collapsePath, false);
     if (result.activatePath) {
-      const abs = absoluteFor(result.activatePath);
-      props.onOpenFile?.(abs, result.activatePath);
+      void openFilePreview(result.activatePath);
     }
   }
 
@@ -355,12 +373,67 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     return `${base}/${relativePath}`;
   }
 
+  /** Load file content into the left pane of the right-panel split. */
+  async function openFilePreview(relativePath: string): Promise<void> {
+    if (!props.projectPath) return;
+    const absolutePath = absoluteFor(relativePath);
+    setSelectedPath(relativePath);
+    setPreviewLoading(true);
+    setPreviewError(null);
+    // Keep previous content visible until the new read lands (smoother switch).
+    props.onOpenFile?.(absolutePath, relativePath);
+    try {
+      const response = await props.request({
+        type: 'project/read-file',
+        projectPath: props.projectPath,
+        relativePath,
+      });
+      if (!response.success) {
+        throw new Error(response.error);
+      }
+      const data = response.data as ProjectReadFileData;
+      setPreview({
+        relativePath: data.relativePath || relativePath,
+        absolutePath: data.absolutePath || absolutePath,
+        content: data.content ?? '',
+        truncated: data.truncated === true,
+        isBinary: data.isBinary === true,
+      });
+    } catch (loadError) {
+      setPreview(null);
+      setPreviewError(formatError(loadError));
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function closeFilePreview(): void {
+    setPreview(null);
+    setPreviewError(null);
+    setPreviewLoading(false);
+  }
+
   function handleDragStart(event: DragEvent, relativePath: string): void {
     const absolutePath = absoluteFor(relativePath);
     event.dataTransfer.setData('text/plain', absolutePath);
     event.dataTransfer.setData(PIWIN_PATH_MIME, JSON.stringify({ absolutePath, relativePath }));
     event.dataTransfer.effectAllowed = 'copy';
   }
+
+  // Clear preview when the workspace changes so stale content cannot linger.
+  useEffect(() => {
+    setPreview(null);
+    setPreviewError(null);
+    setPreviewLoading(false);
+    setSelectedPath(null);
+  }, [props.projectPath]);
+
+  const isSplitOpen = preview != null || previewLoading || previewError != null;
+  const previewFileName = preview
+    ? preview.relativePath.split(/[\\/]/).pop() || preview.relativePath
+    : selectedPath
+      ? selectedPath.split(/[\\/]/).pop() || selectedPath
+      : '';
 
   if (!props.projectPath) {
     return (
@@ -371,8 +444,65 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   }
 
   return (
-    <div className="file-tree-panel" data-testid="file-tree-panel">
-      <div className="file-tree-main">
+    <div
+      className={`file-tree-panel${isSplitOpen ? ' file-tree-panel-split' : ''}`}
+      data-testid="file-tree-panel"
+      data-split={isSplitOpen ? 'true' : 'false'}
+    >
+      {isSplitOpen ? (
+        <section className="file-tree-preview" data-testid="file-tree-preview" aria-label="File preview">
+          <header className="file-tree-preview-header">
+            <div className="file-tree-preview-title">
+              {previewFileName ? (
+                <>
+                  <FileTypeIcon filePathOrExt={previewFileName} />
+                  <strong title={preview?.relativePath ?? selectedPath ?? undefined}>
+                    {previewFileName}
+                  </strong>
+                </>
+              ) : (
+                <strong>{locale === 'zh-CN' ? '文件预览' : 'File preview'}</strong>
+              )}
+            </div>
+            <IconButton
+              title={locale === 'zh-CN' ? '关闭预览' : 'Close preview'}
+              label={locale === 'zh-CN' ? '关闭预览' : 'Close preview'}
+              data-testid="file-tree-preview-close"
+              onClick={closeFilePreview}
+            >
+              <IconClose width={14} height={14} />
+            </IconButton>
+          </header>
+          <div className="file-tree-preview-body">
+            {previewLoading && !preview ? (
+              <div className="file-tree-loading">
+                <Spinner />
+                <span className="muted">{locale === 'zh-CN' ? '加载中…' : 'Loading…'}</span>
+              </div>
+            ) : null}
+            {previewError ? <Notice tone="error">{previewError}</Notice> : null}
+            {preview && preview.isBinary ? (
+              <div className="file-tree-preview-binary muted">
+                {locale === 'zh-CN'
+                  ? '此文件为二进制或无法以文本预览。'
+                  : 'This file is binary or cannot be previewed as text.'}
+              </div>
+            ) : null}
+            {preview && !preview.isBinary ? (
+              <>
+                {preview.truncated ? (
+                  <div className="file-tree-preview-truncated muted">
+                    {locale === 'zh-CN' ? '内容已截断' : 'Content truncated'}
+                  </div>
+                ) : null}
+                <CodePreviewView code={preview.content} filePath={preview.relativePath} />
+              </>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      <div className="file-tree-main" data-testid="file-tree-browser">
         <header className="file-tree-header">
           <div>
             <span className="inspector-kicker">Workspace</span>
@@ -389,8 +519,8 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
           className="file-tree-filter"
           value={filterQuery}
           onChange={(e) => setFilterQuery(e.target.value)}
-          placeholder={props.locale === 'zh-CN' ? '筛选已加载文件…' : 'Filter loaded files…'}
-          aria-label={props.locale === 'zh-CN' ? '筛选文件' : 'Filter files'}
+          placeholder={locale === 'zh-CN' ? '筛选已加载文件…' : 'Filter loaded files…'}
+          aria-label={locale === 'zh-CN' ? '筛选文件' : 'Filter files'}
         />
         {loading ? (
           <div className="file-tree-loading">
@@ -416,8 +546,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                   selectedPath={selectedPath}
                   gitStatusMap={gitStatusMap}
                   onSelectFile={(relativePath) => {
-                    setSelectedPath(relativePath);
-                    props.onOpenFile?.(absoluteFor(relativePath), relativePath);
+                    void openFilePreview(relativePath);
                   }}
                   onToggle={(path) => void handleToggle(path)}
                   onDragStart={handleDragStart}
@@ -426,18 +555,18 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
             )}
           </ul>
         )}
+        {props.onInsertPath && selectedPath ? (
+          <footer className="file-tree-footer">
+            <Button
+              size="compact"
+              data-testid="file-insert-path-btn"
+              onClick={() => props.onInsertPath?.(absoluteFor(selectedPath), selectedPath)}
+            >
+              Insert path
+            </Button>
+          </footer>
+        ) : null}
       </div>
-      {props.onInsertPath && selectedPath ? (
-        <footer className="file-tree-footer">
-          <Button
-            size="compact"
-            data-testid="file-insert-path-btn"
-            onClick={() => props.onInsertPath?.(absoluteFor(selectedPath), selectedPath)}
-          >
-            Insert path
-          </Button>
-        </footer>
-      ) : null}
     </div>
   );
 }
@@ -488,9 +617,12 @@ function FileTreeNodeView(props: {
             )
           ) : null}
         </span>
-        <span className="file-tree-icon" aria-hidden>
-          <FileTypeIcon filePathOrExt={isDir ? `${node.entry.name}/` : node.entry.name} />
-        </span>
+        {/* Folders are pure-text expand buttons — no folder glyph. Files keep type icons. */}
+        {!isDir ? (
+          <span className="file-tree-icon" aria-hidden>
+            <FileTypeIcon filePathOrExt={node.entry.name} />
+          </span>
+        ) : null}
         <span className="file-tree-name">{node.entry.name}</span>
         {status ? (
           <span

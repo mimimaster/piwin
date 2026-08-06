@@ -2453,6 +2453,51 @@
   background: var(--surface-inset);
   border-radius: 10px;
   padding: 8px 8px 8px 12px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-radius 0.12s ease;
+}
+
+.provider-model-row:hover {
+  background: color-mix(in srgb, var(--accent, #4f46e5) 6%, var(--surface-inset));
+}
+
+.provider-model-expand-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 0;
+  margin-left: -4px;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.provider-model-expand-btn:hover {
+  background: color-mix(in srgb, var(--accent, #4f46e5) 12%, transparent);
+  color: var(--accent, #4f46e5);
+}
+
+.provider-model-chevron {
+  transition: transform 0.18s ease;
+}
+
+.provider-model-chevron:not(.provider-model-chevron--open) {
+  transform: rotate(-90deg);
+}
+
+.provider-model-item--expanded .provider-model-row {
+  border-radius: 8px 8px 0 0;
+  background: color-mix(in srgb, var(--accent, #4f46e5) 7%, var(--surface-inset));
 }
 
 .provider-model-id {
@@ -3154,8 +3199,31 @@
 .model-edit-inline-footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 6px;
   padding-top: 1px;
+}
+
+.model-edit-inline-saved {
+  margin-right: auto;
+  font-size: 11px;
+  font-weight: 550;
+  color: var(--ok, #0f9d63);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  animation: model-edit-saved-fade 0.15s ease;
+}
+
+@keyframes model-edit-saved-fade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ── Shortcuts reference page (Settings → Shortcuts) ───────────── */

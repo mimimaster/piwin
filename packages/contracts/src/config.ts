@@ -171,6 +171,11 @@ export type DiscoveredModel = {
   reasoning?: boolean;
   contextWindow?: number;
   maxOutputTokens?: number;
+  /**
+   * Capabilities inferred by the host during discovery, e.g.
+   * `['image-generation']` when the model id matches Pi's image catalog.
+   */
+  capabilities?: ModelCapability[];
 };
 
 /** Safe model discovery payload. Never includes API credentials. */

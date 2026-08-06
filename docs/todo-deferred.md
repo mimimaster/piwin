@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Living execution backlog |
-| Updated | 2026-08-04 |
+| Updated | 2026-08-06 |
 | Roadmap | [`v1-completion-roadmap.md`](./specs/v1-completion-roadmap.md) |
 | Rule | This is the **only** task backlog. Specs explain design and acceptance; this file tracks execution state. |
 
@@ -109,9 +109,14 @@
 | ID | Item | Why deferred | Suggested |
 |----|------|--------------|-----------|
 | D-GIT-01 | ~~stage / commit / branch~~ | Done | done |
+| D-GIT-01b | ~~Composer branch chip (list local + checkout)~~ | **Done 2026-08-06** — `git/branch-list` + Desktop `BranchChip` on composer toolbar; confirm on dirty; disabled while streaming | done (minimal) |
 | D-GIT-02 | Complex DAG visualization (multi-parent layout) | linear parent list sufficient | polish |
 | D-GIT-03 | Auto-inject git status into agent prompt context | needs product policy | later |
 | D-GIT-04 | force-push / hard reset / clean -fdx | explicitly out of v1 write slice | never silent; P6 if ever |
+| D-GIT-05 | Session **workspace/space** switch chip (project root or registered worktree cwd) | Branch chip shipped first; multi-cwd is a separate product surface | after D-GIT-01b polish |
+| D-CTX-01 | Composer **runtime target** chip pair: **本机 (Local / This Mac)** + **云端 (Cloud)** | Cursor-style execution-location affordance; real Cloud needs personal gateway (CE-GW / W4). **Ship UI first without fake connectivity.** | UI polish then W4 |
+| D-CTX-01a | ~~Runtime chip **v0 (honest stub)**~~ | **Done 2026-08-06** — Desktop `RuntimeTargetChip`: **本机** active; **云端** grey/disabled; tooltip **「未连接到远程服务器」** / “Not connected to a remote server”. No fake Cloud path. | done (stub) |
+| D-CTX-01b | Runtime chip **v1 (connected)** | When personal remote gateway is connected, enable Cloud (or rename to gateway host label); switching target must rebind tool/bash cwd/runtime — not a cosmetic toggle | after CE-GW |
 
 ### 2.5 Session / Host / Engineering
 

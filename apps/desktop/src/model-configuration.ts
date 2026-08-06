@@ -218,6 +218,16 @@ function mergeDiscoveredModelEntry(
   if (!model.label?.trim() && discoveredLabel && discoveredLabel !== modelId) {
     model.label = discoveredLabel;
   }
+  // Capabilities from discovery are authoritative hints (e.g. host auto-tags
+  // known Pi image models). Union them in so re-import never drops a tag the
+  // user or a previous import already set.
+  if (discoveredModel.capabilities?.length) {
+    const capabilities = new Set(model.capabilities ?? []);
+    for (const capability of discoveredModel.capabilities) {
+      capabilities.add(capability);
+    }
+    model.capabilities = [...capabilities];
+  }
   if (model.input === undefined && discoveredModel.input) {
     model.input = discoveredModel.input;
   }

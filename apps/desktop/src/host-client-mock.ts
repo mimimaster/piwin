@@ -1162,6 +1162,24 @@ export class MockHostBackend {
             },
           },
         };
+      case 'git/branch-list':
+        return {
+          id,
+          type: 'response',
+          command: 'git/branch-list',
+          success: true,
+          data: {
+            branches: {
+              repository: { rootPath: command.projectPath, isRepository: true },
+              branches: [
+                { name: 'main', current: true, shortHash: 'abc1234' },
+                { name: 'feat/demo', current: false, shortHash: 'def5678' },
+              ],
+              truncated: false,
+              totalBranches: 2,
+            },
+          },
+        };
       case 'git/diff-summary':
         return {
           id,

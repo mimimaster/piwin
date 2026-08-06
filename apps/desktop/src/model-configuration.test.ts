@@ -247,6 +247,41 @@ describe('model configuration', () => {
     ]);
   });
 
+  it('carries image-generation capability from discovered models into the entry', () => {
+    const models = mergeDiscoveredModels(
+      [],
+      [
+        {
+          id: 'gpt-image-1',
+          capabilities: ['image-generation'],
+          input: ['text', 'image'],
+        },
+      ],
+    );
+
+    expect(models).toEqual([
+      {
+        id: 'gpt-image-1',
+        capabilities: ['image-generation'],
+        input: ['text', 'image'],
+      },
+    ]);
+  });
+
+  it('unions discovered capabilities into an existing entry without dropping tags', () => {
+    const models = mergeDiscoveredModels(
+      [{ id: 'gpt-image-1', capabilities: ['video-generation'] }],
+      [{ id: 'gpt-image-1', capabilities: ['image-generation'] }],
+    );
+
+    expect(models).toEqual([
+      {
+        id: 'gpt-image-1',
+        capabilities: ['video-generation', 'image-generation'],
+      },
+    ]);
+  });
+
   it('modelSupportsImage treats omitted input as text-only', () => {
     expect(modelSupportsImage(undefined)).toBe(false);
     expect(modelSupportsImage({ input: ['text'] })).toBe(false);

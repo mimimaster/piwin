@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Updated | 2026-08-04 |
+| Updated | 2026-08-06 |
 | Backlog | [`todo-deferred.md`](./todo-deferred.md) |
 | Depth program | [`specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) |
 | Optimization program | [`specs/product-optimization-program.md`](./specs/product-optimization-program.md) **Active** |
@@ -25,8 +25,10 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Markdown + KaTeX/Mermaid | green | Soft-fail fences |
 | Artifact HTML | green | Sandbox iframe |
 | Git status/commit | green | No force-push |
+| Composer branch chip | green | Local branches list + checkout confirm; project sessions only |
 | Memory / process tools | green | Feature-flagged config |
 | Shell dock | yellow→green on Tauri | **Tauri PTY + xterm** when running desktop; Node shell preview is removed by Runtime Refactor Phase 1 |
+| Runtime target chip (Local / Cloud) | yellow | **Stub shipped:** 本机 active; 云端 grey + tooltip「未连接到远程服务器」; real switch after CE-GW (D-CTX-01b) |
 | RPC isolation | yellow | SDK fallback is transitional; Runtime Refactor Phase 3 requires one isolated worker per runtime generation |
 | Hooks / cron | yellow | Thin post-event; cron needs host up |
 | Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; no second Node shell-preview architecture in the target state |

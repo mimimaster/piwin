@@ -11,6 +11,9 @@
   position: relative;
   z-index: 10;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   width: 100%;
   /* Full stage wrapper; .composer-card-v2 below owns the selected content measure. */
   max-width: none;
@@ -54,7 +57,8 @@
    .chat-thread, so Default equals the Composer width and Narrow / Wide change
    both visible surfaces together. */
 .composer-card-v2,
-.composer-footer-row {
+.composer-footer-row,
+.composer-context-rail {
   width: var(--chat-max);
   max-width: 100%;
   margin-right: auto;
@@ -83,6 +87,215 @@
   align-items: center;
   margin-top: 6px;
   padding: 0 4px;
+}
+
+/* Floating context layer OUTSIDE the input card (project / branch / runtime). */
+.composer-context-rail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  /* Sit just above the card as a separate layer — no card chrome. */
+  margin-bottom: 6px;
+  padding: 0 4px;
+  min-height: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.composer-dock.layout-centered .composer-context-rail {
+  margin-bottom: 8px;
+  padding: 0 2px;
+}
+
+.composer-context-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.composer-context-link:hover:not(:disabled) {
+  color: var(--text);
+  background: transparent;
+}
+
+.composer-context-link:disabled,
+.composer-context-link.is-disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.composer-context-link.is-static {
+  cursor: default;
+}
+
+.composer-context-link-icon {
+  display: inline-grid;
+  place-items: center;
+  color: inherit;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.composer-context-link-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-context-link-caret {
+  font-size: 9px;
+  color: inherit;
+  opacity: 0.7;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.composer-context-link.is-dirty .composer-context-link-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warn, #f59e0b);
+  flex-shrink: 0;
+}
+
+.ui-menu-content.composer-context-menu {
+  min-width: 200px;
+  max-width: 300px;
+  max-height: min(50vh, 320px);
+  overflow: auto;
+}
+
+/* Cursor-like branch picker: search field + clean rows + checkmark. */
+.ui-menu-content.branch-picker-menu {
+  min-width: 240px;
+  max-width: 320px;
+  padding: 6px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel, #1c1c20) 96%, #000);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px color-mix(in srgb, var(--text) 4%, transparent);
+  overflow: hidden;
+}
+
+.branch-picker-search {
+  padding: 2px 2px 6px;
+}
+
+.branch-picker-search-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--canvas, #111) 70%, var(--panel, #1c1c20));
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.branch-picker-search-input::placeholder {
+  color: var(--faint);
+}
+
+.branch-picker-search-input:focus {
+  border-color: color-mix(in srgb, var(--accent, #6ea8fe) 55%, transparent);
+}
+
+.branch-picker-list {
+  max-height: min(42vh, 280px);
+  overflow: auto;
+  padding: 2px 0;
+}
+
+.branch-picker-menu .ui-menu-item {
+  padding: 0;
+  border-radius: 8px;
+}
+
+.branch-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  box-sizing: border-box;
+}
+
+.branch-picker-item-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.branch-picker-item.is-current .branch-picker-item-name {
+  color: var(--text);
+}
+
+.branch-picker-item-check {
+  flex-shrink: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.branch-picker-empty,
+.branch-picker-error {
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.branch-picker-error {
+  color: var(--danger, #ef4444);
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.composer-context-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.composer-context-menu-row.is-muted {
+  opacity: 0.55;
+}
+
+.composer-context-menu-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--faint);
+  font-weight: 400;
 }
 
 .composer-host-status {
@@ -344,7 +557,7 @@
   border: none;
   background: transparent;
   color: var(--muted);
- font: inherit;
+  font: inherit;
   font-size: 11.5px;
   cursor: pointer;
   transition: color 100ms ease;
@@ -1412,6 +1625,75 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   background: color-mix(in srgb, var(--text) 4%, transparent);
   color: var(--muted);
   font-size: 12px;
+}
+
+.thinking-effort-model-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--muted);
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.thinking-effort-model-search:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+.thinking-effort-model-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.4;
+  outline: none;
+}
+
+.thinking-effort-model-search input::placeholder {
+  color: var(--faint);
+}
+
+.thinking-effort-model-search-clear {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.thinking-effort-model-search-clear:hover:not(:disabled) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.thinking-effort-model-search-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.thinking-effort-model-no-results {
+  padding: 10px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text) 4%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
 }
 
 /* ─── Context usage ring + popover ──────────────────────────────────── */

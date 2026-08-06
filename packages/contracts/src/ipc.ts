@@ -26,6 +26,7 @@ import type {
   McpToolSummary,
 } from './mcp.js';
 import type {
+  GitBranchList,
   GitBranchCreateInput,
   GitCheckoutInput,
   GitCommitGraph,
@@ -262,6 +263,12 @@ export type HostCommand =
   | { id?: string; type: 'mcp/start'; serverId: string }
   | { id?: string; type: 'mcp/stop'; serverId: string }
   | { id?: string; type: 'git/status'; projectPath: string }
+  | {
+      id?: string;
+      type: 'git/branch-list';
+      projectPath: string;
+      limit?: number;
+    }
   | { id?: string; type: 'git/diff-summary'; projectPath: string }
   | { id?: string; type: 'git/log-graph'; projectPath: string; limit?: number }
   | {
@@ -860,6 +867,10 @@ export type McpStopData = {
 
 export type GitStatusData = {
   snapshot: GitStatusSnapshot;
+};
+
+export type GitBranchListData = {
+  branches: GitBranchList;
 };
 
 export type GitDiffSummaryData = {

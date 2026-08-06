@@ -1,11 +1,6 @@
 /* Region: shell frame (App.tsx root + workspace-shell.tsx).
-   Owns the .app-shell grid (all data-layout / nav-open / has-right-panel /
-   settings-open combinations), .workspace / .chat-column stage sizing,
-   global scrollbar + ::selection styling, and app-level error boundary.
-   Geometry tokens come from tokens.css; colors from appearance-tokens.ts.
-   Values re-derived from the effective post-cascade rendering
-   (shell.css + responsive-early.css + cursor-workspace.css +
-   visual-overhaul.css layers). No forced declarations. */
+   Three columns only (nav | stage | signal). No full-window topbar row.
+   Stage owns its local chrome bar (ContextBar). */
 
 /* ── Grid frame ───────────────────────────────────────────────────── */
 
@@ -13,115 +8,76 @@
   --workspace-control-height: 30px;
   height: 100%;
   display: grid;
-  /* Desktop: navigator + stage. Opening the right panel adds a third track
-     in-flow — stage (1fr) narrows and the chat column reflows. Window size
-     is fixed (no OS setSize); that was the "visual refresh" jitter. */
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: 'nav stage';
   min-width: 0;
   overflow: hidden;
-  /* Prevent sparse auto tracks from stealing layout height. */
   grid-auto-rows: minmax(0, auto);
   background: var(--bg);
-  /* Never animate track sizes — intermediate frames look like a refresh. */
   transition: none;
 }
 
-/* In-flow panel: stage 1fr gives up space to --right-panel-width. */
 .app-shell.has-right-panel {
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
   grid-template-areas: 'nav stage signal';
 }
 
-/* Desktop keeps a compact titleband beneath the macOS traffic lights. */
 .app-shell[data-layout='desktop'] {
-  grid-template-rows: var(--titleband-height) minmax(0, 1fr);
-  grid-template-areas:
-    'topbar topbar'
-    'nav stage';
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'nav stage';
 }
 
 .app-shell[data-layout='desktop'].has-right-panel {
-  grid-template-areas:
-    'topbar topbar topbar'
-    'nav stage signal';
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
+  grid-template-areas: 'nav stage signal';
 }
 
-/* Desktop: the titlebar toggle can collapse the navigator entirely. */
 .app-shell[data-layout='desktop']:not(.nav-open) {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    'topbar'
-    'stage';
+  grid-template-areas: 'stage';
 }
 
 .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
   grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 320px);
-  grid-template-areas:
-    'topbar topbar'
-    'stage signal';
+  grid-template-areas: 'stage signal';
 }
 
-/* Compact: navigator and inspector are fixed drawers; stage is full-width. */
 .app-shell[data-layout='compact'],
 .app-shell[data-layout='compact'].has-right-panel {
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
-  grid-template-areas:
-    'topbar'
-    'stage';
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: 'stage';
 }
 
-/* Narrow desktop windows: let the navigator shrink before layout flips
-   to compact. */
 @media (max-width: 1050px) {
   .app-shell[data-layout='desktop'] {
-    /* Use the live --sidebar-width (user-resizable); do not re-cap at 220. */
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
-    grid-template-areas:
-      'topbar topbar'
-      'nav stage';
+    grid-template-areas: 'nav stage';
   }
   .app-shell[data-layout='desktop'].has-right-panel {
     grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--right-panel-width, 320px);
-    grid-template-areas:
-      'topbar topbar topbar'
-      'nav stage signal';
+    grid-template-areas: 'nav stage signal';
   }
-  /* The responsive rule above must not recreate a blank navigator track
-     after the titlebar collapses it. */
   .app-shell[data-layout='desktop']:not(.nav-open) {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas:
-      'topbar'
-      'stage';
+    grid-template-areas: 'stage';
   }
   .app-shell[data-layout='desktop']:not(.nav-open).has-right-panel {
     grid-template-columns: minmax(0, 1fr) var(--right-panel-width, 320px);
-    grid-template-areas:
-      'topbar topbar'
-      'stage signal';
+    grid-template-areas: 'stage signal';
   }
 }
 
-/* ── Band / column placement ──────────────────────────────────────── */
-
-.app-shell > .titlebar,
-.app-shell > .workbench-topbar {
-  grid-area: topbar;
-}
+/* ── Column placement ─────────────────────────────────────────────── */
 
 .app-shell > .workspace {
   grid-area: stage;
   min-width: 0;
   min-height: 0;
-  /* The stage must not clip upward-opening popovers from the composer;
-     the transcript viewport handles its own scroll clipping. */
   overflow: visible;
 }
 
-/* Non-layout shell children must not occupy grid tracks. */
 .app-shell > .notification-region,
 .app-shell > .shell-overlay-scrim {
   grid-area: unset;
@@ -129,6 +85,7 @@
 }
 
 /* ── Stage ────────────────────────────────────────────────────────── */
+
 
 .workspace {
   position: relative;

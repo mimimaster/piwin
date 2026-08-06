@@ -1,54 +1,148 @@
-/* Region: context bar (context-bar.tsx). Owns every .context-bar* selector.
-   42px unified band between titleband and transcript.
-   Uses runtime semantic tokens from appearance-tokens.ts only. */
+/* Region: context bar — middle-column header only (Cursor pattern).
+   Shell is three columns: nav | stage | signal. No full-window topbar.
+   Stage header layout:
+     [sidebar?][←][→]  title …flex…  [theme][more][panel]
+*/
 
-.context-bar {
-  display: none;
+.chat-column > .context-bar {
+  /* Ensure chrome is a stage child, never a grid topbar. */
+  position: relative;
+  z-index: 2;
 }
 
-/* Session identity — title is rendered in top titlebar */
+.context-bar,
+.context-titlebar-box {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  width: 100%;
+  min-height: 38px;
+  height: 38px;
+  padding: 0 10px 0 8px;
+  box-sizing: border-box;
+  margin: 0;
+  background: var(--canvas, var(--bg));
+  border: 0;
+  border-bottom: none;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Only when the navigator is collapsed does the stage sit under traffic lights. */
+.app-shell[data-layout='desktop']:not(.nav-open) .context-bar {
+  padding-left: 88px;
+}
+
+.context-bar > * {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Left cluster: sidebar + history — flush to stage left edge (Cursor). */
+.context-bar-leading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+}
+
+.context-bar-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+.context-bar .piwin-icon-button {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 6px;
+  color: var(--muted);
+  flex-shrink: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.context-bar .piwin-icon-button svg {
+  width: 17px;
+  height: 17px;
+}
+
+.context-bar .piwin-icon-button:hover {
+  color: var(--text) !important;
+  background: transparent !important;
+}
+
+.context-bar .piwin-icon-button.active,
+.context-bar .piwin-icon-button[aria-pressed='true'] {
+  color: var(--accent) !important;
+  background: transparent !important;
+}
+
+.context-bar .piwin-icon-button:disabled,
+.context-bar .piwin-icon-button[aria-disabled='true'] {
+  color: color-mix(in srgb, var(--faint) 72%, transparent);
+  background: transparent;
+  opacity: 0.42;
+  cursor: default;
+  pointer-events: none;
+}
+
+.context-bar-sessions-toggle {
+  color: var(--text);
+}
+
+/* Title immediately after left buttons. */
 .context-bar-identity {
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 1 auto;
+  max-width: min(560px, calc(100% - 200px));
+  overflow: hidden;
+  margin: 0 0 0 4px;
+  padding: 0;
 }
 
 .context-bar-title {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--content-primary);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--content-primary, var(--text));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 360px;
+  max-width: 100%;
+  letter-spacing: -0.01em;
+  user-select: none;
 }
 
 .context-bar-scope-pill {
-  font-size: 11px;
-  line-height: 1;
-  padding: 2px 7px;
-  border-radius: 10px;
-  background: var(--surface-hover);
-  color: var(--content-secondary);
-  white-space: nowrap;
-  flex-shrink: 0;
+  display: none;
 }
 
-/* ADR 0019 §3 — permission mode badge (click opens Settings → Permissions). */
 .context-bar-mode-badge {
   font-size: 11px;
   line-height: 1;
   padding: 2px 7px;
   border-radius: 10px;
   border: 1px solid transparent;
-  background: var(--surface-hover);
-  color: var(--content-secondary);
+  background: var(--surface-hover, var(--hover));
+  color: var(--content-secondary, var(--muted));
   white-space: nowrap;
   flex-shrink: 0;
   cursor: pointer;
 }
 
 .context-bar-mode-badge:hover {
-  background: var(--surface-active);
-  color: var(--content-primary);
+  background: var(--surface-active, var(--hover));
+  color: var(--content-primary, var(--text));
 }
 
 .context-bar-mode-badge.is-warning {
@@ -62,7 +156,6 @@
   color: var(--content-on-accent, #fff);
 }
 
-/* SF-04: Origin badge (Branch / Duplicate) */
 .context-bar-origin-badge {
   display: inline-flex;
   align-items: center;
@@ -71,26 +164,30 @@
   border: 1px solid var(--line-soft, var(--line));
   border-radius: 999px;
   background: transparent;
-  color: var(--text-muted, var(--text));
+  color: var(--text-muted, var(--muted));
   font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
 }
+
 .context-bar-origin-badge:hover {
   background: var(--hover-bg, rgba(128, 128, 128, 0.12));
   color: var(--text);
 }
 
-/* Run status cluster */
+/* Run status sits after title when active; hidden when idle. */
 .context-bar-status {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: min(220px, 28%);
   overflow: hidden;
+}
+
+.context-bar[data-kind='idle'] .context-bar-status {
+  display: none;
 }
 
 .context-bar-phase-dot {
@@ -98,7 +195,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--content-muted);
+  background: var(--content-muted, var(--faint));
   flex-shrink: 0;
 }
 
@@ -119,16 +216,6 @@
   background: var(--state-success);
 }
 
-@keyframes context-bar-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.45;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .context-bar-phase-dot.is-running {
     animation: none;
@@ -136,53 +223,37 @@
   }
 }
 
-.context-bar-status-label {
-  font-size: 12px;
-  color: var(--content-secondary);
-  white-space: nowrap;
-}
-
 .context-bar-elapsed {
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
-/* Right controls */
+/* Flexible drag region between title cluster and right tools. */
+.context-bar-drag {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 16px;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+/* Right tools — stage top-right corner (Cursor). */
 .context-bar-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  margin-left: auto;
+  justify-content: flex-end;
+  gap: 0;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
 }
 
-.context-bar-overflow-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--content-secondary);
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 16px;
-  letter-spacing: 0.05em;
+.context-bar-more-wrap {
+  position: relative;
 }
 
-.context-bar-overflow-btn:hover {
-  background: var(--surface-hover);
-  color: var(--content-primary);
-}
-
-.context-bar-overflow-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* .context-bar-inspector-btn inherits IconButton from ui-kit */
-.context-bar-inspector-btn.active {
+.context-bar-inspector-btn.active,
+.context-bar-inspector-btn[aria-pressed='true'] {
   color: var(--accent);
-  background: var(--accent-soft);
+  background: transparent;
 }

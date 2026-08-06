@@ -4,6 +4,7 @@
  */
 import type {
   GitBranchCreateInput,
+  GitBranchList,
   GitCheckoutInput,
   GitCommitGraph,
   GitCommitInput,
@@ -15,6 +16,7 @@ import type {
   GitUnstageInput,
 } from '@piwin/contracts';
 import { probeGitRepository } from './repository-probe.js';
+import { readGitBranchList } from './branch-list.js';
 import { readGitStatus } from './status-reader.js';
 import { readGitDiffSummary } from './diff-summary.js';
 import { readGitFileDiff } from './file-diff.js';
@@ -29,6 +31,7 @@ import {
 
 export type GitService = {
   getStatus(projectPath: string): Promise<GitStatusSnapshot>;
+  listBranches(projectPath: string, limit?: number): Promise<GitBranchList>;
   getDiffSummary(projectPath: string): Promise<GitDiffSummary>;
   getFileDiff(
     projectPath: string,
@@ -48,6 +51,14 @@ export function createGitService(): GitService {
     async getStatus(projectPath) {
       const repository = await probeGitRepository(projectPath);
       return readGitStatus({ repository });
+    },
+    async listBranches(projectPath, limit) {
+      const repository = await probeGitRepository(projectPath);
+      const options: Parameters<typeof readGitBranchList>[0] = { repository };
+      if (limit !== undefined) {
+        options.limit = limit;
+      }
+      return readGitBranchList(options);
     },
     async getDiffSummary(projectPath) {
       const repository = await probeGitRepository(projectPath);

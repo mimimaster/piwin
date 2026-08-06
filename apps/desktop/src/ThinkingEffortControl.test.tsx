@@ -90,6 +90,35 @@ function pressKey(target: Element, key: string): void {
   });
 }
 
+function queryModelSearchInput(): HTMLInputElement {
+  const input = document.querySelector<HTMLInputElement>(
+    '[data-testid="thinking-model-search-input"]',
+  );
+  if (!input) {
+    throw new Error('thinking-model-search-input not rendered');
+  }
+  return input;
+}
+
+function typeIntoSearch(value: string): void {
+  act(() => {
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )?.set;
+    nativeInputValueSetter?.call(queryModelSearchInput(), value);
+    queryModelSearchInput().dispatchEvent(new window.Event('input', { bubbles: true }));
+  });
+}
+
+function queryModelOptions(): Array<HTMLButtonElement> {
+  return Array.from(
+    document.querySelectorAll<HTMLButtonElement>(
+      '[data-testid="thinking-model-select"] [role="option"]',
+    ),
+  );
+}
+
 describe('ThinkingEffortControl', () => {
   let container: HTMLElement;
   let root: Root;
@@ -138,9 +167,7 @@ describe('ThinkingEffortControl', () => {
     }
     expect(document.querySelector('[data-testid="thinking-level-ultra"]')).toBeNull();
     expect(
-      document
-        .querySelector('[data-testid="thinking-level-medium"]')
-        ?.getAttribute('aria-checked'),
+      document.querySelector('[data-testid="thinking-level-medium"]')?.getAttribute('aria-checked'),
     ).toBe('true');
   });
 
@@ -249,6 +276,66 @@ describe('ThinkingEffortControl', () => {
 
     expect(document.querySelector('[data-testid="thinking-model-empty"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="thinking-model-select"]')).toBeNull();
+    expect(document.querySelector('[data-testid="thinking-model-search-input"]')).toBeNull();
+  });
+
+  it('filters the model list as the user types in the search field', () => {
+    render(createBaseProps(), root);
+    activateTrigger();
+
+    expect(queryModelOptions()).toHaveLength(2);
+    typeIntoSearch('mini');
+
+    const options = queryModelOptions();
+    expect(options).toHaveLength(1);
+    expect(options[0]?.textContent).toContain('gpt-mini');
+
+    // Provider prefix also matches.
+    typeIntoSearch('acme');
+    expect(queryModelOptions()).toHaveLength(2);
+  });
+
+  it('shows a no-results notice when the query matches nothing', () => {
+    render(createBaseProps(), root);
+    activateTrigger();
+
+    typeIntoSearch('nonexistent-model');
+
+    expect(queryModelOptions()).toHaveLength(0);
+    expect(document.querySelector('[data-testid="thinking-model-select"]')).toBeNull();
+    const notice = document.querySelector('[data-testid="thinking-model-no-results"]');
+    expect(notice).not.toBeNull();
+    expect(notice?.textContent).toContain('nonexistent-model');
+  });
+
+  it('clears the filter with the clear button', () => {
+    render(createBaseProps(), root);
+    activateTrigger();
+
+    typeIntoSearch('mini');
+    expect(queryModelOptions()).toHaveLength(1);
+
+    const clearButton = document.querySelector<HTMLButtonElement>(
+      '[data-testid="thinking-model-search-clear"]',
+    );
+    expect(clearButton).not.toBeNull();
+    act(() => {
+      clearButton?.click();
+    });
+
+    expect(queryModelOptions()).toHaveLength(2);
+    expect(queryModelSearchInput().value).toBe('');
+  });
+
+  it('selects the first filtered model with Enter', () => {
+    const onSelectModel = vi.fn();
+    render(createBaseProps({ onSelectModel }), root);
+    activateTrigger();
+
+    typeIntoSearch('gpt');
+    pressKey(queryModelSearchInput(), 'Enter');
+
+    expect(onSelectModel).toHaveBeenCalledWith('acme:gpt-test');
   });
 
   it('closes on Escape and returns focus to the trigger', async () => {

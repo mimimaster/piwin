@@ -3,10 +3,10 @@
  * Opens a clean popover with labeled effort chips and a custom model list
  * (no native <select>, no unlabeled "Advanced" slider).
  */
-import { useEffect, useMemo, useState, type ReactElement } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { Popover } from '@piwin/ui-kit';
 import type { ModelProviderConfig, ThinkingLevel } from '@piwin/contracts';
-import { IconSpark } from './shell-icons';
+import { IconClose, IconSearch, IconSpark } from './shell-icons';
 import { getSupportedThinkingLevels } from './model-thinking-policy';
 
 type ThinkingEffortControlProps = {
@@ -39,16 +39,42 @@ export function ThinkingEffortControl({
   onSelectModel,
 }: ThinkingEffortControlProps): ReactElement {
   const [open, setOpen] = useState(false);
+  const [modelSearchQuery, setModelSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const selectedModel = useMemo(
     () => models.find((model) => model.key === selectedModelKey),
     [models, selectedModelKey],
   );
+  const filteredModels = useMemo(() => {
+    const query = modelSearchQuery.trim().toLocaleLowerCase();
+    if (!query) {
+      return models;
+    }
+    return models.filter((model) => {
+      const { provider, name } = parseModelLabel(model.label);
+      const haystack = [model.label, provider ?? '', name].join(' ').toLocaleLowerCase();
+      return haystack.includes(query);
+    });
+  }, [models, modelSearchQuery]);
   const levels = getSupportedThinkingLevels(selectedModel, ultraEnabled);
   const effectiveValue = levels.includes(value) ? value : (levels[0] ?? 'off');
   const shortModelLabel = shortenModelLabel(modelLabel);
   const effortLabel = formatThinkingLabel(effectiveValue);
   const isUltra = effectiveValue === 'ultra';
   const showThinking = levels.length > 0;
+
+  // Put the caret in the search field on open; reset the query on close so the
+  // next open starts from a clean, unfiltered list.
+  useEffect(() => {
+    if (open) {
+      const timer = window.setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+    setModelSearchQuery('');
+    return undefined;
+  }, [open]);
 
   useEffect(() => {
     if (!levels.includes(value) && value !== effectiveValue) {
@@ -98,7 +124,11 @@ export function ThinkingEffortControl({
               <span>Thinking</span>
               <span className="thinking-effort-active-tag">{effortLabel}</span>
             </header>
-            <div className="thinking-effort-chip-row" role="radiogroup" aria-label="Thinking effort">
+            <div
+              className="thinking-effort-chip-row"
+              role="radiogroup"
+              aria-label="Thinking effort"
+            >
               {levels.map((level) => {
                 const isActive = level === effectiveValue;
                 return (
@@ -130,82 +160,127 @@ export function ThinkingEffortControl({
               {modelLabel || 'No models configured'}
             </div>
           ) : (
-            <div
-              className="thinking-effort-model-list"
-              role="listbox"
-              aria-label="Model"
-              data-testid="thinking-model-select"
-            >
-              {models.map((model) => {
-                const isSelected = model.key === selectedModelKey;
-                const { provider, name } = parseModelLabel(model.label);
-                return (
-                  <button
-                    key={model.key}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    className={
-                      isSelected
-                        ? 'thinking-effort-model-option is-selected'
-                        : 'thinking-effort-model-option'
+            <>
+              {/* Model search / filter */}
+              <div className="thinking-effort-model-search">
+                <IconSearch width={13} height={13} aria-hidden />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={modelSearchQuery}
+                  onChange={(event) => setModelSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && filteredModels[0]) {
+                      onSelectModel?.(filteredModels[0].key);
                     }
+                  }}
+                  placeholder="Search models…"
+                  aria-label="Search models"
+                  data-testid="thinking-model-search-input"
+                  disabled={disabled}
+                  spellCheck={false}
+                  autoComplete="off"
+                />
+                {modelSearchQuery ? (
+                  <button
+                    type="button"
+                    className="thinking-effort-model-search-clear"
+                    aria-label="Clear model search"
+                    data-testid="thinking-model-search-clear"
                     disabled={disabled}
-                    onClick={() => {
-                      onSelectModel?.(model.key);
-                    }}
-                    title={model.label}
+                    onClick={() => setModelSearchQuery('')}
                   >
-                    <span className="thinking-effort-model-icon" aria-hidden>
-                      <IconSpark width={14} height={14} />
-                    </span>
-                    <span className="thinking-effort-model-info">
-                      <span className="thinking-effort-model-option-label">
-                        {name}
-                        {model.supportsImage ? (
-                          <span
-                            className="thinking-effort-model-vision-tag"
-                            data-testid={`model-vision-tag-${model.key}`}
-                            title="Vision"
-                          >
-                            {' '}
-                            · vision
-                          </span>
-                        ) : null}
-                        {model.reasoning ? (
-                          <span
-                            className="thinking-effort-model-reason-tag"
-                            data-testid={`model-reason-tag-${model.key}`}
-                            title="Reasoning"
-                          >
-                            {' '}
-                            · reason
-                          </span>
-                        ) : null}
-                        {model.supportsImageGeneration ? (
-                          <span
-                            className="thinking-effort-model-image-gen-tag"
-                            data-testid={`model-image-gen-tag-${model.key}`}
-                            title="Image generation"
-                          >
-                            {' '}
-                            · image-gen
-                          </span>
-                        ) : null}
-                      </span>
-                      {provider ? (
-                        <span className="thinking-effort-model-provider-badge">{provider}</span>
-                      ) : null}
-                    </span>
-                    {isSelected ? (
-                      <span className="thinking-effort-model-check" aria-hidden>
-                        ✓
-                      </span>
-                    ) : null}
+                    <IconClose width={12} height={12} />
                   </button>
-                );
-              })}
-            </div>
+                ) : null}
+              </div>
+
+              {filteredModels.length > 0 ? (
+                <div
+                  className="thinking-effort-model-list"
+                  role="listbox"
+                  aria-label="Model"
+                  data-testid="thinking-model-select"
+                >
+                  {filteredModels.map((model) => {
+                    const isSelected = model.key === selectedModelKey;
+                    const { provider, name } = parseModelLabel(model.label);
+                    return (
+                      <button
+                        key={model.key}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        className={
+                          isSelected
+                            ? 'thinking-effort-model-option is-selected'
+                            : 'thinking-effort-model-option'
+                        }
+                        disabled={disabled}
+                        onClick={() => {
+                          onSelectModel?.(model.key);
+                        }}
+                        title={model.label}
+                      >
+                        <span className="thinking-effort-model-icon" aria-hidden>
+                          <IconSpark width={14} height={14} />
+                        </span>
+                        <span className="thinking-effort-model-info">
+                          <span className="thinking-effort-model-option-label">
+                            {name}
+                            {model.supportsImage ? (
+                              <span
+                                className="thinking-effort-model-vision-tag"
+                                data-testid={`model-vision-tag-${model.key}`}
+                                title="Vision"
+                              >
+                                {' '}
+                                · vision
+                              </span>
+                            ) : null}
+                            {model.reasoning ? (
+                              <span
+                                className="thinking-effort-model-reason-tag"
+                                data-testid={`model-reason-tag-${model.key}`}
+                                title="Reasoning"
+                              >
+                                {' '}
+                                · reason
+                              </span>
+                            ) : null}
+                            {model.supportsImageGeneration ? (
+                              <span
+                                className="thinking-effort-model-image-gen-tag"
+                                data-testid={`model-image-gen-tag-${model.key}`}
+                                title="Image generation"
+                              >
+                                {' '}
+                                · image-gen
+                              </span>
+                            ) : null}
+                          </span>
+                          {provider ? (
+                            <span className="thinking-effort-model-provider-badge">{provider}</span>
+                          ) : null}
+                        </span>
+                        {isSelected ? (
+                          <span className="thinking-effort-model-check" aria-hidden>
+                            ✓
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div
+                  className="thinking-effort-model-no-results"
+                  data-testid="thinking-model-no-results"
+                >
+                  No models match “{modelSearchQuery.trim()}”
+                </div>
+              )}
+            </>
           )}
         </section>
       </Popover>

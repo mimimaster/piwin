@@ -47,6 +47,23 @@ export type GitStatusSnapshot = {
   totalChangedFiles: number;
 };
 
+/** One local branch row for the checkout picker. */
+export type GitBranchListEntry = {
+  name: string;
+  /** True when this branch is the current HEAD. */
+  current: boolean;
+  shortHash: string | null;
+};
+
+/** Local branch list for session branch switching (read-only). */
+export type GitBranchList = {
+  repository: GitRepositoryIdentity;
+  branches: GitBranchListEntry[];
+  /** True when more local branches exist beyond the requested limit. */
+  truncated: boolean;
+  totalBranches: number;
+};
+
 export type GitDiffFileStat = {
   path: string;
   status: GitFileStatusCode;

@@ -54,13 +54,14 @@
   height: 100%;
   min-height: 0;
   z-index: auto;
+  border-left: 1px solid var(--line-soft, var(--line));
 }
 
 /* Compact cannot reliably grow the window; panel is a fixed overlay drawer. */
 .app-shell[data-layout='compact'] > .right-panel.outward-column {
   position: fixed;
   z-index: var(--layer-drawer);
-  top: var(--topbar-height);
+  top: 0;
   right: 0;
   bottom: 0;
   width: min(var(--right-panel-width, 320px), 92vw);
@@ -111,15 +112,19 @@
 
 /* ── Cursor-style multi-tab strip ─────────────────────────────────── */
 
-.right-panel-tabstrip {
+.right-panel-tabstrip,
+.right-panel-titlebar-box {
   display: flex;
   align-items: stretch;
   gap: 2px;
-  min-height: 32px;
+  /* Match 3-column titlebar box height so all column tops align flush. */
+  min-height: 38px;
+  height: 38px;
   padding: 0 8px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   background: transparent;
+  box-sizing: border-box;
 }
 
 .right-panel-tabs {
@@ -250,7 +255,7 @@
 .right-panel-tabstrip .right-panel-tab-add.active,
 .right-panel-tabstrip .right-panel-tab-add[aria-pressed='true'] {
   color: var(--accent);
-  background: var(--wb-accent-soft, var(--accent-soft));
+  background: transparent;
 }
 
 .right-panel-bodies {
@@ -351,19 +356,21 @@
 /* ── Home launcher (empty state) ──────────────────────────────────── */
 
 .right-panel-home {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   flex: 1;
   min-height: 0;
-  padding: 20px;
+  padding: 44px 20px 20px;
   overflow: auto;
 }
 
 .right-panel-home-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  width: min(100%, 240px);
+  gap: 10px;
+  width: min(100%, 230px);
 }
 
 .right-panel-home-tile {
@@ -371,25 +378,27 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
   aspect-ratio: 1;
-  padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--panel) 40%, transparent);
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 550;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 30%, transparent);
+  color: var(--text-muted, var(--muted));
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
   transition:
-    background 120ms ease,
-    border-color 120ms ease,
-    transform 120ms ease;
+    background 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
 }
 
 .right-panel-home-tile:hover {
   background: var(--wb-hover, var(--surface-hover));
-  border-color: color-mix(in srgb, var(--text) 16%, transparent);
+  border-color: color-mix(in srgb, var(--text) 14%, transparent);
+  color: var(--text);
 }
 
 .right-panel-home-tile:active {
@@ -399,9 +408,10 @@
 .right-panel-home-icon {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   color: var(--muted);
+  transition: color 140ms ease;
 }
 
 .right-panel-home-icon svg {
@@ -644,6 +654,89 @@
   flex-direction: column;
   min-height: 0;
   height: 100%;
+}
+
+/* Split lives entirely inside the right panel: left content, right folder tree.
+   Never expands into the chat/stage column. */
+.file-tree-panel-split {
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.file-tree-preview {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 58%;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--line-soft);
+  background: var(--panel, var(--sidebar));
+}
+
+.file-tree-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.file-tree-preview-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.file-tree-preview-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.file-tree-preview-title .file-icon {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+
+.file-tree-preview-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 0 16px;
+}
+
+.file-tree-preview-binary,
+.file-tree-preview-truncated {
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+/* When split is open, the tree column stays a compact navigator on the right. */
+.file-tree-panel-split > .file-tree-main {
+  flex: 0 0 min(42%, 220px);
+  width: min(42%, 220px);
+  max-width: 260px;
+  border-left: 0;
+}
+
+.file-tree-panel-split > .file-tree-footer {
+  display: none;
+}
+
+/* Directory rows: pure text + chevron (no folder glyph). */
+.file-tree-row .file-tree-name {
+  font-weight: 500;
+}
+
+.file-tree-node[aria-expanded] > .file-tree-row .file-tree-name {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .file-tree-header {
@@ -4344,4 +4437,49 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.right-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.right-panel-actions .piwin-icon-button,
+.right-panel-action-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.right-panel-titlebar-box .piwin-icon-button svg,
+.right-panel-action-btn svg,
+.right-panel-tab-add svg {
+  width: 17px;
+  height: 17px;
+}
+
+.right-panel-actions .piwin-icon-button:hover,
+.right-panel-action-btn:hover {
+  color: var(--text) !important;
+  background: transparent !important;
+}
+
+.right-panel-actions .piwin-icon-button.active,
+.right-panel-actions .piwin-icon-button[aria-pressed='true'],
+.right-panel-action-btn.active {
+  color: var(--accent) !important;
+  background: transparent !important;
+}
+
+.right-panel[data-view='home'] .right-panel-tabstrip {
+  border-bottom: 1px solid transparent;
 }

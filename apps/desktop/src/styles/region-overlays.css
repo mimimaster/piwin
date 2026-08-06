@@ -297,9 +297,7 @@
   z-index: var(--layer-scrim);
 }
 
-.app-shell[data-layout='compact'] .shell-overlay-scrim {
-  top: var(--topbar-height);
-}
+/* No shell topbar — scrim covers the full window. */
 
 /* ── Session row context menu ─────────────────────────────────────── */
 
@@ -371,7 +369,7 @@ input.project-path-input {
 .notification-region {
   position: fixed;
   z-index: var(--layer-toast);
-  top: max(12px, calc(var(--titleband-height, 36px) + 8px));
+  top: 12px;
   right: 16px;
   display: flex;
   flex-direction: column;
