@@ -1,0 +1,326 @@
+/**
+ * Settings → Video Generation.
+ *
+ * Video providers share a product-level model/capability registry, but their
+ * wire formats are not interchangeable. This page stores the selected native
+ * API style beside the model route so the Host can choose the right async
+ * Host adapter when the video tool runs.
+ */
+
+import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
+import type {
+  ModelConfigEntry,
+  ModelProviderConfig,
+  PiwinConfig,
+  VideoGenerationApiStyle,
+} from '@piwin/contracts';
+import { useDesktopLocale } from './desktop-locale-context';
+import { PageTitle } from './settings/page-title';
+import { useSettings } from './settings/settings-context';
+import { VideoGenerationModelForm } from './VideoGenerationModelForm';
+import { VideoGenerationModelList } from './VideoGenerationModelList';
+import {
+  buildVideoModelEntry,
+  collectVideoModels,
+  defaultVideoGenerationApiStyle,
+  defaultVideoGenerationPath,
+  mergeVideoModel,
+} from './video-generation-model-config';
+
+export function VideoGenerationSettings(): ReactElement {
+  const { config, saveConfig } = useSettings();
+  const { locale, translator } = useDesktopLocale();
+  const copy = translator.settings.videoGeneration;
+  const common = translator.common;
+
+  const allProviders = useMemo(() => config?.providers ?? [], [config]);
+  const videoRows = useMemo(() => (config ? collectVideoModels(config.providers) : []), [config]);
+
+  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [addModelId, setAddModelId] = useState('');
+  const [addApiStyle, setAddApiStyle] = useState<VideoGenerationApiStyle>('custom');
+  const [addModelPath, setAddModelPath] = useState(defaultVideoGenerationPath('custom'));
+  const [addModelTimeout, setAddModelTimeout] = useState('900');
+  const [addPollInterval, setAddPollInterval] = useState('5');
+  const [addModelLabel, setAddModelLabel] = useState('');
+  const [addModelDescription, setAddModelDescription] = useState('');
+
+  useEffect(() => {
+    if (selectedProviderId && allProviders.some((provider) => provider.id === selectedProviderId)) {
+      return;
+    }
+    const preferred = config?.defaultProviderId;
+    if (preferred && allProviders.some((provider) => provider.id === preferred)) {
+      setSelectedProviderId(preferred);
+      return;
+    }
+    setSelectedProviderId(allProviders[0]?.id ?? '');
+  }, [allProviders, config?.defaultProviderId, selectedProviderId]);
+
+  const effectiveProviderId = useMemo(() => {
+    const editingProviderId = editingKey?.split(':')[0];
+    if (editingProviderId && allProviders.some((provider) => provider.id === editingProviderId)) {
+      return editingProviderId;
+    }
+    return selectedProviderId;
+  }, [allProviders, editingKey, selectedProviderId]);
+
+  const selectedProvider = useMemo(
+    () => allProviders.find((provider) => provider.id === effectiveProviderId) ?? null,
+    [allProviders, effectiveProviderId],
+  );
+
+  const resetAddForm = useCallback(() => {
+    setEditingKey(null);
+    setAddModelId('');
+    const apiStyle = selectedProvider
+      ? defaultVideoGenerationApiStyle(selectedProvider.protocol)
+      : 'custom';
+    setAddApiStyle(apiStyle);
+    setAddModelPath(defaultVideoGenerationPath(apiStyle));
+    setAddModelTimeout('900');
+    setAddPollInterval('5');
+    setAddModelLabel('');
+    setAddModelDescription('');
+  }, [selectedProvider]);
+
+  function handleProviderChange(providerId: string): void {
+    setSelectedProviderId(providerId);
+    if (editingKey) {
+      return;
+    }
+    const provider = allProviders.find((candidate) => candidate.id === providerId);
+    if (provider) {
+      const apiStyle = defaultVideoGenerationApiStyle(provider.protocol);
+      setAddApiStyle(apiStyle);
+      setAddModelPath(defaultVideoGenerationPath(apiStyle));
+    }
+  }
+
+  function handleApiStyleChange(apiStyle: VideoGenerationApiStyle): void {
+    setAddApiStyle(apiStyle);
+    setAddModelPath(defaultVideoGenerationPath(apiStyle));
+  }
+
+  function handleStartEdit(provider: ModelProviderConfig, model: ModelConfigEntry): void {
+    setEditingKey(`${provider.id}:${model.id}`);
+    setSelectedProviderId(provider.id);
+    const route = model.routes?.['video-generation'];
+    const apiStyle = route?.apiStyle ?? defaultVideoGenerationApiStyle(provider.protocol);
+    setAddModelId(model.id);
+    setAddApiStyle(apiStyle);
+    setAddModelPath(route?.path ?? defaultVideoGenerationPath(apiStyle));
+    setAddModelTimeout(route?.timeoutMs !== undefined ? String(route.timeoutMs / 1000) : '900');
+    setAddPollInterval(
+      route?.pollIntervalMs !== undefined ? String(route.pollIntervalMs / 1000) : '5',
+    );
+    setAddModelLabel(model.label ?? '');
+    setAddModelDescription(model.tooltipMarkdown ?? '');
+  }
+
+  async function handleAddModel(): Promise<void> {
+    if (!config || !selectedProvider) {
+      return;
+    }
+    const id = addModelId.trim();
+    if (!id) {
+      return;
+    }
+
+    const updatedModel = buildVideoModelEntry({
+      id,
+      apiStyle: addApiStyle,
+      path: addModelPath,
+      timeoutSeconds: addModelTimeout,
+      pollIntervalSeconds: addPollInterval,
+      label: addModelLabel,
+      description: addModelDescription,
+    });
+
+    let nextProviders: ModelProviderConfig[];
+    if (editingKey) {
+      const [originalProviderId, originalModelId] = editingKey.split(':');
+      nextProviders = config.providers.map((provider) => {
+        const withoutOriginal = provider.models.filter(
+          (model) => !(provider.id === originalProviderId && model.id === originalModelId),
+        );
+        if (provider.id !== selectedProvider.id) {
+          return { ...provider, models: withoutOriginal };
+        }
+        const existing = withoutOriginal.find((model) => model.id === id);
+        const nextModel = existing ? mergeVideoModel(existing, updatedModel) : updatedModel;
+        return {
+          ...provider,
+          models: [...withoutOriginal.filter((model) => model.id !== id), nextModel],
+        };
+      });
+    } else if (selectedProvider.models.some((model) => model.id === id)) {
+      nextProviders = config.providers.map((provider) => {
+        if (provider.id !== selectedProvider.id) {
+          return provider;
+        }
+        return {
+          ...provider,
+          models: provider.models.map((model) =>
+            model.id === id ? mergeVideoModel(model, updatedModel) : model,
+          ),
+        };
+      });
+    } else {
+      nextProviders = config.providers.map((provider) =>
+        provider.id === selectedProvider.id
+          ? { ...provider, models: [...provider.models, updatedModel] }
+          : provider,
+      );
+    }
+
+    resetAddForm();
+    await saveConfig({ ...config, providers: nextProviders });
+  }
+
+  function handleSetDefault(provider: ModelProviderConfig, modelId: string): void {
+    if (!config) {
+      return;
+    }
+    const next: PiwinConfig = {
+      ...config,
+      videoGeneration: {
+        ...config.videoGeneration,
+        defaultModel: {
+          protocol: provider.protocol,
+          providerId: provider.id,
+          modelId,
+        },
+      },
+    };
+    void saveConfig(next);
+  }
+
+  function handleRemoveModel(providerId: string, modelId: string): void {
+    if (!config) {
+      return;
+    }
+    const nextProviders = config.providers.map((provider) => {
+      if (provider.id !== providerId) {
+        return provider;
+      }
+      return {
+        ...provider,
+        models: provider.models.flatMap((model) => {
+          if (model.id !== modelId) {
+            return [model];
+          }
+          const remainingCapabilities = (model.capabilities ?? []).filter(
+            (capability) => capability !== 'video-generation',
+          );
+          const remainingRoutes = model.routes ? { ...model.routes } : undefined;
+          if (remainingRoutes) {
+            delete remainingRoutes['video-generation'];
+          }
+          const hasRemainingRoutes =
+            remainingRoutes !== undefined && Object.keys(remainingRoutes).length > 0;
+          if (remainingCapabilities.length === 0 && !hasRemainingRoutes) {
+            return [];
+          }
+          const baseModel = { ...model };
+          delete baseModel.capabilities;
+          delete baseModel.routes;
+          return [
+            {
+              ...baseModel,
+              ...(remainingCapabilities.length > 0 ? { capabilities: remainingCapabilities } : {}),
+              ...(hasRemainingRoutes && remainingRoutes ? { routes: remainingRoutes } : {}),
+            },
+          ];
+        }),
+      };
+    });
+    const nextConfig: PiwinConfig = { ...config, providers: nextProviders };
+    const defaultModel = config.videoGeneration?.defaultModel;
+    if (
+      defaultModel?.providerId === providerId &&
+      defaultModel.modelId === modelId &&
+      config.videoGeneration
+    ) {
+      const nextVideoGeneration = { ...config.videoGeneration };
+      delete nextVideoGeneration.defaultModel;
+      if (Object.keys(nextVideoGeneration).length > 0) {
+        nextConfig.videoGeneration = nextVideoGeneration;
+      } else {
+        delete nextConfig.videoGeneration;
+      }
+    }
+    void saveConfig(nextConfig);
+  }
+
+  if (!config) {
+    return (
+      <p className="muted" data-testid="video-gen-loading">
+        {common.loading}
+      </p>
+    );
+  }
+
+  return (
+    <div className="video-generation-settings" data-testid="video-generation-settings">
+      <div className="settings-section settings-section-card">
+        <PageTitle
+          title={
+            editingKey
+              ? locale === 'zh-CN'
+                ? '编辑视频模型'
+                : 'Edit video model'
+              : locale === 'zh-CN'
+                ? '添加视频模型'
+                : 'Add video model'
+          }
+        />
+        {allProviders.length === 0 ? (
+          <p className="muted" style={{ marginTop: 8 }}>
+            {locale === 'zh-CN'
+              ? '请先在「模型」中添加接口通道。'
+              : 'Add a provider under Models first.'}
+          </p>
+        ) : (
+          <VideoGenerationModelForm
+            locale={locale}
+            copy={copy}
+            providers={allProviders}
+            selectedProvider={selectedProvider}
+            effectiveProviderId={effectiveProviderId}
+            editingKey={editingKey}
+            modelId={addModelId}
+            apiStyle={addApiStyle}
+            modelPath={addModelPath}
+            timeoutSeconds={addModelTimeout}
+            pollIntervalSeconds={addPollInterval}
+            modelLabel={addModelLabel}
+            modelDescription={addModelDescription}
+            onProviderChange={handleProviderChange}
+            onApiStyleChange={handleApiStyleChange}
+            onModelIdChange={setAddModelId}
+            onModelPathChange={setAddModelPath}
+            onTimeoutChange={setAddModelTimeout}
+            onPollIntervalChange={setAddPollInterval}
+            onModelLabelChange={setAddModelLabel}
+            onModelDescriptionChange={setAddModelDescription}
+            onCancel={resetAddForm}
+            onSubmit={() => void handleAddModel()}
+          />
+        )}
+      </div>
+
+      <VideoGenerationModelList
+        locale={locale}
+        copy={copy}
+        config={config}
+        rows={videoRows}
+        editingKey={editingKey}
+        onStartEdit={handleStartEdit}
+        onSetDefault={handleSetDefault}
+        onRemove={handleRemoveModel}
+      />
+    </div>
+  );
+}
