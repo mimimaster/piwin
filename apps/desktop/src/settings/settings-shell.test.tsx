@@ -158,8 +158,31 @@ describe('SettingsShell', () => {
     });
 
     expect(container.querySelector('.settings-main-header h2')).toBeNull();
-    expect(container.querySelector('.settings-card-heading')).not.toBeNull();
-    expect(container.querySelector('[data-testid="settings-close-button"]')).not.toBeNull();
+    expect(container.querySelector('.settings-main-content > .settings-card-heading')).toBeNull();
+    expect(container.querySelector('[data-testid="settings-close-button"]')).toBeNull();
+    expect(container.querySelector('[data-testid="settings-back-button"]')).not.toBeNull();
+    expect(container.querySelector('.settings-main-heading h1')?.textContent).toBe('Web 工具');
+  });
+
+  it('returns to the workspace from the sidebar back action', () => {
+    const onClose = vi.fn();
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SettingsShell
+            activeSection="general"
+            onSelectSection={vi.fn()}
+            contextValue={createContextValue(vi.fn())}
+            onClose={onClose}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="settings-back-button"]')?.click();
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('switches content when a nav item is clicked', () => {

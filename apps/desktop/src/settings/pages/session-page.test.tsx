@@ -13,6 +13,11 @@ import { SettingsProvider, type SettingsContextValue } from '../settings-context
 import { SessionPage } from './session-page';
 import { webToDraft } from '../web-draft';
 import { createDefaultWebConfig } from '@piwin/contracts';
+import { chooseSessionExportPath } from '../../session-export-dialog';
+
+vi.mock('../../session-export-dialog', () => ({
+  chooseSessionExportPath: vi.fn(async () => undefined),
+}));
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -92,7 +97,7 @@ function createContextValue(config: PiwinConfig): SettingsContextValue {
   } as unknown as SettingsContextValue;
 }
 
-describe('SessionPage ADR 0026 prompt-only', () => {
+describe('SessionPage settings', () => {
   let root: Root | null = null;
   let container: HTMLElement | null = null;
 
@@ -129,5 +134,69 @@ describe('SessionPage ADR 0026 prompt-only', () => {
     expect(container!.querySelector('[data-testid="walkthrough-auto-generate-switch"]')).toBeNull();
     expect(container!.querySelector('[data-testid="walkthrough-mode-select"]')).toBeNull();
     expect(container!.querySelector('[data-testid="walkthrough-retired-notice"]')).toBeNull();
+  });
+
+  it('offers compact-summary export for the active session', async () => {
+    const request = vi.fn(
+      async (command: Parameters<SettingsContextValue['request']>[0]) => ({
+        type: 'response' as const,
+        command: command.type,
+        success: true as const,
+        data: { path: '/tmp/compact.md', byteLength: 128 },
+      }),
+    );
+    const contextValue = createContextValue(baseConfig());
+    contextValue.request = request;
+    contextValue.activeSessionId = 'session-1';
+    contextValue.hostStatus = {
+      mode: 'sdk',
+      ready: true,
+      mock: true,
+      piwinRoot: '~/.piwin',
+      activeSessionIds: ['session-1'],
+      capabilities: {
+        customTools: true,
+        mcpLifecycle: true,
+        productTranscript: true,
+        compaction: true,
+        extensions: true,
+        prompts: true,
+        sessionExport: true,
+      },
+    };
+    vi.mocked(chooseSessionExportPath).mockResolvedValue('/tmp/compact.md');
+
+    act(() => {
+      root!.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+            <SettingsProvider value={contextValue}>
+              <SessionPage />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+
+    const button = container!.querySelector<HTMLButtonElement>(
+      '[data-testid="session-compact-export-button"]',
+    );
+    expect(button).not.toBeNull();
+    expect(button?.disabled).toBe(false);
+
+    await act(async () => {
+      button?.click();
+      await Promise.resolve();
+    });
+
+    expect(request).toHaveBeenCalledWith({
+      type: 'session/compact-export',
+      sessionId: 'session-1',
+      outputPath: '/tmp/compact.md',
+    });
+    expect(contextValue.setInfo).toHaveBeenCalledWith(
+      'Compressed summary exported to /tmp/compact.md (128 bytes).',
+      'success',
+    );
   });
 });

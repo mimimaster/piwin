@@ -45,7 +45,8 @@ export type SettingsConfigRequest = (command: {
     | 'project/permissions-list'
     | 'project/permissions-revoke'
     | 'usage/get-rollup'
-    | 'session/runtime-status';
+    | 'session/runtime-status'
+    | 'session/compact-export';
   config?: PiwinConfig;
   provider?: ModelProviderConfig;
   apiKey?: string;
@@ -59,6 +60,8 @@ export type SettingsConfigRequest = (command: {
   window?: { from?: string; to?: string };
   topSessions?: number;
   sessionId?: string;
+  customInstructions?: string;
+  outputPath?: string;
   input?:
     | import('@piwin/contracts').ModelCatalogSearchRequest
     | import('@piwin/contracts').VisionDelegateInput;

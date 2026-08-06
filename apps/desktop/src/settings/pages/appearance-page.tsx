@@ -219,11 +219,6 @@ export function AppearancePage(): ReactElement {
 
   return (
     <div className="settings-card appearance-page" data-testid="settings-appearance">
-      <div className="appearance-page-heading">
-        <h2>{copy.pageTitle}</h2>
-        <p>{copy.pageDescription}</p>
-      </div>
-
       <section className="settings-section settings-section-card">
         <PageTitle title={copy.chatSettings} description={copy.chatSettingsDescription} />
         <FieldRow label={copy.verboseAgentChat} description={copy.verboseAgentChatDescription}>

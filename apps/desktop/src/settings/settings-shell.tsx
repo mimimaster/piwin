@@ -1,18 +1,18 @@
 /**
- * Settings shell: two-layer frame (category nav + single content page).
+ * Settings shell: full-window two-layer frame (category nav + single content page).
  * Nav is generated from the section registry; content renders the registered
  * page component — the registry covers every section.
  *
- * Markup intentionally mirrors the previous SettingsPanel layout (same CSS
- * classes and data-testids) — R3 owns any CSS restructuring.
+ * The persistent sidebar is the navigation surface; the main column owns the
+ * active section heading and its content.
  */
 import { useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { IconButton } from '@piwin/ui-kit';
-import { IconClose } from '../shell-icons';
+import { Button } from '@piwin/ui-kit';
 import { getDesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
 import {
   SETTINGS_GROUPS,
+  SETTINGS_SECTIONS,
   getSettingsSection,
   sectionsForGroup,
   type SettingsSectionId,
@@ -353,7 +353,7 @@ export type SettingsShellProps = {
   activeSection: SettingsSectionId;
   onSelectSection: (section: SettingsSectionId) => void;
   contextValue: SettingsContextValue;
-  /** Callback to close the modal sub-form. */
+  /** Callback to leave the settings route. */
   onClose?: (() => void) | undefined;
 };
 
@@ -368,6 +368,18 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
   const PageComponent = getSettingsSection(activeSection);
 
   const query = searchQuery.trim().toLowerCase();
+  const activeSectionMeta = SETTINGS_SECTIONS.find((section) => section.id === activeSection);
+  const activeSectionLabel = activeSectionMeta
+    ? translator.settings.nav[activeSectionMeta.labelKey]
+    : copy.settings;
+  const hasSearchResults = SETTINGS_GROUPS.some((group) =>
+    sectionsForGroup(group.id).some((item) => {
+      if (!query) return true;
+      const label = translator.settings.nav[item.labelKey]?.toLowerCase() ?? '';
+      const groupLabel = translator.settings[group.labelKey]?.toLowerCase() ?? '';
+      return label.includes(query) || groupLabel.includes(query) || item.id.includes(query);
+    }),
+  );
 
   // Clicking a nav icon/section should always land at the top of the page.
   useEffect(() => {
@@ -394,28 +406,29 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
         aria-label={copy.settings}
       >
         <aside className="settings-nav">
-          <div className="settings-nav-brand">
-            <span className="settings-nav-mark" aria-hidden>
-              {/* Light theme → black alpaca; dark theme → white alpaca (CSS toggles). */}
-              <img
-                className="settings-nav-mark-img settings-nav-mark-img--for-light"
-                src="/ui/alpaca-mark-black.png"
-                alt=""
-                width={18}
-                height={18}
-                draggable={false}
-              />
-              <img
-                className="settings-nav-mark-img settings-nav-mark-img--for-dark"
-                src="/ui/alpaca-mark-white.png"
-                alt=""
-                width={18}
-                height={18}
-                draggable={false}
-              />
-            </span>
-            <strong>{copy.settings}</strong>
-          </div>
+          {onClose ? (
+            <Button
+              variant="ghost"
+              className="settings-back-button"
+              onClick={onClose}
+              data-testid="settings-back-button"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m15 18-6-6 6-6" />
+              </svg>
+              {translator.settings.backToWorkspace}
+            </Button>
+          ) : null}
           <div className="settings-search-container">
             <svg
               className="settings-search-icon"
@@ -480,26 +493,23 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
                 </div>
               );
             })}
+            {!hasSearchResults ? (
+              <p className="settings-nav-empty">
+                {isChinese ? '没有匹配的设置。' : 'No matching settings.'}
+              </p>
+            ) : null}
           </nav>
           <div className="settings-nav-footer">
             <span className="settings-connection-dot" aria-hidden />
-            {copy.localConfiguration}
+            {translator.settings.configuredLocally}
           </div>
         </aside>
         <div className="settings-main" ref={mainScrollRef} data-testid="settings-main-scroll">
-          {onClose ? (
-            <header className="settings-main-header">
-              <IconButton
-                label={isChinese ? '关闭设置' : 'Close settings'}
-                title={isChinese ? '关闭设置 (Esc)' : 'Close settings (Esc)'}
-                onClick={onClose}
-                className="settings-close-btn"
-                data-testid="settings-close-button"
-              >
-                <IconClose />
-              </IconButton>
-            </header>
-          ) : null}
+          <header className="settings-main-header">
+            <div className="settings-main-heading">
+              <h1>{activeSectionLabel}</h1>
+            </div>
+          </header>
           <div
             className={`settings-main-content${
               activeSection === 'models'

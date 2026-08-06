@@ -5,28 +5,6 @@
   margin-bottom: 16px;
 }
 
-/* Appearance page — mirrors the compact settings layout while keeping all
-   fills and strokes tied to the active desktop theme. */
-.appearance-page-heading {
-  margin: 0 0 28px;
-}
-
-.appearance-page-heading h2 {
-  margin: 0;
-  color: var(--text);
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.035em;
-  line-height: 1.1;
-}
-
-.appearance-page-heading p {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1.45;
-}
-
 .appearance-theme-card {
   gap: 0;
 }
@@ -117,14 +95,6 @@
 }
 
 @media (max-width: 720px) {
-  .appearance-page-heading h2 {
-    font-size: 24px;
-  }
-
-  .appearance-page-heading p {
-    font-size: 14px;
-  }
-
   .appearance-theme-setting-row,
   .appearance-theme-color-row {
     gap: 12px;
@@ -153,13 +123,29 @@
   margin-top: 14px;
 }
 
-/* Card-wrapped section: theme inset mask on the white panel layer */
+/* Legacy section class: settings pages now use flat groups in the main shell. */
 .settings-section-card {
   background: var(--surface-inset);
   border: 1px solid color-mix(in srgb, var(--line-soft) 85%, transparent);
   border-radius: 12px;
   padding: 18px 20px;
   box-shadow: none;
+}
+
+/* Keep the full-window settings route flat. Nested list surfaces and controls
+   retain their own boundaries, while page-level groups lose the heavy card. */
+.settings-main .settings-section-card {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.settings-main .settings-section + .settings-section {
+  margin-top: var(--space-8, 32px);
+  padding-top: var(--space-8, 32px);
+  border-top: 1px solid var(--line-soft);
 }
 
 /*
@@ -226,8 +212,8 @@
 }
 
 /*
- * Nested cards inside the gray section mask lift to theme panel (white).
- * Avoid gray-on-gray when source/list cards sit inside settings-section-card.
+ * Nested list surfaces inside settings-section-card stay on the theme panel.
+ * They remain bounded even though the page-level section is now flat.
  */
 .settings-section-card .web-source-card,
 .settings-section-card .ext-list-item,
@@ -312,12 +298,22 @@
   border-bottom: none;
 }
 
+.settings-main .settings-section-card > .settings-card-heading {
+  margin-bottom: var(--space-4, 16px);
+}
+
 .settings-section-card .ui-field-row:first-child {
   padding-top: 0;
 }
 
 .settings-section-card .ui-field-row:last-child {
   padding-bottom: 0;
+}
+
+.settings-main .settings-section-card > .ui-field-row + .ui-field-row {
+  border-top: 1px solid var(--line-soft);
+  margin-top: 0;
+  padding-top: 12px;
 }
 
 .settings-card-heading {

@@ -8,7 +8,6 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import type { SessionRuntimeStatus } from '@piwin/contracts';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 
 export function SessionRuntimePage(): ReactElement {
@@ -83,14 +82,6 @@ export function SessionRuntimePage(): ReactElement {
   return (
     <div className="settings-card">
       <div className="settings-section settings-section-card" data-testid="session-runtime-section">
-        <PageTitle
-          title={isZh ? '会话运行时' : 'Session Runtime'}
-          description={
-            isZh
-              ? '查看当前 Agent 运行时使用的是哪个设置快照，以及设置变更后何时生效。'
-              : 'See which Settings snapshot the current Agent runtime was created from and when changes take effect.'
-          }
-        />
         <div className="ui-field-row" data-testid="runtime-state-row">
           <span className="muted">{isZh ? '当前状态' : 'Current state'}:</span>
           <strong data-testid="runtime-state-value">{stateLabel}</strong>

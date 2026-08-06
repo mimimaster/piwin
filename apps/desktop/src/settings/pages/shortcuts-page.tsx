@@ -9,7 +9,6 @@ import {
   formatShortcutChordTokens,
 } from '../../desktop-shortcut-catalog';
 import { useDesktopLocale } from '../../desktop-locale-context';
-import { PageTitle } from '../page-title';
 
 function ShortcutKeycaps(props: { chord: string }): ReactElement {
   const tokens = formatShortcutChordTokens(props.chord, detectShortcutDisplayPlatform());
@@ -31,15 +30,6 @@ export function ShortcutsPage(): ReactElement {
   return (
     <div className="settings-card" data-testid="settings-shortcuts">
       <div className="settings-section settings-section-card shortcuts-page">
-        <PageTitle
-          title={isChinese ? '快捷键' : 'Shortcuts'}
-          description={
-            isChinese
-              ? '用于快速导航与控制的键盘快捷键。当前为只读参考，与命令面板一致。'
-              : 'Keyboard shortcuts for quick navigation and control. Read-only reference matching the command palette.'
-          }
-        />
-
         <div className="shortcuts-groups">
           {SHORTCUT_CATALOG.map((group) => (
             <section

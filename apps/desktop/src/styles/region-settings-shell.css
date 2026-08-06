@@ -1,21 +1,18 @@
 /* Region: settings shell chrome (settings/settings-shell.tsx).
-   Owns the settings popup modal sub-form frame ONLY: .settings-page backdrop,
-   .settings-modal-dialog, .settings-nav*, .settings-search, .settings-main,
-   .settings-main-header, .settings-main-content (+ models flush modifiers).
-   Semantic runtime tokens only; no forced declarations. */
+   Owns the full-window settings view: category nav, search, main heading and
+   content frame. Section bodies live in settings-resources.css. */
 
-/* Full-window modal backdrop — covers titleband + content (Cursor-style). */
+/* Full-window settings route — the app shell stays mounted underneath so Esc
+   and the Back to workspace action can return focus to the opener. */
 .settings-page {
   position: fixed;
   inset: 0;
   z-index: var(--layer-settings);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: color-mix(in srgb, var(--canvas) 42%, rgba(0, 0, 0, 0.58));
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  background: var(--panel);
   animation: settings-fade-in 0.18s cubic-bezier(0.16, 1, 0.3, 1);
   font-family: var(--font);
   font-size: 13px;
@@ -32,20 +29,18 @@
   }
 }
 
-/* Floating modal sub-form dialog frame */
+/* Two-column settings frame: persistent categories + scrollable detail page. */
 .settings-modal-dialog {
   position: relative;
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  width: min(980px, calc(100vw - 48px));
-  height: min(720px, calc(100vh - 48px));
-  max-height: calc(100vh - 32px);
+  grid-template-columns: clamp(250px, 19vw, 360px) minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  max-height: none;
   background: var(--panel);
   border: none;
-  border-radius: var(--radius-overlay, 16px);
-  box-shadow:
-    0 24px 64px -12px rgba(0, 0, 0, 0.45),
-    0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
   animation: settings-dialog-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -61,18 +56,45 @@
   }
 }
 
-/* Sidebar inside sub-form dialog */
+/* Sidebar / category navigation */
 .settings-nav {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  /* No right padding: the nav list scrollbar sits on the column edge (not
-     inset into the menu), so it no longer crowds nav labels. */
-  padding: 20px 0 14px 14px;
+  gap: var(--space-4, 16px);
+  padding: var(--space-7, 32px) 0 var(--space-5, 20px) var(--space-5, 20px);
   min-height: 0;
   overflow: hidden;
-  border-right: none;
+  border-right: 1px solid var(--line-soft);
   background: var(--surface-inset, var(--panel2));
+}
+
+.settings-back-button {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  min-height: 32px;
+  padding: 5px 8px 5px 2px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.settings-back-button:hover:not(:disabled),
+.settings-back-button:active:not(:disabled),
+.settings-back-button:focus-visible {
+  color: var(--text);
+  background: transparent;
+  box-shadow: none;
+}
+
+.settings-back-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
 }
 
 .settings-nav-brand {
@@ -122,8 +144,7 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
 /* Search bar style */
 .settings-search-container {
   position: relative;
-  margin: 0 2px;
-  padding-right: 12px;
+  margin: 0 var(--space-3, 12px) 0 0;
 }
 
 .settings-search-icon {
@@ -139,9 +160,9 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   width: 100%;
   min-height: var(--control-height-default, 30px);
   padding: 6px 10px 6px 30px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-control, 8px);
-  background: color-mix(in srgb, var(--text) 5%, var(--panel));
+  background: color-mix(in srgb, var(--text) 6%, var(--surface-inset));
   color: var(--text);
   font-size: 12px;
   outline: none;
@@ -156,7 +177,8 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
 
 .settings-search-input:focus {
   background: var(--panel);
-  box-shadow: 0 0 0 2px var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line-soft));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
 .settings-search-input:disabled {
@@ -168,12 +190,11 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3, 12px);
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  /* Thin floating thumb on the column edge; hover-reveal so it stays out of the way. */
-  padding-right: 0;
+  padding-right: var(--space-3, 12px);
   scrollbar-gutter: auto;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -206,8 +227,13 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  /* Keep labels clear of the floating thumb. */
-  padding-right: 10px;
+  padding-right: 0;
+}
+
+.settings-nav-empty {
+  margin: 8px 8px 0;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .settings-nav-group-label {
@@ -299,7 +325,7 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   background: var(--ok, #10b981);
 }
 
-/* ── Main Content Area inside sub-form dialog ────────────────────────────── */
+/* ── Main content area ───────────────────────────────────────────────────── */
 
 .settings-main {
   position: relative;
@@ -309,7 +335,7 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  padding: 24px 32px 40px;
+  padding: var(--space-8, 40px) var(--space-6, 24px) var(--space-8, 40px);
   /* Theme primary surface (white in light themes) — not a settings-only color. */
   background: var(--panel);
 }
@@ -319,9 +345,9 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   z-index: 120;
   top: 62px;
   right: auto;
-  left: calc(240px + (100% - 240px) / 2);
+  left: calc(clamp(250px, 19vw, 360px) + (100% - clamp(250px, 19vw, 360px)) / 2);
   bottom: auto;
-  width: min(440px, calc(100% - 300px));
+  width: min(440px, calc(100% - clamp(250px, 19vw, 360px) - 48px));
   transform: translateX(-50%);
   align-items: stretch;
 }
@@ -414,29 +440,31 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
 
 .settings-main-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-end;
-  min-height: 24px;
-  margin: 0 0 16px;
+  width: min(100%, 1180px);
+  min-height: 44px;
+  margin: 0 auto var(--space-7, 32px);
   padding-bottom: 0;
   border-bottom: none;
 }
 
-.settings-close-btn {
-  color: var(--muted);
-  border-radius: 8px;
-  transition:
-    color 0.12s ease,
-    background 0.12s ease;
+.settings-main-heading {
+  flex: 1;
+  min-width: 0;
 }
 
-.settings-close-btn:hover {
+.settings-main-heading h1 {
+  margin: 0;
   color: var(--text);
-  background: var(--surface-hover);
+  font-size: clamp(28px, 2.2vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
 }
 
 .settings-main-content {
-  width: min(100%, 760px);
+  width: min(100%, 1180px);
   min-width: 0;
   margin: 0 auto;
 }
@@ -458,7 +486,7 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
 /* Responsive compact viewport adjustments */
 @media (max-width: 720px) {
   .settings-page {
-    padding: 12px;
+    padding: 0;
   }
 
   .settings-modal-dialog {
@@ -472,7 +500,20 @@ html:not([data-theme-mode='light']) .settings-nav-mark-img--for-dark {
   .settings-nav {
     border-right: none;
     border-bottom: 1px solid var(--line-soft);
-    max-height: 180px;
+    max-height: 250px;
+    padding-top: var(--space-5, 20px);
+  }
+
+  .settings-main {
+    padding: var(--space-6, 24px) var(--space-4, 16px) var(--space-7, 32px);
+  }
+
+  .settings-main-header {
+    margin-bottom: var(--space-6, 24px);
+  }
+
+  .settings-main-heading h1 {
+    font-size: 28px;
   }
 
   .settings-feedback-host.ui-feedback-host {

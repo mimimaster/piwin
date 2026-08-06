@@ -262,8 +262,6 @@ export function SubagentProfilesPage(): ReactElement {
 
   return (
     <div className="settings-card" data-testid="settings-subagents">
-      <PageTitle title={copy.title} description={copy.description} />
-
       {modelOptions.length === 0 && (
         <div style={{ marginBottom: 16 }}>
           <Notice tone="warning">{copy.noModels}</Notice>

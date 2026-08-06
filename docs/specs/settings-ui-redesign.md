@@ -1,9 +1,11 @@
 # Piwin 设置页 UI 重构 Spec
 
 > 版本：v1.1  
-> 状态：待审批  
+> 状态：分阶段实施中
 > 目标版本：@piwin/desktop next  
 > 变更摘要（相对 v1.0）：锁定 Mantine 消费边界；收窄 Modal 范围；补齐导航合并文件与 deep-link redirect；补全 Switch 清单；统一 Tabs/Menu/Badge 策略；修正 token 示例与 Phase 顺序。
+
+> 2026-08-06 已落地首批视觉壳层：设置页采用全窗口双栏导航；主区域使用唯一分类标题；页内分组改为扁平布局，移除重复页标题与大面积 section 卡片。
 
 ---
 
