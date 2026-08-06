@@ -21,6 +21,7 @@ import { mapSummariesToListItems, summaryToListItem } from './session-list-item'
 import { sessionHasListName } from '../title-display';
 import { resolveSessionOutline } from '../transcript-outline';
 import { canUseThinkingLevel } from '../model-thinking-policy';
+import { chooseSessionExportPath } from '../session-export-dialog';
 
 export type ModelOption = {
   providerId: string;
@@ -545,38 +546,16 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       }`;
 
       let outputPath: string | undefined;
-      try {
-        const dialog = await import('@tauri-apps/plugin-dialog').catch(() => null);
-        if (dialog && typeof dialog.save === 'function') {
-          const selected = await dialog.save({
-            title: 'Export session',
-            defaultPath: defaultName,
-            filters: [
-              format === 'html'
-                ? { name: 'HTML', extensions: ['html'] }
-                : { name: 'Markdown', extensions: ['md'] },
-            ],
-          });
-          if (selected === null) {
-            return;
-          }
-          if (typeof selected === 'string' && selected.trim()) {
-            outputPath = selected.trim();
-          }
-        } else if (typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window)) {
-          const fallback = window.prompt(
-            'Export path (host writes the file; leave empty for default)',
-            defaultName,
-          );
-          if (fallback === null) {
-            return;
-          }
-          if (fallback.trim()) {
-            outputPath = fallback.trim();
-          }
-        }
-      } catch {
-        // host default path
+      const selectedPath = await chooseSessionExportPath({
+        title: 'Export session',
+        defaultName,
+        format,
+      });
+      if (selectedPath === null) {
+        return;
+      }
+      if (selectedPath) {
+        outputPath = selectedPath;
       }
 
       const command: {

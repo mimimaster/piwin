@@ -250,6 +250,38 @@ html[data-theme-mode='dark'] .sidebar-new-agent {
   gap: 4px;
 }
 
+.sidebar-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: left;
+  text-transform: inherit;
+}
+
+.sidebar-section-toggle:hover,
+.sidebar-section-toggle:focus-visible {
+  color: var(--text);
+}
+
+.sidebar-section-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.sidebar-section-toggle svg {
+  flex: 0 0 auto;
+  color: var(--faint);
+}
+
 .sidebar-section-count {
   color: var(--faint);
   font-size: 12px;
@@ -351,6 +383,50 @@ html[data-theme-mode='dark'] .sidebar-new-agent {
   flex-direction: column;
   gap: 4px;
   flex: none;
+}
+
+.sidebar-active-project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--selected);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.sidebar-active-project:hover {
+  background: var(--hover);
+}
+
+.sidebar-active-project > svg:first-child {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.sidebar-active-project-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-active-project > svg:last-child {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--faint);
+}
+
+.sidebar-projects-see-all-btn {
+  margin: 0 0 2px;
 }
 
 .tree-folder-details {
@@ -592,7 +668,7 @@ html[data-theme-mode='light'] .sidebar-see-all-btn:hover {
 .session-row .session-item {
   position: relative;
   width: 100%;
-  padding: 7px 10px;
+  padding: 5px 10px;
   padding-right: 36px;
   border: none;
   border-radius: 10px;
@@ -612,7 +688,7 @@ html[data-theme-mode='light'] .sidebar-see-all-btn:hover {
 
 .session-row:hover .session-item,
 .session-row:focus-within .session-item {
-  padding-right: 76px;
+  padding-right: 108px;
 }
 
 .session-item:hover:not(.active),
@@ -640,7 +716,7 @@ html[data-theme-mode='light'] .session-item.active {
 
 .session-item-name {
   /* Project + Conversations share the same title size/color. */
-  font-size: 14.5px;
+  font-size: 13.5px;
   font-weight: 500;
   letter-spacing: -0.012em;
   color: color-mix(in srgb, var(--text) 92%, transparent);
@@ -704,16 +780,22 @@ html[data-theme-mode='light'] .session-item.active {
    matching the working-session references without moving the session title. */
 
 .session-item-activity {
-  position: relative;
+  position: absolute;
+  top: 50%;
+  right: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 18px;
   width: 18px;
   height: 18px;
-  margin-left: 4px;
+  margin: 0;
+  transform: translateY(-50%);
   color: var(--muted);
   pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    visibility 120ms ease;
 }
 
 .session-item-activity--working {
@@ -725,8 +807,12 @@ html[data-theme-mode='light'] .session-item.active {
 }
 
 @keyframes session-working-spin {
+  from {
+    transform: translateY(-50%) rotate(0deg);
+  }
+
   to {
-    transform: rotate(360deg);
+    transform: translateY(-50%) rotate(360deg);
   }
 }
 
@@ -769,7 +855,7 @@ html[data-theme-mode='light'] .session-item.active {
   right: 10px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 11px;
+  font-size: 13.5px;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -794,8 +880,14 @@ html[data-theme-mode='light'] .session-item.active {
   white-space: nowrap;
 }
 
-.session-row:hover .session-item-time,
-.session-row:focus-within .session-item-time {
+.session-row:not(.session-row--working):hover .session-item-time,
+.session-row:not(.session-row--working):focus-within .session-item-time {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.session-row--working:hover .session-item-activity,
+.session-row--working:focus-within .session-item-activity {
   opacity: 0;
   visibility: hidden;
 }
@@ -826,10 +918,10 @@ html[data-theme-mode='light'] .session-item.active {
 
 .session-action-btn {
   flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
+  width: 30px;
+  height: 30px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 7px;
   background: transparent;
   color: var(--faint);
   cursor: pointer;
@@ -856,12 +948,6 @@ html[data-theme-mode='light'] .session-item.active {
 .session-action-btn.session-delete-btn:focus-visible {
   color: var(--danger, #ef4444);
   background: color-mix(in srgb, var(--danger, #ef4444) 14%, transparent);
-}
-
-/* Archived rows: pin + unarchive + delete (3 icons) need slightly more room. */
-.session-row:hover .session-item[data-archived='true'],
-.session-row:focus-within .session-item[data-archived='true'] {
-  padding-right: 84px;
 }
 
 /* ── Projects (collapsible details) ───────────────────────────────── */

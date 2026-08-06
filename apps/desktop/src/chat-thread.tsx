@@ -22,6 +22,8 @@ import { RunActivitySlot } from './RunActivitySlot.js';
 import { PlanCard } from './plan-card';
 import { WalkthroughAction, isWalkthroughEligible } from './walkthrough-action';
 import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
+import { ImageGenerationProgress } from './image-generation-progress';
+import { VideoGenerationProgress } from './video-generation-progress';
 import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
@@ -528,6 +530,18 @@ function MessageAttachments(props: {
   );
 }
 
+function hasRunningImageGeneration(message: ChatMessageUi): boolean {
+  return message.tools.some(
+    (tool) => tool.status === 'running' && tool.toolName.trim().toLowerCase() === 'image_gen',
+  );
+}
+
+function hasRunningVideoGeneration(message: ChatMessageUi): boolean {
+  return message.tools.some(
+    (tool) => tool.status === 'running' && tool.toolName.trim().toLowerCase() === 'video_gen',
+  );
+}
+
 function UserMessageContent(props: {
   message: ChatMessageUi;
   streaming?: boolean;
@@ -698,6 +712,12 @@ const ChatMessageRow = memo(
             {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
             {...(props.locale ? { locale: props.locale } : {})}
           />
+        ) : null}
+        {message.role === 'assistant' && hasRunningImageGeneration(message) ? (
+          <ImageGenerationProgress locale={props.locale ?? 'zh-CN'} />
+        ) : null}
+        {message.role === 'assistant' && hasRunningVideoGeneration(message) ? (
+          <VideoGenerationProgress locale={props.locale ?? 'zh-CN'} />
         ) : null}
         {message.role === 'assistant' || isEditingThis ? (
           <MessageAttachments attachments={message.attachments} />

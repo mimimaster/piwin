@@ -138,6 +138,12 @@ describe('DesktopPreferences loading', () => {
     expect(prefs.conversationWidth).toBe('default');
   });
 
+  it('loads the persisted project section collapse preference', () => {
+    setLocalStorage('projectsSectionCollapsed', 'true');
+
+    expect(loadDesktopPreferences().projectsSectionCollapsed).toBe(true);
+  });
+
   it('backward compat: reads old toolCallDensity key', () => {
     setLocalStorage('toolCallDensity', 'detailed');
 
@@ -254,6 +260,15 @@ describe('DesktopPreferences saving and roundtrip', () => {
 
     const output = loadDesktopPreferences();
     expect(output).toEqual(defaults);
+  });
+
+  it('roundtrips the project section collapse preference', () => {
+    const prefs = loadDesktopPreferences();
+    const next: DesktopPreferences = { ...prefs, projectsSectionCollapsed: true };
+
+    saveDesktopPreferences(next);
+
+    expect(loadDesktopPreferences().projectsSectionCollapsed).toBe(true);
   });
 });
 

@@ -13,6 +13,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
+import { formatError } from '@piwin/contracts';
 
 const MERMAID_RENDER_TIMEOUT_MS = 8_000;
 
@@ -74,7 +75,7 @@ function MermaidInner({ source }: MermaidBlockProps): ReactElement {
           clearTimeout(timeoutId);
         }
         if (!cancelled) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message = formatError(error);
           setState({ status: 'error', message });
         }
       }

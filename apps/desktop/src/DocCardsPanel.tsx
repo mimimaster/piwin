@@ -14,7 +14,8 @@
  */
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { Button, ConfirmDialog } from '@piwin/ui-kit';
-import type { HostResponse, ScannedDocFile, FlashcardRecord, RetrievedChunk } from '@piwin/contracts';
+import type { HostResponse, ScannedDocFile, FlashcardRecord, RetrievedChunk } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import {
   buildFlashcardGenerationPrompt,
   FLASHCARD_QUALITY_RULES,
@@ -220,7 +221,7 @@ export function DocCardsPanel(props: DocCardsPanelProps): ReactElement {
       await props.sendSessionPrompt(prompt, title);
       setInfo(t('Generation prompt sent to the agent', '已向 Agent 发送生成提示'));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       setError(message);
     } finally {
       setBusy(false);

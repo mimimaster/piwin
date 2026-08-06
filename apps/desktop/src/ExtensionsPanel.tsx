@@ -142,15 +142,17 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
       <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
-        <PageTitle
-          title={isChinese ? 'Pi 扩展' : 'Pi Extensions'}
-          description={isChinese ? '扩展 Agent 的核心能力，支持本地模块加载。' : 'Extend core agent capabilities with local module loading.'}
-          trailing={
-            <span className="muted" style={{ fontSize: '12.5px' }}>
-              {visible.length}/{extensions.length} {isChinese ? '已安装' : 'installed'}
-            </span>
-          }
-        />
+        {props.variant !== 'inline' ? (
+          <PageTitle
+            title={isChinese ? 'Pi 扩展' : 'Pi Extensions'}
+            description={isChinese ? '扩展 Agent 的核心能力，支持本地模块加载。' : 'Extend core agent capabilities with local module loading.'}
+            trailing={
+              <span className="muted" style={{ fontSize: '12.5px' }}>
+                {visible.length}/{extensions.length} {isChinese ? '已安装' : 'installed'}
+              </span>
+            }
+          />
+        ) : null}
 
         <div className="settings-toolbar" style={{ marginBottom: 16 }}>
           <TextInput

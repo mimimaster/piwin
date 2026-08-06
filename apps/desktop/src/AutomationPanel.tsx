@@ -110,10 +110,12 @@ export function AutomationPanel(props: AutomationPanelProps) {
   return (
     <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
       <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
-        <PageTitle
-          title={isChinese ? '自动化与脚本' : 'Automation & Hooks'}
-          description={isChinese ? '配置定时任务与事件钩子以自动化您的工作流。' : 'Configure scheduled jobs and event hooks to automate your workflow.'}
-        />
+        {props.variant !== 'inline' ? (
+          <PageTitle
+            title={isChinese ? '自动化与脚本' : 'Automation & Hooks'}
+            description={isChinese ? '配置定时任务与事件钩子以自动化您的工作流。' : 'Configure scheduled jobs and event hooks to automate your workflow.'}
+          />
+        ) : null}
 
         <div className="settings-section">
           <FieldRow

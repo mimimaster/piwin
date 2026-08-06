@@ -102,7 +102,7 @@
   display: none;
 }
 
-/* ─── History Ticks Drawer (Translucent Scale Bar & Drawer) ──────────────── */
+/* ─── History Ticks (thin rail + hover preview) ─────────────────────────── */
 
 .history-ticks-drawer {
   position: absolute;
@@ -117,24 +117,20 @@
   font-family: inherit;
   font-size: 12px;
   user-select: none;
-  /* Avoid transition:all — animating size/position while pinning feels stuck. */
-  transition:
-    opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.history-ticks-drawer.is-expanded {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-/* Collapsed state: Equal-length (等长) tick lines with NO container background */
+/* One thin, quiet hit rail. The arrow cursor makes the control feel like a
+   document navigator rather than a draggable resize handle. */
 .history-ticks-border-strip {
   display: flex;
   flex-direction: column;
+  /* Reserve the full wave width. With overflow-y:auto, an unspecified
+     overflow-x becomes auto too, so a transformed tick would otherwise be
+     painted outside the scrollport and clipped back to its 12px base width. */
+  width: calc(36px + 6px);
+  box-sizing: border-box;
   padding: 8px 6px 8px 0;
-  cursor: pointer;
+  cursor: default;
   background: transparent;
   border: none;
   box-shadow: none;
@@ -144,9 +140,6 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: none;
-  transition:
-    opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .history-ticks-border-strip::-webkit-scrollbar {
@@ -158,236 +151,72 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  align-items: flex-start;
 }
 
 .border-tick-line {
   position: relative;
   display: block;
   width: 12px;
-  height: 2px;
-  border-radius: 0 2px 2px 0;
-  background: color-mix(in srgb, var(--text) 50%, transparent);
-  opacity: 0.5;
+  height: 1px;
+  border-radius: 0 1px 1px 0;
+  background: color-mix(in srgb, var(--text) 22%, transparent);
+  cursor: default;
   transform-origin: left center;
-  /* transform + opacity are compositor-friendly; animating width or
-     box-shadow would force layout + repaint on every hover frame. */
+  transform: scaleX(1);
   transition:
-    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    transform 0.12s ease-out,
+    background-color 0.12s ease-out;
 }
 
-/* Glow lives on a pseudo-element so only its opacity fades (compositor)
-   instead of re-rasterizing a box-shadow blur on every frame. */
-.border-tick-line::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 3px;
-  background: var(--accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 75%, transparent);
-  opacity: 0;
-  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: none;
+.border-tick-line:hover {
+  transform: scaleX(3);
+  background: var(--text);
 }
 
-.border-tick-line:hover,
-.border-tick-line.is-hovered {
-  transform: scaleX(1.4);
-  opacity: 1;
-  background: var(--accent);
+/* Direct-hover fallback for the vertical wave. The rail JS handles gaps and
+   previews; these selectors guarantee the visible wave even if a desktop
+   webview delays a mousemove event. Each rule affects only the matching
+   distance above and below the hovered tick. */
+.border-tick-line:hover + .border-tick-line,
+.border-tick-line:has(+ .border-tick-line:hover) {
+  transform: scaleX(2.5);
 }
 
-.border-tick-line:hover::after,
-.border-tick-line.is-hovered::after {
-  opacity: 0.9;
+.border-tick-line:hover + .border-tick-line + .border-tick-line,
+.border-tick-line:has(+ .border-tick-line + .border-tick-line:hover) {
+  transform: scaleX(2);
 }
 
-/* Expanded state: Pulled-out 100% solid drawer panel (No transparency, no backdrop-filter) */
-.history-drawer-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  max-height: 100%;
-  min-width: 140px;
-  max-width: 220px;
-  padding: 12px 14px;
-  border-radius: 0 12px 12px 0;
-  background: var(--panel, var(--surface, #ffffff)) !important;
-  background-color: var(--panel, var(--surface, #ffffff)) !important;
-  opacity: 1 !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  border: 1px solid var(--border, var(--border-color, rgba(0, 0, 0, 0.12))) !important;
-  border-left: none !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14) !important;
-  animation: history-drawer-slideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  /* Bubble escapes sideways; vertical overflow is handled by the tick track. */
-  overflow: visible;
+.border-tick-line:hover + .border-tick-line + .border-tick-line + .border-tick-line,
+.border-tick-line:has(+ .border-tick-line + .border-tick-line + .border-tick-line:hover) {
+  transform: scaleX(1.5);
 }
 
-.history-drawer-panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: -2px 0 10px;
+.border-tick-line:hover
+  + .border-tick-line
+  + .border-tick-line
+  + .border-tick-line
+  + .border-tick-line,
+.border-tick-line:has(
+  + .border-tick-line + .border-tick-line + .border-tick-line + .border-tick-line:hover
+) {
+  transform: scaleX(1);
 }
 
-.history-drawer-panel-title {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: color-mix(in srgb, var(--text) 55%, transparent);
-  text-transform: uppercase;
+.border-tick-line.is-hovered,
+.border-tick-line:focus-visible {
+  background: var(--text);
 }
 
-.history-drawer-close {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: color-mix(in srgb, var(--text) 55%, transparent);
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.history-drawer-close:hover {
-  background: var(--surface-inset, color-mix(in srgb, var(--text) 8%, transparent));
-  color: var(--text);
-}
-
-@keyframes history-drawer-slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.history-ticks-container {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1 1 auto;
-  overflow: visible;
-}
-
-.history-ticks-track {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  position: relative;
-  min-height: 0;
-  max-height: min(360px, calc(100vh - 220px));
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-right: 2px;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent;
-}
-
-.history-ticks-track::-webkit-scrollbar {
-  width: 6px;
-}
-
-.history-ticks-track::-webkit-scrollbar-thumb {
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--text) 16%, transparent);
-}
-
-.history-tick-item {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  cursor: pointer;
-  padding: 2px 0;
-  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  opacity: 0.6;
-}
-
-.history-tick-item:hover,
-.history-tick-item.is-hovered {
-  opacity: 1;
-}
-
-.history-tick-label {
-  font-size: 11px;
-  font-family: var(--font-mono, monospace);
-  color: color-mix(in srgb, var(--text) 65%, transparent);
-  transition: color 0.15s ease;
-  text-align: right;
-  min-width: 32px;
-}
-
-/* Extended tick line inside drawer ("刻度线拉长", 不定长) */
-.history-tick-line {
-  position: relative;
-  display: block;
-  height: 2px;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--text) 25%, transparent);
-  transform-origin: left center;
-  transition:
-    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
-    background-color 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.history-tick-line::after {
-  content: '';
-  position: absolute;
-  inset: -3px 0;
-  border-radius: 2px;
-  background: var(--accent);
-  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 60%, transparent);
-  opacity: 0;
-  transition: opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: none;
-}
-
-.history-tick-item:hover .history-tick-label,
-.history-tick-item.is-hovered .history-tick-label {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.history-tick-item:hover .history-tick-line,
-.history-tick-item.is-hovered .history-tick-line {
-  background: var(--accent);
-  transform: scaleX(1.18);
-}
-
-.history-tick-item:hover .history-tick-line::after,
-.history-tick-item.is-hovered .history-tick-line::after {
-  opacity: 0.9;
-}
-
-/* History Message Bubble Popover (100% Solid Opaque Surface - NO Transparency, NO Backdrop Filter) */
+/* Fixed to the hovered tick's viewport position so it does not participate in
+   the rail's layout or trigger reflow while the pointer moves between ticks. */
 .history-message-bubble {
-  position: absolute;
-  left: calc(100% + 12px);
-  top: -4px;
+  position: fixed;
   /* Hover-only preview; never steal scroll/focus from the transcript. */
   pointer-events: none;
-  width: 280px;
-  max-height: 240px;
+  width: min(280px, calc(100vw - 32px));
+  max-height: min(240px, calc(100vh - 24px));
   overflow-y: auto;
   padding: 12px 16px;
   border-radius: 12px;
@@ -401,17 +230,21 @@
     0 16px 40px rgba(0, 0, 0, 0.18),
     0 4px 12px rgba(0, 0, 0, 0.08) !important;
   z-index: 100;
-  animation: history-bubble-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes history-bubble-pop {
+.history-message-bubble--collapsed {
+  transform: translateY(-50%);
+  animation: history-bubble-pop-collapsed 0.14s ease-out;
+}
+
+@keyframes history-bubble-pop-collapsed {
   from {
-    opacity: 0;
-    transform: translateX(-8px) scale(0.96);
+    opacity: 0.75;
+    transform: translateY(-50%) translateX(-6px);
   }
   to {
     opacity: 1;
-    transform: translateX(0) scale(1);
+    transform: translateY(-50%) translateX(0);
   }
 }
 
@@ -1386,6 +1219,140 @@
   50% {
     opacity: 1;
     transform: scale(1.3);
+  }
+}
+
+/* Image generation placeholder — replaced by the final attachment on success. */
+.image-generation-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(380px, 100%);
+  margin: 4px 0 12px;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--card));
+  overflow: hidden;
+}
+
+.image-generation-progress-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  flex: none;
+  overflow: hidden;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 28% 25%, rgba(255, 255, 255, 0.42), transparent 24%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 62%, var(--card)), var(--card));
+}
+
+.image-generation-progress-art::before {
+  position: absolute;
+  inset: -55%;
+  content: '';
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    color-mix(in srgb, var(--text) 32%, transparent) 48%,
+    transparent 61%
+  );
+  animation: image-generation-sheen 1.8s linear infinite;
+}
+
+.image-generation-progress-art::after {
+  position: absolute;
+  inset: 12px;
+  content: '';
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 8px;
+  opacity: 0.8;
+  animation: image-generation-frame 1.6s ease-in-out infinite;
+}
+
+.image-generation-progress-spark {
+  position: relative;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  color: var(--text);
+  filter: drop-shadow(0 2px 7px color-mix(in srgb, var(--accent) 65%, transparent));
+  animation: image-generation-spark 1.4s ease-in-out infinite;
+}
+
+.image-generation-progress-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.image-generation-progress-copy strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.image-generation-progress-copy > span {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.image-generation-progress-dots {
+  display: inline-block;
+  width: 1.2em;
+  overflow: hidden;
+  vertical-align: bottom;
+  animation: image-generation-dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes image-generation-sheen {
+  from {
+    transform: translateX(-32%);
+  }
+  to {
+    transform: translateX(32%);
+  }
+}
+
+@keyframes image-generation-frame {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.42;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+}
+
+@keyframes image-generation-spark {
+  0%,
+  100% {
+    transform: scale(0.82) rotate(-8deg);
+    opacity: 0.62;
+  }
+  50% {
+    transform: scale(1.08) rotate(8deg);
+    opacity: 1;
+  }
+}
+
+@keyframes image-generation-dots {
+  0%,
+  25% {
+    width: 0;
+  }
+  50%,
+  75% {
+    width: 0.6em;
+  }
+  100% {
+    width: 1.2em;
   }
 }
 

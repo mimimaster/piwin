@@ -174,6 +174,19 @@ describe('model configuration', () => {
     expect(next?.[0]?.capabilities).toBeUndefined();
   });
 
+  it('preserves video-generation when the shared model editor saves image settings', () => {
+    const next = applyModelConfigurationDraft(
+      [{ id: 'multimodal-model', capabilities: ['video-generation'] }],
+      'multimodal-model',
+      {
+        ...createModelConfigurationDraft({ id: 'multimodal-model' }),
+        supportsImageGeneration: true,
+      },
+    );
+
+    expect(next?.[0]?.capabilities).toEqual(['video-generation', 'image-generation']);
+  });
+
   it('imports discovered models with catalog-enriched input fields', () => {
     const models = mergeDiscoveredModels(
       [{ id: 'deepseek-chat', contextWindow: 64_000 }],

@@ -5,6 +5,7 @@
  */
 
 import katex from 'katex';
+import { formatError } from '@piwin/contracts';
 
 export type KatexRenderResult =
   | { ok: true; html: string }
@@ -26,7 +27,7 @@ export function renderKatex(tex: string, displayMode: boolean): KatexRenderResul
     });
     return { ok: true, html };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     return { ok: false, error: message, source };
   }
 }

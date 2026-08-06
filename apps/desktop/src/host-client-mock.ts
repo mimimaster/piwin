@@ -164,6 +164,7 @@ export class MockHostBackend {
               sessionSearch: true,
               sessionPin: true,
               sessionLifecycle: true,
+              sessionExport: true,
               usage: true,
               pty: false,
               subagentWorktree: true,
@@ -640,6 +641,26 @@ export class MockHostBackend {
             tokensBefore: 8000,
             tokensAfter: 2500,
             durationMs: 30,
+          },
+        };
+      }
+      case 'session/compact-export': {
+        const path =
+          command.outputPath?.trim() ||
+          `/mock/exports/piwin-compact-${command.sessionId.slice(0, 8)}.md`;
+        const summary = 'Mock summary of prior turns for UI testing.';
+        const content = `${summary}\n`;
+        return {
+          id,
+          type: 'response',
+          command: 'session/compact-export',
+          success: true,
+          data: {
+            sessionId: command.sessionId,
+            format: 'md',
+            path,
+            byteLength: content.length,
+            ...(summary ? { summary } : {}),
           },
         };
       }

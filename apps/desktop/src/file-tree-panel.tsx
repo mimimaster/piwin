@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
+import { formatError } from '@piwin/contracts';
 import type {
   GitFileStatusCode,
   GitStatusData,
@@ -126,7 +127,7 @@ async function restoreExpanded(
         children = [];
         expanded = true;
         loading = false;
-        error = loadError instanceof Error ? loadError.message : String(loadError);
+        error = formatError(loadError);
         next.push({ ...node, expanded, loading, children, error });
         continue;
       }
@@ -232,7 +233,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       }
     } else {
       setError(
-        dirResult.reason instanceof Error ? dirResult.reason.message : String(dirResult.reason),
+        formatError(dirResult.reason),
       );
       setRootNodes([]);
     }
@@ -302,7 +303,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
           expanded: true,
           loading: false,
           children: [],
-          error: loadError instanceof Error ? loadError.message : String(loadError),
+          error: formatError(loadError),
         };
       }
     }

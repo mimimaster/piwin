@@ -5,6 +5,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Button, Field, Modal, Notice, Tabs, TabsContent, TabsList, TabsTrigger, TextInput } from '@piwin/ui-kit';
 import type { McpConfigDocument, McpServerConfig, McpToolSummary } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 
 export type McpServerEditorDialogProps = {
   open: boolean;
@@ -152,7 +153,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     try {
       parsed = JSON.parse(rawJson);
     } catch (parseError) {
-      setError(parseError instanceof Error ? parseError.message : isChinese ? '无效的 JSON' : 'Invalid JSON');
+      setError(formatError(parseError));
       return false;
     }
     const result = await props.onValidateRaw(parsed);

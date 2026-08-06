@@ -19,7 +19,8 @@ import type {
   SessionPlan,
   ThemeManifest,
 } from '@piwin/contracts';
-import type { PetRuntimeSnapshot } from '@piwin/contracts';
+import type { PetRuntimeSnapshot } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, PermissionPromptUi } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
@@ -333,7 +334,7 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         dispatch({ type: 'host/status', ready: false, mock: false });
         dispatch({
           type: 'error',
-          message: error instanceof Error ? error.message : String(error),
+          message: formatError(error),
         });
       }
       const configResponse = await hostClient.request({ type: 'config/get' });

@@ -4,6 +4,7 @@ import type {
   AgentEventEnvelope,
   ContextUsageSnapshot,
   ExecutionRunRecord,
+  MediaAttachmentRef,
   PromptAttachment,
   PermissionDecision,
   PermissionRequestContext,
@@ -217,7 +218,7 @@ export type ChatUiAction =
       sessionId: string;
       messages: SessionTranscriptMessage[];
       outline?: SessionOutlineNode[];
-      /** When true, the resumed session has an active run — mark it as working. */
+      /** Whether the host has a live handle; this is not a run-status signal. */
       live?: boolean;
     }
   | { type: 'session/update'; session: SessionListItemUi }
@@ -501,9 +502,13 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         // before load-messages) already clears it, and a walkthrough/list
         // response may resolve before load-messages is dispatched — clearing
         // here would wipe the freshly-hydrated map.
-        workingSessionIds: action.live
-          ? { ...state.workingSessionIds, [action.sessionId]: true }
-          : { ...state.workingSessionIds },
+        // `live` means the session handle can accept a future prompt. It does
+        // not mean that a prompt is currently running, so never add a working
+        // marker while restoring transcript history.
+        workingSessionIds:
+          action.live === false
+            ? removeWorkingSessionId(state.workingSessionIds, action.sessionId)
+            : { ...state.workingSessionIds },
       };
     }
     case 'session/add': {
@@ -801,7 +806,19 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       if (state.activeSessionId !== action.run.sessionId) return state;
       return applyRunRecord(state, action.run);
     case 'run/terminal':
-      if (state.activeSessionId !== action.run.sessionId) return state;
+      if (state.activeSessionId !== action.run.sessionId) {
+        // Terminal pushes are global. A run can finish after the user has
+        // switched sessions, so still clear its background working marker.
+        return action.run.kind === 'session-turn'
+          ? {
+              ...state,
+              workingSessionIds: removeWorkingSessionId(
+                state.workingSessionIds,
+                action.run.sessionId,
+              ),
+            }
+          : state;
+      }
       return applyRunRecord(state, action.run);
     case 'run/terminal-dismiss':
       return {
@@ -1399,21 +1416,32 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
       }
-      return updateOwnedTool(state, event.toolCallId, event.runId, (tool) => {
-        const mergedPresentation = event.presentation
-          ? mergeToolPresentation(tool.presentation, event.presentation)
-          : tool.presentation;
-        const displayOutput =
-          mergedPresentation?.output?.text !== undefined
-            ? mergedPresentation.output.text
-            : tool.output;
-        return {
-          ...tool,
-          status: event.isError ? 'error' : 'done',
-          output: displayOutput,
-          ...(mergedPresentation ? { presentation: mergedPresentation } : {}),
-        };
-      });
+      {
+        const updatedState = updateOwnedTool(state, event.toolCallId, event.runId, (tool) => {
+          const mergedPresentation = event.presentation
+            ? mergeToolPresentation(tool.presentation, event.presentation)
+            : tool.presentation;
+          const displayOutput =
+            mergedPresentation?.output?.text !== undefined
+              ? mergedPresentation.output.text
+              : tool.output;
+          return {
+            ...tool,
+            status: event.isError ? 'error' : 'done',
+            output: displayOutput,
+            ...(mergedPresentation ? { presentation: mergedPresentation } : {}),
+          };
+        });
+        if (!event.attachments || event.attachments.length === 0) {
+          return updatedState;
+        }
+        return appendGeneratedAttachmentsToToolOwner(
+          updatedState,
+          event.toolCallId,
+          event.runId,
+          event.attachments,
+        );
+      }
     case 'permission/request': {
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
@@ -1596,6 +1624,7 @@ function applyRunRecord(state: ChatUiState, run: ExecutionRunRecord): ChatUiStat
           ? { kind: 'failed', message: run.error ?? 'Run failed', at: Date.now() }
           : { kind: 'complete', at: Date.now() },
     runRecordsById: records,
+    workingSessionIds: removeWorkingSessionId(state.workingSessionIds, run.sessionId),
   };
 }
 
@@ -1746,6 +1775,52 @@ function updateOwnedTool(
     return state;
   }
   return { ...state, messages: nextMessages };
+}
+
+/** Add generated media to the assistant message that owns the tool call. */
+function appendGeneratedAttachmentsToToolOwner(
+  state: ChatUiState,
+  toolCallId: string,
+  runId: string | undefined,
+  attachments: readonly MediaAttachmentRef[],
+): ChatUiState {
+  let matched = false;
+  const nextMessages = state.messages.map((message) => {
+    if (matched) {
+      return message;
+    }
+    const toolMatches = message.tools.some(
+      (tool) =>
+        tool.toolCallId === toolCallId &&
+        (runId === undefined || tool.runId === undefined || tool.runId === runId),
+    );
+    if (!toolMatches) {
+      return message;
+    }
+    if (runId !== undefined && message.runId !== undefined && message.runId !== runId) {
+      return message;
+    }
+    if (
+      runId !== undefined &&
+      message.runId === undefined &&
+      (state.activeRunId !== runId || message.status !== 'streaming')
+    ) {
+      return message;
+    }
+
+    matched = true;
+    const existingIds = new Set(message.attachments.map((attachment) => attachment.id));
+    const nextAttachments = [...message.attachments];
+    for (const attachment of attachments) {
+      if (!existingIds.has(attachment.id)) {
+        existingIds.add(attachment.id);
+        nextAttachments.push(attachment);
+      }
+    }
+    return { ...message, attachments: nextAttachments };
+  });
+
+  return matched ? { ...state, messages: nextMessages } : state;
 }
 
 function mergeToolPresentation(

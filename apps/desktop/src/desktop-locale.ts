@@ -18,7 +18,6 @@ export type DesktopCopy = {
   chinese: string;
   english: string;
   backToWorkspace: string;
-  localConfiguration: string;
   configurationRoot: string;
   savedLocally: string;
   workspace: string;
@@ -57,6 +56,13 @@ export type DesktopCopy = {
     deleteSessionPermanently: string;
     sessionActions: string;
     projects: string;
+    collapseProjects: string;
+    expandProjects: string;
+    viewAllProjects: (count: number) => string;
+    allProjects: string;
+    projectPickerDescription: string;
+    searchProjects: string;
+    noMatchingProjects: string;
     displayOptions: string;
     customizeSidebar: string;
     customize: string;
@@ -373,6 +379,32 @@ export type DesktopTranslator = {
       discoveryError: string;
       modelsHeading: string;
     };
+    videoGeneration: {
+      pageTitle: string;
+      pageDescription: string;
+      provider: string;
+      apiEndpoint: string;
+      apiKey: string;
+      apiKeyStoredKeychain: string;
+      apiKeyStoredEnv: (envName: string) => string;
+      apiKeyUnset: string;
+      apiStyle: string;
+      apiStyleHint: string;
+      requestPath: string;
+      requestPathHint: string;
+      timeout: string;
+      timeoutUnitSeconds: string;
+      pollInterval: string;
+      pollIntervalUnitSeconds: string;
+      modelId: string;
+      modelLabel: string;
+      modelDescription: string;
+      setDefault: string;
+      addModel: string;
+      removeModel: string;
+      noModels: string;
+      modelsHeading: string;
+    };
   };
 };
 
@@ -386,7 +418,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     chinese: '简体中文',
     english: 'English',
     backToWorkspace: '返回工作区',
-    localConfiguration: '本地配置',
     configurationRoot: '配置根目录',
     savedLocally: '已保存在本地',
     workspace: '工作区',
@@ -425,6 +456,13 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deleteSessionPermanently: '永久删除会话',
       sessionActions: '会话操作',
       projects: '项目',
+      collapseProjects: '收起项目列表',
+      expandProjects: '展开项目列表',
+      viewAllProjects: (count) => `查看全部项目（${count}）`,
+      allProjects: '全部项目',
+      projectPickerDescription: '搜索并切换到最近打开的项目。',
+      searchProjects: '搜索项目',
+      noMatchingProjects: '没有匹配的项目',
       displayOptions: '显示选项',
       customizeSidebar: '自定义侧边栏',
       customize: '自定义',
@@ -551,7 +589,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
     chinese: 'Simplified Chinese',
     english: 'English',
     backToWorkspace: 'Back to workspace',
-    localConfiguration: 'Local configuration',
     configurationRoot: 'Configuration root',
     savedLocally: 'Saved locally',
     workspace: 'Workspace',
@@ -590,6 +627,13 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deleteSessionPermanently: 'Delete session permanently',
       sessionActions: 'Session actions',
       projects: 'Projects',
+      collapseProjects: 'Collapse project list',
+      expandProjects: 'Expand project list',
+      viewAllProjects: (count) => `View all projects (${count})`,
+      allProjects: 'All projects',
+      projectPickerDescription: 'Search and switch to a recently opened project.',
+      searchProjects: 'Search projects',
+      noMatchingProjects: 'No matching projects',
       displayOptions: 'Display options',
       customizeSidebar: 'Customize sidebar',
       customize: 'Customize',
@@ -732,8 +776,8 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       refresh: isChinese ? '刷新' : 'Refresh',
       remove: isChinese ? '移除' : 'Remove',
       save: isChinese ? '保存' : 'Save',
-     saving: isChinese ? '保存中…' : 'Saving…',
-   },
+      saving: isChinese ? '保存中…' : 'Saving…',
+    },
     interruption: {
       agentWaiting: isChinese ? 'Agent 正等待你的回答' : 'Agent is waiting for your answer',
       answerInComposer: isChinese ? '在下方输入框中回答' : 'Answer in the composer below',
@@ -750,7 +794,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
       expandDetails: isChinese ? '展开详情' : 'Expand details',
       collapseDetails: isChinese ? '收起详情' : 'Collapse details',
     },
-   settings: {
+    settings: {
       application: isChinese ? '应用' : 'Application',
       agent: 'Agent',
       integrations: isChinese ? '集成' : 'Integrations',
@@ -977,6 +1021,38 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         removeModel: isChinese ? '移除' : 'Remove',
         noModels: isChinese ? '尚未配置图片生成模型。' : 'No image generation models configured.',
         modelsHeading: isChinese ? '图片生成模型' : 'Image generation models',
+      },
+      videoGeneration: {
+        pageTitle: isChinese ? '视频生成' : 'Video Generation',
+        pageDescription: isChinese
+          ? '配置视频生成模型、异步任务接口与默认视频模型。'
+          : 'Configure video models, async task endpoints, and the default video model.',
+        provider: isChinese ? '接口通道' : 'Provider',
+        apiEndpoint: isChinese ? 'API 接口地址' : 'API endpoint',
+        apiKey: isChinese ? 'API Key' : 'API key',
+        apiKeyStoredKeychain: '••••••••',
+        apiKeyStoredEnv: (envName) => (isChinese ? `环境变量 ${envName}` : `Env var ${envName}`),
+        apiKeyUnset: isChinese ? '未配置' : 'Not configured',
+        apiStyle: isChinese ? 'API 格式' : 'API style',
+        apiStyleHint: isChinese
+          ? '选择厂商的异步任务协议；实际请求由 Host adapter 处理。'
+          : 'Select the vendor async-task protocol; the Host adapter handles the wire format.',
+        requestPath: isChinese ? '创建任务路径' : 'Create-task path',
+        requestPathHint: isChinese
+          ? '追加到 provider 基址的创建任务路径，以 / 开头。'
+          : 'Create-task path appended to the provider base URL, starting with /.',
+        timeout: isChinese ? '任务超时时间' : 'Job timeout',
+        timeoutUnitSeconds: isChinese ? '秒' : 'sec',
+        pollInterval: isChinese ? '轮询间隔' : 'Poll interval',
+        pollIntervalUnitSeconds: isChinese ? '秒' : 'sec',
+        modelId: isChinese ? '模型 ID' : 'Model ID',
+        modelLabel: isChinese ? '模型备注' : 'Model label',
+        modelDescription: isChinese ? '模型介绍' : 'Model description',
+        setDefault: isChinese ? '设为默认视频模型' : 'Set as default video model',
+        addModel: isChinese ? '添加视频模型' : 'Add video model',
+        removeModel: isChinese ? '移除' : 'Remove',
+        noModels: isChinese ? '尚未配置视频生成模型。' : 'No video generation models configured.',
+        modelsHeading: isChinese ? '视频生成模型' : 'Video generation models',
       },
     },
   };

@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
 import { Button } from '@piwin/ui-kit';
+import { formatError } from '@piwin/contracts';
 import type {
   AgentEvent,
   HostServerMessage,
@@ -171,7 +172,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
       setSourceState(data.relation.sourceState);
       await refreshList();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatError(err));
     }
   }
 
@@ -237,7 +238,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
       // SIDE §11: refresh the picker so the version badge updates.
       await refreshList();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatError(err));
     } finally {
       setSyncing(false);
     }
@@ -270,7 +271,7 @@ export function SideChatPanel(props: SideChatPanelProps): ReactElement {
         setStreaming(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatError(err));
       setStreaming(false);
     }
   }

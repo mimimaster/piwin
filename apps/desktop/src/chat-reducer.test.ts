@@ -111,6 +111,63 @@ describe('chatUiReducer', () => {
     expect(afterLateEvent.activeRunId).toBe('run-2');
   });
 
+  it('clears the working marker when the active run reaches a terminal state', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'run this' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    expect(state.workingSessionIds).toEqual({ s1: true });
+
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        phase: 'streaming',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'completed',
+      }),
+    });
+
+    expect(state.workingSessionIds).toEqual({});
+    expect(state.streaming).toBe(false);
+  });
+
+  it('clears a background working marker when its terminal push arrives after a session switch', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'run in background' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    expect(state.workingSessionIds).toEqual({ s1: true });
+
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        phase: 'streaming',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'completed',
+      }),
+    });
+
+    expect(state.workingSessionIds).toEqual({});
+    expect(state.activeSessionId).toBe('s2');
+  });
+
+  it('does not treat a live session handle as an active run while restoring history', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [],
+      live: true,
+    });
+
+    expect(state.workingSessionIds).toEqual({});
+    expect(state.streaming).toBe(false);
+  });
+
   it('reduces a stream event batch in order', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
@@ -251,6 +308,66 @@ describe('chatUiReducer', () => {
       },
     });
     expect(state.messages[0]?.tools[0]?.status).toBe('done');
+  });
+
+  it('attaches generated media outputs to the owning assistant message', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'message/start',
+        messageId: 'assistant-1',
+        role: 'assistant',
+        runId: 'run-1',
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/start',
+        toolCallId: 'tool-image',
+        toolName: 'image_gen',
+        runId: 'run-1',
+      },
+    });
+    const generatedAttachment = {
+      id: 'asset-1',
+      kind: 'media' as const,
+      path: '/tmp/.piwin/media/s1/asset-1.png',
+      mimeType: 'image/png',
+      byteSize: 256,
+      source: 'generated' as const,
+    };
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/end',
+        toolCallId: 'tool-image',
+        isError: false,
+        runId: 'run-1',
+        attachments: [generatedAttachment],
+      },
+    });
+
+    expect(state.messages[0]?.attachments).toEqual([generatedAttachment]);
+
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/end',
+        toolCallId: 'tool-image',
+        isError: false,
+        runId: 'run-1',
+        attachments: [generatedAttachment],
+      },
+    });
+    expect(state.messages[0]?.attachments).toHaveLength(1);
   });
 
   it('does not attach a tool event to another run when ownership is unknown', () => {

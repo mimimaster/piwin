@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactElement } from 'react';
 import { Button, IconButton, Modal, Notice } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { IconClose } from './shell-icons';
+import { formatError } from '@piwin/contracts';
 
 export type ManagedKeyEntry = {
   id: string;
@@ -70,7 +71,7 @@ export function ProviderKeyManagerDialog({
       .catch((error: unknown) => {
         if (!cancelled) {
           setEntries([createEmptyEntry()]);
-          setLoadError(error instanceof Error ? error.message : String(error));
+          setLoadError(formatError(error));
         }
       })
       .finally(() => {
@@ -112,7 +113,7 @@ export function ProviderKeyManagerDialog({
       onSaved(apiKeyRef);
       onOpenChange(false);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : String(error));
+      setLoadError(formatError(error));
     } finally {
       setBusy(false);
     }

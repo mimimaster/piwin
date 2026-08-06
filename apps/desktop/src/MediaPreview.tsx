@@ -36,6 +36,20 @@ export function MediaPreview(props: {
     );
   }
 
+  if (props.attachment.mimeType.toLowerCase().startsWith('video/')) {
+    return (
+      <video
+        className={props.compact ? 'media-chip-video' : 'media-preview-video'}
+        src={url}
+        controls
+        preload="metadata"
+        playsInline
+        aria-label={props.attachment.path.split('/').pop() ?? 'video attachment'}
+        onError={() => setLoadFailed(true)}
+      />
+    );
+  }
+
   return (
     <img
       className={props.compact ? 'media-chip-thumb' : 'media-preview-image'}

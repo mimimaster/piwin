@@ -5,7 +5,8 @@
    Owns .modal*, .ui-dialog-content, .notification-*, .session-row-menu*,
    .session-menu-backdrop, .session-rename-form, .command-palette-*,
    .shell-overlay-scrim, .ui-menu-*, .ui-popover-content, .permission-detail,
-   .checkbox-row, .settings-modal, .drawer-panel/.drawer-header/.drawer-body.
+   .checkbox-row, .settings-modal, .project-picker-*,
+   .drawer-panel/.drawer-header/.drawer-body.
    All z-index values come from the tokens.css --layer-* contract.
    Semantic runtime tokens only; no forced declarations. */
 
@@ -116,6 +117,86 @@
   /* Appearance/centering moved to @piwin/ui-kit/styles.css; desktop only
      assigns the overlay layer. */
   z-index: calc(var(--layer-dialog) + 1);
+}
+
+/* ── Project picker ──────────────────────────────────────────────── */
+
+.project-picker-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(620px, calc(100vh - 48px));
+  overflow: hidden;
+}
+
+.project-picker-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.project-picker-header h3 {
+  margin-bottom: 4px;
+}
+
+.project-picker-header p {
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+
+.project-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 380px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.project-picker-item {
+  gap: 9px;
+}
+
+.project-picker-item > svg:first-child {
+  flex: 0 0 auto;
+  color: var(--faint);
+}
+
+.project-picker-item-body {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-picker-item-name,
+.project-picker-item-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-picker-item-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.project-picker-item-path {
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.project-picker-item-check {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.project-picker-empty {
+  padding: 18px 10px;
+  text-align: center;
 }
 
 /* Models picker: keep a single solid panel, no nested 480 vs 620 war. */
