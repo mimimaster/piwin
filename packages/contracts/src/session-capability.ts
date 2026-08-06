@@ -34,7 +34,8 @@ export type SessionToolFamily =
   | 'notes-write'
   | 'flashcards-read'
   | 'flashcards-write'
-  | 'image-generation';
+  | 'image-generation'
+  | 'video-generation';
 
 /** Compiled tool policy for one session (spec §9.3). */
 export type SessionToolPolicy = {

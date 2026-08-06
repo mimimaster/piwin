@@ -17,6 +17,8 @@ import type {
   BackendSessionBlueprint,
   ExtensionUiPort,
   HostToolExecutionPort,
+  SessionCompactResult,
+  SessionSeedMessage,
 } from '@piwin/contracts';
 import type { SerializableProviderRuntime } from '../rpc/serializable-blueprint.js';
 
@@ -30,6 +32,10 @@ export type BackendSessionHandle = {
   steer(message: string): Promise<void>;
   followUp(message: string): Promise<void>;
   abort(): Promise<void>;
+  compact?(customInstructions?: string): Promise<SessionCompactResult>;
+  abortCompaction?(): void;
+  getAutoCompactionEnabled?(): boolean;
+  setAutoCompactionEnabled?(enabled: boolean): void;
   subscribe(listener: (event: AgentEvent) => void): () => void;
 };
 
@@ -49,6 +55,8 @@ export type CreateBackendSessionInput = {
   hostToolExecution: HostToolExecutionPort;
   /** Optional parent-owned extension UI bridge. */
   extensionUi?: ExtensionUiPort;
+  /** Optional non-persisted history for an ephemeral session. */
+  seedMessages?: readonly SessionSeedMessage[];
 };
 
 /**

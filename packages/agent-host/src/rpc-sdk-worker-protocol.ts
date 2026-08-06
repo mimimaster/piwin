@@ -12,7 +12,12 @@
  * MCP, process, browser, notes, flashcards, or image generation executors.
  */
 
-import type { AgentEvent, ToolResult, ToolResultErrorCode } from '@piwin/contracts';
+import type {
+  AgentEvent,
+  SessionSeedMessage,
+  ToolResult,
+  ToolResultErrorCode,
+} from '@piwin/contracts';
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
@@ -25,6 +30,8 @@ export type WorkerRequestMethod =
   | 'session/abort'
   | 'session/steer'
   | 'session/follow-up'
+  | 'session/compact'
+  | 'session/compact-abort'
   | 'session/drop';
 
 /** Worker request frame (parent → worker via stdin). */
@@ -159,6 +166,7 @@ export type WorkerRequestPayload =
       productSessionId: string;
       blueprint: SerializableBlueprint;
       providers?: SerializableProviderRuntime[];
+      seedMessages?: readonly SessionSeedMessage[];
     }
   | {
       method: 'session/prompt';
@@ -184,6 +192,15 @@ export type WorkerRequestPayload =
       method: 'session/follow-up';
       sessionId: string;
       message: string;
+    }
+  | {
+      method: 'session/compact';
+      sessionId: string;
+      customInstructions?: string;
+    }
+  | {
+      method: 'session/compact-abort';
+      sessionId: string;
     }
   | {
       method: 'session/drop';

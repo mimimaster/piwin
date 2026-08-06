@@ -15,7 +15,7 @@
 
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { ExtensionUiPort, ThinkingLevel } from '@piwin/contracts';
+import type { ExtensionUiPort, SessionSeedMessage, ThinkingLevel } from '@piwin/contracts';
 import { bindExtensionUiToPiSession, createExtensionUiContext } from '../extension-ui-bridge.js';
 import { mapThinkingLevelToApi } from '../map-thinking-level.js';
 import {
@@ -30,12 +30,18 @@ import type {
   SerializableProviderRuntime,
 } from './serializable-blueprint.js';
 import type { WorkerPiSessionLike } from './worker-session-runtime.js';
+import {
+  createSeededPiSessionManager,
+  createSeededPiSettingsManager,
+} from '../seeded-pi-session.js';
+import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 
 /** Input passed to the factory's `createPiSession` callback. */
 export type WorkerPiSessionFactoryInput = {
   productSessionId: string;
   blueprint: SerializableBlueprint;
   providers?: SerializableProviderRuntime[];
+  seedMessages?: readonly SessionSeedMessage[];
   extensionUi?: ExtensionUiPort;
   /** Proxy tools to register as Pi customTools (WP4). */
   proxyTools?: PiBackendCustomToolDefinition[];
@@ -86,6 +92,15 @@ export async function createBlueprintResourceLoader(
     additionalExtensionPaths: [...blueprint.activeExtensionPaths],
     additionalPromptTemplatePaths: [...blueprint.activePromptPaths],
   };
+
+  // Inject product-level append system prompt (artifact decision + runtime
+  // contract, ADR 0029). Use appendSystemPromptOverride (not appendSystemPrompt)
+  // to preserve Pi's own APPEND_SYSTEM.md discovery while appending ours.
+  const artifactAppendPrompt = blueprint.appendSystemPrompt?.trim();
+  if (artifactAppendPrompt) {
+    loaderOptions.appendSystemPromptOverride = (base: string[]) =>
+      base.includes(artifactAppendPrompt) ? base : [...base, artifactAppendPrompt];
+  }
 
   const loader = new LoaderCtor(loaderOptions);
   await loader.reload();
@@ -209,6 +224,16 @@ export function createWorkerPiSessionFactory(
       resourceLoader,
       modelRuntime,
     };
+    if (input.seedMessages) {
+      sessionOptions.sessionManager = createSeededPiSessionManager(
+        piModule as Record<string, unknown>,
+        blueprint.workingDirectory,
+        input.seedMessages,
+      );
+      sessionOptions.settingsManager = createSeededPiSettingsManager(
+        piModule as Record<string, unknown>,
+      );
+    }
 
     // Inject proxy tools as Pi customTools (WP4). The worker does NOT
     // import tool executors — proxy tools call back to the parent.
@@ -288,6 +313,10 @@ type WorkerPiSessionHandle = {
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;
   abort?: () => Promise<void>;
+  compact?: (customInstructions?: string) => Promise<PiCompactionResult>;
+  abortCompaction?: () => void;
+  getAutoCompactionEnabled?: () => boolean;
+  setAutoCompactionEnabled?: (enabled: boolean) => void;
   setModel?: (model: PiModelRegistration) => Promise<void> | void;
   setThinkingLevel?: (level: string) => Promise<void> | void;
   bindExtensions?: (bindings: Record<string, unknown>) => Promise<void>;
@@ -329,6 +358,28 @@ function adaptPiSessionForWorker(
     ...(piSession.steer ? { steer: (message) => piSession.steer!(message) } : {}),
     ...(piSession.followUp ? { followUp: (message) => piSession.followUp!(message) } : {}),
     ...(piSession.abort ? { abort: () => piSession.abort!() } : {}),
+    ...(piSession.compact
+      ? {
+          compact: async (customInstructions?: string) => {
+            const result = customInstructions
+              ? await piSession.compact?.(customInstructions)
+              : await piSession.compact?.();
+            if (!result) {
+              throw new Error('Pi session compact returned no result');
+            }
+            return mapPiCompactionResult(result);
+          },
+        }
+      : {}),
+    ...(piSession.abortCompaction
+      ? { abortCompaction: () => piSession.abortCompaction?.() }
+      : {}),
+    ...(piSession.getAutoCompactionEnabled
+      ? { getAutoCompactionEnabled: () => piSession.getAutoCompactionEnabled?.() ?? true }
+      : {}),
+    ...(piSession.setAutoCompactionEnabled
+      ? { setAutoCompactionEnabled: (enabled: boolean) => piSession.setAutoCompactionEnabled?.(enabled) }
+      : {}),
     subscribe: (listener) => piSession.subscribe(listener),
   };
 }

@@ -197,6 +197,16 @@ describe('buildToolPresentation', () => {
     expect(presentation.summary).toBe('a red cube on a table');
   });
 
+  it('presents video_gen with prompt summary', () => {
+    expect(classifyToolKind('video_gen')).toBe('other');
+    const presentation = buildToolPresentation({
+      toolName: 'video_gen',
+      args: { prompt: 'a paper boat crossing a river' },
+    });
+    expect(presentation.actionVerb).toBe('Generated video');
+    expect(presentation.summary).toContain('paper boat');
+  });
+
   it('presents MCP tools with server label', () => {
     const presentation = buildToolPresentation({
       toolName: 'mcp__agent-memory__agent_memory_get_context',

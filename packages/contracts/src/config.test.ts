@@ -26,6 +26,24 @@ describe('ModelConfigEntry capabilities + routes', () => {
     expect(entry.routes?.['image-generation']?.path).toBe('/images/generations');
   });
 
+  it('accepts a video-generation route with a native async API style', () => {
+    const entry: ModelConfigEntry = {
+      id: 'sora-2',
+      capabilities: ['video-generation'],
+      routes: {
+        'video-generation': {
+          apiStyle: 'openai-videos',
+          path: '/videos',
+          timeoutMs: 900_000,
+          pollIntervalMs: 5_000,
+        },
+      },
+    };
+    expect(entry.capabilities).toContain('video-generation');
+    expect(entry.routes?.['video-generation']?.apiStyle).toBe('openai-videos');
+    expect(entry.routes?.['video-generation']?.pollIntervalMs).toBe(5_000);
+  });
+
   it('accepts a chat-only model without capabilities (backward compat)', () => {
     const entry: ModelConfigEntry = { id: 'gpt-4.1' };
     expect(entry.capabilities).toBeUndefined();
@@ -74,7 +92,12 @@ describe('PiwinConfig.imageGeneration', () => {
       hostMode: 'sdk',
       providers: [],
       media: { maxPasteBytes: 0, allowedMimeTypes: [] },
-      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 0 },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 0,
+      },
       imageGeneration: {
         defaultModel: {
           protocol: 'openai-compatible',
@@ -87,13 +110,42 @@ describe('PiwinConfig.imageGeneration', () => {
   });
 });
 
+describe('PiwinConfig.videoGeneration', () => {
+  it('accepts a videoGeneration default model independently from image generation', () => {
+    const config: PiwinConfig = {
+      hostMode: 'sdk',
+      providers: [],
+      media: { maxPasteBytes: 0, allowedMimeTypes: [] },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 0,
+      },
+      videoGeneration: {
+        defaultModel: {
+          protocol: 'openai-compatible',
+          providerId: 'runway',
+          modelId: 'gen4.5',
+        },
+      },
+    };
+    expect(config.videoGeneration?.defaultModel?.modelId).toBe('gen4.5');
+  });
+});
+
 describe('PiwinConfig.subagents', () => {
   it('accepts a subagents block with profiles and limits', () => {
     const config: PiwinConfig = {
       hostMode: 'sdk',
       providers: [],
       media: { maxPasteBytes: 0, allowedMimeTypes: [] },
-      artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 0 },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 0,
+      },
       subagents: {
         profiles: [
           {

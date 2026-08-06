@@ -1,3 +1,5 @@
+import type { MediaAttachmentRef } from './host.js';
+
 /**
  * Stable result contract for Host-owned Agent tools.
  *
@@ -10,6 +12,8 @@
 export type ToolResultDetails = Record<string, unknown> & {
   jobId?: string;
   runId?: string;
+  /** Durable media outputs that the product UI may render as attachments. */
+  attachments?: MediaAttachmentRef[];
 };
 
 /** Stable error codes shared by Host, SDK and RPC tool projections. */

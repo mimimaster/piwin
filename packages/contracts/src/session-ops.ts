@@ -70,3 +70,16 @@ export type SessionExportData = {
   path: string;
   byteLength: number;
 };
+
+/** Compact a temporary session snapshot and write only its summary as Markdown. */
+export type SessionCompactExportData = {
+  sessionId: string;
+  format: 'md';
+  /** Absolute path of the written compact summary. */
+  path: string;
+  byteLength: number;
+  summary?: string;
+  tokensBefore?: number;
+  tokensAfter?: number;
+  durationMs?: number;
+};

@@ -20,6 +20,7 @@ import type {
 import type { AgentWorkerSupervisor } from './agent-worker-supervisor.js';
 import type { RpcSdkWorkerClient } from './rpc-sdk-worker-client.js';
 import { assertValidBackendSessionBlueprint } from './backends/pi-session-backend.js';
+import { formatError } from '@piwin/contracts';
 import {
   projectBackendBlueprintForWorker,
   type SerializableBlueprint,
@@ -177,7 +178,7 @@ export class WorkerTaskRunner implements SubagentTaskRunner {
         ...(summaryText.trim() ? { summaryPreview: truncateSummary(summaryText) } : {}),
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
 
       // Check if this was an abort.
       if (signal.aborted || message === 'aborted') {

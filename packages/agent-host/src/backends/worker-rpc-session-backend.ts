@@ -81,6 +81,7 @@ export class WorkerSessionBackend implements PiSessionBackend {
         productSessionId: input.blueprint.sessionId,
         blueprint: serializableBlueprint,
         providers: input.providers,
+        ...(input.seedMessages ? { seedMessages: input.seedMessages } : {}),
       });
     } catch (error) {
       await this.options.supervisor
@@ -127,6 +128,13 @@ export class WorkerSessionBackend implements PiSessionBackend {
       },
       async abort() {
         await client.abort(created.sessionId);
+      },
+      async compact(customInstructions?: string) {
+        return client.compact(created.sessionId, customInstructions);
+      },
+      abortCompaction() {
+        // Abort is a best-effort control message; the caller does not await it.
+        void client.abortCompaction(created.sessionId);
       },
       subscribe(listener: (event: AgentEvent) => void): () => void {
         listeners.on('event', listener);

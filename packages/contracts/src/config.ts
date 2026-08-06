@@ -17,7 +17,16 @@ import type { SubagentProfileSettings } from './subagent-profile.js';
 import type { RemoteConfig } from './remote.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
-export type ModelCapability = 'chat' | 'image-generation';
+export type ModelCapability = 'chat' | 'image-generation' | 'video-generation';
+
+/**
+ * Provider wire formats used by the asynchronous video-generation adapters.
+ * The value is deliberately separate from the provider protocol: vendors such
+ * as Runway, Luma, and MiniMax do not share the OpenAI-compatible response
+ * shape even when their base URL is configured alongside OpenAI providers.
+ */
+export type VideoGenerationApiStyle =
+  'openai-videos' | 'google-veo' | 'runway-tasks' | 'luma-generations' | 'minimax-tasks' | 'custom';
 
 /** Input modalities a model accepts (Pi catalog / ModelRuntime). */
 export type ModelInputModality = 'text' | 'image';
@@ -28,6 +37,13 @@ export type ModelRouteConfig = {
   path?: string;
   /** Request timeout in milliseconds. */
   timeoutMs?: number;
+  /**
+   * Video-only provider wire format. Image and chat routes leave this unset.
+   * The Host uses it to select a native async adapter.
+   */
+  apiStyle?: VideoGenerationApiStyle;
+  /** Polling cadence for async video jobs, in milliseconds. */
+  pollIntervalMs?: number;
 };
 
 /** Per-model identity and optional runtime limits. */
@@ -274,6 +290,11 @@ export type ImageGenerationConfig = {
   defaultModel?: ModelRef;
 };
 
+export type VideoGenerationConfig = {
+  /** Default model for video generation (independent from chat/image defaults). */
+  defaultModel?: ModelRef;
+};
+
 /**
  * Text-only primary model: describe composer images via a vision model
  * before the main turn (Spec vision-delegation D1). Default off.
@@ -326,6 +347,8 @@ export type PiwinConfig = {
   marketplace?: MarketplaceConfig;
   /** Image generation config (default model, future options). */
   imageGeneration?: ImageGenerationConfig;
+  /** Video generation config (default model, future options). */
+  videoGeneration?: VideoGenerationConfig;
   /** Text-only vision delegation (composer images). */
   visionDelegation?: VisionDelegationConfig;
   /** Permission policy mode and rule sets (ADR 0019). */

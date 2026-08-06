@@ -136,6 +136,9 @@ export function projectBackendBlueprintForWorker(
     ...(backendBlueprint.thinkingLevel
       ? { thinkingLevel: backendBlueprint.thinkingLevel }
       : {}),
+    ...(backendBlueprint.appendSystemPrompt
+      ? { appendSystemPrompt: backendBlueprint.appendSystemPrompt }
+      : {}),
   });
   return {
     ...blueprint,

@@ -1,4 +1,5 @@
 export * from './host.js';
+export * from './piwin-error.js';
 export * from './host-tool.js';
 export * from './tool-result.js';
 export * from './tool-registration.js';
@@ -28,6 +29,7 @@ export * from './git.js';
 export * from './theme.js';
 export * from './pet.js';
 export * from './session-transcript.js';
+export * from './session-seed.js';
 export * from './session-origin.js';
 export * from './side-chat.js';
 export * from './plan.js';

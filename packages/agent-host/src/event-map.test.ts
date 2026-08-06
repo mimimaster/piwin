@@ -129,6 +129,59 @@ describe('mapPiSessionEvent', () => {
     });
   });
 
+  it('maps generated media attachments from Pi tool result details', () => {
+    const endEvents = mapPiSessionEvent({
+      type: 'tool_execution_end',
+      toolCallId: 'call-image-1',
+      toolName: 'image_gen',
+      isError: false,
+      result: {
+        content: [{ type: 'text', text: '{"paths":["/tmp/.piwin/media/s1/a.png"]}' }],
+        details: {
+          attachments: [
+            {
+              id: 'asset-1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s1/a.png',
+              mimeType: 'image/png',
+              byteSize: 128,
+              source: 'generated',
+            },
+          ],
+        },
+      },
+    });
+
+    expect(endEvents[0]).toMatchObject({
+      type: 'tool/end',
+      attachments: [
+        {
+          id: 'asset-1',
+          kind: 'media',
+          source: 'generated',
+          path: '/tmp/.piwin/media/s1/a.png',
+        },
+      ],
+    });
+  });
+
+  it('ignores malformed media attachment details', () => {
+    const endEvents = mapPiSessionEvent({
+      type: 'tool_execution_end',
+      toolCallId: 'call-image-invalid',
+      toolName: 'image_gen',
+      isError: false,
+      result: {
+        content: [],
+        details: {
+          attachments: [{ id: 'asset-1', kind: 'media', path: '/tmp/image.png' }],
+        },
+      },
+    });
+
+    expect(endEvents[0]).not.toHaveProperty('attachments');
+  });
+
   it('extracts text from partialResult on tool_execution_update', () => {
     const updateEvents = mapPiSessionEvent({
       type: 'tool_execution_update',

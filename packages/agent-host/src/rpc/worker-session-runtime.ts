@@ -7,7 +7,14 @@
  * normalized AgentEvent before emission.
  */
 
-import type { AgentEvent, ExtensionUiPort, ToolResult } from '@piwin/contracts';
+import type {
+  AgentEvent,
+  ExtensionUiPort,
+  SessionCompactResult,
+  SessionSeedMessage,
+  ToolResult,
+} from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { createPiSessionEventMapper, type PiSessionEventMapper } from '../event-map.js';
 import type {
   SerializableBlueprint,
@@ -43,6 +50,8 @@ export type WorkerPiSessionLike = {
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;
   abort?: () => Promise<void>;
+  compact?: (customInstructions?: string) => Promise<SessionCompactResult>;
+  abortCompaction?: () => void;
   subscribe: (listener: (raw: unknown) => void) => () => void;
 };
 
@@ -50,6 +59,7 @@ export type CreateWorkerPiSessionInput = {
   productSessionId: string;
   blueprint: SerializableBlueprint;
   providers?: SerializableProviderRuntime[];
+  seedMessages?: readonly SessionSeedMessage[];
   extensionUi?: ExtensionUiPort;
   /**
    * Proxy tool definitions to register with the Pi session (WP4).
@@ -139,6 +149,12 @@ export class WorkerSessionRuntime {
         case 'session/follow-up':
           await this.handleFollowUp(id, payload, request.context);
           break;
+        case 'session/compact':
+          await this.handleCompact(id, payload, request.context);
+          break;
+        case 'session/compact-abort':
+          await this.handleCompactAbort(id, payload, request.context);
+          break;
         case 'session/drop':
           await this.handleDrop(id, payload, request.context);
           break;
@@ -150,7 +166,7 @@ export class WorkerSessionRuntime {
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       this.sendResponse(id, false, undefined, message);
     }
   }
@@ -176,6 +192,7 @@ export class WorkerSessionRuntime {
       productSessionId: payload.productSessionId,
       blueprint: payload.blueprint,
       ...(payload.providers ? { providers: payload.providers } : {}),
+      ...(payload.seedMessages ? { seedMessages: payload.seedMessages } : {}),
       extensionUi: this.createExtensionUiPort(payload.productSessionId),
       ...(proxyTools.length > 0 ? { proxyTools } : {}),
     });
@@ -325,6 +342,33 @@ export class WorkerSessionRuntime {
       throw new Error('session does not support follow-up');
     }
     await session.handle.followUp(payload.message);
+    this.sendResponse(id, true, {});
+  }
+
+  private async handleCompact(
+    id: string,
+    payload: Extract<WorkerRequestPayload, { method: 'session/compact' }>,
+    context: WorkerFrameContext,
+  ): Promise<void> {
+    const session = this.requireSession(payload.sessionId);
+    this.assertSessionContext(session, context);
+    if (!session.handle.compact) {
+      throw new Error('session does not support compaction');
+    }
+    const result = payload.customInstructions
+      ? await session.handle.compact(payload.customInstructions)
+      : await session.handle.compact();
+    this.sendResponse(id, true, result);
+  }
+
+  private async handleCompactAbort(
+    id: string,
+    payload: Extract<WorkerRequestPayload, { method: 'session/compact-abort' }>,
+    context: WorkerFrameContext,
+  ): Promise<void> {
+    const session = this.requireSession(payload.sessionId);
+    this.assertSessionContext(session, context);
+    session.handle.abortCompaction?.();
     this.sendResponse(id, true, {});
   }
 
