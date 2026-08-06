@@ -18,6 +18,7 @@ import {
   IconButton,
 } from '@piwin/ui-kit';
 import { projectDisplayName } from './project-display-name';
+import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
 import { ProjectPickerDialog } from './project-picker-dialog';
 import {
   IconArchive,
@@ -35,6 +36,7 @@ import {
   IconPanelLeft,
   IconPin,
   IconPlus,
+  IconPaperPlane,
   IconSearch,
   IconSettings,
   IconSliders,
@@ -388,6 +390,23 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
   const [showAllGeneralSessions, setShowAllGeneralSessions] = useState<boolean>(false);
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
+  const sessionSearchInputRef = useRef<HTMLInputElement>(null);
+  const hasActiveSessionSearch = props.sessionSearch.trim().length > 0;
+  const [sessionSearchExpanded, setSessionSearchExpanded] = useState(hasActiveSessionSearch);
+
+  // Keep the expanded search field open while a query is active.
+  useEffect(() => {
+    if (hasActiveSessionSearch) {
+      setSessionSearchExpanded(true);
+    }
+  }, [hasActiveSessionSearch]);
+
+  useEffect(() => {
+    if (!sessionSearchExpanded) {
+      return;
+    }
+    sessionSearchInputRef.current?.focus();
+  }, [sessionSearchExpanded]);
 
   // Keyboard navigation for session list (↑↓ Enter) when focus is inside the sidebar.
   useEffect(() => {
@@ -512,8 +531,13 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           onDoubleClick={props.onResizeReset}
         />
       ) : null}
-            <div className="sidebar-header sidebar-titlebar-box">
-        <div className="sidebar-header-left">
+            <div
+              className="sidebar-header sidebar-titlebar-box"
+              data-testid="sidebar-titlebar"
+              data-tauri-drag-region
+              onMouseDown={handleNativeWindowDragMouseDown}
+            >
+        <div className="sidebar-header-left" data-no-window-drag>
           {props.onToggleSessions ? (
             <IconButton
               className="sidebar-sessions-toggle"
@@ -527,7 +551,13 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           ) : null}
         </div>
 
-        <div className="sidebar-header-right sidebar-history">
+        <WindowDragRegion
+          className="sidebar-titlebar-drag"
+          data-testid="sidebar-titlebar-drag"
+          aria-label={copy.titlebar.dragWindow}
+        />
+
+        <div className="sidebar-header-right sidebar-history" data-no-window-drag>
           <IconButton
             className="sidebar-history-btn"
             data-testid="sidebar-back-btn"
@@ -573,30 +603,58 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           </div>
         ) : null}
 
-        {/* New Agent — top priority action (Cursor-style) */}
-        <button
-          type="button"
-          className="sidebar-new-agent"
-          data-testid="new-session-btn"
-          onClick={() => props.onNewSession()}
-          title={copy.newSession}
-          aria-label={copy.newSession}
-        >
-          <IconSliders />
-          <span>New Agent</span>
-        </button>
+        {/* Primary sidebar actions — Cursor-style flat menu rows */}
+        <div className="sidebar-primary-actions">
+          <button
+            type="button"
+            className="sidebar-action-row"
+            data-testid="new-session-btn"
+            onClick={() => props.onNewSession()}
+            title={copy.newSession}
+            aria-label={copy.newSession}
+          >
+            <IconPaperPlane />
+            <span>{copy.newSession}</span>
+          </button>
 
-        {/* Search */}
-        <label className="search-field">
-          <IconSearch />
-          <input
-            value={props.sessionSearch}
-            onChange={(event) => props.onSessionSearchChange(event.target.value)}
-            placeholder={copy.searchSessions}
-            aria-label={copy.searchSessions}
-            data-testid="session-search-input"
-          />
-        </label>
+          {sessionSearchExpanded || hasActiveSessionSearch ? (
+            <label className="search-field sidebar-search-field">
+              <IconSearch />
+              <input
+                ref={sessionSearchInputRef}
+                value={props.sessionSearch}
+                onChange={(event) => props.onSessionSearchChange(event.target.value)}
+                onBlur={() => {
+                  if (!hasActiveSessionSearch) {
+                    setSessionSearchExpanded(false);
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    props.onSessionSearchChange('');
+                    setSessionSearchExpanded(false);
+                  }
+                }}
+                placeholder={copy.searchSessions}
+                aria-label={copy.searchSessions}
+                data-testid="session-search-input"
+              />
+            </label>
+          ) : (
+            <button
+              type="button"
+              className="sidebar-action-row"
+              data-testid="session-search-btn"
+              onClick={() => setSessionSearchExpanded(true)}
+              title={copy.searchSessions}
+              aria-label={copy.searchSessions}
+            >
+              <IconSearch />
+              <span>{copy.searchSessions}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Unified Folder Tree (Antigravity project-conversation tree style) */}

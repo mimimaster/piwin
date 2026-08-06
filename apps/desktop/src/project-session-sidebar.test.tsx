@@ -163,6 +163,29 @@ describe('ProjectSessionSidebar "See all" functionality', () => {
     ).toBe('显示选项');
   });
 
+  it('renders New Agent / Search as flat action rows and expands search on click', () => {
+    const { container, root } = renderSidebar();
+
+    const newSessionButton = container.querySelector('[data-testid="new-session-btn"]');
+    expect(newSessionButton).not.toBeNull();
+    expect(newSessionButton?.classList.contains('sidebar-action-row')).toBe(true);
+    expect(newSessionButton?.textContent).toContain('New Agent');
+
+    const searchButton = container.querySelector('[data-testid="session-search-btn"]');
+    expect(searchButton).not.toBeNull();
+    expect(searchButton?.classList.contains('sidebar-action-row')).toBe(true);
+    expect(container.querySelector('[data-testid="session-search-input"]')).toBeNull();
+
+    act(() => {
+      (searchButton as HTMLButtonElement).click();
+    });
+
+    expect(container.querySelector('[data-testid="session-search-input"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="session-search-btn"]')).toBeNull();
+    root.unmount();
+    container.remove();
+  });
+
   it('limits the visible project rows and opens the searchable all-projects picker', () => {
     const projects = createMockProjects(8);
     const { container } = renderSidebar({

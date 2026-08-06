@@ -22,12 +22,16 @@
   padding: 0 10px 0 8px;
   box-sizing: border-box;
   margin: 0;
-  background: var(--canvas, var(--bg));
+  /* Match conversation glass so the stage header does not form a solid band. */
+  background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 0;
   border-bottom: none;
   overflow: hidden;
-  -webkit-app-region: no-drag;
-  app-region: no-drag;
+  /* Titleband is the window drag surface; interactive children opt out. */
+  -webkit-app-region: drag;
+  app-region: drag;
 }
 
 /* Only when the navigator is collapsed does the stage sit under traffic lights. */
@@ -35,7 +39,8 @@
   padding-left: 88px;
 }
 
-.context-bar > * {
+.context-bar [data-no-window-drag],
+.context-bar > *:not(.context-bar-drag) {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
@@ -228,11 +233,15 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Flexible drag region between title cluster and right tools. */
+/* Flexible drag region between title cluster and right tools.
+   More specific than `.context-bar > * { no-drag }` so CSS drag works too. */
+.context-bar > .context-bar-drag,
 .context-bar-drag {
   flex: 1 1 auto;
   align-self: stretch;
-  min-width: 16px;
+  min-width: 24px;
+  min-height: 100%;
+  cursor: default;
   -webkit-app-region: drag;
   app-region: drag;
 }

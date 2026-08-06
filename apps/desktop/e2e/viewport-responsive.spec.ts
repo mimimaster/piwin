@@ -99,6 +99,8 @@ test.describe('responsive viewport smoke', () => {
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-viewport-1024');
     await expect(page.getByTestId('new-session-btn')).toBeVisible();
+    await expect(page.getByTestId('session-search-btn')).toBeVisible();
+    await page.getByTestId('session-search-btn').click();
     await expect(page.getByTestId('session-search-input')).toBeVisible();
     await page.getByTestId('settings-open-btn').click();
     await expect(page.getByTestId('settings-panel')).toBeVisible();
@@ -127,6 +129,8 @@ test.describe('responsive viewport smoke', () => {
       }
       await expect(shell).toHaveClass(/nav-open/);
       await expect(page.getByTestId('new-session-btn')).toBeVisible();
+      await expect(page.getByTestId('session-search-btn')).toBeVisible();
+      await page.getByTestId('session-search-btn').click();
       await expect(page.getByTestId('session-search-input')).toBeVisible();
 
       // Escape should close compact overlays when open (document-level owner).

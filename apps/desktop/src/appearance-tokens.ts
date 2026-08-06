@@ -17,35 +17,32 @@ const SHARED_MONO =
 export const PIWIN_APPEARANCE_DARK: ThemeManifest = {
   id: 'piwin-dark',
   name: 'Noir',
-  version: '6.2.0',
+  version: '6.4.0',
   description:
-    'Noir charcoal workbench with quiet column dividers and soft monochrome accent for piwin shell + artifacts',
+    'Noir calm slate workbench with soft non-glare typography and seamless surfaces for piwin shell + artifacts',
   mode: 'dark',
   tokens: {
-    // Three-level depth: sidebar/composer light · stage dark · chrome mid.
-    // Stage (conversation) is the deepest field; side columns sit one step up.
-    bg: '#0f0f0f',
-    panel: '#1a1a1a',
-    panel2: '#242424',
-    // Base border; column dividers use a stronger --column-divider.
-    border: 'rgba(255, 255, 255, 0.10)',
-    text: '#e0e0e3',
-    muted: '#8a8a92',
-    // Soft light accent — not pure white (avoids "glare" CTAs on dark).
-    accent: '#d8d8dc',
-    accent2: '#ececef',
-    danger: '#eb3946',
-    ok: '#3ecf8e',
+    // Soft depth: base canvas #141416 · sidebar #141416 · stage #18181b · float cards #1c1c21.
+    bg: '#141416',
+    panel: '#18181b',
+    panel2: '#1c1c20',
+    border: 'rgba(255, 255, 255, 0.05)',
+    text: '#e4e4e7',
+    muted: '#8e8e98',
+    accent: '#6366f1',
+    accent2: '#818cf8',
+    danger: '#ef4444',
+    ok: '#10b981',
     radius: '10px',
     font: SHARED_FONT,
   },
   artifact: {
     bg: 'transparent',
-    surface: 'rgba(26, 26, 26, 0.98)',
-    text: '#e0e0e3',
-    muted: '#8a8a92',
-    accent: '#d8d8dc',
-    border: 'rgba(255, 255, 255, 0.12)',
+    surface: 'rgba(24, 24, 27, 0.98)',
+    text: '#e4e4e7',
+    muted: '#8e8e98',
+    accent: '#6366f1',
+    border: 'rgba(255, 255, 255, 0.06)',
     radius: '0.625rem',
     font: SHARED_FONT,
   },
@@ -286,7 +283,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   root.style.setProperty(
     '--surface-sidebar',
     // Sidebar is the darker gray chrome column around the softer conversation stage.
-    isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1c1c1c',
+    isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1e1f24',
   );
   /** Alias for --panel (the foreground overlay / popover surface). */
   root.style.setProperty('--surface-overlay', tokens.panel);
@@ -304,7 +301,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
   /** Alias of --faint for semantic readers. */
   root.style.setProperty(
     '--content-muted',
-    isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#6e6e76',
+    isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#585862',
   );
   /** Disabled control labels and icons. */
   root.style.setProperty('--content-disabled', isLight ? '#b9b0a2' : '#5a5a62');
@@ -497,14 +494,14 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
 
   // ── Paper/Noir/橙白 derived ramp (§1.2 of docs/plans/2026-07-30-paper-noir-theme-implementation.md)
   // isWarmLight branches restore the original Daybreak warm-paper derived values.
-  root.style.setProperty('--card', isLight ? (isWarmLight ? tokens.panel : '#ffffff') : '#1a1a1a');
+  root.style.setProperty('--card', isLight ? (isWarmLight ? tokens.panel : '#ffffff') : '#1d1e24');
   root.style.setProperty(
     '--control',
-    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#242424',
+    isLight ? (isWarmLight ? tokens.panel2 : '#ececee') : '#1e1e24',
   );
   root.style.setProperty(
     '--sunken',
-    isLight ? (isWarmLight ? tokens.panel2 : '#f0f0f2') : '#0a0a0a',
+    isLight ? (isWarmLight ? tokens.panel2 : '#f0f0f2') : '#101012',
   );
   /**
    * Three-level shell surfaces (sidebar · conversation · composer):
@@ -512,14 +509,14 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
    *   Paper → gray  · soft gray · white
    *   橙白  → warm gray · warm white · warm gray
    */
-  root.style.setProperty('--sidebar', isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1c1c1c');
-  root.style.setProperty('--composer', isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1c1c1c');
+  root.style.setProperty('--sidebar', isLight ? (isWarmLight ? '#f2ede5' : '#ececef') : '#1e1f24');
+  root.style.setProperty('--composer', isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1c1c21');
   // History user-message cards share the composer surface (not stage canvas).
   root.style.setProperty(
     '--user-bubble',
-    isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1c1c1c',
+    isLight ? (isWarmLight ? '#f2ede5' : '#ffffff') : '#1d1e24',
   );
-  root.style.setProperty('--term-bg', isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#101010');
+  root.style.setProperty('--term-bg', isLight ? (isWarmLight ? '#efe9e0' : '#16181d') : '#101012');
   root.style.setProperty(
     '--term-text',
     isLight ? (isWarmLight ? '#6b6358' : '#b0b6c0') : '#a8a8b0',
@@ -530,7 +527,7 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
       ? isWarmLight
         ? 'rgba(60, 40, 20, 0.05)'
         : 'rgba(0, 0, 0, 0.04)'
-      : 'rgba(255, 255, 255, 0.06)',
+      : 'rgba(255, 255, 255, 0.04)',
   );
   root.style.setProperty(
     '--selected',
@@ -539,9 +536,9 @@ export function applyAppearanceToDocument(theme: ThemeManifest): void {
         ? 'rgba(232, 93, 31, 0.10)'
         : 'rgba(0, 0, 0, 0.06)'
       : // Match Cursor-like quiet selection (subtle lift, not a bright pill).
-        'rgba(255, 255, 255, 0.055)',
+        'rgba(255, 255, 255, 0.05)',
   );
-  root.style.setProperty('--faint', isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#6e6e76');
+  root.style.setProperty('--faint', isLight ? (isWarmLight ? '#a89d8f' : '#a0a0a8') : '#585862');
   root.style.setProperty(
     '--line-strong',
     isLight

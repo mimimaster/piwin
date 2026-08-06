@@ -10,7 +10,7 @@
  *   - "rail-chats-btn" / "right-panel-open-btn" / titlebar-*
  */
 import type { ReactElement } from 'react';
-import { Button, DropdownMenu, DropdownMenuItem, IconButton } from '@piwin/ui-kit';
+import { Button, IconButton } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
@@ -20,14 +20,12 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconForkConversation,
-  IconMcp,
   IconMoon,
-  IconMore,
   IconPanelLeft,
   IconPanelRight,
-  IconSkill,
   IconSun,
 } from './shell-icons';
+import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
 
 export type ContextBarSession = {
   title: string;
@@ -110,18 +108,6 @@ function phaseDotClass(kind: RunStatusView['kind']): string {
   }
 }
 
-function startNativeWindowDrag(): void {
-  if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
-    return;
-  }
-
-  void import('@tauri-apps/api/window')
-    .then(({ getCurrentWindow }) => getCurrentWindow().startDragging())
-    .catch((error: unknown) => {
-      console.warn('[piwin] native window drag failed', error);
-    });
-}
-
 export function ContextBar(props: ContextBarProps): ReactElement {
   const { session, runState } = props;
   const elapsedText = runState.elapsedMs !== undefined ? formatElapsed(runState.elapsedMs) : null;
@@ -146,8 +132,10 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       className="context-bar context-titlebar-box"
       data-testid="workspace-context-header"
       data-kind={runState.kind}
+      data-tauri-drag-region
+      onMouseDown={handleNativeWindowDragMouseDown}
     >
-      <div className="context-bar-leading" role="group" aria-label={titlebarCopy.shellNavigation}>
+      <div className="context-bar-leading" data-no-window-drag role="group" aria-label={titlebarCopy.shellNavigation}>
         {props.onToggleSessions && !props.sessionsExpanded ? (
           <IconButton
             className="context-bar-sessions-toggle"
@@ -249,7 +237,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
       </div>
 
       <div
-        className="context-bar-status"
+        className="context-bar-status" data-no-window-drag
         data-testid="run-status-strip"
         data-kind={runState.kind}
         role="status"
@@ -307,19 +295,14 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         ) : null}
       </div>
 
-      <div
+      <WindowDragRegion
         className="context-bar-drag"
-        data-tauri-drag-region
+        data-testid="context-bar-drag"
         aria-label={titlebarCopy.dragWindow}
-        onMouseDown={(event) => {
-          if (event.button === 0) {
-            startNativeWindowDrag();
-          }
-        }}
       />
 
       {!workPanelOpen ? (
-        <div className="context-bar-controls" role="toolbar" aria-label={titlebarCopy.tools}>
+        <div className="context-bar-controls" data-no-window-drag role="toolbar" aria-label={titlebarCopy.tools}>
         {props.onToggleAppearance ? (
           <IconButton
             className="context-bar-theme-toggle"
@@ -332,36 +315,6 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             {props.appearanceMode === 'light' ? <IconMoon /> : <IconSun />}
           </IconButton>
         ) : null}
-
-        <div className="context-bar-more-wrap">
-          <DropdownMenu
-            label={titlebarCopy.moreTools}
-            trigger={
-              <IconButton
-                title={titlebarCopy.more}
-                label={titlebarCopy.moreTools}
-                data-testid="titlebar-more-menu"
-              >
-                <IconMore />
-              </IconButton>
-            }
-          >
-            <DropdownMenuItem testId="more-sessions" onSelect={() => props.onToggleSessions?.()}>
-              <IconPanelLeft /> {titlebarCopy.sessions}
-            </DropdownMenuItem>
-            <DropdownMenuItem testId="more-skills" onSelect={() => props.onOpenSkills?.()}>
-              <IconSkill width={16} height={16} /> {titlebarCopy.skills}
-            </DropdownMenuItem>
-            <DropdownMenuItem testId="more-mcp" onSelect={() => props.onOpenMcp?.()}>
-              <IconMcp width={16} height={16} /> MCP
-            </DropdownMenuItem>
-            {props.onOpenSettings ? (
-              <DropdownMenuItem testId="more-settings" onSelect={() => props.onOpenSettings?.()}>
-                {copy.settings}
-              </DropdownMenuItem>
-            ) : null}
-          </DropdownMenu>
-        </div>
 
         {props.onToggleWorkPanel ? (
           <IconButton

@@ -153,8 +153,10 @@ test.describe('desktop shell (vite + host mock)', () => {
 
     await page.getByTestId('open-workspace-btn').click();
     await expect(page.getByTestId('workspace-path-dialog')).toBeVisible();
+    await expect(page.getByTestId('new-session-btn')).toContainText(/New Agent/);
+    await expect(page.getByTestId('session-search-btn')).toBeVisible();
+    await page.getByTestId('session-search-btn').click();
     await expect(page.getByTestId('session-search-input')).toBeVisible();
-    await expect(page.getByTestId('new-session-btn')).toContainText(/新会话|New session/);
   });
 
   test('mock chat: send prompt and see assistant reply', async ({ page }) => {
