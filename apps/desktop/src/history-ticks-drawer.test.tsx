@@ -4,9 +4,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import {
   HistoryTicksDrawer,
-  formatRelativeTime,
   formatFullTimestamp,
-  getDynamicTickWidth,
+  getHistoryTickWaveScale,
   truncateMessageText,
 } from './history-ticks-drawer';
 import type { ChatMessageUi } from './chat-reducer';
@@ -15,30 +14,17 @@ declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-describe('history-ticks-drawer helpers', () => {
-  it('formats relative time correctly', () => {
-    const now = new Date('2026-07-31T17:30:00Z');
-    expect(formatRelativeTime('2026-07-31T17:27:00Z', now)).toBe('3m');
-    expect(formatRelativeTime('2026-07-31T17:20:00Z', now)).toBe('10m');
-    expect(formatRelativeTime('2026-07-31T17:03:00Z', now)).toBe('27m');
-    expect(formatRelativeTime('2026-07-31T15:30:00Z', now)).toBe('2h');
-    expect(formatRelativeTime('2026-07-29T17:30:00Z', now)).toBe('2d');
-  });
+function getInlineTickScale(element: HTMLElement | undefined): number {
+  const transform = element?.style.transform ?? '';
+  const scaleText = /^scaleX\(([^)]+)\)$/.exec(transform)?.[1];
+  return scaleText ? Number(scaleText) : 1;
+}
 
+describe('history-ticks-drawer helpers', () => {
   it('formats full timestamp correctly', () => {
     const formatted = formatFullTimestamp('2026-07-31T17:08:00Z');
     expect(typeof formatted).toBe('string');
     expect(formatted.length).toBeGreaterThan(0);
-  });
-
-  it('calculates dynamic tick width based on text length', () => {
-    const shortText = 'Hi';
-    const longText = 'This is a long message content meant to test dynamic width scaling logic accurately.';
-    const shortWidth = getDynamicTickWidth(shortText, 8, 18);
-    const longWidth = getDynamicTickWidth(longText, 8, 18);
-    expect(shortWidth).toBeGreaterThanOrEqual(8);
-    expect(longWidth).toBeLessThanOrEqual(18);
-    expect(longWidth).toBeGreaterThan(shortWidth);
   });
 
   it('truncates long text correctly', () => {
@@ -47,6 +33,25 @@ describe('history-ticks-drawer helpers', () => {
     expect(truncateMessageText(shortText, 100)).toBe('Short message');
     expect(truncateMessageText(longText, 100)).toHaveLength(103);
     expect(truncateMessageText(longText, 100).slice(-3)).toBe('...');
+  });
+
+  it('keeps the wave profile symmetric around the hovered tick', () => {
+    expect(getHistoryTickWaveScale(0)).toBeCloseTo(36 / 12);
+    expect(getHistoryTickWaveScale(1)).toBeCloseTo(30 / 12);
+    expect(getHistoryTickWaveScale(2)).toBeCloseTo(24 / 12);
+    expect(getHistoryTickWaveScale(3)).toBeCloseTo(18 / 12);
+    expect(getHistoryTickWaveScale(4)).toBe(1);
+    expect(getHistoryTickWaveScale(5)).toBe(1);
+    expect(getHistoryTickWaveScale(Number.POSITIVE_INFINITY)).toBe(1);
+    expect(getHistoryTickWaveScale(-1)).toBeCloseTo(36 / 12);
+
+    const firstStep = getHistoryTickWaveScale(0) - getHistoryTickWaveScale(1);
+    const secondStep = getHistoryTickWaveScale(1) - getHistoryTickWaveScale(2);
+    const thirdStep = getHistoryTickWaveScale(2) - getHistoryTickWaveScale(3);
+    const fourthStep = getHistoryTickWaveScale(3) - getHistoryTickWaveScale(4);
+    expect(firstStep).toBeCloseTo(secondStep);
+    expect(secondStep).toBeCloseTo(thirdStep);
+    expect(thirdStep).toBeCloseTo(fourthStep);
   });
 });
 
@@ -127,162 +132,164 @@ describe('HistoryTicksDrawer component', () => {
     expect(container?.querySelectorAll('.border-tick-line').length).toBe(2);
   });
 
-  it('renders collapsed handle initially and expands on tick line click', () => {
+  it('shows the corresponding user message when a collapsed tick is hovered', () => {
     act(() => {
       root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
-    });
-
-    const drawer = container?.querySelector('.history-ticks-drawer');
-    expect(drawer).not.toBeNull();
-    const firstBorderTick = container?.querySelector('.border-tick-line');
-    expect(firstBorderTick).not.toBeNull();
-    expect(container?.querySelectorAll('.border-tick-line').length).toBe(2);
-
-    // Click border tick line to expand
-    act(() => {
-      firstBorderTick?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
-    });
-
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
-    expect(container?.querySelectorAll('.history-tick-item').length).toBe(2);
-  });
-
-  it('stays pinned open when mouse leaves the drawer', () => {
-    act(() => {
-      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
-    });
-
-    const firstBorderTick = container?.querySelector('.border-tick-line');
-    act(() => {
-      firstBorderTick?.dispatchEvent(
-        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
-      );
-    });
-
-    const drawer = container?.querySelector('[data-testid="history-ticks-drawer"]');
-    expect(drawer?.classList.contains('is-pinned')).toBe(true);
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
-
-    act(() => {
-      drawer?.dispatchEvent(
-        new window.MouseEvent('mouseleave', { bubbles: true, cancelable: true }),
-      );
-    });
-
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
-    expect(drawer?.classList.contains('is-pinned')).toBe(true);
-  });
-
-  it('closes when the pin close button is clicked', () => {
-    act(() => {
-      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
-    });
-
-    const firstBorderTick = container?.querySelector('.border-tick-line');
-    act(() => {
-      firstBorderTick?.dispatchEvent(
-        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
-      );
-    });
-
-    const closeButton = container?.querySelector('[data-testid="history-drawer-close"]');
-    expect(closeButton).not.toBeNull();
-    act(() => {
-      closeButton?.dispatchEvent(
-        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
-      );
-    });
-
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
-    expect(container?.querySelector('.border-tick-line')).not.toBeNull();
-  });
-
-  it('closes when clicking outside the drawer while pinned', () => {
-    act(() => {
-      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
-    });
-
-    const firstBorderTick = container?.querySelector('.border-tick-line');
-    act(() => {
-      firstBorderTick?.dispatchEvent(
-        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
-      );
-    });
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
-
-    act(() => {
-      document.dispatchEvent(
-        new window.MouseEvent('mousedown', { bubbles: true, cancelable: true }),
-      );
-    });
-
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
-  });
-
-  it('closes when Escape is pressed while pinned', () => {
-    act(() => {
-      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
-    });
-
-    const firstBorderTick = container?.querySelector('.border-tick-line');
-    act(() => {
-      firstBorderTick?.dispatchEvent(
-        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
-      );
-    });
-
-    act(() => {
-      document.dispatchEvent(
-        new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
-      );
-    });
-
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
-  });
-
-  it('shows message bubble popover after expanding drawer and hovering tick item', () => {
-    act(() => {
-      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
-    });
-
-    const firstBorderTick = container?.querySelector('.border-tick-line');
-    act(() => {
-      firstBorderTick?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
     });
 
     const firstTick = container?.querySelector('[data-testid="history-tick-msg-user-1"]');
+    const rail = container?.querySelector('[data-testid="history-drawer-handle"]');
     expect(firstTick).not.toBeNull();
+    expect(rail).not.toBeNull();
+
+    if (rail instanceof HTMLElement) {
+      vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
+        top: 0,
+        right: 12,
+      } as DOMRect);
+    }
 
     act(() => {
-      firstTick?.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true, cancelable: true }));
+      rail?.dispatchEvent(
+        new window.MouseEvent('mousemove', {
+          bubbles: true,
+          cancelable: true,
+          clientY: 8.5,
+        }),
+      );
     });
 
-    const bubble = container?.querySelector('[data-testid="history-message-bubble"]');
-    expect(bubble).not.toBeNull();
-    expect(bubble?.querySelector('.history-bubble-text')?.textContent).toBe('内置的浏览器有优化的方案吗');
+    expect(container?.querySelector('[data-testid="history-message-bubble"]')).not.toBeNull();
+    expect(container?.querySelector('.history-bubble-text')?.textContent).toBe(
+      '内置的浏览器有优化的方案吗',
+    );
+    expect(firstTick?.classList.contains('is-hovered')).toBe(true);
   });
 
-  it('clears the preview bubble on mouse leave so it cannot freeze open', () => {
+  it('applies the wave to nearby ticks while sweeping across the rail', async () => {
+    const firstMessage = sampleMessages[0];
+    if (!firstMessage) {
+      throw new Error('Expected a sample message');
+    }
+
+    const waveMessages: ChatMessageUi[] = Array.from({ length: 11 }, (_, index) => ({
+      ...firstMessage,
+      id: `wave-user-${index}`,
+      text: `Wave message ${index}`,
+    }));
+
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={waveMessages} />);
+    });
+
+    const rail = container?.querySelector('[data-testid="history-drawer-handle"]');
+    const tickElements = container?.querySelectorAll<HTMLElement>('.border-tick-line');
+    expect(rail).not.toBeNull();
+    expect(tickElements?.length).toBe(11);
+
+    if (rail instanceof HTMLElement) {
+      vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
+        top: 0,
+        right: 12,
+      } as DOMRect);
+    }
+
+    await act(async () => {
+      rail?.dispatchEvent(
+        new window.MouseEvent('mousemove', {
+          bubbles: true,
+          cancelable: true,
+          // Between the fifth and sixth ticks; the nearest (sixth) tick stays the peak.
+          clientY: 58,
+        }),
+      );
+
+      await new Promise<void>((resolve) => {
+        if (typeof window.requestAnimationFrame === 'function') {
+          window.requestAnimationFrame(() => resolve());
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    expect(getInlineTickScale(tickElements?.[0])).toBe(1);
+    expect(getInlineTickScale(tickElements?.[1])).toBe(1);
+    expect(getInlineTickScale(tickElements?.[2])).toBeCloseTo(18 / 12);
+    expect(getInlineTickScale(tickElements?.[3])).toBeCloseTo(24 / 12);
+    expect(getInlineTickScale(tickElements?.[4])).toBeCloseTo(30 / 12);
+    expect(getInlineTickScale(tickElements?.[5])).toBeCloseTo(36 / 12);
+    expect(getInlineTickScale(tickElements?.[6])).toBeCloseTo(30 / 12);
+    expect(getInlineTickScale(tickElements?.[7])).toBeCloseTo(24 / 12);
+    expect(getInlineTickScale(tickElements?.[8])).toBeCloseTo(18 / 12);
+    expect(getInlineTickScale(tickElements?.[9])).toBe(1);
+    expect(getInlineTickScale(tickElements?.[10])).toBe(1);
+  });
+
+  it('switches the bubble to the next user message without moving the rail', () => {
     act(() => {
       root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
     });
 
-    const firstBorderTick = container?.querySelector('.border-tick-line');
+    const firstTick = container?.querySelector('[data-testid="history-tick-msg-user-1"]');
+    const secondTick = container?.querySelector('[data-testid="history-tick-msg-user-2"]');
+    const rail = container?.querySelector('[data-testid="history-drawer-handle"]');
+
+    if (rail instanceof HTMLElement) {
+      vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
+        top: 0,
+        right: 12,
+      } as DOMRect);
+    }
+
     act(() => {
-      firstBorderTick?.dispatchEvent(
-        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
+      rail?.dispatchEvent(
+        new window.MouseEvent('mousemove', {
+          bubbles: true,
+          cancelable: true,
+          clientY: 8.5,
+        }),
+      );
+      rail?.dispatchEvent(
+        new window.MouseEvent('mousemove', {
+          bubbles: true,
+          cancelable: true,
+          clientY: 19.5,
+        }),
       );
     });
 
-    const firstTick = container?.querySelector('[data-testid="history-tick-msg-user-1"]');
+    expect(container?.querySelector('.history-bubble-text')?.textContent).toBe('第二条用户消息');
+    expect(firstTick?.classList.contains('is-hovered')).toBe(false);
+    expect(secondTick?.classList.contains('is-hovered')).toBe(true);
+  });
+
+  it('clears the preview bubble when the pointer leaves the rail', () => {
     act(() => {
-      firstTick?.dispatchEvent(
-        new window.MouseEvent('mouseover', { bubbles: true, cancelable: true }),
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    const rail = container?.querySelector('[data-testid="history-drawer-handle"]');
+    const drawer = container?.querySelector('[data-testid="history-ticks-drawer"]');
+
+    if (rail instanceof HTMLElement) {
+      vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
+        top: 0,
+        right: 12,
+      } as DOMRect);
+    }
+
+    act(() => {
+      rail?.dispatchEvent(
+        new window.MouseEvent('mousemove', {
+          bubbles: true,
+          cancelable: true,
+          clientY: 8.5,
+        }),
       );
     });
     expect(container?.querySelector('[data-testid="history-message-bubble"]')).not.toBeNull();
 
-    const drawer = container?.querySelector('[data-testid="history-ticks-drawer"]');
     act(() => {
       drawer?.dispatchEvent(
         new window.MouseEvent('mouseout', {
@@ -293,52 +300,17 @@ describe('HistoryTicksDrawer component', () => {
       );
     });
 
-    // Drawer stays pinned, but the sticky preview must not remain.
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
     expect(container?.querySelector('[data-testid="history-message-bubble"]')).toBeNull();
   });
 
-  it('unpins when the conversation identity changes', () => {
-    act(() => {
-      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
-    });
-
-    const firstBorderTick = container?.querySelector('.border-tick-line');
-    act(() => {
-      firstBorderTick?.dispatchEvent(
-        new window.MouseEvent('click', { bubbles: true, cancelable: true }),
-      );
-    });
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).not.toBeNull();
-
-    const otherSessionMessages: ChatMessageUi[] = [
-      {
-        ...sampleMessages[0]!,
-        id: 'msg-other-session',
-        text: 'another session',
-      },
-    ];
-    act(() => {
-      root?.render(<HistoryTicksDrawer messages={otherSessionMessages} />);
-    });
-
-    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
-    expect(container?.querySelector('.border-tick-line')).not.toBeNull();
-  });
-
-  it('triggers scrollIntoView when clicking a tick', () => {
-    const targetDiv = document.createElement('div');
-    targetDiv.id = 'msg-msg-user-1';
-    targetDiv.scrollIntoView = vi.fn();
-    document.body.appendChild(targetDiv);
+  it('jumps directly to the historical message when a tick is clicked', () => {
+    const targetElement = document.createElement('div');
+    targetElement.id = 'msg-msg-user-1';
+    targetElement.scrollIntoView = vi.fn();
+    document.body.appendChild(targetElement);
 
     act(() => {
       root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
-    });
-
-    const firstBorderTick = container?.querySelector('.border-tick-line');
-    act(() => {
-      firstBorderTick?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
     });
 
     const firstTick = container?.querySelector('[data-testid="history-tick-msg-user-1"]');
@@ -346,7 +318,35 @@ describe('HistoryTicksDrawer component', () => {
       firstTick?.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true }));
     });
 
-    expect(targetDiv.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
-    document.body.removeChild(targetDiv);
+    expect(targetElement.scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+    });
+    expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
+    document.body.removeChild(targetElement);
+  });
+
+  it('jumps directly to the historical message with keyboard activation', () => {
+    const targetElement = document.createElement('div');
+    targetElement.id = 'msg-msg-user-2';
+    targetElement.scrollIntoView = vi.fn();
+    document.body.appendChild(targetElement);
+
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    const secondTick = container?.querySelector('[data-testid="history-tick-msg-user-2"]');
+    act(() => {
+      secondTick?.dispatchEvent(
+        new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+      );
+    });
+
+    expect(targetElement.scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+    });
+    document.body.removeChild(targetElement);
   });
 });

@@ -32,7 +32,8 @@ export type HostRequestAdapters = {
       | 'project/permissions-list'
       | 'project/permissions-revoke'
       | 'usage/get-rollup'
-      | 'session/runtime-status';
+      | 'session/runtime-status'
+      | 'session/compact-export';
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
     apiKey?: string;
@@ -46,6 +47,8 @@ export type HostRequestAdapters = {
     window?: { from?: string; to?: string };
     topSessions?: number;
     sessionId?: string;
+    customInstructions?: string;
+    outputPath?: string;
     input?:
       | import('@piwin/contracts').ModelCatalogSearchRequest
       | import('@piwin/contracts').VisionDelegateInput;
@@ -349,6 +352,25 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
         return hostClient.request({
           type: 'session/runtime-status',
           sessionId: command.sessionId ?? '',
+        });
+      }
+      if (command.type === 'session/compact-export') {
+        const sessionId = command.sessionId?.trim();
+        if (!sessionId) {
+          return {
+            type: 'response',
+            command: 'session/compact-export',
+            success: false,
+            error: 'sessionId is required',
+          };
+        }
+        return hostClient.request({
+          type: 'session/compact-export',
+          sessionId,
+          ...(command.customInstructions?.trim()
+            ? { customInstructions: command.customInstructions.trim() }
+            : {}),
+          ...(command.outputPath?.trim() ? { outputPath: command.outputPath.trim() } : {}),
         });
       }
       if (!command.config) {

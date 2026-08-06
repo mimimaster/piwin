@@ -208,14 +208,16 @@ export function PetPanel(props: PetPanelProps) {
       <div
         className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}
       >
-        <PageTitle
-          title={isChinese ? '桌面伙伴' : 'Desktop Companions'}
-          description={
-            isChinese
-              ? '选择一个有趣的伙伴陪您一起编码。'
-              : 'Choose a fun companion to accompany your coding sessions.'
-          }
-        />
+        {props.variant !== 'inline' ? (
+          <PageTitle
+            title={isChinese ? '桌面伙伴' : 'Desktop Companions'}
+            description={
+              isChinese
+                ? '选择一个有趣的伙伴陪您一起编码。'
+                : 'Choose a fun companion to accompany your coding sessions.'
+            }
+          />
+        ) : null}
 
         {error ? <Notice tone="error">{error}</Notice> : null}
         {info ? <Notice tone="info">{info}</Notice> : null}

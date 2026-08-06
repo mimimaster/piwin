@@ -9,7 +9,7 @@ import type {
   VisionDelegationConfig,
   VisionDelegateResult,
 } from '@piwin/contracts';
-import { isProviderEnabled } from '@piwin/contracts';
+import { formatError,  isProviderEnabled } from '@piwin/contracts';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useSettings } from './settings/settings-context';
 import { PageTitle } from './settings/page-title';
@@ -83,7 +83,7 @@ export function VisionDelegationSettings(): ReactElement {
         setInfo(isChinese ? '已保存视觉委派设置。' : 'Vision delegation settings saved.');
       }
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(formatError(error));
     } finally {
       setSaving(false);
     }
@@ -118,7 +118,7 @@ export function VisionDelegationSettings(): ReactElement {
           : `OK (${data.durationMs}ms${data.cacheHit ? ' · cache' : ''}): ${data.description}`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       setError(message);
       setTestResult(isChinese ? `失败：${message}` : `Failed: ${message}`);
     } finally {
@@ -134,7 +134,7 @@ export function VisionDelegationSettings(): ReactElement {
       }
       setInfo(isChinese ? '已清空视觉描述缓存。' : 'Vision description cache cleared.');
     } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+      setError(formatError(error));
     }
   }
 

@@ -5,6 +5,7 @@ import type {
   HostResponse,
   HostServerMessage,
 } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import { MockHostBackend } from './host-client-mock';
 
 export type HostClientListener = (message: HostServerMessage) => void;
@@ -31,6 +32,8 @@ const HOST_REQUEST_NETWORK_QUERY_TIMEOUT_MS = 30_000;
 function getHostRequestTimeoutMs(command: HostCommand): number {
   switch (command.type) {
     case 'session/prompt':
+    case 'session/compact':
+    case 'session/compact-export':
     case 'session/abort':
     case 'session/compact-abort':
     case 'session/steer':
@@ -306,12 +309,11 @@ export class HostClient {
       })) as HostResponse;
       return response;
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
       return {
         type: 'response',
         command: command.type,
         success: false,
-        error: message,
+        error: formatError(error),
         ...(command.id ? { id: command.id } : {}),
       };
     }

@@ -11,6 +11,7 @@ import { useEffect, useRef, type ReactElement } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
+import { formatError } from '@piwin/contracts';
 import {
   listenTauriPtyData,
   listenTauriPtyExit,
@@ -170,7 +171,7 @@ export function XtermSurface(props: XtermSurfaceProps): ReactElement {
         applyResize();
       } catch (error) {
         if (disposed) return;
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         onStatusRef.current('error', null, message);
         terminal.writeln(`\r\n[failed to open PTY: ${message}]`);
       }

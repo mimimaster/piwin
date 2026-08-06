@@ -77,14 +77,16 @@ export function PromptsPanel(props: PromptsPanelProps) {
       <div
         className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}
       >
-        <PageTitle
-          title={isChinese ? 'Prompt 模板' : 'Prompt Templates'}
-          description={
-            isChinese
-              ? 'Markdown 片段位于 ~/.piwin/prompts。在 Pi 交互模式中可通过 /name 展开。'
-              : 'Markdown snippets under ~/.piwin/prompts. Expand via /name in interactive mode.'
-          }
-        />
+        {props.variant !== 'inline' ? (
+          <PageTitle
+            title={isChinese ? 'Prompt 模板' : 'Prompt Templates'}
+            description={
+              isChinese
+                ? 'Markdown 片段位于 ~/.piwin/prompts。在 Pi 交互模式中可通过 /name 展开。'
+                : 'Markdown snippets under ~/.piwin/prompts. Expand via /name in interactive mode.'
+            }
+          />
+        ) : null}
 
         <div className="settings-toolbar" style={{ marginBottom: 20 }}>
           <TextInput

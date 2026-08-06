@@ -7,6 +7,7 @@ import {
   useState,
   type SetStateAction,
 } from 'react';
+import { formatError } from '@piwin/contracts';
 import {
   isJobActive,
   modeToPreset,
@@ -695,9 +696,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 .then(({ open }) => open(result.path as string))
                 .catch((error: unknown) => {
                   console.warn(
-                    `[piwin] open-source shell open failed: ${
-                      error instanceof Error ? error.message : String(error)
-                    }`,
+                    `[piwin] open-source shell open failed: ${formatError(error)}`,
                   );
                 });
             }
@@ -1794,6 +1793,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               transportLabel={hostClient.getTransport()}
               hostStatus={hostStatus}
               recentProjects={recentProjects}
+              projectsSectionCollapsed={preferences.projectsSectionCollapsed === true}
+              onToggleProjectsSection={() => {
+                const nextPreferences: DesktopPreferences = {
+                  ...preferences,
+                  projectsSectionCollapsed: !(preferences.projectsSectionCollapsed === true),
+                };
+                setPreferences(nextPreferences);
+                saveDesktopPreferences(nextPreferences);
+              }}
               sessions={state.sessions}
               filteredSessions={filteredSessions}
               generalSessions={filteredGeneralSessions}
@@ -2047,7 +2055,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         workDetailsExpanded={preferences.workDetailsExpanded}
                         toolDensity={preferences.toolDensity}
                         showThinking={preferences.verboseAgentChat}
-                        artifactPreviewEnabled={preferences.artifactPreviewEnabled}
+                        artifactPreviewEnabled={config?.artifact?.enabled ?? true}
                         artifactCodeFirst={preferences.artifactCodeFirst}
                         plan={sessionPlan}
                         {...(config?.artifact?.maxBytes !== undefined
@@ -2467,6 +2475,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               saveDesktopPreferences(next);
             }}
             initialSection={settingsSection}
+            onSectionChange={shell.setSettingsSection}
             projectPath={state.projectPath}
             projectTrusted={state.projectTrusted}
             requestSkills={requestSkills}

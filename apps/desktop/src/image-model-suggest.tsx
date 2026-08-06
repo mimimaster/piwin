@@ -20,6 +20,7 @@ import {
   type ReactElement,
 } from 'react';
 import { Spinner } from '@piwin/ui-kit';
+import { formatError } from '@piwin/contracts';
 import type {
   DiscoveredModel,
   ImageModelCatalogEntry,
@@ -105,7 +106,7 @@ export function ImageModelSuggest(props: ImageModelSuggestProps): ReactElement {
         discoveredIds = discoverResult.models.map((m) => m.id);
       } catch (error) {
         if (cancelled) return;
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         onDiscoverError?.(message);
       }
 

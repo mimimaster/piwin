@@ -22,6 +22,7 @@ import {
   type ChatUiState,
   type ChatMessageUi,
   type PermissionPromptUi,
+  type ToolCardUi,
 } from './chat-reducer';
 import type { ComposerDockProps } from './composer-dock.js';
 import { createStreamEventBuffer, type StreamEventBuffer } from './stream-event-buffer';
@@ -839,6 +840,92 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     expect(collapsibleBody?.classList.contains('is-expanded')).toBe(true);
+  });
+
+  it('shows a generating image placeholder until image_gen succeeds or fails', () => {
+    const generatedAttachment = {
+      id: 'generated-image-1',
+      kind: 'media' as const,
+      path: '/tmp/generated-image-1.png',
+      mimeType: 'image/png',
+      byteSize: 2048,
+      source: 'generated' as const,
+    };
+    const imageTool: ToolCardUi = {
+      toolCallId: 'image-tool-1',
+      toolName: 'image_gen',
+      status: 'running',
+      output: '',
+    };
+    const runningMessage: ChatMessageUi = {
+      id: 'image-generation-running',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [imageTool],
+      attachments: [],
+      status: 'streaming',
+    };
+    const completedMessage: ChatMessageUi = {
+      ...runningMessage,
+      text: 'Here is the generated image.',
+      tools: [{ ...imageTool, status: 'done' }],
+      attachments: [generatedAttachment],
+      status: 'done',
+    };
+    const failedMessage: ChatMessageUi = {
+      ...runningMessage,
+      tools: [
+        {
+          ...imageTool,
+          status: 'error',
+          output: 'provider returned HTTP 500',
+        },
+      ],
+      status: 'error',
+    };
+
+    function renderMessage(message: ChatMessageUi): void {
+      act(() => {
+        root.render(
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <ChatThread
+              messages={[message]}
+              streaming={message.status === 'streaming'}
+              editingMessageId={null}
+              lastUserMessageId={null}
+              activeTheme={null}
+              artifactThemeKey={0}
+              onEdit={noop}
+              onCancelEdit={noop}
+              onEditResend={noop}
+              onRetry={noop}
+              onInspectSubagent={undefined}
+              composerCard={composerCard}
+              locale="en"
+            />
+          </PiwinUiProvider>,
+        );
+      });
+    }
+
+    renderMessage(runningMessage);
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).not.toBeNull();
+
+    renderMessage(completedMessage);
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).toBeNull();
+    expect(container.querySelector('.message-attachments')).not.toBeNull();
+
+    renderMessage(failedMessage);
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).toBeNull();
+    expect(container.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
+
+    renderMessage({
+      ...runningMessage,
+      id: 'video-generation-running',
+      tools: [{ ...imageTool, toolCallId: 'video-tool-1', toolName: 'video_gen' }],
+    });
+    expect(container.querySelector('[data-testid="video-generation-progress"]')).not.toBeNull();
   });
 
   it('updates existing thinking details when verbose Agent chat changes', () => {

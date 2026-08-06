@@ -11,7 +11,9 @@ import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { DesktopLocaleProvider } from './desktop-locale-context';
 import { ImageGenerationSettings } from './ImageGenerationSettings';
+import { VideoGenerationSettings } from './VideoGenerationSettings';
 import { SettingsProvider, type SettingsContextValue } from './settings/settings-context';
+import { ImageGenerationPage } from './settings/pages/image-generation-page';
 import { webToDraft } from './settings/web-draft';
 
 declare global {
@@ -47,7 +49,12 @@ function makeConfig(): PiwinConfig {
       },
     ],
     media: { maxPasteBytes: 1_000_000, allowedMimeTypes: [] },
-    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1_000_000 },
+    artifact: {
+      enabled: true,
+      triggerMode: 'automatic',
+      decisionPrompt: { mode: 'default', customPrompt: '' },
+      maxBytes: 1_000_000,
+    },
   };
 }
 
@@ -121,6 +128,7 @@ function createContextValue(
 function renderSettings(
   config: PiwinConfig,
   saveConfig: (next: PiwinConfig) => Promise<boolean>,
+  content: ReactElement = <ImageGenerationSettings />,
 ): { container: HTMLDivElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -131,7 +139,7 @@ function renderSettings(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
           <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
             <SettingsProvider value={createContextValue(config, saveConfig)}>
-              <ImageGenerationSettings />
+              {content}
             </SettingsProvider>
           </DesktopLocaleProvider>
         </PiwinUiProvider>
@@ -297,6 +305,85 @@ describe('ImageGenerationSettings', () => {
     expect(saved.length).toBeGreaterThan(0);
     const last = saved[saved.length - 1];
     expect(last?.providers[0]?.models).toHaveLength(0);
+  });
+
+  it('switches between image and video configuration tabs', async () => {
+    const config = makeConfig();
+    ({ root, container } = renderSettings(
+      config,
+      vi.fn(async () => true),
+      <ImageGenerationPage />,
+    ));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container!.querySelector('[data-testid="media-generation-tab-image"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="media-generation-tab-video"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="media-generation-panel-image"]')).not.toBeNull();
+
+    await act(async () => {
+      const videoTab = container!.querySelector<HTMLButtonElement>(
+        '[data-testid="media-generation-tab-video"]',
+      );
+      videoTab?.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, button: 0, ctrlKey: false }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container!.querySelector('[data-testid="video-generation-settings"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="image-generation-settings"]')).toBeNull();
+  });
+
+  it('adds a video model with an async API style and polling route', async () => {
+    const config = makeConfig();
+    const saved: PiwinConfig[] = [];
+    const saveConfig = vi.fn(async (next: PiwinConfig) => {
+      saved.push(next);
+      return true;
+    });
+    ({ root, container } = renderSettings(config, saveConfig, <VideoGenerationSettings />));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    act(() => {
+      setInputValue(
+        container!.querySelector<HTMLInputElement>('[data-testid="video-model-id"]'),
+        'gen4.5',
+      );
+      setInputValue(
+        container!.querySelector<HTMLInputElement>('[data-testid="video-add-model-path"]'),
+        'v1/text_to_video',
+      );
+      setInputValue(
+        container!.querySelector<HTMLInputElement>('[data-testid="video-add-model-timeout"]'),
+        '600',
+      );
+      setInputValue(
+        container!.querySelector<HTMLInputElement>('[data-testid="video-add-poll-interval"]'),
+        '5',
+      );
+      const style = container!.querySelector<HTMLSelectElement>('[data-testid="video-api-style"]');
+      if (style) {
+        style.value = 'runway-tasks';
+        style.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    act(() => {
+      container!
+        .querySelector<HTMLButtonElement>('[data-testid="video-add-model-submit"]')
+        ?.click();
+    });
+
+    const added = saved.at(-1)?.providers[0]?.models.find((model) => model.id === 'gen4.5');
+    expect(added?.capabilities).toContain('video-generation');
+    expect(added?.routes?.['video-generation']).toMatchObject({
+      apiStyle: 'runway-tasks',
+      path: '/v1/text_to_video',
+      timeoutMs: 600_000,
+      pollIntervalMs: 5_000,
+    });
   });
 
   it('ImageModelSuggest dropdown shows matched models from Pi catalog', async () => {

@@ -173,19 +173,21 @@ export function PluginsPanel(props: PluginsPanelProps) {
       <div
         className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}
       >
-        <PageTitle
-          title={isChinese ? '插件' : 'Plugins'}
-          description={
-            isChinese
-              ? '安装技能 + MCP + 密钥的组合包。支持本地目录、Git URL 和远程 Registry。'
-              : 'Install bundles of skills + MCP servers + secrets. Supports local dirs, Git URLs, and remote registry.'
-          }
-          trailing={
-            <span className="muted" style={{ fontSize: '12.5px' }}>
-              {visible.length}/{plugins.length} {isChinese ? '已安装' : 'installed'}
-            </span>
-          }
-        />
+        {props.variant !== 'inline' ? (
+          <PageTitle
+            title={isChinese ? '插件' : 'Plugins'}
+            description={
+              isChinese
+                ? '安装技能 + MCP + 密钥的组合包。支持本地目录、Git URL 和远程 Registry。'
+                : 'Install bundles of skills + MCP servers + secrets. Supports local dirs, Git URLs, and remote registry.'
+            }
+            trailing={
+              <span className="muted" style={{ fontSize: '12.5px' }}>
+                {visible.length}/{plugins.length} {isChinese ? '已安装' : 'installed'}
+              </span>
+            }
+          />
+        ) : null}
 
         <div className="settings-toolbar" style={{ marginBottom: 16 }}>
           <TextInput

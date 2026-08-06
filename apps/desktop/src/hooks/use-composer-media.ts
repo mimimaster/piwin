@@ -16,7 +16,7 @@ import type {
   WebElementAttachmentRef,
   WebElementPickResult,
 } from '@piwin/contracts';
-import { toMediaAttachmentRef } from '@piwin/contracts';
+import { formatError,  toMediaAttachmentRef } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState } from '../chat-reducer';
 import {
@@ -205,7 +205,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           { localId: crypto.randomUUID(), attachment, previewUrl },
         ]);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         args.dispatch({ type: 'error', message });
       }
     },

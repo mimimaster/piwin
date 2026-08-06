@@ -9,6 +9,7 @@
  */
 
 import { useMemo, useRef, useState, type ReactElement } from 'react';
+import { formatError } from '@piwin/contracts';
 import type {
   ModelConfigEntry,
   ModelDiscoveryResult,
@@ -135,7 +136,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
       const result = await onDiscoverModels(draftToProvider(drawer.draft), { apiKey });
       return { ok: true, message: copy.detectOk(result.models.length) };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       return { ok: false, message: `${copy.detectFail}: ${message}` };
     }
   }
@@ -166,7 +167,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
       setTestStatus((prev) => ({ ...prev, [id]: nextStatus }));
       onInfo(copy.testOk(result.models.length, duration));
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       const nextStatus: ProviderTestStatus = {
         tone: 'err',
         message: `${copy.statusFail}: ${message}`,
@@ -420,7 +421,7 @@ export function ProviderSettings(props: ProviderSettingsProps): ReactElement {
     try {
       return await onDiscoverModels(provider);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       onError(isChinese ? `模型发现失败：${message}` : `Model discovery failed: ${message}`);
       throw error;
     }

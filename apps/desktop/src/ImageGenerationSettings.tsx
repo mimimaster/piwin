@@ -364,8 +364,6 @@ export function ImageGenerationSettings(): ReactElement {
 
   return (
     <div className="image-generation-settings" data-testid="image-generation-settings">
-      <PageTitle title={copy.pageTitle} description={copy.pageDescription} />
-
       <div className="settings-section settings-section-card">
         <PageTitle
           title={

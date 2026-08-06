@@ -1,12 +1,9 @@
 /**
- * Translucent history scale ticks bar for transcript viewport.
- * Interaction flow:
- * 1. Collapsed: Equal-length (等长) tick lines attached to left border. Click pins the drawer open.
- * 2. Expanded: Drawer pulls out, tick lines have dynamic lengths (不定长) based on message text length.
- *    Hovering any tick displays a transient message bubble (clears on leave — does not freeze open).
- * 3. Click tick inside drawer: Jumps/scrolls to target user message in transcript.
- * 4. Pinned until Escape, click outside, or the close control — mouse leave does not collapse.
- * 5. Session change (first user message id) unpins and clears selection.
+ * Thin history ticks for the transcript viewport.
+ *
+ * Each tick represents one user message. Moving vertically across the rail
+ * selects the nearest message, applies a symmetric horizontal length wave, and
+ * shows a preview bubble; clicking the rail jumps to the original message.
  */
 import {
   memo,
@@ -15,30 +12,14 @@ import {
   useMemo,
   useRef,
   useState,
-  type RefObject,
+  type FocusEvent as ReactFocusEvent,
   type ReactElement,
 } from 'react';
 import type { ChatMessageUi } from './chat-reducer';
-import { IconClose } from './shell-icons';
 
 export type HistoryTicksDrawerProps = {
   messages?: ChatMessageUi[] | undefined;
 };
-
-export function formatRelativeTime(createdAt?: string, now: Date = new Date()): string {
-  if (!createdAt) return '';
-  const date = new Date(createdAt);
-  if (isNaN(date.getTime())) return '';
-  const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 0) return '0m';
-  const diffMin = Math.floor(diffMs / (1000 * 60));
-  if (diffMin < 1) return '<1m';
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d`;
-}
 
 export function formatFullTimestamp(createdAt?: string): string {
   if (!createdAt) return '';
@@ -60,285 +41,298 @@ export function truncateMessageText(text: string, maxLength: number = 100): stri
   return `${trimmed.slice(0, maxLength)}...`;
 }
 
-/**
- * Calculates a dynamic tick length (px) proportional to message text length.
- * Clamped between minWidth and maxWidth. (Used inside expanded drawer only).
- */
-export function getDynamicTickWidth(text: string, minWidth: number, maxWidth: number): number {
-  const len = text.trim().length;
-  // Normalize length up to ~80 chars max
-  const ratio = Math.min(Math.max(len / 80, 0), 1);
-  return Math.round(minWidth + (maxWidth - minWidth) * ratio);
+// Keep these geometry values in sync with the compact rail CSS. They let the
+// pointer map to a tick without measuring every tick on every mouse event.
+const COLLAPSED_TICK_HEIGHT_PX = 1;
+const COLLAPSED_TICK_GAP_PX = 10;
+const COLLAPSED_TICK_PADDING_TOP_PX = 8;
+const COLLAPSED_TICK_PADDING_RIGHT_PX = 6;
+const COLLAPSED_TICK_STEP_PX = COLLAPSED_TICK_HEIGHT_PX + COLLAPSED_TICK_GAP_PX;
+
+// The wave is an arithmetic progression of widths. Keep the base width in
+// sync with the compact rail CSS; the step is derived so changing either
+// endpoint automatically recalculates every intermediate tick.
+const COLLAPSED_TICK_BASE_WIDTH_PX = 12;
+const HISTORY_TICK_WAVE_MAX_WIDTH_PX = 36;
+const HISTORY_TICK_WAVE_RADIUS = 4;
+const HISTORY_TICK_WAVE_STEP_PX =
+  (HISTORY_TICK_WAVE_MAX_WIDTH_PX - COLLAPSED_TICK_BASE_WIDTH_PX) / HISTORY_TICK_WAVE_RADIUS;
+
+/** Returns the discrete horizontal scale for a collapsed tick wave. */
+export function getHistoryTickWaveScale(distance: number): number {
+  if (!Number.isFinite(distance)) {
+    return 1;
+  }
+
+  const clampedDistance = Math.min(Math.max(distance, 0), HISTORY_TICK_WAVE_RADIUS);
+  const distanceIndex = Math.round(clampedDistance);
+  const width = HISTORY_TICK_WAVE_MAX_WIDTH_PX - distanceIndex * HISTORY_TICK_WAVE_STEP_PX;
+  return width / COLLAPSED_TICK_BASE_WIDTH_PX;
 }
 
-type HistoryTickRowProps = {
-  message: ChatMessageUi;
-  index: number;
-  relativeTime: string;
-  linePx: number;
-  isCurrent: boolean;
-  onHover: (messageId: string) => void;
-  onJump: (messageId: string) => void;
+type CollapsedBubbleAnchor = {
+  left: number;
+  top: number;
 };
 
-/**
- * Memoized single-row tick inside the expanded drawer. Hovering one row only
- * re-renders that row (plus the preview bubble) instead of the whole list.
- */
-const HistoryTickRow = memo(function HistoryTickRow({
-  message,
-  index,
-  relativeTime,
-  linePx,
-  isCurrent,
-  onHover,
-  onJump,
-}: HistoryTickRowProps): ReactElement {
-  return (
-    <div
-      className={`history-tick-item ${isCurrent ? 'is-hovered' : ''}`}
-      onMouseEnter={() => onHover(message.id)}
-      onClick={() => onJump(message.id)}
-      data-testid={`history-tick-${message.id}`}
-      role="button"
-      tabIndex={0}
-      aria-label={`Jump to message ${index + 1}: ${truncateMessageText(message.text, 60)}`}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onJump(message.id);
-        }
-      }}
-    >
-      <span className="history-tick-label">{relativeTime}</span>
-      <span className="history-tick-line" style={{ width: `${linePx}px` }} />
-    </div>
+type CollapsedRailMetrics = {
+  rail: HTMLDivElement;
+  top: number;
+  right: number;
+  tickCount: number;
+};
+
+const COLLAPSED_BUBBLE_OFFSET_PX = 12;
+const COLLAPSED_BUBBLE_MAX_HALF_HEIGHT_PX = 120;
+const COLLAPSED_BUBBLE_VIEWPORT_PADDING_PX = 12;
+
+function clampCollapsedBubbleTop(centerY: number): number {
+  const viewportHeight = window.innerHeight || 768;
+  const minTop = COLLAPSED_BUBBLE_VIEWPORT_PADDING_PX + COLLAPSED_BUBBLE_MAX_HALF_HEIGHT_PX;
+  const maxTop = Math.max(
+    minTop,
+    viewportHeight - COLLAPSED_BUBBLE_VIEWPORT_PADDING_PX - COLLAPSED_BUBBLE_MAX_HALF_HEIGHT_PX,
   );
-});
+  return Math.min(Math.max(centerY, minTop), maxTop);
+}
+
+function getCollapsedBubbleAnchor(element: HTMLElement): CollapsedBubbleAnchor {
+  const bounds = element.getBoundingClientRect();
+  return {
+    left:
+      bounds.left +
+      HISTORY_TICK_WAVE_MAX_WIDTH_PX +
+      COLLAPSED_TICK_PADDING_RIGHT_PX +
+      COLLAPSED_BUBBLE_OFFSET_PX,
+    top: clampCollapsedBubbleTop(bounds.top + bounds.height / 2),
+  };
+}
 
 export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
   messages = [],
 }: HistoryTicksDrawerProps): ReactElement | null {
-  /** Click pins open; not collapsed by mouse leave. */
-  const [isPinnedOpen, setIsPinnedOpen] = useState(false);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
-  const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
+  const [collapsedBubbleAnchor, setCollapsedBubbleAnchor] = useState<CollapsedBubbleAnchor | null>(
+    null,
+  );
+  const [waveCenterIndex, setWaveCenterIndex] = useState<number | null>(null);
+
+  const railMetricsRef = useRef<CollapsedRailMetrics | null>(null);
+  const hoveredIndexRef = useRef<number | null>(null);
 
   const userMessages = useMemo(() => {
-    return messages.filter((m) => m.role === 'user' && m.text.trim().length > 0);
+    return messages.filter((message) => message.role === 'user' && message.text.trim().length > 0);
   }, [messages]);
 
-  const unpinClose = useCallback((): void => {
-    setIsPinnedOpen(false);
+  const clearPreview = useCallback((): void => {
     setHoveredMessageId(null);
-    setActiveMessageId(null);
+    setCollapsedBubbleAnchor(null);
   }, []);
 
-  // Switching sessions replaces the message list; never leave a pinned drawer
-  // open against a different conversation (reads as a frozen overlay).
-  const firstUserMessageId = userMessages[0]?.id;
-  useEffect(() => {
-    unpinClose();
-  }, [firstUserMessageId, unpinClose]);
+  const clearRailInteraction = useCallback((): void => {
+    clearPreview();
+    setWaveCenterIndex(null);
+    railMetricsRef.current = null;
+    hoveredIndexRef.current = null;
+  }, [clearPreview]);
 
-  // Jump target lookup is pure DOM work on a stable ref, so it can be memoized;
-  // a stable identity keeps memoized tick rows from re-rendering on hover.
-  const handleTickJump = useCallback((messageId: string): void => {
-    const targetElem = document.getElementById(`msg-${messageId}`);
-    if (targetElem) {
-      targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      targetElem.classList.add('highlight-target');
-      window.setTimeout(() => {
-        targetElem.classList.remove('highlight-target');
-      }, 2000);
-    }
-    // Keep the drawer usable after jump; scroll the active tick into view if needed.
-    const tickButton = rootRef.current?.querySelector(`[data-testid="history-tick-${messageId}"]`);
-    if (tickButton instanceof HTMLElement) {
-      tickButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
+  const refreshRailMetrics = useCallback((rail: HTMLDivElement): CollapsedRailMetrics => {
+    const bounds = rail.getBoundingClientRect();
+    const tickElements = Array.from(rail.querySelectorAll<HTMLElement>('.border-tick-line'));
+    const bubbleAnchorRight =
+      typeof bounds.left === 'number' && Number.isFinite(bounds.left)
+        ? bounds.left + HISTORY_TICK_WAVE_MAX_WIDTH_PX + COLLAPSED_TICK_PADDING_RIGHT_PX
+        : bounds.right;
+
+    const metrics: CollapsedRailMetrics = {
+      rail,
+      top: bounds.top,
+      right: bubbleAnchorRight,
+      tickCount: tickElements.length,
+    };
+    railMetricsRef.current = metrics;
+    return metrics;
   }, []);
 
-  function pinOpen(messageId?: string): void {
-    setIsPinnedOpen(true);
-    if (messageId) {
-      setActiveMessageId(messageId);
-      setHoveredMessageId(messageId);
-    }
-  }
+  const updateRailPreview = useCallback(
+    (rail: HTMLDivElement, clientY: number): void => {
+      const metrics =
+        railMetricsRef.current?.rail === rail &&
+        railMetricsRef.current.tickCount === userMessages.length
+          ? railMetricsRef.current
+          : refreshRailMetrics(rail);
+      if (metrics.tickCount === 0) {
+        return;
+      }
 
-  const handleTickHover = useCallback((messageId: string): void => {
-    setHoveredMessageId(messageId);
-  }, []);
+      const localY = clientY - metrics.top + rail.scrollTop - COLLAPSED_TICK_PADDING_TOP_PX;
+      const rawPosition = (localY - COLLAPSED_TICK_HEIGHT_PX / 2) / COLLAPSED_TICK_STEP_PX;
+      const pointerPosition = Math.min(Math.max(rawPosition, 0), metrics.tickCount - 1);
+      const nextIndex = Math.round(pointerPosition);
+      // Keep the visual wave independent from the preview state. A pointer
+      // can enter the rail without producing a follow-up mousemove, and the
+      // nearest tick must still become the peak immediately.
+      setWaveCenterIndex(nextIndex);
 
-  // Stable per message list; jumped messages stay stable so memoized rows
-  // don't re-render when the drawer re-renders for a hover change.
-  const handleTickClick = useCallback(
-    (messageId: string): void => {
-      setActiveMessageId(messageId);
-      handleTickJump(messageId);
+      if (hoveredIndexRef.current !== nextIndex) {
+        hoveredIndexRef.current = nextIndex;
+        const message = userMessages[nextIndex];
+        if (message) {
+          setHoveredMessageId(message.id);
+          setCollapsedBubbleAnchor({
+            left: metrics.right + COLLAPSED_BUBBLE_OFFSET_PX,
+            top: clampCollapsedBubbleTop(
+              metrics.top +
+                COLLAPSED_TICK_PADDING_TOP_PX +
+                nextIndex * COLLAPSED_TICK_STEP_PX +
+                COLLAPSED_TICK_HEIGHT_PX / 2 -
+                rail.scrollTop,
+            ),
+          });
+        }
+      }
     },
-    [handleTickJump],
+    [refreshRailMetrics, userMessages],
   );
 
-  // Keep this guard after every hook above; an empty session can become
-  // populated without remounting the drawer component.
+  const handleTickJump = useCallback((messageId: string): void => {
+    const targetElement = document.getElementById(`msg-${messageId}`);
+    if (!targetElement) {
+      return;
+    }
+
+    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    targetElement.classList.add('highlight-target');
+    window.setTimeout(() => {
+      targetElement.classList.remove('highlight-target');
+    }, 2000);
+  }, []);
+
+  const handleTickFocus = useCallback(
+    (messageId: string, event: ReactFocusEvent<HTMLSpanElement>): void => {
+      const element = event.currentTarget;
+      const index = userMessages.findIndex((message) => message.id === messageId);
+      const rail = element.closest('.history-ticks-border-strip');
+      if (rail instanceof HTMLDivElement && index >= 0) {
+        refreshRailMetrics(rail);
+        hoveredIndexRef.current = index;
+        setWaveCenterIndex(index);
+      }
+      setHoveredMessageId(messageId);
+      setCollapsedBubbleAnchor(getCollapsedBubbleAnchor(element));
+    },
+    [refreshRailMetrics, userMessages],
+  );
+
+  // Clear the preview if a session swaps out the hovered message.
+  useEffect(() => {
+    if (hoveredMessageId && !userMessages.some((message) => message.id === hoveredMessageId)) {
+      clearRailInteraction();
+    }
+  }, [clearRailInteraction, hoveredMessageId, userMessages]);
+
+  // A fixed bubble must not remain at an old viewport coordinate while the
+  // transcript scrolls underneath it.
+  useEffect(() => {
+    if (!hoveredMessageId) {
+      return;
+    }
+
+    const clearPreviewOnScroll = (): void => {
+      clearRailInteraction();
+    };
+    window.addEventListener('scroll', clearPreviewOnScroll, true);
+    return () => {
+      window.removeEventListener('scroll', clearPreviewOnScroll, true);
+    };
+  }, [clearRailInteraction, hoveredMessageId]);
+
+  // Keep this guard after every hook so an empty session can become populated
+  // without changing the component's hook order.
   if (userMessages.length === 0) {
     return null;
   }
 
-  const now = new Date();
-
-  // Preview bubble is hover-only so it cannot freeze over the transcript.
-  const previewMessage = isPinnedOpen
-    ? userMessages.find((message) => message.id === hoveredMessageId)
-    : undefined;
+  const previewMessage = userMessages.find((message) => message.id === hoveredMessageId);
 
   return (
     <div
-      ref={rootRef}
-      className={`history-ticks-drawer ${isPinnedOpen ? 'is-expanded is-pinned' : 'is-collapsed'}`}
-      onMouseLeave={() => {
-        // Keep pin; only clear transient hover highlight when leaving the bar.
-        setHoveredMessageId(null);
-      }}
+      className="history-ticks-drawer is-collapsed"
+      onMouseLeave={clearRailInteraction}
       onMouseOut={(event) => {
-        // Fallback for environments where mouseleave is not dispatched reliably.
-        // Keep pin; only clear hover when the pointer truly left the drawer.
         const nextTarget = event.relatedTarget;
         if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
           return;
         }
-        setHoveredMessageId(null);
+        clearRailInteraction();
       }}
       data-testid="history-ticks-drawer"
     >
-      {!isPinnedOpen ? (
-        <div className="history-ticks-border-strip" data-testid="history-drawer-handle">
-          <div className="border-ticks-list">
-            {userMessages.map((msg, index) => {
-              return (
-                <span
-                  key={msg.id}
-                  className="border-tick-line"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Click collapsed tick: pin drawer open (no jump yet).
-                    pinOpen(msg.id);
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`History message ${index + 1}`}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      pinOpen(msg.id);
-                    }
-                  }}
-                />
-              );
-            })}
-          </div>
-        </div>
-      ) : (
-        <div className="history-drawer-panel" data-testid="history-drawer-panel">
-          <div className="history-drawer-panel-head">
-            <span className="history-drawer-panel-title">History</span>
-            <button
-              type="button"
-              className="history-drawer-close"
-              data-testid="history-drawer-close"
-              title="Close"
-              aria-label="Close history ticks"
-              onClick={(event) => {
-                event.stopPropagation();
-                unpinClose();
-              }}
-            >
-              <IconClose width={10} height={10} />
-            </button>
-          </div>
-          <div className="history-ticks-container">
-            <div className="history-ticks-track" data-testid="history-ticks-track">
-              {userMessages.map((msg, index) => {
-                const relativeTime = formatRelativeTime(msg.createdAt, now) || `#${index + 1}`;
-                const isCurrent = msg.id === (hoveredMessageId || activeMessageId);
-                // Dynamic length ONLY inside expanded drawer!
-                const linePx = getDynamicTickWidth(msg.text, 18, 44);
+      <div
+        className="history-ticks-border-strip"
+        data-testid="history-drawer-handle"
+        onMouseEnter={(event) => {
+          updateRailPreview(event.currentTarget, event.clientY);
+        }}
+        onMouseMove={(event) => {
+          updateRailPreview(event.currentTarget, event.clientY);
+        }}
+        onMouseLeave={clearRailInteraction}
+        onScroll={clearRailInteraction}
+      >
+        <div className="border-ticks-list">
+          {userMessages.map((message, index) => {
+            const isPreviewed = message.id === hoveredMessageId;
+            const waveScale =
+              waveCenterIndex === null
+                ? 1
+                : getHistoryTickWaveScale(Math.abs(index - waveCenterIndex));
 
-                return (
-                  <HistoryTickRow
-                    key={msg.id}
-                    message={msg}
-                    index={index}
-                    relativeTime={relativeTime}
-                    linePx={linePx}
-                    isCurrent={isCurrent}
-                    onHover={handleTickHover}
-                    onJump={handleTickClick}
-                  />
-                );
-              })}
-            </div>
-
-            {previewMessage ? (
-              <div className="history-message-bubble" data-testid="history-message-bubble">
-                <div className="history-bubble-header">
-                  {formatFullTimestamp(previewMessage.createdAt) || 'User Message'}
-                </div>
-                <div className="history-bubble-text">
-                  {truncateMessageText(previewMessage.text, 120)}
-                </div>
-              </div>
-            ) : null}
-          </div>
+            return (
+              <span
+                key={message.id}
+                className={`border-tick-line ${isPreviewed ? 'is-hovered' : ''}`}
+                style={waveScale === 1 ? undefined : { transform: `scaleX(${waveScale})` }}
+                data-testid={`history-tick-${message.id}`}
+                onFocus={(event) => handleTickFocus(message.id, event)}
+                onBlur={clearRailInteraction}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleTickJump(message.id);
+                }}
+                role="button"
+                tabIndex={0}
+                aria-describedby={isPreviewed ? 'history-message-bubble' : undefined}
+                aria-label={`Jump to history message ${index + 1}: ${truncateMessageText(message.text, 60)}`}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    handleTickJump(message.id);
+                  }
+                }}
+              />
+            );
+          })}
         </div>
-      )}
-      <HistoryTicksPinEffects isPinnedOpen={isPinnedOpen} rootRef={rootRef} onClose={unpinClose} />
+      </div>
+
+      {previewMessage && collapsedBubbleAnchor ? (
+        <div
+          id="history-message-bubble"
+          className="history-message-bubble history-message-bubble--collapsed"
+          data-testid="history-message-bubble"
+          role="tooltip"
+          style={{
+            left: `${collapsedBubbleAnchor.left}px`,
+            top: `${collapsedBubbleAnchor.top}px`,
+          }}
+        >
+          <div className="history-bubble-header">
+            {formatFullTimestamp(previewMessage.createdAt) || 'User Message'}
+          </div>
+          <div className="history-bubble-text">{truncateMessageText(previewMessage.text, 240)}</div>
+        </div>
+      ) : null}
     </div>
   );
 });
-
-/**
- * Outside-click + Escape to unpin. Kept as a child so hooks run only when
- * the parent actually mounts (drawer returns null with no user messages).
- */
-function HistoryTicksPinEffects(props: {
-  isPinnedOpen: boolean;
-  rootRef: RefObject<HTMLDivElement | null>;
-  onClose: () => void;
-}): null {
-  const { isPinnedOpen, rootRef, onClose } = props;
-
-  useEffect(() => {
-    if (!isPinnedOpen) {
-      return;
-    }
-
-    function handlePointerDown(event: MouseEvent): void {
-      const root = rootRef.current;
-      if (!root) return;
-      const target = event.target;
-      if (target instanceof Node && root.contains(target)) {
-        return;
-      }
-      onClose();
-    }
-
-    function handleKeyDown(event: KeyboardEvent): void {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isPinnedOpen, onClose, rootRef]);
-
-  return null;
-}

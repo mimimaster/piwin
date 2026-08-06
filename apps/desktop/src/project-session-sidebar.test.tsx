@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
+import type { ProjectRecord } from '@piwin/contracts';
 import { ProjectSessionSidebar, type ProjectSessionSidebarProps } from './project-session-sidebar';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { SessionListItemUi } from './chat-reducer';
@@ -20,6 +21,16 @@ function createMockSessions(count: number): SessionListItemUi[] {
     updatedAt: new Date(Date.now() - i * 1000).toISOString(),
     isPinned: false,
     isArchived: false,
+  }));
+}
+
+function createMockProjects(count: number): ProjectRecord[] {
+  return Array.from({ length: count }, (_, index) => ({
+    path: `/Users/test/project-${index + 1}`,
+    displayName: `project-${index + 1}`,
+    trust: 'trusted' as const,
+    lastOpenedAt: new Date(Date.now() - index * 1000).toISOString(),
+    createdAt: new Date(Date.now() - index * 1000).toISOString(),
   }));
 }
 
@@ -151,6 +162,63 @@ describe('ProjectSessionSidebar "See all" functionality', () => {
       container.querySelector('[data-testid="display-options-btn"]')?.getAttribute('aria-label'),
     ).toBe('显示选项');
   });
+
+  it('limits the visible project rows and opens the searchable all-projects picker', () => {
+    const projects = createMockProjects(8);
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      projectPath: projects[0]?.path ?? null,
+    });
+
+    expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(6);
+    const viewAllButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="view-all-projects-btn"]',
+    );
+    expect(viewAllButton?.textContent).toContain('View all projects (8)');
+
+    act(() => {
+      viewAllButton?.click();
+    });
+
+    expect(document.querySelector('[data-testid="project-picker-dialog"]')).not.toBeNull();
+    expect(document.querySelectorAll('.project-picker-item')).toHaveLength(8);
+
+    act(() => {
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="project-picker-close-btn"]')
+        ?.click();
+    });
+  });
+
+  it('keeps the active project visible when the project section is folded', () => {
+    const projects = createMockProjects(8);
+    let toggled = false;
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      projectPath: projects[7]?.path ?? null,
+      projectsSectionCollapsed: true,
+      onToggleProjectsSection: () => {
+        toggled = true;
+      },
+    });
+
+    expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(0);
+    expect(
+      container.querySelector('[data-testid="active-project-summary"]')?.textContent,
+    ).toContain('project-8');
+    expect(
+      container
+        .querySelector('[data-testid="projects-section-toggle"]')
+        ?.getAttribute('aria-expanded'),
+    ).toBe('false');
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="projects-section-toggle"]')
+        ?.click();
+    });
+    expect(toggled).toBe(true);
+  });
 });
 
 it('renders archived session rows with archived mark and data attribute', () => {
@@ -184,6 +252,21 @@ it('renders a circular indicator for a working session instead of its timestamp'
   expect(container.querySelector('[data-testid="session-working-indicator"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="session-service-indicator"]')).toBeNull();
   expect(container.querySelector('.session-item-time')).toBeNull();
+  // The action group remains mounted so CSS can swap it in on hover/focus.
+  expect(container.querySelector('.session-row-actions')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-menu-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-pin-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-archive-btn"]')).not.toBeNull();
+});
+
+it('keeps the three session actions available when the session is idle', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({ filteredSessions: sessions });
+
+  expect(container.querySelector('[data-testid="session-menu-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-pin-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-archive-btn"]')).not.toBeNull();
+  expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
 });
 
 it('renders the three-dot service indicator in preference to the working spinner', () => {
@@ -199,6 +282,7 @@ it('renders the three-dot service indicator in preference to the working spinner
   expect(serviceIndicator?.querySelectorAll('.session-item-activity-dot')).toHaveLength(3);
   expect(container.querySelector('[data-testid="session-working-indicator"]')).toBeNull();
   expect(container.querySelector('.session-item-time')).toBeNull();
+  expect(container.querySelector('.session-row-actions')).not.toBeNull();
 });
 
 it('archived row shows pin, unarchive, and delete actions', () => {

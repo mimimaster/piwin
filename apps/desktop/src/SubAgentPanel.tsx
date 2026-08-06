@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { HostResponse, SessionSummary, SubagentBatchProjection } from '@piwin/contracts';
+import type { HostResponse, SessionSummary, SubagentBatchProjection } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { Button, Notice, Spinner } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
 import { PageTitle } from './settings/page-title';
@@ -105,7 +106,7 @@ export function SubAgentPanel(props: SubAgentPanelProps) {
                         if (!response.success) setError(response.error);
                       }).catch((requestError: unknown) => {
                         setCancellingRunId(null);
-                        setError(requestError instanceof Error ? requestError.message : String(requestError));
+                        setError(formatError(requestError));
                       });
                     }}
                   >

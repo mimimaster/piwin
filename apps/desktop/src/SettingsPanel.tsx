@@ -56,8 +56,10 @@ type SettingsPanelProps = {
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
   initialSection?: SettingsSectionId;
   hostStatus?: HostStatusData | null;
-  /** Callback to close the modal sub-form. */
+  /** Callback to leave the settings route. */
   onClose?: (() => void) | undefined;
+  /** Keep the shell route in sync when a settings nav item is selected. */
+  onSectionChange?: (section: SettingsSectionId) => void;
 };
 
 export function SettingsPanel({
@@ -87,6 +89,7 @@ export function SettingsPanel({
   initialSection,
   hostStatus = null,
   onClose,
+  onSectionChange,
 }: SettingsPanelProps) {
   const { locale } = useDesktopLocale();
   const [config, setConfig] = useState<PiwinConfig | null>(null);
@@ -97,6 +100,14 @@ export function SettingsPanel({
   const [webDraft, setWebDraft] = useState<DraftWeb>(webToDraft(createDefaultWebConfig()));
   const [saving, setSaving] = useState(false);
   const [settingsNav, setSettingsNav] = useState<SettingsSectionId>(initialSection ?? 'general');
+
+  const selectSection = useCallback(
+    (section: SettingsSectionId): void => {
+      setSettingsNav(section);
+      onSectionChange?.(section);
+    },
+    [onSectionChange],
+  );
 
   const setError = useCallback((message: string | null): void => {
     setErrorState(message);
@@ -332,7 +343,7 @@ export function SettingsPanel({
       hostStatus,
       activeSessionId,
       onOpenSubagentSession,
-      selectSection: setSettingsNav,
+      selectSection,
       requestSkills,
       requestMcp,
       requestExtensions,
@@ -400,7 +411,7 @@ export function SettingsPanel({
   return (
     <SettingsShell
       activeSection={settingsNav}
-      onSelectSection={setSettingsNav}
+      onSelectSection={selectSection}
       contextValue={contextValue}
       onClose={onClose}
     />

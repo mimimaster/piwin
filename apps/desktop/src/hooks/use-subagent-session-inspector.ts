@@ -10,7 +10,8 @@
  * components never re-implement message-id deduplication.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { SessionSummary, SessionTranscriptMessage } from '@piwin/contracts';
+import type { SessionSummary, SessionTranscriptMessage } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import type { HostClient } from '../host-client';
 import type { ChatMessageUi, SubagentStreamState } from '../chat-reducer';
 import type { SubagentInspectorSelection } from '../subagent-activity-model';
@@ -97,7 +98,7 @@ export function useSubagentSessionInspector(
         if (requestSeq !== requestSeqRef.current) {
           return;
         }
-        setError(requestError instanceof Error ? requestError.message : String(requestError));
+        setError(formatError(requestError));
       } finally {
         if (requestSeq === requestSeqRef.current) {
           setLoading(false);

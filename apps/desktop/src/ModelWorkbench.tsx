@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react';
+import { formatError } from '@piwin/contracts';
 import type {
   DiscoveredModel,
   ModelConfigEntry,
@@ -118,7 +119,7 @@ export function ModelWorkbench({
       setPickerOpen(true);
     } catch (error) {
       setFetchError(
-        localizeFetchError(error instanceof Error ? error.message : String(error), isChinese),
+        localizeFetchError(formatError(error), isChinese),
       );
     } finally {
       setFetching(false);
@@ -142,7 +143,7 @@ export function ModelWorkbench({
         },
       }));
     } catch (error) {
-      const rawMsg = error instanceof Error ? error.message : String(error);
+      const rawMsg = formatError(error);
       const detailMsg = localizeFetchError(rawMsg, isChinese);
       setTestStatus((current) => ({
         ...current,

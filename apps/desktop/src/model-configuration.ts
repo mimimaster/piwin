@@ -37,15 +37,9 @@ export function mergeModelCatalogDefaults(
   if (!catalog) return { ...model };
   return {
     ...model,
-    ...(model.label === undefined && catalog.name !== model.id
-      ? { label: catalog.name }
-      : {}),
-    ...(model.contextWindow === undefined
-      ? { contextWindow: catalog.contextWindow }
-      : {}),
-    ...(model.maxOutputTokens === undefined
-      ? { maxOutputTokens: catalog.maxTokens }
-      : {}),
+    ...(model.label === undefined && catalog.name !== model.id ? { label: catalog.name } : {}),
+    ...(model.contextWindow === undefined ? { contextWindow: catalog.contextWindow } : {}),
+    ...(model.maxOutputTokens === undefined ? { maxOutputTokens: catalog.maxTokens } : {}),
     ...(model.input === undefined ? { input: catalog.input } : {}),
     ...(model.reasoning === undefined ? { reasoning: catalog.reasoning } : {}),
   };
@@ -58,9 +52,8 @@ export function createModelConfigurationDraft(
 ): ModelConfigurationDraft {
   const effective = mergeModelCatalogDefaults(model, catalog);
   const configuredThinkingLevels = effective.thinkingLevels ?? [];
-  const protocolDefaults = configuredThinkingLevels.length === 0
-    ? getDefaultThinkingLevelsForProtocol(protocol)
-    : [];
+  const protocolDefaults =
+    configuredThinkingLevels.length === 0 ? getDefaultThinkingLevelsForProtocol(protocol) : [];
   const thinkingLevels = [...configuredThinkingLevels, ...protocolDefaults].filter(
     (level, index, values) =>
       THINKING_LEVEL_OPTIONS.includes(level) && values.indexOf(level) === index,
@@ -78,8 +71,7 @@ export function createModelConfigurationDraft(
         : '',
     thinkingLevels,
     supportsImage: effective.input?.includes('image') ?? false,
-    supportsImageGeneration:
-      effective.capabilities?.includes('image-generation') ?? false,
+    supportsImageGeneration: effective.capabilities?.includes('image-generation') ?? false,
     reasoning: effective.reasoning ?? true,
   };
 }
@@ -126,9 +118,7 @@ export function createModelConfigurationEntry(
   return model;
 }
 
-export function validateModelConfigurationDraft(
-  draft: ModelConfigurationDraft,
-): string | null {
+export function validateModelConfigurationDraft(draft: ModelConfigurationDraft): string | null {
   if (!draft.id.trim()) return 'Model ID is required.';
   for (const [label, value] of [
     ['context window', draft.contextWindow],
@@ -181,6 +171,13 @@ export function applyModelConfigurationDraft(
     );
     if (remaining.length > 0) updated.capabilities = remaining;
     else delete updated.capabilities;
+  } else {
+    // The inline Models editor only exposes image-generation today. Preserve
+    // other capability tags (for example video-generation) when it saves a
+    // model that was configured in a capability-specific settings page.
+    const capabilities = new Set(original.capabilities ?? []);
+    capabilities.add('image-generation');
+    updated.capabilities = [...capabilities];
   }
   if (draft.thinkingLevels.length === 0) {
     delete updated.thinkingLevels;
