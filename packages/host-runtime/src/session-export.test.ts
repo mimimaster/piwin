@@ -94,4 +94,63 @@ describe('HostRuntime session/export', () => {
 
     await runtime.dispose();
   });
+
+  it('compacts a temporary transcript snapshot and writes only the summary', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-compact-export-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/compact-export-project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const transcriptPath = getPiwinSessionTranscriptPath(rootDir, sessionId);
+    await mkdir(join(rootDir, 'sessions', sessionId), { recursive: true });
+    const originalTranscript: SessionTranscriptDocument = {
+      version: 1,
+      sessionId,
+      projectPath: '/tmp/compact-export-project',
+      updatedAt: '2026-07-21T10:00:00.000Z',
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          text: 'Keep this context for the next task.',
+          createdAt: '2026-07-21T10:00:00.000Z',
+          status: 'done',
+        },
+      ],
+    };
+    await writeFile(transcriptPath, `${JSON.stringify(originalTranscript, null, 2)}\n`, 'utf8');
+    const originalTranscriptOnDisk = await readFile(transcriptPath, 'utf8');
+    const outputPath = join(rootDir, 'out', 'compact.md');
+
+    const response = await runtime.handleCommand({
+      type: 'session/compact-export',
+      sessionId,
+      outputPath,
+    });
+    expect(response.success).toBe(true);
+    if (!response.success) throw new Error(response.error);
+    const data = response.data as {
+      path: string;
+      format: string;
+      byteLength: number;
+      summary?: string;
+    };
+    expect(data.path).toBe(outputPath);
+    expect(data.format).toBe('md');
+    expect(data.summary).toContain('Mock summary');
+    expect(data.byteLength).toBeGreaterThan(0);
+
+    const content = await readFile(outputPath, 'utf8');
+    expect(content).toBe('Mock summary of prior turns for UI testing.\n');
+    expect(await readFile(transcriptPath, 'utf8')).toBe(originalTranscriptOnDisk);
+    const indexAfter = JSON.parse(await readFile(indexPath, 'utf8')) as SessionIndexDocument;
+    expect(indexAfter.sessions).toHaveLength(1);
+
+    await runtime.dispose();
+  });
 });

@@ -30,6 +30,12 @@ export {
   sessionHasListName,
 } from './session-display-name.js';
 export type { SessionNameFields, SessionNameSource } from './session-display-name.js';
+export {
+  exportCompactionMarkdown,
+  suggestCompactionExportBasename,
+} from './export-compaction.js';
+export type { ExportCompactionMarkdownOptions } from './export-compaction.js';
+export { buildCompactionSeedMessages } from './build-compaction-seed.js';
 
 
 export {
