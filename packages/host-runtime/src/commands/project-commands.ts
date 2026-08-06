@@ -4,7 +4,8 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { HostCommand, HostResponse } from '@piwin/contracts';
+import type { HostCommand, HostResponse } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import {
   listProjects,
   listRememberedPermissions,
@@ -138,7 +139,7 @@ async function listProjectDirectory(
   try {
     directoryEntries = await readdir(targetAbsolute, { withFileTypes: true });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     return fail(requestId, 'project/list-dir', `cannot read directory: ${message}`);
   }
 
@@ -226,7 +227,7 @@ async function readProjectFile(
   try {
     fileStats = await stat(targetAbsolute);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     return fail(requestId, 'project/read-file', `cannot stat file: ${message}`);
   }
   if (!fileStats.isFile()) {
@@ -237,7 +238,7 @@ async function readProjectFile(
   try {
     buffer = await readFile(targetAbsolute);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     return fail(requestId, 'project/read-file', `cannot read file: ${message}`);
   }
 

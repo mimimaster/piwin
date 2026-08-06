@@ -1,7 +1,8 @@
 /**
  * Host IPC handlers: git.
  */
-import type { HostCommand, HostResponse } from '@piwin/contracts';
+import type { HostCommand, HostResponse } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { createGitService } from '@piwin/git';
 import { fail, ok } from '../response-helpers.js';
 import type { HostCommandContext } from './host-command-context.js';
@@ -54,7 +55,7 @@ export async function handleGitCommand(
             );
             return ok(requestId, 'git/diff-file', { diff });
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = formatError(error);
             return fail(requestId, 'git/diff-file', message);
           }
         }

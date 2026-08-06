@@ -25,7 +25,7 @@ import type {
   WalkthroughErrorCode,
   WalkthroughMode,
 } from '@piwin/contracts';
-import { createDefaultWalkthroughConfig } from '@piwin/contracts';
+import { formatError,  createDefaultWalkthroughConfig } from '@piwin/contracts';
 import {
   collectWalkthroughEvidence,
   assembleSystemPrompt,
@@ -499,7 +499,7 @@ export async function startWalkthroughGeneration(
   }).catch((error: unknown) => {
     // Safety net: runWalkthroughCompletion handles its own errors and never
     // rethrows, but a bug in the wiring must not produce a floating promise.
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = formatError(error);
     context.push({
       type: 'host/log',
       level: 'error',
@@ -648,7 +648,7 @@ function mapCompletionError(error: unknown): WalkthroughError {
   if (error instanceof WalkthroughCompletionError) {
     return walkthroughError(error.code, error.message);
   }
-  const message = error instanceof Error ? error.message : String(error);
+  const message = formatError(error);
   return walkthroughError('provider-request-failed', `Walkthrough generation failed: ${message}`);
 }
 

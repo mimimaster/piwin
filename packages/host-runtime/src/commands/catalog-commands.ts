@@ -1,7 +1,8 @@
 /**
  * Host IPC handlers: catalog.
  */
-import type { HostCommand, HostResponse, MediaSaveData } from '@piwin/contracts';
+import type { HostCommand, HostResponse, MediaSaveData } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
 import { createMediaService } from '@piwin/media';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
@@ -392,7 +393,7 @@ export async function handleCatalogCommand(
               // Surface the real cause (env unset, keychain locked) so the
               // downstream "no auth" error is diagnosable. Soft-resolve
               // still returns null to not block local no-auth endpoints.
-              const detail = error instanceof Error ? error.message : String(error);
+              const detail = formatError(error);
               console.warn(`[piwin] models/discover secret resolve failed: ${detail}`);
               return null;
             }
@@ -401,7 +402,7 @@ export async function handleCatalogCommand(
         });
         return ok(requestId, 'models/discover', result);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'models/discover', message);
       }
     }
@@ -410,7 +411,7 @@ export async function handleCatalogCommand(
         const result = searchPiCatalog(command.input ?? {});
         return ok(requestId, 'models/catalog/search', result);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'models/catalog/search', message);
       }
     }
@@ -428,7 +429,7 @@ export async function handleCatalogCommand(
                 return await secretResolver.resolveProviderSecret(provider);
               }
             } catch (error) {
-              const detail = error instanceof Error ? error.message : String(error);
+              const detail = formatError(error);
               console.warn(`[piwin] models/test secret resolve failed: ${detail}`);
               return null;
             }
@@ -437,7 +438,7 @@ export async function handleCatalogCommand(
         });
         return ok(requestId, 'models/test', result);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'models/test', message);
       }
     }
@@ -536,7 +537,7 @@ export async function handleCatalogCommand(
         };
         return ok(requestId, 'vision/delegate', result);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'vision/delegate', message);
       } finally {
         if (tempDir) {
@@ -553,7 +554,7 @@ export async function handleCatalogCommand(
         );
         return ok(requestId, 'secrets/set', { apiKeyRef, providerId: command.providerId });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'secrets/set', message);
       }
     }
@@ -582,7 +583,7 @@ export async function handleCatalogCommand(
           secret: raw,
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'secrets/get', message);
       }
     }
@@ -612,7 +613,7 @@ export async function handleCatalogCommand(
         const credentials = await resolveWebRuntimeCredentials(config.web, createSecretResolver());
         return ok(requestId, 'web/test-search-source', await testSearchSource(source, credentials));
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'web/test-search-source', message);
       }
     }

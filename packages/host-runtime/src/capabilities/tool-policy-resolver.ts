@@ -20,6 +20,7 @@ export type ToolBackingAvailability = {
   processReady: boolean;
   browserReady: boolean;
   imageGenerationReady: boolean;
+  videoGenerationReady: boolean;
 };
 
 export type ToolExposureInput = {
@@ -27,6 +28,7 @@ export type ToolExposureInput = {
   webFetch: boolean;
   mcp: boolean;
   imageGeneration: boolean;
+  videoGeneration: boolean;
   process: CapabilityExposure;
   browser: CapabilityExposure;
   subagents: CapabilityExposure;
@@ -50,6 +52,7 @@ export type ToolExposureInput = {
   notesEnabled?: boolean;
   flashcardsEnabled?: boolean;
   imageGenerationEnabled?: boolean;
+  videoGenerationEnabled?: boolean;
 };
 
 /** Pi built-in tool names mapped from product capabilities (filesystem/shell). */
@@ -71,6 +74,7 @@ export const FAMILY_PI_BUILTIN_TOOLS: Readonly<Record<SessionToolFamily, readonl
   'flashcards-read': [],
   'flashcards-write': [],
   'image-generation': [],
+  'video-generation': [],
 };
 
 /**
@@ -168,6 +172,15 @@ export function resolveToolPolicyDetails(input: ToolExposureInput): ResolvedTool
     input.availability.imageGenerationReady
   ) {
     enabledFamilies.add('image-generation');
+  }
+  // Video generation: master AND valid model available.
+  if (
+    input.videoGeneration &&
+    input.videoGenerationEnabled !== false &&
+    capabilities === undefined &&
+    input.availability.videoGenerationReady
+  ) {
+    enabledFamilies.add('video-generation');
   }
   if ((input.delegate ?? input.subagents === 'agent') && hasDelegate && canMutate) {
     enabledFamilies.add('delegate');

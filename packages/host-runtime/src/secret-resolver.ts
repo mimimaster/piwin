@@ -3,7 +3,8 @@
  * Precedence: apiKeyRef (keychain) → apiKeyEnv → error.
  */
 import { spawn } from 'node:child_process';
-import type { ModelProviderConfig } from '@piwin/contracts';
+import type { ModelProviderConfig } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 
 export type SecretResolveStatus = 'ok' | 'missing' | 'error';
 
@@ -120,7 +121,7 @@ export function createSecretResolver(options: CreateSecretResolverOptions = {}):
       return {
         providerId: provider.id,
         status: 'error',
-        detail: error instanceof Error ? error.message : String(error),
+        detail: formatError(error),
       };
     }
   }

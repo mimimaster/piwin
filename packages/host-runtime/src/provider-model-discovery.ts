@@ -4,7 +4,8 @@
  * The desktop never sends credentials over the network. It asks the host to
  * call the protocol-specific discovery endpoint using a resolved secret.
  */
-import type { DiscoveredModel, ModelDiscoveryResult, ModelProviderConfig } from '@piwin/contracts';
+import type { DiscoveredModel, ModelDiscoveryResult, ModelProviderConfig } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { enrichFromCatalog, lookupCatalogByModelId } from '@piwin/agent-host';
 
 const DISCOVERY_TIMEOUT_MS = 15_000;
@@ -61,7 +62,7 @@ export async function discoverProviderModels(
     if (abortController.signal.aborted) {
       throw new ProviderModelDiscoveryError('Model discovery timed out after 15 seconds');
     }
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     throw new ProviderModelDiscoveryError(`Model discovery failed: ${message}`);
   } finally {
     clearTimeout(timeout);

@@ -38,7 +38,13 @@ export function toolFamilyIndex(
     // Repair spec WP0: side-effect tools must declare a subject builder so the
     // admission gate never guesses from the tool name. Read-only tools must
     // declare `readOnly: true` explicitly instead of omitting the builder.
-    if (registration.permissionSpec.readOnly !== true && !registration.permissionSpec.subjectBuilder) {
+    // Trusted-admission tools (e.g. MCP, ADR 0033) bypass the permission engine
+    // entirely, so they are exempt from both requirements.
+    if (
+      registration.permissionSpec.admission !== 'trusted' &&
+      registration.permissionSpec.readOnly !== true &&
+      !registration.permissionSpec.subjectBuilder
+    ) {
       throw new HostToolRegistrationError(
         `permission subject builder missing for side-effect tool: ${name}`,
       );

@@ -50,4 +50,19 @@ describe('toolFamilyIndex', () => {
     expect(tool.family).toBe('web-fetch');
     expect(tool.permissionSpec.action).toBe('tool:web_fetch');
   });
+
+  it('rejects side-effect tools without a subjectBuilder', () => {
+    const sideEffectTool = registration('bash_exec', 'process');
+    sideEffectTool.permissionSpec.readOnly = false;
+    expect(() => toolFamilyIndex([sideEffectTool])).toThrow(
+      'permission subject builder missing for side-effect tool: bash_exec',
+    );
+  });
+
+  it('exempts trusted-admission tools (e.g. MCP) from the subjectBuilder requirement', () => {
+    const trustedTool = registration('mcp_gateway', 'mcp');
+    trustedTool.permissionSpec.readOnly = false;
+    trustedTool.permissionSpec.admission = 'trusted';
+    expect(() => toolFamilyIndex([trustedTool])).not.toThrow();
+  });
 });

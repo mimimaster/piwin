@@ -2,6 +2,7 @@ import type {
   AgentHost,
   AgentEvent,
   CreateSessionInput,
+  CreateSessionOptions,
   HostToolExecutionPort,
   HostToolDescriptor,
   PromptInput,
@@ -138,10 +139,13 @@ export class ProductAgentHost implements AgentHost {
           });
   }
 
-  async createSession(input: CreateSessionInput): Promise<SessionHandle> {
+  async createSession(
+    input: CreateSessionInput,
+    options: CreateSessionOptions = {},
+  ): Promise<SessionHandle> {
     const sessionId = createProductSessionId();
     const runtimeGenerationId = createRuntimeGenerationId();
-    return this.createSessionWithIdentity(input, sessionId, runtimeGenerationId);
+    return this.createSessionWithIdentity(input, sessionId, runtimeGenerationId, options);
   }
 
   /**
@@ -208,12 +212,14 @@ export class ProductAgentHost implements AgentHost {
     input: CreateSessionInput,
     sessionId: string,
     runtimeGenerationId: string,
+    options: CreateSessionOptions = {},
   ): Promise<SessionHandle> {
     const prepared = await this.prepareSessionWithIdentity(
       input,
       sessionId,
       runtimeGenerationId,
       'active',
+      options,
     );
     return this.commitPreparedSession(prepared);
   }
@@ -223,9 +229,14 @@ export class ProductAgentHost implements AgentHost {
     sessionId: string,
     runtimeGenerationId: string,
     registrationMode: ProductAgentHostToolRegistrationMode,
+    options: CreateSessionOptions = {},
   ): Promise<PreparedProductSession> {
     if (this.options.mock) {
-      const session = createMockSessionHandle({ ...input, sessionId });
+      const session = createMockSessionHandle({
+        ...input,
+        sessionId,
+        ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
+      });
       return {
         session,
         sessionId,
@@ -293,6 +304,7 @@ export class ProductAgentHost implements AgentHost {
         blueprint: compiled.sessionBlueprint.backendBlueprint,
         providers: compiled.providers,
         hostToolExecution,
+        ...(options.seedMessages ? { seedMessages: options.seedMessages } : {}),
       });
       const session = createProductSessionHandle(backendHandle, this.options.getCurrentRunId);
       return {
@@ -386,6 +398,10 @@ function createProductSessionHandle(
 ): SessionHandle {
   const emptyTree: SessionTreeView = { root: null, activeLeafId: null };
   const emptyMessages: AgentMessageView[] = [];
+  const compact = backendHandle.compact;
+  const abortCompaction = backendHandle.abortCompaction;
+  const getAutoCompactionEnabled = backendHandle.getAutoCompactionEnabled;
+  const setAutoCompactionEnabled = backendHandle.setAutoCompactionEnabled;
   return {
     id: backendHandle.id,
     async prompt(input: PromptInput) {
@@ -410,6 +426,16 @@ function createProductSessionHandle(
     steer: (message) => backendHandle.steer(message),
     followUp: (message) => backendHandle.followUp(message),
     abort: () => backendHandle.abort(),
+    ...(compact
+      ? { compact: (customInstructions?: string) => compact(customInstructions) }
+      : {}),
+    ...(abortCompaction ? { abortCompaction: () => abortCompaction() } : {}),
+    ...(getAutoCompactionEnabled
+      ? { getAutoCompactionEnabled: () => getAutoCompactionEnabled() }
+      : {}),
+    ...(setAutoCompactionEnabled
+      ? { setAutoCompactionEnabled: (enabled: boolean) => setAutoCompactionEnabled(enabled) }
+      : {}),
     getMessages: async () => emptyMessages,
     getTree: async () => emptyTree,
     subscribe: (listener: (event: AgentEvent) => void) => backendHandle.subscribe(listener),

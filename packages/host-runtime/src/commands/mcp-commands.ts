@@ -1,7 +1,8 @@
 /**
  * Host IPC handlers: mcp.
  */
-import type { HostCommand, HostResponse } from '@piwin/contracts';
+import type { HostCommand, HostResponse } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import {
   getMcpConfigPath,
   loadMcpConfig,
@@ -71,7 +72,7 @@ export async function handleMcpCommand(
             const report = await context.getMcpManager().applyConfig(validated.document);
             return ok(requestId, 'mcp/save', { path, document: validated.document, report });
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = formatError(error);
             return fail(requestId, 'mcp/save', `config saved but runtime apply failed: ${message}`);
           }
         }
@@ -97,7 +98,7 @@ export async function handleMcpCommand(
                 health = refreshed;
               }
             } catch (error) {
-              const message = error instanceof Error ? error.message : String(error);
+              const message = formatError(error);
               health = {
                 ...health,
                 lastError: health.lastError

@@ -21,6 +21,7 @@ import type {
   SideChatRelation,
   SideChatSyncData,
 } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import {
   buildSideChatContextSnapshot,
   createSideChatSessionRecord,
@@ -141,7 +142,7 @@ export async function handleSideChatCommand(
       try {
         session = await context.host.createSession(createInput);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'side-chat/open', `side session create failed: ${message}`);
       }
 
@@ -170,7 +171,7 @@ export async function handleSideChatCommand(
           context: snapshot,
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         await context.host.dropSession(session.id).catch(() => undefined);
         return fail(
           requestId,

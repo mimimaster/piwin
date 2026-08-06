@@ -7,7 +7,8 @@ import {
   type McpMetadataCatalog,
   type McpGenerationSnapshot,
 } from '@piwin/mcp';
-import type { HostToolRegistration, McpConfigDocument, ToolResult } from '@piwin/contracts';
+import type { HostToolRegistration, McpConfigDocument, ToolResult } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 
 export type BuildMcpGatewayToolOptions = {
   lifecycleManager: McpLifecycleManager;
@@ -231,7 +232,7 @@ export function buildMcpGatewayToolDefinition(
             signal,
           );
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message = formatError(error);
           return mcpFailure(message, selector);
         }
         return { ok: true, output: formatMcpCallResult(result), details: { selector } };

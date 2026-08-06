@@ -6,6 +6,7 @@ import type {
   PromptInput,
   SessionCompactResult,
   SessionHandle,
+  SessionSeedMessage,
   SessionTranscriptMessage,
   SessionTreeView,
 } from '@piwin/contracts';
@@ -17,7 +18,7 @@ export type CreateMockSessionOptions = CreateSessionInput & {
   /** Stable product session id for cross-process resume. */
   sessionId?: string;
   /** Seed messages shown after resume (not re-emitted as events). */
-  seedMessages?: SessionTranscriptMessage[];
+  seedMessages?: readonly (SessionTranscriptMessage | SessionSeedMessage)[];
 };
 
 /**
@@ -27,7 +28,7 @@ export type CreateMockSessionOptions = CreateSessionInput & {
 export function createMockSessionHandle(input: CreateMockSessionOptions): SessionHandle {
   const sessionId = input.sessionId ?? randomUUID();
   const listeners = new Set<Listener>();
-  const messages: AgentMessageView[] = (input.seedMessages ?? []).map(transcriptToView);
+  const messages: AgentMessageView[] = (input.seedMessages ?? []).map(seedMessageToView);
   let aborted = false;
   let autoCompactionEnabled = true;
   let compacting = false;
@@ -186,14 +187,19 @@ export function createMockSessionHandle(input: CreateMockSessionOptions): Sessio
   };
 }
 
-function transcriptToView(message: SessionTranscriptMessage): AgentMessageView {
+function seedMessageToView(
+  message: SessionTranscriptMessage | SessionSeedMessage,
+): AgentMessageView {
   const view: AgentMessageView = {
-    id: message.id,
+    id: 'id' in message ? message.id : randomUUID(),
     role: message.role,
     text: message.text,
-    createdAt: message.createdAt,
+    createdAt:
+      'createdAt' in message
+        ? message.createdAt
+        : new Date(message.timestamp).toISOString(),
   };
-  if (message.attachments && message.attachments.length > 0) {
+  if ('attachments' in message && message.attachments && message.attachments.length > 0) {
     view.attachments = message.attachments;
   }
   return view;

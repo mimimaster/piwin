@@ -64,7 +64,7 @@ describe('config-store', () => {
     expect(loaded.compaction?.autoEnabledDefault).toBe(false);
   });
 
-  it('round-trips visionDelegation and imageGeneration', async () => {
+  it('round-trips visionDelegation, imageGeneration, and videoGeneration', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-vision-'));
     const config = createDefaultPiwinConfig();
     config.visionDelegation = {
@@ -85,12 +85,20 @@ describe('config-store', () => {
         modelId: 'image-gen',
       },
     };
+    config.videoGeneration = {
+      defaultModel: {
+        protocol: 'openai-compatible',
+        providerId: 'runway',
+        modelId: 'gen4.5',
+      },
+    };
 
     await savePiwinConfig(config, rootDir);
     const loaded = await loadPiwinConfig(rootDir);
 
     expect(loaded.visionDelegation).toEqual(config.visionDelegation);
     expect(loaded.imageGeneration).toEqual(config.imageGeneration);
+    expect(loaded.videoGeneration).toEqual(config.videoGeneration);
   });
 
   it('preserves visionDelegation.enabled=false when model is set', async () => {

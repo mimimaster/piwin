@@ -3,7 +3,8 @@
  * This tests the endpoint, credentials, custom headers, and model identifier
  * together; it intentionally does not use the provider's `/models` endpoint.
  */
-import type { ModelProviderConfig } from '@piwin/contracts';
+import type { ModelProviderConfig } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { ProviderModelDiscoveryError, buildProviderRequestHeaders } from './provider-model-discovery.js';
 
 const MODEL_TEST_TIMEOUT_MS = 20_000;
@@ -66,7 +67,7 @@ export async function testProviderModel(
     if (abortController.signal.aborted) {
       throw new ProviderModelDiscoveryError('Model test timed out after 20 seconds');
     }
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     throw new ProviderModelDiscoveryError(`Model test failed: ${message}`);
   } finally {
     clearTimeout(timeout);

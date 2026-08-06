@@ -485,6 +485,7 @@ function compileToolPolicy(
   const webSearchReady = resolvedWebConfig?.searchSources.some((source) => source.enabled) ?? false;
   const webFetchReady = resolvedWebConfig !== undefined;
   const imagegenDisabled = config.skills?.disabledIds?.includes('imagegen') ?? false;
+  const videogenDisabled = config.skills?.disabledIds?.includes('videogen') ?? false;
 
   const resolvedToolPolicy = resolveToolPolicyDetails({
     webSearch: resolvedWebConfig !== undefined,
@@ -506,6 +507,7 @@ function compileToolPolicy(
       // does not instantiate either backend.
       browserReady: true,
       imageGenerationReady: true,
+      videoGenerationReady: true,
     },
     readonly: input.subagent?.mode === 'readonly',
     ...(capabilityCeiling ? { capabilities: capabilityCeiling } : {}),
@@ -519,6 +521,8 @@ function compileToolPolicy(
     notesEnabled: capabilityCeiling === undefined && config.notes?.enabled !== false,
     flashcardsEnabled: capabilityCeiling === undefined && config.flashcards?.enabled !== false,
     imageGenerationEnabled: capabilityCeiling === undefined && !imagegenDisabled,
+    videoGeneration: !videogenDisabled,
+    videoGenerationEnabled: capabilityCeiling === undefined && !videogenDisabled,
   });
 
   const resolvedPolicy = resolvedToolPolicy.policy;

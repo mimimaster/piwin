@@ -22,6 +22,7 @@ import type {
   ThinkingLevel,
   ToolResult,
 } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 
 export type SubagentRunSeam = {
   /** Spawn a child subagent session and wait for it to finish. */
@@ -206,7 +207,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           ...(signal ? { signal } : {}),
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return { ok: false, code: 'subagent-failed', message, retryable: true };
       }
 
@@ -236,7 +237,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           },
         };
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return {
           ok: false,
           code: 'subagent-failed',

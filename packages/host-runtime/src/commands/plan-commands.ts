@@ -1,7 +1,8 @@
 /**
  * Host IPC handlers: plan.
  */
-import type { HostCommand, HostResponse, PlanExecutionState, SessionPlan } from '@piwin/contracts';
+import type { HostCommand, HostResponse, PlanExecutionState, SessionPlan } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import {
   applyPlanStatus,
   applyPlanStepUpdate,
@@ -238,7 +239,7 @@ async function handlePlanExecute(
     planRun.runId,
   ).catch(
     (error) => {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       context.push({
         type: 'host/log',
         level: 'error',
@@ -420,7 +421,7 @@ async function runPlanExecution(
       await markCompleted();
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     await markFailed(message);
   }
 }
@@ -496,7 +497,7 @@ async function triggerPlanCompletionWalkthrough(
       walkthroughBag.context,
       walkthroughBag.registry,
     ).catch((error: unknown) => {
-      const detail = error instanceof Error ? error.message : String(error);
+      const detail = formatError(error);
       context.push({
         type: 'host/log',
         level: 'error',
@@ -504,7 +505,7 @@ async function triggerPlanCompletionWalkthrough(
       });
     });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = formatError(error);
     context.push({
       type: 'host/log',
       level: 'error',

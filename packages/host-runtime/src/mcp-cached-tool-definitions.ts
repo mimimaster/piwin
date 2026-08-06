@@ -4,7 +4,7 @@ import type {
   McpToolMetadata,
   ToolResult,
 } from '@piwin/contracts';
-import { createDefaultMcpExposurePolicy } from '@piwin/contracts';
+import { formatError,  createDefaultMcpExposurePolicy } from '@piwin/contracts';
 import {
   formatMcpCallResult,
   formatMcpExposedName,
@@ -149,7 +149,7 @@ function buildDirectHostTool(
           signal,
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return mcpFailure(message, selector, signal);
       }
       return {
