@@ -5,6 +5,10 @@ import {
   exportTranscript,
   suggestSessionExportBasename,
 } from './export-transcript.js';
+import {
+  exportCompactionMarkdown,
+  suggestCompactionExportBasename,
+} from './export-compaction.js';
 
 function sampleMessages(): SessionTranscriptMessage[] {
   return [
@@ -137,5 +141,17 @@ describe('exportTranscript', () => {
     expect(suggestSessionExportBasename('abcdef01-rest', 'html')).toBe(
       'piwin-export-abcdef01.html',
     );
+  });
+
+  it('renders only the compact summary for a new session handoff', () => {
+    const content = exportCompactionMarkdown({
+      summary: 'Implemented the auth fix and verified the login path.',
+    });
+
+    expect(content).toBe('Implemented the auth fix and verified the login path.\n');
+    expect(content).not.toContain('Source:');
+    expect(content).not.toContain('Tokens:');
+    expect(content.endsWith('\n')).toBe(true);
+    expect(suggestCompactionExportBasename('abcdef01-rest')).toBe('piwin-compact-abcdef01.md');
   });
 });
