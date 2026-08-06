@@ -3,6 +3,7 @@
  * ADR 0027: transport-agnostic — takes a `send` function, not a JsonlWriter.
  */
 import type { HostCommand, HostResponse, HostServerMessage } from '@piwin/contracts';
+import { formatHostError } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
 import { classifyHostServeCommand } from './host-serve-command-lane.js';
 
@@ -94,12 +95,11 @@ async function runCommand(
     ]);
     await send(response);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
     const failure: HostServerMessage = {
       type: 'response',
       command: command.type,
       success: false,
-      error: `host command '${command.type}' failed: ${message}`,
+      error: formatHostError(command.type, error),
       ...(commandId ? { id: commandId } : {}),
     };
     await send(failure);

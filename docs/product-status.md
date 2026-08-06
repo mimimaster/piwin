@@ -18,6 +18,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Chat stream (mock/SDK) | green | Product transcript resume |
 | Session rename/archive/delete/duplicate | green | PD-SESS archive-first |
 | Pin + search | green | Pinned group in sidebar |
+| Project rail density | green | Project section folds; recent projects are capped in the rail with a searchable all-project picker |
 | Skills / MCP panels | green | stdio lifecycle |
 | Permissions | green | Host-owned policy |
 | Media prompt routing | green/transitioning | Native vision uses ImageContent; path text is explicit text-only fallback only |

@@ -114,6 +114,19 @@ describe('lazy launch', () => {
     await session.snapshot();
     expect(launchMock).toHaveBeenCalledWith({ headless: false });
   });
+
+  it('close() waits for an in-flight launch so the Chromium child is always closed', async () => {
+    const { browser } = installWorkingBrowser();
+    const session = createBrowserSession();
+
+    // subscribe() triggers a fire-and-forget launch (pushInitialState) that is
+    // still pending when close() lands — the exact race that previously leaked
+    // the spawned browser process and kept the event loop alive.
+    session.subscribe(() => undefined);
+    await session.close();
+
+    expect(browser.close).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('browser bus', () => {

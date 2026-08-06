@@ -396,6 +396,17 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         closed = true;
         frameLoop.stop();
         subscribers.clear();
+        // A launch kicked off by subscribe()/pushInitialState() runs outside
+        // the mutex and may still be in flight when close() lands. Wait for it
+        // so the spawned Chromium child is always closed — otherwise the child
+        // is orphaned and its stdio pipes keep the host's event loop alive.
+        if (launchPromise !== undefined) {
+          try {
+            await launchPromise;
+          } catch {
+            // Launch failed (e.g. missing binary); there is no browser to close.
+          }
+        }
         if (browser !== undefined) {
           await browser.close();
           browser = undefined;
