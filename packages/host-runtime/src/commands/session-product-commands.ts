@@ -3,6 +3,7 @@
  * Keep live prompt/spawn/compaction in HostRuntime — this module owns index lifecycle only.
  */
 import { rm } from 'node:fs/promises';
+import { formatError } from '@piwin/contracts';
 import type {
   AgentHost,
   CreateSessionInput,
@@ -389,7 +390,7 @@ export async function handleSessionProductCommand(
         if (error instanceof ForkValidationError) {
           return fail(requestId, 'session/fork', error.message);
         }
-        return fail(requestId, 'session/fork', `Fork failed: ${error instanceof Error ? error.message : String(error)}`);
+        return fail(requestId, 'session/fork', `Fork failed: ${formatError(error)}`);
       }
     }
     case 'session/lineage': {

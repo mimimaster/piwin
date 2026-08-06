@@ -10,7 +10,8 @@
  * matching the {@link WalkthroughErrorCode} values defined in the contracts. The
  * raw provider response body is never surfaced in error messages.
  */
-import type { ModelProviderConfig, WalkthroughErrorCode } from '@piwin/contracts';
+import type { ModelProviderConfig, WalkthroughErrorCode } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { buildProviderRequestHeaders } from './provider-model-discovery.js';
 import { createSecretResolver } from './secret-resolver.js';
 
@@ -128,7 +129,7 @@ export async function completeWalkthrough(
         `Walkthrough generation timed out after ${Math.round(COMPLETION_TIMEOUT_MS / 1000)} seconds`,
       );
     }
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     throw new WalkthroughCompletionError(
       'provider-request-failed',
       `Walkthrough generation failed: ${message}`,

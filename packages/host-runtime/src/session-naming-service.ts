@@ -1,4 +1,5 @@
-import type { HostPush, ModelProviderConfig, ModelRef } from '@piwin/contracts';
+import type { HostPush, ModelProviderConfig, ModelRef } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { deriveDefaultNameFromMessage, setSessionAutoName } from '@piwin/session';
 import { generateTitleViaProvider } from './lightweight-completion.js';
 import { loadPiwinConfig } from './config-store.js';
@@ -70,7 +71,7 @@ export async function maybeAutoNameSession(input: {
             });
           }
         } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error);
+          const detail = formatError(error);
           warn(`LLM title failed for ${sessionId}: ${detail}`);
         }
       }
@@ -95,7 +96,7 @@ export async function maybeAutoNameSession(input: {
     }
   } catch (error) {
     // Best-effort: never fail a turn due to naming, but surface why.
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = formatError(error);
     warn(`naming failed for ${sessionId}: ${detail}`);
   }
 }

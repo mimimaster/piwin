@@ -7,6 +7,7 @@ function baseExposure(overrides: Partial<ToolExposureInput> = {}): ToolExposureI
     webFetch: false,
     mcp: false,
     imageGeneration: false,
+    videoGeneration: false,
     process: 'off',
     browser: 'off',
     subagents: 'off',
@@ -19,6 +20,7 @@ function baseExposure(overrides: Partial<ToolExposureInput> = {}): ToolExposureI
       processReady: true,
       browserReady: true,
       imageGenerationReady: true,
+      videoGenerationReady: true,
     },
     ...overrides,
   };
@@ -132,6 +134,18 @@ describe('resolveToolPolicy', () => {
     expect(noModel.enabledFamilies).not.toContain('image-generation');
     const ready = resolveToolPolicy(baseExposure({ imageGeneration: true }));
     expect(ready.enabledFamilies).toContain('image-generation');
+  });
+
+  it('video generation requires master and a ready adapter', () => {
+    const noAdapter = resolveToolPolicy(
+      baseExposure({
+        videoGeneration: true,
+        availability: { ...baseExposure().availability, videoGenerationReady: false },
+      }),
+    );
+    expect(noAdapter.enabledFamilies).not.toContain('video-generation');
+    const ready = resolveToolPolicy(baseExposure({ videoGeneration: true }));
+    expect(ready.enabledFamilies).toContain('video-generation');
   });
 
   it('hostTools is always empty — descriptors come from buildSessionHostTools', () => {

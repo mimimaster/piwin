@@ -8,6 +8,7 @@ import { dirname, isAbsolute, resolve as resolvePath } from 'node:path';
 import type {
   AgentHost,
   CreateSessionInput,
+  CreateSessionOptions,
   ExecutionRunRecord,
   RunTerminalCode,
   HostCommand,
@@ -17,11 +18,16 @@ import type {
   PiwinConfig,
   PromptInput,
   SessionHandle,
+  SessionCompactData,
+  SessionCompactExportData,
+  SessionCompactResult,
+  SessionIndexRecord,
   SessionResumeData,
   SessionRunAcceptedData,
   SessionTranscriptMessage,
+  SessionTranscriptDocument,
 } from '@piwin/contracts';
-import { DEFAULT_PERMISSION_PRESET, resolvePreset } from '@piwin/contracts';
+import { formatError,  DEFAULT_PERMISSION_PRESET, resolvePreset } from '@piwin/contracts';
 import type { RunAbortReason } from '../run-abort-reason.js';
 import {
   createSupersededByNewPromptAbortReason,
@@ -40,7 +46,11 @@ import {
   loadSessionPlan,
   mergeProductHistoryIntoPrompt,
   saveSessionPlan,
+  exportCompactionMarkdown,
+  buildCompactionSeedMessages,
+  cloneTranscriptForDuplicate,
   suggestSessionExportBasename,
+  suggestCompactionExportBasename,
   truncateTranscriptFrom,
   upsertSessionRecord,
 } from '@piwin/session';
@@ -74,7 +84,10 @@ export type SessionLiveContext = {
   /** Loads the full piwin config from disk. Used by preparePromptInput for walkthrough config. */
   loadConfig: () => Promise<PiwinConfig>;
   /** HostRuntime-owned creation seam for explicit integration fixtures. */
-  createSession: (input: CreateSessionInput) => Promise<SessionHandle>;
+  createSession: (
+    input: CreateSessionInput,
+    options?: CreateSessionOptions,
+  ) => Promise<SessionHandle>;
   sessions: Map<string, SessionHandle>;
   sessionFilesTouched: Map<string, string>;
   sessionLastPromptText: Map<string, string>;
@@ -192,6 +205,7 @@ const TYPES = new Set<HostCommand['type']>([
   'session/steer',
   'session/follow_up',
   'session/compact',
+  'session/compact-export',
   'session/compact-abort',
   'session/compaction-settings',
   'session/set-auto-compaction',
@@ -203,6 +217,171 @@ const TYPES = new Set<HostCommand['type']>([
 
 export function isSessionLiveCommand(command: HostCommand): boolean {
   return TYPES.has(command.type);
+}
+
+/**
+ * One compaction implementation shared by the slash command and compact
+ * export. The export flow uses the same Pi compact operation, but suppresses
+ * live-session bookkeeping when it runs on an ephemeral snapshot.
+ */
+async function compactLiveSession(
+  context: SessionLiveContext,
+  sessionId: string,
+  customInstructions?: string,
+): Promise<SessionCompactResult> {
+  const session = context.requireSession(sessionId);
+  return compactSessionHandle(context, sessionId, session, customInstructions, true);
+}
+
+async function compactSessionHandle(
+  context: SessionLiveContext,
+  sessionId: string,
+  session: SessionHandle,
+  customInstructions: string | undefined,
+  emitSessionFacts: boolean,
+): Promise<SessionCompactResult> {
+  const compact = session.compact;
+  if (!compact) {
+    throw new Error(
+      'compaction is not supported on this session (RPC or inactive product shell)',
+    );
+  }
+
+  const startedAt = Date.now();
+  const result = customInstructions ? await compact(customInstructions) : await compact();
+  const durationMs =
+    typeof result.durationMs === 'number' ? result.durationMs : Date.now() - startedAt;
+  const fileOps =
+    result.fileOps ??
+    extractFileOpsFromUnknown(result) ??
+    extractFileOpsFromUnknown({ summary: result.summary });
+  const enrichedResult: SessionCompactResult = {
+    ...result,
+    durationMs,
+    ...(fileOps ? { fileOps } : {}),
+  };
+
+  if (emitSessionFacts && fileOps) {
+    const block = formatFilesTouchedBlock(fileOps);
+    context.sessionFilesTouched.set(sessionId, block);
+    context.push({
+      type: 'event',
+      sessionId,
+      event: {
+        type: 'compaction/end',
+        ok: enrichedResult.ok,
+        ...(enrichedResult.message ? { message: enrichedResult.message } : {}),
+        ...(enrichedResult.summary ? { summary: enrichedResult.summary } : {}),
+        ...(typeof enrichedResult.tokensBefore === 'number'
+          ? { tokensBefore: enrichedResult.tokensBefore }
+          : {}),
+        ...(typeof enrichedResult.tokensAfter === 'number'
+          ? { tokensAfter: enrichedResult.tokensAfter }
+          : {}),
+        durationMs,
+        fileOps,
+      },
+    });
+  }
+
+  return enrichedResult;
+}
+
+/**
+ * Compact a disposable copy of the product transcript. `duplicate`'s public
+ * command persists a new session, so this flow reuses its pure clone
+ * primitive and only passes the clone into Pi's in-memory session manager.
+ */
+async function compactTranscriptSnapshot(
+  context: SessionLiveContext,
+  record: SessionIndexRecord,
+  customInstructions?: string,
+): Promise<SessionCompactResult> {
+  const messages = await context.loadTranscriptMessages(record.id);
+  const sourceTranscript: SessionTranscriptDocument = {
+    version: 1,
+    sessionId: record.id,
+    projectPath: record.projectPath,
+    messages,
+    updatedAt: new Date().toISOString(),
+    ...(record.scope ? { scope: record.scope } : {}),
+    ...(record.workingDirectory ? { workingDirectory: record.workingDirectory } : {}),
+  };
+  const snapshotTranscript = cloneTranscriptForDuplicate(
+    sourceTranscript,
+    `compact-snapshot-${randomUUID()}`,
+  );
+  const seedMessages = buildCompactionSeedMessages(snapshotTranscript.messages);
+  if (seedMessages.length === 0) {
+    return { ok: false, message: 'Session has no messages to summarize' };
+  }
+  seedMessages.push({
+    role: 'user',
+    text: '[Internal snapshot boundary: summarize the preceding conversation.]',
+    timestamp: Date.now(),
+  });
+
+  const createInput: CreateSessionInput = {
+    projectPath: record.projectPath,
+    ...(record.scope ? { scope: record.scope } : {}),
+    ...(record.workingDirectory ? { cwd: record.workingDirectory } : {}),
+    ...(record.name ? { sessionName: record.name } : {}),
+  };
+  let temporarySession: SessionHandle | undefined;
+  let operationFailed = false;
+  let operationError: unknown;
+  try {
+    temporarySession = await context.createSession(createInput, { seedMessages });
+    return await compactSessionHandle(
+      context,
+      temporarySession.id,
+      temporarySession,
+      customInstructions,
+      false,
+    );
+  } catch (error) {
+    operationFailed = true;
+    operationError = error;
+    throw error;
+  } finally {
+    if (temporarySession) {
+      try {
+        await context.host.dropSession(temporarySession.id);
+      } catch (cleanupError) {
+        if (operationFailed) {
+          throw new AggregateError(
+            [operationError, cleanupError],
+            `failed to clean up compact snapshot ${temporarySession.id}`,
+          );
+        }
+        throw cleanupError;
+      }
+    }
+  }
+}
+
+function toSessionCompactData(result: SessionCompactResult): SessionCompactData {
+  const data: SessionCompactData = { ok: result.ok };
+  if (result.message) data.message = result.message;
+  if (result.summary) data.summary = result.summary;
+  if (typeof result.tokensBefore === 'number') data.tokensBefore = result.tokensBefore;
+  if (typeof result.tokensAfter === 'number') data.tokensAfter = result.tokensAfter;
+  if (typeof result.durationMs === 'number') data.durationMs = result.durationMs;
+  if (result.fileOps) data.fileOps = result.fileOps;
+  return data;
+}
+
+function resolveSessionOutputPath(
+  rootDir: string,
+  sessionId: string,
+  requestedPath: string | undefined,
+  defaultBasename: string,
+): string {
+  if (requestedPath && requestedPath.trim()) {
+    const candidate = requestedPath.trim();
+    return isAbsolute(candidate) ? candidate : resolvePath(candidate);
+  }
+  return resolvePath(getPiwinSessionDir(rootDir, sessionId), 'exports', defaultBasename);
 }
 
 type PromptCommand = Extract<HostCommand, { type: 'session/prompt' }>;
@@ -231,7 +410,7 @@ async function preparePromptInput(
   try {
     await context.recordUserPrompt(command.sessionId, command.input);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     context.push({
       type: 'host/log',
       level: 'warn',
@@ -271,7 +450,7 @@ async function preparePromptInput(
       if (error instanceof PromptPreparationCancelledError) {
         throw error;
       }
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       context.push({
         type: 'host/log',
         level: 'warn',
@@ -321,7 +500,7 @@ async function preparePromptInput(
         promptInput.text = `${resolvedContext}\n\n${promptInput.text}`;
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       context.push({
         type: 'host/log',
         level: 'warn',
@@ -492,7 +671,7 @@ export async function handleSessionLiveCommand(
           projectPath: indexProjectPathForScope(location.scope),
         };
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'session/create', message);
       }
       const session = await context.createSession(createInput);
@@ -623,7 +802,7 @@ export async function handleSessionLiveCommand(
       } catch (error) {
         // Cross-process: adapter may not hold the Pi handle. Bind a product shell
         // that keeps stable id + transcript and creates a live session on first prompt.
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         context.push({
           type: 'host/log',
           level: 'info',
@@ -674,7 +853,7 @@ export async function handleSessionLiveCommand(
           state: 'active' as const,
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'session/reload-runtime', message);
       }
     }
@@ -715,7 +894,7 @@ export async function handleSessionLiveCommand(
       try {
         context.requireSession(command.sessionId);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'session/prompt', message);
       }
       // Validate synchronous security-sensitive input before accepting the
@@ -725,14 +904,14 @@ export async function handleSessionLiveCommand(
       try {
         context.validatePromptAttachments(command.input);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'session/prompt', message);
       }
       let run: ExecutionRunRecord;
       try {
         run = context.registerForegroundRun(command.sessionId);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'session/prompt', message);
       }
 
@@ -798,7 +977,7 @@ export async function handleSessionLiveCommand(
           try {
             await context.touchSession(command.sessionId, command.input.text);
           } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
+            const message = formatError(error);
             context.push({
               type: 'host/log',
               level: 'warn',
@@ -811,7 +990,7 @@ export async function handleSessionLiveCommand(
             await finalizeCancelledRun(context, command.sessionId, run.runId);
             return;
           }
-          const message = error instanceof Error ? error.message : String(error);
+          const message = formatError(error);
           await context.terminateRun(command.sessionId, run.runId, 'failed', undefined, message);
           context.push({
             type: 'event',
@@ -932,59 +1111,56 @@ export async function handleSessionLiveCommand(
       });
     }
     case 'session/compact': {
-      const session = context.requireSession(command.sessionId);
-      if (!session.compact) {
+      const result = await compactLiveSession(
+        context,
+        command.sessionId,
+        command.customInstructions,
+      );
+      return ok(requestId, 'session/compact', toSessionCompactData(result));
+    }
+    case 'session/compact-export': {
+      const rootDir = getPiwinRoot(context.piwinRoot);
+      const indexPath = getPiwinSessionIndexPath(rootDir);
+      const record = await getSessionRecord(indexPath, command.sessionId);
+      if (!record) {
+        return fail(requestId, 'session/compact-export', `Unknown session: ${command.sessionId}`);
+      }
+
+      const result = await compactTranscriptSnapshot(
+        context,
+        record,
+        command.customInstructions,
+      );
+      if (!result.ok) {
         return fail(
           requestId,
-          'session/compact',
-          'compaction is not supported on this session (RPC or inactive product shell)',
+          'session/compact-export',
+          result.message ?? 'Session compaction failed',
         );
       }
-      const startedAt = Date.now();
-      const result = command.customInstructions
-        ? await session.compact(command.customInstructions)
-        : await session.compact();
-      const durationMs =
-        typeof result.durationMs === 'number' ? result.durationMs : Date.now() - startedAt;
-      const data: {
-        ok: boolean;
-        message?: string;
-        summary?: string;
-        tokensBefore?: number;
-        tokensAfter?: number;
-        durationMs?: number;
-        fileOps?: import('@piwin/contracts').CompactionFileOps;
-      } = { ok: result.ok, durationMs };
-      if (result.message) data.message = result.message;
-      if (result.summary) data.summary = result.summary;
-      if (typeof result.tokensBefore === 'number') data.tokensBefore = result.tokensBefore;
-      if (typeof result.tokensAfter === 'number') data.tokensAfter = result.tokensAfter;
-      const fileOps =
-        result.fileOps ??
-        extractFileOpsFromUnknown(result) ??
-        extractFileOpsFromUnknown({ summary: result.summary });
-      if (fileOps) {
-        data.fileOps = fileOps;
-        const block = formatFilesTouchedBlock(fileOps);
-        context.sessionFilesTouched.set(command.sessionId, block);
-        context.push({
-          type: 'event',
-          sessionId: command.sessionId,
-          event: {
-            type: 'compaction/end',
-            ok: result.ok,
-            ...(result.message ? { message: result.message } : {}),
-            ...(result.summary ? { summary: result.summary } : {}),
-            ...(typeof result.tokensBefore === 'number'
-              ? { tokensBefore: result.tokensBefore }
-              : {}),
-            ...(typeof result.tokensAfter === 'number' ? { tokensAfter: result.tokensAfter } : {}),
-            durationMs,
-            fileOps,
-          },
-        });
-      }
-      return ok(requestId, 'session/compact', data);
+
+      const content = exportCompactionMarkdown({ summary: result.summary ?? '' });
+      const outputPath = resolveSessionOutputPath(
+        rootDir,
+        command.sessionId,
+        command.outputPath,
+        suggestCompactionExportBasename(command.sessionId),
+      );
+      await mkdir(dirname(outputPath), { recursive: true });
+      await writeFile(outputPath, content, 'utf8');
+      const data: SessionCompactExportData = {
+        sessionId: command.sessionId,
+        format: 'md',
+        path: outputPath,
+        byteLength: Buffer.byteLength(content, 'utf8'),
+        ...(result.summary ? { summary: result.summary } : {}),
+        ...(typeof result.tokensBefore === 'number'
+          ? { tokensBefore: result.tokensBefore }
+          : {}),
+        ...(typeof result.tokensAfter === 'number' ? { tokensAfter: result.tokensAfter } : {}),
+        ...(typeof result.durationMs === 'number' ? { durationMs: result.durationMs } : {}),
+      };
+      return ok(requestId, 'session/compact-export', data);
     }
     case 'session/compact-abort': {
       const session = context.requireSession(command.sessionId);
@@ -1040,18 +1216,12 @@ export async function handleSessionLiveCommand(
         projectPath: record.projectPath,
         ...(record.name ? { title: record.name } : {}),
       });
-      let outputPath: string;
-      if (command.outputPath && command.outputPath.trim()) {
-        const candidate = command.outputPath.trim();
-        outputPath = isAbsolute(candidate) ? candidate : resolvePath(candidate);
-      } else {
-        const basename = suggestSessionExportBasename(command.sessionId, format);
-        outputPath = resolvePath(
-          getPiwinSessionDir(rootDir, command.sessionId),
-          'exports',
-          basename,
-        );
-      }
+      const outputPath = resolveSessionOutputPath(
+        rootDir,
+        command.sessionId,
+        command.outputPath,
+        suggestSessionExportBasename(command.sessionId, format),
+      );
       await mkdir(dirname(outputPath), { recursive: true });
       await writeFile(outputPath, exported.content, 'utf8');
       const byteLength = Buffer.byteLength(exported.content, 'utf8');
@@ -1102,7 +1272,7 @@ function scheduleAbortCleanup(
       abortLiveSession(context, sessionId),
       context.stopProcessesForSession(sessionId),
     ]).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       context.push({
         type: 'host/log',
         level: 'warn',
@@ -1112,7 +1282,7 @@ function scheduleAbortCleanup(
     return;
   }
   void finalizeCancelledRun(context, sessionId, runId).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     context.push({
       type: 'host/log',
       level: 'warn',
@@ -1141,10 +1311,7 @@ async function finalizeCancelledRun(
   ]);
   for (const cleanupResult of cleanupResults) {
     if (cleanupResult.status === 'rejected') {
-      const detail =
-        cleanupResult.reason instanceof Error
-          ? cleanupResult.reason.message
-          : String(cleanupResult.reason);
+      const detail = formatError(cleanupResult.reason);
       context.push({
         type: 'host/log',
         level: 'warn',
@@ -1162,7 +1329,7 @@ async function abortLiveSession(context: SessionLiveContext, sessionId: string):
   try {
     await context.requireSession(sessionId).abort();
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     context.push({
       type: 'host/log',
       level: 'warn',

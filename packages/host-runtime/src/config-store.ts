@@ -24,6 +24,7 @@ import type {
   ThinkingConfig,
   ThinkingLevel,
   VisionDelegationConfig,
+  VideoGenerationConfig,
   WebConfig,
   PermissionPreset,
 } from '@piwin/contracts';
@@ -221,6 +222,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   if (imageGeneration) {
     normalized.imageGeneration = imageGeneration;
   }
+  const videoGeneration = normalizeVideoGenerationConfig(record.videoGeneration);
+  if (videoGeneration) {
+    normalized.videoGeneration = videoGeneration;
+  }
   const visionDelegation = normalizeVisionDelegationConfig(record.visionDelegation);
   if (visionDelegation) {
     normalized.visionDelegation = visionDelegation;
@@ -228,16 +233,12 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
   return normalized;
 }
 
-
 /**
  * Normalize the `artifact` block. Handles migration from the legacy shape
  * (`htmlUiModeDefault`) to the new `ArtifactConfig` (`enabled`, `triggerMode`,
  * `decisionPrompt`, `maxBytes`).
  */
-function normalizeArtifactConfig(
-  value: unknown,
-  defaults: ArtifactConfig,
-): ArtifactConfig {
+function normalizeArtifactConfig(value: unknown, defaults: ArtifactConfig): ArtifactConfig {
   const record = asRecord(value);
   if (!record) {
     return defaults;
@@ -256,9 +257,7 @@ function normalizeArtifactConfig(
   const promptMode: ArtifactPromptMode =
     decisionPromptRecord?.mode === 'custom' ? 'custom' : 'default';
   const customPrompt =
-    typeof decisionPromptRecord?.customPrompt === 'string'
-      ? decisionPromptRecord.customPrompt
-      : '';
+    typeof decisionPromptRecord?.customPrompt === 'string' ? decisionPromptRecord.customPrompt : '';
   const maxBytes = asPositiveNumber(record.maxBytes) ?? defaults.maxBytes;
   return {
     enabled,
@@ -286,6 +285,23 @@ function normalizeSessionConfig(value: unknown, defaults: SessionConfig): Sessio
  * Image generation default model (optional). Missing/invalid → omitted.
  */
 function normalizeImageGenerationConfig(value: unknown): ImageGenerationConfig | undefined {
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  const defaultModel = normalizeModelRef(record.defaultModel);
+  if (!defaultModel) {
+    return undefined;
+  }
+  return { defaultModel };
+}
+
+/**
+ * Video generation default model (optional). Missing/invalid → omitted.
+ * Provider route details live with the model entry so multiple video vendors
+ * can coexist under one config root.
+ */
+function normalizeVideoGenerationConfig(value: unknown): VideoGenerationConfig | undefined {
   const record = asRecord(value);
   if (!record) {
     return undefined;

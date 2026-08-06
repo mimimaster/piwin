@@ -304,35 +304,41 @@ export function createTranscriptRecorder(options: {
               ? assistantIdsByRunId.get(event.runId)
               : lastAssistantId;
             if (!assistantId) break;
-            updateMessage(assistantId, (message) => ({
-              ...message,
-              tools: (message.tools ?? []).map((tool) => {
-                if (
-                  tool.toolCallId !== event.toolCallId ||
-                  (event.runId !== undefined &&
-                    tool.runId !== undefined &&
-                    tool.runId !== event.runId)
-                ) {
-                  return tool;
-                }
-                const mergedPresentation = event.presentation
-                  ? { ...tool.presentation, ...event.presentation }
-                  : tool.presentation;
-                // Prefer final presentation output (Pi custom tools often only
-                // emit tool/end with AgentToolResult content, no tool/update).
-                const finalOutput =
-                  mergedPresentation?.output?.text !== undefined &&
-                  mergedPresentation.output.text.length > 0
-                    ? mergedPresentation.output.text
-                    : tool.output;
-                return {
-                  ...tool,
-                  status: event.isError ? ('error' as const) : ('done' as const),
-                  output: finalOutput,
-                  ...(mergedPresentation ? { presentation: mergedPresentation } : {}),
-                };
-              }),
-            }));
+            updateMessage(assistantId, (message) => {
+              const attachments = event.isError
+                ? message.attachments
+                : appendGeneratedMediaAttachments(message.attachments, event.attachments);
+              return {
+                ...message,
+                ...(attachments ? { attachments } : {}),
+                tools: (message.tools ?? []).map((tool) => {
+                  if (
+                    tool.toolCallId !== event.toolCallId ||
+                    (event.runId !== undefined &&
+                      tool.runId !== undefined &&
+                      tool.runId !== event.runId)
+                  ) {
+                    return tool;
+                  }
+                  const mergedPresentation = event.presentation
+                    ? { ...tool.presentation, ...event.presentation }
+                    : tool.presentation;
+                  // Prefer final presentation output (Pi custom tools often only
+                  // emit tool/end with AgentToolResult content, no tool/update).
+                  const finalOutput =
+                    mergedPresentation?.output?.text !== undefined &&
+                    mergedPresentation.output.text.length > 0
+                      ? mergedPresentation.output.text
+                      : tool.output;
+                  return {
+                    ...tool,
+                    status: event.isError ? ('error' as const) : ('done' as const),
+                    output: finalOutput,
+                    ...(mergedPresentation ? { presentation: mergedPresentation } : {}),
+                  };
+                }),
+              };
+            });
             await persistDocument();
             break;
           }
@@ -393,6 +399,24 @@ function validateToolOutputLimit(maxToolOutputBytes: number): number {
     throw new RangeError('maxToolOutputBytes must fit the tool output truncation marker');
   }
   return maxToolOutputBytes;
+}
+
+function appendGeneratedMediaAttachments(
+  existing: MediaAttachmentRef[] | undefined,
+  additions: readonly MediaAttachmentRef[] | undefined,
+): MediaAttachmentRef[] | undefined {
+  if (!additions || additions.length === 0) {
+    return existing;
+  }
+  const existingIds = new Set((existing ?? []).map((attachment) => attachment.id));
+  const merged = [...(existing ?? [])];
+  for (const attachment of additions) {
+    if (!existingIds.has(attachment.id)) {
+      existingIds.add(attachment.id);
+      merged.push(attachment);
+    }
+  }
+  return merged;
 }
 
 function appendBoundedToolOutput(

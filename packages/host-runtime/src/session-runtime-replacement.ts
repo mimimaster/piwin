@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { formatError } from '@piwin/contracts';
 import type {
   SessionRuntimeCandidate,
   SessionRuntimeController,
@@ -193,7 +194,7 @@ export class SessionRuntimeReplacementEngine {
             });
             if (!this.options.onCleanupError) {
               const detail =
-                cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+                formatError(cleanupError);
               console.warn(
                 `runtime replacement cleanup failed for ${request.sessionId}/${generationId}: ${detail}`,
               );
@@ -201,7 +202,7 @@ export class SessionRuntimeReplacementEngine {
           }
         }
       }
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       if (
         !committed &&
         this.options.controller.getCandidate(request.sessionId)?.generationId === generationId

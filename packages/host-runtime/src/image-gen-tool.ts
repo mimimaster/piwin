@@ -1,3 +1,4 @@
+import { toMediaAttachmentRef } from '@piwin/contracts';
 import type {
   HostToolRegistration,
   ModelCapability,
@@ -306,6 +307,7 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolRegistr
           paths: [asset.absolutePath],
           mimeType: asset.mimeType,
           byteSize: asset.byteSize,
+          attachments: [toMediaAttachmentRef(asset, 'generated')],
         },
       };
     },

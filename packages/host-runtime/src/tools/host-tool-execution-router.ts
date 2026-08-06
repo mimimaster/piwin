@@ -13,7 +13,7 @@ import type {
   ToolResult,
   ToolResultErrorCode,
 } from '@piwin/contracts';
-import { toolDisabledResult } from '@piwin/contracts';
+import { formatError,  toolDisabledResult } from '@piwin/contracts';
 import { toolFamilyIndex } from './tool-family-index.js';
 
 /** Stable tool-execution error codes crossing the tool boundary. */
@@ -139,7 +139,7 @@ export class HostToolExecutionRouter {
       if (signal.aborted) {
         return { ok: false, code: 'aborted', message: 'tool execution aborted' };
       }
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       return { ok: false, code: 'execution-failed', message };
     }
   }

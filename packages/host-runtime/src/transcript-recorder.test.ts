@@ -142,6 +142,59 @@ describe('TranscriptRecorder', () => {
     expect(tool?.presentation?.output?.text).toBe('(项目: piwin) 找到 2 条记忆');
   });
 
+  it('persists generated media attachments on the assistant message', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-recorder-image-'));
+    const transcriptPath = join(rootDir, 'transcript.json');
+    const recorder = createTranscriptRecorder({
+      transcriptPath,
+      sessionId: 'session-1',
+      projectPath: '/tmp/project',
+    });
+
+    await recorder.recordEvent({
+      type: 'message/start',
+      messageId: 'assistant-1',
+      role: 'assistant',
+      runId: 'run-1',
+    });
+    await recorder.recordEvent({
+      type: 'tool/start',
+      toolCallId: 'tool-image',
+      toolName: 'image_gen',
+      runId: 'run-1',
+    });
+    await recorder.recordEvent({
+      type: 'tool/end',
+      toolCallId: 'tool-image',
+      isError: false,
+      runId: 'run-1',
+      attachments: [
+        {
+          id: 'asset-1',
+          kind: 'media',
+          path: '/tmp/.piwin/media/session-1/asset-1.png',
+          mimeType: 'image/png',
+          byteSize: 256,
+          source: 'generated',
+        },
+      ],
+    });
+    await recorder.recordEvent({ type: 'message/end', messageId: 'assistant-1', runId: 'run-1' });
+    await recorder.flush();
+
+    const messages = await listTranscriptMessages(transcriptPath);
+    expect(messages.find((message) => message.id === 'assistant-1')?.attachments).toEqual([
+      {
+        id: 'asset-1',
+        kind: 'media',
+        path: '/tmp/.piwin/media/session-1/asset-1.png',
+        mimeType: 'image/png',
+        byteSize: 256,
+        source: 'generated',
+      },
+    ]);
+  });
+
   it('retains a bounded tool output with a visible truncation marker', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-recorder-tool-'));
     const transcriptPath = join(rootDir, 'transcript.json');

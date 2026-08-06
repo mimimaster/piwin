@@ -1,3 +1,6 @@
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import type {
   GoogleGeminiProviderConfig,
@@ -41,7 +44,12 @@ const baseConfig = {
   defaultProviderId: 'openai',
   defaultModelId: 'gpt-image-1',
   media: { maxPasteBytes: 10 * 1024 * 1024, allowedMimeTypes: ['image/png', 'image/jpeg'] },
-  artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100_000 },
+  artifact: {
+    enabled: true,
+    triggerMode: 'automatic',
+    decisionPrompt: { mode: 'default', customPrompt: '' },
+    maxBytes: 100_000,
+  },
 };
 
 function configWith(overrides: Partial<PiwinConfig>): PiwinConfig {
@@ -246,5 +254,56 @@ describe('buildImageGenTool', () => {
       secretResolver: { resolveProviderSecret: async () => 'k' } as never,
     });
     expect(tool).toBeNull();
+  });
+
+  it('returns a structured media attachment for the saved image', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-image-gen-'));
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [{ b64_json: 'aGVsbG8=' }] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const tool = buildImageGenTool({
+        piwinRoot: '/tmp/piwin',
+        sessionId: 'session-1',
+        config: configWith({}),
+        mediaConfig: {
+          mediaRoot,
+          maxPasteBytes: 10_000_000,
+          allowedMimeTypes: ['image/png'],
+        },
+        secretResolver: { resolveProviderSecret: async () => 'key' } as never,
+      });
+      expect(tool).not.toBeNull();
+      if (!tool) {
+        throw new Error('image_gen tool should be available');
+      }
+
+      const result = await tool.execute({ prompt: 'a cat' }, new AbortController().signal, {
+        sessionId: 'session-1',
+        runtimeGenerationId: 'generation-1',
+        runId: 'run-1',
+        toolName: 'image_gen',
+      });
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+      expect(result.details?.attachments).toEqual([
+        expect.objectContaining({
+          id: expect.any(String),
+          kind: 'media',
+          path: expect.stringContaining(`${mediaRoot}/session-1/`),
+          mimeType: 'image/png',
+          byteSize: 5,
+          source: 'generated',
+        }),
+      ]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

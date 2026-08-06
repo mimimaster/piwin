@@ -9,7 +9,8 @@
  * Authority: @piwin/host-runtime (product composition root).
  */
 
-import type { HostToolRegistration, McpConfigDocument } from '@piwin/contracts';
+import type { HostToolRegistration, McpConfigDocument } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { buildSessionTools } from '../session-tools.js';
 import { buildProcessTools } from '../process-tools.js';
 import { createBrowserToolDefinitions } from '../browser-tools.js';
@@ -19,7 +20,8 @@ import { buildMcpGatewayToolDefinition } from '../mcp-gateway-tool.js';
 import { createPlanCreateTool } from '../plan-create-tool.js';
 import { createPlanStepTool } from '../plan-step-tool.js';
 import { createSubagentRunTool, type SubagentRunSeam } from '../subagent-run-tool.js';
-import { buildImageGenTool, type ImageGenToolOptions } from '../image-gen-tool.js';
+import { buildImageGenTool } from '../image-gen-tool.js';
+import { buildVideoGenTool } from '../video-gen-tool.js';
 import { buildHostFilesystemTools } from './host-filesystem-tools.js';
 import type { SecretResolver } from '../secret-resolver.js';
 import {
@@ -85,7 +87,7 @@ export type BuildSessionHostToolsOptions = {
   /** Config for tool availability checks (web, notes, flashcards, image-gen). */
   config?: PiwinConfig;
 
-  /** Secret resolver for image generation. */
+  /** Secret resolver for provider-backed media generation. */
   secretResolver?: SecretResolver;
 
   /** Subagent run seam for the delegate tool. */
@@ -282,6 +284,27 @@ export async function buildSessionHostTools(
     if (imageGenTool) {
       tools.push(imageGenTool);
     }
+    const videoGenTool = buildVideoGenTool({
+      piwinRoot: rootDir,
+      sessionId: options.sessionId,
+      config: options.config,
+      mediaConfig: {
+        mediaRoot: getPiwinMediaDir(rootDir),
+        maxPasteBytes: 50 * 1024 * 1024,
+        allowedMimeTypes: [
+          'image/png',
+          'image/jpeg',
+          'image/webp',
+          'video/mp4',
+          'video/webm',
+          'video/quicktime',
+        ],
+      },
+      secretResolver: options.secretResolver,
+    });
+    if (videoGenTool) {
+      tools.push(videoGenTool);
+    }
   }
 
   return tools;
@@ -307,7 +330,7 @@ function reportCompositionDiagnostic(
   capability: string,
   error: unknown,
 ): void {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = formatError(error);
   const diagnostic = {
     capability,
     message: `${capability} composition failed; capability omitted or degraded: ${message}`,

@@ -6,6 +6,7 @@ import type {
   AgentEvent,
   AgentHost,
   CreateSessionInput,
+  CreateSessionOptions,
   HostCommand,
   HostMode,
   HostPush,
@@ -34,7 +35,7 @@ import {
   AgentWorkerSupervisor,
   WorkerTaskRunner,
 } from '@piwin/agent-host';
-import { isRunTerminal, LEGACY_LOCAL_SINK_ID } from '@piwin/contracts';
+import { formatError,  isRunTerminal, LEGACY_LOCAL_SINK_ID } from '@piwin/contracts';
 import { formatTextModelWebElementInjection } from '@piwin/contracts';
 import { assertInsideMediaRoot, createMediaService } from '@piwin/media';
 import {
@@ -513,7 +514,7 @@ export class HostRuntime {
             .filter((project) => project.trust === 'trusted')
             .map((project) => project.path);
         } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error);
+          const detail = formatError(error);
           this.push({
             type: 'host/log',
             level: 'warn',
@@ -666,14 +667,14 @@ export class HostRuntime {
           await liveSession.abort();
         } catch (error) {
           cleanupFailed = true;
-          cleanupMessage = error instanceof Error ? error.message : String(error);
+          cleanupMessage = formatError(error);
         }
       }
       try {
         await this.stopProcessesForSession(run.sessionId);
       } catch (error) {
         cleanupFailed = true;
-        cleanupMessage = error instanceof Error ? error.message : String(error);
+        cleanupMessage = formatError(error);
       }
       if (cleanupFailed) {
         this.push({
@@ -851,7 +852,7 @@ export class HostRuntime {
           return fail(requestId, 'unknown', 'Unhandled command');
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       return fail(requestId, command.type, message);
     }
   }
@@ -1214,7 +1215,7 @@ export class HostRuntime {
         try {
           apiKey = await createSecretResolver().resolveProviderSecret(visionProvider);
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message = formatError(error);
           this.push({
             type: 'host/log',
             level: 'warn',
@@ -1273,7 +1274,7 @@ export class HostRuntime {
                 }),
               );
             } catch (error) {
-              const message = error instanceof Error ? error.message : String(error);
+              const message = formatError(error);
               this.push({
                 type: 'host/log',
                 level: 'warn',
@@ -1477,7 +1478,7 @@ export class HostRuntime {
       }
       throw new Error(`cron type ${job.type} not enabled in this slice`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       const updated = {
         ...job,
         lastRunAt: now,
@@ -1578,7 +1579,7 @@ export class HostRuntime {
               this.push({
                 type: 'host/log',
                 level: 'warn',
-                message: `subagent session update failed: ${error instanceof Error ? error.message : String(error)}`,
+                message: `subagent session update failed: ${formatError(error)}`,
               });
             },
           );
@@ -1604,7 +1605,7 @@ export class HostRuntime {
           this.push({
             type: 'host/log',
             level: 'warn',
-            message: `subagent session registration failed: ${error instanceof Error ? error.message : String(error)}`,
+            message: `subagent session registration failed: ${formatError(error)}`,
           });
         });
       },
@@ -2503,7 +2504,7 @@ export class HostRuntime {
     return {
       ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
       host: this.host,
-      createSession: (input) => this.createSession(input),
+      createSession: (input, options) => this.createSession(input, options),
       sessions: this.sessions,
      sessionFilesTouched: this.sessionFilesTouched,
      sessionLastPromptText: this.sessionLastPromptText,
@@ -2576,7 +2577,7 @@ export class HostRuntime {
             cleanupFailed = cleanup.failedJobIds.length > 0;
           } catch (error) {
             cleanupFailed = true;
-            const detail = error instanceof Error ? error.message : String(error);
+            const detail = formatError(error);
             this.push({
               type: 'host/log',
               level: 'warn',
@@ -2609,7 +2610,7 @@ export class HostRuntime {
         // CE-NAME: auto-name after first completed exchange (fire-and-forget).
         if (outcome === 'completed') {
           void this.maybeTriggerAutoName(sessionId).catch((error: unknown) => {
-            const detail = error instanceof Error ? error.message : String(error);
+            const detail = formatError(error);
             this.push({ type: 'host/log', level: 'warn', message: `auto-name failed: ${detail}` });
           });
           // Walkthrough is generated on plan completion, not after ordinary runs.
@@ -2617,7 +2618,7 @@ export class HostRuntime {
         const recorder = this.transcriptRecorders.get(sessionId);
         if (recorder) {
           void recorder.flush().catch((error: unknown) => {
-            const detail = error instanceof Error ? error.message : String(error);
+            const detail = formatError(error);
             this.push({
               type: 'host/log',
               level: 'warn',
@@ -2949,7 +2950,7 @@ export class HostRuntime {
       } catch (error) {
         // best-effort index write — surface failure so users see why a
         // session may be missing from the list (corrupt index, permissions).
-        const detail = error instanceof Error ? error.message : String(error);
+        const detail = formatError(error);
         const warning = `session index write failed: ${detail}`;
         console.warn(warning);
         this.push({
@@ -3072,7 +3073,7 @@ export class HostRuntime {
       }
       // CE-HOOK: arm matching hooks on normalized AgentEvent (best-effort, never fails turn).
       void this.dispatchHooksForAgentEvent(session.id, correlatedEvent).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         this.push({
           type: 'host/log',
           level: 'warn',
@@ -3082,7 +3083,7 @@ export class HostRuntime {
       const recorder = this.transcriptRecorders.get(session.id);
       if (recorder) {
         void recorder.recordEvent(correlatedEvent).catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : String(error);
+          const message = formatError(error);
           this.push({
             type: 'host/log',
             level: 'warn',
@@ -3095,7 +3096,7 @@ export class HostRuntime {
 
     // Apply durable auto-compaction default (or session override) when handle supports it.
     void this.applyAutoCompactionToSession(session).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       this.push({
         type: 'host/log',
         level: 'warn',
@@ -3183,7 +3184,7 @@ export class HostRuntime {
     try {
       await this.maybeAssignTextNameFromPrompt(sessionId, input.text);
     } catch (error: unknown) {
-      const detail = error instanceof Error ? error.message : String(error);
+      const detail = formatError(error);
       this.push({
         type: 'host/log',
         level: 'warn',
@@ -3376,7 +3377,7 @@ export class HostRuntime {
     try {
       await appendUsageRecord(ledgerPath, record);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       this.push({
         type: 'host/log',
         level: 'warn',
@@ -3489,7 +3490,10 @@ export class HostRuntime {
     return session;
   }
 
-  private async createSession(input: CreateSessionInput): Promise<SessionHandle> {
+  private async createSession(
+    input: CreateSessionInput,
+    options: CreateSessionOptions = {},
+  ): Promise<SessionHandle> {
     switch (this.options.testFixture) {
       case 'hang-until-abort':
         return createDelayedSessionHandle({
@@ -3520,7 +3524,7 @@ export class HostRuntime {
           try {
             await this.ensureBrowserSession();
           } catch (error) {
-            const detail = error instanceof Error ? error.message : String(error);
+            const detail = formatError(error);
             this.push({
               type: 'host/log',
               level: 'warn',
@@ -3528,7 +3532,7 @@ export class HostRuntime {
             });
           }
         }
-        return this.host.createSession(input);
+        return this.host.createSession(input, options);
       }
       default:
         throw new Error(`Unsupported host test fixture: ${this.options.testFixture}`);
@@ -3787,7 +3791,7 @@ export class HostRuntime {
       try {
         sink.push(outgoing);
       } catch (error) {
-        const detail = error instanceof Error ? error.message : String(error);
+        const detail = formatError(error);
         // Log to the legacy sink only, not back through the fan-out (avoid recursion).
         this.options.onPush?.({
           type: 'host/log',
@@ -3956,5 +3960,5 @@ function fallbackPetSnapshot(): PetRuntimeSnapshot {
 }
 
 function formatUnknownError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return formatError(error);
 }

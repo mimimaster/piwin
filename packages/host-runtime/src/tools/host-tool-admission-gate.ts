@@ -25,7 +25,7 @@ import type {
   PermissionSubject,
   ToolResult,
 } from '@piwin/contracts';
-import { createEmptyNetworkPolicy } from '@piwin/contracts';
+import { formatError,  createEmptyNetworkPolicy } from '@piwin/contracts';
 import { getProjectNetworkPolicy } from '@piwin/project';
 import {
   evaluateBashPermission,
@@ -393,5 +393,5 @@ async function isRememberedNetworkAllow(
 }
 
 function formatUnknownError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  return formatError(error);
 }

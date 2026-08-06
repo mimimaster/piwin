@@ -8,7 +8,8 @@
  */
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { HostCommand, HostResponse, McpServerConfig } from '@piwin/contracts';
+import type { HostCommand, HostResponse, McpServerConfig } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import { pluginSecretRef } from '@piwin/contracts';
 import {
   DEFAULT_PLUGIN_REGISTRY_URL,
@@ -64,7 +65,7 @@ export async function handlePluginCommand(
         });
         return ok(requestId, 'plugins/install', result);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'plugins/install', message);
       }
     }
@@ -111,7 +112,7 @@ export async function handlePluginCommand(
 
         return ok(requestId, 'plugins/uninstall', { pluginId: removed.id, removed });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'plugins/uninstall', message);
       }
     }
@@ -122,7 +123,7 @@ export async function handlePluginCommand(
         const index = await fetchPluginRegistry(url);
         return ok(requestId, 'plugins/registry/list', { index });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'plugins/registry/list', message);
       }
     }
@@ -147,7 +148,7 @@ export async function handlePluginCommand(
         }
         return ok(requestId, 'plugins/secrets/collect', { pluginId: plugin.id, secretRefs: refs });
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         return fail(requestId, 'plugins/secrets/collect', message);
       }
     }

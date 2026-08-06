@@ -17,7 +17,8 @@
 import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 
-import type { SubagentTaskResult, SubagentWorkspaceLease } from '@piwin/contracts';
+import type { SubagentTaskResult, SubagentWorkspaceLease } from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import type {
   WorktreeIntegrationInput as GitWorktreeIntegrationInput,
   WorktreeIntegrationResult as GitWorktreeIntegrationResult,
@@ -305,7 +306,7 @@ export function createSubagentIntegrationCoordinator(
           await removeWorktree(worktreePath, parentRepoPath);
           managedWorktrees.delete(worktreePath);
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
+          const message = formatError(error);
           await retain(worktreePath, `integration applied but worktree cleanup failed: ${message}`);
           return {
             ...result,
@@ -343,7 +344,7 @@ export function createSubagentIntegrationCoordinator(
         worktreePath,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       // Unexpected error during integration: retain and mark as failed.
       await retain(worktreePath, `integration exception: ${message}`);
       return {

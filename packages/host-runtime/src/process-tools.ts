@@ -14,6 +14,7 @@ import type {
   StartJobInput,
   ToolResult,
 } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 
 export type BuildProcessToolsOptions = {
   /** Single Host Job authority. */
@@ -25,7 +26,7 @@ export type BuildProcessToolsOptions = {
 };
 
 function jobFailure(error: unknown, runId: string, jobId?: string): ToolResult {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = formatError(error);
   return {
     ok: false,
     code: 'job-failed',
