@@ -19,7 +19,12 @@ import type { SkillSummary } from './skills.js';
 import type { ExtensionSummary } from './extensions.js';
 import type { PromptTemplateSummary } from './prompts.js';
 import type { InstallSource } from './mcp.js';
-import type { McpConfigDocument, McpServerHealth, McpToolSummary } from './mcp.js';
+import type {
+  McpConfigApplyReport,
+  McpConfigDocument,
+  McpServerHealth,
+  McpToolSummary,
+} from './mcp.js';
 import type {
   GitBranchCreateInput,
   GitCheckoutInput,
@@ -820,6 +825,7 @@ export type McpValidateData =
 export type McpSaveData = {
   path: string;
   document: McpConfigDocument;
+  report?: McpConfigApplyReport;
 };
 
 export type McpListToolsData = {

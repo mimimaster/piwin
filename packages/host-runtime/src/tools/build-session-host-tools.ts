@@ -24,7 +24,6 @@ import { buildHostFilesystemTools } from './host-filesystem-tools.js';
 import type { SecretResolver } from '../secret-resolver.js';
 import {
   createMcpGenerationSnapshot,
-  listEnabledServers,
   loadMcpConfig,
   type McpGenerationSnapshot,
   type McpLifecycleManager,
@@ -82,7 +81,6 @@ export type BuildSessionHostToolsOptions = {
   mcpConfig?: McpConfigDocument;
   /** Frozen MCP snapshot; preferred over the compatibility config field. */
   mcpSnapshot?: McpGenerationSnapshot;
-  mcpEnabledServerIds?: readonly string[];
 
   /** Config for tool availability checks (web, notes, flashcards, image-gen). */
   config?: PiwinConfig;
@@ -128,9 +126,6 @@ export async function buildSessionHostTools(
       options.runtimeGenerationId ?? `${options.sessionId}:direct`,
     );
   const mcpConfig = mcpSnapshot.config;
-  const mcpEnabledServerIds =
-    options.mcpEnabledServerIds ?? listEnabledServers(mcpConfig).map((server) => server.id);
-
   // --- Web tools (web_search, web_fetch) ---
   if (options.config?.web) {
     const webRegistration = buildSessionTools({
@@ -216,7 +211,7 @@ export async function buildSessionHostTools(
   }
 
   // --- MCP gateway tool ---
-  if (options.mcpManager && mcpEnabledServerIds.length > 0) {
+  if (options.mcpManager) {
     const mcpTool = buildMcpGatewayToolDefinition({
       lifecycleManager: options.mcpManager,
       mcpConfig,

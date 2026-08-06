@@ -25,6 +25,8 @@ export type HostToolPermissionSpec = {
   action: string;
   risk: PermissionRiskKind;
   rememberable: boolean;
+  /** MCP uses explicit local trust; it does not enter the permission engine. */
+  admission?: 'permission' | 'trusted';
   /**
    * Explicit read-only declaration. Read-only tools pass the admission gate
    * without a permission subject; the gate must not guess from the tool name.

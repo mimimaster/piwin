@@ -67,7 +67,13 @@ export async function handleMcpCommand(
             );
           }
           const path = await saveMcpConfig(rootDir, validated.document);
-          return ok(requestId, 'mcp/save', { path, document: validated.document });
+          try {
+            const report = await context.getMcpManager().applyConfig(validated.document);
+            return ok(requestId, 'mcp/save', { path, document: validated.document, report });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            return fail(requestId, 'mcp/save', `config saved but runtime apply failed: ${message}`);
+          }
         }
         case 'mcp/list_tools': {
           const tools = await context.getMcpManager().listTools(command.serverId);
@@ -119,9 +125,11 @@ export async function handleMcpCommand(
           const { serverId, config } = draftToServerConfig(command.serverId, command.draft);
           document.mcpServers[serverId] = config;
           await saveMcpConfig(rootDir, document);
+          const report = await context.getMcpManager().applyConfig(document);
           return ok(requestId, 'mcp/registry-install-draft', {
             serverId,
             document,
+            report,
           });
         }
 

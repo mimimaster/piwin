@@ -147,10 +147,10 @@ the concrete allow/ask/deny decision is not frozen in the descriptor.
 ### 3.4 Permission system
 
 Host-owned (not UI). Implemented per [ADR 0019](./adr/0019-permission-rule-engine.md)
-as a layered rule engine + permission modes + file-write gate + MCP server-level
-trust. **This is an approval-layer guard, not an OS sandbox** — it prompts and
-blocks, it does not isolate the process (see ADR 0014's "MCP is not a sandbox"
-wording for the same honesty applied to MCP).
+as a layered rule engine + permission modes + file-write gate. **This is an
+approval-layer guard, not an OS sandbox** — it prompts and blocks, it does not
+isolate the process. MCP is configuration-trusted and is owned separately by
+the Host Supervisor; it does not enter this rule engine (ADR 0033).
 
 #### Rule engine (deny → ask → allow)
 
@@ -166,8 +166,8 @@ path/command.
 
 Rule kinds: `bash` (glob, or `re:`-prefixed regex for bundled precision),
 `file-write` (`pathGlob` with `~` expansion to `homedir()` at load time),
-`web-fetch` (`hostGlob`), `web-search`, `mcp` (`selectorGlob` of the form
-`serverId.toolName`), and reserved kinds `git` / `process` / `notes-mutate`
+`web-fetch` (`hostGlob`), `web-search`, and reserved kinds `git` / `process` /
+`notes-mutate`
 (not yet migrated to the engine — see ADR 0019 §8).
 
 #### Layered rule sources (merge, not override)
@@ -202,9 +202,9 @@ have been converted into a `PermissionSubject`.
 
 | Mode | bash unmatched | file-write in-project | file-write out-of-project | public network | MCP | deny rules |
 |------|----------------|----------------------|--------------------------|----------------|-----|------------|
-| `ask-all` | ask | ask | ask | ask | server-gated (§MCP) | always enforced |
-| `auto` | allow¹ | allow | ask | ask | server-gated | always enforced |
-| `bypass` | allow | allow | allow | allow | server-gated | **still enforced** |
+| `ask-all` | ask | ask | ask | ask | outside permission engine (§MCP) | always enforced |
+| `auto` | allow¹ | allow | ask | ask | outside permission engine | always enforced |
+| `bypass` | allow | allow | allow | allow | outside permission engine | **still enforced** |
 
 ¹ `auto` bash unmatched → allow **only after** bundled deny **and** bundled ask
 tiers. A built-in safe-prefix allowlist (`ls *`, `git status`, `pnpm test`, …)
@@ -231,19 +231,13 @@ covers secret paths (`~/.ssh/**`,
 bundled **ask**. The execution port is shared by SDK and RPC, so there is no
 second Pi-native filesystem/Bash gate in the product path.
 
-#### MCP: server-level trust (supersedes ADR 0014 §5)
+#### MCP: configuration trust
 
-**Once an MCP server is enabled in config, its tools run without per-call
-permission prompts by default.** Server enablement is the deliberate trust
-boundary (the moment of trust is adding the server in `~/.piwin/mcp.json` /
-Settings, not each tool call). The unified Host admission gate first checks the
-generation's frozen enabled-server allowlist, then applies explicit `deny`/`ask`
-MCP rules and the dynamic mode (`ask-all` asks on an unmatched call; `auto` and
-`bypass` allow an unmatched call). The MCP lifecycle manager executes against
-the same generation-scoped config snapshot; it never reloads disk config during
-a tool call. Risk classification (`evaluateMcpToolCallRisk`) and argument
-redaction still run for UI display. Users who want per-tool gating add
-`deny`/`ask` MCP rules in `permissions.json`.
+MCP is outside the permission rule engine. Adding a server to
+`~/.piwin/mcp.json` is the trust decision; enabled MCP calls do not prompt and
+legacy MCP rules in `permissions.json` are ignored. The Host Supervisor still
+enforces server existence, enabled state, lifecycle deadlines, and call
+ownership. Risk classification may remain as display-only diagnostics.
 
 #### Project remember (scope extended)
 
@@ -256,8 +250,8 @@ redaction still run for UI display. Users who want per-tool gating add
   matched by **path-safe prefix** (`path === stored || path.startsWith(stored + sep)`).
 - **network** — unchanged (`allowedFetchHosts`, `allowWebSearch` — exact host).
 
-MCP needs no remember (server-gated). Revocation (`project/permissions-revoke`)
-extends to the new keys; `listRememberedPermissions` surfaces them in Settings.
+MCP is outside this remember/revoke surface. Revocation
+(`project/permissions-revoke`) covers only the permissioned domains above.
 
 #### Dual host modes
 

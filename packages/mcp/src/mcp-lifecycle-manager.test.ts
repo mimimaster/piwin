@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -58,6 +58,42 @@ describe('createMcpLifecycleManager', () => {
     expect(health.find((item) => item.serverId === 'offline')?.status).toBe('disabled');
     expect(health.find((item) => item.serverId === 'echo')?.status).toBe('stopped');
     await manager.dispose();
+  });
+
+  it('applies pin-only changes without restarting a running server', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-pins-'));
+    const { fileURLToPath } = await import('node:url');
+    const fixtureServerPath = fileURLToPath(
+      new URL('./fixtures/fixture-mcp-server-official.mjs', import.meta.url),
+    );
+    const serverConfig = {
+      command: process.execPath,
+      args: [fixtureServerPath],
+    };
+    await writeFile(
+      join(root, 'mcp.json'),
+      JSON.stringify({ mcpServers: { fixture: serverConfig } }),
+      'utf8',
+    );
+    const manager = createMcpLifecycleManager(root);
+    try {
+      const started = await manager.start('fixture');
+      expect(started.status).toBe('running');
+      const pinnedConfig = {
+        mcpServers: { fixture: serverConfig },
+        pinnedSelectors: ['fixture.ping'],
+      };
+      await writeFile(join(root, 'mcp.json'), JSON.stringify(pinnedConfig), 'utf8');
+      const report = await manager.applyConfig(pinnedConfig);
+      expect(report.changedServerIds).toEqual([]);
+      expect(report.exposureChanged).toBe(true);
+      const health = (await manager.listHealth()).find((item) => item.serverId === 'fixture');
+      expect(health?.status).toBe('running');
+      expect(health?.pid).toBe(started.pid);
+      expect(manager.getConfig().pinnedSelectors).toEqual(['fixture.ping']);
+    } finally {
+      await manager.dispose();
+    }
   });
 
   it('records error status when start fails', async () => {
@@ -129,6 +165,66 @@ describe('createMcpLifecycleManager', () => {
       expect(manager.getClient('fixture')).toBeNull();
     } finally {
       await manager.dispose();
+    }
+  });
+
+  it('closes descendants when an official MCP parent exits unexpectedly', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'piwin-mcp-life-descendant-'));
+    const fixtureServerPath = (await import('node:url')).fileURLToPath(
+      new URL('./fixtures/fixture-mcp-server-spawn-child.mjs', import.meta.url),
+    );
+    const childPidFile = join(root, 'descendant.pid');
+    await writeFile(
+      join(root, 'mcp.json'),
+      JSON.stringify({
+        mcpServers: {
+          fixture: {
+            command: process.execPath,
+            args: [fixtureServerPath],
+            env: {
+              PIWIN_FIXTURE_CHILD_PID_FILE: childPidFile,
+              PIWIN_FIXTURE_EXIT_AFTER_INIT: '1',
+            },
+          },
+        },
+      }),
+      'utf8',
+    );
+
+    const manager = createMcpLifecycleManager(root);
+    let descendantPid: number | undefined;
+    try {
+      const started = await manager.start('fixture');
+      descendantPid = Number.parseInt(await readFile(childPidFile, 'utf8'), 10);
+      expect(Number.isInteger(descendantPid)).toBe(true);
+
+      let health = started;
+      for (let attempt = 0; attempt < 60; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        const listed = await manager.listHealth();
+        const current = listed.find((item) => item.serverId === 'fixture');
+        if (current) {
+          health = current;
+        }
+        if (health.status === 'error') {
+          break;
+        }
+      }
+
+      expect(health.status).toBe('error');
+      if (typeof descendantPid === 'number') {
+        await waitForProcessExit(descendantPid);
+        expect(isProcessAlive(descendantPid)).toBe(false);
+      }
+    } finally {
+      await manager.dispose();
+      if (typeof descendantPid === 'number' && isProcessAlive(descendantPid)) {
+        try {
+          process.kill(descendantPid, 'SIGKILL');
+        } catch {
+          // already gone
+        }
+      }
     }
   });
 
@@ -418,10 +514,12 @@ describe('createMcpLifecycleManager', () => {
         'utf8',
       );
 
-      const second = await manager.callTool('fixture', 'ping', {}, undefined, snapshot);
-      expect(second).toMatchObject({
-        content: [{ type: 'text', text: 'pong' }],
-      });
+      // A generation snapshot no longer owns a second transport. The single
+      // Supervisor applies the current disk config, so the replacement binary
+      // is the one observed by this call as well.
+      await expect(
+        manager.callTool('fixture', 'ping', {}, undefined, snapshot),
+      ).rejects.toThrow();
     } finally {
       await manager.releaseGenerationSnapshot(snapshot.generationId);
       await manager.dispose();
@@ -445,3 +543,19 @@ describe('createMcpLifecycleManager', () => {
     }
   });
 });
+
+async function waitForProcessExit(pid: number, timeoutMs = 3_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline && isProcessAlive(pid)) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}

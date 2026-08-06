@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDesktopLocale } from './desktop-locale-context';
 import { useConfirmDialog } from './use-confirm-dialog';
 import {
@@ -60,7 +60,12 @@ export function McpPanel(props: McpPanelProps) {
   const [registryLoading, setRegistryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [document, setDocument] = useState<McpConfigDocument>({ mcpServers: {} });
+  const [document, setDocument] = useState<McpConfigDocument>({
+    mcpServers: {},
+    pinnedSelectors: [],
+  });
+  const documentRef = useRef(document);
+  const saveQueueRef = useRef<Promise<boolean>>(Promise.resolve(true));
   const [healthById, setHealthById] = useState<Record<string, McpServerHealth>>({});
   const [loading, setLoading] = useState(true);
 
@@ -70,6 +75,11 @@ export function McpPanel(props: McpPanelProps) {
   const [editServer, setEditServer] = useState<McpServerConfig | undefined>(undefined);
   const [prefillDraft, setPrefillDraft] = useState<McpServerConfig | null>(null);
   const [prefillId, setPrefillId] = useState('');
+
+  function updateDocument(next: McpConfigDocument): void {
+    documentRef.current = next;
+    setDocument(next);
+  }
 
   const refreshHealth = useCallback(async () => {
     const response = await props.request({ type: 'mcp/status' });
@@ -93,7 +103,7 @@ export function McpPanel(props: McpPanelProps) {
       return;
     }
     const data = response.data as McpGetData;
-    setDocument(data.document);
+    updateDocument(data.document);
     await refreshHealth();
     setLoading(false);
   }, [props, refreshHealth]);
@@ -124,18 +134,49 @@ export function McpPanel(props: McpPanelProps) {
     }
   }, [mainTab, loadRegistry]);
 
-  async function saveDocument(next: McpConfigDocument): Promise<boolean> {
+  async function saveDocumentNow(payload: McpConfigDocument): Promise<boolean> {
     setError(null);
     setInfo(null);
-    const response = await props.request({ type: 'mcp/save', document: next });
+    const response = await props.request({ type: 'mcp/save', document: payload });
     if (!response.success) {
       setError(response.error);
       return false;
     }
     const data = response.data as { path: string; document: McpConfigDocument };
-    setDocument(data.document);
+    updateDocument(data.document);
     setInfo(isChinese ? `已保存 ${data.path}` : `Saved ${data.path}`);
     return true;
+  }
+
+  function saveDocument(next: McpConfigDocument): Promise<boolean> {
+    const payload: McpConfigDocument =
+      next.pinnedSelectors === undefined
+        ? { ...next, pinnedSelectors: documentRef.current.pinnedSelectors ?? [] }
+        : next;
+    const operation = saveQueueRef.current.then(
+      () => saveDocumentNow(payload),
+      () => saveDocumentNow(payload),
+    );
+    saveQueueRef.current = operation.catch(() => false);
+    return operation;
+  }
+
+  async function handleTogglePinned(selector: string, pinned: boolean): Promise<boolean> {
+    const currentDocument = documentRef.current;
+    const current = new Set(currentDocument.pinnedSelectors ?? []);
+    if (pinned) {
+      current.add(selector);
+    } else {
+      current.delete(selector);
+    }
+    const nextDocument: McpConfigDocument = {
+      mcpServers: currentDocument.mcpServers,
+      pinnedSelectors: [...current],
+    };
+    // Update the ref synchronously so two rapid clicks compose against the
+    // latest intent instead of the last React render.
+    updateDocument(nextDocument);
+    return saveDocument(nextDocument);
   }
 
   function openAddEditor(): void {
@@ -289,14 +330,16 @@ export function McpPanel(props: McpPanelProps) {
             testId="mcp-main-tabs"
           >
             <div className="mcp-header-bar" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 16 }}>
-              <PageTitle
-                title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
-                description={
-                  mainTab === 'configured'
-                    ? (isChinese ? '管理本地 MCP 服务器配置。点击服务器卡片编辑详情。' : 'Manage local MCP server configurations. Click a server to edit details.')
-                    : (isChinese ? '从开放市场浏览并安装社区 MCP 服务器。' : 'Browse and install MCP servers from the community marketplace.')
-                }
-              />
+              {props.variant !== 'inline' ? (
+                <PageTitle
+                  title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
+                  description={
+                    mainTab === 'configured'
+                      ? (isChinese ? '管理本地 MCP 服务器配置。点击服务器卡片编辑详情。' : 'Manage local MCP server configurations. Click a server to edit details.')
+                      : (isChinese ? '从开放市场浏览并安装社区 MCP 服务器。' : 'Browse and install MCP servers from the community marketplace.')
+                  }
+                />
+              ) : null}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
                 <TabsList className="segmented-control" label={isChinese ? 'MCP 视图' : 'MCP views'}>
                   <TabsTrigger value="configured" className="segmented-control-item" testId="mcp-tab-configured">
@@ -487,6 +530,7 @@ export function McpPanel(props: McpPanelProps) {
         onValidateRaw={handleValidateRawFromEditor}
         onSaveRaw={handleSaveRawFromEditor}
         onPreviewTools={handlePreviewToolsFromEditor}
+        onTogglePinned={handleTogglePinned}
       />
     </>
   );

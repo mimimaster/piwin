@@ -6,7 +6,7 @@
 | Related | [ADR 0019](../adr/0019-permission-rule-engine.md), [ADR 0024](../adr/0024-run-modes-and-sandbox.md), [Architecture §3.4](../architecture.md#34-permission-system) |
 
 piwin gates the tools an agent can run — bash commands, file writes, network
-fetches, and MCP tool calls — through a host-owned permission system built on
+fetches through a host-owned permission system built on
 two orthogonal axes:
 
 1. **Run Mode** (ADR 0024) — a user-facing preset that collapses the sandbox
@@ -119,11 +119,6 @@ lower layers.
       "target": { "kind": "bash", "pattern": "cargo *" },
       "decision": "allow",
       "reason": "cargo-safe"
-    },
-    {
-      "target": { "kind": "mcp", "selectorGlob": "github.*" },
-      "decision": "allow",
-      "reason": "github-trusted"
     }
   ]
 }
@@ -143,8 +138,6 @@ lower layers.
 | `file-write` | `pathGlob` | Glob over the resolved absolute path. `~` expands to your home directory at load time. `*` matches within a path segment; `**` matches across segments. | Both `writeFile` and `mkdir` are gated. |
 | `web-fetch` | `hostGlob` | Glob over the URL hostname. `*.example.com` matches subdomains. | Domain defaults (private/local deny, public ask) still apply when no rule matches. |
 | `web-search` | — | Any web search. | |
-| `mcp` | `selectorGlob` | `serverId.toolName`; `*` wildcard for either part. | Enabled servers are trusted by default; rules add deny/ask gating. |
-
 `git`, `process`, and `notes-mutate` kinds are reserved in the contracts but
 not yet migrated to the rule engine. Force-push stays a bundled **bash ask**
 rule; process start/stop and notes mutations keep their existing ask behavior.
@@ -186,16 +179,14 @@ points outside the project is treated as an out-of-project write.
 
 ---
 
-## MCP server trust
+## MCP configuration trust
 
-**Once you enable an MCP server in `~/.piwin/mcp.json` (or Settings), all its
-tools run without per-call permission prompts.** Server enablement is the trust
-boundary — the moment of trust is adding the server, not each tool call.
-
-- To gate specific tools, add `deny` or `ask` MCP rules in `permissions.json`
-  (selector `serverId.toolName`, `*` wildcard supported).
-- Risk classification and argument redaction still run for UI display.
-- Disabled servers are never connected (the lifecycle manager refuses).
+MCP is outside this permission system. Adding a server in
+`~/.piwin/mcp.json` (or Settings) is the trust decision; its enabled tools do
+not create permission prompts. Legacy MCP rules in `permissions.json` are
+ignored. The MCP Supervisor still rejects disabled/unknown servers and owns
+connect, timeout, drain, and shutdown lifecycle. Risk classification, if shown,
+is diagnostic only.
 
 ---
 
@@ -245,7 +236,8 @@ Remembered entries are stored in `~/.piwin/projects.json`:
   allows writes beneath it.
 
 Revoke remembered permissions in Settings → Permissions (remembered list) or
-via `project/permissions-revoke`. MCP has no remember (server-gated).
+via `project/permissions-revoke`. MCP has no remember because it is outside the
+permission system.
 
 ---
 

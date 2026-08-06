@@ -157,7 +157,6 @@ export type PermissionRuleTarget =
   | { kind: 'file-write'; pathGlob: string } // glob over resolved absolute path
   | { kind: 'web-fetch'; hostGlob: string }
   | { kind: 'web-search' }
-  | { kind: 'mcp'; selectorGlob: string }    // "serverId.toolName"
   | { kind: 'git'; pattern: string }
   | { kind: 'process' }
   | { kind: 'notes-mutate' };
@@ -172,7 +171,6 @@ export type PermissionSubject =
   | { kind: 'file-write'; path: string }     // resolved absolute path
   | { kind: 'web-fetch'; host: string }
   | { kind: 'web-search' }
-  | { kind: 'mcp'; selector: string }
   | { kind: 'git'; command: string }
   | { kind: 'process' }
   | { kind: 'notes-mutate' };
@@ -426,8 +424,9 @@ CLI tool or editor extension. Documented honestly in UI/doctor.
   `/home/u/a` matching `/home/u/ab`.
 - **network**: unchanged (`allowedFetchHosts`, `allowWebSearch` — exact host).
 
-MCP needs no remember (server-gated). Revoke flow (`project/permissions-revoke`)
-extends to the new keys. `listRememberedPermissions` surfaces them in Settings.
+MCP is outside this permission system under ADR 0033; it has no remember or
+permission revoke entry. Revoke flow (`project/permissions-revoke`) applies to
+the permissioned domains above.
 
 The `permission/resolve` handler needs the permission request's `context.kind`
 to branch correctly. Currently `pendingPermissions` stores `action` and
@@ -461,7 +460,7 @@ bypass and untrusted project allow rules. Cross-boundary actions already ask in
 
 - **bash** — deny/ask/allow rules + mode-aware unmatched default
 - **file-write** — gate + rules + domain defaults
-- **MCP** — server-level trust; optional deny/ask rules; risk display only
+- **MCP** — excluded; configuration trust and lifecycle are defined by ADR 0033
 
 **Partial this ADR:**
 
@@ -524,7 +523,7 @@ that builds the same custom tools). Apps never import Pi; only
 | Keep status quo (regex + default-allow, no file-write gate) | Leaves the largest blind spot open; bash default-allow unsafe; MCP unusable. |
 | OS-level sandbox (Codex Seatbelt/Landlock) | Correct long-term answer but a large cross-platform engineering effort (per-platform kernel in the Tauri sidecar). Deferred to a future ADR; this ADR is the approval layer. |
 | LLM classifier approval (Cursor Auto-review) | Adds nondeterminism, latency, and an online dependency. piwin is local-first. `auto` mode uses a pure-function risk classifier for now; LLM classifier is a future plugin point. |
-| Per-tool MCP remember (original proposal) | User explicitly chose server-level trust instead: "once MCP is started, give full permission." Simpler and matches how users think about MCP servers. |
+| Per-tool MCP permission (original proposal) | Replaced by ADR 0033 configuration trust plus Supervisor lifecycle ownership. |
 | `ask-all` as default | User chose `auto` for Cursor-like low friction. `ask-all` remains available. |
 | Fork Pi core to gate native tools | Violates AGENTS.md §1.4 (adapters over forks). Host wraps `execute`/`operations` instead. |
 | Naive string-prefix project remember | Approving `rm -rf /tmp/foo` would allow `rm -rf /tmp/foo /etc`. Rejected; exact (bash) / path-safe prefix (files). |

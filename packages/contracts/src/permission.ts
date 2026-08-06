@@ -52,7 +52,6 @@ export type PermissionRuleTarget =
   | { kind: 'file-write'; pathGlob: string }
   | { kind: 'web-fetch'; hostGlob: string }
   | { kind: 'web-search' }
-  | { kind: 'mcp'; selectorGlob: string }
   | { kind: 'git'; pattern: string }
   | { kind: 'process' }
   | { kind: 'notes-mutate' };
@@ -63,7 +62,6 @@ export type PermissionSubject =
   | { kind: 'file-write'; path: string }
   | { kind: 'web-fetch'; host: string }
   | { kind: 'web-search' }
-  | { kind: 'mcp'; selector: string }
   | { kind: 'git'; command: string }
   | { kind: 'process' }
   | { kind: 'notes-mutate' }

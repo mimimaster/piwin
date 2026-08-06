@@ -40,23 +40,27 @@ orphaned processes consuming ~1.5 GB RSS**.
 
 ## Decision
 
-### 1. `closeChild()` now waits for exit with SIGKILL escalation
+### 1. One shared process-tree close helper
 
-`packages/mcp/src/mcp-client.ts`:
+`packages/mcp/src/mcp-process-tree.ts` owns the shutdown sequence used by both
+stdio implementations:
 
-- After `SIGTERM`, wait up to 2s for process exit.
-- If still alive, send `SIGKILL` and wait up to 3s more.
-- Total hard deadline: 5s.
+- launch the child in a detached process group on Unix;
+- send `SIGTERM` and wait up to 2s;
+- escalate to group `SIGKILL` and wait up to 3s more;
+- use recursive `taskkill` on Windows;
+- return only after the sequence completes or its hard deadline is exhausted.
 
-### 2. Official client captures PID before close, hard-kills after
+The owner captures the spawned PID before readiness and retains it after the
+child's close event.
 
-`packages/mcp/src/mcp-client-official.ts`:
+### 2. Official SDK protocol with piwin-owned transport
 
-- Both the `close()` method and the connect-error path capture
-  `transport.pid` **before** calling `transport.close()` (the SDK clears
-  its internal `_process` ref early in `close()`).
-- After `transport.close()`, unconditionally `process.kill(pid, 'SIGKILL')`
-  as a belt-and-suspenders fallback.
+`packages/mcp/src/mcp-client-official.ts` uses the official SDK `Client`, but
+not the SDK's stock `StdioClientTransport`. `OwnedMcpStdioTransport` keeps the
+SDK protocol callbacks while delegating process-group ownership to piwin. This
+avoids relying on the SDK's direct-PID close path, which clears its process
+reference during shutdown and does not recursively close descendants.
 
 ### 3. Lifecycle manager aborts the connection on timeout
 
@@ -64,14 +68,22 @@ orphaned processes consuming ~1.5 GB RSS**.
 
 - `startInternal()` creates an internal `AbortController` and passes its
   signal to `connectMcpStdio()`.
-- When the connect timeout fires, `abortConnect()` is called, which causes
-  the official SDK's `client.connect()` to reject (triggering
-  `transport.close()` + SIGKILL) and the handcrafted client's `send()` to
-  reject (triggering `closeChild()` with SIGKILL escalation).
-- `closeWithDeadline` default timeout increased from 2s to 8s to allow
-  SIGKILL escalation to complete.
+- When the connect timeout fires, `abortConnect()` closes the owned transport
+  and the pending connection is then awaited by the Supervisor.
+- Auto fallback closes and awaits the failed official candidate before starting
+  the handcrafted candidate.
+- The manager no longer abandons close with `Promise.race`; each owned
+  transport supplies its own bounded shutdown contract.
 
-### 4. Test `afterAll` safety net
+### 4. Unexpected-exit and dispose paths retain the owner
+
+When a running server exits unexpectedly, the Supervisor keeps the exact owner
+handle long enough to close the remaining process tree before marking the slot
+`error` or starting the one permitted restart. `dispose()` is serialized with
+config application, so an in-flight apply cannot reinsert a slot after global
+shutdown has cleared the registry.
+
+### 5. Test `afterAll` safety net
 
 `packages/mcp/src/mcp-lifecycle-manager.test.ts`:
 
@@ -81,9 +93,9 @@ orphaned processes consuming ~1.5 GB RSS**.
 ## Consequences
 
 - No more orphaned MCP fixture processes after test runs.
-- Connect timeout now actively kills the child process instead of hoping
-  the connection promise eventually settles.
-- `closeWithDeadline` takes up to 8s in the worst case (SIGTERM + SIGKILL
-  escalation), which is acceptable for a shutdown path.
+- Connect timeout now actively kills the entire owned process tree instead of
+  hoping the connection promise eventually settles.
+- Shutdown can take up to 5s in the worst case (SIGTERM + SIGKILL escalation),
+  which is acceptable for a cleanup path.
 - The `afterAll` safety net is macOS-specific (`ps` command) but degrades
   gracefully on other platforms (catch block, no-op).

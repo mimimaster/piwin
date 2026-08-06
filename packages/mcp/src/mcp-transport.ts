@@ -27,6 +27,18 @@ export type McpTransportClient = {
   onExit: (handler: (reason: string) => void) => () => void;
 };
 
+/**
+ * Process ownership returned before MCP readiness completes.
+ * The supervisor registers this handle immediately, then awaits `ready`.
+ * `close()` is safe before readiness and must settle after the child is gone
+ * (or the transport has exhausted its shutdown deadline).
+ */
+export type McpOwnedProcess = {
+  readonly pid: number | undefined;
+  readonly ready: Promise<McpTransportClient>;
+  close: () => Promise<void>;
+};
+
 /** @deprecated Prefer McpTransportClient — kept as alias for existing call sites. */
 export type McpClientSession = McpTransportClient;
 

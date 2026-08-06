@@ -492,7 +492,7 @@ describe('compileBlueprintForWorker', () => {
     expect(compiledNames).toContain('image_gen');
   });
 
-  it('does not advertise MCP tools when no enabled server exists', async () => {
+  it('keeps the MCP gateway available when no enabled server exists', async () => {
     const result = await compileBlueprintForWorker(
       { scope: generalScope },
       {
@@ -501,21 +501,17 @@ describe('compileBlueprintForWorker', () => {
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
         hostToolDescriptors: [
           { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
-          { name: 'mcp__disabled__search', description: 'Disabled MCP tool', parameters: {} },
         ],
         hostToolFamilyIndex: createFamilyIndex(
-          [
-            { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
-            { name: 'mcp__disabled__search', description: 'Disabled MCP tool', parameters: {} },
-          ],
-          familyAssignments([['mcp', ['mcp_gateway', 'mcp__disabled__search']]]),
+          [{ name: 'mcp_gateway', description: 'MCP gateway', parameters: {} }],
+          familyAssignments([['mcp', ['mcp_gateway']]]),
         ),
       },
     );
 
-    expect(result.blueprint.tools.enabledFamilies).not.toContain('mcp');
+    expect(result.blueprint.tools.enabledFamilies).toContain('mcp');
     expect(result.blueprint.tools.enabledMcpServerIds).toEqual([]);
-    expect(result.blueprint.tools.hostTools).toEqual([]);
+    expect(result.blueprint.tools.hostTools.map((tool) => tool.name)).toEqual(['mcp_gateway']);
   });
 
   it('untrusted project compiles no write/process/bash/delegate tools', async () => {

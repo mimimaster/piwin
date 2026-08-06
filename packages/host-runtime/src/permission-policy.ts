@@ -264,9 +264,8 @@ const SECRET_ARG_KEYS =
  * Classify an MCP tool call's risk for permission UI display.
  *
  * Pure function — server descriptions are untrusted hints only. The returned
- * `decision`/`reason` are used for surfacing risk to the user; the actual
- * call/allow decision for MCP tools is driven by the Host admission gate
- * (ADR 0019 §5). This classification is display-only.
+ * `decision`/`reason` are retained for compatibility with old diagnostics;
+ * MCP authorization never consumes them. This classification is display-only.
  */
 export function evaluateMcpToolCallRisk(input: {
   serverId: string;

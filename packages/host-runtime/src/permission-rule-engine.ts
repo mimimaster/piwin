@@ -228,54 +228,6 @@ export function matchHostGlob(pattern: string, host: string): boolean {
 }
 
 /**
- * Match an MCP selector against a glob pattern.
- *
- * Selectors are of the form "serverId.toolName". Supports `*` as a wildcard
- * for either the server ID or tool name.
- *
- * @param pattern - Selector glob pattern
- * @param selector - Selector string to match
- * @returns true if the pattern matches the selector
- */
-export function matchSelectorGlob(pattern: string, selector: string): boolean {
-  const normalizedPattern = pattern.trim();
-  const normalizedSelector = selector.trim();
-
-  if (!normalizedPattern || !normalizedSelector) {
-    return false;
-  }
-
-  // Exact match
-  if (normalizedPattern === normalizedSelector) {
-    return true;
-  }
-
-  // Wildcard matching
-  const patternParts = normalizedPattern.split('.');
-  const selectorParts = normalizedSelector.split('.');
-
-  if (patternParts.length !== selectorParts.length) {
-    return false;
-  }
-
-  for (let i = 0; i < patternParts.length; i++) {
-    const patternPart = patternParts[i]!;
-    const selectorPart = selectorParts[i]!;
-
-    if (patternPart === '*') {
-      // * matches any non-empty segment
-      if (selectorPart.length === 0) {
-        return false;
-      }
-    } else if (patternPart !== selectorPart) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-/**
  * Test whether a single rule's target matches a subject.
  *
  * Rules whose target kind differs from the subject kind never match. For kinds
@@ -294,10 +246,6 @@ function ruleMatchesSubject(rule: PermissionRule, subject: PermissionSubject): b
       return subject.kind === 'file-write' && matchPathGlob(rule.target.pathGlob, subject.path);
     case 'web-fetch':
       return subject.kind === 'web-fetch' && matchHostGlob(rule.target.hostGlob, subject.host);
-    case 'mcp':
-      return (
-        subject.kind === 'mcp' && matchSelectorGlob(rule.target.selectorGlob, subject.selector)
-      );
     case 'web-search':
     case 'git':
     case 'process':

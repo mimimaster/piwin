@@ -32,7 +32,12 @@ export function createMcpGenerationSnapshot(
   const revision = createHash('sha256')
     .update(
       JSON.stringify(
-        Object.entries(serverFingerprints).sort(([left], [right]) => left.localeCompare(right)),
+        {
+          servers: Object.entries(serverFingerprints).sort(([left], [right]) =>
+            left.localeCompare(right),
+          ),
+          pinnedSelectors: config.pinnedSelectors ?? [],
+        },
       ),
     )
     .digest('hex')
@@ -70,7 +75,9 @@ function cloneAndFreezeMcpConfig(document: McpConfigDocument): McpConfigDocument
     servers[serverId] = config;
   }
   Object.freeze(servers);
-  const frozenDocument = { mcpServers: servers };
+  const pinnedSelectors = [...(document.pinnedSelectors ?? [])];
+  Object.freeze(pinnedSelectors);
+  const frozenDocument = { mcpServers: servers, pinnedSelectors };
   Object.freeze(frozenDocument);
   // The returned document is owned by the snapshot and is frozen above. The
   // public config contract remains mutable for save/edit workflows elsewhere.

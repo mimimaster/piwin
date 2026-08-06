@@ -14,6 +14,8 @@ export type McpServerConfig = {
 
 export type McpConfigDocument = {
   mcpServers: Record<string, McpServerConfig>;
+  /** Exact `${serverId}.${toolName}` selectors exposed as direct tools. */
+  pinnedSelectors?: string[];
 };
 
 export type McpToolSummary = {
@@ -62,9 +64,9 @@ export type McpMetadataDocument = {
   >;
 };
 
-/** Direct-tool exposure budget for hybrid mode. */
+/** Direct-tool exposure policy for the gateway-first MCP surface. */
 export type McpExposurePolicy = {
-  mode: 'hybrid';
+  mode: 'gateway' | 'pinned';
   maxDirectTools: number;
   maxDirectSchemaBytes: number;
   pinnedSelectors: string[];
@@ -72,7 +74,7 @@ export type McpExposurePolicy = {
 
 export function createDefaultMcpExposurePolicy(): McpExposurePolicy {
   return {
-    mode: 'hybrid',
+    mode: 'gateway',
     maxDirectTools: 48,
     maxDirectSchemaBytes: 48_000,
     pinnedSelectors: [],
@@ -83,6 +85,7 @@ export function createDefaultMcpExposurePolicy(): McpExposurePolicy {
 export type McpServerRuntimeStatus =
   | 'stopped'
   | 'starting'
+  | 'stopping'
   | 'running'
   | 'error'
   | 'disabled';
@@ -96,6 +99,14 @@ export type McpServerHealth = {
   lastError?: string;
   startedAt?: string;
   pid?: number;
+  /** Failure cooldown deadline, serialized as an ISO timestamp. */
+  unhealthyUntil?: string;
+};
+
+export type McpConfigApplyReport = {
+  changedServerIds: string[];
+  exposureChanged: boolean;
+  warnings: string[];
 };
 
 export type InstallSource =
