@@ -356,7 +356,7 @@ performs only an initial status read.
 
 ```text
 ~/.piwin/
-  config.json                 # product config (host mode, providers, imageGeneration, Desktop composer/session restore)
+  config.json                 # product config (host mode, providers, imageGeneration/videoGeneration, Desktop composer/session restore)
   credentials/                # secrets (prefer OS keychain)
   sessions-index/             # SQLite or JSONL index over Pi sessions
   skills/
@@ -371,15 +371,17 @@ performs only an initial status read.
 Pi native paths remain under `~/.pi/agent/`. piwin maps:
 
 - sessions: prefer Pi session files; maintain index for UI
-- skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs. System skills (e.g. `imagegen`) use frontmatter `hidden: true` to stay out of the Skills panel/CLI while remaining loadable by Pi; the `imagegen` skill is toggled via `config.skills.disabledIds` (enables/disables both the skill and the `image_gen` host tool).
+- skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs. System skills (e.g. `imagegen`, `videogen`) use frontmatter `hidden: true` to stay out of the Skills panel/CLI while remaining loadable by Pi; their host tools are toggled independently via `config.skills.disabledIds`.
 - extensions: optional Pi extensions under `extensions/` shipped with piwin
 
 `config.json` may retain the Desktop's per-next-turn composer profile (model
 and thinking effort) and last selected session. These are product settings,
 not browser-local presentation preferences. Restoring a project session opens
 the project without granting new trust; sending remains gated by its current
-trust state. The `imageGeneration` config section holds the default image model,
-configured through the Desktop's `Image Generation` settings page.
+trust state. The `imageGeneration` and `videoGeneration` config sections hold
+the default image/video models, configured through the two Tabs on the
+Desktop's `Image Generation` settings page. Video model routes also record the
+native async API style needed by the Host adapter.
 
 ## 6. Model protocols
 
@@ -387,6 +389,12 @@ User-configured entries, not hardcoded vendors:
 
 1. `openai-compatible` — baseUrl, apiKey env/ref, models
 2. `anthropic-compatible` — baseUrl, apiKey env/ref, models
+3. `google-gemini` — baseUrl, apiKey env/ref, models
+
+Video generation additionally selects a provider wire format on the model
+route (`openai-videos`, `google-veo`, `runway-tasks`, `luma-generations`,
+`minimax-tasks`, or `custom`). The async job lifecycle is normalized by Host
+adapters; Desktop does not parse provider-native task payloads.
 
 Host translates config into Pi model/provider registration.
 
@@ -399,6 +407,7 @@ Assistant message
       → plain code block
       → HTML artifact candidate → artifact runtime (security → srcdoc → iframe)
   → Image attachments → media preview components
+  → Video attachments → local media video preview components
 ```
 
 User composer:

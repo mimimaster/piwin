@@ -26,7 +26,7 @@ import type {
   PermissionMode,
   UsageRollup,
 } from '@piwin/contracts';
-import { formatCapabilityMatrixLines } from '@piwin/contracts';
+import { formatCapabilityMatrixLines, formatError } from '@piwin/contracts';
 import type { PromptAttachment } from '@piwin/contracts';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { loadMcpConfig, saveMcpConfig, tryValidateMcpConfig, listEnabledServers } from '@piwin/mcp';
@@ -339,7 +339,7 @@ async function commandDoctor(): Promise<void> {
     );
   } catch (error) {
     console.log(
-      `- skills: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
+      `- skills: (unavailable: ${formatError(error)})`,
     );
   }
   try {
@@ -355,7 +355,7 @@ async function commandDoctor(): Promise<void> {
     console.log('- extensions security: third-party modules run with full process privileges');
   } catch (error) {
     console.log(
-      `- extensions: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
+      `- extensions: (unavailable: ${formatError(error)})`,
     );
   }
   try {
@@ -370,7 +370,7 @@ async function commandDoctor(): Promise<void> {
     );
   } catch (error) {
     console.log(
-      `- prompts: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
+      `- prompts: (unavailable: ${formatError(error)})`,
     );
   }
   console.log(`- mock env: ${process.env.PIWIN_MOCK === '1' ? 'on' : 'off'}`);
@@ -390,7 +390,7 @@ async function commandDoctor(): Promise<void> {
     }
   } catch (error) {
     console.log(
-      `- browser chromium: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
+      `- browser chromium: (unavailable: ${formatError(error)})`,
     );
   }
   try {
@@ -416,7 +416,7 @@ async function commandDoctor(): Promise<void> {
     }
   } catch (error) {
     console.log(
-      `- capability matrix: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
+      `- capability matrix: (unavailable: ${formatError(error)})`,
     );
   }
   console.log(`- session index path: ${getPiwinSessionIndexPath(root)}`);
@@ -427,7 +427,7 @@ async function commandDoctor(): Promise<void> {
     console.log(`- themes: ${themes.themes.length} (active=${themes.activeThemeId})`);
   } catch (error) {
     console.log(
-      `- themes: (unavailable: ${error instanceof Error ? error.message : String(error)})`,
+      `- themes: (unavailable: ${formatError(error)})`,
     );
   }
   try {
@@ -435,7 +435,7 @@ async function commandDoctor(): Promise<void> {
     const pets = await listPets(root);
     console.log(`- pets: ${pets.pets.length} (active=${pets.activePetId})`);
   } catch (error) {
-    console.log(`- pets: (unavailable: ${error instanceof Error ? error.message : String(error)})`);
+    console.log(`- pets: (unavailable: ${formatError(error)})`);
   }
   try {
     const mcp = await loadMcpConfig(root);
@@ -1185,7 +1185,7 @@ async function commandPlugin(argv: string[]): Promise<void> {
         `installed ${result.pluginId}: ${result.installedSkills.length} skills, ${result.mcpServerIds.length} MCP servers, ${result.secretRefs.length} secrets`,
       );
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       console.error(`plugin install failed: ${message}`);
       process.exitCode = 1;
     }
@@ -1223,7 +1223,7 @@ async function commandPlugin(argv: string[]): Promise<void> {
       }
       console.log(`uninstalled ${removed.id}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       console.error(`plugin uninstall failed: ${message}`);
       process.exitCode = 1;
     }
@@ -1242,7 +1242,7 @@ async function commandPlugin(argv: string[]): Promise<void> {
         console.log(`${entry.id}\tv${entry.version}\t${entry.name}\t${entry.source.kind}`);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       console.error(`registry fetch failed: ${message}`);
       process.exitCode = 1;
     }
@@ -2148,7 +2148,7 @@ async function commandWalkthrough(argv: string[]): Promise<void> {
     try {
       await runWalkthroughList(client, sessionId, console.log);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2168,7 +2168,7 @@ async function commandWalkthrough(argv: string[]): Promise<void> {
     try {
       await runWalkthroughGenerate(client, sessionId, messageId, console.log);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2193,7 +2193,7 @@ async function commandWalkthrough(argv: string[]): Promise<void> {
         ...(outputPath ? { outputPath } : {}),
       });
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2244,7 +2244,7 @@ async function commandSubagent(argv: string[]): Promise<void> {
         }
       }
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2272,7 +2272,7 @@ async function commandSubagent(argv: string[]): Promise<void> {
         console.log(`Batch ${runId} cancellation requested.`);
       }
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2308,7 +2308,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
         ...(includeArchived ? { includeArchived: true } : {}),
       });
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2332,7 +2332,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
         ...(sourceMessageId ? { sourceMessageId } : {}),
       });
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2351,7 +2351,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
     try {
       await runSideChatSync(client, sideChatSessionId, console.log);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2371,7 +2371,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
     try {
       await runSideChatSend(client, sideChatSessionId, text, console.log);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2390,7 +2390,7 @@ async function commandSideChat(argv: string[]): Promise<void> {
     try {
       await runSideChatResume(client, sideChatSessionId, console.log);
     } catch (error) {
-      console.error(error instanceof Error ? error.message : String(error));
+      console.error(formatError(error));
       process.exitCode = 1;
     } finally {
       await client.dispose();
@@ -2555,6 +2555,6 @@ async function main(argv: string[]): Promise<void> {
 }
 
 main(process.argv.slice(2)).catch((error: unknown) => {
-  console.error(error);
+  console.error(formatError(error));
   process.exitCode = 1;
 });

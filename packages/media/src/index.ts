@@ -1,5 +1,6 @@
 export {
   assertInsideMediaRoot,
+  assertRealPathInsideMediaRoot,
   contentHash,
   createMediaService,
   saveMediaAsset,

@@ -37,7 +37,9 @@ and saving outputs through `@piwin/media`.
      fallback for backward compatibility.
    - Permission-gated as a network action (`network:image-gen`), default `ask`.
    - Saves decoded bytes via `@piwin/media` to `~/.piwin/media/<session>/` and
-     returns absolute path(s) only (AGENTS.md §3.6: no base64 in context).
+     returns absolute path(s) plus structured `MediaAttachmentRef` metadata for
+     the product transcript/UI. The model-facing output remains path-based;
+     base64 is never placed in context (AGENTS.md §3.6).
 4. **Switch = `config.skills.disabledIds`.** Adding `imagegen` disables both the
    skill and the `image_gen` tool.
 5. **Hidden from UI/CLI.** `SkillSummary.hidden` (frontmatter `hidden: true`) is
