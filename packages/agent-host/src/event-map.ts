@@ -1,4 +1,9 @@
-import type { AgentEvent, AgentEventEnvelope, AgentMessageRole } from '@piwin/contracts';
+import type {
+  AgentEvent,
+  AgentEventEnvelope,
+  AgentMessageRole,
+  MediaAttachmentRef,
+} from '@piwin/contracts';
 import { mapUsageSnapshot } from './usage-map.js';
 import { boundToolOutput, buildToolPresentation } from './tool-presentation.js';
 
@@ -255,7 +260,17 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
         ...(outputText !== undefined ? { outputText } : {}),
         ...(exitCode !== undefined ? { exitCode } : {}),
       });
-      return [{ type: 'tool/end', toolCallId, isError, presentation }];
+      const result = asRecord(event.result);
+      const attachments = extractToolResultAttachments(result?.details ?? event.details);
+      return [
+        {
+          type: 'tool/end',
+          toolCallId,
+          isError,
+          ...(attachments ? { attachments } : {}),
+          presentation,
+        },
+      ];
     }
     case 'compaction_start':
       return [{ type: 'compaction/start' }];
@@ -415,6 +430,42 @@ export function extractToolResultText(value: unknown): string | undefined {
     return directText;
   }
   return undefined;
+}
+
+/**
+ * Extract displayable media outputs from a Host tool's structured details.
+ * The path is still checked again by the Desktop media URL resolver before it
+ * becomes an image source, so arbitrary tool details cannot bypass that gate.
+ */
+export function extractToolResultAttachments(value: unknown): MediaAttachmentRef[] | undefined {
+  const record = asRecord(value);
+  const rawAttachments = record?.attachments;
+  if (!Array.isArray(rawAttachments)) {
+    return undefined;
+  }
+
+  const attachments = rawAttachments.filter(isMediaAttachmentRef);
+  return attachments.length > 0 ? attachments : undefined;
+}
+
+function isMediaAttachmentRef(value: unknown): value is MediaAttachmentRef {
+  const record = asRecord(value);
+  if (!record) {
+    return false;
+  }
+  return (
+    typeof record.id === 'string' &&
+    record.kind === 'media' &&
+    typeof record.path === 'string' &&
+    typeof record.mimeType === 'string' &&
+    typeof record.byteSize === 'number' &&
+    Number.isFinite(record.byteSize) &&
+    record.byteSize >= 0 &&
+    (record.source === 'paste' ||
+      record.source === 'drop' ||
+      record.source === 'file-picker' ||
+      record.source === 'generated')
+  );
 }
 
 function readNumber(value: unknown): number | undefined {

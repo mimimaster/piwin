@@ -61,6 +61,7 @@ import type {
   SessionTruncateFromResult,
   SessionExportData,
   SessionExportFormat,
+  SessionCompactExportData,
 } from './session-ops.js';
 import type { WalkthroughArtifact } from './walkthrough-artifact.js';
 import type { PluginInstallSource } from './plugin.js';
@@ -185,6 +186,15 @@ export type HostCommand =
       type: 'session/compact';
       sessionId: string;
       customInstructions?: string;
+    }
+  | {
+      id?: string;
+      /** Compact an ephemeral session snapshot and export only its summary. */
+      type: 'session/compact-export';
+      sessionId: string;
+      customInstructions?: string;
+      /** Absolute path; when omitted host writes under the session exports dir. */
+      outputPath?: string;
     }
   | { id?: string; type: 'session/compact-abort'; sessionId: string }
   | { id?: string; type: 'session/compaction-settings'; sessionId: string }
@@ -746,6 +756,9 @@ export type SessionListData = {
 
 /** Alias for CE-SHARE-01 export response payload. */
 export type SessionExportResultData = SessionExportData;
+
+/** Result payload for the compact-summary Markdown export command. */
+export type SessionCompactExportResultData = SessionCompactExportData;
 
 export type ConfigGetData = {
   config: PiwinConfig;

@@ -11,6 +11,7 @@
  */
 
 import { createInterface } from 'node:readline';
+import { formatError } from '@piwin/contracts';
 import type {
   WorkerExtensionUiResponseFrame,
   WorkerRequest,
@@ -59,14 +60,14 @@ rl.on('line', (line: string) => {
     const request = parsed as WorkerRequest;
     if (request && request.type === 'request' && request.id) {
       void runtime.handleRequest(request).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         process.stderr.write(`[worker] handler error: ${message}\n`);
       });
     } else {
       process.stderr.write(`[worker] malformed request frame\n`);
     }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = formatError(error);
     process.stderr.write(`[worker] parse error: ${message}\n`);
   }
 });

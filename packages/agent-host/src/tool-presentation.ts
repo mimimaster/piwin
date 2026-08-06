@@ -50,6 +50,7 @@ type ToolActionFamily =
   | 'web-fetch'
   | 'mcp'
   | 'image'
+  | 'video'
   | 'other';
 
 /**
@@ -74,6 +75,7 @@ export function classifyToolKind(toolName: string): ToolKind {
     case 'edit':
       return 'filesystem';
     case 'image':
+    case 'video':
       return 'other';
     default: {
       const normalized = toolName.trim().toLowerCase();
@@ -237,6 +239,7 @@ function resolveActionFamily(toolName: string): ToolActionFamily {
   if (n === 'git' || n.startsWith('git_') || n.startsWith('git-')) return 'git';
 
   if (n === 'image_gen' || n === 'image_generate' || n.includes('image_gen')) return 'image';
+  if (n === 'video_gen' || n === 'video_generate' || n.includes('video_gen')) return 'video';
 
   if (
     n === 'write' ||
@@ -574,6 +577,12 @@ function extractActionDetails(input: {
     }
     case 'image': {
       actionVerb = 'Generated image';
+      const prompt = extractPrompt(args);
+      if (prompt) summary = clipSummary(prompt, 72);
+      break;
+    }
+    case 'video': {
+      actionVerb = 'Generated video';
       const prompt = extractPrompt(args);
       if (prompt) summary = clipSummary(prompt, 72);
       break;

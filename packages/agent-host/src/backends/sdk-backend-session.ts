@@ -21,6 +21,11 @@ import { bindExtensionUiToPiSession, createExtensionUiContext } from '../extensi
 import { mapThinkingLevelToApi } from '../map-thinking-level.js';
 import { toPiBackendCustomTools } from './pi-backend-tool-adapter.js';
 import type { PiModelRuntime } from '../pi-model-runtime.js';
+import {
+  createSeededPiSessionManager,
+  createSeededPiSettingsManager,
+} from '../seeded-pi-session.js';
+import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 
 /** Options for backend-only SDK session creation. */
 export type PiSdkBackendOptions = {
@@ -79,6 +84,14 @@ export async function createBackendSdkSession(
     tools: [...capabilitySnapshot.tools.piBuiltinToolNames],
     customTools,
   };
+  if (input.seedMessages) {
+    sessionOptions.sessionManager = createSeededPiSessionManager(
+      piModule,
+      capabilitySnapshot.workingDirectory,
+      input.seedMessages,
+    );
+    sessionOptions.settingsManager = createSeededPiSettingsManager(piModule);
+  }
 
   if (input.blueprint.model) {
     const selectedModel = modelRuntime.getModel(
@@ -231,6 +244,28 @@ function wrapBackendPiSession(
     async abort() {
       await piSession.abort?.();
     },
+    ...(piSession.compact
+      ? {
+          async compact(customInstructions?: string) {
+            const result = customInstructions
+              ? await piSession.compact?.(customInstructions)
+              : await piSession.compact?.();
+            if (!result) {
+              throw new Error('Pi session compact returned no result');
+            }
+            return mapPiCompactionResult(result);
+          },
+        }
+      : {}),
+    ...(piSession.abortCompaction
+      ? { abortCompaction: () => piSession.abortCompaction?.() }
+      : {}),
+    ...(piSession.getAutoCompactionEnabled
+      ? { getAutoCompactionEnabled: () => piSession.getAutoCompactionEnabled?.() ?? true }
+      : {}),
+    ...(piSession.setAutoCompactionEnabled
+      ? { setAutoCompactionEnabled: (enabled: boolean) => piSession.setAutoCompactionEnabled?.(enabled) }
+      : {}),
     subscribe(listener) {
       return piSession.subscribe((rawEvent) => {
         for (const mappedEvent of eventMapper.map(rawEvent)) {
@@ -249,6 +284,10 @@ type PiLikeSession = {
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;
   abort?: () => Promise<void>;
+  compact?: (customInstructions?: string) => Promise<PiCompactionResult>;
+  abortCompaction?: () => void;
+  getAutoCompactionEnabled?: () => boolean;
+  setAutoCompactionEnabled?: (enabled: boolean) => void;
   setModel?: (model: NonNullable<ReturnType<PiModelRuntime['getModel']>>) => Promise<void> | void;
   setThinkingLevel?: (level: string) => Promise<void> | void;
   bindExtensions?: (bindings: Record<string, unknown>) => Promise<void>;

@@ -9,4 +9,9 @@ export type BackendSessionBlueprint = {
   capabilitySnapshot: SessionCapabilitySnapshot;
   model?: ModelRef;
   thinkingLevel?: ThinkingLevel;
+  /**
+   * Additional system prompt appended after all other system prompts.
+   * Used for product-level contracts (artifact decision + runtime, ADR 0029).
+   */
+  appendSystemPrompt?: string;
 };

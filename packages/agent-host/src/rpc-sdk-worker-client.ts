@@ -26,7 +26,13 @@ import {
   type WorkerToolCallFrame,
   type WorkerToolResultFrame,
 } from './rpc-sdk-worker-protocol.js';
-import type { AgentEvent, HostToolExecutionResult } from '@piwin/contracts';
+import type {
+  AgentEvent,
+  HostToolExecutionResult,
+  SessionCompactResult,
+  SessionSeedMessage,
+} from '@piwin/contracts'
+import { formatError } from '@piwin/contracts';;
 import type {
   SerializableBlueprint,
   SerializableProviderRuntime,
@@ -291,6 +297,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
     productSessionId: string;
     blueprint: SerializableBlueprint;
     providers?: SerializableProviderRuntime[];
+    seedMessages?: readonly SessionSeedMessage[];
   }): Promise<{ sessionId: string }>;
   async createSession(input: unknown): Promise<{ sessionId: string }> {
     const response = await this.request(
@@ -352,6 +359,26 @@ export class RpcSdkWorkerClient extends EventEmitter {
   async followUp(sessionId: string, message: string): Promise<void> {
     const response = await this.request({ method: 'session/follow-up', sessionId, message });
     if (!response.success) throw new Error(response.error ?? 'session/follow-up failed');
+  }
+
+  /** Compact a session in the worker and return the normalized result. */
+  async compact(sessionId: string, customInstructions?: string): Promise<SessionCompactResult> {
+    const response = await this.request({
+      method: 'session/compact',
+      sessionId,
+      ...(customInstructions ? { customInstructions } : {}),
+    });
+    if (!response.success) throw new Error(response.error ?? 'session/compact failed');
+    return response.data as SessionCompactResult;
+  }
+
+  /** Abort an in-flight compaction in the worker. */
+  async abortCompaction(sessionId: string): Promise<void> {
+    const response = await this.request(
+      { method: 'session/compact-abort', sessionId },
+      this.options.abortTimeoutMs ?? 2000,
+    );
+    if (!response.success) throw new Error(response.error ?? 'session/compact-abort failed');
   }
 
   /** Drop a session in the worker (cleanup). */
@@ -458,7 +485,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
         return;
       }
       void this.handleToolCall(frame).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         this.emit('log', `[worker-client] tool-call error: ${message}`);
       });
     } else if (frame.type === 'extension-ui-request') {
@@ -467,7 +494,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
         return;
       }
       void this.handleExtensionUiRequest(frame).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         this.emit('log', `[worker-client] extension-ui error: ${message}`);
       });
     }
@@ -488,7 +515,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
         const result = await this.options.onToolCall(frame, controller.signal);
         this.sendToolResult(frame.id, result, frame.context);
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const message = formatError(error);
         this.sendToolResult(
           frame.id,
           controller.signal.aborted
@@ -564,7 +591,7 @@ export class RpcSdkWorkerClient extends EventEmitter {
       });
       this.sendExtensionUiResponse(frame.id, true, result, undefined, frame.context);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = formatError(error);
       this.sendExtensionUiResponse(frame.id, false, undefined, message, frame.context);
     }
   }
