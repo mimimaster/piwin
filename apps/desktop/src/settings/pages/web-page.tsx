@@ -8,7 +8,6 @@ import { Button, Field, SegmentedControl, Switch, TextArea, TextInput } from '@p
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { useSettings } from '../settings-context';
-import { PageTitle } from '../page-title';
 import { WebSecretEditor } from '../web-secret-editor';
 import { CLI_SEARCH_EXAMPLES, formatCliSearchExample } from '../cli-search-examples';
 import { createDraftSearchSource, draftToWeb, type DraftSearchSource } from '../web-draft';
@@ -214,15 +213,6 @@ export function WebPage(): ReactElement {
       data-dirty={isDirty ? 'true' : 'false'}
     >
       <div className="settings-section settings-section-card">
-        <PageTitle
-          title={zh ? 'Web 工具配置' : 'Web Tools'}
-          description={
-            zh
-              ? '配置 web_search 搜索源与 web_fetch 抓取引擎。'
-              : 'Configure web_search sources and web_fetch providers.'
-          }
-        />
-
         <div className="settings-segmented-wrap" style={{ marginBottom: 28 }}>
           <SegmentedControl
             value={webToolsTab}

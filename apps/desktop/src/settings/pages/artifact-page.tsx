@@ -21,7 +21,6 @@ import {
 import { Button, SegmentedControl, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
-import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 
 export function ArtifactPage(): ReactElement {
@@ -29,7 +28,10 @@ export function ArtifactPage(): ReactElement {
   const isZh = locale === 'zh-CN';
   const { config, saveConfig, preferences, onPreferencesChange, setInfo } = useSettings();
 
-  const artifactConfig = config?.artifact ?? createDefaultArtifactConfig();
+  // Stable default — useMemo prevents a new object on every render when
+  // config is null, which would cause useEffect to fire infinitely.
+  const defaultArtifactConfig = useMemo(() => createDefaultArtifactConfig(), []);
+  const artifactConfig = config?.artifact ?? defaultArtifactConfig;
 
   const [enabled, setEnabled] = useState<boolean>(artifactConfig.enabled);
   const [triggerMode, setTriggerMode] = useState<ArtifactTriggerMode>(artifactConfig.triggerMode);
@@ -88,15 +90,6 @@ export function ArtifactPage(): ReactElement {
   return (
     <div className="settings-card" data-testid="settings-artifact">
       <div className="settings-section settings-section-card">
-        <PageTitle
-          title="Artifact"
-          description={
-            isZh
-              ? '配置 Agent 自动生成 HTML/SVG Artifact 的触发策略和展示方式。'
-              : 'Configure when the agent generates HTML/SVG artifacts and how they are displayed.'
-          }
-        />
-
         {config ? (
           <>
             <FieldRow

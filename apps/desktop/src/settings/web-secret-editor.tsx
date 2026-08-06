@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import { Button, Field, PasswordInput, TextInput } from '@piwin/ui-kit';
+import { formatError } from '@piwin/contracts';
 
 const ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -54,7 +55,7 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
       })
       .catch((loadError: unknown) => {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : String(loadError));
+          setError(formatError(loadError));
         }
       })
       .finally(() => {
@@ -86,8 +87,8 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
       setTestSucceeded(false);
       setTestMessage(
         props.zh
-          ? `连接失败：${testError instanceof Error ? testError.message : String(testError)}`
-          : `Connection failed: ${testError instanceof Error ? testError.message : String(testError)}`,
+          ? `连接失败：${formatError(testError)}`
+          : `Connection failed: ${formatError(testError)}`,
       );
     } finally {
       setTesting(false);
@@ -119,7 +120,7 @@ export function WebSecretEditor(props: WebSecretEditorProps): ReactElement {
       setSavedPreview(maskSecretPreview(trimmedSecret));
       setEditing(false);
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : String(saveError));
+      setError(formatError(saveError));
     } finally {
       setSaving(false);
     }
