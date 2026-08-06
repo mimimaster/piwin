@@ -8,7 +8,9 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { IconClose } from './shell-icons';
+import { IconClose, IconMcp, IconMoon, IconMore, IconPanelLeft, IconPanelRight, IconSkill, IconSun } from './shell-icons';
+import { DropdownMenu, DropdownMenuItem } from '@piwin/ui-kit';
+import { getDesktopCopy } from './desktop-locale';
 import type { DesktopLocale } from './desktop-locale';
 import { IconButton } from '@piwin/ui-kit';
 import { readStoredRightPanelState, writeStoredRightPanelState } from './right-panel-memory';
@@ -49,6 +51,12 @@ export type RightPanelProps = {
   onTerminalAttentionClear?: () => void;
   onViewChange?: (view: RightPanelView) => void;
   locale?: DesktopLocale;
+  appearanceMode?: 'light' | 'dark';
+  onToggleAppearance?: () => void;
+  onOpenSkills?: () => void;
+  onOpenMcp?: () => void;
+  onOpenSettings?: () => void;
+  onToggleSessions?: () => void;
 };
 
 export type { RightPanelTab } from './right-panel-sections';
@@ -220,7 +228,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       />
 
       {/* Cursor-style tab strip */}
-      <div className="right-panel-tabstrip" data-testid="right-panel-tabstrip" role="tablist">
+      <div className="right-panel-tabstrip right-panel-titlebar-box" data-testid="right-panel-tabstrip" role="tablist">
         <div className="right-panel-tabs">
           {openTabs.map((tab) => {
             const isActive = tab === active;
@@ -284,15 +292,71 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             active={pickerOpen}
           />
         </div>
-        {props.isOverlayPresentation ? (
+
+        <div className="right-panel-actions">
+          {props.onToggleAppearance ? (
+            <IconButton
+              className="right-panel-action-btn"
+              data-testid="titlebar-theme-toggle"
+              label={props.appearanceMode === 'light' ? getDesktopCopy(locale).titlebar.switchToDarkTheme : getDesktopCopy(locale).titlebar.switchToLightTheme}
+              title={props.appearanceMode === 'light' ? getDesktopCopy(locale).titlebar.switchToDarkTheme : getDesktopCopy(locale).titlebar.switchToLightTheme}
+              aria-pressed={props.appearanceMode === 'dark'}
+              onClick={props.onToggleAppearance}
+            >
+              {props.appearanceMode === 'light' ? <IconMoon /> : <IconSun />}
+            </IconButton>
+          ) : null}
+
+          {props.onOpenSettings || props.onOpenSkills || props.onOpenMcp ? (
+            <div className="right-panel-more-wrap">
+              <DropdownMenu
+                label={getDesktopCopy(locale).titlebar.moreTools}
+                trigger={
+                  <IconButton
+                    title={getDesktopCopy(locale).titlebar.more}
+                    label={getDesktopCopy(locale).titlebar.moreTools}
+                    data-testid="titlebar-more-menu"
+                  >
+                    <IconMore />
+                  </IconButton>
+                }
+              >
+                {props.onToggleSessions ? (
+                  <DropdownMenuItem testId="more-sessions" onSelect={props.onToggleSessions}>
+                    <IconPanelLeft /> {getDesktopCopy(locale).titlebar.sessions}
+                  </DropdownMenuItem>
+                ) : null}
+                {props.onOpenSkills ? (
+                  <DropdownMenuItem testId="more-skills" onSelect={props.onOpenSkills}>
+                    <IconSkill width={16} height={16} /> {getDesktopCopy(locale).titlebar.skills}
+                  </DropdownMenuItem>
+                ) : null}
+                {props.onOpenMcp ? (
+                  <DropdownMenuItem testId="more-mcp" onSelect={props.onOpenMcp}>
+                    <IconMcp width={16} height={16} /> MCP
+                  </DropdownMenuItem>
+                ) : null}
+                {props.onOpenSettings ? (
+                  <DropdownMenuItem testId="more-settings" onSelect={props.onOpenSettings}>
+                    {getDesktopCopy(locale).settings}
+                  </DropdownMenuItem>
+                ) : null}
+              </DropdownMenu>
+            </div>
+          ) : null}
+
           <IconButton
-            label={locale === 'zh-CN' ? '关闭工作区面板' : 'Close workspace panel'}
-            data-testid="right-panel-close-btn"
+            className="right-panel-action-btn active"
+            data-testid="right-panel-open-btn"
+            label={getDesktopCopy(locale).titlebar.collapseWorkspacePanel}
+            title={getDesktopCopy(locale).titlebar.collapseWorkspacePanel}
+            aria-pressed={true}
             onClick={props.onClose}
           >
-            <IconClose width={16} height={16} />
+            <IconPanelRight />
           </IconButton>
-        ) : null}
+        </div>
+
       </div>
 
       {openTabs.length === 0 ? (

@@ -2,11 +2,13 @@
    Owns the full-window settings view: category nav, search, main heading and
    content frame. Section bodies live in settings-resources.css. */
 
-/* Full-window settings route — the app shell stays mounted underneath so Esc
-   and the Back to workspace action can return focus to the opener. */
+/* Full-window settings — no shell topbar row. */
 .settings-page {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: var(--layer-settings);
   display: flex;
   align-items: stretch;

@@ -110,6 +110,25 @@ export type DesktopCopy = {
     hostStatus: (mode: string, isMock: boolean) => string;
     hostTooltip: (mode: string, isMock: boolean, ready: boolean, transport?: string) => string;
     shortcutHint: string;
+    branchUnknown: string;
+    branchNotRepo: string;
+    branchMenuLabel: string;
+    branchLoading: string;
+    branchEmpty: string;
+    branchSearchPlaceholder: string;
+    branchSearchEmpty: string;
+    branchTooltip: (branch: string) => string;
+    branchDirtyTooltip: (branch: string) => string;
+    branchCheckoutTitle: string;
+    branchCheckoutConfirm: (branch: string) => string;
+    branchCheckoutDirtyConfirm: (branch: string) => string;
+    branchCheckoutAction: string;
+    runtimeTargetGroupLabel: string;
+    runtimeLocalLabel: string;
+    runtimeLocalTooltip: string;
+    runtimeCloudLabel: string;
+    runtimeCloudDisconnectedTooltip: string;
+    runtimeCloudConnectedTooltip: string;
   };
   interruption: {
     agentWaiting: string;
@@ -511,6 +530,26 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       hostTooltip: (mode, isMock, ready, transport) =>
         `Host 模式：${mode}${isMock ? '（模拟）' : '（实时）'}｜状态：${ready ? '就绪' : '正在连接'}${transport ? `｜传输：${transport}` : ''}`,
       shortcutHint: '↵ 发送 · ⇧↵ 换行 · / 命令 · @ 提及 · ↑/↓ 历史记录 · Esc 中断',
+      branchUnknown: '分支',
+      branchNotRepo: '当前项目不是 git 仓库',
+      branchMenuLabel: '切换分支',
+      branchLoading: '加载分支…',
+      branchEmpty: '没有本地分支',
+      branchSearchPlaceholder: '搜索分支…',
+      branchSearchEmpty: '没有匹配的分支',
+      branchTooltip: (branch) => `当前分支：${branch}`,
+      branchDirtyTooltip: (branch) => `当前分支：${branch}（有未提交更改）`,
+      branchCheckoutTitle: '切换分支',
+      branchCheckoutConfirm: (branch) => `切换到「${branch}」？`,
+      branchCheckoutDirtyConfirm: (branch) =>
+        `工作区有未提交更改。仍要切换到「${branch}」吗？若有冲突，git 可能会拒绝切换。`,
+      branchCheckoutAction: '切换',
+      runtimeTargetGroupLabel: '运行位置',
+      runtimeLocalLabel: '本机',
+      runtimeLocalTooltip: '在本机运行（This Mac）',
+      runtimeCloudLabel: '云端',
+      runtimeCloudDisconnectedTooltip: '未连接到远程服务器',
+      runtimeCloudConnectedTooltip: '在远程服务器运行',
     },
     interruption: {
       agentWaiting: 'Agent 正等待你的回答',
@@ -683,6 +722,26 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       hostTooltip: (mode, isMock, ready, transport) =>
         `Host Mode: ${mode}${isMock ? ' (Mock)' : ' (Live)'} | Status: ${ready ? 'Ready' : 'Connecting'}${transport ? ` | Transport: ${transport}` : ''}`,
       shortcutHint: '↵ Send · ⇧↵ New line · / Commands · @ Mention · ↑/↓ History · Esc Stop',
+      branchUnknown: 'branch',
+      branchNotRepo: 'Not a git repository',
+      branchMenuLabel: 'Switch branch',
+      branchLoading: 'Loading branches…',
+      branchEmpty: 'No local branches',
+      branchSearchPlaceholder: 'Search branches…',
+      branchSearchEmpty: 'No matching branches',
+      branchTooltip: (branch) => `Current branch: ${branch}`,
+      branchDirtyTooltip: (branch) => `Current branch: ${branch} (uncommitted changes)`,
+      branchCheckoutTitle: 'Switch branch',
+      branchCheckoutConfirm: (branch) => `Check out “${branch}”?`,
+      branchCheckoutDirtyConfirm: (branch) =>
+        `You have uncommitted changes. Still check out “${branch}”? Git may refuse if files conflict.`,
+      branchCheckoutAction: 'Switch',
+      runtimeTargetGroupLabel: 'Run location',
+      runtimeLocalLabel: 'This Mac',
+      runtimeLocalTooltip: 'This Mac (local)',
+      runtimeCloudLabel: 'Cloud',
+      runtimeCloudDisconnectedTooltip: 'Not connected to a remote server',
+      runtimeCloudConnectedTooltip: 'Run on a remote server',
     },
     interruption: {
       agentWaiting: 'Agent is waiting for your answer',

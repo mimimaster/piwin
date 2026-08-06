@@ -26,6 +26,7 @@ import {
   createSeededPiSettingsManager,
 } from '../seeded-pi-session.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
+import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 
 /** Options for backend-only SDK session creation. */
 export type PiSdkBackendOptions = {
@@ -75,13 +76,20 @@ export async function createBackendSdkSession(
       getRunId: () => activeRunId,
     },
   );
+  // Pi's `tools` option is a global allowlist for built-ins AND customTools.
+  // Host tools are customTools only; omitting them here drops bash/MCP/web/…
+  // before the model ever sees them (see buildPiSessionToolAllowlist).
+  const toolAllowlist = buildPiSessionToolAllowlist({
+    piBuiltinToolNames: capabilitySnapshot.tools.piBuiltinToolNames,
+    hostTools: capabilitySnapshot.tools.hostTools,
+  });
   const sessionOptions: Record<string, unknown> = {
     cwd: capabilitySnapshot.workingDirectory,
     agentDir,
     resourceLoader,
     modelRuntime,
-    // An empty array is intentional: it means no built-ins, not defaults.
-    tools: [...capabilitySnapshot.tools.piBuiltinToolNames],
+    // Empty allowlist is intentional when both sides are empty: no Pi defaults.
+    tools: toolAllowlist,
     customTools,
   };
   if (input.seedMessages) {

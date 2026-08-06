@@ -35,6 +35,7 @@ import {
   createSeededPiSettingsManager,
 } from '../seeded-pi-session.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
+import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
 
 /** Input passed to the factory's `createPiSession` callback. */
 export type WorkerPiSessionFactoryInput = {
@@ -266,8 +267,12 @@ export function createWorkerPiSessionFactory(
       );
     }
 
-    // An empty list is intentional: it disables every Pi built-in tool.
-    sessionOptions.tools = [...blueprint.tools.piBuiltinToolNames];
+    // Pi's `tools` is a global allowlist (built-ins + customTools/proxy tools).
+    // Host proxy tools must be named here or Pi drops them before the model.
+    sessionOptions.tools = buildPiSessionToolAllowlist({
+      piBuiltinToolNames: blueprint.tools.piBuiltinToolNames,
+      hostTools: blueprint.tools.hostTools,
+    });
 
     const result = (await (
       createAgentSession as (options: Record<string, unknown>) => Promise<unknown>

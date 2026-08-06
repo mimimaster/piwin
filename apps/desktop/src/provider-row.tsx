@@ -110,7 +110,7 @@ export function ProviderRow({
   onDiscoverModels,
 }: ProviderRowProps): ReactElement {
   const [expanded, setExpanded] = useState(false);
-  const [editingModelId, setEditingModelId] = useState<string | null>(null);
+  const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
   const [addModelOpen, setAddModelOpen] = useState(false);
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [discoverModels, setDiscoverModels] = useState<DiscoveredModel[]>([]);
@@ -118,14 +118,19 @@ export function ProviderRow({
 
   function toggleExpand(): void {
     setExpanded((prev) => !prev);
-    setEditingModelId(null);
+    setExpandedModelId(null);
   }
 
-  function handleSaveEdit(draft: import('./model-configuration.js').ModelConfigurationDraft): void {
-    if (!editingModelId) return;
-    const next = applyModelConfigurationDraft(provider.models, editingModelId, draft);
+  function toggleModelExpand(modelId: string): void {
+    setExpandedModelId((previous) => (previous === modelId ? null : modelId));
+  }
+
+  function handleApplyModelEdit(
+    draft: import('./model-configuration.js').ModelConfigurationDraft,
+  ): void {
+    if (!expandedModelId) return;
+    const next = applyModelConfigurationDraft(provider.models, expandedModelId, draft);
     if (next) onUpdateModels(next);
-    setEditingModelId(null);
   }
 
   async function handleDiscover(): Promise<void> {
@@ -145,7 +150,6 @@ export function ProviderRow({
     ? {
         models: '模型',
         noModels: '暂无模型',
-        edit: '编辑',
         test: '测试',
         setDefault: '设为默认',
         default: '默认',
@@ -161,7 +165,6 @@ export function ProviderRow({
     : {
         models: 'Models',
         noModels: 'No models',
-        edit: 'Edit',
         test: 'Test',
         setDefault: 'Set default',
         default: 'Default',
@@ -275,10 +278,37 @@ export function ProviderRow({
                 const isDefaultModel = isDefault && model.id === defaultModelId;
                 const mTest = modelTestStatus[model.id];
                 const isTesting = testingModelId === model.id;
-                const isEditing = editingModelId === model.id;
+                const isExpanded = expandedModelId === model.id;
                 return (
-                  <div key={model.id} className="provider-model-item">
-                    <div className="provider-model-row" data-testid="provider-model-row">
+                  <div
+                    key={model.id}
+                    className={`provider-model-item${isExpanded ? ' provider-model-item--expanded' : ''}`}
+                  >
+                    <div
+                      className="provider-model-row"
+                      data-testid="provider-model-row"
+                      onClick={() => toggleModelExpand(model.id)}
+                    >
+                      <button
+                        type="button"
+                        className="provider-model-expand-btn"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleModelExpand(model.id);
+                        }}
+                        aria-label={isExpanded ? t.collapse : t.expand}
+                        aria-expanded={isExpanded}
+                        data-testid={`provider-model-expand-${model.id}`}
+                        disabled={disabled}
+                      >
+                        <IconChevronDown
+                          width={13}
+                          height={13}
+                          className={
+                            isExpanded ? 'provider-model-chevron--open' : 'provider-model-chevron'
+                          }
+                        />
+                      </button>
                       <span className="provider-model-id" title={model.id}>
                         <span className="provider-model-name">
                           {model.label?.trim() || model.id}
@@ -312,20 +342,12 @@ export function ProviderRow({
                       <button
                         type="button"
                         className="provider-mini-btn"
-                        title={t.edit}
-                        aria-label={t.edit}
-                        onClick={() => setEditingModelId(isEditing ? null : model.id)}
-                        disabled={disabled}
-                        data-testid={`provider-model-edit-${model.id}`}
-                      >
-                        <IconEdit width={16} height={16} />
-                      </button>
-                      <button
-                        type="button"
-                        className="provider-mini-btn"
                         title={t.test}
                         aria-label={t.test}
-                        onClick={() => onTestModel(model.id)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onTestModel(model.id);
+                        }}
                         disabled={disabled || isTesting}
                         data-testid={`provider-model-test-${model.id}`}
                       >
@@ -340,7 +362,8 @@ export function ProviderRow({
                         className="provider-mini-btn"
                         title={isDefaultModel ? t.default : t.setDefault}
                         aria-label={isDefaultModel ? t.default : t.setDefault}
-                        onClick={() => {
+                        onClick={(event) => {
+                          event.stopPropagation();
                           if (!isDefaultModel) onSetDefaultModel(model.id);
                         }}
                         disabled={disabled || isDefaultModel}
@@ -357,9 +380,10 @@ export function ProviderRow({
                         type="button"
                         className="provider-mini-btn"
                         title={t.delete}
-                        onClick={() =>
+                        onClick={(event) => {
+                          event.stopPropagation();
                           onUpdateModels(provider.models.filter((entry) => entry.id !== model.id))
-                        }
+                        }}
                         disabled={disabled}
                         aria-label={t.delete}
                         data-testid={`provider-model-remove-${model.id}`}
@@ -368,6 +392,7 @@ export function ProviderRow({
                       </button>
                       <div
                         className="provider-model-toggle"
+                        onClick={(event) => event.stopPropagation()}
                         title={
                           model.enabled === false
                             ? isChinese
@@ -387,15 +412,15 @@ export function ProviderRow({
                         />
                       </div>
                     </div>
-                    {isEditing && (
+                    {isExpanded && (
                       <ModelEditInline
                         model={model}
                         providerProtocol={provider.protocol}
                         disabled={disabled ?? false}
                         isChinese={isChinese}
                         {...(searchCatalog ? { searchCatalog } : {})}
-                        onSave={handleSaveEdit}
-                        onCancel={() => setEditingModelId(null)}
+                        onSave={handleApplyModelEdit}
+                        onCancel={() => setExpandedModelId(null)}
                       />
                     )}
                   </div>

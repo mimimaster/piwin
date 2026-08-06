@@ -45,6 +45,14 @@ Seq numbers on HostPush; gateway ring buffer (~500 events/session); client lastS
 ### Accept
 Desktop alone needs zero gateway; with token browser can stream; 10s disconnect recovers; gateway logs never contain keys; ADR accepted first.
 
+## 3.1 Desktop runtime-target chip (product note)
+
+Composer may show a **Local / Cloud** (本机 / 云端) execution-target control next to the branch chip:
+
+- **Before gateway connect:** Cloud is **visible but disabled (grey)**; hover tooltip **「未连接到远程服务器」** (EN: “Not connected to a remote server”). Local remains the only active target.
+- **After gateway connect:** Cloud may become selectable and must rebind Host tool/runtime fall-through to the remote path — not a cosmetic label flip.
+- Tracked as backlog **D-CTX-01 / D-CTX-01a / D-CTX-01b** in [`todo-deferred.md`](../todo-deferred.md). Does not replace CE-GW protocol work.
+
 ## 4. CE-TUN Tunnel
 Expose local port via cloudflared/ngrok skill/CLI (fast path) or Host TunnelManager.
 Gateway-path: `/t/<id>` reverse proxy when connected.

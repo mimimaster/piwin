@@ -21,8 +21,7 @@
   flex-direction: column;
   min-height: 0;
   gap: 0;
-  /* Extra top inset keeps the first control clear of the titleband hairline. */
-  padding: 12px 8px 10px;
+  padding: 0 8px 10px;
   background: var(--sidebar);
   border-right: none;
   transition:
@@ -32,6 +31,7 @@
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
+
 
 .sidebar.is-resizing {
   transition: none;
@@ -75,11 +75,11 @@
 .app-shell[data-layout='compact'] > .sidebar {
   position: fixed;
   z-index: var(--layer-drawer);
-  top: var(--topbar-height);
+  top: 0;
   left: 0;
   bottom: 0;
-  /* Explicit height so flex children (footer) pin to the drawer bottom. */
-  height: calc(100dvh - var(--topbar-height));
+  /* Full-height drawer — no shell topbar row. */
+  height: 100dvh;
   width: min(300px, 88vw);
   box-shadow: var(--shadow);
   transform: translateX(0);
@@ -119,42 +119,32 @@
 .sidebar-new-agent {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
-  min-height: 32px;
-  margin: 0 0 10px;
-  padding: 0 12px;
+  justify-content: flex-start;
+  gap: 8px;
+  height: 30px;
+  min-height: 30px;
+  margin: 0 0 6px;
+  padding: 0 8px;
   border: none;
-  border-radius: 8px;
-  /* Paper/Noir reversal: accent=coral/white, accent-fg=white/black.
-     Light → coral button w/ white text; Noir → soft light button w/ dark text.
-     Avoid heavy glow — pure white + large shadow reads as "glare" on dark. */
-  background: var(--accent);
-  color: var(--accent-fg);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted, #94a3b8);
   cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   box-shadow: none;
   transition:
-    transform 140ms ease,
-    filter 140ms ease,
-    background 140ms ease;
+    background 140ms ease,
+    color 140ms ease;
 }
 
 .sidebar-new-agent:hover:not(:disabled) {
-  filter: brightness(1.04);
-  transform: translateY(-0.5px);
+  background: var(--hover, rgba(255, 255, 255, 0.06));
+  color: var(--text, #f8fafc);
 }
 
 .sidebar-new-agent:active:not(:disabled) {
-  filter: brightness(0.96);
-  transform: scale(0.985);
-}
-
-/* Dark: slightly dim the solid accent fill so the CTA is clear but not glaring. */
-html[data-theme-mode='dark'] .sidebar-new-agent {
-  background: color-mix(in srgb, var(--accent) 88%, var(--panel));
+  background: var(--active, rgba(255, 255, 255, 0.1));
 }
 
 .sidebar-new-agent:disabled {
@@ -1358,4 +1348,78 @@ html[data-theme-mode='light'] .repository-row.active > svg {
 /* Tighten separator between settings block and filters. */
 .sidebar-display-menu .ui-menu-separator {
   margin: 6px 4px;
+}
+
+.sidebar-header,
+.sidebar-titlebar-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  height: 38px;
+  min-height: 38px;
+  margin-bottom: 4px;
+  padding-left: 78px; /* Clearance gap for macOS traffic lights 🔴🟡🟢 */
+  padding-right: 4px;
+  box-sizing: border-box;
+}
+
+.sidebar-header-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sidebar-header-right,
+.sidebar-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sidebar-history-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+
+.sidebar-history-btn:hover {
+  color: var(--text);
+  background: var(--hover);
+}
+
+.sidebar-history-btn:disabled,
+.sidebar-history-btn[aria-disabled='true'] {
+  color: color-mix(in srgb, var(--faint) 72%, transparent);
+  background: transparent;
+  opacity: 0.42;
+  cursor: default;
+  pointer-events: none;
+}
+
+.sidebar-titlebar-box .piwin-icon-button svg,
+.sidebar-sessions-toggle svg,
+.sidebar-history-btn svg {
+  width: 17px;
+  height: 17px;
+}
+
+.sidebar-sessions-toggle {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.sidebar-sessions-toggle:hover {
+  color: var(--text) !important;
+  background: transparent !important;
 }

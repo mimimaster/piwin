@@ -1,39 +1,28 @@
 /**
- * WorkspaceShell — pure layout component for the three-column, four-band shell.
+ * WorkspaceShell — pure layout for the three-column product shell.
  *
- * Accepts slot content only. Owns no state, effects, refs, or event handlers.
- * All host wiring and state remain in App.tsx.
+ * No full-window topbar. Chrome (nav controls, title, tools) lives in the
+ * stage column only via the contextBar slot.
  *
- * Band structure (top to bottom):
- *   1. Titleband (40px)   — WorkspaceTitlebar, rendered outside this component
- *   2. Context bar (42px) — contextBar slot
- *   3. Stage content      — shared .chat-stage column (transcript + permission + composer)
- *   4. Status bar (26px)  — statusBar slot
- *   5. Knowledge overlay  — optional full-stage panel (e.g. Knowledge Center)
- *
- * Column structure (left to right):
- *   - Sidebar (collapsible, ~236px)
- *   - Stage (content; message + composer share --chat-max)
- *   - Right panel / inspector (outward-expanding, optional)
+ * Columns (left → right):
+ *   - Sidebar (collapsible)
+ *   - Stage: contextBar + transcript/permission/composer + statusBar
+ *   - Right panel / inspector (optional)
  */
 import type { ReactElement, ReactNode } from 'react';
 
 export type WorkspaceShellProps = {
   sidebar: ReactNode;
+  /** Stage-local chrome: sidebar toggle, history, title, right tools. */
   contextBar: ReactNode;
   transcript: ReactNode;
-  /** Optional compact subagent activity dock — sits between transcript and permission bar. */
   activityDock?: ReactNode | undefined;
-  /** Docked permission bar (ADR 0024) — sits between transcript and composer. */
   permissionBar?: ReactNode | undefined;
   composerDock: ReactNode;
   statusBar: ReactNode;
   rightPanel: ReactNode;
-  /** Optional full-stage panel (e.g. Knowledge Center). */
   knowledgePanel?: ReactNode | undefined;
-  /** Applied as className additions to the .workspace container. */
   workspaceClassName?: string | undefined;
-  /** Layout-dependent class for the chat-column (e.g. centered when empty). */
   chatColumnClassName?: string | undefined;
 };
 

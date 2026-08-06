@@ -211,11 +211,51 @@ describe('ContextBar', () => {
     expect(stoppingLabel?.textContent).toMatch(/Stopping/i);
   });
 
-  it('does not host the work-panel toggle (lives on titleband)', () => {
+  it('does not host the work-panel toggle until shell chrome props are provided', () => {
     renderContextBar(createBaseProps({ runState: createIdleRunStatus() }), root);
 
     expect(container.querySelector('[data-testid="right-panel-open-btn"]')).toBeNull();
     expect(container.querySelector('.context-bar-inspector-btn')).toBeNull();
+  });
+
+  it('hosts shell chrome controls when titleband props are provided', () => {
+    const onToggleSessions = vi.fn();
+    const onToggleWorkPanel = vi.fn();
+    const onToggleAppearance = vi.fn();
+    renderContextBar(
+      createBaseProps({
+        runState: createIdleRunStatus(),
+        appearanceMode: 'dark',
+        sessionsExpanded: false,
+        onToggleSessions,
+        onToggleWorkPanel,
+        onToggleAppearance,
+        workPanelOpen: false,
+      }),
+      root,
+    );
+
+    const sessionsToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="rail-chats-btn"]',
+    );
+    const workPanelToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="right-panel-open-btn"]',
+    );
+    const themeToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="titlebar-theme-toggle"]',
+    );
+    expect(sessionsToggle).not.toBeNull();
+    expect(workPanelToggle).not.toBeNull();
+    expect(themeToggle).not.toBeNull();
+
+    act(() => {
+      sessionsToggle?.click();
+      workPanelToggle?.click();
+      themeToggle?.click();
+    });
+    expect(onToggleSessions).toHaveBeenCalledTimes(1);
+    expect(onToggleWorkPanel).toHaveBeenCalledTimes(1);
+    expect(onToggleAppearance).toHaveBeenCalledTimes(1);
   });
 
   it('renders a permission mode badge when permissionMode is provided', () => {

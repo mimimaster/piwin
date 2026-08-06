@@ -10,7 +10,6 @@ import {
   createDefaultSubagentConfig,
   SUBAGENT_CAPABILITIES,
   type ModelRef,
-  type PiwinConfig,
   type SubagentCapability,
   type SubagentConfig,
   type SubagentIsolationMode,
@@ -20,6 +19,7 @@ import {
 } from '@piwin/contracts';
 import { Button, Notice, Select, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
+import { buildEnabledModelOptions } from '../../model-options';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
 
@@ -35,28 +35,6 @@ const THINKING_LEVELS: ThinkingLevel[] = [
 ];
 
 const ISOLATION_MODES: SubagentIsolationMode[] = ['readonly', 'worktree'];
-
-function buildModelOptions(
-  providers: PiwinConfig['providers'],
-): { value: string; label: string; ref: ModelRef }[] {
-  const options: { value: string; label: string; ref: ModelRef }[] = [];
-  for (const provider of providers) {
-    for (const model of provider.models) {
-      if (model.enabled === false) continue;
-      const ref: ModelRef = {
-        protocol: provider.protocol,
-        providerId: provider.id,
-        modelId: model.id,
-      };
-      options.push({
-        value: JSON.stringify(ref),
-        label: `${provider.name} / ${model.label ?? model.id}`,
-        ref,
-      });
-    }
-  }
-  return options;
-}
 
 type ProfileDraft = SubagentProfileSettings & {
   /** Tracks whether this draft originated from a built-in (read-only id). */
@@ -176,7 +154,23 @@ export function SubagentProfilesPage(): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
 
-  const modelOptions = useMemo(() => (config ? buildModelOptions(config.providers) : []), [config]);
+  const modelOptions = useMemo(() => {
+    if (!config) {
+      return [];
+    }
+    return buildEnabledModelOptions(config.providers).map((option) => {
+      const ref: ModelRef = {
+        protocol: option.protocol,
+        providerId: option.providerId,
+        modelId: option.modelId,
+      };
+      return {
+        value: JSON.stringify(ref),
+        label: option.label,
+        ref,
+      };
+    });
+  }, [config]);
 
   function updateDraft(index: number, patch: Partial<ProfileDraft>): void {
     setDrafts((prev) => prev.map((draft, i) => (i === index ? { ...draft, ...patch } : draft)));

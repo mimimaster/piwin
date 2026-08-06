@@ -4,9 +4,18 @@
  * The desktop never sends credentials over the network. It asks the host to
  * call the protocol-specific discovery endpoint using a resolved secret.
  */
-import type { DiscoveredModel, ModelDiscoveryResult, ModelProviderConfig } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
-import { enrichFromCatalog, lookupCatalogByModelId } from '@piwin/agent-host';
+import type {
+  DiscoveredModel,
+  ModelCapability,
+  ModelDiscoveryResult,
+  ModelProviderConfig,
+} from '@piwin/contracts';
+import { formatError, matchImageCatalog } from '@piwin/contracts';
+import {
+  enrichFromCatalog,
+  lookupCatalogByModelId,
+  searchPiImagesCatalog,
+} from '@piwin/agent-host';
 
 const DISCOVERY_TIMEOUT_MS = 15_000;
 const ANTHROPIC_API_VERSION = '2023-06-01';
@@ -186,5 +195,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function enrichDiscoveredModelFromCatalog(model: DiscoveredModel): DiscoveredModel {
-  return enrichFromCatalog(model, lookupCatalogByModelId(model.id));
+  const enriched = enrichFromCatalog(model, lookupCatalogByModelId(model.id));
+  return enrichImageGenerationCapability(enriched);
+}
+
+/**
+ * Auto-tag discovered models whose id matches a Pi image-catalog entry as
+ * image-generation capable, so the Image Generation settings page can list
+ * them without the user ticking the capability checkbox manually.
+ */
+function enrichImageGenerationCapability(model: DiscoveredModel): DiscoveredModel {
+  const imageEntries = searchPiImagesCatalog().entries;
+  const matched = matchImageCatalog(imageEntries, [model.id]);
+  if (matched.matched.length === 0) {
+    return model;
+  }
+  const capabilities = new Set<ModelCapability>(model.capabilities ?? []);
+  capabilities.add('image-generation');
+  return { ...model, capabilities: [...capabilities] };
 }

@@ -39,6 +39,8 @@ export {
   buildPiProviderRegistration,
   resolvePiApiForProvider,
 } from './pi-model-runtime.js';
+export { buildPiSessionToolAllowlist } from './pi-session-tool-allowlist.js';
+export type { PiSessionToolAllowlistInput } from './pi-session-tool-allowlist.js';
 export type {
   PiModelRegistration,
   PiModelRuntime,

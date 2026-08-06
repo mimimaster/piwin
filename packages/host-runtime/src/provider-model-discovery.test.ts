@@ -143,4 +143,39 @@ describe('discoverProviderModels', () => {
 
     expect(authorization).toBe('Bearer resolved-secret');
   });
+
+  it('auto-tags discovered models that match Pi image catalog entries', async () => {
+    const result = await discoverProviderModels(createProvider(), {
+      resolveSecret: async () => 'test-secret',
+      fetch: async () =>
+        createJsonResponse({
+          data: [{ id: 'gpt-image-1' }, { id: 'deepseek-chat' }],
+        }),
+    });
+
+    expect(result.models.map((model) => model.id).sort()).toEqual([
+      'deepseek-chat',
+      'gpt-image-1',
+    ]);
+    const imageModel = result.models.find((model) => model.id === 'gpt-image-1');
+    expect(imageModel?.capabilities).toContain('image-generation');
+    const chatModel = result.models.find((model) => model.id === 'deepseek-chat');
+    expect(chatModel?.capabilities).toBeUndefined();
+  });
+
+  it('auto-tags gemini image models by split-name match', async () => {
+    const result = await discoverProviderModels(
+      createProvider({ protocol: 'google-gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' }),
+      {
+        resolveSecret: async () => 'gemini-secret',
+        fetch: async () =>
+          createJsonResponse({
+            models: [{ name: 'models/gemini-3-pro-image', displayName: 'Gemini 3 Pro Image' }],
+          }),
+      },
+    );
+
+    const imageModel = result.models.find((model) => model.id === 'gemini-3-pro-image');
+    expect(imageModel?.capabilities).toContain('image-generation');
+  });
 });

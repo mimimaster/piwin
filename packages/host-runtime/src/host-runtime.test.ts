@@ -557,6 +557,35 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('git/branch-list returns local branches for this repo', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-git-branches-'));
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+    });
+
+    const projectPath = process.cwd().includes('packages/agent-host')
+      ? join(process.cwd(), '../..')
+      : process.cwd();
+
+    const listed = await runtime.handleCommand({
+      id: 'g-branches',
+      type: 'git/branch-list',
+      projectPath,
+      limit: 20,
+    });
+    expect(listed.success).toBe(true);
+    if (!listed.success) {
+      throw new Error(listed.error);
+    }
+    const branches = (listed.data as { branches: { branches: Array<{ name: string }> } }).branches;
+    expect(Array.isArray(branches.branches)).toBe(true);
+    expect(branches.branches.length).toBeGreaterThan(0);
+
+    await runtime.dispose();
+  });
+
   it('persists transcript and hydrates on resume across runtime instances', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-transcript-'));
     const runtimeA = new HostRuntime({

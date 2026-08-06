@@ -25,7 +25,6 @@ import type {
 import { chatUiReducer, createInitialChatUiState, type SessionListItemUi } from './chat-reducer';
 import { HostClient } from './host-client';
 import { useHostRequestAdapters } from './host-request-adapters';
-import { WorkspaceTitlebar } from './workspace-titlebar';
 import { SettingsPanel } from './SettingsPanel';
 import { NotificationRegion } from './NotificationRegion';
 import { MainErrorBanner } from './main-error-banner';
@@ -101,51 +100,12 @@ import { useSidebarResize } from './hooks/use-sidebar-resize';
 import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { SIDEBAR_DEFAULT_WIDTH_PX } from './sidebar-width';
 import { resolveThinkingLevelForModel } from './model-thinking-policy';
+import { buildEnabledModelOptions } from './model-options';
 
 import {
   ArtifactHeightSignalProvider,
   type ArtifactHeightSignalContextValue,
 } from './artifact-height-signal';
-
-type ModelOption = {
-  providerId: string;
-  protocol: 'openai-compatible' | 'anthropic-compatible' | 'google-gemini';
-  modelId: string;
-  label: string;
-  contextWindow?: number;
-  thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-  thinkingLevels?: readonly import('@piwin/contracts').ThinkingLevel[];
-  reasoning?: boolean;
-  supportsImage?: boolean;
-  supportsImageGeneration?: boolean;
-};
-
-function modelsFromConfig(config: PiwinConfig | null): ModelOption[] {
-  if (!config) {
-    return [];
-  }
-  const options: ModelOption[] = [];
-  for (const provider of config.providers) {
-    for (const model of provider.models) {
-      if (model.enabled === false) continue;
-      options.push({
-        providerId: provider.id,
-        protocol: provider.protocol,
-        modelId: model.id,
-        label: `${provider.name} / ${model.label ?? model.id}`,
-        ...(typeof model.contextWindow === 'number' ? { contextWindow: model.contextWindow } : {}),
-        ...(model.thinkingLevel ? { thinkingLevel: model.thinkingLevel } : {}),
-        ...(model.thinkingLevels ? { thinkingLevels: model.thinkingLevels } : {}),
-        ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
-        ...(model.input?.includes('image') ? { supportsImage: true } : {}),
-        ...(model.capabilities?.includes('image-generation')
-          ? { supportsImageGeneration: true }
-          : {}),
-      });
-    }
-  }
-  return options;
-}
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -657,7 +617,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setArtifactThemeKey((previous) => previous + 1);
   }, [activeTheme]);
 
-  const modelOptions = useMemo(() => modelsFromConfig(config), [config]);
+  const modelOptions = useMemo(() => buildEnabledModelOptions(config?.providers ?? []), [config]);
 
   // Flashcard actions from artifact flip cards (ADR 0018 S5c, doc-flashcards §12):
   // - flashcard/rate → flashcards/rate HostCommand → FSRS state update
@@ -1622,6 +1582,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onRunModeSetDefault: handleRunModeSetDefault,
     onOpenPermissionsSettings: () => openSettingsSection('permissions'),
     runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted,
+    branchRequest: requestGit as ComposerDockProps['branchRequest'],
   };
 
   // Subagent session inspector: preview stays in-place, promotion navigates.
@@ -1759,30 +1720,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           onDismiss={(id) => dispatchNotification({ type: 'notify/dismiss', id })}
         />
 
-        <WorkspaceTitlebar
-          appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
-          sessionsExpanded={navDrawerOpen}
-          onToggleSessions={() => {
-            shell.toggleSessions();
-          }}
-          canGoBack={shell.canGoBack}
-          canGoForward={shell.canGoForward}
-          onGoBack={() => {
-            shell.goBack();
-          }}
-          onGoForward={() => {
-            shell.goForward();
-          }}
-          onOpenSkills={() => openSettingsSection('skills')}
-          onOpenMcp={() => openSettingsSection('tools')}
-          onToggleAppearance={() => void handleToggleAppearance()}
-          onOpenSettings={() => openSettingsSection('general')}
-          workPanelOpen={rightPanelOpen}
-          onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
-          locale={desktopLocale}
-          sessionName={activeSessionName}
-        />
-
         <WorkspaceShell
           sidebar={
             <ProjectSessionSidebar
@@ -1878,6 +1815,18 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onResizeReset={() => sidebarResize.setWidthPx(SIDEBAR_DEFAULT_WIDTH_PX)}
               workingSessionIds={state.workingSessionIds}
               backendServiceSessionIds={backendServiceSessionIds}
+              sessionsExpanded={navDrawerOpen}
+              onToggleSessions={() => {
+                shell.toggleSessions();
+              }}
+              canGoBack={shell.canGoBack}
+              canGoForward={shell.canGoForward}
+              onGoBack={() => {
+                shell.goBack();
+              }}
+              onGoForward={() => {
+                shell.goForward();
+              }}
             />
           }
           contextBar={
@@ -1914,6 +1863,25 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               permissionMode={config?.permissions?.preset ?? configPreset}
               onOpenPermissions={() => openSettingsSection('permissions')}
               locale={desktopLocale}
+              appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
+              sessionsExpanded={navDrawerOpen}
+              onToggleSessions={() => {
+                shell.toggleSessions();
+              }}
+              canGoBack={shell.canGoBack}
+              canGoForward={shell.canGoForward}
+              onGoBack={() => {
+                shell.goBack();
+              }}
+              onGoForward={() => {
+                shell.goForward();
+              }}
+              onOpenSkills={() => openSettingsSection('skills')}
+              onOpenMcp={() => openSettingsSection('tools')}
+              onToggleAppearance={() => void handleToggleAppearance()}
+              onOpenSettings={() => openSettingsSection('general')}
+              workPanelOpen={rightPanelOpen}
+              onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
               {...(activeSessionOrigin ? { origin: activeSessionOrigin } : {})}
               {...(activeSessionOrigin?.kind === 'fork'
                 ? {
@@ -2212,6 +2180,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 onTerminalAttentionClear={() => setTerminalAttention(false)}
                 onViewChange={setRightPanelView}
                 locale={desktopLocale}
+                appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
+                onToggleAppearance={() => void handleToggleAppearance()}
+                onOpenSkills={() => openSettingsSection('skills')}
+                onOpenMcp={() => openSettingsSection('tools')}
+                onOpenSettings={() => openSettingsSection('general')}
+                onToggleSessions={() => shell.toggleSessions()}
                 notesContent={<NotesPanel request={requestNotesPanel} />}
                 cardsContent={<FlashcardsPanel request={requestCardsPanel} />}
                 filesContent={
@@ -2224,12 +2198,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                           ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
                           : absolutePath,
                       );
-                    }}
-                    onOpenFile={(absolutePath, relativePath) => {
-                      handleOpenDocument({
-                        title: relativePath.split(/[\\/]/).pop() || relativePath,
-                        path: absolutePath,
-                      }, 'stage');
                     }}
                     locale={desktopLocale}
                   />

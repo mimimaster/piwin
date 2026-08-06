@@ -61,6 +61,8 @@ import type { ExtensionUiResolvePayload } from './extension-ui-prompt';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
+import { BranchChip, type BranchChipRequest } from './branch-chip';
+import { RuntimeTargetChip } from './runtime-target-chip';
 
 export type ComposerModelOption = {
   providerId: string;
@@ -151,6 +153,8 @@ export type ComposerDockProps = {
   onOpenPermissionsSettings?: () => void;
   /** YOLO unavailable for untrusted projects. */
   runModeYoloDisabled?: boolean;
+  /** Optional git request adapter for the footer branch chip. */
+  branchRequest?: ((command: BranchChipRequest) => Promise<import('@piwin/contracts').HostResponse>) | undefined;
 };
 
 function getAgentPlaceholder(
@@ -928,12 +932,25 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
   const statusLabel = hostReady ? copy.hostStatus(hostMode, isMock) : copy.hostConnecting;
   const tooltipText = copy.hostTooltip(hostMode, isMock, hostReady, props.transportLabel);
 
+  const isStreamingRun =
+    props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
   return (
     <footer
       className={`composer-dock layout-${props.layoutMode}`}
       data-testid="composer-dock"
       data-layout={props.layoutMode}
     >
+      {/* Outside the input card: floating context layer (project / branch / runtime). */}
+      <div className="composer-context-rail" data-testid="composer-context-row">
+        {props.branchRequest && props.projectPath ? (
+          <BranchChip
+            projectPath={props.projectPath}
+            disabled={isStreamingRun}
+            request={props.branchRequest}
+          />
+        ) : null}
+        <RuntimeTargetChip />
+      </div>
       <ComposerCard {...props} />
       <div className="composer-footer-row">
         <button

@@ -10,6 +10,7 @@ import type { HostCommandContext } from './host-command-context.js';
 
 const TYPES = new Set<HostCommand['type']>([
   'git/status',
+  'git/branch-list',
   'git/diff-summary',
   'git/diff-file',
   'git/log-graph',
@@ -39,6 +40,14 @@ export async function handleGitCommand(
           const git = createGitService();
           const snapshot = await git.getStatus(command.projectPath);
           return ok(requestId, 'git/status', { snapshot });
+        }
+        case 'git/branch-list': {
+          const git = createGitService();
+          const branches = await git.listBranches(
+            command.projectPath,
+            typeof command.limit === 'number' ? command.limit : undefined,
+          );
+          return ok(requestId, 'git/branch-list', { branches });
         }
         case 'git/diff-summary': {
           const git = createGitService();

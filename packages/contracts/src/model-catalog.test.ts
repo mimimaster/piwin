@@ -3,8 +3,8 @@ import {
   filterSuggestions,
   matchImageCatalog,
   splitModelName,
-} from './image-model-suggest.js';
-import type { ImageModelCatalogEntry } from '@piwin/contracts';
+} from './model-catalog.js';
+import type { ImageModelCatalogEntry } from './model-catalog.js';
 
 const catalog: ImageModelCatalogEntry[] = [
   { catalogProviderId: 'openrouter', modelId: 'openai/gpt-image-1', name: 'OpenAI GPT Image 1', input: ['text', 'image'], output: ['image'] },

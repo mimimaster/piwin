@@ -300,4 +300,58 @@ describe('createWorkerPiSessionFactory', () => {
     const opts = createAgentSession.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(opts.tools).toEqual(['read', 'grep', 'ls']);
   });
+
+  it('unions hostTools into the Pi tools allowlist so proxy customTools are not filtered out', async () => {
+    const session = {
+      sessionId: 'pi-tools-host-1',
+      prompt: vi.fn(async () => undefined),
+      subscribe: vi.fn(() => () => undefined),
+    };
+    const piModule = createMockPiModule({ session });
+    const factory = createWorkerPiSessionFactory({
+      agentDir: '/tmp/agent',
+      piModule,
+    });
+
+    const blueprintWithHostTools: SerializableBlueprint = {
+      ...blueprint,
+      tools: {
+        ...blueprint.tools,
+        piBuiltinToolNames: ['read', 'grep', 'ls'],
+        hostTools: [
+          { name: 'bash', description: 'Run bash', parameters: {} },
+          { name: 'web_search', description: 'Search the web', parameters: {} },
+          { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
+        ],
+      },
+    };
+
+    await factory({
+      productSessionId: 'ps-1',
+      blueprint: blueprintWithHostTools,
+      proxyTools: [
+        {
+          name: 'bash',
+          label: 'bash',
+          description: 'Run bash',
+          parameters: {},
+          execute: async () => ({ content: [], details: {} }),
+        },
+      ],
+    });
+
+    const createAgentSession = piModule.createAgentSession as unknown as {
+      mock: { calls: unknown[][] };
+    };
+    const opts = createAgentSession.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(opts.tools).toEqual([
+      'read',
+      'grep',
+      'ls',
+      'bash',
+      'web_search',
+      'mcp_gateway',
+    ]);
+    expect(opts.customTools).toHaveLength(1);
+  });
 });

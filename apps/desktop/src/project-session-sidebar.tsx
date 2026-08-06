@@ -25,12 +25,14 @@ import {
   IconChat,
   IconCheck,
   IconChevronDown,
+  IconChevronLeft,
   IconChevronRight,
   IconDocument,
   IconFolder,
   IconFolderOpen,
   IconFolderPlus,
   IconMoreVertical,
+  IconPanelLeft,
   IconPin,
   IconPlus,
   IconSearch,
@@ -127,6 +129,12 @@ export type ProjectSessionSidebarProps = {
   onToggleKnowledge?: () => void;
   isOverlayPresentation?: boolean;
   onCloseOverlay?: () => void;
+  sessionsExpanded?: boolean;
+  onToggleSessions?: () => void;
+  canGoBack?: boolean | undefined;
+  canGoForward?: boolean | undefined;
+  onGoBack?: (() => void) | undefined;
+  onGoForward?: (() => void) | undefined;
   locale?: DesktopLocale;
   /** Desktop: live sidebar width for aria + resize handle. */
   sidebarWidthPx?: number;
@@ -504,6 +512,52 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           onDoubleClick={props.onResizeReset}
         />
       ) : null}
+            <div className="sidebar-header sidebar-titlebar-box">
+        <div className="sidebar-header-left">
+          {props.onToggleSessions ? (
+            <IconButton
+              className="sidebar-sessions-toggle"
+              data-testid="rail-chats-btn"
+              label={props.sessionsExpanded ? copy.titlebar.collapseSidebar : copy.titlebar.expandSidebar}
+              aria-expanded={props.sessionsExpanded}
+              onClick={props.onToggleSessions}
+            >
+              <IconPanelLeft />
+            </IconButton>
+          ) : null}
+        </div>
+
+        <div className="sidebar-header-right sidebar-history">
+          <IconButton
+            className="sidebar-history-btn"
+            data-testid="sidebar-back-btn"
+            label={copy.titlebar.back}
+            disabled={!props.canGoBack}
+            aria-disabled={!props.canGoBack}
+            onClick={() => {
+              if (props.canGoBack) {
+                props.onGoBack?.();
+              }
+            }}
+          >
+            <IconChevronLeft />
+          </IconButton>
+          <IconButton
+            className="sidebar-history-btn"
+            data-testid="sidebar-forward-btn"
+            label={copy.titlebar.forward}
+            disabled={!props.canGoForward}
+            aria-disabled={!props.canGoForward}
+            onClick={() => {
+              if (props.canGoForward) {
+                props.onGoForward?.();
+              }
+            }}
+          >
+            <IconChevronRight />
+          </IconButton>
+        </div>
+      </div>
       <div className="sidebar-top">
         {props.isOverlayPresentation ? (
           <div className="sidebar-overlay-header">
@@ -525,11 +579,11 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           className="sidebar-new-agent"
           data-testid="new-session-btn"
           onClick={() => props.onNewSession()}
-          title="New session"
-          aria-label="New session"
+          title={copy.newSession}
+          aria-label={copy.newSession}
         >
-          <IconPlus />
-          <span>{copy.newSession}</span>
+          <IconSliders />
+          <span>New Agent</span>
         </button>
 
         {/* Search */}

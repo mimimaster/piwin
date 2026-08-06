@@ -1,22 +1,33 @@
 /**
- * ContextBar — the 42px band between titleband and transcript.
+ * ContextBar — stage-local chrome (no full-window topbar).
  *
- * Quiet workbench: session title, scope pill, run status cluster only.
- * Right work-panel toggle lives on the titleband (top-right).
+ * Lives only in the middle column. Left: sidebar + history + title.
+ * Right: theme / more / work-panel. Middle flex is the drag region.
  *
- * Data-testids migrated from retired components:
- *   - "workspace-context-header" — root element (was on WorkspaceContextHeader)
- *   - "run-status-strip"         — status region (was on RunStatusStrip)
- *   - "run-status-stop"          — stop button (was on RunStatusStrip)
- *   - "run-status-stopping"      — stopping label (was on RunStatusStrip)
+ * Data-testids:
+ *   - "workspace-context-header"
+ *   - "run-status-strip" / "run-status-stop" / "run-status-stopping"
+ *   - "rail-chats-btn" / "right-panel-open-btn" / titlebar-*
  */
 import type { ReactElement } from 'react';
-import { Button } from '@piwin/ui-kit';
+import { Button, DropdownMenu, DropdownMenuItem, IconButton } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
 import type { RunStatusView } from './run-status.js';
 import { RunActivityInline } from './RunActivityInline.js';
-import { IconForkConversation } from './shell-icons';
+import { getDesktopCopy, type DesktopLocale } from './desktop-locale';
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconForkConversation,
+  IconMcp,
+  IconMoon,
+  IconMore,
+  IconPanelLeft,
+  IconPanelRight,
+  IconSkill,
+  IconSun,
+} from './shell-icons';
 
 export type ContextBarSession = {
   title: string;
@@ -39,7 +50,21 @@ export type ContextBarProps = {
   /** ADR 0024 — Run Mode badge; click opens Settings → Permissions. */
   permissionMode?: PermissionPreset | null;
   onOpenPermissions?: (() => void) | undefined;
-  locale?: 'zh-CN' | 'en';
+  locale?: DesktopLocale;
+  /** Shell chrome previously on WorkspaceTitlebar. */
+  appearanceMode?: 'light' | 'dark';
+  sessionsExpanded?: boolean;
+  onToggleSessions?: () => void;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  onGoBack?: () => void;
+  onGoForward?: () => void;
+  onOpenSkills?: () => void;
+  onOpenMcp?: () => void;
+  onToggleAppearance?: () => void;
+  onOpenSettings?: () => void;
+  workPanelOpen?: boolean;
+  onToggleWorkPanel?: () => void;
 };
 
 function modeBadgeLabel(preset: PermissionPreset): string {
@@ -85,15 +110,90 @@ function phaseDotClass(kind: RunStatusView['kind']): string {
   }
 }
 
+function startNativeWindowDrag(): void {
+  if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
+    return;
+  }
+
+  void import('@tauri-apps/api/window')
+    .then(({ getCurrentWindow }) => getCurrentWindow().startDragging())
+    .catch((error: unknown) => {
+      console.warn('[piwin] native window drag failed', error);
+    });
+}
+
 export function ContextBar(props: ContextBarProps): ReactElement {
   const { session, runState } = props;
   const elapsedText = runState.elapsedMs !== undefined ? formatElapsed(runState.elapsedMs) : null;
-  const isChinese = props.locale === 'zh-CN';
+  const locale = props.locale ?? 'zh-CN';
+  const isChinese = locale === 'zh-CN';
+  const copy = getDesktopCopy(locale);
+  const titlebarCopy = copy.titlebar;
   const mode = props.permissionMode ?? null;
+  const canGoBack = props.canGoBack === true;
+  const canGoForward = props.canGoForward === true;
+  const workPanelOpen = props.workPanelOpen === true;
+  const workPanelLabel = workPanelOpen
+    ? titlebarCopy.collapseWorkspacePanel
+    : titlebarCopy.expandWorkspacePanel;
+  const themeToggleLabel =
+    props.appearanceMode === 'light'
+      ? titlebarCopy.switchToDarkTheme
+      : titlebarCopy.switchToLightTheme;
 
   return (
-    <div className="context-bar" data-testid="workspace-context-header" data-kind={runState.kind}>
-      {/* Session identity */}
+    <header
+      className="context-bar context-titlebar-box"
+      data-testid="workspace-context-header"
+      data-kind={runState.kind}
+    >
+      <div className="context-bar-leading" role="group" aria-label={titlebarCopy.shellNavigation}>
+        {props.onToggleSessions && !props.sessionsExpanded ? (
+          <IconButton
+            className="context-bar-sessions-toggle"
+            data-testid="rail-chats-btn"
+            label={titlebarCopy.expandSidebar}
+            aria-expanded={false}
+            onClick={props.onToggleSessions}
+          >
+            <IconPanelLeft />
+          </IconButton>
+        ) : null}
+
+        {!props.sessionsExpanded ? (
+          <div className="context-bar-history">
+            <IconButton
+              className="context-bar-history-btn"
+              data-testid="titlebar-back-btn"
+              label={titlebarCopy.back}
+              disabled={!canGoBack}
+              aria-disabled={!canGoBack}
+              onClick={() => {
+                if (canGoBack) {
+                  props.onGoBack?.();
+                }
+              }}
+            >
+              <IconChevronLeft />
+            </IconButton>
+            <IconButton
+              className="context-bar-history-btn"
+              data-testid="titlebar-forward-btn"
+              label={titlebarCopy.forward}
+              disabled={!canGoForward}
+              aria-disabled={!canGoForward}
+              onClick={() => {
+                if (canGoForward) {
+                  props.onGoForward?.();
+                }
+              }}
+            >
+              <IconChevronRight />
+            </IconButton>
+          </div>
+        ) : null}
+      </div>
+
       <div className="context-bar-identity">
         <span className="context-bar-title" title={session.title}>
           {session.title}
@@ -137,14 +237,17 @@ export function ContextBar(props: ContextBarProps): ReactElement {
             <IconForkConversation width={12} height={12} />
             <span>
               {props.origin.kind === 'fork'
-                ? isChinese ? '分支' : 'Branch'
-                : isChinese ? '副本' : 'Duplicate'}
+                ? isChinese
+                  ? '分支'
+                  : 'Branch'
+                : isChinese
+                  ? '副本'
+                  : 'Duplicate'}
             </span>
           </button>
         ) : null}
       </div>
 
-      {/* Run status cluster */}
       <div
         className="context-bar-status"
         data-testid="run-status-strip"
@@ -167,7 +270,6 @@ export function ContextBar(props: ContextBarProps): ReactElement {
           </span>
         ) : null}
 
-        {/* Contextual action buttons */}
         {runState.primaryAction === 'view-activity' ? (
           <Button size="compact" onClick={props.onViewActivity}>
             Activity
@@ -204,6 +306,80 @@ export function ContextBar(props: ContextBarProps): ReactElement {
           </Button>
         ) : null}
       </div>
-    </div>
+
+      <div
+        className="context-bar-drag"
+        data-tauri-drag-region
+        aria-label={titlebarCopy.dragWindow}
+        onMouseDown={(event) => {
+          if (event.button === 0) {
+            startNativeWindowDrag();
+          }
+        }}
+      />
+
+      {!workPanelOpen ? (
+        <div className="context-bar-controls" role="toolbar" aria-label={titlebarCopy.tools}>
+        {props.onToggleAppearance ? (
+          <IconButton
+            className="context-bar-theme-toggle"
+            data-testid="titlebar-theme-toggle"
+            label={themeToggleLabel}
+            title={themeToggleLabel}
+            aria-pressed={props.appearanceMode === 'dark'}
+            onClick={() => props.onToggleAppearance?.()}
+          >
+            {props.appearanceMode === 'light' ? <IconMoon /> : <IconSun />}
+          </IconButton>
+        ) : null}
+
+        <div className="context-bar-more-wrap">
+          <DropdownMenu
+            label={titlebarCopy.moreTools}
+            trigger={
+              <IconButton
+                title={titlebarCopy.more}
+                label={titlebarCopy.moreTools}
+                data-testid="titlebar-more-menu"
+              >
+                <IconMore />
+              </IconButton>
+            }
+          >
+            <DropdownMenuItem testId="more-sessions" onSelect={() => props.onToggleSessions?.()}>
+              <IconPanelLeft /> {titlebarCopy.sessions}
+            </DropdownMenuItem>
+            <DropdownMenuItem testId="more-skills" onSelect={() => props.onOpenSkills?.()}>
+              <IconSkill width={16} height={16} /> {titlebarCopy.skills}
+            </DropdownMenuItem>
+            <DropdownMenuItem testId="more-mcp" onSelect={() => props.onOpenMcp?.()}>
+              <IconMcp width={16} height={16} /> MCP
+            </DropdownMenuItem>
+            {props.onOpenSettings ? (
+              <DropdownMenuItem testId="more-settings" onSelect={() => props.onOpenSettings?.()}>
+                {copy.settings}
+              </DropdownMenuItem>
+            ) : null}
+          </DropdownMenu>
+        </div>
+
+        {props.onToggleWorkPanel ? (
+          <IconButton
+            className={
+              workPanelOpen ? 'context-bar-inspector-btn active' : 'context-bar-inspector-btn'
+            }
+            data-testid="right-panel-open-btn"
+            label={workPanelLabel}
+            title={workPanelLabel}
+            aria-pressed={workPanelOpen}
+            aria-expanded={workPanelOpen}
+            onClick={() => props.onToggleWorkPanel?.()}
+          >
+            <IconPanelRight />
+          </IconButton>
+        ) : null}
+        </div>
+      ) : null}
+    </header>
   );
 }

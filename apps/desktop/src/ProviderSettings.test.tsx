@@ -136,8 +136,8 @@ describe('ProviderSettings', () => {
         ?.click();
     });
 
-    const editButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="provider-model-edit-gpt-4.1"]',
+    const expandButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="provider-model-expand-gpt-4.1"]',
     );
     const testButton = container.querySelector<HTMLButtonElement>(
       '[data-testid="provider-model-test-gpt-4.1"]',
@@ -146,13 +146,16 @@ describe('ProviderSettings', () => {
       '[data-testid="provider-model-remove-gpt-4.1"]',
     );
 
-    expect(editButton?.title).toBe('Edit');
-    expect(editButton?.getAttribute('aria-label')).toBe('Edit');
-    expect(editButton?.querySelector('svg')?.getAttribute('width')).toBe('16');
+    expect(expandButton?.getAttribute('aria-label')).toBe('Expand');
+    expect(expandButton?.getAttribute('aria-expanded')).toBe('false');
     expect(testButton?.title).toBe('Test');
     expect(testButton?.getAttribute('aria-label')).toBe('Test');
     expect(removeButton?.title).toBe('Delete');
     expect(removeButton?.getAttribute('aria-label')).toBe('Delete');
+    // The pencil edit icon was removed in favor of the row dropdown.
+    expect(
+      container.querySelector('[data-testid="provider-model-edit-gpt-4.1"]'),
+    ).toBeNull();
   });
 
   it('opens the provider editor when the edit button is clicked', () => {
@@ -461,7 +464,7 @@ describe('ProviderSettings', () => {
 
     act(() => {
       container
-        .querySelector<HTMLButtonElement>('[data-testid="provider-model-edit-gpt-4.1"]')
+        .querySelector<HTMLButtonElement>('[data-testid="provider-model-expand-gpt-4.1"]')
         ?.click();
     });
     await act(async () => {
@@ -504,5 +507,50 @@ describe('ProviderSettings', () => {
         capabilities: ['image-generation'],
       }),
     );
+  });
+
+  it('auto-saves a model parameter change from the expanded row without clicking save', async () => {
+    const onSave = vi.fn<ProviderSettingsProps['onSave']>(async () => true);
+    const props = makeProps(onSave);
+    const { container, root } = renderProviderSettings(props);
+    instances.push({ container, root });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-row-expand-openai"]')
+        ?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="provider-model-expand-gpt-4.1"]')
+        ?.click();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const contextInput = container.querySelector<HTMLInputElement>(
+      '[data-testid="model-edit-context"]',
+    );
+    expect(contextInput).not.toBeNull();
+
+    act(() => {
+      setInputValue(contextInput, '256000');
+    });
+
+    // No Save button click — the debounced auto-save must persist the change.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    });
+
+    expect(onSave).toHaveBeenCalled();
+    const saved = onSave.mock.calls[0]?.[0] as PiwinConfig;
+    const openai = saved?.providers.find((p: ModelProviderConfig) => p.id === 'openai');
+    const gpt = openai?.models.find((m) => m.id === 'gpt-4.1');
+    expect(gpt).toEqual(expect.objectContaining({ contextWindow: 256000 }));
   });
 });

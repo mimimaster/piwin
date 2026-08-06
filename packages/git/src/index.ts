@@ -11,6 +11,9 @@ export type { ParsedGitStatus } from './status-parser.js';
 export { readGitStatus } from './status-reader.js';
 export type { ReadGitStatusOptions } from './status-reader.js';
 
+export { readGitBranchList, parseGitBranchListOutput } from './branch-list.js';
+export type { ReadGitBranchListOptions } from './branch-list.js';
+
 export { readGitDiffSummary, parseNumstat } from './diff-summary.js';
 export type { ReadGitDiffSummaryOptions } from './diff-summary.js';
 

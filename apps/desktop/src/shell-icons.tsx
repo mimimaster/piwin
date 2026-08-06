@@ -278,6 +278,26 @@ export function IconGit(props: IconProps): ReactElement {
   );
 }
 
+/** Laptop / local machine glyph for the runtime-target chip. */
+export function IconLaptop(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <rect x="4" y="5" width="16" height="11" rx="1.5" />
+      <path d="M2 18h20" />
+      <path d="M9 18h6" />
+    </IconBase>
+  );
+}
+
+/** Cloud glyph for the runtime-target chip (disabled until gateway connects). */
+export function IconCloud(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M7.5 18h9.2a3.8 3.8 0 0 0 .4-7.6 5 5 0 0 0-9.6-1.4A3.6 3.6 0 0 0 7.5 18Z" />
+    </IconBase>
+  );
+}
+
 export function IconPet(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>

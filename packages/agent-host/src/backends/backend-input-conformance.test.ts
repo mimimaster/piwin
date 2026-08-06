@@ -184,6 +184,12 @@ describe('backend input conformance', () => {
       })),
     );
 
+    // Pi filters customTools through the global `tools` allowlist. Host tool
+    // names must appear there or bash/MCP/web never reach the model.
+    expect(sdkOptions.tools).toEqual(
+      expect.arrayContaining(['read', 'mcp__server__dynamic']),
+    );
+
     const sdkTool = sdkTools[0];
     if (!sdkTool) {
       throw new Error('SDK tool descriptor was not registered');
