@@ -21,6 +21,7 @@ import type {
   SubagentProfileSettings,
   SubagentCapability,
   SubagentIsolationMode,
+  OrchestrationSchemeSettings,
   ThinkingConfig,
   ThinkingLevel,
   VisionDelegationConfig,
@@ -871,7 +872,61 @@ function normalizeSubagentConfig(value: unknown): SubagentConfig {
   if (typeof record.defaultProfileId === 'string' && record.defaultProfileId.trim()) {
     config.defaultProfileId = record.defaultProfileId;
   }
+  const rawSchemes = Array.isArray(record.schemes) ? record.schemes : [];
+  const schemes: OrchestrationSchemeSettings[] = [];
+  const seenSchemeIds = new Set<string>();
+  for (const raw of rawSchemes) {
+    const scheme = normalizeOrchestrationScheme(raw);
+    if (!scheme) continue;
+    if (seenSchemeIds.has(scheme.id)) continue;
+    seenSchemeIds.add(scheme.id);
+    schemes.push(scheme);
+  }
+  if (schemes.length > 0) {
+    config.schemes = schemes;
+  }
   return config;
+}
+
+
+function normalizeOrchestrationScheme(value: unknown): OrchestrationSchemeSettings | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const id = typeof record.id === 'string' ? record.id.trim() : '';
+  const name = typeof record.name === 'string' ? record.name.trim() : '';
+  const description = typeof record.description === 'string' ? record.description.trim() : '';
+  const defaultProfileId =
+    typeof record.defaultProfileId === 'string' ? record.defaultProfileId.trim() : '';
+  const systemPreamble =
+    typeof record.systemPreamble === 'string' ? record.systemPreamble.trim() : '';
+  if (!id || !name || !description || !defaultProfileId || !systemPreamble) {
+    return undefined;
+  }
+  if (id === 'off') return undefined;
+  const waitPolicy = record.waitPolicy === 'fire-and-continue' ? 'await-all' : 'await-all';
+  const scheme: OrchestrationSchemeSettings = {
+    id,
+    name,
+    description,
+    defaultProfileId,
+    exposeSpawnMetadata: record.exposeSpawnMetadata === true,
+    waitPolicy,
+    systemPreamble,
+  };
+  if (Array.isArray(record.allowedProfileIds)) {
+    const allowed = record.allowedProfileIds
+      .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      .map((item) => item.trim());
+    if (allowed.length > 0) scheme.allowedProfileIds = allowed;
+  }
+  const maxConcurrency = asPositiveInteger(record.maxConcurrency);
+  if (maxConcurrency !== undefined) scheme.maxConcurrency = maxConcurrency;
+  const maxTasksPerRun = asPositiveInteger(record.maxTasksPerRun);
+  if (maxTasksPerRun !== undefined) scheme.maxTasksPerRun = maxTasksPerRun;
+  if (isThinkingLevel(record.maxSubagentThinkingLevel)) {
+    scheme.maxSubagentThinkingLevel = record.maxSubagentThinkingLevel;
+  }
+  return scheme;
 }
 
 function normalizeSubagentProfile(value: unknown): SubagentProfileSettings | undefined {

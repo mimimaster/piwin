@@ -66,6 +66,10 @@ export type UseComposerMediaArgs = {
     reasoning?: boolean;
   }>;
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+  /** ORCH: per-send scheme id; omit/off means no scheme field. */
+  orchestrationSchemeId?: string;
+  /** ORCH: slash /scheme sets the composer scheme without sending. */
+  onOrchestrationSchemeChange?: (schemeId: string) => void;
   /**
    * When true, text-only + media is allowed (host will describe or path-inject).
    * When false/undefined and selected model lacks vision, confirm before send.
@@ -624,6 +628,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       model?: import('@piwin/contracts').ModelRef;
       thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
       agentMode?: import('@piwin/contracts').AgentModeId;
+      orchestrationSchemeId?: string;
     } => {
       const input: {
         text: string;
@@ -631,10 +636,15 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         model?: import('@piwin/contracts').ModelRef;
         thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
         agentMode?: import('@piwin/contracts').AgentModeId;
+        orchestrationSchemeId?: string;
       } = {
         text: params.text,
         agentMode: params.agentMode,
       };
+      const schemeId = args.orchestrationSchemeId?.trim();
+      if (schemeId && schemeId !== 'off') {
+        input.orchestrationSchemeId = schemeId;
+      }
       if (params.attachments && params.attachments.length > 0) {
         input.attachments = params.attachments;
       }
@@ -654,7 +664,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       }
       return input;
     },
-    [args.modelOptions, args.selectedModelKey, args.thinkingLevel, resolveTurnModel],
+    [args.modelOptions, args.selectedModelKey, args.thinkingLevel, args.orchestrationSchemeId, resolveTurnModel],
   );
 
   const applyAcceptedRun = useCallback(
@@ -805,6 +815,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           } finally {
             promptSubmissionInProgress.current = false;
           }
+          return;
+        }
+        if (parsed.kind === 'scheme') {
+          args.onOrchestrationSchemeChange?.(parsed.schemeId);
+          setComposer('');
+          clearPendingAttachments();
           return;
         }
         if (parsed.kind === 'mode' && !parsed.args) {

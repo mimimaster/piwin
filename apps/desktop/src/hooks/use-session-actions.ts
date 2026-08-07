@@ -45,6 +45,7 @@ export type UseSessionActionsArgs = {
   modelOptions: ModelOption[];
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
   agentMode: AgentModeId;
+  orchestrationSchemeId?: string;
   setEditingMessageId: Dispatch<SetStateAction<string | null>>;
   setRenameDraft: Dispatch<SetStateAction<{ sessionId: string; name: string } | null>>;
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
@@ -65,6 +66,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     modelOptions,
     thinkingLevel,
     agentMode,
+    orchestrationSchemeId,
     setEditingMessageId,
     setRenameDraft,
     setHostLogEntries,
@@ -923,7 +925,11 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         model?: import('@piwin/contracts').ModelRef;
         thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
         agentMode?: import('@piwin/contracts').AgentModeId;
+        orchestrationSchemeId?: string;
       } = { text: promptText, agentMode: agentMode };
+      if (orchestrationSchemeId && orchestrationSchemeId !== 'off') {
+        editInput.orchestrationSchemeId = orchestrationSchemeId;
+      }
       const editModel = selectedModelRef();
       if (editModel) {
         editInput.model = editModel;

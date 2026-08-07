@@ -74,7 +74,9 @@ Usage:
   piwin session search <query> [--project <path>] [--mock]
   piwin session export <id> --format md|html [--redact-tools] [--out <path>] [--mock]
   piwin status [--project <path>] [--mock]
-  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass]
+  piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>]
+  piwin scheme list [--mock]
+  piwin scheme show <id> [--mock]
   piwin host serve [--mode sdk|rpc] [--mock] [--test-fixture <name>] [--permission-mode auto|ask-all|bypass]
   piwin skill list [--project <path>]
   piwin skill install --local <dir> | --git <url> [--name <id>]
@@ -696,7 +698,8 @@ async function commandChat(argv: string[]): Promise<void> {
       token === '--project' ||
       token === '--mode' ||
       token === '--image' ||
-      token === '--permission-mode'
+      token === '--permission-mode' ||
+      token === '--scheme'
     ) {
       index += 1;
       continue;
@@ -710,7 +713,7 @@ async function commandChat(argv: string[]): Promise<void> {
   const imagePath = readOption(argv, '--image');
   if (!message && !imagePath) {
     console.error(
-      'Usage: piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass]',
+      'Usage: piwin chat <text> [--project <path>] [--mode sdk|rpc] [--mock] [--image <path>] [--permission-mode auto|ask-all|bypass] [--scheme <id>]',
     );
     process.exitCode = 1;
     return;
@@ -806,10 +809,15 @@ async function commandChat(argv: string[]): Promise<void> {
       throw new Error(createResponse.error);
     }
     const sessionId = (createResponse.data as { sessionId: string }).sessionId;
+    const schemeId = readOption(argv, '--scheme')?.trim();
     const promptResponse = await runtime.handleCommand({
       type: 'session/prompt',
       sessionId,
-      input: { text: message, ...(attachments.length > 0 ? { attachments } : {}) },
+      input: {
+        text: message,
+        ...(attachments.length > 0 ? { attachments } : {}),
+        ...(schemeId && schemeId !== 'off' ? { orchestrationSchemeId: schemeId } : {}),
+      },
     });
     if (!promptResponse.success) {
       throw new Error(promptResponse.error);
@@ -2461,6 +2469,82 @@ function createWalkthroughHostClient(mode: HostMode, mock: boolean): Walkthrough
   };
 }
 
+
+async function commandScheme(argv: string[]): Promise<void> {
+  const sub = argv[1] ?? 'list';
+  const root = getPiwinRoot();
+  const config = await loadPiwinConfig(root);
+  const { listOrchestrationSchemes, resolveOrchestrationScheme } = await import('@piwin/contracts');
+  const slice = {
+    schemes: config.subagents?.schemes,
+    maxConcurrency: config.subagents?.maxConcurrency,
+    maxTasksPerRun: config.subagents?.maxTasksPerRun,
+  };
+  const schemes = listOrchestrationSchemes(slice);
+
+  if (sub === 'list') {
+    console.log('Off  (default — freehand, no injection)');
+    for (const scheme of schemes) {
+      const source = scheme.source === 'builtin' ? 'builtin' : 'settings';
+      console.log(`${scheme.id}  [${source}]  ${scheme.name} — ${scheme.description}`);
+    }
+    return;
+  }
+
+  if (sub === 'show') {
+    const id = argv[2];
+    if (!id) {
+      console.error('Usage: piwin scheme show <id>');
+      process.exitCode = 1;
+      return;
+    }
+    if (id === 'off') {
+      console.log('id: off');
+      console.log('name: Off');
+      console.log('description: Freehand — no orchestration injection');
+      return;
+    }
+    try {
+      // Validate against known profiles when possible (best-effort without host).
+      const known = new Set(
+        (config.subagents?.profiles ?? []).map((profile) => profile.id).concat([
+          'explorer',
+          'reviewer',
+          'implementer',
+          'tester',
+        ]),
+      );
+      const resolved = resolveOrchestrationScheme(slice, id, { knownProfileIds: known });
+      if (!resolved) {
+        console.error(`Unknown scheme: ${id}`);
+        process.exitCode = 1;
+        return;
+      }
+      console.log(`id: ${resolved.schemeId}`);
+      console.log(`name: ${resolved.scheme.name}`);
+      console.log(`source: ${resolved.scheme.source}`);
+      console.log(`description: ${resolved.scheme.description}`);
+      console.log(`defaultProfileId: ${resolved.defaultProfileId}`);
+      console.log(`exposeSpawnMetadata: ${resolved.exposeSpawnMetadata}`);
+      console.log(`maxConcurrency: ${resolved.maxConcurrency}`);
+      console.log(`maxTasksPerRun: ${resolved.maxTasksPerRun}`);
+      console.log(`waitPolicy: ${resolved.waitPolicy}`);
+      if (resolved.maxSubagentThinkingLevel) {
+        console.log(`maxSubagentThinkingLevel: ${resolved.maxSubagentThinkingLevel}`);
+      }
+      console.log('systemPreamble:');
+      console.log(resolved.systemPreamble);
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  console.error('Usage: piwin scheme list | show <id>');
+  process.exitCode = 1;
+}
+
 async function main(argv: string[]): Promise<void> {
   const command = argv[0] ?? 'help';
 
@@ -2490,6 +2574,10 @@ async function main(argv: string[]): Promise<void> {
   }
   if (command === 'chat') {
     await commandChat(argv);
+    return;
+  }
+  if (command === 'scheme') {
+    await commandScheme(argv);
     return;
   }
   if (command === 'skill') {

@@ -115,6 +115,15 @@ export function parseComposerSlashSubmit(
     };
   }
 
+  // ORCH: /scheme [id] or /ultra-code — set per-send scheme only (no chat bubble).
+  if (name === 'scheme') {
+    const schemeId = (args.split(/\s+/)[0] ?? 'off').trim().toLowerCase() || 'off';
+    return { kind: 'scheme', schemeId, name, args: schemeId === 'off' ? '' : args };
+  }
+  if (name === 'ultra-code') {
+    return { kind: 'scheme', schemeId: 'ultra-code', name, args };
+  }
+
   const skillByName = skills.find(
     (skill) => skill.name.toLowerCase() === name || skill.id.toLowerCase() === name,
   );

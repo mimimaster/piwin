@@ -27,7 +27,15 @@ import type {
   SessionTranscriptMessage,
   SessionTranscriptDocument,
 } from '@piwin/contracts';
-import { formatError,  DEFAULT_PERMISSION_PRESET, resolvePreset } from '@piwin/contracts';
+import {
+  formatError,
+  DEFAULT_PERMISSION_PRESET,
+  resolvePreset,
+  resolveOrchestrationScheme,
+  mergeOrchestrationSchemeIntoPrompt,
+  OrchestrationSchemeError,
+  type ResolvedOrchestrationScheme,
+} from '@piwin/contracts';
 import type { RunAbortReason } from '../run-abort-reason.js';
 import {
   createSupersededByNewPromptAbortReason,
@@ -83,6 +91,15 @@ export type SessionLiveContext = {
   host: AgentHost;
   /** Loads the full piwin config from disk. Used by preparePromptInput for walkthrough config. */
   loadConfig: () => Promise<PiwinConfig>;
+  /** ORCH: bind resolved scheme to a run (turn-scoped). */
+  setRunOrchestrationScheme: (
+    runId: string,
+    scheme: ResolvedOrchestrationScheme | undefined,
+  ) => void;
+  /** ORCH: read scheme for the active/parent run (soft-generic spawn). */
+  getRunOrchestrationScheme: (runId: string) => ResolvedOrchestrationScheme | undefined;
+  /** Builtin + settings profile ids for scheme resolve validation. */
+  listKnownSubagentProfileIds: () => Promise<string[]>;
   /** HostRuntime-owned creation seam for explicit integration fixtures. */
   createSession: (
     input: CreateSessionInput,
@@ -526,6 +543,34 @@ async function preparePromptInput(
     context.clearSessionPermissionOverride(command.sessionId);
   }
 
+  // ORCH: per-send orchestration scheme — inject model-facing preamble only.
+  // Transcript already recorded original command.input (user text only).
+  const schemeIdRaw = command.input.orchestrationSchemeId;
+  if (schemeIdRaw && schemeIdRaw.trim() && schemeIdRaw.trim() !== 'off') {
+    const config = await context.loadConfig();
+    const knownProfileIds = await context.listKnownSubagentProfileIds();
+    const subagents = config.subagents;
+    const resolved = resolveOrchestrationScheme(
+      {
+        schemes: subagents?.schemes,
+        maxConcurrency: subagents?.maxConcurrency,
+        maxTasksPerRun: subagents?.maxTasksPerRun,
+      },
+      schemeIdRaw,
+      {
+        knownProfileIds,
+        globalMaxConcurrency: subagents?.maxConcurrency,
+        globalMaxTasksPerRun: subagents?.maxTasksPerRun,
+      },
+    );
+    if (resolved) {
+      context.setRunOrchestrationScheme(run.runId, resolved);
+      promptInput.text = mergeOrchestrationSchemeIntoPrompt(resolved, promptInput.text);
+    }
+  } else {
+    context.setRunOrchestrationScheme(run.runId, undefined);
+  }
+
   const planPath = getPiwinSessionPlanPath(getPiwinRoot(context.piwinRoot), command.sessionId);
   const activePlan = await loadSessionPlan(planPath);
   throwIfPromptPreparationAborted(context, run.runId);
@@ -906,6 +951,34 @@ export async function handleSessionLiveCommand(
       } catch (error) {
         const message = formatError(error);
         return fail(requestId, 'session/prompt', message);
+      }
+      // ORCH: fail closed on unknown/invalid scheme before accepting the run.
+      const orchId = command.input.orchestrationSchemeId?.trim();
+      if (orchId && orchId !== 'off') {
+        try {
+          const config = await context.loadConfig();
+          const knownProfileIds = await context.listKnownSubagentProfileIds();
+          const subagents = config.subagents;
+          resolveOrchestrationScheme(
+            {
+              schemes: subagents?.schemes,
+              maxConcurrency: subagents?.maxConcurrency,
+              maxTasksPerRun: subagents?.maxTasksPerRun,
+            },
+            orchId,
+            {
+              knownProfileIds,
+              globalMaxConcurrency: subagents?.maxConcurrency,
+              globalMaxTasksPerRun: subagents?.maxTasksPerRun,
+            },
+          );
+        } catch (error) {
+          const message =
+            error instanceof OrchestrationSchemeError
+              ? error.message
+              : formatError(error);
+          return fail(requestId, 'session/prompt', message);
+        }
       }
       let run: ExecutionRunRecord;
       try {

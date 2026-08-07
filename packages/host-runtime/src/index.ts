@@ -176,6 +176,17 @@ export {
 } from './commands/walkthrough-commands.js';
 export type { WalkthroughCommandContext } from './commands/walkthrough-commands.js';
 
+// ORCH: orchestration scheme resolve helpers (contracts pure functions)
+export {
+  listOrchestrationSchemes,
+  resolveOrchestrationScheme,
+  mergeOrchestrationSchemeIntoPrompt,
+  applySchemeToSubagentSpawnInput,
+  BUILTIN_ULTRA_CODE_SCHEME,
+  ORCHESTRATION_SCHEME_OFF_ID,
+  ULTRA_CODE_SCHEME_ID,
+} from '@piwin/contracts';
+
 // CE-SUB-PROF: subagent profile resolution
 export {
   BUILTIN_SUBAGENT_PROFILES,

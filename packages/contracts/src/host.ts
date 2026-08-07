@@ -137,6 +137,11 @@ export type PromptInput = {
    * sandbox) regardless of the session's configured preset.
    */
   agentMode?: AgentModeId;
+  /**
+   * Per-send orchestration scheme id (ORCH). Omit or 'off' means no scheme
+   * injection. Unknown id fails the prompt — never silent Off.
+   */
+  orchestrationSchemeId?: string;
 };
 
 /** Structured failure for unavailable/over-limit turn profiles (HostResponse data). */
