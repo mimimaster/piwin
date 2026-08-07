@@ -903,7 +903,8 @@ function normalizeOrchestrationScheme(value: unknown): OrchestrationSchemeSettin
     return undefined;
   }
   if (id === 'off') return undefined;
-  const waitPolicy = record.waitPolicy === 'fire-and-continue' ? 'await-all' : 'await-all';
+  // MVP: only await-all is supported (synchronous spawn+merge). Accept any input.
+  const waitPolicy: 'await-all' = 'await-all';
   const scheme: OrchestrationSchemeSettings = {
     id,
     name,
