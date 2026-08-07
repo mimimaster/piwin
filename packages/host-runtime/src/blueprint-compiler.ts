@@ -52,6 +52,11 @@ import {
 } from '@piwin/agent-host';
 import { resolveArtifactDecisionPrompt } from '@piwin/contracts';
 import { getPiwinRoot } from './paths.js';
+import {
+  buildMcpCapabilityBrief,
+  formatMcpCapabilitySystemPrompt,
+  type McpCapabilityBrief,
+} from './mcp-capability-brief.js';
 import type { SessionBlueprint } from './session-blueprint.js';
 import { resolveContextManifest } from './capabilities/context-policy-resolver.js';
 import { resolveResourceActivations } from './capabilities/resource-policy-resolver.js';
@@ -112,6 +117,8 @@ export type CompileBlueprintOptions = {
   hostToolDescriptors?: HostToolDescriptor[];
   /** Override MCP config for deterministic compilation/tests. */
   mcpConfig?: McpConfigDocument;
+  /** Capability brief captured from the same frozen Host tool surface. */
+  mcpCapabilityBrief?: McpCapabilityBrief;
   /** Host-local family index derived from the concrete registrations. */
   hostToolFamilyIndex?: ReadonlyMap<SessionToolFamily, readonly string[]>;
   /** Revision of the exact permission rules frozen for this generation. */
@@ -269,17 +276,37 @@ export async function compileBlueprintForWorker(
   // The decision prompt is configurable; the runtime contract is fixed.
   // Only inject when artifacts are enabled — otherwise the heavy path is disabled.
   const artifactAppendPrompt = config.artifact.enabled
-    ? resolveArtifactDecisionPrompt(config.artifact) +
-      '\n\n' +
-      ARTIFACT_RUNTIME_CONTRACT
+    ? resolveArtifactDecisionPrompt(config.artifact) + '\n\n' + ARTIFACT_RUNTIME_CONTRACT
     : undefined;
+
+  // MCP guidance is part of the model-visible contract only when the compiled
+  // Host surface really contains the gateway executor. Prefer the brief from
+  // that exact frozen surface; the fallback deliberately has no cache data.
+  const hasMcpGateway = snapshot.tools.hostTools.some((tool) => tool.name === 'mcp_gateway');
+  const mcpAppendPrompt = hasMcpGateway
+    ? formatMcpCapabilitySystemPrompt(
+        options.mcpCapabilityBrief ??
+          buildMcpCapabilityBrief({
+            config: mcpConfig,
+            cachedToolsByServer: {},
+            directExposedNames: snapshot.tools.hostTools
+              .filter((tool) => tool.name.startsWith('mcp__'))
+              .map((tool) => tool.name),
+          }),
+      )
+    : undefined;
+  const appendSystemPromptParts = [artifactAppendPrompt, mcpAppendPrompt].filter(
+    (prompt): prompt is string => prompt !== undefined && prompt.trim().length > 0,
+  );
+  const appendSystemPrompt =
+    appendSystemPromptParts.length > 0 ? appendSystemPromptParts.join('\n\n') : undefined;
 
   const blueprint = projectBlueprintForWorker(snapshot, {
     ...(input.model
       ? { model: { providerId: input.model.providerId, modelId: input.model.modelId } }
       : {}),
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
-    ...(artifactAppendPrompt ? { appendSystemPrompt: artifactAppendPrompt } : {}),
+    ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
   });
 
   // Build provider envelope from live config.
@@ -296,7 +323,7 @@ export async function compileBlueprintForWorker(
     capabilitySnapshot: snapshot,
     ...(model ? { model: input.model } : {}),
     ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
-    ...(artifactAppendPrompt ? { appendSystemPrompt: artifactAppendPrompt } : {}),
+    ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
   };
 
   const sessionBlueprint: SessionBlueprint = {

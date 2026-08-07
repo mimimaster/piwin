@@ -4,7 +4,7 @@ import type {
   McpToolMetadata,
   ToolResult,
 } from '@piwin/contracts';
-import { formatError,  createDefaultMcpExposurePolicy } from '@piwin/contracts';
+import { formatError, createDefaultMcpExposurePolicy } from '@piwin/contracts';
 import {
   formatMcpCallResult,
   formatMcpExposedName,
@@ -52,6 +52,7 @@ export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpTools
   tools: HostToolRegistration[];
   directCount: number;
   cachedToolCount: number;
+  cachedToolsByServer: Record<string, readonly McpToolMetadata[]>;
   warnings: string[];
 }> {
   const catalog = options.metadataCatalog ?? options.lifecycleManager.getMetadataCatalog();
@@ -64,6 +65,7 @@ export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpTools
   const enabled = listEnabledServers(document);
   const warnings: string[] = [];
   const validTools: McpToolMetadata[] = [];
+  const cachedToolsByServer: Record<string, readonly McpToolMetadata[]> = {};
 
   for (const { id: serverId, config } of enabled) {
     const valid = await catalog.isServerCacheValid(serverId, config);
@@ -74,6 +76,7 @@ export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpTools
       continue;
     }
     const tools = await catalog.listCachedForServer(serverId);
+    cachedToolsByServer[serverId] = [...tools];
     validTools.push(...tools);
   }
 
@@ -103,6 +106,7 @@ export async function buildCachedMcpToolDefinitions(options: BuildCachedMcpTools
     tools: hostTools,
     directCount: hostTools.length,
     cachedToolCount: validTools.length,
+    cachedToolsByServer,
     warnings,
   };
 }

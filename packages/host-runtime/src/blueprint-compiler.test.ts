@@ -13,6 +13,7 @@ import {
 import type { HostToolDescriptor, HostToolRegistration, SessionToolFamily } from '@piwin/contracts';
 import { BLUEPRINT_PROTOCOL_VERSION } from '@piwin/agent-host';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
+import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 
 function createConfig(overrides?: Partial<PiwinConfig>): PiwinConfig {
   return {
@@ -83,6 +84,61 @@ function familyAssignments(
 }
 
 describe('compileBlueprintForWorker', () => {
+  it('appends supplied MCP guidance alongside the artifact prompt', async () => {
+    const gatewayDescriptor: HostToolDescriptor = {
+      name: 'mcp_gateway',
+      description: 'MCP gateway',
+      parameters: {},
+    };
+    const mcpCapabilityBrief: McpCapabilityBrief = {
+      enabledServerCount: 1,
+      cachedToolCount: 1,
+      uncachedServerIds: [],
+      omittedServerCount: 0,
+      servers: [
+        {
+          serverId: 'docs',
+          cached: true,
+          toolCount: 1,
+          sampleToolNames: ['search'],
+          sampleToolSelectors: ['docs.search'],
+        },
+      ],
+      pinnedSelectors: [],
+      directExposedNames: [],
+    };
+
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig({
+          artifact: {
+            enabled: true,
+            triggerMode: 'automatic',
+            decisionPrompt: { mode: 'custom', customPrompt: 'artifact append sentinel' },
+            maxBytes: 100_000,
+          },
+        }),
+        mcpConfig: { mcpServers: { docs: { command: 'node' } } },
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        hostToolDescriptors: [gatewayDescriptor],
+        hostToolFamilyIndex: createFamilyIndex(
+          [gatewayDescriptor],
+          familyAssignments([['mcp', ['mcp_gateway']]]),
+        ),
+        mcpCapabilityBrief,
+      },
+    );
+
+    const appendSystemPrompt = result.blueprint.appendSystemPrompt;
+    expect(appendSystemPrompt).toBeDefined();
+    expect(appendSystemPrompt).toContain('artifact append sentinel');
+    expect(appendSystemPrompt).toContain('## MCP tools (use them proactively)');
+    expect(appendSystemPrompt).toContain('`docs`: 1 cached tool(s)');
+    expect(appendSystemPrompt).toContain('mcp_gateway');
+    expect(result.backendBlueprint.appendSystemPrompt).toBe(appendSystemPrompt);
+  });
+
   it('compiles a real blueprint with protocol version and snapshotId', async () => {
     const result = await compileBlueprintForWorker(
       { scope: generalScope },
@@ -499,9 +555,7 @@ describe('compileBlueprintForWorker', () => {
         config: createConfig(),
         mcpConfig: { mcpServers: { disabled: { command: 'node', disabled: true } } },
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
-        hostToolDescriptors: [
-          { name: 'mcp_gateway', description: 'MCP gateway', parameters: {} },
-        ],
+        hostToolDescriptors: [{ name: 'mcp_gateway', description: 'MCP gateway', parameters: {} }],
         hostToolFamilyIndex: createFamilyIndex(
           [{ name: 'mcp_gateway', description: 'MCP gateway', parameters: {} }],
           familyAssignments([['mcp', ['mcp_gateway']]]),
