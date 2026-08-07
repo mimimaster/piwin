@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-palette="indigo">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>piwin 工具状态动画库 v3 · 纯色实心 · 符号/管道/宇宙/东方/复古</title>
+<style>
+/* ==========================================================================
+   配色铁律（与 v2 一致，全库遵守）
+   - 无渐变 / 无滤镜 / 无阴影 / 无发光 / 无半透明叠色
+   - 图形 fill: currentColor 纯色实心；挖空用 .cut（填背景色）
+   - 动画仅 transform / offset-path，GPU 友好
+   - 色板 = 深色 + 浅色双值自动适配；避开橙黄
+   ========================================================================== */
+:root {
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-snap: cubic-bezier(0.16, 1, 0.3, 1);
+  --spd: 1;
+}
+[data-theme="dark"] {
+  --bg-canvas: #090a0f; --bg-card: #12141c; --bg-card-hover: #1a1d29;
+  --bg-control: #1a1d29; --border-subtle: #232736;
+  --text-main: #f1f5f9; --text-muted: #94a3b8;
+  --c-idle: #8b93a7; --c-file: #38bdf8; --c-write: #a78bfa;
+  --c-cmd: #34d399; --c-search: #2dd4bf; --c-agent: #f472b6;
+  --c-gate: #fbbf24; --c-success: #4ade80; --c-error: #f87171;
+}
+[data-theme="light"] {
+  --bg-canvas: #f8fafc; --bg-card: #ffffff; --bg-card-hover: #f1f5f9;
+  --bg-control: #f1f5f9; --border-subtle: #e2e8f0;
+  --text-main: #0f172a; --text-muted: #475569;
+  --c-idle: #5b6274; --c-file: #0284c7; --c-write: #6d28d9;
+  --c-cmd: #047857; --c-search: #0f766e; --c-agent: #be185d;
+  --c-gate: #b45309; --c-success: #16a34a; --c-error: #dc2626;
+}
+[data-palette="indigo"][data-theme="dark"]  { --accent-color: #6366f1; }
+[data-palette="indigo"][data-theme="light"] { --accent-color: #4338ca; }
+[data-palette="cyan"][data-theme="dark"]    { --accent-color: #38bdf8; }
+[data-palette="cyan"][data-theme="light"]   { --accent-color: #0284c7; }
+[data-palette="emerald"][data-theme="dark"] { --accent-color: #34d399; }
+[data-palette="emerald"][data-theme="light"]{ --accent-color: #047857; }
+[data-palette="violet"][data-theme="dark"]  { --accent-color: #a78bfa; }
+[data-palette="violet"][data-theme="light"] { --accent-color: #6d28d9; }
+[data-palette="rose"][data-theme="dark"]    { --accent-color: #fb7185; }
+[data-palette="rose"][data-theme="light"]   { --accent-color: #be123c; }
+[data-palette="mono"][data-theme="dark"]    { --accent-color: #eceef4; }
+[data-palette="mono"][data-theme="light"]   { --accent-color: #171a23; }
+[data-palette="single"][data-theme="dark"]  { --accent-color: #6f66f2; }
+[data-palette="single"][data-theme="light"] { --accent-color: #6f66f2; }
+
+/* ---------- 布局 ---------- */
+* { box-sizing: border-box; margin: 0; padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased; }
+body { background: var(--bg-canvas); color: var(--text-main); padding: 28px 22px 64px;
+  transition: background-color .25s var(--ease-snap), color .25s var(--ease-snap); }
+.container { max-width: 1280px; margin: 0 auto; }
+header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap;
+  gap: 14px; padding-bottom: 18px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 20px; }
+h1 { font-size: 23px; font-weight: 700; letter-spacing: -0.02em; display: flex; align-items: center; gap: 10px; }
+.badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px;
+  background: var(--accent-color); color: var(--bg-canvas); text-transform: uppercase; letter-spacing: .05em; }
+.sub { color: var(--text-muted); font-size: 13px; margin-top: 6px; max-width: 880px; line-height: 1.6; }
+.controls { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px;
+  padding: 14px 18px; margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 18px 26px; align-items: center; }
+.ctl-group { display: flex; align-items: center; gap: 10px; }
+.ctl-label { font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+.btn-group { display: flex; background: var(--bg-control); padding: 3px; border-radius: 8px; border: 1px solid var(--border-subtle); }
+.btn { background: transparent; border: none; color: var(--text-muted); padding: 5px 13px; font-size: 12px;
+  font-weight: 600; border-radius: 6px; cursor: pointer; transition: all .15s ease; }
+.btn:hover { color: var(--text-main); }
+.btn.active { background: var(--accent-color); color: var(--bg-canvas); }
+.swatches { display: flex; gap: 8px; }
+.swatch { width: 22px; height: 22px; border-radius: 50%; border: none; cursor: pointer;
+  outline: 2px solid transparent; outline-offset: 2px; transition: outline-color .15s ease; }
+.swatch.active { outline-color: var(--text-muted); }
+.nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+.nav a { font-size: 12px; font-weight: 600; color: var(--text-muted); text-decoration: none;
+  padding: 5px 12px; border: 1px solid var(--border-subtle); border-radius: 999px; background: var(--bg-card); }
+.nav a:hover { color: var(--accent-color); border-color: var(--accent-color); }
+
+.state-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); gap: 10px; margin-bottom: 40px; }
+.st-chip { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 12px;
+  padding: 12px 8px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  transition: border-color .15s ease, transform .15s ease; }
+.st-chip:hover { border-color: var(--c); transform: translateY(-2px); }
+.st-chip svg { width: 44px; height: 44px; color: var(--c); }
+.st-name { font-size: 12px; font-weight: 700; }
+.st-tag { font-size: 9.5px; font-weight: 700; letter-spacing: .08em; color: var(--c); text-transform: uppercase; }
+
+.section { margin-bottom: 48px; }
+.section-title { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.section-desc { color: var(--text-muted); font-size: 12.5px; margin-top: 4px; margin-bottom: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: 14px; }
+.card { position: relative; background: var(--bg-card); border: 1px solid var(--border-subtle);
+  border-radius: 14px; overflow: hidden; cursor: pointer;
+  transition: border-color .15s ease, transform .15s ease; }
+.card:hover { border-color: var(--accent-color); transform: translateY(-3px); }
+.card-preview { height: 148px; display: flex; align-items: center; justify-content: center; }
+.card-preview svg { width: 88px; height: 88px; }
+.card-info { padding: 10px 14px 12px; border-top: 1px solid var(--border-subtle); }
+.card-name { font-size: 13px; font-weight: 700; }
+.card-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.copy-hint { position: absolute; top: 8px; right: 10px; font-size: 10px; color: var(--text-muted);
+  opacity: 0; transition: opacity .15s ease; pointer-events: none; }
+.card:hover .copy-hint { opacity: 1; }
+
+svg.icon { display: block; }
+svg.icon path, svg.icon rect, svg.icon circle, svg.icon polygon { fill: currentColor; }
+svg.icon .cut { fill: var(--bg-card); }
+svg.icon .cut-stroke { fill: none; stroke: var(--bg-card); stroke-width: 4;
+  stroke-linecap: round; stroke-linejoin: round; }
+
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 80px);
+  background: var(--accent-color); color: var(--bg-canvas); font-size: 12.5px; font-weight: 700;
+  padding: 10px 20px; border-radius: 999px; transition: transform .3s var(--ease-snap); z-index: 99;
+  pointer-events: none; max-width: 80vw; }
+.toast.show { transform: translate(-50%, 0); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+/* ==========================================================================
+   状态总览动画（9 态 · v3 全新图形）
+   ========================================================================== */
+.st-idle .ring { transform-box: fill-box; transform-origin: center;
+  animation: st-ring calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes st-ring { 0%,100% { transform: scale(.85); } 50% { transform: scale(1.08); } }
+.st-idle .dot { transform-box: fill-box; transform-origin: center;
+  animation: st-dot calc(3s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(-1.5s / var(--spd)); }
+@keyframes st-dot { 0%,100% { transform: scale(.6); } 50% { transform: scale(1.15); } }
+
+.st-read .pg { animation: st-pg calc(2.6s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.4s); }
+@keyframes st-pg { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+.st-write .line { transform-box: fill-box; transform-origin: left center;
+  animation: st-line calc(2s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.3s); }
+@keyframes st-line { 0%,100% { transform: scaleX(.25); } 50% { transform: scaleX(1); } }
+.st-write .blink { transform-box: fill-box; transform-origin: center;
+  animation: st-blink calc(.9s / var(--spd)) steps(2, jump-none) infinite; }
+@keyframes st-blink { 0%,100% { transform: scaleY(1); } 50% { transform: scaleY(.15); } }
+
+.st-bash .gt { transform-box: fill-box; transform-origin: center;
+  animation: st-gt calc(1.6s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes st-gt { 0%,100% { transform: scale(1,1); } 50% { transform: scale(.9,-1); } }
+.st-bash .bar { transform-box: fill-box; transform-origin: center;
+  animation: st-blink calc(1.1s / var(--spd)) steps(2, jump-none) infinite; }
+
+.st-search .lens { transform-origin: 20px 18.5px; animation: st-lens calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes st-lens { 0%,100% { transform: rotate(-12deg); } 50% { transform: rotate(12deg); } }
+
+.st-agent .an { transform-box: fill-box; transform-origin: center;
+  animation: st-tri calc(2.8s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.2s); }
+@keyframes st-tri { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(var(--gx), var(--gy)) scale(.8); } }
+
+.st-gate .body { transform-box: fill-box; transform-origin: center bottom;
+  animation: st-gbody calc(2.4s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes st-gbody { 0%,100% { transform: scale(1,.9); } 50% { transform: scale(1.03,1.05); } }
+
+.st-success .ring { transform-box: fill-box; transform-origin: center;
+  animation: st-ring calc(2.6s / var(--spd)) var(--ease-in-out) infinite; }
+.st-success .check { transform-box: fill-box; transform-origin: center;
+  animation: st-check calc(2.6s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes st-check { 0%,100% { transform: scale(.7); } 50% { transform: scale(1.05); } }
+
+.st-error .cross { transform-box: fill-box; transform-origin: center;
+  animation: st-shake calc(1.6s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes st-shake { 0%,100% { transform: translateX(0) rotate(0deg); } 20% { transform: translateX(-2px) rotate(-6deg); }
+  40% { transform: translateX(2px) rotate(6deg); } 60% { transform: translateX(-1.4px) rotate(-3deg); }
+  80% { transform: translateX(1.4px) rotate(3deg); } }
+
+/* ==========================================================================
+   CATEGORY 1 · 代码符号机甲（Code Glyphs）
+   ========================================================================== */
+/* 1-1 花体大括号 { } 合拢 */
+.anim-braces .b-l { animation: br-l calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes br-l { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
+.anim-braces .b-r { animation: br-r calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes br-r { 0%,100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+.anim-braces .b-dot { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(1.5s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes core-p { 0%,100% { transform: scale(.6); } 50% { transform: scale(1.3); } }
+
+/* 1-2 尖括号交错 < > */
+.anim-caret .lt { animation: ct-l calc(3.4s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes ct-l { 0%,100% { transform: translateX(-4px); } 50% { transform: translateX(4px); } }
+.anim-caret .gt { animation: ct-r calc(3.4s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes ct-r { 0%,100% { transform: translateX(4px); } 50% { transform: translateX(-4px); } }
+
+/* 1-3 分号雨 */
+.anim-semicolon .semi { animation: semi-fall calc(2.8s / var(--spd)) var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i) * -.45s); }
+@keyframes semi-fall { 0%,100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(10px) rotate(40deg); } }
+
+/* 1-4 星号雷达 */
+.anim-asterisk .spinner { transform-origin: 24px 24px;
+  animation: spin-lin calc(4s / var(--spd)) linear infinite; }
+@keyframes spin-lin { to { transform: rotate(360deg); } }
+.anim-asterisk .arm { transform-origin: 24px 24px;
+  animation: arm-p calc(1.6s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.2s); }
+@keyframes arm-p { 0%,100% { transform: scaleY(.35); } 50% { transform: scaleY(1.1); } }
+
+/* 1-5 圆括号呼吸 */
+.anim-parens .p-l { animation: pn-l calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes pn-l { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-4px); } }
+.anim-parens .p-r { animation: pn-r calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes pn-r { 0%,100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
+.anim-parens .ell { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(1.8s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.2s); }
+
+/* 1-6 正则星云 */
+.anim-regex .orbit-g { transform-origin: 24px 24px;
+  animation: spin-lin calc(7s / var(--spd)) linear infinite; }
+.anim-regex .star-s { transform-box: fill-box; transform-origin: center;
+  animation: spin-rev-lin calc(2.2s / var(--spd)) linear infinite; }
+@keyframes spin-rev-lin { to { transform: rotate(-360deg); } }
+.anim-regex .core { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(2.8s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* ==========================================================================
+   CATEGORY 2 · 流水线与管道（Pipeline）
+   ========================================================================== */
+/* 2-1 集装箱流水线 */
+.anim-conveyor .box { animation: cv-x calc(4s / var(--spd)) var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i) * -.5s); }
+@keyframes cv-x { 0%,100% { transform: translateX(0); } 50% { transform: translateX(14px); } }
+
+/* 2-2 管道输送球 */
+.anim-pipe .ball { animation: pipe-ball calc(3.2s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes pipe-ball { 0%,100% { transform: translateX(0); } 50% { transform: translateX(22px); } }
+
+/* 2-3 阀门开合 */
+.anim-valve .hand { transform-origin: 24px 24px; animation: spin-lin calc(3s / var(--spd)) linear infinite; }
+.anim-valve .body { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* 2-4 链式输送带 */
+.anim-chain .gear-b { transform-box: fill-box; transform-origin: center;
+  animation: spin-lin calc(3.6s / var(--spd)) linear infinite; }
+.anim-chain .gear-s { transform-box: fill-box; transform-origin: center;
+  animation: spin-rev-lin calc(3.6s / var(--spd)) linear infinite; }
+.anim-chain .link { animation: link-m calc(3.6s / var(--spd)) linear infinite;
+  animation-delay: calc(var(--i) * -.6s); }
+@keyframes link-m { 0%,100% { transform: translateX(0); } 50% { transform: translateX(26px); } }
+
+/* 2-5 漏斗筛分 */
+.anim-funnel .funnel { transform-box: fill-box; transform-origin: center;
+  animation: fn-sq calc(2.6s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes fn-sq { 0%,100% { transform: scale(1,.9); } 50% { transform: scale(1.02,1.05); } }
+.anim-funnel .drop { animation: fn-drop calc(2.6s / var(--spd)) var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i) * -.65s); }
+@keyframes fn-drop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(12px); } }
+.anim-funnel .bin { transform-box: fill-box; transform-origin: center bottom;
+  animation: fn-bin calc(2.6s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.65s); }
+@keyframes fn-bin { 0%,100% { transform: scaleY(.3); } 50% { transform: scaleY(1); } }
+
+/* ==========================================================================
+   CATEGORY 3 · 版本控制（VCS）
+   ========================================================================== */
+/* 3-1 分支生长 */
+.anim-branch .twig-a, .anim-branch .twig-b { transform-box: view-box;
+  animation: twig-g calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+.anim-branch .twig-a { transform-origin: 22px 19.5px; animation-delay: calc(-0.6s / var(--spd)); }
+.anim-branch .twig-b { transform-origin: 22px 33.5px; animation-delay: calc(-1.5s / var(--spd)); }
+@keyframes twig-g { 0%,100% { transform: scaleX(.3); } 50% { transform: scaleX(1); } }
+.anim-branch .trunk { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* 3-2 merge 双流合拢 */
+.anim-merge .m-l { animation: mg-l calc(3.2s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes mg-l { 0%,100% { transform: translateX(0); } 50% { transform: translateX(7px); } }
+.anim-merge .m-r { animation: mg-r calc(3.2s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes mg-r { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-7px); } }
+.anim-merge .hub { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(1.6s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* 3-3 commit 堆叠 */
+.anim-commit .com { animation: com-rise calc(3.4s / var(--spd)) var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i) * -.5s); }
+@keyframes com-rise { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.anim-commit .ptr { animation: ptr-w calc(1.7s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes ptr-w { 0%,100% { transform: rotate(-8deg); } 50% { transform: rotate(8deg); } }
+
+/* 3-4 rebase 菱形链 */
+.anim-rebase .dia { animation: rb-d calc(2.6s / var(--spd)) var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i) * -.3s); }
+@keyframes rb-d { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(5px,5px) scale(.82); } }
+
+/* 3-5 冲突爆裂 */
+.anim-conflict .boom { animation: boom-p calc(2.2s / var(--spd)) var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i) * -.1s); }
+@keyframes boom-p { 0%,100% { transform: translate(0,0) scale(1); }
+  45% { transform: translate(var(--bx), var(--by)) scale(.55); } }
+.anim-conflict .bang { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(2.2s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* ==========================================================================
+   CATEGORY 4 · 宇宙与轨道（Cosmos）
+   ========================================================================== */
+/* 4-1 行星环绕 */
+.anim-orbits .o-outer { transform-origin: 24px 24px;
+  animation: spin-lin calc(8s / var(--spd)) linear infinite; }
+.anim-orbits .o-inner { transform-origin: 24px 24px;
+  animation: spin-rev-lin calc(5s / var(--spd)) linear infinite; }
+.anim-orbits .planet-a { transform-box: fill-box; transform-origin: center;
+  animation: spin-rev-lin calc(2.4s / var(--spd)) linear infinite; }
+.anim-orbits .planet-b { transform-box: fill-box; transform-origin: center;
+  animation: spin-lin calc(1.8s / var(--spd)) linear infinite; }
+.anim-orbits .sun { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(3s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* 4-2 螺旋星系 */
+.anim-galaxy .arms { transform-origin: 24px 24px;
+  animation: spin-lin calc(14s / var(--spd)) linear infinite; }
+.anim-galaxy .cell { transform-box: fill-box; transform-origin: center;
+  animation: gx-cell calc(3.5s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.28s); }
+@keyframes gx-cell { 0%,100% { transform: scale(.6); } 50% { transform: scale(1.15); } }
+.anim-galaxy .nucleus { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(2.2s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* 4-3 环掩星食 */
+.anim-eclipse .moon { animation: ec-m calc(4.4s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes ec-m { 0%,100% { transform: translateX(-14px); } 50% { transform: translateX(14px); } }
+.anim-eclipse .halo { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(2.2s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* 4-4 双星互绕 */
+.anim-binary .b-a { transform-origin: 24px 24px; animation: spin-lin calc(4s / var(--spd)) linear infinite; }
+.anim-binary .b-b { transform-origin: 24px 24px; animation: spin-rev-lin calc(4s / var(--spd)) linear infinite; }
+.anim-binary .s-a { transform-box: fill-box; transform-origin: center;
+  animation: spin-lin calc(2s / var(--spd)) linear infinite; }
+.anim-binary .s-b { transform-box: fill-box; transform-origin: center;
+  animation: spin-rev-lin calc(2s / var(--spd)) linear infinite; }
+
+/* 4-5 土星环 */
+.anim-saturn .planet { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(2.8s / var(--spd)) var(--ease-in-out) infinite; }
+.anim-saturn .ring-g { transform-origin: 24px 24px;
+  animation: spin-lin calc(6s / var(--spd)) linear infinite; }
+.anim-saturn .moon { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(1.6s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* ==========================================================================
+   CATEGORY 5 · 建筑奇观（Amusement）
+   ========================================================================== */
+/* 5-1 摩天轮 */
+.anim-ferris .wheel { transform-origin: 24px 24px;
+  animation: spin-lin calc(9s / var(--spd)) linear infinite; }
+.anim-ferris .gondola { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(2.4s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.3s); }
+
+/* 5-2 过山车 */
+.anim-coaster .train { animation: coaster calc(4.6s / var(--spd)) cubic-bezier(.5,.05,.5,.95) infinite;
+  offset-path: path('M 4 40 C 12 4, 36 4, 44 40 C 40 22, 8 22, 4 40 Z'); offset-rotate: 0deg; }
+@keyframes coaster { 0%,100% { offset-distance: 0%; } 50% { offset-distance: 50%; } }
+
+/* 5-3 灯塔扫描 */
+.anim-lighthouse .beam { transform-origin: 24px 12px;
+  animation: spin-lin calc(3.6s / var(--spd)) linear infinite; }
+.anim-lighthouse .tower { transform-box: fill-box; transform-origin: center bottom;
+  animation: tl-t calc(3.6s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes tl-t { 0%,100% { transform: scale(1,.96); } 50% { transform: scale(1.02,1.03); } }
+
+/* 5-4 吊桥开合 */
+.anim-bridge .deck-l { transform-origin: 8px 24px;
+  animation: deck-l calc(4.4s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes deck-l { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(-62deg); } }
+.anim-bridge .deck-r { transform-origin: 40px 24px;
+  animation: deck-r calc(4.4s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes deck-r { 0%,100% { transform: rotate(0deg); } 50% { transform: rotate(62deg); } }
+
+/* 5-5 风车叶片 */
+.anim-windmill .rotor { transform-origin: 24px 24px;
+  animation: spin-lin calc(3.4s / var(--spd)) linear infinite; }
+.anim-windmill .hub { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(1.7s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* ==========================================================================
+   CATEGORY 6 · 东方纹样（Eastern Patterns）
+   ========================================================================== */
+/* 6-1 八卦轮转 */
+.anim-bagua .gua-ring { transform-origin: 24px 24px;
+  animation: spin-lin calc(12s / var(--spd)) linear infinite; }
+.anim-bagua .gua { transform-box: fill-box; transform-origin: center;
+  animation: gua-p calc(4s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.4s); }
+@keyframes gua-p { 0%,100% { transform: scale(.75); } 50% { transform: scale(1.08); } }
+.anim-bagua .center { transform-box: fill-box; transform-origin: center;
+  animation: spin-rev-lin calc(8s / var(--spd)) linear infinite; }
+
+/* 6-2 如意云纹 */
+.anim-cloud .cloud { transform-box: fill-box; transform-origin: center;
+  animation: cloud-p calc(3.6s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.5s); }
+@keyframes cloud-p { 0%,100% { transform: translateY(3px) scale(.9); } 50% { transform: translateY(-3px) scale(1.06); } }
+.anim-cloud .swirl { transform-origin: 24px 24px;
+  animation: spin-lin calc(12s / var(--spd)) linear infinite; }
+
+/* 6-3 灯笼升降 */
+.anim-lantern .lantern { animation: ln-rise calc(3.4s / var(--spd)) var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i) * -.9s); }
+@keyframes ln-rise { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+.anim-lantern .glow { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(1.7s / var(--spd)) var(--ease-in-out) infinite; }
+
+/* 6-4 铜钱方孔 */
+.anim-coin .coin { transform-box: fill-box; transform-origin: center;
+  animation: coin-p calc(3.2s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes coin-p { 0%,100% { transform: rotate(0deg) scale(1); } 50% { transform: rotate(180deg) scale(.9); } }
+.anim-coin .hole { transform-box: fill-box; transform-origin: center;
+  animation: spin-lin calc(3.2s / var(--spd)) linear infinite; }
+
+/* 6-5 龙鳞波 */
+.anim-dragon .scale { transform-box: fill-box; transform-origin: center bottom;
+  animation: scale-w calc(2.4s / var(--spd)) var(--ease-in-out) infinite;
+  animation-delay: calc((var(--r) * 3 + var(--c)) * -.12s); }
+@keyframes scale-w { 0%,100% { transform: scaleY(.5); } 50% { transform: scaleY(1.1); } }
+
+/* ==========================================================================
+   CATEGORY 7 · 复古游戏（Retro）
+   ========================================================================== */
+/* 7-1 俄罗斯方块 */
+.anim-tetris .fall { animation: tt-fall calc(3.2s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes tt-fall { 0%,100% { transform: translateY(0); } 50% { transform: translateY(16px); } }
+.anim-tetris .stack { transform-box: fill-box; transform-origin: center;
+  animation: tt-stack calc(3.2s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(-1.6s / var(--spd)); }
+@keyframes tt-stack { 0%,100% { transform: scale(1); } 50% { transform: scale(1,1.04); } }
+
+/* 7-2 吃豆人 */
+.anim-pacman .pac { animation: pac-w calc(4.2s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes pac-w { 0%,100% { transform: translateX(0); } 50% { transform: translateX(16px); } }
+.anim-pacman .mouth { transform-box: fill-box; transform-origin: center;
+  animation: pac-m calc(.5s / var(--spd)) steps(2, jump-none) infinite; }
+@keyframes pac-m { 0%,100% { transform: scaleX(1); } 50% { transform: scaleX(.25); } }
+.anim-pacman .dot { animation: pac-dot calc(4.2s / var(--spd)) var(--ease-in-out) infinite;
+  animation-delay: calc(var(--i) * -.8s); }
+@keyframes pac-dot { 0%,100% { transform: translateX(0); } 50% { transform: translateX(20px); } }
+
+/* 7-3 弹球 */
+.anim-pong .paddle { animation: pg-p calc(2.6s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes pg-p { 0%,100% { transform: translateX(-10px); } 50% { transform: translateX(10px); } }
+.anim-pong .ball { animation: pg-b calc(1.3s / var(--spd)) cubic-bezier(.5,0,.5,1) infinite; }
+@keyframes pg-b { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-18px); } }
+.anim-pong .brick { transform-box: fill-box; transform-origin: center;
+  animation: pg-brick calc(2.6s / var(--spd)) var(--ease-in-out) infinite; animation-delay: calc(var(--i) * -.2s); }
+@keyframes pg-brick { 0%,100% { transform: scale(1); } 50% { transform: scale(.7); } }
+
+/* 7-4 扫雷地雷 */
+.anim-mine .mine { transform-box: fill-box; transform-origin: center;
+  animation: core-p calc(2.6s / var(--spd)) var(--ease-in-out) infinite; }
+.anim-mine .flag { animation: mine-f calc(2.6s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes mine-f { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+/* 7-5 金币翻转 */
+.anim-gold .gold { transform-box: fill-box; transform-origin: center;
+  animation: gold-f calc(2.4s / var(--spd)) var(--ease-in-out) infinite; }
+@keyframes gold-f { 0%,100% { transform: scaleX(1) translateY(0); }
+  45% { transform: scaleX(.3) translateY(-2px); } 55% { transform: scaleX(.3) translateY(-2px); } }
+.anim-gold .g-hole { transform-box: fill-box; transform-origin: center;
+  animation: spin-lin calc(2.4s / var(--spd)) linear infinite; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div>
+      <h1>piwin 工具状态动画库 <span class="badge">v3 · 符号/管道/宇宙/东方/复古</span></h1>
+      <p class="sub">与 v2 完全不同的第二套方案：代码符号机甲、流水线管道、版本控制、宇宙轨道、建筑奇观、东方纹样、复古游戏。同样纯色实心、无渐变/发光/半透明、动画仅 transform（含 offset-path 过山车）。点击卡片复制 SVG。</p>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="ctl-group">
+      <span class="ctl-label">主题</span>
+      <div class="btn-group" id="theme-group">
+        <button class="btn active" data-theme-val="dark">🌙 深色</button>
+        <button class="btn" data-theme-val="light">☀️ 浅色</button>
+      </div>
+    </div>
+    <div class="ctl-group">
+      <span class="ctl-label">主色板</span>
+      <div class="swatches" id="palette-group">
+        <button class="swatch active" data-palette-val="indigo"  style="background:#6366f1" title="靛蓝 Indigo"></button>
+        <button class="swatch" data-palette-val="cyan"    style="background:#38bdf8" title="青 Cyan"></button>
+        <button class="swatch" data-palette-val="emerald" style="background:#34d399" title="翡翠 Emerald"></button>
+        <button class="swatch" data-palette-val="violet"  style="background:#a78bfa" title="紫罗兰 Violet"></button>
+        <button class="swatch" data-palette-val="rose"    style="background:#fb7185" title="蔷薇 Rose"></button>
+        <button class="swatch" data-palette-val="mono"    style="background:linear-gradient(135deg,#eceef4 50%,#171a23 50%)" title="黑白 Mono"></button>
+        <button class="swatch" data-palette-val="single"  style="background:#6f66f2" title="单色通吃"></button>
+      </div>
+    </div>
+    <div class="ctl-group">
+      <span class="ctl-label">速度</span>
+      <div class="btn-group" id="speed-group">
+        <button class="btn" data-spd-val="0.5">0.5×</button>
+        <button class="btn active" data-spd-val="1">1×</button>
+        <button class="btn" data-spd-val="1.5">1.5×</button>
+        <button class="btn" data-spd-val="2">2×</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <a href="#states">状态总览</a>
+    <a href="#cat1">① 代码符号</a>
+    <a href="#cat2">② 流水管道</a>
+    <a href="#cat3">③ 版本控制</a>
+    <a href="#cat4">④ 宇宙轨道</a>
+    <a href="#cat5">⑤ 建筑奇观</a>
+    <a href="#cat6">⑥ 东方纹样</a>
+    <a href="#cat7">⑦ 复古游戏</a>
+  </div>
+
+  <!-- ============ 状态总览（9 态） ============ -->
+  <div class="section" id="states">
+    <h2 class="section-title">工具调用全状态总览 · 9 States（v3 图形）</h2>
+    <p class="section-desc">成功绿 / 失败红 / 授权琥珀为语义色；主动画色请在色板挑选</p>
+    <div class="state-strip">
+
+      <div class="st-chip" style="--c:var(--c-idle)">
+        <svg class="icon st-idle" viewBox="0 0 48 48">
+          <path class="ring" fill-rule="evenodd" d="M24 11 a13 13 0 1 0 .01 0 Z M24 14 a10 10 0 1 1 -.01 0 Z"/>
+          <circle class="dot" cx="24" cy="24" r="3"/>
+        </svg>
+        <div class="st-name">待命</div><div class="st-tag">Idle</div>
+      </div>
+
+      <div class="st-chip" style="--c:var(--c-file)">
+        <svg class="icon st-read" viewBox="0 0 48 48">
+          <rect class="pg" style="--i:0" x="12" y="12" width="20" height="24" rx="3"/>
+          <rect class="pg" style="--i:1" x="17" y="12" width="20" height="24" rx="3"/>
+        </svg>
+        <div class="st-name">读取文件</div><div class="st-tag">Read</div>
+      </div>
+
+      <div class="st-chip" style="--c:var(--c-write)">
+        <svg class="icon st-write" viewBox="0 0 48 48">
+          <rect class="line" style="--i:0" x="10" y="14" width="28" height="3.4" rx="1.7"/>
+          <rect class="line" style="--i:1" x="10" y="21" width="28" height="3.4" rx="1.7"/>
+          <rect class="line" style="--i:2" x="10" y="28" width="28" height="3.4" rx="1.7"/>
+          <rect class="blink" x="39" y="27.5" width="4" height="4.5" rx="1"/>
+        </svg>
+        <div class="st-name">写入文件</div><div class="st-tag">Write</div>
+      </div>
+
+      <div class="st-chip" style="--c:var(--c-cmd)">
+        <svg class="icon st-bash" viewBox="0 0 48 48">
+          <polygon class="gt" points="12,14 24,24 12,34 12,28.5 18.5,24 12,19.5"/>
+          <rect class="bar" x="28" y="26.5" width="9" height="4" rx="2"/>
+        </svg>
+        <div class="st-name">命令执行</div><div class="st-tag">Bash</div>
+      </div>
+
+      <div class="st-chip" style="--c:var(--c-search)">
+        <svg class="icon st-search" viewBox="0 0 48 48">
+          <g class="lens">
+            <path fill-rule="evenodd" d="M20 7 a11.5 11.5 0 1 0 .01 0 Z M20 12.5 a6 6 0 1 1 -.01 0 Z"/>
+            <rect x="27.5" y="26.5" width="4.6" height="12" rx="2.3" transform="rotate(-45 29.8 26.5)"/>
+          </g>
+        </svg>
+        <div class="st-name">搜索检索</div><div class="st-tag">Search</div>
+      </div>
+
+      <div class="st-chip" style="--c:var(--c-agent)">
+        <svg class="icon st-agent" viewBox="0 0 48 48">
+          <rect class="an" style="--i:0;--gx:7px;--gy:5px"  x="16" y="13" width="10" height="10" rx="3"/>
+          <rect class="an" style="--i:1;--gx:-7px;--gy:5px" x="32" y="13" width="10" height="10" rx="3"/>
+          <rect class="an" style="--i:2;--gx:0;--gy:-9.5px" x="23" y="28" width="10" height="10" rx="3"/>
+        </svg>
+        <div class="st-name">子代理协作</div><div class="st-tag">Sub-Agent</div>
+      </div>
+
+      <div class="st-chip" style="--c:var(--c-gate)">
+        <svg class="icon st-gate" viewBox="0 0 48 48">
+          <path class="body" d="M24 6 L37 11 V21 C37 30 31.5 37 24 41 C16.5 37 11 30 11 21 V11 Z"/>
+          <circle class="cut" cx="24" cy="25" r="2.4"/>
+          <rect class="cut" x="22.5" y="25" width="3" height="7" rx="1.5"/>
+        </svg>
+        <div class="st-name">等待授权</div><div class="st-tag">Gate</div>
+      </div>
+
+      <div class="st-chip" style="--c:var(--c-success)">
+        <svg class="icon st-success" viewBox="0 0 48 48">
+          <path class="ring" fill-rule="evenodd" d="M24 7 a17 17 0 1 0 .01 0 Z M24 11.5 a12.5 12.5 0 1 1 -.01 0 Z"/>
+          <path class="check cut-stroke" d="M16 24 l5.5 5.5 11 -12"/>
+        </svg>
+        <div class="st-name">执行成功</div><div class="st-tag">Success</div>
+      </div>
+
+      <div class="st-chip" style="--c:var(--c-error)">
+        <svg class="icon st-error" viewBox="0 0 48 48">
+          <g class="cross">
+            <rect x="10.5" y="21.5" width="27" height="5" rx="2.5" transform="rotate(45 24 24)"/>
+            <rect x="10.5" y="21.5" width="27" height="5" rx="2.5" transform="rotate(-45 24 24)"/>
+          </g>
+        </svg>
+        <div class="st-name">执行失败</div><div class="st-tag">Failed</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ CATEGORY 1 · 代码符号机甲 ============ -->
+  <div class="section" id="cat1">
+    <h2 class="section-title">① 代码符号机甲（Code Glyphs）</h2>
+    <p class="section-desc">把编程符号做成复杂轮廓的实心机甲：大括号、尖括号、分号、星号、圆括号、正则星云</p>
+    <div class="grid">
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-braces" viewBox="0 0 48 48">
+            <g class="b-l">
+              <rect x="9" y="9" width="7" height="4"/>
+              <rect x="9" y="13" width="4" height="22"/>
+              <rect x="9" y="22" width="9" height="4"/>
+              <rect x="9" y="31" width="7" height="4"/>
+            </g>
+            <g class="b-r">
+              <rect x="32" y="9" width="7" height="4"/>
+              <rect x="35" y="13" width="4" height="22"/>
+              <rect x="30" y="22" width="9" height="4"/>
+              <rect x="32" y="31" width="7" height="4"/>
+            </g>
+            <circle class="b-dot" cx="24" cy="24" r="3"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">1-1 · 花体大括号</div>
+        <div class="card-meta">{ } 像素机甲 · 双侧合拢 + 中心脉动</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-caret" viewBox="0 0 48 48">
+            <path class="lt" d="M30 10 L26 10 L14 24 L26 38 L30 38 L18 24 Z"/>
+            <path class="gt" d="M18 10 L22 10 L34 24 L22 38 L18 38 L30 24 Z"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">1-2 · 尖括号交错</div>
+        <div class="card-meta">&lt; &gt; 对穿 · 实心折线箭头</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-semicolon" viewBox="0 0 48 48">
+            <g class="semi" style="--i:0"><rect x="10.8" y="10" width="2.4" height="12" rx="1.2"/><circle cx="12" cy="25" r="2.2"/></g>
+            <g class="semi" style="--i:1"><rect x="18.8" y="10" width="2.4" height="12" rx="1.2"/><circle cx="20" cy="25" r="2.2"/></g>
+            <g class="semi" style="--i:2"><rect x="26.8" y="10" width="2.4" height="12" rx="1.2"/><circle cx="28" cy="25" r="2.2"/></g>
+            <g class="semi" style="--i:3"><rect x="34.8" y="10" width="2.4" height="12" rx="1.2"/><circle cx="36" cy="25" r="2.2"/></g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">1-3 · 分号雨</div>
+        <div class="card-meta">; 四连 · 斜坠旋转式错落</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-asterisk" viewBox="0 0 48 48">
+            <g class="spinner">
+              <g transform="rotate(0 24 24)"><rect class="arm" style="--i:0" x="21.5" y="7" width="5" height="34" rx="2.5"/></g>
+              <g transform="rotate(45 24 24)"><rect class="arm" style="--i:1" x="21.5" y="7" width="5" height="34" rx="2.5"/></g>
+              <g transform="rotate(90 24 24)"><rect class="arm" style="--i:2" x="21.5" y="7" width="5" height="34" rx="2.5"/></g>
+              <g transform="rotate(135 24 24)"><rect class="arm" style="--i:3" x="21.5" y="7" width="5" height="34" rx="2.5"/></g>
+            </g>
+            <circle class="core" cx="24" cy="24" r="2.5"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">1-4 · 星号雷达</div>
+        <div class="card-meta">* 四臂伸缩 · 同步自旋扫描</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-parens" viewBox="0 0 48 48">
+            <path class="p-l" d="M18 7 C11.5 12 9 17.5 9 24 C9 30.5 11.5 36 18 41 L21 41 C15.5 36.5 13.5 30.5 13.5 24 C13.5 17.5 15.5 11.5 21 7 Z"/>
+            <path class="p-r" d="M30 7 C36.5 12 39 17.5 39 24 C39 30.5 36.5 36 30 41 L27 41 C32.5 36.5 34.5 30.5 34.5 24 C34.5 17.5 32.5 11.5 27 7 Z"/>
+            <circle class="ell" style="--i:0" cx="21" cy="24" r="1.8"/>
+            <circle class="ell" style="--i:1" cx="24" cy="24" r="1.8"/>
+            <circle class="ell" style="--i:2" cx="27" cy="24" r="1.8"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">1-5 · 圆括号呼吸</div>
+        <div class="card-meta">( ) 弯月 · 开合 + 三点省略脉冲</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-regex" viewBox="0 0 48 48">
+            <g class="orbit-g">
+              <g transform="rotate(0 24 24)"><g class="star-s"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/><g transform="rotate(45 24 10)"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/></g></g></g>
+              <g transform="rotate(72 24 24)"><g class="star-s"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/><g transform="rotate(45 24 10)"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/></g></g></g>
+              <g transform="rotate(144 24 24)"><g class="star-s"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/><g transform="rotate(45 24 10)"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/></g></g></g>
+              <g transform="rotate(216 24 24)"><g class="star-s"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/><g transform="rotate(45 24 10)"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/></g></g></g>
+              <g transform="rotate(288 24 24)"><g class="star-s"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/><g transform="rotate(45 24 10)"><rect x="22" y="5" width="4" height="10" rx="1"/><rect x="19" y="8" width="10" height="4" rx="1"/></g></g></g>
+            </g>
+            <circle class="core" cx="24" cy="24" r="4"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">1-6 · 正则星云</div>
+        <div class="card-meta">* 星群 · 公转 + 八芒自转</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ CATEGORY 2 · 流水线与管道 ============ -->
+  <div class="section" id="cat2">
+    <h2 class="section-title">② 流水线与管道（Pipeline）</h2>
+    <p class="section-desc">工具调用就是一条流水线：集装箱、管道球、阀门、链式输送、漏斗筛分</p>
+    <div class="grid">
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-conveyor" viewBox="0 0 48 48">
+            <g class="box" style="--i:0"><rect x="6" y="18" width="7.5" height="12" rx="1.5"/><rect class="cut" x="7.5" y="21" width="4.5" height="6" rx="1"/></g>
+            <g class="box" style="--i:1"><rect x="15" y="18" width="7.5" height="12" rx="1.5"/><rect class="cut" x="16.5" y="21" width="4.5" height="6" rx="1"/></g>
+            <g class="box" style="--i:2"><rect x="24" y="18" width="7.5" height="12" rx="1.5"/><rect class="cut" x="25.5" y="21" width="4.5" height="6" rx="1"/></g>
+            <g class="box" style="--i:3"><rect x="33" y="18" width="7.5" height="12" rx="1.5"/><rect class="cut" x="34.5" y="21" width="4.5" height="6" rx="1"/></g>
+            <rect x="4" y="31.5" width="40" height="3.5" rx="1.75"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">2-1 · 集装箱流水线</div>
+        <div class="card-meta">Cargo Line · 四箱错峰输送</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-pipe" viewBox="0 0 48 48">
+            <rect x="4" y="10" width="40" height="5" rx="2.5"/>
+            <rect x="4" y="33" width="40" height="5" rx="2.5"/>
+            <circle class="ball" cx="14" cy="24" r="5"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">2-2 · 管道输送球</div>
+        <div class="card-meta">Pipeline Ball · 上下管壁夹缝滚动</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-valve" viewBox="0 0 48 48">
+            <circle class="body" cx="24" cy="24" r="11"/>
+            <g class="hand">
+              <rect x="21" y="8" width="6" height="32" rx="3"/>
+              <rect x="8" y="21" width="32" height="6" rx="3"/>
+            </g>
+            <circle class="cut" cx="24" cy="24" r="3.5"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">2-3 · 阀门开合</div>
+        <div class="card-meta">Valve · 手轮旋转 + 阀体脉动</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-chain" viewBox="0 0 48 48">
+            <path class="gear-s" data-gear="8" data-rout="5.5" data-rin="4" data-cx="12" data-cy="24"/>
+            <path class="gear-b" data-gear="12" data-rout="7" data-rin="5.4" data-cx="36" data-cy="24"/>
+            <rect class="link" style="--i:0" x="17" y="22.4" width="4.5" height="3.2" rx="1.6"/>
+            <rect class="link" style="--i:1" x="17" y="22.4" width="4.5" height="3.2" rx="1.6"/>
+            <rect class="link" style="--i:2" x="17" y="22.4" width="4.5" height="3.2" rx="1.6"/>
+            <rect class="link" style="--i:3" x="17" y="22.4" width="4.5" height="3.2" rx="1.6"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">2-4 · 链式输送带</div>
+        <div class="card-meta">Chain Drive · 双链轮 + 履带节循环</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-funnel" viewBox="0 0 48 48">
+            <path class="funnel" d="M12 12 L36 12 L30 24 L18 24 Z"/>
+            <rect x="20.5" y="23" width="7" height="5" rx="1"/>
+            <circle class="drop" style="--i:0" cx="24" cy="26" r="2.4"/>
+            <circle class="drop" style="--i:1" cx="24" cy="26" r="2.4"/>
+            <circle class="drop" style="--i:2" cx="24" cy="26" r="2.4"/>
+            <rect class="bin" style="--i:0" x="13" y="36" width="5.5" height="8" rx="1.5"/>
+            <rect class="bin" style="--i:1" x="21.25" y="36" width="5.5" height="8" rx="1.5"/>
+            <rect class="bin" style="--i:2" x="29.5" y="36" width="5.5" height="8" rx="1.5"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">2-5 · 漏斗筛分</div>
+        <div class="card-meta">Funnel Sort · 三球错峰落桶</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ CATEGORY 3 · 版本控制 ============ -->
+  <div class="section" id="cat3">
+    <h2 class="section-title">③ 版本控制（Version Control）</h2>
+    <p class="section-desc">Git 原生隐喻：分支生长、merge 合流、commit 堆叠、rebase 菱形链、冲突爆裂</p>
+    <div class="grid">
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-branch" viewBox="0 0 48 48">
+            <rect class="trunk" x="22" y="6" width="4" height="36" rx="2"/>
+            <path class="twig-a" d="M22 16 L8 16 L10 23 L22 23 Z"/>
+            <path class="twig-b" d="M22 30 L36 30 L34 37 L22 37 Z"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">3-1 · 分支生长</div>
+        <div class="card-meta">Branch · 枝杈自主干向外生长</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-merge" viewBox="0 0 48 48">
+            <rect class="m-l" x="6" y="17" width="14" height="10" rx="2"/>
+            <rect class="m-r" x="28" y="17" width="14" height="10" rx="2"/>
+            <circle class="hub" cx="24" cy="22" r="3"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">3-2 · Merge 合流</div>
+        <div class="card-meta">Merge · 双流相向汇合于枢纽</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-commit" viewBox="0 0 48 48">
+            <rect class="com" style="--i:0" x="12" y="20" width="24" height="4.5" rx="2.25"/>
+            <rect class="com" style="--i:1" x="12" y="26.5" width="24" height="4.5" rx="2.25"/>
+            <rect class="com" style="--i:2" x="12" y="33" width="24" height="4.5" rx="2.25"/>
+            <g class="ptr">
+              <rect x="36" y="10" width="3" height="8" rx="1.5"/>
+              <polygon points="39,10 44,13 39,16"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">3-3 · Commit 堆叠</div>
+        <div class="card-meta">Commit Stack · 三连提交拔起 + HEAD 摆动</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-rebase" viewBox="0 0 48 48">
+            <g transform="translate(7 24)"><polygon class="dia" style="--i:0" points="0,0 3.5,2.5 0,5 -3.5,2.5"/></g>
+            <g transform="translate(14.5 24)"><polygon class="dia" style="--i:1" points="0,0 3.5,2.5 0,5 -3.5,2.5"/></g>
+            <g transform="translate(22 24)"><polygon class="dia" style="--i:2" points="0,0 3.5,2.5 0,5 -3.5,2.5"/></g>
+            <g transform="translate(29.5 24)"><polygon class="dia" style="--i:3" points="0,0 3.5,2.5 0,5 -3.5,2.5"/></g>
+            <g transform="translate(37 24)"><polygon class="dia" style="--i:4" points="0,0 3.5,2.5 0,5 -3.5,2.5"/></g>
+            <g transform="translate(44.5 24)"><polygon class="dia" style="--i:5" points="0,0 3.5,2.5 0,5 -3.5,2.5"/></g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">3-4 · Rebase 菱形链</div>
+        <div class="card-meta">Rebase Chain · 六菱逐级前移重排</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-conflict" viewBox="0 0 48 48">
+            <rect class="boom" style="--i:0;--bx:-9px;--by:-9px" x="12" y="12" width="3.5" height="3.5"/>
+            <rect class="boom" style="--i:1;--bx:9px;--by:-9px"  x="32.5" y="12" width="3.5" height="3.5"/>
+            <rect class="boom" style="--i:2;--bx:9px;--by:9px"   x="32.5" y="32.5" width="3.5" height="3.5"/>
+            <rect class="boom" style="--i:3;--bx:-9px;--by:9px"  x="12" y="32.5" width="3.5" height="3.5"/>
+            <rect class="bang" x="22" y="14" width="4" height="10" rx="2"/>
+            <circle class="bang" cx="24" cy="28" r="2.2"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">3-5 · 冲突爆裂</div>
+        <div class="card-meta">Conflict Boom · 碎块四散 + 警示脉冲</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ CATEGORY 4 · 宇宙与轨道 ============ -->
+  <div class="section" id="cat4">
+    <h2 class="section-title">④ 宇宙与轨道（Cosmos）</h2>
+    <p class="section-desc">行星环绕、螺旋星系、环掩星食、双星互绕、土星环——用纯色做宇宙</p>
+    <div class="grid">
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-orbits" viewBox="0 0 48 48">
+            <g class="o-outer">
+              <g transform="rotate(0 24 24)"><path class="planet-a" data-gear="8" data-rout="5" data-rin="3.4" data-cx="24" data-cy="10"/></g>
+              <g transform="rotate(180 24 24)"><path class="planet-a" data-gear="8" data-rout="5" data-rin="3.4" data-cx="24" data-cy="10"/></g>
+            </g>
+            <g class="o-inner">
+              <g transform="rotate(90 24 24)"><path class="planet-b" data-star="6" data-rout="4.6" data-rin="2.2" data-cx="24" data-cy="15"/></g>
+              <g transform="rotate(270 24 24)"><path class="planet-b" data-star="6" data-rout="4.6" data-rin="2.2" data-cx="24" data-cy="15"/></g>
+            </g>
+            <path class="sun" data-star="12" data-rout="8" data-rin="4.5" data-cx="24" data-cy="24"/>
+            <circle class="cut" cx="24" cy="24" r="2.8"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">4-1 · 行星环绕</div>
+        <div class="card-meta">Orbits · 齿轮星 / 六芒星双轨公转</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-galaxy" viewBox="0 0 48 48" data-galaxy></svg>
+        </div>
+        <div class="card-info"><div class="card-name">4-2 · 螺旋星系</div>
+        <div class="card-meta">Spiral Galaxy · 三旋臂菱链慢旋</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-eclipse" viewBox="0 0 48 48">
+            <path class="halo" fill-rule="evenodd" d="M24 8 a16 16 0 1 0 .01 0 Z M24 13 a11 11 0 1 1 -.01 0 Z"/>
+            <circle class="moon" cx="24" cy="24" r="7"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">4-3 · 环掩星食</div>
+        <div class="card-meta">Eclipse · 天体横穿光环</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-binary" viewBox="0 0 48 48">
+            <g class="b-a"><path class="s-a" data-star="4" data-rout="7" data-rin="3.5" data-cx="24" data-cy="13"/></g>
+            <g class="b-b"><path class="s-b" data-star="4" data-rout="7" data-rin="3.5" data-cx="24" data-cy="35"/></g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">4-4 · 双星互绕</div>
+        <div class="card-meta">Binary · 两颗四芒星对转互绕</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-saturn" viewBox="0 0 48 48">
+            <circle class="planet" cx="24" cy="24" r="6.5"/>
+            <g class="ring-g">
+              <g transform="translate(0 3)">
+                <path fill-rule="evenodd" d="M24 4 a17.5 6.5 0 1 0 35 0 a17.5 6.5 0 1 0 -35 0 Z M24 7 a13.5 4.8 0 1 1 27 0 a13.5 4.8 0 1 1 -27 0 Z"/>
+                <circle class="moon" cx="42" cy="24" r="2.4"/>
+              </g>
+            </g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">4-5 · 土星环</div>
+        <div class="card-meta">Saturn Ring · 椭圆环摆动 + 卫星绕行</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ CATEGORY 5 · 建筑奇观 ============ -->
+  <div class="section" id="cat5">
+    <h2 class="section-title">⑤ 建筑奇观（Amusement）</h2>
+    <p class="section-desc">摩天轮、过山车（offset-path 沿轨道跑）、灯塔、吊桥、风车</p>
+    <div class="grid">
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-ferris" viewBox="0 0 48 48">
+            <g class="wheel">
+              <path fill-rule="evenodd" d="M24 7 a17 17 0 1 0 .01 0 Z M24 9.5 a14.5 14.5 0 1 1 -.01 0 Z"/>
+              <g data-fan="8" data-path="M23.6 7 h0.8 v34 h-0.8 Z"></g>
+            </g>
+            <circle class="gondola" style="--i:0" cx="24" cy="8.25" r="2.3"/>
+            <circle class="gondola" style="--i:1" cx="31.9" cy="10.4" r="2.3"/>
+            <circle class="gondola" style="--i:2" cx="31.9" cy="37.6" r="2.3"/>
+            <circle class="gondola" style="--i:3" cx="24" cy="39.75" r="2.3"/>
+            <circle class="gondola" style="--i:4" cx="16.1" cy="37.6" r="2.3"/>
+            <circle class="gondola" style="--i:5" cx="16.1" cy="10.4" r="2.3"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">5-1 · 摩天轮</div>
+        <div class="card-meta">Ferris Wheel · 八辐环 + 六吊舱</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-coaster" viewBox="0 0 48 48">
+            <g class="train">
+              <rect x="-4" y="-4.5" width="8" height="4.5" rx="1.5"/>
+              <circle cx="-3" cy="0" r="1.6"/>
+              <circle cx="3" cy="0" r="1.6"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">5-2 · 过山车</div>
+        <div class="card-meta">Coaster · offset-path 8 字环行</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-lighthouse" viewBox="0 0 48 48">
+            <path class="tower" d="M17 12 L31 12 L35 42 L13 42 Z"/>
+            <rect x="21.5" y="6" width="5" height="7" rx="1.5"/>
+            <rect class="beam" x="22.5" y="11" width="21" height="3" rx="1.5"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">5-3 · 灯塔扫描</div>
+        <div class="card-meta">Lighthouse · 光束绕塔顶旋转</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-bridge" viewBox="0 0 48 48">
+            <rect x="5" y="10" width="3.5" height="30"/>
+            <rect x="39.5" y="10" width="3.5" height="30"/>
+            <rect class="deck-l" x="8.5" y="23.5" width="15.5" height="2.5"/>
+            <rect class="deck-r" x="24" y="23.5" width="15.5" height="2.5"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">5-4 · 吊桥开合</div>
+        <div class="card-meta">Drawbridge · 双桥面翻转放行</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-windmill" viewBox="0 0 48 48">
+            <g class="rotor">
+              <g transform="rotate(0 24 24)"><path d="M22.6 6 L25.4 6 L25.2 16 L24 20 L22.8 16 Z"/></g>
+              <g transform="rotate(90 24 24)"><path d="M22.6 6 L25.4 6 L25.2 16 L24 20 L22.8 16 Z"/></g>
+              <g transform="rotate(180 24 24)"><path d="M22.6 6 L25.4 6 L25.2 16 L24 20 L22.8 16 Z"/></g>
+              <g transform="rotate(270 24 24)"><path d="M22.6 6 L25.4 6 L25.2 16 L24 20 L22.8 16 Z"/></g>
+            </g>
+            <circle class="hub" cx="24" cy="24" r="3"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">5-5 · 风车叶片</div>
+        <div class="card-meta">Windmill · 四叶锥形桨匀速</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ CATEGORY 6 · 东方纹样 ============ -->
+  <div class="section" id="cat6">
+    <h2 class="section-title">⑥ 东方纹样（Eastern Patterns）</h2>
+    <p class="section-desc">八卦轮、祥云、灯笼、铜钱、龙鳞——纹样级复杂度</p>
+    <div class="grid">
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-bagua" viewBox="0 0 48 48">
+            <g class="gua-ring">
+              <g transform="rotate(0 24 24)"><g class="gua" style="--i:0"><rect x="15" y="6" width="8" height="2.2"/><rect x="15" y="10" width="8" height="2.2"/><rect x="15" y="14" width="8" height="2.2"/></g></g>
+              <g transform="rotate(45 24 24)"><g class="gua" style="--i:1"><rect x="15" y="6" width="8" height="2.2"/><rect x="15" y="10" width="8" height="2.2"/><rect x="15" y="14" width="8" height="2.2"/></g></g>
+              <g transform="rotate(90 24 24)"><g class="gua" style="--i:2"><rect x="15" y="6" width="8" height="2.2"/><rect x="15" y="10" width="8" height="2.2"/><rect x="15" y="14" width="8" height="2.2"/></g></g>
+              <g transform="rotate(135 24 24)"><g class="gua" style="--i:3"><rect x="15" y="6" width="8" height="2.2"/><rect x="15" y="10" width="8" height="2.2"/><rect x="15" y="14" width="8" height="2.2"/></g></g>
+              <g transform="rotate(180 24 24)"><g class="gua" style="--i:4"><rect x="15" y="6" width="8" height="2.2"/><rect x="15" y="10" width="8" height="2.2"/><rect x="15" y="14" width="8" height="2.2"/></g></g>
+              <g transform="rotate(225 24 24)"><g class="gua" style="--i:5"><rect x="15" y="6" width="8" height="2.2"/><rect x="15" y="10" width="8" height="2.2"/><rect x="15" y="14" width="8" height="2.2"/></g></g>
+              <g transform="rotate(270 24 24)"><g class="gua" style="--i:6"><rect x="15" y="6" width="8" height="2.2"/><rect x="15" y="10" width="8" height="2.2"/><rect x="15" y="14" width="8" height="2.2"/></g></g>
+              <g transform="rotate(315 24 24)"><g class="gua" style="--i:7"><rect x="15" y="6" width="8" height="2.2"/><rect x="15" y="10" width="8" height="2.2"/><rect x="15" y="14" width="8" height="2.2"/></g></g>
+            </g>
+            <g class="center">
+              <path fill-rule="evenodd" d="M24 17 a7 7 0 1 0 .01 0 Z M24 19.5 a4.5 4.5 0 1 1 -.01 0 Z"/>
+              <circle class="cut" cx="24" cy="22.5" r="1.4"/>
+              <circle class="cut" cx="24" cy="25.5" r="1.4"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">6-1 · 八卦轮转</div>
+        <div class="card-meta">Bagua · 八爻环转 + 阴阳双点</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-cloud" viewBox="0 0 48 48">
+            <g class="swirl">
+              <g transform="rotate(0 24 24)"><g class="cloud" style="--i:0"><circle cx="24" cy="10" r="5"/><circle cx="20" cy="8" r="3"/><circle cx="28" cy="8" r="3"/><rect x="21" y="9" width="6" height="6"/></g></g>
+              <g transform="rotate(120 24 24)"><g class="cloud" style="--i:1"><circle cx="24" cy="10" r="5"/><circle cx="20" cy="8" r="3"/><circle cx="28" cy="8" r="3"/><rect x="21" y="9" width="6" height="6"/></g></g>
+              <g transform="rotate(240 24 24)"><g class="cloud" style="--i:2"><circle cx="24" cy="10" r="5"/><circle cx="20" cy="8" r="3"/><circle cx="28" cy="8" r="3"/><rect x="21" y="9" width="6" height="6"/></g></g>
+            </g>
+            <circle class="cut" cx="24" cy="24" r="3.5"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">6-2 · 如意云纹</div>
+        <div class="card-meta">Auspicious Cloud · 三云环绕飘浮</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-lantern" viewBox="0 0 48 48">
+            <g class="lantern" style="--i:0">
+              <rect x="10" y="6" width="3" height="14" rx="1.5"/>
+              <ellipse class="glow" cx="11.5" cy="21" rx="5" ry="6.5"/>
+              <rect x="9" y="15" width="5" height="2.5"/>
+              <rect x="9" y="24.5" width="5" height="2.5"/>
+            </g>
+            <g class="lantern" style="--i:1">
+              <rect x="35" y="6" width="3" height="14" rx="1.5"/>
+              <ellipse class="glow" cx="36.5" cy="21" rx="5" ry="6.5"/>
+              <rect x="34" y="15" width="5" height="2.5"/>
+              <rect x="34" y="24.5" width="5" height="2.5"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">6-3 · 灯笼升降</div>
+        <div class="card-meta">Lanterns · 双灯错峰提降</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-coin" viewBox="0 0 48 48">
+            <path class="coin" fill-rule="evenodd" d="M24 9 a15 15 0 1 0 .01 0 Z M24 12.5 a11.5 11.5 0 1 1 -.01 0 Z"/>
+            <polygon class="hole" points="24,19 29,24 24,29 19,24"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">6-4 · 铜钱方孔</div>
+        <div class="card-meta">Cash Coin · 方孔旋转 180° 翻面</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-dragon" viewBox="0 0 48 48" data-scales></svg>
+        </div>
+        <div class="card-info"><div class="card-name">6-5 · 龙鳞波</div>
+        <div class="card-meta">Dragon Scales · 三排鳞片斜向行波</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ CATEGORY 7 · 复古游戏 ============ -->
+  <div class="section" id="cat7">
+    <h2 class="section-title">⑦ 复古游戏（Retro）</h2>
+    <p class="section-desc">俄罗斯方块、吃豆人、弹球、扫雷、金币——像素年代的记忆</p>
+    <div class="grid">
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-tetris" viewBox="0 0 48 48">
+            <g class="stack">
+              <rect x="8" y="34" width="6" height="6"/>
+              <rect x="14" y="34" width="6" height="6"/>
+              <rect x="20" y="34" width="6" height="6"/>
+              <rect x="8" y="28" width="6" height="6"/>
+              <rect x="14" y="28" width="6" height="6"/>
+            </g>
+            <g class="fall">
+              <rect x="20" y="12" width="6" height="6"/>
+              <rect x="26" y="12" width="6" height="6"/>
+              <rect x="32" y="12" width="6" height="6"/>
+              <rect x="32" y="18" width="6" height="6"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">7-1 · 俄罗斯方块</div>
+        <div class="card-meta">Tetris · L 形下落入堆</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-pacman" viewBox="0 0 48 48">
+            <g class="pac">
+              <circle cx="24" cy="24" r="14"/>
+              <polygon class="mouth cut" points="24,24 37,13.5 37,34.5"/>
+            </g>
+            <circle class="dot" style="--i:0" cx="8" cy="24" r="2"/>
+            <circle class="dot" style="--i:1" cx="15" cy="24" r="2"/>
+            <circle class="dot" style="--i:2" cx="22" cy="24" r="2"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">7-2 · 吃豆人</div>
+        <div class="card-meta">Pac-Man · 张嘴追逐三豆</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-pong" viewBox="0 0 48 48">
+            <rect class="brick" style="--i:0" x="1" y="8" width="7.6" height="3.5" rx="1.75"/>
+            <rect class="brick" style="--i:1" x="10.6" y="8" width="7.6" height="3.5" rx="1.75"/>
+            <rect class="brick" style="--i:2" x="20.2" y="8" width="7.6" height="3.5" rx="1.75"/>
+            <rect class="brick" style="--i:3" x="29.8" y="8" width="7.6" height="3.5" rx="1.75"/>
+            <rect class="brick" style="--i:4" x="39.4" y="8" width="7.6" height="3.5" rx="1.75"/>
+            <circle class="ball" cx="24" cy="30" r="3"/>
+            <rect class="paddle" x="14" y="36" width="20" height="4" rx="2"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">7-3 · 弹球</div>
+        <div class="card-meta">Pong · 挡板接球撞砖</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-mine" viewBox="0 0 48 48">
+            <g class="mine">
+              <path data-star="8" data-rout="9.5" data-rin="5.5" data-cx="16" data-cy="24"/>
+              <circle cx="16" cy="24" r="5.5"/>
+            </g>
+            <g class="flag">
+              <rect x="32" y="10" width="2" height="12"/>
+              <polygon points="34,10 41,12.5 34,15"/>
+              <rect x="31" y="22" width="4" height="2.5"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">7-4 · 扫雷地雷</div>
+        <div class="card-meta">Mine Flag · 八芒雷体 + 立旗</div></div>
+      </div>
+
+      <div class="card"><span class="copy-hint">点击复制 SVG</span>
+        <div class="card-preview">
+          <svg class="icon anim-gold" viewBox="0 0 48 48">
+            <path class="gold" fill-rule="evenodd" d="M24 11 a13 13 0 1 0 .01 0 Z M24 14.5 a9.5 9.5 0 1 1 -.01 0 Z"/>
+            <polygon class="g-hole" points="24,17 28,24 24,31 20,24"/>
+          </svg>
+        </div>
+        <div class="card-info"><div class="card-name">7-5 · 金币翻转</div>
+        <div class="card-meta">Gold Flip · 压扁翻转 + 菱形方孔</div></div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+<div class="toast" id="toast">已复制</div>
+
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const root = document.documentElement;
+function el(name, attrs) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+/* ---- 静态扇叶（摩天轮辐条等）---- */
+document.querySelectorAll('[data-fan]').forEach(g => {
+  const n = +g.dataset.fan, off = +(g.dataset.offset || 0), d = g.dataset.path;
+  for (let i = 0; i < n; i++) {
+    const w = el('g', { transform: `rotate(${(off + i * 360 / n).toFixed(2)} 24 24)` });
+    w.appendChild(el('path', { d }));
+    g.appendChild(w);
+  }
+  g.removeAttribute('data-path');
+});
+
+/* ---- 齿轮 ---- */
+function gearD(teeth, rOut, rIn, cx, cy) {
+  const pts = [], step = Math.PI * 2 / teeth;
+  for (let t = 0; t < teeth; t++) {
+    const a = t * step;
+    [[0, rIn], [0.18, rOut], [0.5, rOut], [0.68, rIn]].forEach(([f, r]) => {
+      const an = a + f * step;
+      pts.push((cx + r * Math.cos(an)).toFixed(2) + ',' + (cy + r * Math.sin(an)).toFixed(2));
+    });
+  }
+  return 'M' + pts.join(' L') + ' Z';
+}
+document.querySelectorAll('[data-gear]').forEach(p => {
+  p.setAttribute('d', gearD(+p.dataset.gear, +p.dataset.rout, +p.dataset.rin, +p.dataset.cx, +p.dataset.cy));
+});
+
+/* ---- 芒星 ---- */
+function starD(points, rOut, rIn, cx, cy, rot) {
+  const pts = [], step = Math.PI / points, base = (rot - 90) * Math.PI / 180;
+  for (let i = 0; i < points * 2; i++) {
+    const r = i % 2 === 0 ? rOut : rIn, a = base + i * step;
+    pts.push((cx + r * Math.cos(a)).toFixed(2) + ',' + (cy + r * Math.sin(a)).toFixed(2));
+  }
+  return 'M' + pts.join(' L') + ' Z';
+}
+document.querySelectorAll('[data-star]').forEach(p => {
+  p.setAttribute('d', starD(+p.dataset.star, +p.dataset.rout, +p.dataset.rin, +p.dataset.cx, +p.dataset.cy, +(p.dataset.rot || 0)));
+});
+
+/* ---- 螺旋星系（4-2）：三旋臂 × 5 菱 ---- */
+document.querySelectorAll('[data-galaxy]').forEach(svg => {
+  let idx = 0;
+  for (let arm = 0; arm < 3; arm++) {
+    for (let j = 0; j < 5; j++) {
+      const rad = 5.5 + j * 3.4;
+      const ang = arm * (Math.PI * 2 / 3) + j * 0.55;
+      const cx = 24 + rad * Math.cos(ang), cy = 24 + rad * Math.sin(ang);
+      const p = el('polygon', { class: 'cell',
+        points: (cx.toFixed(1)) + ',' + (cy - 2.6).toFixed(1) + ' ' + (cx + 2.6).toFixed(1) + ',' + cy.toFixed(1) + ' ' +
+                (cx.toFixed(1)) + ',' + (cy + 2.6).toFixed(1) + ' ' + (cx - 2.6).toFixed(1) + ',' + cy.toFixed(1) });
+      p.style.setProperty('--i', idx++);
+      svg.appendChild(p);
+    }
+  }
+  svg.appendChild(el('circle', { class: 'nucleus', cx: 24, cy: 24, r: 5.5 }));
+});
+
+/* ---- 龙鳞（6-5）：3 排 × 5 片半圆鳞 ---- */
+document.querySelectorAll('[data-scales]').forEach(svg => {
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) {
+    const x = 6 + c * 8.4 + (r % 2 === 0 ? 0 : 4.2), y = 10 + r * 10;
+    const p = el('path', { class: 'scale', d: `M${x} ${y} A4.2 4.2 0 0 0 ${x + 8.4} ${y} Z` });
+    p.style.setProperty('--r', r); p.style.setProperty('--c', c);
+    svg.appendChild(p);
+  }
+});
+
+/* ---- 控件：主题 / 色板 / 速度 ---- */
+const saved = JSON.parse(localStorage.getItem('piwin-anim-v3') || '{}');
+if (saved.theme) root.dataset.theme = saved.theme;
+if (saved.palette) root.dataset.palette = saved.palette;
+if (saved.spd) root.style.setProperty('--spd', saved.spd);
+
+function persist() {
+  localStorage.setItem('piwin-anim-v3', JSON.stringify({
+    theme: root.dataset.theme, palette: root.dataset.palette,
+    spd: root.style.getPropertyValue('--spd') || '1'
+  }));
+}
+function markActive(groupId, attr, val) {
+  document.querySelectorAll('#' + groupId + ' [data-' + attr + ']').forEach(b =>
+    b.classList.toggle('active', b.dataset[attr] === val));
+}
+markActive('theme-group', 'themeVal', root.dataset.theme);
+markActive('palette-group', 'paletteVal', root.dataset.palette);
+markActive('speed-group', 'spdVal', root.style.getPropertyValue('--spd') || '1');
+
+document.getElementById('theme-group').addEventListener('click', e => {
+  const v = e.target.dataset.themeVal; if (!v) return;
+  root.dataset.theme = v; markActive('theme-group', 'themeVal', v); persist();
+});
+document.getElementById('palette-group').addEventListener('click', e => {
+  const v = e.target.dataset.paletteVal; if (!v) return;
+  root.dataset.palette = v; markActive('palette-group', 'paletteVal', v); persist();
+});
+document.getElementById('speed-group').addEventListener('click', e => {
+  const v = e.target.dataset.spdVal; if (!v) return;
+  root.style.setProperty('--spd', v); markActive('speed-group', 'spdVal', v); persist();
+});
+
+/* ---- 点击卡片复制 SVG ---- */
+const toast = document.getElementById('toast');
+let toastTimer;
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+}
+document.querySelectorAll('.card').forEach(card => {
+  card.addEventListener('click', () => {
+    const svg = card.querySelector('svg');
+    const animClass = [...svg.classList].find(c => c.startsWith('anim-')) || '';
+    const code = svg.outerHTML;
+    const done = () => showToast('已复制 SVG · 动画类 ' + animClass + '（关键帧见 <style> 同名段）');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).then(done).catch(() => showToast('复制失败，请查看页面源码'));
+    } else {
+      showToast('当前环境不支持剪贴板，请查看页面源码');
+    }
+  });
+});
+</script>
+</body>
+</html>

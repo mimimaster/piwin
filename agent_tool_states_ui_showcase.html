@@ -1,0 +1,1839 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark" data-color-palette="indigo">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>piwin Coding Agent 工具调用全状态 UI 纯色动画库</title>
+  <style>
+    /* ==========================================================================
+       1. COLOR SYSTEM & THEME CONFIGURATION (纯色无发光、无渐变、黑白高适应)
+       ========================================================================== */
+    :root {
+      /* 基础缓动与变量 */
+      --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+      --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+      --anim-speed-multiplier: 1;
+
+      /* UI Controls Default Size */
+      --icon-size: 36px;
+    }
+
+    /* ── 深色主题 (Dark Mode) ── */
+    [data-theme="dark"] {
+      --bg-canvas: #090a0f;
+      --bg-card: #12141c;
+      --bg-card-hover: #1a1d29;
+      --bg-control: #1a1d29;
+      --border-subtle: #232736;
+      --border-strong: #363c52;
+
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-subtle: #64748b;
+
+      /* 状态颜色 (纯色、实心、适应深色) */
+      --state-idle-color: #6366f1;      /* Indigo */
+      --state-file-color: #38bdf8;      /* Cyan */
+      --state-cmd-color: #a855f7;       /* Purple */
+      --state-search-color: #14b8a6;    /* Teal */
+      --state-agent-color: #ec4899;     /* Pink */
+      --state-gate-color: #f59e0b;      /* Amber Solid */
+      --state-success-color: #10b981;   /* Emerald */
+      --state-error-color: #ef4444;     /* Red */
+
+      /* 默认单色 Accent (Indigo) */
+      --accent-color: #6366f1;
+    }
+
+    /* ── 浅色主题 (Light Mode) ── */
+    [data-theme="light"] {
+      --bg-canvas: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f1f5f9;
+      --bg-control: #f1f5f9;
+      --border-subtle: #e2e8f0;
+      --border-strong: #cbd5e1;
+
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-subtle: #94a3b8;
+
+      /* 状态颜色 (纯色、实心、适应浅色，对比度清晰不高曝) */
+      --state-idle-color: #4338ca;      /* Deep Indigo */
+      --state-file-color: #0284c7;      /* Deep Cyan */
+      --state-cmd-color: #7e22ce;       /* Deep Purple */
+      --state-search-color: #0f766e;    /* Deep Teal */
+      --state-agent-color: #be185d;     /* Deep Pink */
+      --state-gate-color: #d97706;      /* Deep Amber Solid */
+      --state-success-color: #047857;   /* Deep Emerald */
+      --state-error-color: #dc2626;     /* Deep Red */
+
+      /* 默认单色 Accent (Indigo) */
+      --accent-color: #4338ca;
+    }
+
+    /* ── 配色调色盘预设 Overrides ── */
+    [data-color-palette="indigo"][data-theme="dark"] { --accent-color: #6366f1; }
+    [data-color-palette="indigo"][data-theme="light"] { --accent-color: #4338ca; }
+
+    [data-color-palette="cyan"][data-theme="dark"] { --accent-color: #38bdf8; }
+    [data-color-palette="cyan"][data-theme="light"] { --accent-color: #0284c7; }
+
+    [data-color-palette="emerald"][data-theme="dark"] { --accent-color: #34d399; }
+    [data-color-palette="emerald"][data-theme="light"] { --accent-color: #047857; }
+
+    [data-color-palette="violet"][data-theme="dark"] { --accent-color: #a78bfa; }
+    [data-color-palette="violet"][data-theme="light"] { --accent-color: #6d28d9; }
+
+    [data-color-palette="monochrome"][data-theme="dark"] { --accent-color: #f8fafc; }
+    [data-color-palette="monochrome"][data-theme="light"] { --accent-color: #0f172a; }
+
+    /* ==========================================================================
+       2. LAYOUT & SYSTEM STYLES
+       ========================================================================== */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      padding: 32px 24px;
+      transition: background-color 0.25s var(--ease-smooth), color 0.25s var(--ease-smooth);
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .title-group h1 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .title-badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background-color: var(--accent-color);
+      color: var(--bg-canvas);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .title-group p {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-top: 6px;
+      max-width: 800px;
+      line-height: 1.5;
+    }
+
+    /* 顶部全局控制面板 */
+    .controls-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .control-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .btn-group {
+      display: flex;
+      background: var(--bg-control);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+    }
+
+    .btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn:hover {
+      color: var(--text-main);
+    }
+
+    .btn.active {
+      background-color: var(--bg-card);
+      color: var(--text-main);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .color-swatch-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .color-swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    .color-swatch:hover {
+      transform: scale(1.15);
+    }
+
+    .color-swatch.active {
+      border-color: var(--text-main);
+      transform: scale(1.15);
+    }
+
+    /* 分类 Section 布局 */
+    .section {
+      margin-bottom: 40px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-main);
+    }
+
+    .section-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .grid-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 180px;
+      transition: transform 0.2s var(--ease-smooth), border-color 0.2s ease, background 0.2s ease;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-strong);
+      background: var(--bg-card-hover);
+    }
+
+    .card-preview-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 90px;
+    }
+
+    .card-info {
+      width: 100%;
+      text-align: center;
+      margin-top: 12px;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 10px;
+    }
+
+    .card-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .card-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .card-copy-tag {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--bg-control);
+      color: var(--text-subtle);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .card:hover .card-copy-tag {
+      opacity: 1;
+    }
+
+    /* 工具调用全状态 Suite 专属卡片布局 */
+    .suite-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .suite-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      transition: all 0.2s var(--ease-smooth);
+    }
+
+    .suite-card:hover {
+      border-color: var(--border-strong);
+      background: var(--bg-card-hover);
+    }
+
+    .suite-icon-box {
+      width: 52px;
+      height: 52px;
+      border-radius: 10px;
+      background: var(--bg-control);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .suite-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .suite-state-title {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .suite-state-tag {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .suite-state-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* 代码查看 Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: 14px;
+      width: 90%;
+      max-width: 680px;
+      max-height: 85vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .code-block {
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      color: var(--text-main);
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.5;
+    }
+
+
+    /* ==========================================================================
+       3. SOLID ANIMATION ENGINE (纯色、实心、矢量轮廓、无发光、无渐变)
+       ========================================================================== */
+
+    /* 基础 SVG 通用变量 */
+    .icon-anim-base {
+      width: var(--icon-size);
+      height: var(--icon-size);
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .icon-anim-base path,
+    .icon-anim-base rect,
+    .icon-anim-base circle,
+    .icon-anim-base polygon {
+      fill: var(--accent-color);
+      transition: fill 0.25s var(--ease-smooth);
+    }
+
+    /* --------------------------------------------------------------------------
+       CATEGORY 1: 辐射风箱与机械光圈类 (Radial Bellows & Mechanical Aperture)
+       -------------------------------------------------------------------------- */
+
+    /* 01-A. 12-Blade Radiant Bellows (12叶辐射风箱) */
+    .anim-bellow-12 .vane {
+      transform-origin: 24px 24px;
+      animation: bellow12-pulse calc(3.6s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.3s);
+    }
+    @keyframes bellow12-pulse {
+      0%, 100% {
+        transform: rotate(calc(var(--i) * 30deg)) translateY(0px) scale(0.35, 0.4);
+      }
+      50% {
+        transform: rotate(calc(var(--i) * 30deg)) translateY(-4px) scale(1.4, 1.6);
+      }
+    }
+
+    /* 02-A. Interlocking Turbine Aperture (涡轮交错光圈) */
+    .anim-turbine-iris .blade {
+      transform-origin: 24px 24px;
+      animation: turbine-iris calc(4s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.45s);
+    }
+    @keyframes turbine-iris {
+      0%, 100% {
+        transform: rotate(calc(var(--i) * 45deg)) scale(0.4) rotate(0deg);
+      }
+      50% {
+        transform: rotate(calc(var(--i) * 45deg + 22.5deg)) scale(1.3) rotate(45deg);
+      }
+    }
+
+    /* 03-A. Hexagonal Shutter Iris (六边形快门风箱) */
+    .anim-hex-shutter .shutter-blade {
+      transform-origin: 24px 24px;
+      animation: hex-shutter calc(3.2s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.4s);
+    }
+    @keyframes hex-shutter {
+      0%, 100% {
+        transform: rotate(calc(var(--i) * 60deg)) translate(0px, 0px) scale(0.4);
+      }
+      50% {
+        transform: rotate(calc(var(--i) * 60deg)) translate(3px, -3px) scale(1.25);
+      }
+    }
+
+    /* 04-A. Starburst Gear Iris (星爆齿轮风箱) */
+    .anim-starburst-gear .star-lobe {
+      transform-origin: 24px 24px;
+      animation: starburst-gear calc(4.2s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.35s);
+    }
+    @keyframes starburst-gear {
+      0%, 100% {
+        transform: rotate(calc(var(--i) * 36deg)) translateY(0px) scale(0.3, 0.5);
+      }
+      50% {
+        transform: rotate(calc(var(--i) * 36deg + 18deg)) translateY(-3px) scale(1.3, 1.5);
+      }
+    }
+
+    /* 05-A. Concentric Shield Diaphragm (同心风箱重帘) */
+    .anim-concentric-shield .shield-ring-1 {
+      transform-origin: 24px 24px;
+      animation: shield-r1 calc(3s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    .anim-concentric-shield .shield-ring-2 {
+      transform-origin: 24px 24px;
+      animation: shield-r2 calc(3s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    .anim-concentric-shield .shield-ring-3 {
+      transform-origin: 24px 24px;
+      animation: shield-r3 calc(3s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    @keyframes shield-r1 {
+      0%, 100% { transform: rotate(0deg) scale(0.5); }
+      50% { transform: rotate(60deg) scale(1.15); }
+    }
+    @keyframes shield-r2 {
+      0%, 100% { transform: rotate(0deg) scale(1.1); }
+      50% { transform: rotate(-60deg) scale(0.6); }
+    }
+    @keyframes shield-r3 {
+      0%, 100% { transform: rotate(0deg) scale(0.6); }
+      50% { transform: rotate(90deg) scale(1.2); }
+    }
+
+    /* 06-A. Octagonal Origami Bellows (八角折叠风箱) */
+    .anim-origami-bellows .petal {
+      transform-origin: 24px 24px;
+      animation: origami-bellows calc(3.5s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.38s);
+    }
+    @keyframes origami-bellows {
+      0%, 100% {
+        transform: rotate(calc(var(--i) * 45deg)) scale(0.3, 0.8) translateY(0);
+      }
+      50% {
+        transform: rotate(calc(var(--i) * 45deg)) scale(1.2, 0.4) translateY(-2px);
+      }
+    }
+
+
+    /* --------------------------------------------------------------------------
+       CATEGORY 2: 实体矩阵与几何折叠类 (Solid Matrix & Origami Geometry)
+       -------------------------------------------------------------------------- */
+
+    /* 01-B. 4×4 Diaphragm Solid Matrix (4×4 呼吸实体矩阵) */
+    .anim-matrix-4x4 .matrix-tile {
+      transform-origin: center;
+      animation: matrix4x4-wave calc(2.8s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc((var(--row) + var(--col)) * -0.25s);
+    }
+    @keyframes matrix4x4-wave {
+      0%, 100% { transform: scale(0.3); }
+      50% { transform: scale(1.15); }
+    }
+
+    /* 02-B. Diamond Lattice Diaphragm (菱形网格隔膜) */
+    .anim-diamond-lattice .diamond-cell {
+      transform-origin: 24px 24px;
+      animation: diamond-lattice calc(3.2s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--ring) * -0.4s);
+    }
+    @keyframes diamond-lattice {
+      0%, 100% { transform: rotate(calc(var(--ring) * 45deg)) scale(0.3); }
+      50% { transform: rotate(calc(var(--ring) * 45deg + 45deg)) scale(1.2); }
+    }
+
+    /* 03-B. Nested Kinetic Cube (嵌套几何立方体) */
+    .anim-nested-cube .cube-frame-1 {
+      transform-origin: 24px 24px;
+      animation: cube-f1 calc(3.6s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    .anim-nested-cube .cube-frame-2 {
+      transform-origin: 24px 24px;
+      animation: cube-f2 calc(3.6s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    .anim-nested-cube .cube-frame-3 {
+      transform-origin: 24px 24px;
+      animation: cube-f3 calc(3.6s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    @keyframes cube-f1 { 0%, 100% { transform: rotate(0deg) scale(0.4); } 50% { transform: rotate(90deg) scale(1.1); } }
+    @keyframes cube-f2 { 0%, 100% { transform: rotate(45deg) scale(1.15); } 50% { transform: rotate(-45deg) scale(0.5); } }
+    @keyframes cube-f3 { 0%, 100% { transform: rotate(0deg) scale(0.3); } 50% { transform: rotate(135deg) scale(1.2); } }
+
+    /* 04-B. Sliding Diff Blocks (代码 Diff 模块滑动) */
+    .anim-diff-blocks .block-row {
+      animation: diff-slide calc(2.4s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.3s);
+    }
+    @keyframes diff-slide {
+      0%, 100% { transform: translateX(0) scaleX(0.4); }
+      50% { transform: translateX(calc(var(--dir) * 4px)) scaleX(1.1); }
+    }
+
+    /* 05-B. Modular Origami Cluster (模块化折叠聚落) */
+    .anim-origami-cluster .cluster-tri {
+      transform-origin: 24px 24px;
+      animation: origami-cluster calc(3.4s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.4s);
+    }
+    @keyframes origami-cluster {
+      0%, 100% { transform: rotate(calc(var(--i) * 60deg)) translate(0px, 0px) scale(0.4); }
+      50% { transform: rotate(calc(var(--i) * 60deg + 30deg)) translate(4px, 2px) scale(1.2); }
+    }
+
+    /* 06-B. Solid Barcode Cascade (实体条形级联瀑布) */
+    .anim-bar-cascade .bar-item {
+      transform-origin: bottom center;
+      animation: bar-cascade calc(2s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.18s);
+    }
+    @keyframes bar-cascade {
+      0%, 100% { transform: scaleY(0.25); }
+      50% { transform: scaleY(1.35); }
+    }
+
+
+    /* --------------------------------------------------------------------------
+       CATEGORY 3: 弧形切片与多轨雷达类 (Arc Wedges & Multi-Track Orbiters)
+       -------------------------------------------------------------------------- */
+
+    /* 01-C. 8-Segment Arc Fan (8段弧形风扇) */
+    .anim-arc-fan .fan-sector {
+      transform-origin: 24px 24px;
+      animation: arc-fan calc(3.8s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.38s);
+    }
+    @keyframes arc-fan {
+      0%, 100% { transform: rotate(calc(var(--i) * 45deg)) scale(0.35); }
+      50% { transform: rotate(calc(var(--i) * 45deg + 22.5deg)) scale(1.25); }
+    }
+
+    /* 02-C. Dual-Track Sector Radar (双轨扇形雷达轮) */
+    .anim-dual-radar .inner-track {
+      transform-origin: 24px 24px;
+      animation: dual-radar-in calc(4s / var(--anim-speed-multiplier)) linear infinite;
+    }
+    .anim-dual-radar .outer-track {
+      transform-origin: 24px 24px;
+      animation: dual-radar-out calc(4s / var(--anim-speed-multiplier)) linear infinite;
+    }
+    @keyframes dual-radar-in {
+      0% { transform: rotate(0deg) scale(0.85); }
+      50% { transform: rotate(180deg) scale(1.15); }
+      100% { transform: rotate(360deg) scale(0.85); }
+    }
+    @keyframes dual-radar-out {
+      0% { transform: rotate(0deg) scale(1.15); }
+      50% { transform: rotate(-180deg) scale(0.85); }
+      100% { transform: rotate(-360deg) scale(1.15); }
+    }
+
+    /* 03-C. Orbital Node Aperture (星轨节点光圈) */
+    .anim-orbital-node .orbit-node {
+      transform-origin: 24px 24px;
+      animation: orbit-node calc(3.2s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.4s);
+    }
+    @keyframes orbit-node {
+      0%, 100% { transform: rotate(calc(var(--i) * 90deg)) translate(0px, 0px) scale(0.4); }
+      50% { transform: rotate(calc(var(--i) * 90deg + 45deg)) translate(6px, 0px) scale(1.2); }
+    }
+
+    /* 04-C. Concentric Ring Wedges (同心弧线风箱) */
+    .anim-ring-wedges .wedge-r1 {
+      transform-origin: 24px 24px;
+      animation: ring-w1 calc(3.5s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    .anim-ring-wedges .wedge-r2 {
+      transform-origin: 24px 24px;
+      animation: ring-w2 calc(3.5s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    .anim-ring-wedges .wedge-r3 {
+      transform-origin: 24px 24px;
+      animation: ring-w3 calc(3.5s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    @keyframes ring-w1 { 0%, 100% { transform: scale(0.4) rotate(0deg); } 50% { transform: scale(1.2) rotate(90deg); } }
+    @keyframes ring-w2 { 0%, 100% { transform: scale(1.2) rotate(0deg); } 50% { transform: scale(0.5) rotate(-90deg); } }
+    @keyframes ring-w3 { 0%, 100% { transform: scale(0.5) rotate(0deg); } 50% { transform: scale(1.3) rotate(180deg); } }
+
+    /* 05-C. Quadrant Shutter Wedge (四分切片快门) */
+    .anim-quad-shutter .quad-piece {
+      transform-origin: 24px 24px;
+      animation: quad-shutter calc(3s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.35s);
+    }
+    @keyframes quad-shutter {
+      0%, 100% { transform: rotate(calc(var(--i) * 90deg)) translate(-3px, -3px) scale(0.6); }
+      50% { transform: rotate(calc(var(--i) * 90deg)) translate(3px, 3px) scale(1.15); }
+    }
+
+    /* 06-C. Triple Arc Helix (三重螺旋弧刃) */
+    .anim-triple-helix .helix-blade {
+      transform-origin: 24px 24px;
+      animation: triple-helix calc(3.6s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.4s);
+    }
+    @keyframes triple-helix {
+      0%, 100% { transform: rotate(calc(var(--i) * 120deg)) scale(0.35); }
+      50% { transform: rotate(calc(var(--i) * 120deg + 60deg)) scale(1.3); }
+    }
+
+
+    /* --------------------------------------------------------------------------
+       CATEGORY 4: 多边形结晶与机械齿轮类 (Polygon Polyhedra & Gear Aperture)
+       -------------------------------------------------------------------------- */
+
+    /* 01-D. Solid Octagon Crystal Morph (八边形晶体演变) */
+    .anim-octagon-crystal .crystal-facet {
+      transform-origin: 24px 24px;
+      animation: octagon-crystal calc(3.5s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.35s);
+    }
+    @keyframes octagon-crystal {
+      0%, 100% { transform: rotate(calc(var(--i) * 45deg)) translate(0px, 0px) scale(0.3, 0.6); }
+      50% { transform: rotate(calc(var(--i) * 45deg)) translate(4px, 0px) scale(1.2, 1.4); }
+    }
+
+    /* 02-D. Interlocking Mechanical Gear (精密机械齿轮风箱) */
+    .anim-gear-iris .gear-body {
+      transform-origin: 24px 24px;
+      animation: gear-spin calc(6s / var(--anim-speed-multiplier)) linear infinite;
+    }
+    .anim-gear-iris .gear-inner {
+      transform-origin: 24px 24px;
+      animation: gear-pulse calc(3s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    @keyframes gear-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    @keyframes gear-pulse { 0%, 100% { transform: scale(0.4); } 50% { transform: scale(1.2); } }
+
+    /* 03-D. Delta-Wing Iris (三角翼交错风箱) */
+    .anim-delta-wing .wing-unit {
+      transform-origin: 24px 24px;
+      animation: delta-wing calc(3.2s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.38s);
+    }
+    @keyframes delta-wing {
+      0%, 100% { transform: rotate(calc(var(--i) * 60deg)) translateY(0px) scale(0.35); }
+      50% { transform: rotate(calc(var(--i) * 60deg + 30deg)) translateY(-4px) scale(1.25); }
+    }
+
+    /* 04-D. Concentric Polygon Blades (同心多边形页片) */
+    .anim-polygon-blades .poly-layer {
+      transform-origin: 24px 24px;
+      animation: poly-blades calc(3.6s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.4s);
+    }
+    @keyframes poly-blades {
+      0%, 100% { transform: rotate(calc(var(--i) * 45deg)) scale(0.3); }
+      50% { transform: rotate(calc(var(--i) * 45deg + 45deg)) scale(1.25); }
+    }
+
+    /* 05-D. Rhombic Star Polyhedra (菱形星芒多面体) */
+    .anim-rhombic-star .star-rhomb {
+      transform-origin: 24px 24px;
+      animation: rhombic-star calc(3.4s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.28s);
+    }
+    @keyframes rhombic-star {
+      0%, 100% { transform: rotate(calc(var(--i) * 30deg)) scale(0.3); }
+      50% { transform: rotate(calc(var(--i) * 30deg)) scale(1.3); }
+    }
+
+    /* 06-D. Kinetic Chevron Aperture (人字纹机械光圈) */
+    .anim-kinetic-chevron .chevron-arm {
+      transform-origin: 24px 24px;
+      animation: kinetic-chevron calc(3s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.32s);
+    }
+    @keyframes kinetic-chevron {
+      0%, 100% { transform: rotate(calc(var(--i) * 45deg)) translate(-3px, 0px) scale(0.4); }
+      50% { transform: rotate(calc(var(--i) * 45deg)) translate(3px, 0px) scale(1.2); }
+    }
+
+
+    /* --------------------------------------------------------------------------
+       CATEGORY 5: CODING AGENT TOOL CALL SUITE (工具调用 8 大全状态)
+       -------------------------------------------------------------------------- */
+
+    /* State 1: Thinking / Planning (思考 / 规划) */
+    .icon-tool-idle {
+      --accent-color: var(--state-idle-color);
+    }
+    .icon-tool-idle .idle-blade {
+      transform-origin: 24px 24px;
+      animation: idle-bellow calc(3.2s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.35s);
+    }
+    @keyframes idle-bellow {
+      0%, 100% { transform: rotate(calc(var(--i) * 45deg)) scale(0.35, 0.4); }
+      50% { transform: rotate(calc(var(--i) * 45deg)) scale(1.3, 1.5); }
+    }
+
+    /* State 2: File Read/Write (文件/代码读写) */
+    .icon-tool-file {
+      --accent-color: var(--state-file-color);
+    }
+    .icon-tool-file .file-page {
+      transform-origin: center;
+      animation: file-morph calc(2.4s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    .icon-tool-file .file-diff-line {
+      animation: file-line-slide calc(2.4s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.2s);
+    }
+    @keyframes file-morph {
+      0%, 100% { transform: scale(0.92); }
+      50% { transform: scale(1.05); }
+    }
+    @keyframes file-line-slide {
+      0%, 100% { transform: translateX(-2px) scaleX(0.5); }
+      50% { transform: translateX(2px) scaleX(1.1); }
+    }
+
+    /* State 3: Terminal / Command Exec (终端指令 / Bash) */
+    .icon-tool-cmd {
+      --accent-color: var(--state-cmd-color);
+    }
+    .icon-tool-cmd .cmd-prompt {
+      animation: cmd-blink calc(1.4s / var(--anim-speed-multiplier)) steps(2, start) infinite;
+    }
+    .icon-tool-cmd .cmd-progress-bar {
+      transform-origin: left center;
+      animation: cmd-progress calc(2.2s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    @keyframes cmd-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    @keyframes cmd-progress {
+      0% { transform: scaleX(0.1); }
+      50% { transform: scaleX(1); }
+      100% { transform: scaleX(0.1); }
+    }
+
+    /* State 4: Web Search / MCP Query (网络搜索 / MCP 扩展) */
+    .icon-tool-search {
+      --accent-color: var(--state-search-color);
+    }
+    .icon-tool-search .radar-wedge {
+      transform-origin: 24px 24px;
+      animation: search-sweep calc(2.8s / var(--anim-speed-multiplier)) linear infinite;
+    }
+    .icon-tool-search .search-node {
+      transform-origin: center;
+      animation: search-node-pulse calc(1.8s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.3s);
+    }
+    @keyframes search-sweep {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    @keyframes search-node-pulse {
+      0%, 100% { transform: scale(0.4); }
+      50% { transform: scale(1.3); }
+    }
+
+    /* State 5: Subagent Delegation (子 Agent 协作) */
+    .icon-tool-agent {
+      --accent-color: var(--state-agent-color);
+    }
+    .icon-tool-agent .agent-node {
+      transform-origin: 24px 24px;
+      animation: agent-split calc(3s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+      animation-delay: calc(var(--i) * -0.35s);
+    }
+    @keyframes agent-split {
+      0%, 100% { transform: rotate(calc(var(--i) * 90deg)) translate(0px, 0px) scale(0.5); }
+      50% { transform: rotate(calc(var(--i) * 90deg)) translate(5px, -5px) scale(1.15); }
+    }
+
+    /* State 6: Permission Gate / User Approval (等待用户授权) */
+    .icon-tool-gate {
+      --accent-color: var(--state-gate-color);
+    }
+    .icon-tool-gate .gate-latch {
+      transform-origin: 24px 18px;
+      animation: gate-lock calc(2.2s / var(--anim-speed-multiplier)) var(--ease-bounce) infinite;
+    }
+    .icon-tool-gate .gate-body {
+      transform-origin: center;
+      animation: gate-pulse calc(2.2s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    @keyframes gate-lock {
+      0%, 100% { transform: rotate(0deg); }
+      50% { transform: rotate(-25deg); }
+    }
+    @keyframes gate-pulse {
+      0%, 100% { transform: scale(0.95); }
+      50% { transform: scale(1.05); }
+    }
+
+    /* State 7: Success / Completed (执行成功完成) */
+    .icon-tool-success {
+      --accent-color: var(--state-success-color);
+    }
+    .icon-tool-success .check-mark {
+      stroke-dasharray: 40;
+      stroke-dashoffset: 40;
+      animation: check-draw calc(1.8s / var(--anim-speed-multiplier)) var(--ease-smooth) infinite;
+    }
+    .icon-tool-success .success-poly {
+      transform-origin: 24px 24px;
+      animation: poly-snap calc(1.8s / var(--anim-speed-multiplier)) var(--ease-bounce) infinite;
+    }
+    @keyframes check-draw {
+      0% { stroke-dashoffset: 40; }
+      40%, 100% { stroke-dashoffset: 0; }
+    }
+    @keyframes poly-snap {
+      0% { transform: scale(0.3) rotate(-45deg); }
+      35%, 100% { transform: scale(1) rotate(0deg); }
+    }
+
+    /* State 8: Error / Warning / Retry (执行异常 / 自动重试) */
+    .icon-tool-error {
+      --accent-color: var(--state-error-color);
+    }
+    .icon-tool-error .error-diamond {
+      transform-origin: 24px 24px;
+      animation: error-shake calc(1.6s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    .icon-tool-error .error-excl {
+      transform-origin: center;
+      animation: excl-bounce calc(1.6s / var(--anim-speed-multiplier)) var(--ease-in-out) infinite;
+    }
+    @keyframes error-shake {
+      0%, 100% { transform: scale(1) rotate(0deg); }
+      20% { transform: scale(1.15) rotate(-10deg); }
+      40% { transform: scale(1.15) rotate(10deg); }
+      60% { transform: scale(1.15) rotate(-5deg); }
+      80% { transform: scale(1) rotate(0deg); }
+    }
+    @keyframes excl-bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-2px); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- 页面头部 -->
+  <header>
+    <div class="title-group">
+      <h1>
+        Coding Agent 工具调用全状态 UI 纯色动画库
+        <span class="title-badge">SOLID UI SYSTEM</span>
+      </h1>
+      <p>
+        专为 Coding Agent（如 Piwin）设计的纯色、实心矢量 UI 动画库。<b>坚决不要渐变、不要发光、不要复杂半透明叠加</b>，不刺眼不晕眩。纯色轮廓复杂精美，全面完美适配深色与浅色双主题。
+      </p>
+    </div>
+  </header>
+
+  <!-- 全局控制面板 -->
+  <div class="controls-panel">
+    <!-- 主题切换 -->
+    <div class="control-group">
+      <span class="control-label">外观主题:</span>
+      <div class="btn-group">
+        <button class="btn active" onclick="setTheme('dark')">🌙 纯黑模式</button>
+        <button class="btn" onclick="setTheme('light')">☀️ 纯白模式</button>
+      </div>
+    </div>
+
+    <!-- 配色调色盘 -->
+    <div class="control-group">
+      <span class="control-label">纯色系预设:</span>
+      <div class="color-swatch-group">
+        <div class="color-swatch active" style="background:#6366f1" onclick="setColorPalette('indigo')" title="皇家靛蓝 (Indigo)"></div>
+        <div class="color-swatch" style="background:#38bdf8" onclick="setColorPalette('cyan')" title="极光青碧 (Cyan)"></div>
+        <div class="color-swatch" style="background:#34d399" onclick="setColorPalette('emerald')" title="翡翠绿 (Emerald)"></div>
+        <div class="color-swatch" style="background:#a78bfa" onclick="setColorPalette('violet')" title="紫罗兰 (Violet)"></div>
+        <div class="color-swatch" style="background:#64748b" onclick="setColorPalette('monochrome')" title="极简炭灰/白 (Monochrome)"></div>
+      </div>
+    </div>
+
+    <!-- 图标尺寸 -->
+    <div class="control-group">
+      <span class="control-label">图标尺寸:</span>
+      <div class="btn-group">
+        <button class="btn" onclick="setSize('24px')">24px</button>
+        <button class="btn active" onclick="setSize('36px')">36px</button>
+        <button class="btn" onclick="setSize('48px')">48px</button>
+        <button class="btn" onclick="setSize('64px')">64px</button>
+      </div>
+    </div>
+
+    <!-- 播放速率 -->
+    <div class="control-group">
+      <span class="control-label">动画速率:</span>
+      <div class="btn-group">
+        <button class="btn" onclick="setSpeed(0.5)">0.5x</button>
+        <button class="btn active" onclick="setSpeed(1)">1.0x</button>
+        <button class="btn" onclick="setSpeed(1.6)">1.6x</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ==========================================================================
+       SECTION 0: AGENT TOOL CALL 8 STATES SUITE (工具调用全状态 UI 套件)
+       ========================================================================== -->
+  <div class="section">
+    <div class="section-header">
+      <div>
+        <h2 class="section-title">⚡ CATEGORY 0: Coding Agent 工具调用全状态套件 (Full State Suite)</h2>
+        <p class="section-desc">直观展现 Agent 从任务规划到执行结束的 8 大标准状态 UI 表达</p>
+      </div>
+    </div>
+
+    <div class="suite-grid">
+      <!-- State 1 -->
+      <div class="suite-card" onclick="inspectCode('tool-idle')">
+        <div class="suite-icon-box">
+          <svg class="icon-anim-base icon-tool-idle" viewBox="0 0 48 48">
+            <g class="idle-blade" style="--i:0"><rect x="22" y="4" width="4" height="12" rx="2"/></g>
+            <g class="idle-blade" style="--i:1"><rect x="22" y="4" width="4" height="12" rx="2"/></g>
+            <g class="idle-blade" style="--i:2"><rect x="22" y="4" width="4" height="12" rx="2"/></g>
+            <g class="idle-blade" style="--i:3"><rect x="22" y="4" width="4" height="12" rx="2"/></g>
+            <g class="idle-blade" style="--i:4"><rect x="22" y="4" width="4" height="12" rx="2"/></g>
+            <g class="idle-blade" style="--i:5"><rect x="22" y="4" width="4" height="12" rx="2"/></g>
+            <g class="idle-blade" style="--i:6"><rect x="22" y="4" width="4" height="12" rx="2"/></g>
+            <g class="idle-blade" style="--i:7"><rect x="22" y="4" width="4" height="12" rx="2"/></g>
+          </svg>
+        </div>
+        <div class="suite-content">
+          <div class="suite-state-title">
+            思考 / 规划中
+            <span class="suite-state-tag" style="background:rgba(99,102,241,0.15); color:var(--state-idle-color);">THINKING</span>
+          </div>
+          <div class="suite-state-desc">12-Blade Radiant Bellows 呼吸</div>
+        </div>
+      </div>
+
+      <!-- State 2 -->
+      <div class="suite-card" onclick="inspectCode('tool-file')">
+        <div class="suite-icon-box">
+          <svg class="icon-anim-base icon-tool-file" viewBox="0 0 48 48">
+            <path class="file-page" d="M12 6h16l12 12v24a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z"/>
+            <rect class="file-diff-line" style="--i:0" x="16" y="20" width="16" height="3" rx="1.5" fill="var(--bg-card)"/>
+            <rect class="file-diff-line" style="--i:1" x="16" y="26" width="12" height="3" rx="1.5" fill="var(--bg-card)"/>
+            <rect class="file-diff-line" style="--i:2" x="16" y="32" width="14" height="3" rx="1.5" fill="var(--bg-card)"/>
+          </svg>
+        </div>
+        <div class="suite-content">
+          <div class="suite-state-title">
+            文件 / 代码读写
+            <span class="suite-state-tag" style="background:rgba(56,189,248,0.15); color:var(--state-file-color);">FILE I/O</span>
+          </div>
+          <div class="suite-state-desc">Sliding Diff Blocks 代码块交错</div>
+        </div>
+      </div>
+
+      <!-- State 3 -->
+      <div class="suite-card" onclick="inspectCode('tool-cmd')">
+        <div class="suite-icon-box">
+          <svg class="icon-anim-base icon-tool-cmd" viewBox="0 0 48 48">
+            <rect x="6" y="8" width="36" height="32" rx="4"/>
+            <path d="M14 18l6 6-6 6" fill="none" stroke="var(--bg-card)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect class="cmd-prompt" x="24" y="27" width="8" height="3" fill="var(--bg-card)"/>
+            <rect class="cmd-progress-bar" x="12" y="34" width="24" height="2" rx="1" fill="var(--bg-card)"/>
+          </svg>
+        </div>
+        <div class="suite-content">
+          <div class="suite-state-title">
+            终端 Bash 执行
+            <span class="suite-state-tag" style="background:rgba(168,85,247,0.15); color:var(--state-cmd-color);">BASH EXEC</span>
+          </div>
+          <div class="suite-state-desc">Kinetic Prompt Pulse 光标闪烁</div>
+        </div>
+      </div>
+
+      <!-- State 4 -->
+      <div class="suite-card" onclick="inspectCode('tool-search')">
+        <div class="suite-icon-box">
+          <svg class="icon-anim-base icon-tool-search" viewBox="0 0 48 48">
+            <circle cx="24" cy="24" r="18" fill="none" stroke="var(--accent-color)" stroke-width="2"/>
+            <circle cx="24" cy="24" r="10" fill="none" stroke="var(--accent-color)" stroke-width="2"/>
+            <path class="radar-wedge" d="M24 24 L24 6 A18 18 0 0 1 42 24 Z"/>
+            <circle class="search-node" style="--i:0" cx="30" cy="14" r="3"/>
+            <circle class="search-node" style="--i:1" cx="16" cy="30" r="2.5"/>
+          </svg>
+        </div>
+        <div class="suite-content">
+          <div class="suite-state-title">
+            网络搜索 / MCP
+            <span class="suite-state-tag" style="background:rgba(20,184,166,0.15); color:var(--state-search-color);">WEB / MCP</span>
+          </div>
+          <div class="suite-state-desc">Dual Sector Radar 扇形扫描</div>
+        </div>
+      </div>
+
+      <!-- State 5 -->
+      <div class="suite-card" onclick="inspectCode('tool-agent')">
+        <div class="suite-icon-box">
+          <svg class="icon-anim-base icon-tool-agent" viewBox="0 0 48 48">
+            <g class="agent-node" style="--i:0"><rect x="10" y="10" width="12" height="12" rx="3"/></g>
+            <g class="agent-node" style="--i:1"><rect x="26" y="10" width="12" height="12" rx="3"/></g>
+            <g class="agent-node" style="--i:2"><rect x="26" y="26" width="12" height="12" rx="3"/></g>
+            <g class="agent-node" style="--i:3"><rect x="10" y="26" width="12" height="12" rx="3"/></g>
+          </svg>
+        </div>
+        <div class="suite-content">
+          <div class="suite-state-title">
+            子 Agent 协作
+            <span class="suite-state-tag" style="background:rgba(236,72,153,0.15); color:var(--state-agent-color);">SUB-AGENT</span>
+          </div>
+          <div class="suite-state-desc">Cluster Split-Merge 多端解体</div>
+        </div>
+      </div>
+
+      <!-- State 6 -->
+      <div class="suite-card" onclick="inspectCode('tool-gate')">
+        <div class="suite-icon-box">
+          <svg class="icon-anim-base icon-tool-gate" viewBox="0 0 48 48">
+            <path class="gate-latch" d="M16 20V14a8 8 0 0 1 16 0v6" fill="none" stroke="var(--accent-color)" stroke-width="4" stroke-linecap="round"/>
+            <rect class="gate-body" x="12" y="20" width="24" height="22" rx="4"/>
+          </svg>
+        </div>
+        <div class="suite-content">
+          <div class="suite-state-title">
+            等待用户授权
+            <span class="suite-state-tag" style="background:rgba(245,158,11,0.15); color:var(--state-gate-color);">GATEKEEPER</span>
+          </div>
+          <div class="suite-state-desc">Solid Locked Latch 扣锁等待</div>
+        </div>
+      </div>
+
+      <!-- State 7 -->
+      <div class="suite-card" onclick="inspectCode('tool-success')">
+        <div class="suite-icon-box">
+          <svg class="icon-anim-base icon-tool-success" viewBox="0 0 48 48">
+            <polygon class="success-poly" points="24,4 30,8 38,8 40,16 46,22 44,30 44,38 36,40 30,46 22,44 14,44 10,38 4,32 6,24 6,16 12,12 16,4"/>
+            <path class="check-mark" d="M16 24l6 6 12-12" fill="none" stroke="var(--bg-card)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="suite-content">
+          <div class="suite-state-title">
+            执行成功完成
+            <span class="suite-state-tag" style="background:rgba(16,185,129,0.15); color:var(--state-success-color);">SUCCESS</span>
+          </div>
+          <div class="suite-state-desc">Snap Polygon Checkmark 锁扣对勾</div>
+        </div>
+      </div>
+
+      <!-- State 8 -->
+      <div class="suite-card" onclick="inspectCode('tool-error')">
+        <div class="suite-icon-box">
+          <svg class="icon-anim-base icon-tool-error" viewBox="0 0 48 48">
+            <g class="error-diamond">
+              <polygon points="24,4 44,24 24,44 4,24"/>
+              <g class="error-excl">
+                <rect x="22" y="14" width="4" height="12" rx="2" fill="var(--bg-card)"/>
+                <circle cx="24" cy="30" r="2.5" fill="var(--bg-card)"/>
+              </g>
+            </g>
+          </svg>
+        </div>
+        <div class="suite-content">
+          <div class="suite-state-title">
+            执行异常 / 重试
+            <span class="suite-state-tag" style="background:rgba(239,68,68,0.15); color:var(--state-error-color);">FAILED</span>
+          </div>
+          <div class="suite-state-desc">Alert Diamond Shock 震荡提醒</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ==========================================================================
+       SECTION 1: 辐射风箱与机械光圈类 (6 款设计)
+       ========================================================================== -->
+  <div class="section">
+    <div class="section-header">
+      <div>
+        <h2 class="section-title">🌪️ CATEGORY 1: 辐射风箱与机械光圈类 (Radial Bellows & Mechanical Iris)</h2>
+        <p class="section-desc">参考用户最喜爱的“辐射风箱”架构，衍生出的 6 款复杂的纯色矢量光圈风箱动画</p>
+      </div>
+    </div>
+
+    <div class="grid-cards">
+      <!-- 01-A -->
+      <div class="card" onclick="inspectCode('c1-bellow12')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-bellow-12" viewBox="0 0 48 48">
+            <g class="vane" style="--i:0"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:1"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:2"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:3"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:4"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:5"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:6"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:7"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:8"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:9"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:10"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+            <g class="vane" style="--i:11"><path d="M22 6 h4 L25 20 h-2 Z"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">01-A. 12-Blade Radiant Bellows</div>
+          <div class="card-meta">12叶辐射风箱 · 聚散相位旋转</div>
+        </div>
+      </div>
+
+      <!-- 02-A -->
+      <div class="card" onclick="inspectCode('c1-turbine')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-turbine-iris" viewBox="0 0 48 48">
+            <g class="blade" style="--i:0"><path d="M24 8 C28 8 34 14 34 20 C34 22 28 20 24 20 Z"/></g>
+            <g class="blade" style="--i:1"><path d="M24 8 C28 8 34 14 34 20 C34 22 28 20 24 20 Z"/></g>
+            <g class="blade" style="--i:2"><path d="M24 8 C28 8 34 14 34 20 C34 22 28 20 24 20 Z"/></g>
+            <g class="blade" style="--i:3"><path d="M24 8 C28 8 34 14 34 20 C34 22 28 20 24 20 Z"/></g>
+            <g class="blade" style="--i:4"><path d="M24 8 C28 8 34 14 34 20 C34 22 28 20 24 20 Z"/></g>
+            <g class="blade" style="--i:5"><path d="M24 8 C28 8 34 14 34 20 C34 22 28 20 24 20 Z"/></g>
+            <g class="blade" style="--i:6"><path d="M24 8 C28 8 34 14 34 20 C34 22 28 20 24 20 Z"/></g>
+            <g class="blade" style="--i:7"><path d="M24 8 C28 8 34 14 34 20 C34 22 28 20 24 20 Z"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">02-A. Interlocking Turbine Aperture</div>
+          <div class="card-meta">涡轮交错光圈 · 弧形快门闭合</div>
+        </div>
+      </div>
+
+      <!-- 03-A -->
+      <div class="card" onclick="inspectCode('c1-hex-shutter')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-hex-shutter" viewBox="0 0 48 48">
+            <g class="shutter-blade" style="--i:0"><polygon points="24,6 32,10 28,18 20,14"/></g>
+            <g class="shutter-blade" style="--i:1"><polygon points="24,6 32,10 28,18 20,14"/></g>
+            <g class="shutter-blade" style="--i:2"><polygon points="24,6 32,10 28,18 20,14"/></g>
+            <g class="shutter-blade" style="--i:3"><polygon points="24,6 32,10 28,18 20,14"/></g>
+            <g class="shutter-blade" style="--i:4"><polygon points="24,6 32,10 28,18 20,14"/></g>
+            <g class="shutter-blade" style="--i:5"><polygon points="24,6 32,10 28,18 20,14"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">03-A. Hexagonal Shutter Iris</div>
+          <div class="card-meta">六边形快门风箱 · 梯形咬合</div>
+        </div>
+      </div>
+
+      <!-- 04-A -->
+      <div class="card" onclick="inspectCode('c1-starburst')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-starburst-gear" viewBox="0 0 48 48">
+            <g class="star-lobe" style="--i:0"><polygon points="24,4 27,16 21,16"/></g>
+            <g class="star-lobe" style="--i:1"><polygon points="24,4 27,16 21,16"/></g>
+            <g class="star-lobe" style="--i:2"><polygon points="24,4 27,16 21,16"/></g>
+            <g class="star-lobe" style="--i:3"><polygon points="24,4 27,16 21,16"/></g>
+            <g class="star-lobe" style="--i:4"><polygon points="24,4 27,16 21,16"/></g>
+            <g class="star-lobe" style="--i:5"><polygon points="24,4 27,16 21,16"/></g>
+            <g class="star-lobe" style="--i:6"><polygon points="24,4 27,16 21,16"/></g>
+            <g class="star-lobe" style="--i:7"><polygon points="24,4 27,16 21,16"/></g>
+            <g class="star-lobe" style="--i:8"><polygon points="24,4 27,16 21,16"/></g>
+            <g class="star-lobe" style="--i:9"><polygon points="24,4 27,16 21,16"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">04-A. Starburst Gear Iris</div>
+          <div class="card-meta">星爆齿轮风箱 · 10角芒刺扩张</div>
+        </div>
+      </div>
+
+      <!-- 05-A -->
+      <div class="card" onclick="inspectCode('c1-shield')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-concentric-shield" viewBox="0 0 48 48">
+            <g class="shield-ring-1"><polygon points="24,4 41,14 41,34 24,44 7,34 7,14"/></g>
+            <g class="shield-ring-2" fill="none"><polygon points="24,10 36,17 36,31 24,38 12,31 12,17"/></g>
+            <g class="shield-ring-3"><polygon points="24,16 30,20 30,28 24,32 18,28 18,20"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">05-A. Concentric Shield Diaphragm</div>
+          <div class="card-meta">同心风箱重帘 · 反向三重嵌套</div>
+        </div>
+      </div>
+
+      <!-- 06-A -->
+      <div class="card" onclick="inspectCode('c1-origami-bellows')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-origami-bellows" viewBox="0 0 48 48">
+            <g class="petal" style="--i:0"><polygon points="24,6 30,18 24,14 18,18"/></g>
+            <g class="petal" style="--i:1"><polygon points="24,6 30,18 24,14 18,18"/></g>
+            <g class="petal" style="--i:2"><polygon points="24,6 30,18 24,14 18,18"/></g>
+            <g class="petal" style="--i:3"><polygon points="24,6 30,18 24,14 18,18"/></g>
+            <g class="petal" style="--i:4"><polygon points="24,6 30,18 24,14 18,18"/></g>
+            <g class="petal" style="--i:5"><polygon points="24,6 30,18 24,14 18,18"/></g>
+            <g class="petal" style="--i:6"><polygon points="24,6 30,18 24,14 18,18"/></g>
+            <g class="petal" style="--i:7"><polygon points="24,6 30,18 24,14 18,18"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">06-A. Octagonal Origami Bellows</div>
+          <div class="card-meta">八角折叠风箱 · 飞檐式吸拉</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ==========================================================================
+       SECTION 2: 实体矩阵与几何折叠类 (6 款设计)
+       ========================================================================== -->
+  <div class="section">
+    <div class="section-header">
+      <div>
+        <h2 class="section-title">🧱 CATEGORY 2: 实体矩阵与几何折叠类 (Solid Matrix & Origami Geometry)</h2>
+        <p class="section-desc">基于纯实心几何快面与矩阵调度的动效体系</p>
+      </div>
+    </div>
+
+    <div class="grid-cards">
+      <!-- 01-B -->
+      <div class="card" onclick="inspectCode('c2-matrix4x4')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-matrix-4x4" viewBox="0 0 48 48">
+            <rect class="matrix-tile" style="--row:0;--col:0" x="6" y="6" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:0;--col:1" x="15" y="6" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:0;--col:2" x="24" y="6" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:0;--col:3" x="33" y="6" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:1;--col:0" x="6" y="15" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:1;--col:1" x="15" y="15" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:1;--col:2" x="24" y="15" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:1;--col:3" x="33" y="15" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:2;--col:0" x="6" y="24" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:2;--col:1" x="15" y="24" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:2;--col:2" x="24" y="24" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:2;--col:3" x="33" y="24" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:3;--col:0" x="6" y="33" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:3;--col:1" x="15" y="33" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:3;--col:2" x="24" y="33" width="7" height="7" rx="2"/>
+            <rect class="matrix-tile" style="--row:3;--col:3" x="33" y="33" width="7" height="7" rx="2"/>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">01-B. 4×4 Diaphragm Solid Matrix</div>
+          <div class="card-meta">4×4 呼吸实体矩阵 · 对角波浪</div>
+        </div>
+      </div>
+
+      <!-- 02-B -->
+      <div class="card" onclick="inspectCode('c2-diamond-lattice')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-diamond-lattice" viewBox="0 0 48 48">
+            <g class="diamond-cell" style="--ring:0"><polygon points="24,10 28,14 24,18 20,14"/></g>
+            <g class="diamond-cell" style="--ring:1"><polygon points="24,4 30,10 24,16 18,10"/></g>
+            <g class="diamond-cell" style="--ring:2"><polygon points="24,16 32,24 24,32 16,24"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">02-B. Diamond Lattice Diaphragm</div>
+          <div class="card-meta">菱形网格隔膜 · 环形坍缩呼吸</div>
+        </div>
+      </div>
+
+      <!-- 03-B -->
+      <div class="card" onclick="inspectCode('c2-nested-cube')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-nested-cube" viewBox="0 0 48 48">
+            <rect class="cube-frame-1" x="8" y="8" width="32" height="32" rx="4" fill="none" stroke="var(--accent-color)" stroke-width="4"/>
+            <rect class="cube-frame-2" x="14" y="14" width="20" height="20" rx="3" fill="none" stroke="var(--accent-color)" stroke-width="3.5"/>
+            <rect class="cube-frame-3" x="20" y="20" width="8" height="8" rx="2"/>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">03-B. Nested Kinetic Cube</div>
+          <div class="card-meta">嵌套几何立方体 · 正交旋转扭绞</div>
+        </div>
+      </div>
+
+      <!-- 04-B -->
+      <div class="card" onclick="inspectCode('c2-diff-blocks')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-diff-blocks" viewBox="0 0 48 48">
+            <g class="block-row" style="--i:0;--dir:1"><rect x="8" y="8" width="24" height="6" rx="2"/></g>
+            <g class="block-row" style="--i:1;--dir:-1"><rect x="16" y="18" width="24" height="6" rx="2"/></g>
+            <g class="block-row" style="--i:2;--dir:1"><rect x="10" y="28" width="20" height="6" rx="2"/></g>
+            <g class="block-row" style="--i:3;--dir:-1"><rect x="12" y="38" width="28" height="4" rx="2"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">04-B. Sliding Diff Blocks</div>
+          <div class="card-meta">代码 Diff 模块滑动 · 横向位移</div>
+        </div>
+      </div>
+
+      <!-- 05-B -->
+      <div class="card" onclick="inspectCode('c2-origami-cluster')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-origami-cluster" viewBox="0 0 48 48">
+            <g class="cluster-tri" style="--i:0"><polygon points="24,24 36,12 36,24"/></g>
+            <g class="cluster-tri" style="--i:1"><polygon points="24,24 36,12 36,24"/></g>
+            <g class="cluster-tri" style="--i:2"><polygon points="24,24 36,12 36,24"/></g>
+            <g class="cluster-tri" style="--i:3"><polygon points="24,24 36,12 36,24"/></g>
+            <g class="cluster-tri" style="--i:4"><polygon points="24,24 36,12 36,24"/></g>
+            <g class="cluster-tri" style="--i:5"><polygon points="24,24 36,12 36,24"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">05-B. Modular Origami Cluster</div>
+          <div class="card-meta">模块化折叠聚落 · 三角错位折叠</div>
+        </div>
+      </div>
+
+      <!-- 06-B -->
+      <div class="card" onclick="inspectCode('c2-bar-cascade')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-bar-cascade" viewBox="0 0 48 48">
+            <rect class="bar-item" style="--i:0" x="6" y="10" width="3" height="28" rx="1.5"/>
+            <rect class="bar-item" style="--i:1" x="11" y="10" width="3" height="28" rx="1.5"/>
+            <rect class="bar-item" style="--i:2" x="16" y="10" width="3" height="28" rx="1.5"/>
+            <rect class="bar-item" style="--i:3" x="21" y="10" width="3" height="28" rx="1.5"/>
+            <rect class="bar-item" style="--i:4" x="26" y="10" width="3" height="28" rx="1.5"/>
+            <rect class="bar-item" style="--i:5" x="31" y="10" width="3" height="28" rx="1.5"/>
+            <rect class="bar-item" style="--i:6" x="36" y="10" width="3" height="28" rx="1.5"/>
+            <rect class="bar-item" style="--i:7" x="41" y="10" width="3" height="28" rx="1.5"/>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">06-B. Solid Barcode Cascade</div>
+          <div class="card-meta">实体条形级联瀑布 · 音轨级拉伸</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ==========================================================================
+       SECTION 3: 弧形切片与多轨雷达类 (6 款设计)
+       ========================================================================== -->
+  <div class="section">
+    <div class="section-header">
+      <div>
+        <h2 class="section-title">📡 CATEGORY 3: 弧形切片与多轨雷达类 (Arc Wedges & Multi-Track Orbiters)</h2>
+        <p class="section-desc">弧形矢量切片与圆形轨道交错动作体系</p>
+      </div>
+    </div>
+
+    <div class="grid-cards">
+      <!-- 01-C -->
+      <div class="card" onclick="inspectCode('c3-arc-fan')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-arc-fan" viewBox="0 0 48 48">
+            <g class="fan-sector" style="--i:0"><path d="M24 24 L24 8 A16 16 0 0 1 35 12 Z"/></g>
+            <g class="fan-sector" style="--i:1"><path d="M24 24 L24 8 A16 16 0 0 1 35 12 Z"/></g>
+            <g class="fan-sector" style="--i:2"><path d="M24 24 L24 8 A16 16 0 0 1 35 12 Z"/></g>
+            <g class="fan-sector" style="--i:3"><path d="M24 24 L24 8 A16 16 0 0 1 35 12 Z"/></g>
+            <g class="fan-sector" style="--i:4"><path d="M24 24 L24 8 A16 16 0 0 1 35 12 Z"/></g>
+            <g class="fan-sector" style="--i:5"><path d="M24 24 L24 8 A16 16 0 0 1 35 12 Z"/></g>
+            <g class="fan-sector" style="--i:6"><path d="M24 24 L24 8 A16 16 0 0 1 35 12 Z"/></g>
+            <g class="fan-sector" style="--i:7"><path d="M24 24 L24 8 A16 16 0 0 1 35 12 Z"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">01-C. 8-Segment Arc Fan</div>
+          <div class="card-meta">8段弧形风扇 · 旋转偏置缩放</div>
+        </div>
+      </div>
+
+      <!-- 02-C -->
+      <div class="card" onclick="inspectCode('c3-dual-radar')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-dual-radar" viewBox="0 0 48 48">
+            <g class="inner-track">
+              <path d="M24 24 L24 14 A10 10 0 0 1 34 24 Z"/>
+              <path d="M24 24 L24 34 A10 10 0 0 1 14 24 Z"/>
+            </g>
+            <g class="outer-track">
+              <path d="M24 24 L38 24 A14 14 0 0 1 24 38 Z" fill-opacity="0.8"/>
+              <path d="M24 24 L10 24 A14 14 0 0 1 24 10 Z" fill-opacity="0.8"/>
+            </g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">02-C. Dual-Track Sector Radar</div>
+          <div class="card-meta">双轨扇形雷达轮 · 内外轨逆向旋转</div>
+        </div>
+      </div>
+
+      <!-- 03-C -->
+      <div class="card" onclick="inspectCode('c3-orbit-node')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-orbital-node" viewBox="0 0 48 48">
+            <circle cx="24" cy="24" r="5"/>
+            <g class="orbit-node" style="--i:0"><circle cx="24" cy="10" r="4"/></g>
+            <g class="orbit-node" style="--i:1"><circle cx="24" cy="10" r="4"/></g>
+            <g class="orbit-node" style="--i:2"><circle cx="24" cy="10" r="4"/></g>
+            <g class="orbit-node" style="--i:3"><circle cx="24" cy="10" r="4"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">03-C. Orbital Node Aperture</div>
+          <div class="card-meta">星轨节点光圈 · 正交向心运动</div>
+        </div>
+      </div>
+
+      <!-- 04-C -->
+      <div class="card" onclick="inspectCode('c3-ring-wedges')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-ring-wedges" viewBox="0 0 48 48">
+            <path class="wedge-r1" d="M24 6 A18 18 0 0 1 42 24 L36 24 A12 12 0 0 0 24 12 Z"/>
+            <path class="wedge-r2" d="M24 12 A12 12 0 0 1 36 24 L30 24 A6 6 0 0 0 24 18 Z"/>
+            <circle class="wedge-r3" cx="24" cy="24" r="4"/>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">04-C. Concentric Ring Wedges</div>
+          <div class="card-meta">同心弧线风箱 · 阶梯式剪切</div>
+        </div>
+      </div>
+
+      <!-- 05-C -->
+      <div class="card" onclick="inspectCode('c3-quad-shutter')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-quad-shutter" viewBox="0 0 48 48">
+            <g class="quad-piece" style="--i:0"><path d="M24 24 L24 8 A16 16 0 0 1 40 24 Z"/></g>
+            <g class="quad-piece" style="--i:1"><path d="M24 24 L24 8 A16 16 0 0 1 40 24 Z"/></g>
+            <g class="quad-piece" style="--i:2"><path d="M24 24 L24 8 A16 16 0 0 1 40 24 Z"/></g>
+            <g class="quad-piece" style="--i:3"><path d="M24 24 L24 8 A16 16 0 0 1 40 24 Z"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">05-C. Quadrant Shutter Wedge</div>
+          <div class="card-meta">四分切片快门 · 象限张合</div>
+        </div>
+      </div>
+
+      <!-- 06-C -->
+      <div class="card" onclick="inspectCode('c3-triple-helix')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-triple-helix" viewBox="0 0 48 48">
+            <g class="helix-blade" style="--i:0"><path d="M24 24 C24 14 36 10 38 20 C34 24 28 24 24 24 Z"/></g>
+            <g class="helix-blade" style="--i:1"><path d="M24 24 C24 14 36 10 38 20 C34 24 28 24 24 24 Z"/></g>
+            <g class="helix-blade" style="--i:2"><path d="M24 24 C24 14 36 10 38 20 C34 24 28 24 24 24 Z"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">06-C. Triple Arc Helix</div>
+          <div class="card-meta">三重螺旋弧刃 · 飞镖式呼吸</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ==========================================================================
+       SECTION 4: 多边形结晶与机械齿轮类 (6 款设计)
+       ========================================================================== -->
+  <div class="section">
+    <div class="section-header">
+      <div>
+        <h2 class="section-title">💎 CATEGORY 4: 多边形结晶与机械齿轮类 (Polygon Polyhedra & Gear Aperture)</h2>
+        <p class="section-desc">基于多边形、晶体咬合与齿轮解构的高精密纯色 UI</p>
+      </div>
+    </div>
+
+    <div class="grid-cards">
+      <!-- 01-D -->
+      <div class="card" onclick="inspectCode('c4-octagon-crystal')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-octagon-crystal" viewBox="0 0 48 48">
+            <g class="crystal-facet" style="--i:0"><polygon points="24,8 28,18 20,18"/></g>
+            <g class="crystal-facet" style="--i:1"><polygon points="24,8 28,18 20,18"/></g>
+            <g class="crystal-facet" style="--i:2"><polygon points="24,8 28,18 20,18"/></g>
+            <g class="crystal-facet" style="--i:3"><polygon points="24,8 28,18 20,18"/></g>
+            <g class="crystal-facet" style="--i:4"><polygon points="24,8 28,18 20,18"/></g>
+            <g class="crystal-facet" style="--i:5"><polygon points="24,8 28,18 20,18"/></g>
+            <g class="crystal-facet" style="--i:6"><polygon points="24,8 28,18 20,18"/></g>
+            <g class="crystal-facet" style="--i:7"><polygon points="24,8 28,18 20,18"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">01-D. Solid Octagon Crystal Morph</div>
+          <div class="card-meta">八边形晶体演变 · 晶面张合</div>
+        </div>
+      </div>
+
+      <!-- 02-D -->
+      <div class="card" onclick="inspectCode('c4-gear-iris')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-gear-iris" viewBox="0 0 48 48">
+            <path class="gear-body" d="M22 4h4l1 4 3 1 3-3 3 3-3 3 1 3 4 1v4l-4 1-1 3 3 3-3 3-3-3-3 1-1 4h-4l-1-4-3-1-3 3-3-3 3-3-1-3-4-1v-4l4-1 1-3-3-3 3-3 3 3 3-1z M24 16 a8 8 0 1 0 0.1 0 Z"/>
+            <circle class="gear-inner" cx="24" cy="24" r="6"/>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">02-D. Interlocking Mechanical Gear</div>
+          <div class="card-meta">精密机械齿轮风箱 · 旋转网切</div>
+        </div>
+      </div>
+
+      <!-- 03-D -->
+      <div class="card" onclick="inspectCode('c4-delta-wing')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-delta-wing" viewBox="0 0 48 48">
+            <g class="wing-unit" style="--i:0"><polygon points="24,6 30,16 24,14 18,16"/></g>
+            <g class="wing-unit" style="--i:1"><polygon points="24,6 30,16 24,14 18,16"/></g>
+            <g class="wing-unit" style="--i:2"><polygon points="24,6 30,16 24,14 18,16"/></g>
+            <g class="wing-unit" style="--i:3"><polygon points="24,6 30,16 24,14 18,16"/></g>
+            <g class="wing-unit" style="--i:4"><polygon points="24,6 30,16 24,14 18,16"/></g>
+            <g class="wing-unit" style="--i:5"><polygon points="24,6 30,16 24,14 18,16"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">03-D. Delta-Wing Iris</div>
+          <div class="card-meta">三角翼交错风箱 · 飞翼沉降</div>
+        </div>
+      </div>
+
+      <!-- 04-D -->
+      <div class="card" onclick="inspectCode('c4-polygon-blades')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-polygon-blades" viewBox="0 0 48 48">
+            <g class="poly-layer" style="--i:0"><polygon points="24,4 40,38 8,38"/></g>
+            <g class="poly-layer" style="--i:1"><rect x="12" y="12" width="24" height="24" rx="2" fill="none" stroke="var(--accent-color)" stroke-width="3"/></g>
+            <g class="poly-layer" style="--i:2"><polygon points="24,12 34,20 30,32 18,32 14,20"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">04-D. Concentric Polygon Blades</div>
+          <div class="card-meta">同心多边形页片 · 多阶异构变型</div>
+        </div>
+      </div>
+
+      <!-- 05-D -->
+      <div class="card" onclick="inspectCode('c4-rhombic-star')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-rhombic-star" viewBox="0 0 48 48">
+            <g class="star-rhomb" style="--i:0"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:1"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:2"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:3"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:4"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:5"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:6"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:7"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:8"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:9"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:10"><polygon points="24,6 27,15 24,20 21,15"/></g>
+            <g class="star-rhomb" style="--i:11"><polygon points="24,6 27,15 24,20 21,15"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">05-D. Rhombic Star Polyhedra</div>
+          <div class="card-meta">菱形星芒多面体 · 12面凸起</div>
+        </div>
+      </div>
+
+      <!-- 06-D -->
+      <div class="card" onclick="inspectCode('c4-kinetic-chevron')">
+        <span class="card-copy-tag">点击查看代码</span>
+        <div class="card-preview-area">
+          <svg class="icon-anim-base anim-kinetic-chevron" viewBox="0 0 48 48">
+            <g class="chevron-arm" style="--i:0"><path d="M24 10 L30 16 L24 20 L22 16 Z"/></g>
+            <g class="chevron-arm" style="--i:1"><path d="M24 10 L30 16 L24 20 L22 16 Z"/></g>
+            <g class="chevron-arm" style="--i:2"><path d="M24 10 L30 16 L24 20 L22 16 Z"/></g>
+            <g class="chevron-arm" style="--i:3"><path d="M24 10 L30 16 L24 20 L22 16 Z"/></g>
+            <g class="chevron-arm" style="--i:4"><path d="M24 10 L30 16 L24 20 L22 16 Z"/></g>
+            <g class="chevron-arm" style="--i:5"><path d="M24 10 L30 16 L24 20 L22 16 Z"/></g>
+            <g class="chevron-arm" style="--i:6"><path d="M24 10 L30 16 L24 20 L22 16 Z"/></g>
+            <g class="chevron-arm" style="--i:7"><path d="M24 10 L30 16 L24 20 L22 16 Z"/></g>
+          </svg>
+        </div>
+        <div class="card-info">
+          <div class="card-name">06-D. Kinetic Chevron Aperture</div>
+          <div class="card-meta">人字纹机械光圈 · 导向卡扣</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 代码查看 Modal -->
+<div class="modal-overlay" id="codeModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">源码预览</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="font-size:12px; color:var(--text-muted); margin-bottom:8px;">可直接复制 SVG + Keyframes 插入 TypeScript/React组件 或 CSS 样式库：</div>
+      <pre class="code-block" id="modalCodeSnippet"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+  /* 交互控制器 */
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelectorAll('.btn-group button').forEach(b => {
+      if (b.innerText.includes('模式')) {
+        b.classList.toggle('active', (theme === 'dark' && b.innerText.includes('纯黑')) || (theme === 'light' && b.innerText.includes('纯白')));
+      }
+    });
+  }
+
+  function setColorPalette(palette) {
+    document.documentElement.setAttribute('data-color-palette', palette);
+    document.querySelectorAll('.color-swatch').forEach(s => {
+      s.classList.toggle('active', s.getAttribute('onclick').includes(palette));
+    });
+  }
+
+  function setSize(size) {
+    document.documentElement.style.setProperty('--icon-size', size);
+    document.querySelectorAll('.btn-group button').forEach(b => {
+      if (b.innerText.includes('px')) {
+        b.classList.toggle('active', b.innerText === size);
+      }
+    });
+  }
+
+  function setSpeed(speed) {
+    document.documentElement.style.setProperty('--anim-speed-multiplier', speed);
+    document.querySelectorAll('.btn-group button').forEach(b => {
+      if (b.innerText.includes('x')) {
+        b.classList.toggle('active', b.innerText === speed + 'x');
+      }
+    });
+  }
+
+  /* Modal 代码查看器 */
+  function inspectCode(id) {
+    const modal = document.getElementById('codeModal');
+    const title = document.getElementById('modalTitle');
+    const snippet = document.getElementById('modalCodeSnippet');
+
+    title.innerText = `组件代码: ${id}`;
+    snippet.innerText = `/* CSS Animation Rule */
+.icon-anim-base {
+  width: var(--icon-size, 36px);
+  height: var(--icon-size, 36px);
+  fill: var(--accent-color);
+}
+
+/* Color Token (Dark / Light Compatible) */
+--accent-color: var(--theme-accent, #6366f1);
+
+/* Target Component ID: ${id} */
+/* Direct copy SVG HTML structure from document */`;
+
+    modal.classList.add('active');
+  }
+
+  function closeModal() {
+    document.getElementById('codeModal').classList.remove('active');
+  }
+</script>
+
+</body>
+</html>

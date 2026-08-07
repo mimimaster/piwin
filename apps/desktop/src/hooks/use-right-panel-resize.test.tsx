@@ -146,8 +146,14 @@ describe('useRightPanelResize drag scheduling', () => {
     expect(setProperty).toHaveBeenCalledTimes(1);
     expect(shell.style.getPropertyValue('--right-panel-width')).toBe('330px');
 
+    const pointerUpListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointerup',
+    )?.[1];
+    if (typeof pointerUpListener !== 'function') {
+      throw new Error('expected a pointerup listener');
+    }
     act(() => {
-      window.dispatchEvent(createPointerEvent('pointerup', 7, 450));
+      pointerUpListener(createPointerEvent('pointerup', 7, 450));
       vi.runOnlyPendingTimers();
     });
     disposeHarness(harness);
@@ -156,11 +162,24 @@ describe('useRightPanelResize drag scheduling', () => {
   it('flushes the latest pending width on pointer-up', () => {
     const harness = renderHarness();
     const shell = harness.shell;
+    const addEventListener = vi.spyOn(window, 'addEventListener');
 
     act(() => {
       harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 8, 500));
-      window.dispatchEvent(createPointerEvent('pointermove', 8, 460));
-      window.dispatchEvent(createPointerEvent('pointerup', 8, 460));
+    });
+    const pointerMoveListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointermove',
+    )?.[1];
+    const pointerUpListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointerup',
+    )?.[1];
+    if (typeof pointerMoveListener !== 'function' || typeof pointerUpListener !== 'function') {
+      throw new Error('expected drag listeners');
+    }
+
+    act(() => {
+      pointerMoveListener(createPointerEvent('pointermove', 8, 460));
+      pointerUpListener(createPointerEvent('pointerup', 8, 460));
       vi.runOnlyPendingTimers();
     });
 

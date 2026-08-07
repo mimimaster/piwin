@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>piwin Agent 思考与等待动画 (Claude 菊花/星花呼吸式) Lab</title>
+  <style>
+    :root {
+      /* 纯黑背景模式 (Dark Mode) */
+      --bg-canvas: #000000;
+      --bg-surface: #0a0a0c;
+      --bg-surface-hover: #141417;
+      --border-subtle: rgba(255, 255, 255, 0.12);
+      --border-strong: rgba(255, 255, 255, 0.22);
+      --text-primary: #f5f5f7;
+      --text-secondary: #8e8e93;
+
+      /* 主题色：默认 Claude 经典琥珀橙 */
+      --accent-color: #d97706;
+      --accent-rgb: 217, 119, 6;
+
+      --anim-speed: 2.4s;
+      --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-sine: cubic-bezier(0.37, 0, 0.63, 1);
+    }
+
+    [data-theme="light"] {
+      /* 纯白背景模式 (Light Mode) */
+      --bg-canvas: #ffffff;
+      --bg-surface: #f7f7f8;
+      --bg-surface-hover: #efefe0;
+      --border-subtle: rgba(0, 0, 0, 0.08);
+      --border-strong: rgba(0, 0, 0, 0.16);
+      --text-primary: #1c1c1e;
+      --text-secondary: #8e8e93;
+
+      --accent-color: #d97706;
+      --accent-rgb: 217, 119, 6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      padding: 40px 24px;
+      transition: background-color 0.3s var(--ease-smooth), color 0.3s var(--ease-smooth);
+    }
+
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    /* 控制栏 */
+    .controls-bar {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .control-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .segmented-control {
+      background: rgba(125, 125, 125, 0.1);
+      padding: 3px;
+      border-radius: 8px;
+      display: flex;
+      gap: 2px;
+    }
+
+    .segmented-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      padding: 5px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease-smooth);
+    }
+
+    .segmented-btn.active {
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .color-pill {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.2s var(--ease-smooth);
+    }
+
+    .color-pill.active {
+      border-color: var(--text-primary);
+      transform: scale(1.15);
+    }
+
+    /* 卡片网格 */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .card-name {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+
+    .card-preview {
+      padding: 44px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 180px;
+      background: var(--bg-canvas);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .card-code {
+      padding: 14px 18px;
+      background: var(--bg-surface);
+    }
+
+    .code-text {
+      font-family: ui-monospace, SFMono-Regular, Monaco, monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+
+    /* ==========================================================================
+       6 组【思考 / 等待 (Thinking & Waiting)】标志性呼吸动画样式
+       ========================================================================== */
+
+    /* -------------------------------------------------------------
+       动画 1: Claude Chrysanthemum Rosette (Claude 经典菊花星瓣呼吸)
+       12 瓣花瓣环形排列 + 渐进式相位相干吸吐 + 缓慢整体自转
+    ------------------------------------------------------------- */
+    .think-chrysanthemum {
+      width: 32px;
+      height: 32px;
+      position: relative;
+      animation: rotateSlow 14s linear infinite;
+    }
+
+    .think-chrysanthemum .petal {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      width: 2.5px;
+      height: 9px;
+      margin-left: -1.25px;
+      background-color: var(--accent-color);
+      border-radius: 2px;
+      transform-origin: 50% 16px;
+      animation: petalBreath var(--anim-speed) infinite var(--ease-sine);
+    }
+
+    /* 12 瓣旋转角度与延迟 */
+    .think-chrysanthemum .petal:nth-child(1)  { transform: rotate(0deg);   animation-delay: 0.0s; }
+    .think-chrysanthemum .petal:nth-child(2)  { transform: rotate(30deg);  animation-delay: 0.15s; }
+    .think-chrysanthemum .petal:nth-child(3)  { transform: rotate(60deg);  animation-delay: 0.3s; }
+    .think-chrysanthemum .petal:nth-child(4)  { transform: rotate(90deg);  animation-delay: 0.45s; }
+    .think-chrysanthemum .petal:nth-child(5)  { transform: rotate(120deg); animation-delay: 0.6s; }
+    .think-chrysanthemum .petal:nth-child(6)  { transform: rotate(150deg); animation-delay: 0.75s; }
+    .think-chrysanthemum .petal:nth-child(7)  { transform: rotate(180deg); animation-delay: 0.9s; }
+    .think-chrysanthemum .petal:nth-child(8)  { transform: rotate(210deg); animation-delay: 1.05s; }
+    .think-chrysanthemum .petal:nth-child(9)  { transform: rotate(240deg); animation-delay: 1.2s; }
+    .think-chrysanthemum .petal:nth-child(10) { transform: rotate(270deg); animation-delay: 1.35s; }
+    .think-chrysanthemum .petal:nth-child(11) { transform: rotate(300deg); animation-delay: 1.5s; }
+    .think-chrysanthemum .petal:nth-child(12) { transform: rotate(330deg); animation-delay: 1.65s; }
+
+    @keyframes rotateSlow {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @keyframes petalBreath {
+      0%, 100% {
+        opacity: 0.2;
+        transform: scaleY(0.7) translateY(0);
+      }
+      50% {
+        opacity: 1;
+        transform: scaleY(1.15) translateY(-1px);
+        box-shadow: 0 0 6px var(--accent-color);
+      }
+    }
+
+    /* -------------------------------------------------------------
+       动画 2: Geometric Aperture Lotus (几何光圈舒张星莲)
+       如同 AI 脑海思考时的光圈舒张与闭合
+    ------------------------------------------------------------- */
+    .think-aperture {
+      width: 36px;
+      height: 36px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .think-aperture-petal {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      border: 1.5px solid var(--accent-color);
+      border-radius: 50% 0 50% 0;
+      animation: aperturePulse var(--anim-speed) infinite var(--ease-smooth);
+    }
+
+    .think-aperture-petal:nth-child(1) { transform: rotate(0deg) translate(6px, 6px); animation-delay: 0s; }
+    .think-aperture-petal:nth-child(2) { transform: rotate(90deg) translate(6px, 6px); animation-delay: 0.2s; }
+    .think-aperture-petal:nth-child(3) { transform: rotate(180deg) translate(6px, 6px); animation-delay: 0.4s; }
+    .think-aperture-petal:nth-child(4) { transform: rotate(270deg) translate(6px, 6px); animation-delay: 0.6s; }
+
+    @keyframes aperturePulse {
+      0%, 100% {
+        opacity: 0.25;
+        border-radius: 50% 0 50% 0;
+      }
+      50% {
+        opacity: 1;
+        border-radius: 40% 10% 40% 10%;
+        filter: drop-shadow(0 0 4px var(--accent-color));
+      }
+    }
+
+    /* -------------------------------------------------------------
+       动画 3: Pulsing Starburst (微型八芒星极呼吸)
+       经典极简八芒星，核心吸吐加射线舒缩，象征推理深度
+    ------------------------------------------------------------- */
+    .think-starburst {
+      width: 28px;
+      height: 28px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: rotateSlow 20s linear infinite;
+    }
+
+    .think-star-core {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-color);
+      box-shadow: 0 0 8px var(--accent-color);
+      animation: starCorePulse var(--anim-speed) infinite var(--ease-sine);
+    }
+
+    .think-star-ray {
+      position: absolute;
+      background: var(--accent-color);
+      border-radius: 1px;
+      animation: rayPulse var(--anim-speed) infinite var(--ease-sine);
+    }
+
+    .think-star-ray.v { width: 1.5px; height: 26px; }
+    .think-star-ray.h { width: 26px; height: 1.5px; }
+    .think-star-ray.d1 { width: 1.5px; height: 20px; transform: rotate(45deg); }
+    .think-star-ray.d2 { width: 1.5px; height: 20px; transform: rotate(-45deg); }
+
+    @keyframes starCorePulse {
+      0%, 100% { transform: scale(0.8); opacity: 0.5; }
+      50% { transform: scale(1.4); opacity: 1; }
+    }
+
+    @keyframes rayPulse {
+      0%, 100% { opacity: 0.2; transform: scale(0.7); }
+      50% { opacity: 0.9; transform: scale(1.05); }
+    }
+
+    /* -------------------------------------------------------------
+       动画 4: Orbital Particle Ring (星环粒子巡流思考)
+       8 个点在静谧的圆环轨迹上呈波浪式辉光传递
+    ------------------------------------------------------------- */
+    .think-orbit-ring {
+      width: 32px;
+      height: 32px;
+      position: relative;
+    }
+
+    .think-orbit-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 4px;
+      height: 4px;
+      margin-top: -2px;
+      margin-left: -2px;
+      border-radius: 50%;
+      background: var(--accent-color);
+      animation: orbitDotFade var(--anim-speed) infinite var(--ease-sine);
+    }
+
+    .think-orbit-dot:nth-child(1) { transform: rotate(0deg) translate(12px); animation-delay: 0.0s; }
+    .think-orbit-dot:nth-child(2) { transform: rotate(45deg) translate(12px); animation-delay: 0.2s; }
+    .think-orbit-dot:nth-child(3) { transform: rotate(90deg) translate(12px); animation-delay: 0.4s; }
+    .think-orbit-dot:nth-child(4) { transform: rotate(135deg) translate(12px); animation-delay: 0.6s; }
+    .think-orbit-dot:nth-child(5) { transform: rotate(180deg) translate(12px); animation-delay: 0.8s; }
+    .think-orbit-dot:nth-child(6) { transform: rotate(225deg) translate(12px); animation-delay: 1.0s; }
+    .think-orbit-dot:nth-child(7) { transform: rotate(270deg) translate(12px); animation-delay: 1.2s; }
+    .think-orbit-dot:nth-child(8) { transform: rotate(315deg) translate(12px); animation-delay: 1.4s; }
+
+    @keyframes orbitDotFade {
+      0%, 100% { opacity: 0.25; transform: rotate(var(--angle)) translate(12px) scale(0.8); }
+      50% { opacity: 1; transform: rotate(var(--angle)) translate(12px) scale(1.4); box-shadow: 0 0 6px var(--accent-color); }
+    }
+
+    /* -------------------------------------------------------------
+       动画 5: Zen Ripple Lotus (禅意涟漪星莲)
+       多层同心极细多边弧线缓慢呼吸发散，极具沉静感
+    ------------------------------------------------------------- */
+    .think-zen-wave {
+      position: relative;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .think-zen-circle {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid var(--accent-color);
+      animation: zenWavePulse var(--anim-speed) infinite var(--ease-sine);
+    }
+
+    .think-zen-circle:nth-child(1) { width: 10px; height: 10px; animation-delay: 0s; }
+    .think-zen-circle:nth-child(2) { width: 20px; height: 20px; animation-delay: 0.3s; }
+    .think-zen-circle:nth-child(3) { width: 30px; height: 30px; animation-delay: 0.6s; }
+
+    @keyframes zenWavePulse {
+      0%, 100% {
+        opacity: 0.15;
+        transform: scale(0.85);
+      }
+      50% {
+        opacity: 0.85;
+        transform: scale(1.08);
+        filter: drop-shadow(0 0 3px var(--accent-color));
+      }
+    }
+
+    /* -------------------------------------------------------------
+       动画 6: Thinking Pill Capsule (行内思考中胶囊指示器)
+       适合直接放置在对话输出流顶部的「Thinking... / 思考中...」小胶囊
+    ------------------------------------------------------------- */
+    .think-status-capsule {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 14px;
+      border-radius: 100px;
+      background: rgba(var(--accent-rgb), 0.06);
+      border: 1px solid rgba(var(--accent-rgb), 0.25);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .think-status-capsule .think-chrysanthemum {
+      width: 16px;
+      height: 16px;
+    }
+
+    .think-status-capsule .think-chrysanthemum .petal {
+      width: 1.5px;
+      height: 4.5px;
+      margin-left: -0.75px;
+      transform-origin: 50% 8px;
+    }
+
+    /* 场景模拟区 */
+    .scenario-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 16px;
+    }
+
+    .chat-bubble {
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      max-width: 480px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Piwin Agent 思考与等待 (Thinking & Reasoning) 呼吸动画 Lab</h1>
+      <p class="subtitle">类似 Claude 琥珀色菊花/星瓣图腾的 AI 思考中与等待响应状态视觉设计（完美兼容纯黑 #000000 与纯白 #FFFFFF）</p>
+    </header>
+
+    <!-- 控制面板 -->
+    <div class="controls-bar">
+      
+      <!-- 1. 背景模式切换 -->
+      <div class="control-item">
+        <span class="label">画布背景:</span>
+        <div class="segmented-control">
+          <button class="segmented-btn active" id="btnDark" onclick="setTheme('dark')">纯黑 (#000000)</button>
+          <button class="segmented-btn" id="btnLight" onclick="setTheme('light')">纯白 (#FFFFFF)</button>
+        </div>
+      </div>
+
+      <!-- 2. 主题色彩 -->
+      <div class="control-item">
+        <span class="label">思考色调:</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <!-- Claude 经典琥珀橙 -->
+          <div class="color-pill active" title="Claude 经典琥珀橙" style="background: #d97706;" onclick="setColor('#d97706', '217, 119, 6', this)"></div>
+          <!-- 极简单色黑白 -->
+          <div class="color-pill" title="极简单色" style="background: var(--text-primary);" onclick="setColor('adaptive', '', this)"></div>
+          <!-- 冰蓝 -->
+          <div class="color-pill" title="冰蓝 (Cyan)" style="background: #38bdf8;" onclick="setColor('#38bdf8', '56, 189, 248', this)"></div>
+          <!-- 极光紫 -->
+          <div class="color-pill" title="极光紫 (Violet)" style="background: #a855f7;" onclick="setColor('#a855f7', '168, 85, 247', this)"></div>
+        </div>
+      </div>
+
+      <!-- 3. 呼吸周期 -->
+      <div class="control-item">
+        <span class="label">思考节奏:</span>
+        <div class="segmented-control">
+          <button class="segmented-btn" onclick="setSpeed('1.8s', this)">轻快 (1.8s)</button>
+          <button class="segmented-btn active" onclick="setSpeed('2.4s', this)">标准 (2.4s)</button>
+          <button class="segmented-btn" onclick="setSpeed('3.4s', this)">深思 (3.4s)</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 6 组思考动画展示 -->
+    <div class="grid">
+
+      <!-- 1. Claude Chrysanthemum Rosette -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-name">1. Claude Chrysanthemum (经典星花/菊花脉动)</div>
+          <div class="card-desc">12 瓣花瓣环形排列 + 渐进式相位相干吸吐 + 慢速自转</div>
+        </div>
+        <div class="card-preview">
+          <div class="think-chrysanthemum">
+            <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+            <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+            <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+            <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+          </div>
+        </div>
+        <div class="card-code">
+          <div class="code-text">/* 12瓣环形相干吸吐 + 自转 */
+@keyframes petalBreath {
+  0%, 100% { opacity: 0.2; transform: scaleY(0.7); }
+  50% { opacity: 1; transform: scaleY(1.15); box-shadow: 0 0 6px var(--accent-color); }
+}</div>
+        </div>
+      </div>
+
+      <!-- 2. Geometric Aperture Lotus -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-name">2. Geometric Aperture Lotus (光圈舒张星莲)</div>
+          <div class="card-desc">如 AI 思考时的脑海光圈舒张与闭合</div>
+        </div>
+        <div class="card-preview">
+          <div class="think-aperture">
+            <div class="think-aperture-petal"></div>
+            <div class="think-aperture-petal"></div>
+            <div class="think-aperture-petal"></div>
+            <div class="think-aperture-petal"></div>
+          </div>
+        </div>
+        <div class="card-code">
+          <div class="code-text">/* 四弧形舒缩 */
+@keyframes aperturePulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; filter: drop-shadow(0 0 4px var(--accent-color)); }
+}</div>
+        </div>
+      </div>
+
+      <!-- 3. Pulsing Starburst -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-name">3. Pulsing Starburst (微型八芒星极呼吸)</div>
+          <div class="card-desc">核心聚光 + 8 轴射线心跳式律动</div>
+        </div>
+        <div class="card-preview">
+          <div class="think-starburst">
+            <div class="think-star-ray v"></div>
+            <div class="think-star-ray h"></div>
+            <div class="think-star-ray d1"></div>
+            <div class="think-star-ray d2"></div>
+            <div class="think-star-core"></div>
+          </div>
+        </div>
+        <div class="card-code">
+          <div class="code-text">/* 八芒星极律动 */
+@keyframes rayPulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.7); }
+  50% { opacity: 0.9; transform: scale(1.05); }
+}</div>
+        </div>
+      </div>
+
+      <!-- 4. Orbital Particle Ring -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-name">4. Orbital Particle Ring (星环粒子巡流思考)</div>
+          <div class="card-desc">8 个圆形粒子沿星环辉光传递</div>
+        </div>
+        <div class="card-preview">
+          <div class="think-orbit-ring">
+            <div class="think-orbit-dot"></div><div class="think-orbit-dot"></div>
+            <div class="think-orbit-dot"></div><div class="think-orbit-dot"></div>
+            <div class="think-orbit-dot"></div><div class="think-orbit-dot"></div>
+            <div class="think-orbit-dot"></div><div class="think-orbit-dot"></div>
+          </div>
+        </div>
+        <div class="card-code">
+          <div class="code-text">/* 8粒子星环波浪 */
+@keyframes orbitDotFade {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.4); }
+}</div>
+        </div>
+      </div>
+
+      <!-- 5. Zen Ripple Lotus -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-name">5. Zen Ripple Lotus (禅意同心圆波)</div>
+          <div class="card-desc">多层极细弧线推波，沉静深邃</div>
+        </div>
+        <div class="card-preview">
+          <div class="think-zen-wave">
+            <div class="think-zen-circle"></div>
+            <div class="think-zen-circle"></div>
+            <div class="think-zen-circle"></div>
+          </div>
+        </div>
+        <div class="card-code">
+          <div class="code-text">/* 同心圆舒缩 */
+@keyframes zenWavePulse {
+  0%, 100% { opacity: 0.15; transform: scale(0.85); }
+  50% { opacity: 0.85; transform: scale(1.08); }
+}</div>
+        </div>
+      </div>
+
+      <!-- 6. Inline Thinking Pill Capsule -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-name">6. Thinking Pill Capsule (思考中胶囊)</div>
+          <div class="card-desc">用于对话消息流顶部，组合菊花星花 Indicator</div>
+        </div>
+        <div class="card-preview">
+          <div class="think-status-capsule">
+            <div class="think-chrysanthemum">
+              <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+              <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+              <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+              <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+            </div>
+            <span>Thinking process...</span>
+          </div>
+        </div>
+        <div class="card-code">
+          <div class="code-text">/* 对话流内联胶囊封装 */
+.think-status-capsule {
+  display: inline-flex;
+  gap: 10px;
+  background: rgba(var(--accent-rgb), 0.06);
+}</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 对话流实战体验区 -->
+    <div class="scenario-card">
+      <div style="font-size:14px; font-weight:600; margin-bottom:12px;">Piwin 对话流中「思考与等待响应」UI 效果模拟 (Chat Stream Mockup)</div>
+      
+      <div class="chat-bubble">
+        <div class="think-status-capsule">
+          <div class="think-chrysanthemum">
+            <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+            <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+            <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+            <div class="petal"></div><div class="petal"></div><div class="petal"></div>
+          </div>
+          <span>Thinking about prompt...</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      document.getElementById('btnDark').classList.toggle('active', theme === 'dark');
+      document.getElementById('btnLight').classList.toggle('active', theme === 'light');
+    }
+
+    function setColor(hex, rgb, el) {
+      document.querySelectorAll('.color-pill').forEach(p => p.classList.remove('active'));
+      if (el) el.classList.add('active');
+
+      if (hex === 'adaptive') {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const color = isDark ? '#f5f5f7' : '#1c1c1e';
+        const rgbVal = isDark ? '245, 245, 247' : '28, 28, 30';
+        document.documentElement.style.setProperty('--accent-color', color);
+        document.documentElement.style.setProperty('--accent-rgb', rgbVal);
+      } else {
+        document.documentElement.style.setProperty('--accent-color', hex);
+        document.documentElement.style.setProperty('--accent-rgb', rgb);
+      }
+    }
+
+    function setSpeed(speed, el) {
+      document.documentElement.style.setProperty('--anim-speed', speed);
+      document.querySelectorAll('.segmented-control button').forEach(b => {
+        if (b.parentNode === el.parentNode) b.classList.remove('active');
+      });
+      if (el) el.classList.add('active');
+    }
+  </script>
+</body>
+</html>
