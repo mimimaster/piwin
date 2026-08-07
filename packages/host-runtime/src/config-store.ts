@@ -890,31 +890,82 @@ function normalizeSubagentConfig(value: unknown): SubagentConfig {
 }
 
 
+function normalizeOrchestrationSchemeMember(
+  value: unknown,
+): import('@piwin/contracts').OrchestrationSchemeMember | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const role = typeof record.role === 'string' ? record.role.trim() : '';
+  const description = typeof record.description === 'string' ? record.description.trim() : '';
+  if (!role || !description) return undefined;
+  const member: import('@piwin/contracts').OrchestrationSchemeMember = {
+    role,
+    description,
+  };
+  if (typeof record.profileId === 'string' && record.profileId.trim()) {
+    member.profileId = record.profileId.trim();
+  }
+  const model = normalizeModelRef(record.model);
+  if (model) member.model = model;
+  if (isThinkingLevel(record.thinkingLevel)) {
+    member.thinkingLevel = record.thinkingLevel;
+  }
+  if (record.isolation === 'readonly' || record.isolation === 'worktree') {
+    member.isolation = record.isolation;
+  }
+  if (record.fallback === 'none' || record.fallback === 'main') {
+    member.fallback = record.fallback;
+  }
+  return member;
+}
+
 function normalizeOrchestrationScheme(value: unknown): OrchestrationSchemeSettings | undefined {
   const record = asRecord(value);
   if (!record) return undefined;
   const id = typeof record.id === 'string' ? record.id.trim() : '';
   const name = typeof record.name === 'string' ? record.name.trim() : '';
   const description = typeof record.description === 'string' ? record.description.trim() : '';
-  const defaultProfileId =
-    typeof record.defaultProfileId === 'string' ? record.defaultProfileId.trim() : '';
   const systemPreamble =
     typeof record.systemPreamble === 'string' ? record.systemPreamble.trim() : '';
-  if (!id || !name || !description || !defaultProfileId || !systemPreamble) {
+  if (!id || !name || !description || !systemPreamble) {
     return undefined;
   }
   if (!isValidOrchestrationSchemeId(id)) return undefined;
+
+  const members: import('@piwin/contracts').OrchestrationSchemeMember[] = [];
+  const seenRoles = new Set<string>();
+  if (Array.isArray(record.members)) {
+    for (const raw of record.members) {
+      const member = normalizeOrchestrationSchemeMember(raw);
+      if (!member) continue;
+      if (seenRoles.has(member.role)) continue;
+      seenRoles.add(member.role);
+      members.push(member);
+    }
+  }
+
+  const defaultProfileId =
+    typeof record.defaultProfileId === 'string' ? record.defaultProfileId.trim() : '';
+  const defaultRole = typeof record.defaultRole === 'string' ? record.defaultRole.trim() : '';
+
+  // v2: members alone are enough; v1 required defaultProfileId.
+  if (members.length === 0 && !defaultProfileId) {
+    return undefined;
+  }
+
   // MVP: only await-all is supported (synchronous spawn+merge). Accept any input.
   const waitPolicy: 'await-all' = 'await-all';
   const scheme: OrchestrationSchemeSettings = {
     id,
     name,
     description,
-    defaultProfileId,
     exposeSpawnMetadata: record.exposeSpawnMetadata === true,
     waitPolicy,
     systemPreamble,
   };
+  if (defaultProfileId) scheme.defaultProfileId = defaultProfileId;
+  if (defaultRole) scheme.defaultRole = defaultRole;
+  if (members.length > 0) scheme.members = members;
   if (Array.isArray(record.allowedProfileIds)) {
     const allowed = record.allowedProfileIds
       .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)

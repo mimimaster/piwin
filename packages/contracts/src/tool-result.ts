@@ -26,6 +26,8 @@ export type ToolResultErrorCode =
   | 'invalid-input'
   | 'job-failed'
   | 'subagent-failed'
+  | 'subagent-unavailable'
+  | 'subagent-unavailable-fallback-main'
   | 'mcp-failed';
 
 export type ToolResult =

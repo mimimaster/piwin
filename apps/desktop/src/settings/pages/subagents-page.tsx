@@ -282,10 +282,24 @@ export function SubagentProfilesPage(): ReactElement {
       id: clonedId,
       name: `${source.name}${copy.schemeClonedSuffix}`,
       description: source.description,
-      defaultProfileId: source.defaultProfileId,
       exposeSpawnMetadata: source.exposeSpawnMetadata,
       waitPolicy: 'await-all',
       systemPreamble: source.systemPreamble,
+      ...(source.defaultProfileId ? { defaultProfileId: source.defaultProfileId } : {}),
+      ...(source.defaultRole ? { defaultRole: source.defaultRole } : {}),
+      ...(source.members
+        ? {
+            members: source.members.map((member) => ({
+              role: member.role,
+              description: member.description,
+              ...(member.profileId ? { profileId: member.profileId } : {}),
+              ...(member.model ? { model: member.model } : {}),
+              ...(member.thinkingLevel ? { thinkingLevel: member.thinkingLevel } : {}),
+              ...(member.isolation ? { isolation: member.isolation } : {}),
+              ...(member.fallback ? { fallback: member.fallback } : {}),
+            })),
+          }
+        : {}),
       ...(source.allowedProfileIds ? { allowedProfileIds: [...source.allowedProfileIds] } : {}),
       ...(source.maxConcurrency !== undefined ? { maxConcurrency: source.maxConcurrency } : {}),
       ...(source.maxTasksPerRun !== undefined ? { maxTasksPerRun: source.maxTasksPerRun } : {}),
@@ -636,13 +650,29 @@ export function SubagentProfilesPage(): ReactElement {
                 {scheme.description}
               </p>
               <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-                {copy.schemeDefaultProfile}: <code>{scheme.defaultProfileId}</code>
-                {' · '}
+                {scheme.defaultRole ? (
+                  <>
+                    defaultRole: <code>{scheme.defaultRole}</code>
+                    {' · '}
+                  </>
+                ) : null}
+                {scheme.defaultProfileId ? (
+                  <>
+                    {copy.schemeDefaultProfile}: <code>{scheme.defaultProfileId}</code>
+                    {' · '}
+                  </>
+                ) : null}
                 {scheme.exposeSpawnMetadata ? copy.schemeExpose : copy.schemeGeneric}
                 {scheme.maxSubagentThinkingLevel
                   ? ` · thinking ≤ ${scheme.maxSubagentThinkingLevel}`
                   : ''}
               </div>
+              {scheme.members && scheme.members.length > 0 ? (
+                <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                  roles:{' '}
+                  {scheme.members.map((member) => member.role).join(', ')}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>

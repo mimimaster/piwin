@@ -2524,8 +2524,21 @@ async function commandScheme(argv: string[]): Promise<void> {
       console.log(`name: ${resolved.scheme.name}`);
       console.log(`source: ${resolved.scheme.source}`);
       console.log(`description: ${resolved.scheme.description}`);
+      console.log(`defaultRole: ${resolved.defaultRole}`);
       console.log(`defaultProfileId: ${resolved.defaultProfileId}`);
       console.log(`exposeSpawnMetadata: ${resolved.exposeSpawnMetadata}`);
+      console.log('members:');
+      for (const member of resolved.members) {
+        const modelLabel = member.model
+          ? `${member.model.providerId}/${member.model.modelId}`
+          : 'inherit';
+        const avail = member.available ? 'available' : `UNAVAILABLE(${member.unavailableReason ?? '?'})`;
+        console.log(
+          `  - ${member.role} [${avail}] profile=${member.profileId ?? '-'} model=${modelLabel} ` +
+            `isolation=${member.isolation ?? '-'} thinking=${member.thinkingLevel ?? '-'} fallback=${member.fallback}`,
+        );
+        console.log(`    ${member.description}`);
+      }
       console.log(`maxConcurrency: ${resolved.maxConcurrency}`);
       console.log(`maxTasksPerRun: ${resolved.maxTasksPerRun}`);
       console.log(`waitPolicy: ${resolved.waitPolicy}`);
