@@ -804,20 +804,33 @@ const ChatMessageRow = memo(
   },
   (previous, next) => {
     const isActionableUserMessage = previous.message.role === 'user';
+    // composerCard only mounts for the row being edited; ignore identity churn elsewhere.
+    const isEditingThisRow =
+      previous.editingMessageId === previous.message.id ||
+      next.editingMessageId === next.message.id;
     const callbackPropsAreStable = isActionableUserMessage
       ? previous.onEdit === next.onEdit &&
         previous.onCancelEdit === next.onCancelEdit &&
         previous.onEditResend === next.onEditResend &&
         previous.onRetry === next.onRetry &&
         previous.onFeedback === next.onFeedback &&
-        previous.composerCard === next.composerCard
+        (!isEditingThisRow || previous.composerCard === next.composerCard)
       : previous.message.subagentActivity
         ? previous.onInspectSubagent === next.onInspectSubagent
         : true;
+    // Global streaming only disables actions on user rows and the turn's last
+    // assistant. Historical assistants should not re-render on every send.
+    const rowUsesStreamingFlag =
+      previous.message.role === 'user' ||
+      next.message.role === 'user' ||
+      previous.isLastAssistantInTurn === true ||
+      next.isLastAssistantInTurn === true;
+    const streamingIsStable =
+      !rowUsesStreamingFlag || previous.streaming === next.streaming;
     return (
       previous.message === next.message &&
       previous.messageIndex === next.messageIndex &&
-      previous.streaming === next.streaming &&
+      streamingIsStable &&
       previous.editingMessageId === next.editingMessageId &&
       previous.lastUserMessageId === next.lastUserMessageId &&
       previous.activeTheme === next.activeTheme &&

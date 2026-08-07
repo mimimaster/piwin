@@ -78,6 +78,9 @@
   will-change: width;
   /* Prevent scrollbar appearance/disappearance from causing layout shifts. */
   scrollbar-gutter: stable;
+  /* Backdrop blur is expensive while the column reflows every pointer sample. */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .right-panel-resize-handle {
@@ -85,8 +88,8 @@
   z-index: 5;
   top: 0;
   bottom: 0;
-  left: -8px;
-  width: 16px;
+  left: -4px;
+  width: 8px;
   cursor: col-resize;
   touch-action: none;
   -webkit-app-region: no-drag;
@@ -116,16 +119,19 @@
 .right-panel-tabstrip,
 .right-panel-titlebar-box {
   display: flex;
-  align-items: stretch;
-  gap: 2px;
+  align-items: center;
+  gap: 4px;
   /* Match 3-column titlebar box height so all column tops align flush. */
   min-height: 38px;
   height: 38px;
-  padding: 0 8px;
+  /* Right padding reserves the absolutely-pinned action cluster so tabs
+     never collide with theme / panel buttons while the column resizes. */
+  padding: 0 72px 0 8px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
   background: transparent;
   box-sizing: border-box;
+  position: relative;
 }
 
 /* Titleband is a drag surface; tabs/actions opt out. */
@@ -158,9 +164,10 @@
 
 .right-panel-tabs {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 2px;
   min-width: 0;
+  height: 100%;
   /* Grow only with tab content so the titlebar drag strip can claim free space. */
   flex: 0 1 auto;
   overflow-x: auto;
@@ -175,24 +182,26 @@
   display: inline-flex;
   align-items: center;
   max-width: 160px;
-  min-height: 32px;
-  border-radius: 6px 6px 0 0;
-  border: 1px solid transparent;
-  border-bottom: 0;
+  height: 28px;
+  padding: 0 2px 0 4px;
+  border-radius: 6px;
+  border: none !important;
   background: transparent;
   color: var(--muted);
   flex-shrink: 0;
-}
-
-.right-panel-tab.active {
-  background: var(--card);
-  color: var(--text);
-  border-color: var(--line);
-  box-shadow: 0 1px 0 var(--card);
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .right-panel-tab:hover {
   color: var(--text);
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.right-panel-tab.active {
+  background: var(--surface-raised, var(--card)) !important;
+  color: var(--text);
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .right-panel-tab-main {
@@ -265,27 +274,53 @@
   color: var(--text);
 }
 
-.right-panel-tabstrip .right-panel-tab-add {
+.right-panel-tabstrip .right-panel-tab-add,
+.right-panel-tab-add {
   flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  align-self: center;
   color: var(--muted);
-  background: transparent;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
   border-radius: 6px;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  line-height: 1;
 }
 
-.right-panel-tabstrip .right-panel-tab-add:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--wb-hover, var(--surface-hover));
-}
-
+.right-panel-tabstrip .right-panel-tab-add:hover:not(:disabled),
 .right-panel-tabstrip .right-panel-tab-add.active,
-.right-panel-tabstrip .right-panel-tab-add[aria-pressed='true'] {
-  color: var(--accent);
-  background: transparent;
+.right-panel-tabstrip .right-panel-tab-add[aria-pressed='true'],
+.right-panel-tabstrip .right-panel-tab-add[data-state='open'],
+.right-panel-tab-add:hover,
+.right-panel-tab-add.active,
+.right-panel-tab-add[aria-pressed='true'],
+.right-panel-tab-add[data-state='open'] {
+  color: var(--text) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.right-panel-tabstrip .right-panel-tab-add:focus-visible,
+.right-panel-tab-add:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.right-panel-tabstrip .right-panel-tab-add svg,
+.right-panel-tab-add svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.75;
 }
 
 .right-panel-bodies {
@@ -4473,8 +4508,17 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-left: auto;
+  /* Pin to the panel's right edge so drag-resize reflow cannot leave the
+     chrome lagging behind the live column width. */
+  position: absolute;
+  top: 0;
+  right: 8px;
+  bottom: 0;
   flex-shrink: 0;
+  z-index: 2;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .right-panel-actions .piwin-icon-button,

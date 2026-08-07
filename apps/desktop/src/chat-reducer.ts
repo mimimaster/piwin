@@ -227,7 +227,14 @@ export type ChatUiAction =
   | { type: 'session/hide-from-list'; sessionId: string }
   | { type: 'session/clear-active' }
   | { type: 'session/truncate'; sessionId: string; messages: SessionTranscriptMessage[] }
-  | { type: 'user/send'; text: string; attachments?: PromptAttachment[] }
+  | {
+      type: 'user/send';
+      text: string;
+      attachments?: PromptAttachment[];
+      /** Client-generated id so failed sends can roll back the optimistic bubble. */
+      clientMessageId?: string;
+    }
+  | { type: 'user/send-rollback'; clientMessageId: string }
   | { type: 'run/aborting' }
   | { type: 'run/accepted'; runId: string; acceptedAt?: string }
   | { type: 'run/updated'; run: ExecutionRunRecord }
@@ -454,18 +461,28 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return { ...state, trustDialogOpen: action.open };
     case 'project/trusted':
       return { ...state, projectTrusted: true, trustDialogOpen: false };
-    case 'session/set':
+    case 'session/set': {
+      // Paint-first first send: draft mode may already show an optimistic user
+      // bubble before session/create returns. Activating that new session must
+      // keep the bubble instead of wiping the transcript.
+      const preserveOptimisticDraftSend =
+        state.activeSessionId === null &&
+        state.streaming === true &&
+        state.messages.length > 0 &&
+        state.messages.every((message) => message.role === 'user');
       return {
         ...state,
         activeSessionId: action.sessionId,
-        messages: [],
-        runPhase: 'idle',
-        activeRunId: null,
-        activeRunPhase: null,
-        activeRunPhaseDetail: null,
-        activeRunStartedAt: null,
+        messages: preserveOptimisticDraftSend ? state.messages : [],
+        runPhase: preserveOptimisticDraftSend ? state.runPhase : 'idle',
+        activeRunId: preserveOptimisticDraftSend ? state.activeRunId : null,
+        activeRunPhase: preserveOptimisticDraftSend ? state.activeRunPhase : null,
+        activeRunPhaseDetail: preserveOptimisticDraftSend
+          ? state.activeRunPhaseDetail
+          : null,
+        activeRunStartedAt: preserveOptimisticDraftSend ? state.activeRunStartedAt : null,
         lastTerminalRunId: null,
-        streaming: false,
+        streaming: preserveOptimisticDraftSend ? true : false,
         outline: [],
         activeSessionArchived: false,
         runTerminal: { kind: 'none' },
@@ -478,7 +495,11 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         // session hydrates its own children on resume.
         subagentStreams: {},
         subagentChildren: {},
+        workingSessionIds: preserveOptimisticDraftSend
+          ? { ...state.workingSessionIds, [action.sessionId]: true }
+          : state.workingSessionIds,
       };
+    }
     case 'session/load-messages': {
       const messages: ChatMessageUi[] = mapTranscriptMessagesToUi(action.messages);
       return {
@@ -742,7 +763,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
     }
     case 'user/send': {
       const userMessage: ChatMessageUi = {
-        id: crypto.randomUUID(),
+        id: action.clientMessageId ?? crypto.randomUUID(),
         role: 'user',
         text: action.text,
         thinking: '',
@@ -765,6 +786,31 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         workingSessionIds: state.activeSessionId
           ? { ...state.workingSessionIds, [state.activeSessionId]: true }
           : state.workingSessionIds,
+      };
+    }
+    case 'user/send-rollback': {
+      const remainingMessages = state.messages.filter(
+        (message) => message.id !== action.clientMessageId,
+      );
+      if (remainingMessages.length === state.messages.length) {
+        return state;
+      }
+      // Only clear streaming if this optimistic bubble was the latest send and
+      // no host run has been accepted yet for the turn.
+      const shouldClearStreaming =
+        state.streaming && state.activeRunId === null && state.runPhase === 'streaming';
+      return {
+        ...state,
+        messages: remainingMessages,
+        ...(shouldClearStreaming
+          ? {
+              runPhase: 'idle' as const,
+              streaming: false,
+              activeRunPhase: null,
+              activeRunPhaseDetail: null,
+              activeRunStartedAt: null,
+            }
+          : {}),
       };
     }
     case 'run/aborting':

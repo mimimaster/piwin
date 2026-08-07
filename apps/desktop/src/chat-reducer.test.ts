@@ -1483,4 +1483,54 @@ describe('chatUiReducer subagent hydration', () => {
     expect(Object.keys(state.subagentChildren)).toHaveLength(0);
     expect(Object.keys(state.subagentStreams)).toHaveLength(0);
   });
+
+  it('uses clientMessageId for optimistic user bubbles and rolls them back', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: 'hello',
+      clientMessageId: 'client-user-1',
+    });
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]?.id).toBe('client-user-1');
+    expect(state.streaming).toBe(true);
+
+    state = chatUiReducer(state, {
+      type: 'user/send-rollback',
+      clientMessageId: 'client-user-1',
+    });
+    expect(state.messages).toHaveLength(0);
+    expect(state.streaming).toBe(false);
+    expect(state.runPhase).toBe('idle');
+  });
+
+  it('preserves paint-first optimistic draft bubbles when session/set activates a new session', () => {
+    let state = createInitialChatUiState();
+    expect(state.activeSessionId).toBeNull();
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: 'first message',
+      clientMessageId: 'client-user-draft',
+    });
+    expect(state.messages).toHaveLength(1);
+    expect(state.streaming).toBe(true);
+
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'new-session' });
+    expect(state.activeSessionId).toBe('new-session');
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]?.id).toBe('client-user-draft');
+    expect(state.streaming).toBe(true);
+    expect(state.workingSessionIds).toEqual({ 'new-session': true });
+  });
+
+  it('still clears messages when switching to another existing session', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'keep me' });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    expect(state.activeSessionId).toBe('s2');
+    expect(state.messages).toHaveLength(0);
+    expect(state.streaming).toBe(false);
+  });
+
 });

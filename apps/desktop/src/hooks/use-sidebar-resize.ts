@@ -2,13 +2,22 @@
  * Pointer-driven horizontal resize for the left navigator.
  * Updates CSS --sidebar-width via onWidthChange; persists on pointer-up.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   clampSidebarWidth,
   clampSidebarWidthForViewport,
   loadSidebarWidth,
   saveSidebarWidth,
 } from '../sidebar-width';
+
+/** Write the live width straight to the shell so drag does not wait on React. */
+function writeSidebarWidthCss(widthPx: number): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const shell = document.querySelector('.app-shell') as HTMLElement | null;
+  shell?.style.setProperty('--sidebar-width', `${widthPx}px`);
+}
 
 export type UseSidebarResizeOptions = {
   layoutMode: 'desktop' | 'compact';
@@ -41,6 +50,12 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
     widthRef.current = widthPx;
   }, [widthPx]);
 
+  // Re-assert after every commit so an unrelated App re-render cannot snap
+  // --sidebar-width back to a stale React style value mid-drag.
+  useLayoutEffect(() => {
+    writeSidebarWidthCss(widthRef.current);
+  });
+
   const resolveClamp = useCallback(
     (candidate: number): number => {
       const viewport = typeof window !== 'undefined' ? window.innerWidth : 1280;
@@ -58,6 +73,7 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
     (next: number) => {
       const clamped = resolveClamp(next);
       widthRef.current = clamped;
+      writeSidebarWidthCss(clamped);
       setWidthState(clamped);
       saveSidebarWidth(clamped);
     },
@@ -99,6 +115,7 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
         return;
       }
       widthRef.current = next;
+      writeSidebarWidthCss(next);
       if (pendingFrameRef.current != null) {
         return;
       }
@@ -117,6 +134,7 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
       if (pendingFrameRef.current != null) {
         cancelAnimationFrame(pendingFrameRef.current);
         pendingFrameRef.current = null;
+        writeSidebarWidthCss(widthRef.current);
         setWidthState(widthRef.current);
       }
       setTimeout(() => {
@@ -148,6 +166,7 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
       const clamped = resolveClamp(widthRef.current);
       if (clamped !== widthRef.current) {
         widthRef.current = clamped;
+        writeSidebarWidthCss(clamped);
         setWidthState(clamped);
         saveSidebarWidth(clamped);
       }

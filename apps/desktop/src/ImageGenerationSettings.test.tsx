@@ -465,4 +465,80 @@ describe('ImageGenerationSettings', () => {
     );
     expect(showAllBtn).not.toBeNull();
   });
+
+  it('surfaces SiliconFlow-style discovered image models even when Pi catalog ids differ', async () => {
+    const config = makeConfig();
+    const saveConfig = vi.fn(async () => true);
+    const discoverProviderModels = vi.fn(async () => ({
+      providerId: 'siliconflow',
+      protocol: 'openai-compatible' as const,
+      models: [
+        { id: 'black-forest-labs/FLUX.1-schnell', label: 'FLUX.1 Schnell' },
+        { id: 'Kwai-Kolors/Kolors', label: 'Kolors' },
+        { id: 'deepseek-ai/DeepSeek-V3', label: 'DeepSeek V3' },
+      ],
+    }));
+    const searchImageModelCatalog = vi.fn(async () => ({
+      entries: [
+        {
+          catalogProviderId: 'openrouter',
+          modelId: 'black-forest-labs/flux.2-pro',
+          name: 'FLUX.2 Pro',
+          input: ['text', 'image'] as const,
+          output: ['image'] as const,
+        },
+        {
+          catalogProviderId: 'openrouter',
+          modelId: 'openai/gpt-image-1',
+          name: 'GPT Image 1',
+          input: ['text', 'image'] as const,
+          output: ['image'] as const,
+        },
+      ],
+      catalogVersion: 'test',
+    }));
+
+    const containerEl = document.createElement('div');
+    document.body.appendChild(containerEl);
+    const reactRoot = createRoot(containerEl);
+    root = reactRoot;
+    container = containerEl;
+
+    const base = createContextValue(config, saveConfig);
+    act(() => {
+      reactRoot.render(
+        (
+          <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+            <DesktopLocaleProvider locale="zh-CN" onLocaleChange={() => {}}>
+              <SettingsProvider
+                value={{ ...base, discoverProviderModels, searchImageModelCatalog }}
+              >
+                <ImageGenerationSettings />
+              </SettingsProvider>
+            </DesktopLocaleProvider>
+          </PiwinUiProvider>
+        ) as ReactElement,
+      );
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const input = containerEl.querySelector<HTMLInputElement>(
+      '[data-testid="image-model-suggest-input"]',
+    );
+    expect(input).not.toBeNull();
+    await act(async () => {
+      input?.focus();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    const list = containerEl.querySelector('[data-testid="image-model-suggest-list"]');
+    const text = list?.textContent ?? '';
+    // FLUX family-matches catalog; Kolors is discovered-only (channel).
+    expect(text).toContain('FLUX.1-schnell');
+    expect(text).toContain('Kwai-Kolors/Kolors');
+    // Chat models must stay out of the primary image suggestion list.
+    expect(text).not.toContain('DeepSeek-V3');
+  });
 });

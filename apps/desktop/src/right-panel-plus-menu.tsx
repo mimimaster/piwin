@@ -3,7 +3,7 @@
  */
 
 import { type ReactElement } from 'react';
-import { DropdownMenu, DropdownMenuItem, DropdownMenuLabel, IconButton } from '@piwin/ui-kit';
+import { DropdownMenu, DropdownMenuItem, DropdownMenuLabel } from '@piwin/ui-kit';
 import { IconPlus } from './shell-icons';
 import type { DesktopLocale } from './desktop-locale';
 import { SECTION_META, sectionLabel, type RightPanelTab } from './right-panel-sections';
@@ -20,15 +20,18 @@ export type RightPanelPlusMenuProps = {
 export function RightPanelPlusMenu(props: RightPanelPlusMenuProps): ReactElement {
   const label = props.locale === 'zh-CN' ? '打开面板' : 'Open panel';
 
+  // Plain text-style trigger (no IconButton / ActionIcon chip background).
   const trigger = (
-    <IconButton
+    <button
+      type="button"
       className={props.open || props.active ? 'right-panel-tab-add active' : 'right-panel-tab-add'}
-      label={label}
+      aria-label={label}
+      title={label}
       data-testid="right-panel-tab-add"
       aria-pressed={props.open}
     >
       <IconPlus />
-    </IconButton>
+    </button>
   );
 
   return (

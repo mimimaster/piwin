@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildEnabledModelOptions } from './model-options.js';
+import { buildEnabledModelOptions, isComposerChatModel } from './model-options.js';
 import type { ModelConfigEntry, ModelProviderConfig } from '@piwin/contracts';
 
 function makeProvider(
@@ -108,6 +108,46 @@ describe('buildEnabledModelOptions', () => {
         supportsImageGeneration: true,
       },
     ]);
+  });
+
+  it('excludes pure image-generation and video-generation models from the picker', () => {
+    const providers = [
+      makeProvider({
+        id: 'p1',
+        models: [
+          makeModel({ id: 'chat-model' }),
+          makeModel({ id: 'gpt-image-1', capabilities: ['image-generation'] }),
+          makeModel({ id: 'sora-2', capabilities: ['video-generation'] }),
+          makeModel({
+            id: 'hybrid',
+            capabilities: ['chat', 'image-generation'],
+          }),
+          makeModel({
+            id: 'image-and-video-only',
+            capabilities: ['image-generation', 'video-generation'],
+          }),
+        ],
+      }),
+    ];
+    const options = buildEnabledModelOptions(providers);
+    expect(options.map((option) => option.modelId)).toEqual(['chat-model', 'hybrid']);
+  });
+
+  it('isComposerChatModel treats omitted capabilities as chat', () => {
+    expect(isComposerChatModel(makeModel({ id: 'legacy' }))).toBe(true);
+    expect(isComposerChatModel(makeModel({ id: 'explicit-chat', capabilities: ['chat'] }))).toBe(
+      true,
+    );
+    expect(
+      isComposerChatModel(
+        makeModel({ id: 'image-only', capabilities: ['image-generation'] }),
+      ),
+    ).toBe(false);
+    expect(
+      isComposerChatModel(
+        makeModel({ id: 'video-only', capabilities: ['video-generation'] }),
+      ),
+    ).toBe(false);
   });
 
   it('returns an empty list for no providers or a null-free empty array', () => {

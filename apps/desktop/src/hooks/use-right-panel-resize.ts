@@ -2,13 +2,22 @@
  * Pointer-driven horizontal resize for the right workspace panel.
  * Updates CSS --right-panel-width via onWidthChange; persists on pointer-up.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   clampRightPanelWidth,
   clampRightPanelWidthForViewport,
   loadRightPanelWidth,
   saveRightPanelWidth,
 } from '../right-panel-width';
+
+/** Write the live width straight to the shell so drag does not wait on React. */
+function writeRightPanelWidthCss(widthPx: number): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const shell = document.querySelector('.app-shell') as HTMLElement | null;
+  shell?.style.setProperty('--right-panel-width', `${widthPx}px`);
+}
 
 export type UseRightPanelResizeOptions = {
   /** Desktop in-flow column vs compact overlay drawer. */
@@ -54,6 +63,13 @@ export function useRightPanelResize(
     liveWidthCommitRef.current = options.onLiveWidthCommit;
   }, [options.onLiveWidthCommit]);
 
+  // After every React commit, re-assert the live width so an unrelated App
+  // re-render cannot snap --right-panel-width back to a stale style prop
+  // while the user is mid-drag (or between rAF state flushes).
+  useLayoutEffect(() => {
+    writeRightPanelWidthCss(widthRef.current);
+  });
+
   const resolveClamp = useCallback(
     (candidate: number): number => {
       const viewport = typeof window !== 'undefined' ? window.innerWidth : 1280;
@@ -72,6 +88,7 @@ export function useRightPanelResize(
     (next: number) => {
       const clamped = resolveClamp(next);
       widthRef.current = clamped;
+      writeRightPanelWidthCss(clamped);
       setWidthState(clamped);
       saveRightPanelWidth(clamped);
       liveWidthCommitRef.current?.(clamped);
@@ -114,7 +131,10 @@ export function useRightPanelResize(
         return;
       }
       widthRef.current = next;
-      // Coalesce: a single rAF will apply at most once per paint.
+      // Live CSS first so chrome (title actions) tracks the edge immediately.
+      // React state still coalesces to one commit per frame for aria / persistence.
+      writeRightPanelWidthCss(next);
+      // Coalesce: a single rAF will apply React state at most once per paint.
       if (pendingFrameRef.current != null) {
         return;
       }
@@ -138,6 +158,7 @@ export function useRightPanelResize(
         cancelAnimationFrame(pendingFrameRef.current);
         pendingFrameRef.current = null;
         const commit = widthRef.current;
+        writeRightPanelWidthCss(commit);
         setWidthState(commit);
         liveWidthCommitRef.current?.(commit);
       }
@@ -175,6 +196,7 @@ export function useRightPanelResize(
       const clamped = resolveClamp(widthRef.current);
       if (clamped !== widthRef.current) {
         widthRef.current = clamped;
+        writeRightPanelWidthCss(clamped);
         setWidthState(clamped);
         saveRightPanelWidth(clamped);
         liveWidthCommitRef.current?.(clamped);
