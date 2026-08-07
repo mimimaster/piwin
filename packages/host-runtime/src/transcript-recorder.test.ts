@@ -266,4 +266,45 @@ describe('TranscriptRecorder', () => {
 
     expect(await listTranscriptMessages(transcriptPath)).toEqual([]);
   });
+
+  it('honors clientMessageId for user turns so Desktop Revert can match live bubble ids', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-client-id-'));
+    const transcriptPath = join(rootDir, 'transcript.json');
+    const recorder = createTranscriptRecorder({
+      transcriptPath,
+      sessionId: 'session-1',
+      projectPath: '/tmp/project',
+    });
+
+    const clientMessageId = 'client-bubble-abc123';
+    await recorder.recordUserPrompt({
+      text: 'please fix the revert button',
+      clientMessageId,
+    });
+    await recorder.flush();
+
+    const messages = await listTranscriptMessages(transcriptPath);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.id).toBe(clientMessageId);
+    expect(messages[0]?.role).toBe('user');
+    expect(messages[0]?.text).toBe('please fix the revert button');
+  });
+
+  it('generates a host user id when clientMessageId is omitted', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-host-id-'));
+    const transcriptPath = join(rootDir, 'transcript.json');
+    const recorder = createTranscriptRecorder({
+      transcriptPath,
+      sessionId: 'session-1',
+      projectPath: '/tmp/project',
+    });
+
+    await recorder.recordUserPrompt({ text: 'hello from cli' });
+    await recorder.flush();
+
+    const messages = await listTranscriptMessages(transcriptPath);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.id.startsWith('user-')).toBe(true);
+  });
+
 });

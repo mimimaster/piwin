@@ -151,7 +151,11 @@ export function createTranscriptRecorder(options: {
 
   return {
     async recordUserPrompt(input) {
-      const userId = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const clientMessageId = input.clientMessageId?.trim();
+      const userId =
+        clientMessageId && clientMessageId.length > 0
+          ? clientMessageId
+          : `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const messageInput: Parameters<typeof createUserTranscriptMessage>[0] = {
         id: userId,
         text: input.text,
