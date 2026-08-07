@@ -31,20 +31,13 @@ export function buildInlineDirective(plan: SessionPlan): InlineDirective {
     .join('\n');
   return {
     promptText: [
-      `[piwin-plan-execute:inline] Plan: ${plan.title}`,
+      `[piwin-plan-execute:inline v2] Plan: ${plan.title}`,
       `Goal: ${plan.goal}`,
       '',
-      'Execute the approved plan below step by step in this session.',
-      'For each step:',
-      '1. Call piwin_plan_set_step with status "active" before starting.',
-      '2. Implement the step.',
-      '3. Run the verification described in the step detail.',
-      '4. Call piwin_plan_set_step with status "done" (or "skipped" with a note).',
-      'Only one step should be active at a time.',
-      'When all steps are complete, post a bounded walkthrough summary:',
-      '- what changed (files/areas);',
-      '- verification results;',
-      '- unresolved items or follow-ups.',
+      'Success: complete each step against its acceptance criteria with verification evidence.',
+      'Use piwin_plan_set_step (active → done/skipped); mark done only with a short verification note.',
+      'Stop at blockers or failed checks; do not invent scope beyond this plan.',
+      'When finished, post a bounded walkthrough: what changed, verification, unresolved items.',
       '',
       'Steps:',
       stepList,
@@ -68,14 +61,13 @@ export function buildSubagentTaskDirective(plan: SessionPlan, stepId: string): S
   return {
     stepId,
     promptText: [
-      `[piwin-plan-execute:subagent] Plan: ${plan.title} — step ${step.id}`,
+      `[piwin-plan-execute:subagent v2] Plan: ${plan.title} — step ${step.id}`,
       `Goal: ${plan.goal}`,
       '',
-      `Complete ONLY this step: ${step.title}.`,
+      `Success: complete only this step — ${step.title} — against its acceptance criteria.`,
       step.detail ? `Detail: ${step.detail}` : '',
-      '',
-      'When finished, post a concise result: what you changed, verification output, and any blockers.',
-      'Do not attempt other plan steps.',
+      'Stop: do not implement other plan steps or expand scope.',
+      'Verify: report what changed, verification output, and blockers.',
     ]
       .filter((line) => line.length > 0)
       .join('\n'),
@@ -89,17 +81,13 @@ export function buildSubagentTaskDirective(plan: SessionPlan, stepId: string): S
 export function buildSubagentVerificationDirective(plan: SessionPlan): InlineDirective {
   return {
     promptText: [
-      `[piwin-plan-execute:verify] Plan: ${plan.title}`,
+      `[piwin-plan-execute:verify v2] Plan: ${plan.title}`,
       `Goal: ${plan.goal}`,
       '',
-      'All independent plan steps have been executed by subagent sessions and merged.',
-      'Run final verification for the whole plan, then post a bounded walkthrough summary:',
-      '- what changed (files/areas);',
-      '- verification results;',
-      '- merged child sessions;',
-      '- unresolved items or follow-ups.',
-      '',
-      'Use piwin_plan_set_step to mark any remaining steps done/skipped as needed.',
+      'Success: independent steps are merged; whole-plan acceptance criteria pass with evidence.',
+      'Run final verification, update remaining steps via piwin_plan_set_step, then post a bounded walkthrough:',
+      'what changed, verification results, merged children, unresolved items.',
+      'Stop if verification fails — report blockers; do not claim green without evidence.',
     ].join('\n'),
   };
 }

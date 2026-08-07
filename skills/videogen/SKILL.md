@@ -2,31 +2,26 @@
 name: videogen
 description: Generate short videos from text or an image reference with a configured video model.
 hidden: true
+version: 2
 ---
 
-# Video Generation Skill
+# Video Generation
 
-Use the `video_gen` host tool when the user asks for a generated video, an
-image to be animated, or a short text-to-video clip.
+## Goal
+A short generated video saved in piwin media storage and attached locally for the user.
 
-## How to use `video_gen`
+## Done means
+- `video_gen` called with a clear prompt (scene, motion, camera, timing, style).
+- Optional: `durationSeconds`, `aspectRatio`, `size`, `resolution`, `inputImagePath` (absolute media path for image-to-video — not pasted into prompt text).
+- Tool finishes provider polling and returns a local absolute path / attachment (not base64 or expiring provider URL).
 
-Call `video_gen` with a detailed `prompt`. The tool routes by the optional
-`model` id to a configured provider, creates the provider's asynchronous task,
-polls it until it completes, downloads the result, and saves it under piwin's
-media store. It returns an absolute local path and a media attachment, never a
-base64 blob or an expiring provider URL.
+## Stop when
+- Need is video editing or long-form production — out of scope.
+- Tool missing / no video model — point user to Settings → Image & Video Generation.
+- Provider errors — report failure; do not claim a video exists.
 
-Optional arguments include `durationSeconds`, `aspectRatio`, `size`,
-`resolution`, and `inputImagePath`. When animating an existing generated or
-uploaded image, pass its absolute media path through `inputImagePath`; do not
-paste the path into the prompt text.
+## Constraints
+- Generation may take minutes; waiting UI is host-owned.
 
-Video generation can take several minutes. While the task is running, the
-conversation shows an animated waiting card. If the provider fails, report the
-error and do not claim that a video was created.
-
-## When unavailable
-
-If `video_gen` is missing or reports that no video model is configured, tell the
-user to add a video-capable model under Settings → Image & Video Generation.
+## Verify
+- Local media path is present only when the provider task succeeded.

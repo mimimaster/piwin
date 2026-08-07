@@ -52,7 +52,7 @@ describe('buildSubagentTaskDirective', () => {
     expect(directive?.stepId).toBe('1');
     expect(directive?.promptText).toContain('Design');
     expect(directive?.promptText).toContain('types + tests');
-    expect(directive?.promptText).toContain('ONLY this step');
+    expect(directive?.promptText).toContain('complete only this step');
   });
 
   it('returns null for an unknown step id', () => {
