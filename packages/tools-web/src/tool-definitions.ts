@@ -12,7 +12,7 @@ export function createWebToolDefinitions(
       descriptor: {
         name: 'web_search',
         description:
-          'Search the web for current information. Host may query multiple configured sources and merge hits (URL-deduped). Returns titles, URLs, and snippets; optional per-hit source tags.',
+          'Search the live web. Returns merged hits (title, url, snippet; optional source). Host may query multiple configured sources.',
         parameters: {
           type: 'object',
           properties: {
@@ -38,7 +38,7 @@ export function createWebToolDefinitions(
       descriptor: {
         name: 'web_fetch',
         description:
-          'Fetch a URL and extract readable text content. Use for documentation and articles.',
+          'Fetch an http(s) URL and return readable text. Use to ground claims from documentation or articles.',
         parameters: {
           type: 'object',
           properties: {

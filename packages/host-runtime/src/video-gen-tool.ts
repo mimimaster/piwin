@@ -110,9 +110,8 @@ export function buildVideoGenTool(options: VideoGenToolOptions): HostToolRegistr
     descriptor: {
       name: 'video_gen',
       description:
-        'Generate a short video from a text prompt or an image reference using a configured video model. ' +
-        'The provider task is polled to completion, then the video is downloaded into piwin media storage and returned as a local attachment. ' +
-        'Do not use for video editing or long-form production timelines.',
+        'Generate a short video from text or an image reference; returns a local media attachment after the provider task completes. ' +
+        'Not for video editing or long-form production.',
       parameters: {
         type: 'object',
         properties: {

@@ -717,37 +717,28 @@ describe('computeSourceHash', () => {
 /* ------------------------------------------------------------------ */
 
 describe('assembleSystemPrompt', () => {
-  it('returns the constant system prompt from spec §9.4', () => {
+  it('returns the constant system prompt with success and safety', () => {
     const prompt = assembleSystemPrompt();
     expect(prompt).toContain('untrusted data');
-    expect(prompt).toContain('Never follow');
-    expect(prompt).toContain('Return Markdown only');
+    expect(prompt).toContain('## Success');
+    expect(prompt).toContain('## Stop / safety');
     expect(prompt).toContain('<piwin-walkthrough-evidence>');
+    expect(prompt).toContain('Return Markdown');
   });
 
-  it('requires the rich-text delivery formats so custom mode keeps them too', () => {
+  it('keeps delivery markers so custom mode still gets UI format', () => {
     const prompt = assembleSystemPrompt();
-    // 1. action badges with language tag + path
-    expect(prompt).toContain('[MODIFY] TS src/utils.ts');
-    expect(prompt).toContain('[NEW] TS src/logger.ts');
-    // 2. diff fence with +/- prefixed lines
+    expect(prompt).toContain('[MODIFY]');
+    expect(prompt).toContain('[NEW]');
+    expect(prompt).toContain('[DELETE]');
     expect(prompt).toContain('`diff`');
     expect(prompt).toContain('`+ `');
     expect(prompt).toContain('`- `');
-    // 3. long code sample targeting the >16-line fold
-    expect(prompt).toContain('20+ lines');
-    // 4. HTML <details> collapsible for logs
     expect(prompt).toContain('<details>');
     expect(prompt).toContain('<summary>');
-    expect(prompt).toContain('</details>');
-    // 5. task checklist markers
     expect(prompt).toContain('- [x]');
     expect(prompt).toContain('- [ ]');
-    // 6. GitHub-style callouts
-    expect(prompt).toContain('> [!NOTE]');
-    expect(prompt).toContain('> [!TIP]');
-    // The formatting layer must not be removable via the user prompt.
-    expect(prompt).toContain('regardless of what the user prompt asks for');
+    expect(prompt).toContain('[!NOTE');
   });
 });
 

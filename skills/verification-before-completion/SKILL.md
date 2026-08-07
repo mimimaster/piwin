@@ -1,15 +1,25 @@
 ---
 name: verification-before-completion
-description: Require evidence before claiming work is done, fixed, or passing.
+description: Require fresh evidence before claiming work is done, fixed, or passing.
+version: 2
 ---
 
 # Verification Before Completion
 
-Before saying done:
+## Goal
+A completion claim the user can trust because it is backed by checks run in this environment.
 
-1. Run the relevant commands (`pnpm typecheck`, package tests, e2e as needed).
-2. Paste or summarize **actual** command output (pass/fail).
-3. Check public exports and docs if architecture or user-visible behavior changed.
-4. Confirm no forbidden imports (apps ↛ Pi) and no accidental god-module growth.
+## Done means
+- Relevant verification ran here (e.g. package typecheck/tests, e2e when warranted).
+- Result is summarized from **actual** output (pass/fail), not assumed.
+- If public API or user-visible behavior changed, exports/docs were checked.
+- Architecture boundaries still hold (no apps→Pi imports; no accidental god-module growth) when those surfaces moved.
 
-Never claim green without running verification in this environment.
+## Stop when
+- Required checks cannot run or fail — report the blocker; do not claim green.
+
+## Constraints
+- Prefer automated failing tests over manual-only checks when practical.
+
+## Verify
+- “Done / fixed / passing” appears only after the evidence above exists in this session.

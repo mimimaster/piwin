@@ -1,70 +1,30 @@
 ---
 name: generate-flashcards
-description: Generate a batch of flashcards from a document folder, notes, or open knowledge using RAG retrieval and flashcard_batch_create.
+description: Generate a flashcard batch from a document folder, notes, or open knowledge using retrieval + flashcard_batch_create.
+version: 2
 ---
 
 # Generate Flashcards
 
-Generate flashcards from one of three sources:
+## Goal
+One batch of high-quality flashcards the user can study, correctly sourced when material comes from folder/notes.
 
-1. **Folder/docs** — the user points at a folder; you retrieve passages via the
-   `doccards/*` host commands and generate sourced cards.
-2. **Notes** — the user asks for cards from their notes library; you use
-   `note_search` to retrieve passages and generate sourced cards.
-3. **Open** — no source folder; you generate cards from general knowledge or
-   web search results.
+## Done means
+- Source mode chosen: **folder** (`doccards/scan-folder` → `doccards/index-folder` → `doccards/retrieve`), **notes** (`note_search`), or **open** (general/web, no source fields).
+- Existing cards checked with `flashcard_list` to reduce duplicates.
+- Single `flashcard_batch_create` call with the full array (not per-card create).
+- Folder cards carry real `sourceFolder` / `sourceFile` / `sourceLine` / `sourceExcerpt` from retrieval; notes cards carry `sourceNoteId` + `sourceExcerpt`; open cards omit source fields.
+- Returned `artifactHtml` rendered verbatim in an `html` fence when present.
+- Quality: one atomic concept; front is a question that does not leak the answer; back 1–3 sentences; difficulty matches ask (easy/medium/hard); stay on topic.
 
-## Folder mode flow
+## Stop when
+- Folder set looks wrong/huge — confirm before indexing.
+- Card cannot be grounded in a retrieved passage — drop it or use open mode without invented attribution.
+- Tools/index unavailable — say what failed.
 
-1. Call `doccards/scan-folder` with `{ folderPath }` to list supported files
-   and their extensions. Confirm the file set with the user if it looks large
-   or unexpected.
-2. Call `doccards/index-folder` with `{ folderPath }` (optionally
-   `includeFiles: [...]` to narrow). Wait for the result; it reports
-   `indexed`, `chunks`, `degraded` (true when no embedding provider is
-   configured — FTS-only retrieval still works).
-3. Ask the user for a topic focus (optional), difficulty (easy/medium/hard),
-   and count (fewer/standard/more). Defaults: no topic, medium, standard.
-4. Build a retrieval query from the topic (or the folder name if no topic).
-   Call `doccards/retrieve` with `{ folderPath, query, limit: 10 }`.
-5. Call `flashcard_list` with `{ sourceFolder: <canonicalPath> }` to check
-   existing cards and avoid duplicate fronts.
-6. Call `flashcard_batch_create` ONCE with all cards as an array. Each card
-   must carry `sourceFolder`, `sourceFile`, `sourceLine`, and `sourceExcerpt`
-   from the passage it is derived from. Output the returned `artifactHtml`
-   inside a ```html fence verbatim to render the interactive flip cards.
+## Constraints
+- Never invent source attribution.
+- Host may skip near-duplicate fronts; that is non-fatal.
 
-## Notes mode flow
-
-1. Call `note_search` with the topic as the query.
-2. Call `flashcard_list` with `{ sourceNoteId: <noteId> }` for each note you
-   plan to draw from.
-3. Call `flashcard_batch_create` ONCE. Each card carries `sourceNoteId` and
-   `sourceExcerpt`.
-
-## Open mode flow
-
-1. Optionally call `web_search` / `web_fetch` to ground the cards.
-2. Call `flashcard_list` for the target deck to avoid duplicates.
-3. Call `flashcard_batch_create` ONCE. Do not fill source fields.
-
-## Card quality rules
-
-- One atomic concept per card.
-- Front is a question; it must not leak the answer.
-- Back is concise: 1–3 sentences, no essay.
-- Difficulty: easy = terms / definitions; medium = concepts / mechanisms;
-  hard = application / analysis / trade-offs.
-- If the user specified a topic, stay on topic; skip unrelated material even
-  if present in the retrieved passages.
-- Duplicates in a batch are skipped (not fatal); check `flashcard_list` first.
-
-## Source attribution (folder mode)
-
-- `sourceFolder`: the canonical absolute path returned by `doccards/index-folder`.
-- `sourceFile`: the relative path as shown in retrieved passages.
-- `sourceLine`: the 1-based start line of the passage.
-- `sourceExcerpt`: the exact passage the card is derived from (≤ 500 chars).
-
-Never invent source attribution. If a card is not grounded in a retrieved
-passage, drop it or move it to open mode (no source fields).
+## Verify
+- Spot-check that sourced cards match passage text; batch create result reflects created vs skipped.

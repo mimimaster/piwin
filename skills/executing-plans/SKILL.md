@@ -1,31 +1,27 @@
 ---
 name: executing-plans
-description: Execute an existing plan slice-by-slice with verification checkpoints.
+description: Execute an approved plan slice-by-slice with evidence at each checkpoint.
+version: 2
 ---
 
 # Executing Plans
 
-1. Read the plan; confirm current slice and exit criteria.
-2. Implement only that slice; avoid drive-by refactors.
-3. Run the package tests / typecheck required by the plan.
-4. Update plan/backlog status when a slice is done.
-5. Stop at checkpoints if something blocks; do not invent scope.
+## Goal
+Implement only the current approved plan slice so its acceptance criteria pass, then stop at the next checkpoint.
 
-## Subagent profiles
+## Done means
+- Current step(s) match plan intent; no drive-by refactors or scope expansion.
+- Step progress is recorded with `piwin_plan_set_step` (mark `done` only with a short evidence note).
+- Required verification for the slice ran in this environment (tests, typecheck, or the plan’s stated check).
+- If a step has `profileId`, the Host-resolved profile bounds model/capabilities/isolation — do not widen them.
 
-When a plan step has a `profileId`, the Host resolves the corresponding
-subagent profile (model, thinking level, capabilities, isolation, skills)
-from Settings before spawning the child session. The profile's capability
-set and isolation mode are upper bounds — a step cannot widen them.
+## Stop when
+- Plan is wrong, blocked, or acceptance criteria cannot be met — fix the plan briefly or ask; do not silently diverge.
+- Checkpoint / user gate requires review before the next slice.
 
-Built-in profiles:
-- `explorer` — read-only codebase exploration
-- `reviewer` — read-only code review and analysis
-- `implementer` — isolated implementation with write + execute (worktree)
-- `tester` — isolated test execution and fixture writes (worktree)
+## Constraints
+- Default profiles when unset: worktree + explicit apply. Built-ins: `explorer`, `reviewer` (readonly); `implementer`, `tester` (worktree).
+- Host owns isolation and permission; skill text is guidance only.
 
-Custom profiles can be defined in Settings → Sub-agent profiles. When a
-step has no `profileId`, plan execution uses its default (worktree +
-explicit apply policy).
-
-If the plan is wrong, fix the plan briefly then continue — do not silently diverge.
+## Verify
+- Re-run the failing or required path for the slice; summarize actual results before claiming the step done.

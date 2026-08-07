@@ -63,13 +63,10 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
     descriptor: {
       name: 'piwin_subagent_run',
       description:
-        'Delegate a self-contained subtask to an independent subagent with its own context window. ' +
-        'Use for: codebase exploration that would flood this conversation with search results, ' +
-        'parallel implementation of independent pieces, or focused verification passes. ' +
-        'The subagent runs in its own context and returns only a summary — intermediate output ' +
-        "does not consume this conversation's context. The subagent cannot spawn further subagents. " +
-        'By default the subagent is readonly (cannot modify files); set mode to "worktree" for ' +
-        'isolated write access in a temporary git worktree branch.',
+        'Run a self-contained subtask in a child session; returns only a summary to this conversation. ' +
+        'Use for heavy exploration, independent implementation slices, or focused verification. ' +
+        'Task text must include acceptance criteria. Default mode readonly; worktree for isolated writes. ' +
+        'Child cannot spawn further subagents.',
       parameters: {
         type: 'object',
         properties: {
