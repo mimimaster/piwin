@@ -24,6 +24,10 @@ import type {
   ThemeManifest,
   WalkthroughArtifact,
 } from '@piwin/contracts';
+import {
+  listOrchestrationSchemes,
+  ORCHESTRATION_SCHEME_OFF_ID,
+} from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, type SessionListItemUi } from './chat-reducer';
 import { HostClient } from './host-client';
 import { useHostRequestAdapters } from './host-request-adapters';
@@ -328,6 +332,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   } | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [agentMode, setAgentMode] = useState<AgentModeId>('agent');
+  const [orchestrationSchemeId, setOrchestrationSchemeId] = useState<string>(
+    ORCHESTRATION_SCHEME_OFF_ID,
+  );
+  // ORCH: switching sessions returns the scheme dropdown to Off (no cross-session persist).
+  useEffect(() => {
+    setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
+  }, [state.activeSessionId]);
+
   const [remoteSearchHits, setRemoteSearchHits] = useState<SessionSearchHit[] | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   /** Filled after useComposerMedia mounts so Revert can restore text without reordering hooks. */
@@ -563,6 +575,29 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onThemeResolved: onThemeApplied,
   });
 
+  const orchestrationSchemeOptions = useMemo(() => {
+    const offOption = {
+      id: ORCHESTRATION_SCHEME_OFF_ID,
+      name: 'Off',
+      description: 'Freehand — no orchestration injection',
+      source: 'off' as const,
+    };
+    const schemes = listOrchestrationSchemes({
+      schemes: config?.subagents?.schemes,
+      maxConcurrency: config?.subagents?.maxConcurrency,
+      maxTasksPerRun: config?.subagents?.maxTasksPerRun,
+    });
+    return [
+      offOption,
+      ...schemes.map((scheme) => ({
+        id: scheme.id,
+        name: scheme.name,
+        description: scheme.description,
+        source: scheme.source,
+      })),
+    ];
+  }, [config?.subagents?.schemes, config?.subagents?.maxConcurrency, config?.subagents?.maxTasksPerRun]);
+
   const sessionDocuments = useMemo<SessionDocItem[]>(() => {
     const items: SessionDocItem[] = [];
     const seenPaths = new Set<string>();
@@ -783,6 +818,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     modelOptions,
     thinkingLevel,
     agentMode,
+    orchestrationSchemeId,
     setEditingMessageId,
     setRenameDraft,
     setHostLogEntries,
@@ -1089,6 +1125,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     state,
     dispatch,
     agentMode,
+    orchestrationSchemeId,
+    onOrchestrationSchemeChange: setOrchestrationSchemeId,
     onAgentModeChange: setAgentMode,
     menuSkills,
     onCompact: handleCompact,
@@ -1530,6 +1568,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const handleOpenPermissionsSettings = useCallback((): void => {
     openSettingsSection('permissions');
   }, [openSettingsSection]);
+  const handleOpenOrchestrationSchemeSettings = useCallback((): void => {
+    openSettingsSection('subagents');
+  }, [openSettingsSection]);
   const handleComposerAttachImage = useCallback((): void => {
     void handlePickImageFiles();
   }, [handlePickImageFiles]);
@@ -1652,10 +1693,16 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onRunModeSetDefault: handleRunModeSetDefault,
       onOpenPermissionsSettings: handleOpenPermissionsSettings,
       runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted,
+      orchestrationSchemeId,
+      orchestrationSchemeOptions,
+      onOrchestrationSchemeChange: setOrchestrationSchemeId,
+      onOpenOrchestrationSchemeSettings: handleOpenOrchestrationSchemeSettings,
       branchRequest: requestGit as ComposerDockProps['branchRequest'],
     }),
     [
       agentMode,
+      orchestrationSchemeId,
+      orchestrationSchemeOptions,
       composer,
       composerLayoutMode,
       config?.thinking?.ultraEnabled,

@@ -14,6 +14,7 @@ import type { ArtifactConfig } from './artifact.js';
 import { THINKING_LEVEL_OPTIONS } from './host.js';
 import type { ModelRef, SessionScope, ThinkingLevel } from './host.js';
 import type { SubagentProfileSettings } from './subagent-profile.js';
+import type { OrchestrationSchemeSettings } from './orchestration-scheme.js';
 import type { RemoteConfig } from './remote.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
@@ -250,6 +251,8 @@ export type SubagentConfig = {
   parallelWritePolicy: 'worktree-only' | 'disabled';
   /** Explicit consent policy for dirty-base parallel writes. */
   dirtyBasePolicy: 'ask' | 'bypass';
+  /** User-authored orchestration schemes (builtins merged at resolve time). */
+  schemes?: OrchestrationSchemeSettings[];
 };
 
 /** Safe defaults for `PiwinConfig.subagents` when absent or partial. */

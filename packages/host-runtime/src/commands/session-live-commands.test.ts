@@ -429,6 +429,9 @@ function createControlContext(
     cancelRuntimeReplacement: async () => undefined,
     reloadRuntime: async () => ({ generationId: 'generation-2', settingsRevision: 'rev-2' }),
     loadConfig: async () => ({}) as any,
+    setRunOrchestrationScheme: (): void => undefined,
+    getRunOrchestrationScheme: (): undefined => undefined,
+    listKnownSubagentProfileIds: async () => [],
   };
   return { context, registry, activeRun };
 }

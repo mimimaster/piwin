@@ -148,3 +148,20 @@ describe('applySkillToPrompt', () => {
     expect(out).toContain('add deploy skill');
   });
 });
+
+  it('parses /scheme and /ultra-code as scheme selection', () => {
+    expect(parseComposerSlashSubmit('/scheme', skills)).toEqual({
+      kind: 'scheme',
+      schemeId: 'off',
+      name: 'scheme',
+      args: '',
+    });
+    expect(parseComposerSlashSubmit('/scheme ultra-code', skills)).toMatchObject({
+      kind: 'scheme',
+      schemeId: 'ultra-code',
+    });
+    expect(parseComposerSlashSubmit('/ultra-code', skills)).toMatchObject({
+      kind: 'scheme',
+      schemeId: 'ultra-code',
+    });
+  });

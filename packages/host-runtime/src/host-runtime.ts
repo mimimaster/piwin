@@ -297,6 +297,11 @@ export class HostRuntime {
   >();
   /** Model-facing merge seam cache, keyed by the child product session id. */
   private readonly subagentTaskResults = new Map<string, SubagentTaskResult>();
+  /** ORCH: turn-scoped resolved scheme keyed by parent run id. */
+  private readonly runOrchestrationSchemes = new Map<
+    string,
+    import('@piwin/contracts').ResolvedOrchestrationScheme
+  >();
   /** Deduplicates concurrent cleanup callbacks for one crashed Run tree. */
   private readonly workerCrashCleanupRoots = new Set<string>();
   /** CE-OBS: last known usage snapshot per session. */
@@ -2033,6 +2038,25 @@ export class HostRuntime {
     return {
       spawn: async (input) => {
         const parentRunId = this.runExecutionContext.getStore();
+        const activeScheme = parentRunId
+          ? this.runOrchestrationSchemes.get(parentRunId)
+          : undefined;
+        const { applySchemeToSubagentSpawnInput } = await import('@piwin/contracts');
+        const schemeSpawn = applySchemeToSubagentSpawnInput(activeScheme, {
+          ...(input.profileId ? { profileId: input.profileId } : {}),
+          ...(input.model ? { model: input.model } : {}),
+          ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+        });
+        // Soft-generic Ultra Code: force default profile, drop model override,
+        // clamp thinking; prefer readonly when metadata is hidden.
+        let mode = input.mode;
+        if (activeScheme && !activeScheme.exposeSpawnMetadata && mode === undefined) {
+          mode = 'readonly';
+        }
+        const allowModelOverride =
+          Boolean(input.model) &&
+          (!activeScheme || activeScheme.exposeSpawnMetadata) &&
+          !schemeSpawn.clearedModel;
         const preparedRequest = await this.prepareSubagentBatch({
           parentSessionId: sessionId,
           tasks: [
@@ -2040,12 +2064,14 @@ export class HostRuntime {
               id: randomUUID(),
               parentSessionId: sessionId,
               task: input.task,
-              ...(input.mode ? { isolationOverride: input.mode } : {}),
+              ...(mode ? { isolationOverride: mode } : {}),
               ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
               ...(input.sessionName ? { sessionName: input.sessionName } : {}),
-              ...(input.profileId ? { profileId: input.profileId } : {}),
-              ...(input.model ? { model: input.model } : {}),
-              ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+              ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
+              ...(allowModelOverride && input.model ? { model: input.model } : {}),
+              ...(schemeSpawn.thinkingLevel
+                ? { thinkingLevel: schemeSpawn.thinkingLevel }
+                : {}),
             },
           ],
           maxConcurrency: 1,
@@ -2537,6 +2563,19 @@ export class HostRuntime {
       buildModelPromptInput: (input, signal) => this.buildModelPromptInput(input, signal),
       validatePromptAttachments: (input) => this.validatePromptAttachments(input),
       loadConfig: () => loadPiwinConfig(this.options.piwinRoot),
+      setRunOrchestrationScheme: (runId, scheme) => {
+        if (scheme) {
+          this.runOrchestrationSchemes.set(runId, scheme);
+        } else {
+          this.runOrchestrationSchemes.delete(runId);
+        }
+      },
+      getRunOrchestrationScheme: (runId) => this.runOrchestrationSchemes.get(runId),
+      listKnownSubagentProfileIds: async () => {
+        const config = await loadPiwinConfig(this.options.piwinRoot);
+        const { resolveSubagentProfiles } = await import('./subagent-profile-resolver.js');
+        return resolveSubagentProfiles(config).map((profile) => profile.id);
+      },
       runWithContext: (runId, operation) => {
         void this.runExecutionContext.run(runId, operation);
       },
@@ -2606,6 +2645,8 @@ export class HostRuntime {
           effectiveMessage,
         );
         if (!terminal) return false;
+        // ORCH: drop turn-scoped scheme binding when the run ends.
+        this.runOrchestrationSchemes.delete(runId);
         this.runEventCorrelator.markRunTerminal(sessionId, runId);
         // CE-NAME: auto-name after first completed exchange (fire-and-forget).
         if (outcome === 'completed') {

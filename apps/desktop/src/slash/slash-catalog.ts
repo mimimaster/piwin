@@ -35,6 +35,8 @@ export const RESERVED_SLASH_COMMAND_NAMES: ReadonlySet<string> = new Set([
   'agent',
   'plan',
   'ask',
+  'scheme',
+  'ultra-code',
 ]);
 
 /**
@@ -120,6 +122,41 @@ export function buildSlashCatalog(options: BuildSlashCatalogOptions): SlashItem[
       stopItem.unavailableReason = unavailableReason;
     }
     items.push(stopItem);
+  }
+
+  // --- Orchestration scheme (per-send opt-in) ---
+  {
+    let available = true;
+    let unavailableReason: string | undefined;
+    if (!interactive) {
+      available = false;
+      unavailableReason = !hasActiveSession
+        ? 'Start or select a session first'
+        : 'Trust the project first';
+    }
+    items.push({
+      id: 'cmd:scheme',
+      kind: 'command',
+      name: 'scheme',
+      label: 'Orchestration scheme',
+      description: 'Set per-send scheme: /scheme off | ultra-code',
+      keywords: ['orchestration', 'ultra', 'subagent', 'scheme'],
+      groupLabel: 'Command',
+      available,
+      acceptsArgs: true,
+      ...(unavailableReason ? { unavailableReason } : {}),
+    });
+    items.push({
+      id: 'cmd:ultra-code',
+      kind: 'command',
+      name: 'ultra-code',
+      label: 'Ultra Code scheme',
+      description: 'Select Ultra Code orchestration for the next send',
+      keywords: ['orchestration', 'ultra', 'scheme'],
+      groupLabel: 'Command',
+      available,
+      ...(unavailableReason ? { unavailableReason } : {}),
+    });
   }
 
   // --- Modes ---

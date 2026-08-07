@@ -32,6 +32,10 @@ import { ContextUsageRing } from './context-usage-ring';
 import { ThinkingEffortControl } from './ThinkingEffortControl';
 import { RunModeControl } from './RunModeControl';
 import {
+  OrchestrationSchemeControl,
+  type OrchestrationSchemeOption,
+} from './OrchestrationSchemeControl';
+import {
   IconBook,
   IconChat,
   IconClose,
@@ -155,6 +159,11 @@ export type ComposerDockProps = {
   onOpenPermissionsSettings?: () => void;
   /** YOLO unavailable for untrusted projects. */
   runModeYoloDisabled?: boolean;
+  /** ORCH: per-send orchestration scheme id (off default). */
+  orchestrationSchemeId?: string;
+  orchestrationSchemeOptions?: readonly OrchestrationSchemeOption[];
+  onOrchestrationSchemeChange?: (schemeId: string) => void;
+  onOpenOrchestrationSchemeSettings?: () => void;
   /** Optional git request adapter for the footer branch chip. */
   branchRequest?: ((command: BranchChipRequest) => Promise<import('@piwin/contracts').HostResponse>) | undefined;
 };
@@ -872,6 +881,18 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 ? { onOpenSettings: props.onOpenPermissionsSettings }
                 : {})}
               {...(props.runModeYoloDisabled ? { yoloDisabled: true } : {})}
+            />
+          ) : null}
+
+          {props.onOrchestrationSchemeChange && props.orchestrationSchemeOptions ? (
+            <OrchestrationSchemeControl
+              disabled={isStreamingRun}
+              value={props.orchestrationSchemeId ?? 'off'}
+              options={props.orchestrationSchemeOptions}
+              onChange={props.onOrchestrationSchemeChange}
+              {...(props.onOpenOrchestrationSchemeSettings
+                ? { onOpenSettings: props.onOpenOrchestrationSchemeSettings }
+                : {})}
             />
           ) : null}
 

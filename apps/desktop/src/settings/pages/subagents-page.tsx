@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
   createDefaultSubagentConfig,
+  listOrchestrationSchemes,
   SUBAGENT_CAPABILITIES,
   type ModelRef,
   type SubagentCapability,
@@ -87,6 +88,14 @@ export function SubagentProfilesPage(): ReactElement {
         processIsolation: '进程隔离',
         parallelWritePolicy: '并行写入策略',
         dirtyBasePolicy: '脏基线并行写入策略',
+        schemesTitle: '编排方案',
+        schemesDescription:
+          '编排方案是发送时的可选项（Composer 下拉）。Off 表示自由模式；选择后才注入约束。此处只读预览；自定义方案编辑将在后续版本开放。',
+        schemeSourceBuiltin: '内置',
+        schemeSourceSettings: '自定义',
+        schemeDefaultProfile: '默认档案',
+        schemeGeneric: '泛型派发（隐藏 profile/model）',
+        schemeExpose: '暴露派发元数据',
       }
     : {
         title: 'Sub-agent profiles',
@@ -116,6 +125,14 @@ export function SubagentProfilesPage(): ReactElement {
         processIsolation: 'Process isolation',
         parallelWritePolicy: 'Parallel write policy',
         dirtyBasePolicy: 'Dirty-base parallel write policy',
+        schemesTitle: 'Orchestration schemes',
+        schemesDescription:
+          'Schemes are a per-send Composer choice. Off is freehand; selection injects constraints only for that prompt. Read-only preview here; full scheme editor comes later.',
+        schemeSourceBuiltin: 'Built-in',
+        schemeSourceSettings: 'Custom',
+        schemeDefaultProfile: 'Default profile',
+        schemeGeneric: 'Generic spawn (hide profile/model)',
+        schemeExpose: 'Expose spawn metadata',
       };
 
   const subagents: SubagentConfig = config?.subagents ?? createDefaultSubagentConfig();
@@ -153,6 +170,16 @@ export function SubagentProfilesPage(): ReactElement {
     // We intentionally only re-sync on config identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
+
+  const orchestrationSchemes = useMemo(
+    () =>
+      listOrchestrationSchemes({
+        schemes: subagents.schemes,
+        maxConcurrency: subagents.maxConcurrency,
+        maxTasksPerRun: subagents.maxTasksPerRun,
+      }),
+    [subagents.schemes, subagents.maxConcurrency, subagents.maxTasksPerRun],
+  );
 
   const modelOptions = useMemo(() => {
     if (!config) {
@@ -239,6 +266,8 @@ export function SubagentProfilesPage(): ReactElement {
       processIsolation,
       parallelWritePolicy,
       dirtyBasePolicy,
+      // ORCH: never drop user schemes when saving profiles/limits.
+      ...(subagents.schemes && subagents.schemes.length > 0 ? { schemes: subagents.schemes } : {}),
     };
     const ok = await saveConfig({ ...config, subagents: next });
     if (!ok) {
@@ -491,6 +520,44 @@ export function SubagentProfilesPage(): ReactElement {
               <option value="bypass">bypass</option>
             </Select>
           </div>
+        </div>
+      </div>
+
+      <div className="settings-section" data-testid="orchestration-schemes-section">
+        <PageTitle title={copy.schemesTitle} />
+        <p className="muted" style={{ marginBottom: 12, fontSize: 13, lineHeight: 1.45 }}>
+          {copy.schemesDescription}
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {orchestrationSchemes.map((scheme) => (
+            <div
+              key={scheme.id}
+              className="settings-section-card"
+              style={{ padding: 12 }}
+              data-testid={`orchestration-scheme-row-${scheme.id}`}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <strong style={{ fontSize: 14 }}>{scheme.name}</strong>
+                <span className="muted" style={{ fontSize: 12 }}>
+                  {scheme.source === 'builtin' ? copy.schemeSourceBuiltin : copy.schemeSourceSettings}
+                </span>
+              </div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                <code>{scheme.id}</code>
+              </div>
+              <p style={{ fontSize: 13, marginTop: 8, marginBottom: 0, lineHeight: 1.4 }}>
+                {scheme.description}
+              </p>
+              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+                {copy.schemeDefaultProfile}: <code>{scheme.defaultProfileId}</code>
+                {' · '}
+                {scheme.exposeSpawnMetadata ? copy.schemeExpose : copy.schemeGeneric}
+                {scheme.maxSubagentThinkingLevel
+                  ? ` · thinking ≤ ${scheme.maxSubagentThinkingLevel}`
+                  : ''}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

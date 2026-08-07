@@ -59,6 +59,13 @@ export type ParsedSlashSubmit =
       args: string;
     }
   | {
+      kind: 'scheme';
+      /** off | ultra-code | custom id */
+      schemeId: string;
+      name: string;
+      args: string;
+    }
+  | {
       kind: 'unknown';
       name: string;
       args: string;
