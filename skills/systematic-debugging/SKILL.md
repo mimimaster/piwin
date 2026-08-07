@@ -1,16 +1,27 @@
 ---
 name: systematic-debugging
-description: Debug failures with a short evidence-first loop before changing code.
+description: Resolve failures with an evidence-first loop and a verified fix.
 ---
 
 # Systematic Debugging
 
-1. **Reproduce** — capture exact command, error text, and environment.
-2. **Localize** — identify the smallest failing surface (file, test, log line).
-3. **Hypothesis** — write one falsifiable cause; do not shotgun-edit.
-4. **Probe** — add a minimal check (log, assertion, unit test) that would disprove it.
-5. **Fix** — smallest change that passes the probe.
-6. **Verify** — re-run the failing path + one nearby regression check.
-7. **Record** — note root cause in the session/PR so the next agent does not re-discover it.
+## Goal
+A root-caused, minimal fix for a reproduced failure, with evidence it no longer fails.
 
-Rules: never claim fixed without evidence; prefer failing tests over manual-only checks.
+## Done means
+- Failure is reproduced with exact command, error text, and environment notes.
+- Smallest failing surface is identified (file, test, log line).
+- One falsifiable hypothesis was tested with a minimal probe (log, assertion, or failing test).
+- Smallest fix that passes the probe is in place.
+- Original failing path plus one nearby regression check pass.
+- Root cause is recorded briefly for the next agent/PR.
+
+## Stop when
+- Cannot reproduce — gather more evidence; do not shotgun-edit.
+- Hypothesis disproved — form the next single hypothesis; do not stack unrelated changes.
+
+## Constraints
+- No “fixed” claim without re-run evidence in this environment.
+
+## Verify
+- Failing path is green after the fix; probe/test remains as lasting signal when useful.

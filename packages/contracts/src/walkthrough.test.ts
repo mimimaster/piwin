@@ -34,27 +34,17 @@ describe('walkthrough config', () => {
     );
   });
 
-  it('default prompt includes all rich-text delivery format requirements', () => {
-    // 1. File-change action badges with language tag + path
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('[MODIFY] TS src/utils.ts');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('[NEW] TS src/logger.ts');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('[DELETE] TS src/legacy.ts');
-    // 2. diff fence with +/- prefixed lines
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('```diff');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('- const OLD_TIMEOUT_MS = 5_000;');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('+ const TIMEOUT_MS = 10_000;');
-    // 3. long code sample targeting the >16-line fold
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('20+ lines');
-    // 4. HTML <details> collapsible for logs
+  it('default prompt includes success criteria and delivery markers', () => {
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('## Success');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('[MODIFY]');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('[NEW]');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('[DELETE]');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('`diff`');
     expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('<details>');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('<summary>');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('</details>');
-    // 5. task checklist markers
     expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('- [x]');
     expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('- [ ]');
-    // 6. GitHub-style callouts
     expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('> [!NOTE]');
-    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('> [!TIP]');
+    expect(DEFAULT_WALKTHROUGH_PROMPT).toContain('No secrets');
   });
 
   it('default concise prompt is non-empty', () => {

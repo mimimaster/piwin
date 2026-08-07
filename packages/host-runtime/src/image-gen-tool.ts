@@ -251,10 +251,9 @@ export function buildImageGenTool(options: ImageGenToolOptions): HostToolDefinit
   return {
     name: 'image_gen',
     description:
-      'Generate a raster image from a text prompt using a configured image model. ' +
-      'Returns the absolute path(s) to saved images under the media store. ' +
-      'Use for photos, illustrations, icons, textures, mockups, or transparent cutouts. ' +
-      'Do not use for SVG/vector/code-native assets or HTML/CSS/canvas visuals.',
+      'Generate a raster image from a text prompt; returns absolute media-store path(s). ' +
+      'For photos, illustrations, icons, textures, mockups, cutouts. ' +
+      'Not for SVG/vector, icon-system edits, or HTML/CSS/canvas visuals.',
     parameters: {
       type: 'object',
       properties: {

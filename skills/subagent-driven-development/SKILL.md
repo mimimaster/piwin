@@ -1,101 +1,32 @@
 ---
 name: subagent-driven-development
-description: Execute an implementation plan by delegating independent steps to child subagent sessions, then merge and verify in the parent. Trigger via /subagent-driven-development.
+description: Execute an approved plan by delegating independent steps to isolated child sessions, then merge and verify in the parent. Trigger via /subagent-driven-development or plan-card mode.
 ---
 
 # Subagent-Driven Development
 
-Use this skill when the user invokes `/subagent-driven-development` or selects
-the **subagent-driven** execution mode from a plan card.
+## Goal
+Finish an approved plan by running independent steps in child sessions and producing a correct merged parent state with verification evidence.
 
-This skill orchestrates plan execution across multiple isolated child sessions,
-merging results back into the parent for verification.
+## Done means
+- A plan exists (`/writing-plans` or `piwin_plan_create`) with honest `independentSteps` (or fall back to `executing-plans` / inline).
+- Each independent step runs in a child with a self-contained task: step title/detail, plan goal, acceptance criteria, and “implement only this step”.
+- Parent merges children, updates steps via `piwin_plan_set_step`, and records failures instead of hiding them.
+- Final parent verification passes (or failures are explicit).
+- Bounded walkthrough summary exists: what changed, verification, child outcomes, unresolved items.
 
-## 1. Prerequisites
+## Stop when
+- No safe independent steps — use inline execution.
+- A child fails, merge conflicts, or verification fails — report and ask; do not silent-retry write children (new task + new child id if retrying).
+- Parent would need to edit sources during delegated step execution — delegate instead.
 
-- A **plan** must exist (created via `/writing-plans` or `piwin_plan_create`).
-- The plan should have `independentSteps` declared so the host can identify
-  which steps are safe to run in isolated child sessions.
-- If no independent steps exist, fall back to inline execution (see
-  `executing-plans` skill).
+## Constraints
+- Profiles from Settings bound capabilities; optional per-step `profileId` / model overrides cannot widen isolation.
+- `parallelGroup` only with no data/file/resource dependency; use `dependsOn` otherwise.
+- Readonly for explore/review; worktree for writes. Shared-cwd parallel writes are rejected by the host.
+- Host serializes worktree integration and retains failed/conflicted worktrees for inspection.
+- Depth: children do not spawn further subagents via this path.
 
-## 2. Execution flow
-
-1. **Read the plan** and confirm which steps are independent vs sequential.
-2. **For each independent step**:
-   - The host spawns a child subagent session with the step's task directive.
-   - The child works in an isolated worktree (when available) or read-only mode.
-   - Monitor child progress; do not proceed to dependent steps until the child
-     completes.
-3. **Merge each child** back into the parent session after it completes.
-4. **Run final verification** in the parent session:
-   - Verify that changes have the desired effects (run unit tests, typecheck,
-     build, etc.).
-   - Create or update the walkthrough.md artifact to summarize changes.
-5. **Update plan step status** via `piwin_plan_set_step` as each step completes.
-
-## 3. Step directives
-
-Each step receives a directive containing:
-- The step title and detail from the plan.
-- The overall plan goal for context.
-- Instructions to implement only that step — no drive-by refactors.
-
-## 4. Error handling
-
-- If a child session fails, mark the step as `failed` and surface the error.
-- Do not silently retry — report the failure and ask the user how to proceed.
-- If a merge fails, preserve the child session for manual inspection.
-
-## 5. Walkthrough
-
-When all steps complete, produce a bounded walkthrough summary:
-
-- What changed (files/areas per step).
-- Verification results (tests, typecheck, build).
-- Merged child sessions and their outcomes.
-- Unresolved items or follow-ups.
-
-Keep it concise. Point the user to the walkthrough artifact for details.
-
-## 6. Constraints
-
-- Do not modify source files from the parent during step execution — delegate
-  to child sessions.
-- Do not skip verification — the parent must confirm the merged state.
-- Respect architecture boundaries (see `AGENTS.md`).
-- Abort paths must be implemented for long-running child sessions.
-
-## 7. Subagent profiles (CE-SUB-PROF)
-
-Use **configured profiles** from Settings → Sub-agent profiles instead of
-inventing role semantics. Built-in profiles:
-
-- `explorer` — read-only codebase exploration (readonly isolation)
-- `reviewer` — read-only code review and analysis (readonly isolation)
-- `implementer` — isolated implementation with write + execute (worktree)
-- `tester` — isolated test execution and fixture writes (worktree)
-
-Assign a `profileId` per plan step when the step's role differs from the
-default. Assign different models at child creation time when useful (e.g.
-a cheaper model for exploration, a stronger model for implementation).
-
-## 8. Parallel groups (CE-SUB-ORCH)
-
-Mark `parallelGroup` on plan steps **only** when tasks have no data, file,
-or external-resource dependency. Use `dependsOn` to declare explicit
-dependencies between steps.
-
-Rules:
-
-- Use **readonly** profiles for exploration/review tasks.
-- Use **worktree** profiles for write tasks.
-- **Never** request shared-cwd parallel writes — the host rejects them.
-- Expect **serialized integration**: the host integrates successful
-  worktree results one at a time and stops on conflicts.
-- Let the **host decide** whether process isolation is available; the
-  skill is guidance, not a security boundary.
-- A failed or conflicted child worktree is **retained** for inspection;
-  the host never silently discards unintegrated changes.
-- Do not automatically retry failed write children — create a new task
-  with a fresh child id instead.
+## Verify
+- Parent confirms merged tree against plan acceptance criteria (unit tests, typecheck, build as applicable).
+- Walkthrough states only evidenced outcomes.
