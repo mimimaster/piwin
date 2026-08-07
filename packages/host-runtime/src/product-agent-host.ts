@@ -14,6 +14,7 @@ import type {
   McpConfigDocument,
   SessionToolFamily,
 } from '@piwin/contracts';
+import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import {
   InProcessSdkSessionBackend,
   AgentWorkerSupervisor,
@@ -58,6 +59,11 @@ type ProductAgentHostCommonOptions = {
   ) => Promise<ReadonlyMap<SessionToolFamily, readonly string[]>>;
   /** Read the MCP document frozen for the same generation surface. */
   getMcpConfig?: (sessionId: string, runtimeGenerationId: string) => Promise<McpConfigDocument>;
+  /** Read the MCP brief from the same frozen tool surface (no second discovery). */
+  getMcpCapabilityBrief?: (
+    sessionId: string,
+    runtimeGenerationId: string,
+  ) => Promise<McpCapabilityBrief>;
   /** Read the permission-rule revision frozen for the same generation surface. */
   getPermissionRulesRevision?: (
     sessionId: string,
@@ -275,6 +281,10 @@ export class ProductAgentHost implements AgentHost {
         registrationMode,
       );
       const mcpConfig = await this.options.getMcpConfig?.(sessionId, runtimeGenerationId);
+      const mcpCapabilityBrief = await this.options.getMcpCapabilityBrief?.(
+        sessionId,
+        runtimeGenerationId,
+      );
       const rulesRevision = this.options.getPermissionRulesRevision?.(
         sessionId,
         runtimeGenerationId,
@@ -287,6 +297,7 @@ export class ProductAgentHost implements AgentHost {
         hostToolDescriptors,
         ...(hostToolFamilyIndex ? { hostToolFamilyIndex } : {}),
         ...(mcpConfig ? { mcpConfig } : {}),
+        ...(mcpCapabilityBrief ? { mcpCapabilityBrief } : {}),
         ...(rulesRevision !== undefined ? { rulesRevision } : {}),
         // Inline keychain secrets are permitted only for the in-process SDK
         // backend. RPC provider envelopes are serialized over worker JSONL and
@@ -426,9 +437,7 @@ function createProductSessionHandle(
     steer: (message) => backendHandle.steer(message),
     followUp: (message) => backendHandle.followUp(message),
     abort: () => backendHandle.abort(),
-    ...(compact
-      ? { compact: (customInstructions?: string) => compact(customInstructions) }
-      : {}),
+    ...(compact ? { compact: (customInstructions?: string) => compact(customInstructions) } : {}),
     ...(abortCompaction ? { abortCompaction: () => abortCompaction() } : {}),
     ...(getAutoCompactionEnabled
       ? { getAutoCompactionEnabled: () => getAutoCompactionEnabled() }

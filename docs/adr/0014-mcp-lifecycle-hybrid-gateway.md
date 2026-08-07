@@ -39,8 +39,10 @@ ownership and config-reload hazards are handled by ADR 0033.
 ## Consequences
 
 - Opening a project no longer waits on MCP servers.
-- First-use of an uncached server requires Settings Discover or gateway
-  `describe`/`call` (which may connect).
+- Cached search is non-connecting, while a normal model-issued gateway search
+  may perform bounded lazy discovery on a cache miss; `discover=false` keeps it
+  cache-only. Gateway `describe`/`call` with a known selector also connect
+  lazily.
 - Pinned direct-tool UX remains available when metadata is cached; automatic
   cached-tool promotion is not part of the default.
 - ADR 0008 remains valid for Skills wiring and Pi customTools-at-create; its

@@ -35,7 +35,7 @@ import {
   AgentWorkerSupervisor,
   WorkerTaskRunner,
 } from '@piwin/agent-host';
-import { formatError,  isRunTerminal, LEGACY_LOCAL_SINK_ID } from '@piwin/contracts';
+import { formatError, isRunTerminal, LEGACY_LOCAL_SINK_ID } from '@piwin/contracts';
 import { formatTextModelWebElementInjection } from '@piwin/contracts';
 import { assertInsideMediaRoot, createMediaService } from '@piwin/media';
 import {
@@ -204,6 +204,7 @@ import {
   type SessionHostToolExecutionPort,
 } from './tools/session-host-tool-port.js';
 import { buildSessionHostTools, descriptorsFromTools } from './tools/build-session-host-tools.js';
+import type { McpCapabilityBrief } from './mcp-capability-brief.js';
 import { createHostToolPermissionGate } from './tools/host-tool-admission-gate.js';
 import { toolFamilyIndex } from './tools/tool-family-index.js';
 import { SubagentOrchestrator } from './subagent-orchestrator.js';
@@ -280,6 +281,7 @@ type SessionLineage = {
 type ComposedSessionHostTools = {
   tools: HostToolRegistration[];
   permissionGate: import('./tools/host-tool-execution-router.js').HostToolPermissionGate;
+  mcpCapabilityBrief: McpCapabilityBrief;
 };
 
 export class HostRuntime {
@@ -550,6 +552,8 @@ export class HostRuntime {
       },
       getMcpConfig: async (sessionId: string, runtimeGenerationId: string) =>
         this.getGenerationMcpConfig(sessionId, runtimeGenerationId),
+      getMcpCapabilityBrief: async (sessionId: string, runtimeGenerationId: string) =>
+        this.getGenerationMcpCapabilityBrief(sessionId, runtimeGenerationId),
       getPermissionRulesRevision: (sessionId: string, runtimeGenerationId: string) =>
         this.generationPermissionRuleRevisions.get(`${sessionId}\u0000${runtimeGenerationId}`),
       restrictToolSurface: (
@@ -1964,6 +1968,10 @@ export class HostRuntime {
     const rulesRevision = this.generationPermissionRuleRevisions.get(
       `${input.childSessionId}\u0000${input.runtimeGenerationId}`,
     );
+    const mcpCapabilityBrief = await this.getGenerationMcpCapabilityBrief(
+      input.childSessionId,
+      input.runtimeGenerationId,
+    );
 
     // Compile the blueprint for the worker. The blueprint includes the
     // capability snapshot, model, thinking level, and resource manifest.
@@ -1974,6 +1982,7 @@ export class HostRuntime {
       allowInlineProviderSecrets: false,
       ...(config ? { config } : {}),
       mcpConfig: this.getGenerationMcpConfig(input.childSessionId, input.runtimeGenerationId),
+      mcpCapabilityBrief,
       hostToolDescriptors: descriptorsFromTools(hostTools),
       hostToolFamilyIndex: toolFamilyIndex(hostTools),
       ...(rulesRevision !== undefined ? { rulesRevision } : {}),
@@ -2113,9 +2122,7 @@ export class HostRuntime {
                   : allowInputModel && input.model
                     ? { model: input.model }
                     : {}),
-                ...(schemeSpawn.thinkingLevel
-                  ? { thinkingLevel: schemeSpawn.thinkingLevel }
-                  : {}),
+                ...(schemeSpawn.thinkingLevel ? { thinkingLevel: schemeSpawn.thinkingLevel } : {}),
               },
             ],
             maxConcurrency: 1,
@@ -2267,6 +2274,7 @@ export class HostRuntime {
     this.generationMcpConfigs.set(`${sessionId}\u0000${runtimeGenerationId}`, mcpSnapshot.config);
     this.generationMcpSnapshots.set(`${sessionId}\u0000${runtimeGenerationId}`, mcpSnapshot);
     let rules = createBundledRuleSet();
+    let mcpCapabilityBrief: McpCapabilityBrief | undefined;
     try {
       let projectTrusted = false;
       if (projectPath) {
@@ -2303,6 +2311,9 @@ export class HostRuntime {
       getNotesServices: () => this.getNotesServices(),
       getCardStore: () => this.getCardStore(),
       onDiagnostic: ({ message }) => this.push({ type: 'host/log', level: 'warn', message }),
+      onMcpCapabilityBrief: (brief) => {
+        mcpCapabilityBrief = brief;
+      },
       ...(childContext
         ? {}
         : (() => {
@@ -2339,7 +2350,12 @@ export class HostRuntime {
       `${sessionId}\u0000${runtimeGenerationId}`,
       computePermissionRulesRevision(rules),
     );
-    return { tools, permissionGate };
+    if (!mcpCapabilityBrief) {
+      throw new Error(
+        `MCP capability brief was not produced for ${sessionId}/${runtimeGenerationId}`,
+      );
+    }
+    return { tools, permissionGate, mcpCapabilityBrief };
   }
 
   private clearGenerationToolSurfaces(sessionId: string): void {
@@ -2437,6 +2453,19 @@ export class HostRuntime {
         mcpServers: {},
       }
     );
+  }
+
+  private async getGenerationMcpCapabilityBrief(
+    sessionId: string,
+    runtimeGenerationId: string,
+  ): Promise<McpCapabilityBrief> {
+    const surface = this.generationToolSurfaces.get(`${sessionId}\u0000${runtimeGenerationId}`);
+    if (!surface) {
+      throw new Error(
+        `MCP capability brief surface is not registered: ${sessionId}/${runtimeGenerationId}`,
+      );
+    }
+    return (await surface).mcpCapabilityBrief;
   }
 
   /** Resolve profile, model, capabilities, skills, and isolation before admission. */
@@ -2579,10 +2608,10 @@ export class HostRuntime {
       host: this.host,
       createSession: (input, options) => this.createSession(input, options),
       sessions: this.sessions,
-     sessionFilesTouched: this.sessionFilesTouched,
-     sessionLastPromptText: this.sessionLastPromptText,
-     sideChatSnapshotInjectedVersions: this.sideChatSnapshotInjectedVersions,
-     sessionModels: this.sessionModels,
+      sessionFilesTouched: this.sessionFilesTouched,
+      sessionLastPromptText: this.sessionLastPromptText,
+      sideChatSnapshotInjectedVersions: this.sideChatSnapshotInjectedVersions,
+      sessionModels: this.sessionModels,
       sessionAutoCompactionOverrides: this.sessionAutoCompactionOverrides,
       unsubscribers: this.unsubscribers,
       transcriptRecorders: this.transcriptRecorders,
@@ -2881,10 +2910,7 @@ export class HostRuntime {
             };
           }
           const preparedRequest = await this.prepareSubagentBatch(batchRequest);
-          const handle = this.subagentOrchestrator.startBatch(
-            preparedRequest,
-            parentRunId,
-          );
+          const handle = this.subagentOrchestrator.startBatch(preparedRequest, parentRunId);
           return handle.completion;
         },
       },

@@ -9,8 +9,8 @@
  * Authority: @piwin/host-runtime (product composition root).
  */
 
-import type { HostToolRegistration, McpConfigDocument } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
+import type { HostToolRegistration, McpConfigDocument, McpToolMetadata } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import { buildSessionTools } from '../session-tools.js';
 import { buildProcessTools } from '../process-tools.js';
 import { createBrowserToolDefinitions } from '../browser-tools.js';
@@ -39,6 +39,11 @@ import type { PiwinConfig } from '@piwin/contracts';
 import { getPiwinSessionPlanPath, getPiwinRoot } from '../paths.js';
 import { getPiwinMediaDir } from '../paths.js';
 import { buildCachedMcpToolDefinitions } from '../mcp-cached-tool-definitions.js';
+import {
+  buildMcpCapabilityBrief,
+  formatMcpGatewayToolDescription,
+  type McpCapabilityBrief,
+} from '../mcp-capability-brief.js';
 
 /**
  * Lazy provider for notes services. The Host owns the lifecycle; this
@@ -95,6 +100,8 @@ export type BuildSessionHostToolsOptions = {
 
   /** Observe optional capability failures while composing a generation. */
   onDiagnostic?: (diagnostic: HostToolCompositionDiagnostic) => void;
+  /** Preserve the exact MCP capability brief on the frozen generation surface. */
+  onMcpCapabilityBrief?: (brief: McpCapabilityBrief) => void;
 };
 
 /**
@@ -212,25 +219,43 @@ export async function buildSessionHostTools(
     }
   }
 
-  // --- MCP gateway tool ---
+  // --- MCP capability brief, gateway, and cached direct tools ---
+  // Cache reads are metadata-only and must never connect or start an MCP
+  // server. The brief is built once from this frozen generation's config and
+  // the valid cache result, including the exact direct tool names.
+  let cachedToolsByServer: Record<string, readonly McpToolMetadata[]> = {};
+  let directMcpTools: HostToolRegistration[] = [];
   if (options.mcpManager) {
-    const mcpTool = buildMcpGatewayToolDefinition({
-      lifecycleManager: options.mcpManager,
-      mcpConfig,
-      mcpSnapshot,
-    });
-    tools.push(mcpTool);
     try {
       const cachedMcpTools = await buildCachedMcpToolDefinitions({
         lifecycleManager: options.mcpManager,
         mcpConfig,
         mcpSnapshot,
       });
-      tools.push(...cachedMcpTools.tools);
+      cachedToolsByServer = cachedMcpTools.cachedToolsByServer;
+      directMcpTools = cachedMcpTools.tools;
     } catch (error) {
       reportCompositionDiagnostic(options, 'mcp-cached-tools', error);
-      // Cached direct exposure is optional; the gateway remains available.
+      // Cache failure degrades to config-only MCP guidance; the gateway remains
+      // available and can still describe/call known selectors.
     }
+  }
+
+  const mcpCapabilityBrief = buildMcpCapabilityBrief({
+    config: mcpConfig,
+    cachedToolsByServer,
+    directExposedNames: directMcpTools.map((tool) => tool.descriptor.name),
+  });
+  options.onMcpCapabilityBrief?.(mcpCapabilityBrief);
+
+  if (options.mcpManager) {
+    const mcpTool = buildMcpGatewayToolDefinition({
+      lifecycleManager: options.mcpManager,
+      mcpConfig,
+      mcpSnapshot,
+      description: formatMcpGatewayToolDescription(mcpCapabilityBrief),
+    });
+    tools.push(mcpTool, ...directMcpTools);
   }
 
   // --- Planning tools ---

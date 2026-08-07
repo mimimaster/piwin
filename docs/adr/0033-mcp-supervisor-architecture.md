@@ -156,7 +156,8 @@ interface McpSupervisor {
 `start`, `stop`, and `restart` are diagnostic/Settings operations that
 delegate to the same Supervisor. They never create another lifecycle path.
 
-- `status` and cached `search` do not connect a server.
+- `status` and cache-only `search` do not connect a server.
+- Normal gateway `search` checks cached metadata first and, only after the model explicitly asks, may perform bounded lazy discovery on a cache miss. The gateway bounds one search to at most eight uncached servers and four concurrent discoveries.
 - Live `listTools`/`describe` and `callTool` connect lazily.
 - Concurrent readiness requests for one server share one promise.
 - Calls to a disabled, removed, draining, or disposed server fail with stable
@@ -232,6 +233,14 @@ replacement for killing the owned process.
 The default session surface always exposes one `mcp_gateway` with
 `search | describe | call | status`. It does not automatically register every
 valid cached tool as a direct Pi tool.
+
+Project creation, session creation, and Host tool-surface composition only read
+configuration and metadata cache; they perform zero MCP transport calls. A
+transport may be started only while executing an explicit model-issued gateway
+search/describe/call, a pinned direct MCP tool, or a diagnostic Settings operation.
+Cached search is
+non-connecting; normal search may perform bounded lazy discovery only after the
+model asks for the search.
 
 Users may pin high-frequency tools in the same global MCP document:
 
