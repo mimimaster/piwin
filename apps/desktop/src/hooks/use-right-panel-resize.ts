@@ -11,12 +11,15 @@ import {
 } from '../right-panel-width';
 
 /** Write the live width straight to the shell so drag does not wait on React. */
-function writeRightPanelWidthCss(widthPx: number): void {
-  if (typeof document === 'undefined') {
-    return;
-  }
-  const shell = document.querySelector('.app-shell') as HTMLElement | null;
+function writeRightPanelWidthCss(shell: HTMLElement | null, widthPx: number): void {
   shell?.style.setProperty('--right-panel-width', `${widthPx}px`);
+}
+
+function findAppShell(): HTMLElement | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  return document.querySelector<HTMLElement>('.app-shell');
 }
 
 export type UseRightPanelResizeOptions = {
@@ -45,6 +48,9 @@ export function useRightPanelResize(
   const [widthPx, setWidthState] = useState(() => loadRightPanelWidth());
   const [isResizing, setIsResizing] = useState(false);
   const widthRef = useRef(widthPx);
+  const shellRef = useRef<HTMLElement | null>(null);
+  const pendingFrameRef = useRef<number | null>(null);
+  const pendingWidthRef = useRef<number | null>(null);
   const liveWidthCommitRef = useRef(options.onLiveWidthCommit);
   const dragRef = useRef<{
     pointerId: number;
@@ -61,11 +67,57 @@ export function useRightPanelResize(
     liveWidthCommitRef.current = options.onLiveWidthCommit;
   }, [options.onLiveWidthCommit]);
 
+  const resolveShell = useCallback((): HTMLElement | null => {
+    if (shellRef.current !== null) {
+      return shellRef.current;
+    }
+    shellRef.current = findAppShell();
+    return shellRef.current;
+  }, []);
+
+  const writeLiveWidth = useCallback(
+    (nextWidth: number): void => {
+      writeRightPanelWidthCss(resolveShell(), nextWidth);
+    },
+    [resolveShell],
+  );
+
+  const flushPendingWidth = useCallback((): void => {
+    const pendingFrame = pendingFrameRef.current;
+    if (pendingFrame !== null) {
+      cancelAnimationFrame(pendingFrame);
+      pendingFrameRef.current = null;
+    }
+    const pendingWidth = pendingWidthRef.current;
+    pendingWidthRef.current = null;
+    if (pendingWidth !== null) {
+      writeLiveWidth(pendingWidth);
+    }
+  }, [writeLiveWidth]);
+
+  const scheduleLiveWidth = useCallback(
+    (nextWidth: number): void => {
+      pendingWidthRef.current = nextWidth;
+      if (pendingFrameRef.current !== null) {
+        return;
+      }
+      pendingFrameRef.current = requestAnimationFrame(() => {
+        pendingFrameRef.current = null;
+        const pendingWidth = pendingWidthRef.current;
+        pendingWidthRef.current = null;
+        if (pendingWidth !== null) {
+          writeLiveWidth(pendingWidth);
+        }
+      });
+    },
+    [writeLiveWidth],
+  );
+
   // After every React commit, re-assert the live width so an unrelated App
   // re-render cannot snap --right-panel-width back to a stale style prop
   // while the user is mid-drag (or between rAF state flushes).
   useLayoutEffect(() => {
-    writeRightPanelWidthCss(widthRef.current);
+    writeLiveWidth(widthRef.current);
   });
 
   const resolveClamp = useCallback(
@@ -85,14 +137,15 @@ export function useRightPanelResize(
 
   const setWidthPx = useCallback(
     (next: number) => {
+      flushPendingWidth();
       const clamped = resolveClamp(next);
       widthRef.current = clamped;
-      writeRightPanelWidthCss(clamped);
+      writeLiveWidth(clamped);
       setWidthState(clamped);
       saveRightPanelWidth(clamped);
       liveWidthCommitRef.current?.(clamped);
     },
-    [resolveClamp],
+    [flushPendingWidth, resolveClamp, writeLiveWidth],
   );
 
   const onResizePointerDown = useCallback((event: React.PointerEvent<HTMLElement>) => {
@@ -103,6 +156,8 @@ export function useRightPanelResize(
     event.stopPropagation();
     const target = event.currentTarget;
     target.setPointerCapture(event.pointerId);
+    shellRef.current = target.closest<HTMLElement>('.app-shell') ?? findAppShell();
+    pendingWidthRef.current = null;
     dragRef.current = {
       pointerId: event.pointerId,
       startX: event.clientX,
@@ -132,8 +187,9 @@ export function useRightPanelResize(
       widthRef.current = next;
       // CSS-only during drag. Updating React width state every frame re-rendered
       // the entire App (file tree, transcript, glass blur) and caused visible flicker.
-      // Aria / persistence catch up on pointer-up.
-      writeRightPanelWidthCss(next);
+      // Coalesce grid writes to one per animation frame; aria / persistence catch
+      // up on pointer-up.
+      scheduleLiveWidth(next);
       liveWidthCommitRef.current?.(next);
     }
 
@@ -143,8 +199,9 @@ export function useRightPanelResize(
         return;
       }
       dragRef.current = null;
+      flushPendingWidth();
       const commit = widthRef.current;
-      writeRightPanelWidthCss(commit);
+      writeLiveWidth(commit);
       setWidthState(commit);
       liveWidthCommitRef.current?.(commit);
       // Keep transitions / blur disabled briefly after drag ends so the panel
@@ -161,13 +218,15 @@ export function useRightPanelResize(
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
     return () => {
+      flushPendingWidth();
+      dragRef.current = null;
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
     };
-  }, [isResizing, resolveClamp]);
+  }, [flushPendingWidth, isResizing, resolveClamp, scheduleLiveWidth, writeLiveWidth]);
 
   // Re-clamp when viewport shrinks so the panel cannot cover the stage permanently.
   useEffect(() => {
