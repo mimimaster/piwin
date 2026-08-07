@@ -231,10 +231,11 @@ export function useRightPanelResize(
   // Re-clamp when viewport shrinks so the panel cannot cover the stage permanently.
   useEffect(() => {
     function onWindowResize(): void {
+      flushPendingWidth();
       const clamped = resolveClamp(widthRef.current);
       if (clamped !== widthRef.current) {
         widthRef.current = clamped;
-        writeRightPanelWidthCss(clamped);
+        writeLiveWidth(clamped);
         setWidthState(clamped);
         saveRightPanelWidth(clamped);
         liveWidthCommitRef.current?.(clamped);
@@ -242,7 +243,7 @@ export function useRightPanelResize(
     }
     window.addEventListener('resize', onWindowResize);
     return () => window.removeEventListener('resize', onWindowResize);
-  }, [resolveClamp]);
+  }, [flushPendingWidth, resolveClamp, writeLiveWidth]);
 
   return {
     widthPx: clampRightPanelWidth(widthPx),
