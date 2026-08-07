@@ -19,12 +19,12 @@ type ResizeHarness = {
 };
 
 function createPointerEvent(type: string, pointerId: number, clientX: number): PointerEvent {
-  const event = new Event(type, { bubbles: true, cancelable: true });
-  Object.defineProperties(event, {
-    pointerId: { value: pointerId },
-    clientX: { value: clientX },
+  return new window.PointerEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    pointerId,
+    clientX,
   });
-  return event as PointerEvent;
 }
 
 function createPointerDownEvent(
@@ -116,15 +116,23 @@ describe('useRightPanelResize drag scheduling', () => {
     const harness = renderHarness();
     const shell = harness.shell;
     const setProperty = vi.spyOn(shell.style, 'setProperty');
+    const addEventListener = vi.spyOn(window, 'addEventListener');
 
     act(() => {
       harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 7, 500));
     });
+    expect(harness.latest().isResizing).toBe(true);
     setProperty.mockClear();
 
+    const pointerMoveListener = addEventListener.mock.calls.find(
+      ([type]) => type === 'pointermove',
+    )?.[1];
+    if (typeof pointerMoveListener !== 'function') {
+      throw new Error('expected a pointermove listener');
+    }
     act(() => {
-      window.dispatchEvent(createPointerEvent('pointermove', 7, 470));
-      window.dispatchEvent(createPointerEvent('pointermove', 7, 450));
+      pointerMoveListener(createPointerEvent('pointermove', 7, 470));
+      pointerMoveListener(createPointerEvent('pointermove', 7, 450));
     });
 
     expect(nextFrameId).toBe(1);
@@ -147,10 +155,7 @@ describe('useRightPanelResize drag scheduling', () => {
 
   it('flushes the latest pending width on pointer-up', () => {
     const harness = renderHarness();
-    const shell = harness.container.querySelector<HTMLElement>('.app-shell');
-    if (shell === null) {
-      throw new Error('expected app shell');
-    }
+    const shell = harness.shell;
 
     act(() => {
       harness.latest().onResizePointerDown(createPointerDownEvent(harness.handle, 8, 500));
