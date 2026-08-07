@@ -442,10 +442,20 @@ async function preparePromptInput(
     context.updateRunPhase(run.runId, 'preparing', 'Describing image…');
   }
 
-  const promptInput = await context.buildModelPromptInput(
+  // Always clone before model-facing rewrites. buildModelPromptInput may return
+  // the same object when there are no attachments; mutating that would poison
+  // command.input (transcript path, touchSession preview, last-prompt text).
+  const preparedFromHost = await context.buildModelPromptInput(
     command.input,
     context.getRunSignal(run.runId),
   );
+  const promptInput: PromptInput = {
+    ...preparedFromHost,
+    text: preparedFromHost.text,
+    ...(preparedFromHost.attachments
+      ? { attachments: [...preparedFromHost.attachments] }
+      : {}),
+  };
   throwIfPromptPreparationAborted(context, run.runId);
 
   // A continuous Pi SDK session keeps native context itself. Inject product

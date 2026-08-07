@@ -886,7 +886,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
           {props.onOrchestrationSchemeChange && props.orchestrationSchemeOptions ? (
             <OrchestrationSchemeControl
-              disabled={isStreamingRun}
+              disabled={false}
               value={props.orchestrationSchemeId ?? 'off'}
               options={props.orchestrationSchemeOptions}
               onChange={props.onOrchestrationSchemeChange}

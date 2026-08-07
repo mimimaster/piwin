@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentHost, ExecutionRunRecord, HostPush, SessionHandle } from '@piwin/contracts';
+import type {
+  AgentHost,
+  ExecutionRunRecord,
+  HostPush,
+  PromptInput,
+  ResolvedOrchestrationScheme,
+  SessionHandle,
+} from '@piwin/contracts';
 import { randomUUID } from 'node:crypto';
 import type { AgentEvent, AgentMessageView, SessionTreeView } from '@piwin/contracts';
 import { RunRegistry } from '../run-registry.js';
@@ -303,6 +310,172 @@ describe('session live control commands', () => {
       },
     });
   });
+
+  describe('ORCH orchestration scheme on session/prompt', () => {
+    it('fails closed on unknown scheme id before accepting the run', async () => {
+      const session = createDelayedSessionHandle();
+      const { context } = createPromptContext(session);
+      context.listKnownSubagentProfileIds = async () => ['explorer', 'reviewer'];
+      context.loadConfig = async () =>
+        ({
+          subagents: {
+            profiles: [],
+            maxConcurrency: 4,
+            maxTasksPerRun: 8,
+            processIsolation: 'required',
+            parallelWritePolicy: 'worktree-only',
+            dirtyBasePolicy: 'ask',
+          },
+        }) as any;
+
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/prompt',
+          sessionId: session.id,
+          input: { text: 'hello', orchestrationSchemeId: 'nope' },
+        },
+        undefined,
+        context,
+      );
+
+      expect(response).toMatchObject({
+        success: false,
+        error: expect.stringContaining('unknown orchestration scheme'),
+      });
+      expect(context.getForegroundRun(session.id)).toBeUndefined();
+    });
+
+    it('injects model-facing preamble and binds turn scheme; transcript keeps user text', async () => {
+      const session = createDelayedSessionHandle();
+      const promptContext = createPromptContext(session);
+      const context = promptContext.context;
+      const recordedPrompts: PromptInput[] = [];
+      const boundSchemes: Array<ResolvedOrchestrationScheme | undefined> = [];
+      let modelFacingText = '';
+
+      context.listKnownSubagentProfileIds = async () => [
+        'explorer',
+        'reviewer',
+        'implementer',
+        'tester',
+      ];
+      context.loadConfig = async () =>
+        ({
+          subagents: {
+            profiles: [],
+            maxConcurrency: 4,
+            maxTasksPerRun: 8,
+            processIsolation: 'required',
+            parallelWritePolicy: 'worktree-only',
+            dirtyBasePolicy: 'ask',
+          },
+        }) as any;
+      context.recordUserPrompt = async (_sessionId, input): Promise<void> => {
+        // Snapshot values so later model-facing rewrites cannot alias-mutate the record.
+        recordedPrompts.push({
+          text: input.text,
+          ...(input.orchestrationSchemeId
+            ? { orchestrationSchemeId: input.orchestrationSchemeId }
+            : {}),
+        });
+      };
+      context.setRunOrchestrationScheme = (runId, scheme): void => {
+        boundSchemes.push(scheme);
+        if (scheme) {
+          context.getRunOrchestrationScheme = () => scheme;
+        } else {
+          context.getRunOrchestrationScheme = () => undefined;
+        }
+        void runId;
+      };
+      const originalPrompt = session.prompt.bind(session);
+      session.prompt = async (input: PromptInput): Promise<void> => {
+        modelFacingText = input.text;
+        await originalPrompt(input);
+      };
+
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/prompt',
+          sessionId: session.id,
+          input: { text: 'find the bug', orchestrationSchemeId: 'ultra-code' },
+        },
+        undefined,
+        context,
+      );
+      expect(response?.success).toBe(true);
+
+      await session.promptSettled;
+      await vi.waitFor(() => {
+        expect(modelFacingText).toContain('[piwin-scheme:ultra-code]');
+      });
+
+      expect(recordedPrompts).toHaveLength(1);
+      expect(recordedPrompts[0]?.text).toBe('find the bug');
+      expect(recordedPrompts[0]?.text).not.toContain('[piwin-scheme:');
+      expect(modelFacingText).toContain('find the bug');
+      expect(modelFacingText.startsWith('[piwin-scheme:ultra-code]')).toBe(true);
+      expect(boundSchemes.some((scheme) => scheme?.schemeId === 'ultra-code')).toBe(true);
+    });
+
+    it('clears scheme binding on Off turn (no residual force)', async () => {
+      const session = createDelayedSessionHandle();
+      const promptContext = createPromptContext(session);
+      const context = promptContext.context;
+      const boundByRun = new Map<string, ResolvedOrchestrationScheme | undefined>();
+
+      context.listKnownSubagentProfileIds = async () => ['explorer'];
+      context.loadConfig = async () =>
+        ({
+          subagents: {
+            profiles: [],
+            maxConcurrency: 4,
+            maxTasksPerRun: 8,
+            processIsolation: 'required',
+            parallelWritePolicy: 'worktree-only',
+            dirtyBasePolicy: 'ask',
+          },
+        }) as any;
+      context.setRunOrchestrationScheme = (runId, scheme): void => {
+        boundByRun.set(runId, scheme);
+      };
+
+      const ultra = await handleSessionLiveCommand(
+        {
+          type: 'session/prompt',
+          sessionId: session.id,
+          input: { text: 'with scheme', orchestrationSchemeId: 'ultra-code' },
+        },
+        undefined,
+        context,
+      );
+      expect(ultra?.success).toBe(true);
+      await session.promptSettled;
+      await vi.waitFor(() => {
+        expect(context.getForegroundRun(session.id)).toBeUndefined();
+      });
+
+      const off = await handleSessionLiveCommand(
+        {
+          type: 'session/prompt',
+          sessionId: session.id,
+          input: { text: 'without scheme' },
+        },
+        undefined,
+        context,
+      );
+      expect(off?.success).toBe(true);
+      await session.promptSettled;
+      await vi.waitFor(() => {
+        expect(context.getForegroundRun(session.id)).toBeUndefined();
+      });
+
+      const boundValues = [...boundByRun.values()];
+      expect(boundValues.some((scheme) => scheme?.schemeId === 'ultra-code')).toBe(true);
+      // Off / omit path explicitly clears the run binding.
+      expect(boundValues.some((scheme) => scheme === undefined)).toBe(true);
+    });
+  });
 });
 
 /**
@@ -429,9 +602,14 @@ function createControlContext(
     cancelRuntimeReplacement: async () => undefined,
     reloadRuntime: async () => ({ generationId: 'generation-2', settingsRevision: 'rev-2' }),
     loadConfig: async () => ({}) as any,
-    setRunOrchestrationScheme: (): void => undefined,
-    getRunOrchestrationScheme: (): undefined => undefined,
-    listKnownSubagentProfileIds: async () => [],
+    setRunOrchestrationScheme: (_runId, _scheme): void => undefined,
+    getRunOrchestrationScheme: (_runId): ResolvedOrchestrationScheme | undefined => undefined,
+    listKnownSubagentProfileIds: async () => [
+      'explorer',
+      'reviewer',
+      'implementer',
+      'tester',
+    ],
   };
   return { context, registry, activeRun };
 }

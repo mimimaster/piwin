@@ -72,6 +72,16 @@ export const ORCHESTRATION_SCHEME_OFF_ID = 'off' as const;
 
 export const ULTRA_CODE_SCHEME_ID = 'ultra-code' as const;
 
+/** Scheme ids are lowercase kebab tokens (builtins: ultra-code). */
+export const ORCHESTRATION_SCHEME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** True when id matches the v1 character set (excludes the pseudo-id `off`). */
+export function isValidOrchestrationSchemeId(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === ORCHESTRATION_SCHEME_OFF_ID) return false;
+  return ORCHESTRATION_SCHEME_ID_PATTERN.test(trimmed);
+}
+
 /** Stable error name for unknown / invalid scheme ids on prompt. */
 export const ORCHESTRATION_SCHEME_ERROR_NAME = 'OrchestrationSchemeError';
 
@@ -225,6 +235,13 @@ export function resolveOrchestrationScheme(
   const trimmed = schemeId.trim();
   if (!trimmed || trimmed === ORCHESTRATION_SCHEME_OFF_ID) return undefined;
 
+  if (!isValidOrchestrationSchemeId(trimmed)) {
+    throw new OrchestrationSchemeError(
+      'invalid-scheme',
+      `invalid orchestration scheme id "${trimmed}" (expected [a-z0-9-]+)`,
+    );
+  }
+
   const schemes = listOrchestrationSchemes(config);
   const scheme = schemes.find((item) => item.id === trimmed);
   if (!scheme) {
@@ -371,5 +388,4 @@ export function applySchemeToSubagentSpawnInput(
     forcedProfile: !input.profileId || input.profileId !== profileId,
   };
 }
-
 
