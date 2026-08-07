@@ -10,6 +10,7 @@ import {
   createDefaultSubagentConfig,
   listOrchestrationSchemes,
   BUILTIN_ULTRA_CODE_SCHEME,
+  migrateSchemeMembers,
   type OrchestrationSchemeSettings,
   SUBAGENT_CAPABILITIES,
   type ModelRef,
@@ -25,6 +26,7 @@ import { useDesktopLocale } from '../../desktop-locale-context';
 import { buildEnabledModelOptions } from '../../model-options';
 import { PageTitle } from '../page-title';
 import { useSettings } from '../settings-context';
+import { OrchestrationSchemeEditor } from '../orchestration-scheme-editor';
 
 const THINKING_LEVELS: ThinkingLevel[] = [
   'off',
@@ -92,15 +94,51 @@ export function SubagentProfilesPage(): ReactElement {
         dirtyBasePolicy: '脏基线并行写入策略',
         schemesTitle: '编排方案',
         schemesDescription:
-          '编排方案是发送时的可选项（Composer 下拉）。Off 表示自由模式；选择后才注入约束。内置方案只读，可 Clone 出可编辑副本。',
+          '编排方案是发送时的可选项（Composer 下拉）。Off 表示自由模式；选择后才注入主纪律与角色编队。可编辑 Ultra Code 覆盖层，或新建自己的方案。',
         schemeClone: '克隆',
         schemeCloneSaved: '已克隆并保存',
         schemeClonedSuffix: '（副本）',
         schemeSourceBuiltin: '内置',
         schemeSourceSettings: '自定义',
         schemeDefaultProfile: '默认档案',
-        schemeGeneric: '泛型派发（隐藏 profile/model）',
+        schemeGeneric: '泛型派发（隐藏 model/thinking）',
         schemeExpose: '暴露派发元数据',
+        schemeEdit: '编辑',
+        schemeNew: '新建方案',
+        schemeDelete: '删除',
+        schemeResetBuiltin: '恢复内置',
+        schemeSave: '保存方案',
+        schemeSaved: '方案已保存',
+        schemeName: '名称',
+        schemeId: 'ID',
+        schemeDesc: '描述',
+        schemeDiscipline: '主纪律',
+        schemeDisciplineHint: '注入给主代理：何时派发、如何等待与验证。',
+        schemeMembers: '角色成员',
+        schemeAddMember: '添加角色',
+        schemeAddFromTemplate: '从模板添加',
+        schemeRole: '角色 ID',
+        schemeRoleDesc: '工作描述（调度用）',
+        schemeMemberProfile: '档案模板',
+        schemeMemberModel: '模型',
+        schemeModelInherit: '继承',
+        schemeThinking: '思考',
+        schemeThinkingInherit: '继承/方案上限',
+        schemeIsolation: '隔离',
+        schemeIsolationInherit: '继承档案',
+        schemeFallback: '不可用回退',
+        schemeDefaultRole: '默认角色',
+        schemeMaxConcurrency: '最大并发',
+        schemeMaxTasks: '每轮最大任务',
+        schemeMaxThinking: '子代理思考上限',
+        schemeMaxThinkingInherit: '不限制',
+        schemeRemoveMember: '移除',
+        schemeCancel: '取消',
+        schemeInvalidId: '方案 ID 须为小写字母、数字与连字符',
+        schemeInvalidRole: '角色 ID 非法或重复',
+        schemeNeedMember: '至少需要一个带描述的角色',
+        schemeCheapModelHint:
+          '建议为 searcher 指定更便宜的已配置模型；留空则可能与主模型同价。',
       }
     : {
         title: 'Sub-agent profiles',
@@ -132,15 +170,51 @@ export function SubagentProfilesPage(): ReactElement {
         dirtyBasePolicy: 'Dirty-base parallel write policy',
         schemesTitle: 'Orchestration schemes',
         schemesDescription:
-          'Schemes are a per-send Composer choice. Off is freehand; selection injects constraints only for that prompt. Built-ins are read-only; Clone makes an editable copy.',
+          'Schemes are a per-send Composer choice. Off is freehand; selection injects main discipline and a role roster. Edit the Ultra Code overlay or create your own schemes.',
         schemeClone: 'Clone',
         schemeCloneSaved: 'Cloned and saved',
         schemeClonedSuffix: ' (copy)',
         schemeSourceBuiltin: 'Built-in',
         schemeSourceSettings: 'Custom',
         schemeDefaultProfile: 'Default profile',
-        schemeGeneric: 'Generic spawn (hide profile/model)',
+        schemeGeneric: 'Generic spawn (hide model/thinking)',
         schemeExpose: 'Expose spawn metadata',
+        schemeEdit: 'Edit',
+        schemeNew: 'New scheme',
+        schemeDelete: 'Delete',
+        schemeResetBuiltin: 'Reset builtin',
+        schemeSave: 'Save scheme',
+        schemeSaved: 'Scheme saved',
+        schemeName: 'Name',
+        schemeId: 'ID',
+        schemeDesc: 'Description',
+        schemeDiscipline: 'Main discipline',
+        schemeDisciplineHint: 'Injected for the main agent: when to delegate, wait, and verify.',
+        schemeMembers: 'Role members',
+        schemeAddMember: 'Add role',
+        schemeAddFromTemplate: 'Add from template',
+        schemeRole: 'Role id',
+        schemeRoleDesc: 'Work description (for routing)',
+        schemeMemberProfile: 'Profile template',
+        schemeMemberModel: 'Model',
+        schemeModelInherit: 'Inherit',
+        schemeThinking: 'Thinking',
+        schemeThinkingInherit: 'Inherit / scheme cap',
+        schemeIsolation: 'Isolation',
+        schemeIsolationInherit: 'Inherit profile',
+        schemeFallback: 'Unavailable fallback',
+        schemeDefaultRole: 'Default role',
+        schemeMaxConcurrency: 'Max concurrency',
+        schemeMaxTasks: 'Max tasks per run',
+        schemeMaxThinking: 'Subagent thinking cap',
+        schemeMaxThinkingInherit: 'No cap',
+        schemeRemoveMember: 'Remove',
+        schemeCancel: 'Cancel',
+        schemeInvalidId: 'Scheme id must be lowercase letters, digits, and hyphens',
+        schemeInvalidRole: 'Invalid or duplicate role id',
+        schemeNeedMember: 'At least one role with a description is required',
+        schemeCheapModelHint:
+          'Pin a cheaper configured model on searcher when possible; inherit may match the main model cost.',
       };
 
   const subagents: SubagentConfig = config?.subagents ?? createDefaultSubagentConfig();
@@ -282,10 +356,20 @@ export function SubagentProfilesPage(): ReactElement {
       id: clonedId,
       name: `${source.name}${copy.schemeClonedSuffix}`,
       description: source.description,
-      defaultProfileId: source.defaultProfileId,
       exposeSpawnMetadata: source.exposeSpawnMetadata,
       waitPolicy: 'await-all',
       systemPreamble: source.systemPreamble,
+      ...(source.defaultProfileId ? { defaultProfileId: source.defaultProfileId } : {}),
+      ...(source.defaultRole ? { defaultRole: source.defaultRole } : {}),
+      members: migrateSchemeMembers(source).map((member) => ({
+        role: member.role,
+        description: member.description,
+        ...(member.profileId ? { profileId: member.profileId } : {}),
+        ...(member.model ? { model: member.model } : {}),
+        ...(member.thinkingLevel ? { thinkingLevel: member.thinkingLevel } : {}),
+        ...(member.isolation ? { isolation: member.isolation } : {}),
+        ...(member.fallback ? { fallback: member.fallback } : { fallback: 'main' as const }),
+      })),
       ...(source.allowedProfileIds ? { allowedProfileIds: [...source.allowedProfileIds] } : {}),
       ...(source.maxConcurrency !== undefined ? { maxConcurrency: source.maxConcurrency } : {}),
       ...(source.maxTasksPerRun !== undefined ? { maxTasksPerRun: source.maxTasksPerRun } : {}),
@@ -307,6 +391,32 @@ export function SubagentProfilesPage(): ReactElement {
       return;
     }
     setSchemeNotice(copy.schemeCloneSaved);
+  }
+
+  async function persistSchemes(nextSchemes: OrchestrationSchemeSettings[]): Promise<boolean> {
+    if (!config) return false;
+    setSchemeDrafts(nextSchemes);
+    // exactOptional: omit schemes key when empty rather than assigning undefined.
+    const payload: SubagentConfig = {
+      profiles: subagents.profiles,
+      maxConcurrency: subagents.maxConcurrency,
+      maxTasksPerRun: subagents.maxTasksPerRun,
+      processIsolation: subagents.processIsolation,
+      parallelWritePolicy: subagents.parallelWritePolicy,
+      dirtyBasePolicy: subagents.dirtyBasePolicy,
+    };
+    if (subagents.defaultProfileId) {
+      payload.defaultProfileId = subagents.defaultProfileId;
+    }
+    if (nextSchemes.length > 0) {
+      payload.schemes = nextSchemes;
+    }
+    const ok = await saveConfig({ ...config, subagents: payload });
+    if (!ok) {
+      setError(isChinese ? '保存失败' : 'Save failed');
+      return false;
+    }
+    return true;
   }
 
   async function handleSave(): Promise<void> {
@@ -595,58 +705,64 @@ export function SubagentProfilesPage(): ReactElement {
         </div>
       </div>
 
-      <div className="settings-section" data-testid="orchestration-schemes-section">
-        <PageTitle title={copy.schemesTitle} />
-        <p className="muted" style={{ marginBottom: 12, fontSize: 13, lineHeight: 1.45 }}>
-          {copy.schemesDescription}
-        </p>
-        {schemeNotice ? (
-          <Notice tone="success">{schemeNotice}</Notice>
-        ) : null}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {orchestrationSchemes.map((scheme) => (
-            <div
-              key={scheme.id}
-              className="settings-section-card"
-              style={{ padding: 12 }}
-              data-testid={`orchestration-scheme-row-${scheme.id}`}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <strong style={{ fontSize: 14 }}>{scheme.name}</strong>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {scheme.source === 'builtin'
-                      ? copy.schemeSourceBuiltin
-                      : copy.schemeSourceSettings}
-                  </span>
-                  <Button
-                    variant="secondary"
-                    disabled={saving}
-                    data-testid={`orchestration-scheme-clone-${scheme.id}`}
-                    onClick={() => void handleCloneScheme(scheme.id)}
-                  >
-                    {copy.schemeClone}
-                  </Button>
-                </div>
-              </div>
-              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-                <code>{scheme.id}</code>
-              </div>
-              <p style={{ fontSize: 13, marginTop: 8, marginBottom: 0, lineHeight: 1.4 }}>
-                {scheme.description}
-              </p>
-              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-                {copy.schemeDefaultProfile}: <code>{scheme.defaultProfileId}</code>
-                {' · '}
-                {scheme.exposeSpawnMetadata ? copy.schemeExpose : copy.schemeGeneric}
-                {scheme.maxSubagentThinkingLevel
-                  ? ` · thinking ≤ ${scheme.maxSubagentThinkingLevel}`
-                  : ''}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <OrchestrationSchemeEditor
+        schemes={orchestrationSchemes}
+        schemeDrafts={schemeDrafts}
+        modelOptions={modelOptions}
+        saving={saving}
+        notice={schemeNotice}
+        onNotice={setSchemeNotice}
+        copy={{
+          schemesTitle: copy.schemesTitle,
+          schemesDescription: copy.schemesDescription,
+          schemeClone: copy.schemeClone,
+          schemeCloneSaved: copy.schemeCloneSaved,
+          schemeClonedSuffix: copy.schemeClonedSuffix,
+          schemeSourceBuiltin: copy.schemeSourceBuiltin,
+          schemeSourceSettings: copy.schemeSourceSettings,
+          schemeDefaultProfile: copy.schemeDefaultProfile,
+          schemeGeneric: copy.schemeGeneric,
+          schemeExpose: copy.schemeExpose,
+          schemeEdit: copy.schemeEdit,
+          schemeNew: copy.schemeNew,
+          schemeDelete: copy.schemeDelete,
+          schemeResetBuiltin: copy.schemeResetBuiltin,
+          schemeSave: copy.schemeSave,
+          schemeSaved: copy.schemeSaved,
+          schemeName: copy.schemeName,
+          schemeId: copy.schemeId,
+          schemeDesc: copy.schemeDesc,
+          schemeDiscipline: copy.schemeDiscipline,
+          schemeDisciplineHint: copy.schemeDisciplineHint,
+          schemeMembers: copy.schemeMembers,
+          schemeAddMember: copy.schemeAddMember,
+          schemeAddFromTemplate: copy.schemeAddFromTemplate,
+          schemeRole: copy.schemeRole,
+          schemeRoleDesc: copy.schemeRoleDesc,
+          schemeMemberProfile: copy.schemeMemberProfile,
+          schemeMemberModel: copy.schemeMemberModel,
+          schemeModelInherit: copy.schemeModelInherit,
+          schemeThinking: copy.schemeThinking,
+          schemeThinkingInherit: copy.schemeThinkingInherit,
+          schemeIsolation: copy.schemeIsolation,
+          schemeIsolationInherit: copy.schemeIsolationInherit,
+          schemeFallback: copy.schemeFallback,
+          schemeDefaultRole: copy.schemeDefaultRole,
+          schemeMaxConcurrency: copy.schemeMaxConcurrency,
+          schemeMaxTasks: copy.schemeMaxTasks,
+          schemeMaxThinking: copy.schemeMaxThinking,
+          schemeMaxThinkingInherit: copy.schemeMaxThinkingInherit,
+          schemeRemoveMember: copy.schemeRemoveMember,
+          schemeCancel: copy.schemeCancel,
+          schemeInvalidId: copy.schemeInvalidId,
+          schemeInvalidRole: copy.schemeInvalidRole,
+          schemeNeedMember: copy.schemeNeedMember,
+          schemeCheapModelHint: copy.schemeCheapModelHint,
+          remove: copy.remove,
+        }}
+        onPersistSchemes={persistSchemes}
+        onCloneScheme={handleCloneScheme}
+      />
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
         <Button variant="primary" disabled={saving} onClick={() => void handleSave()}>
