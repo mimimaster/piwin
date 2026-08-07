@@ -12,13 +12,39 @@ export type PermissionEvaluation = {
 export type WebPermissionAction = 'web_search' | 'web_fetch';
 
 /**
+ * Apply Run Mode to a matched rule decision.
+ *
+ * Under `bypass` (user-facing YOLO), matched `ask` rules are treated as allow so
+ * behavior stays close to Pi-native "no permission popups". Matched `deny` rules
+ * always win — those are the hard circuit breakers that yolo cannot silence.
+ *
+ * `auto` / `ask-all` keep the matched decision unchanged.
+ */
+export function applyModeToMatchedRule(
+  matched: { decision: PermissionDecision; reason: string },
+  mode: PermissionMode,
+): PermissionEvaluation {
+  if (matched.decision === 'ask' && mode === 'bypass') {
+    return {
+      decision: 'allow',
+      reason: `bypass-ask:${matched.reason}`,
+    };
+  }
+  return {
+    decision: matched.decision,
+    reason: matched.reason,
+  };
+}
+
+/**
  * Classify a bash command for host permission gating (ADR 0019 §1, §3.1).
  *
  * Delegates to the rule engine: deny → ask → allow, first match wins. When no
  * `rules` are supplied the bundled defaults are used, preserving the legacy
  * hardcoded decisions (pipe-to-shell deny, rm-recursive-force ask, etc.) with
  * stable reason strings. On `'no-match'`: `allow` for `auto`/`bypass`, `ask`
- * for `ask-all`.
+ * for `ask-all`. Under `bypass`, matched `ask` rules are promoted to allow
+ * (`bypass-ask:<reason>`); matched `deny` rules still deny.
  *
  * Pure function — no IO.
  */
@@ -35,7 +61,7 @@ export function evaluateBashPermission(
   const ruleSet = rules ?? createBundledRuleSet();
   const matched = findMatchingRule({ kind: 'bash', command: normalized }, ruleSet);
   if (matched) {
-    return { decision: matched.decision, reason: matched.reason };
+    return applyModeToMatchedRule(matched, mode);
   }
 
   // No rule matched: ask-all escalates everything to ask; auto/bypass allow.
@@ -50,6 +76,7 @@ export function evaluateBashPermission(
  *
  * 1. `evaluateRules` for `{ kind: 'file-write', path: absPath }`.
  * 2. On match → that decision + reason.
+ *    Under `bypass`, matched `ask` is promoted to allow; matched `deny` still denies.
  * 3. On `'no-match'`:
  *    - `bypass` → allow (deny already handled above).
  *    - `escapesRoot(projectRoot, absPath)` → ask (`auto` / `ask-all`).
@@ -73,7 +100,7 @@ export function evaluateFileWritePermission(input: {
   const ruleSet = rules ?? createBundledRuleSet();
   const matched = findMatchingRule({ kind: 'file-write', path: normalizedPath }, ruleSet);
   if (matched) {
-    return { decision: matched.decision, reason: matched.reason };
+    return applyModeToMatchedRule(matched, mode);
   }
 
   if (mode === 'bypass') {
@@ -120,13 +147,13 @@ export function evaluateWebPermission(
       if (host) {
         const matched = findMatchingRule({ kind: 'web-fetch', host }, rules);
         if (matched) {
-          return { decision: matched.decision, reason: matched.reason };
+          return applyModeToMatchedRule(matched, mode ?? 'auto');
         }
       }
     } else {
       const matched = findMatchingRule({ kind: 'web-search' }, rules);
       if (matched) {
-        return { decision: matched.decision, reason: matched.reason };
+        return applyModeToMatchedRule(matched, mode ?? 'auto');
       }
     }
   }
@@ -185,7 +212,7 @@ export function evaluateNotesPermission(
     if (rules) {
       const matched = findMatchingRule({ kind: 'notes-mutate' }, rules);
       if (matched) {
-        return { decision: matched.decision, reason: matched.reason };
+        return applyModeToMatchedRule(matched, mode ?? 'auto');
       }
     }
     if (normalized.length === 0) {
@@ -219,7 +246,7 @@ export function evaluateProcessPermission(
   if (rules) {
     const matched = findMatchingRule({ kind: 'process' }, rules);
     if (matched) {
-      return { decision: matched.decision, reason: matched.reason };
+      return applyModeToMatchedRule(matched, mode ?? 'auto');
     }
   }
   if (action === 'process:start') {

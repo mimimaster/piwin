@@ -22,7 +22,7 @@ import type {
 import type { BrowserSession } from '@piwin/browser';
 import { isPrivateOrLocalHostname } from '@piwin/tools-web';
 import { findMatchingRule } from './permission-rule-engine.js';
-import type { PermissionEvaluation } from './permission-policy.js';
+import { applyModeToMatchedRule, type PermissionEvaluation } from './permission-policy.js';
 
 // ---------------------------------------------------------------------------
 // Permission classification (ADR 0020 §5)
@@ -90,7 +90,7 @@ export function evaluateBrowserNavigatePermission(
   if (rules) {
     const matched = findMatchingRule({ kind: 'web-fetch', host }, rules);
     if (matched) {
-      return { decision: matched.decision, reason: matched.reason };
+      return applyModeToMatchedRule(matched, mode);
     }
   }
 

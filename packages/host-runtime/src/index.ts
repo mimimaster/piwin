@@ -7,6 +7,7 @@ export {
   estimateMockUsage,
 } from '@piwin/agent-host';
 export {
+  applyModeToMatchedRule,
   evaluateBashPermission,
   evaluateFileWritePermission,
   evaluateWebPermission,

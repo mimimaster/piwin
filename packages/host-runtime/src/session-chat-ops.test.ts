@@ -392,4 +392,60 @@ describe('CE-CHAT session ops', () => {
 
     await runtime.dispose();
   });
+
+  it('truncates by clientMessageId when the desktop paints that id on send', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-truncate-client-id-'));
+    const pushes: HostPush[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => pushes.push(message),
+    });
+
+    const projectPath = join(rootDir, 'proj');
+    await runtime.handleCommand({ type: 'project/open', path: projectPath });
+    await runtime.handleCommand({ type: 'project/trust', path: projectPath });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath, sessionName: 'client-id-revert' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const clientMessageId = 'ui-client-message-42';
+    const prompt1 = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'first turn with client id', clientMessageId },
+    });
+    expect(prompt1.success).toBe(true);
+    if (!prompt1.success) throw new Error(prompt1.error);
+    await waitForTerminal(pushes, sessionId, 0);
+
+    const messagesBefore = await runtime.handleCommand({ type: 'session/messages', sessionId });
+    if (!messagesBefore.success) throw new Error(messagesBefore.error);
+    const before = (messagesBefore.data as { messages: SessionTranscriptMessage[] }).messages;
+    const firstUser = before.find((message) => message.role === 'user');
+    expect(firstUser?.id).toBe(clientMessageId);
+
+    const truncated = await runtime.handleCommand({
+      type: 'session/truncate-from',
+      sessionId,
+      messageId: clientMessageId,
+    });
+    expect(truncated.success).toBe(true);
+    if (!truncated.success) throw new Error(truncated.error);
+    const truncData = truncated.data as {
+      remainingCount: number;
+      messages: SessionTranscriptMessage[];
+    };
+    expect(truncData.remainingCount).toBe(0);
+    expect(truncData.messages).toHaveLength(0);
+
+    await runtime.dispose();
+  });
+
 });
