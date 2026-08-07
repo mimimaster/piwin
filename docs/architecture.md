@@ -266,7 +266,8 @@ import Pi, and `@piwin/agent-host` never owns product permission policy.
 Settings → Permissions page: mode switcher bound to the user-facing
 `config.permissions?.preset ?? 'yolo'` with trust-aware notices. New sessions
 default to Pi-compatible YOLO: ordinary actions run without approval prompts;
-deny rules, circuit breakers, and the untrusted-project guard remain active.
+matched ask rules are auto-allowed under yolo; hard deny circuit breakers and
+the untrusted-project guard remain active.
 Context bar shows a **mode badge** (click → open Permissions; `bypass` rendered
 with a warning tone). Permission prompt dialog offers **"Allow for project"**
 for bash/file-write subjects (persisted via the remember keys above). A full
