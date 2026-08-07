@@ -33,18 +33,25 @@ Permissions, or via CLI flags.
 |------|---------|----------|
 | `auto` | On | Low-friction inside the sandbox. Safe commands and in-project writes run without prompts; leaving the workspace or opening network asks. |
 | `ask` | On | Prompts on almost every tool call (still sandboxed). Use when you want to watch every step. |
-| `yolo` (default) | Off | No sandbox, no routine prompts. **Circuit breakers still fire** (see below). Refused for untrusted projects (downgraded to `auto`). |
+| `yolo` (default) | Off | No sandbox, no routine prompts. Matched **ask** rules are auto-allowed; **deny** circuit breakers still fire (see below). Refused for untrusted projects (downgraded to `auto`). |
 
 ### Circuit breakers (apply in all modes, including `yolo`)
 
-Even in `yolo`, these actions always prompt (or are denied non-interactively):
+`yolo` (`bypass`) promotes matched **ask** rules to allow so routine prompts do
+not appear (Pi-compatible). Hard **deny** rules still always block:
 
-- `rm -rf /` and equivalent root-deletion patterns.
-- Writes to secret paths (`~/.ssh/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …).
-- Force-push to `main` / `master`.
-- Any `deny` rule that matches.
+- `rm -rf /` and equivalent root-deletion patterns (deny).
+- Writes to secret paths via the file-write gate (`~/.ssh/**`, `**/.env`,
+  `**/*.pem`, `**/id_rsa`, …) — deny.
+- Pipe-to-shell / disk-destroy / shutdown-style bundled deny rules.
+- Any user or project `deny` rule that matches.
 
-Circuit breakers cannot be allowed away by project rules or `yolo` mode.
+Matched **ask** patterns (for example `rm -rf` outside root, `sudo`,
+`git push --force`, `cat .env` / `tee .env`) are **not** circuit breakers under
+`yolo`: they allow with reason `bypass-ask:<rule-reason>`. Under `auto` /
+`ask` they still prompt.
+
+Deny rules cannot be allowed away by project rules or `yolo` mode.
 
 ### YOLO guard
 
