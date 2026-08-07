@@ -17,7 +17,6 @@ export type SettingsSectionId =
   | 'permissions'
   | 'models'
   | 'vision'
-  | 'image-generation'
   | 'artifact'
   | 'skills'
   | 'extensions'
@@ -32,12 +31,14 @@ export type SettingsSectionId =
   | 'pets'
   | 'usage'
   | 'shortcuts'
-  | 'artifact-playground';
+  | 'artifact-playground'
+  | 'animations';
 
 /** Legacy settings deep links that now redirect to a canonical section. */
 export const LEGACY_SETTINGS_REDIRECTS: Readonly<Record<string, SettingsSectionId>> = {
   rules: 'skills',
   agents: 'automation',
+  'image-generation': 'models',
 } as const;
 
 export type LegacySettingsSectionId = keyof typeof LEGACY_SETTINGS_REDIRECTS;
@@ -61,7 +62,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'shortcuts', group: 'application', labelKey: 'shortcuts' },
   { id: 'models', group: 'agent', labelKey: 'models' },
   { id: 'vision', group: 'agent', labelKey: 'vision' },
-  { id: 'image-generation', group: 'agent', labelKey: 'imageGeneration' },
   { id: 'artifact', group: 'agent', labelKey: 'artifact' },
   { id: 'artifact-playground', group: 'agent', labelKey: 'artifactPlayground', beta: true },
   { id: 'session', group: 'agent', labelKey: 'sessions' },
@@ -76,6 +76,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionMeta[] = [
   { id: 'subagents', group: 'system', labelKey: 'subagents', beta: true },
   { id: 'usage', group: 'system', labelKey: 'usage' },
   { id: 'pets', group: 'personalization', labelKey: 'pets' },
+  { id: 'animations', group: 'personalization', labelKey: 'animations' },
 ] as const;
 
 /** Group display order for the settings nav. */

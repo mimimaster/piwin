@@ -19,7 +19,6 @@ export type ShellSettingsSection =
   | 'web'
   | 'models'
   | 'vision'
-  | 'image-generation'
   | 'pets'
   | 'automation'
   | 'subagents'
@@ -28,9 +27,11 @@ export type ShellSettingsSection =
   | 'usage'
   | 'shortcuts'
   | 'artifact'
-  | 'artifact-playground'
-  // Legacy deep links preserved for backward compatibility; consumers should
+ | 'artifact-playground'
+ | 'animations'
+ // Legacy deep links preserved for backward compatibility; consumers should
   // normalize through the section registry before rendering.
+  | 'image-generation'
   | 'agents'
   | 'rules';
 

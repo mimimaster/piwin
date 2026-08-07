@@ -2,6 +2,15 @@
    Includes SVG keyframe micro-animations, glassmorphism card layouts,
    ambient glowing backdrops, status badges, and subagent card enhancements. */
 
+.context-bar-status,
+.run-activity-inline,
+.run-activity-splash,
+.chat-run-activity-line,
+[data-testid="run-status-strip"],
+[data-testid="run-activity-slot"] {
+  display: none !important;
+}
+
 /* ==========================================================================
    SVG Keyframe Animations
    ========================================================================== */

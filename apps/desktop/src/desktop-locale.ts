@@ -264,6 +264,7 @@ export type DesktopTranslator = {
       pets: string;
       usage: string;
       shortcuts: string;
+      animations: string;
     };
     provider: {
       search: string;
@@ -867,7 +868,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         general: isChinese ? '通用' : 'General',
         appearance: isChinese ? '外观' : 'Appearance',
         permissions: isChinese ? '权限' : 'Permissions',
-        models: isChinese ? '模型' : 'Models',
+        models: isChinese ? '模型配置' : 'Model Configuration',
         vision: isChinese ? '视觉' : 'Vision',
         imageGeneration: isChinese ? '图像生成' : 'Image Generation',
         artifact: isChinese ? 'Artifact' : 'Artifact',
@@ -887,6 +888,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         pets: isChinese ? '宠物' : 'Companion',
         usage: isChinese ? '用量统计' : 'Usage',
         shortcuts: isChinese ? '快捷键' : 'Shortcuts',
+        animations: isChinese ? '动效' : 'Animations',
       },
       provider: {
         search: isChinese ? '搜索提供商…' : 'Search providers…',

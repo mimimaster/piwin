@@ -781,3 +781,119 @@
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-surface);
 }
+
+/* ── Breathing Animations ────────────────────────────────────────── */
+/* Pure-CSS decorative animations. All use --text so they automatically
+   adapt to the active light/dark theme. Respect prefers-reduced-motion. */
+
+.ui-anim-breath-dot,
+.ui-anim-pulse-block,
+.ui-anim-solid-bars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Size scale — the outer span is a flexbox frame; inner elements
+   size themselves relative to it. */
+.ui-anim--sm { width: 24px; height: 24px; }
+.ui-anim--md { width: 48px; height: 48px; }
+.ui-anim--lg { width: 72px; height: 72px; }
+
+/* ── Breath Dot (圆点呼吸) ──────────────────────────────────────── */
+
+.ui-anim-breath-dot__core {
+  display: block;
+  border-radius: 50%;
+  background-color: var(--text);
+  animation: ui-anim-breath-dot 2.6s ease-in-out infinite;
+}
+
+.ui-anim--sm .ui-anim-breath-dot__core { width: 12px; height: 12px; }
+.ui-anim--md .ui-anim-breath-dot__core { width: 24px; height: 24px; }
+.ui-anim--lg .ui-anim-breath-dot__core { width: 36px; height: 36px; }
+
+@keyframes ui-anim-breath-dot {
+  0%, 100% {
+    transform: scale(0.85);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── Pulse Block (方块脉冲) ─────────────────────────────────────── */
+
+.ui-anim-pulse-block {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.ui-anim--sm.ui-anim-pulse-block { gap: 2px; }
+.ui-anim--lg.ui-anim-pulse-block { gap: 6px; }
+
+.ui-anim-pulse-block__cell {
+  background-color: var(--text);
+  border-radius: 2px;
+  animation: ui-anim-pulse-block 2.4s ease-in-out infinite;
+}
+
+@keyframes ui-anim-pulse-block {
+  0%, 100% {
+    transform: scale(0.8);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ── Solid Bars (条形呼吸) ──────────────────────────────────────── */
+
+.ui-anim-solid-bars {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.ui-anim--sm.ui-anim-solid-bars { gap: 3px; }
+.ui-anim--lg.ui-anim-solid-bars { gap: 7px; }
+
+.ui-anim-solid-bars__bar {
+  width: 4px;
+  height: 100%;
+  background-color: var(--text);
+  border-radius: 2px;
+  animation: ui-anim-solid-bars 2.2s ease-in-out infinite;
+}
+
+.ui-anim--sm .ui-anim-solid-bars__bar { width: 3px; }
+.ui-anim--lg .ui-anim-solid-bars__bar { width: 6px; }
+
+@keyframes ui-anim-solid-bars {
+  0%, 100% {
+    transform: scaleY(0.35);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* ── Reduced motion: freeze all breathing animations ────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-anim-breath-dot__core,
+  .ui-anim-pulse-block__cell,
+  .ui-anim-solid-bars__bar {
+    animation: none;
+    opacity: 0.6;
+  }
+}
