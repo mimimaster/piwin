@@ -32,6 +32,8 @@ export type SubagentRunSeam = {
     mode?: SubagentIsolationMode;
     applyPolicy?: SubagentApplyPolicy;
     sessionName?: string;
+    /** ORCH-V2: scheme roster role (preferred when a scheme is active). */
+    role?: string;
     /** CE-SUB-PROF: profile id resolved by the Host. */
     profileId?: string;
     /** CE-SUB-PROF: per-call model override (must reference a configured model). */
@@ -76,6 +78,13 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
               'The task to delegate. Must be self-contained — the subagent starts with a fresh ' +
               "context and does not see this conversation's history. Include all necessary context " +
               'and acceptance criteria in the task text.',
+          },
+          role: {
+            type: 'string',
+            description:
+              'Orchestration scheme roster role (e.g. "searcher", "coder", "reviewer"). ' +
+              'When an orchestration scheme is active, prefer role over free-form profileId/model. ' +
+              'The Host resolves the role to a profile, model, and isolation from the scheme members.',
           },
           mode: {
             type: 'string',
@@ -141,6 +150,9 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
       const applyPolicy =
         applyPolicyRaw === 'auto' || applyPolicyRaw === 'explicit' ? applyPolicyRaw : 'none';
 
+      const roleRaw = String(args.role ?? '').trim();
+      const role = roleRaw || undefined;
+
       const profileIdRaw = String(args.profileId ?? '').trim();
       const profileId = profileIdRaw || undefined;
 
@@ -198,6 +210,7 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
           ...(mode ? { mode } : {}),
           ...(sessionName ? { sessionName } : {}),
           ...(applyPolicy !== 'none' ? { applyPolicy } : {}),
+          ...(role ? { role } : {}),
           ...(profileId ? { profileId } : {}),
           ...(model ? { model } : {}),
           ...(thinkingLevel ? { thinkingLevel } : {}),
@@ -205,6 +218,24 @@ export function createSubagentRunTool(options: SubagentRunToolOptions): HostTool
         });
       } catch (error) {
         const message = formatError(error);
+        if (message.includes('subagent-unavailable-fallback-main:')) {
+          return {
+            ok: false,
+            code: 'subagent-unavailable-fallback-main',
+            message,
+            details: { runId: context.runId, ...(role ? { role } : {}) },
+            retryable: false,
+          };
+        }
+        if (message.includes('fallback=none')) {
+          return {
+            ok: false,
+            code: 'subagent-unavailable',
+            message,
+            details: { runId: context.runId, ...(role ? { role } : {}) },
+            retryable: false,
+          };
+        }
         return { ok: false, code: 'subagent-failed', message, retryable: true };
       }
 
