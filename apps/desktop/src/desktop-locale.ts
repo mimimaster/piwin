@@ -248,6 +248,7 @@ export type DesktopTranslator = {
       vision: string;
       imageGeneration: string;
       artifact: string;
+      artifactPlayground: string;
       sessions: string;
       runtime: string;
       rules: string;
@@ -870,6 +871,7 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         vision: isChinese ? '视觉' : 'Vision',
         imageGeneration: isChinese ? '图像生成' : 'Image Generation',
         artifact: isChinese ? 'Artifact' : 'Artifact',
+        artifactPlayground: isChinese ? 'Artifact 实验场' : 'Artifact Playground',
         sessions: 'Walkthrough',
         runtime: isChinese ? '会话运行时' : 'Session Runtime',
         rules: isChinese ? '规则' : 'Rules',
