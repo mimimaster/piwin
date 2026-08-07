@@ -51,6 +51,14 @@ export type UseSessionActionsArgs = {
   setHostLogEntries: Dispatch<SetStateAction<HostLogEntry[]>>;
   /** Restore truncated user text into the composer after Revert (no auto-resend). */
   setComposer: Dispatch<SetStateAction<string>>;
+  /**
+   * Restore the composer model/thinking when a session is opened or resumed.
+   * Host returns the last-used profile from the session index (or transcript).
+   */
+  onSessionComposerProfileRestored?: (profile: {
+    model?: ModelRef;
+    thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+  }) => void;
 };
 
 export function useSessionActions(args: UseSessionActionsArgs) {
@@ -71,6 +79,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     setRenameDraft,
     setHostLogEntries,
     setComposer,
+    onSessionComposerProfileRestored,
   } = args;
   // Multiple event handlers can ask for the first session before React has
   // committed activeSessionId. Share one create request per selected scope.
@@ -216,7 +225,15 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         live: boolean;
         messages?: SessionTranscriptMessage[];
         outline?: import('@piwin/contracts').SessionOutlineNode[];
+        model?: ModelRef;
+        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
       };
+      if (data.model || data.thinkingLevel !== undefined) {
+        onSessionComposerProfileRestored?.({
+          ...(data.model ? { model: data.model } : {}),
+          ...(data.thinkingLevel !== undefined ? { thinkingLevel: data.thinkingLevel } : {}),
+        });
+      }
       const messages = data.messages ?? [];
       if (messages.length === 0) {
         const listed = await hostClient.request({
@@ -273,7 +290,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         );
       }
     },
-    [dispatch, dispatchNotification, hostClient],
+    [dispatch, dispatchNotification, hostClient, onSessionComposerProfileRestored],
   );
 
   const ensureSession = useCallback(
@@ -305,6 +322,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
           projectPath?: string;
           model?: ModelRef;
+          thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
           sessionName?: string;
         };
 
@@ -334,6 +352,9 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         const model = selectedModelRef();
         if (model) {
           createInput.model = model;
+        }
+        if (thinkingLevel) {
+          createInput.thinkingLevel = thinkingLevel;
         }
         const created = await hostClient.request({
           type: 'session/create',
@@ -370,6 +391,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       dispatch,
       hostClient,
       selectedModelRef,
+      thinkingLevel,
       state.projectPath,
       state.projectTrusted,
       state.activeScope,

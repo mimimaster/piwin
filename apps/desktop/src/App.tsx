@@ -406,6 +406,16 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const [selectedModelKey, setSelectedModelKey] = useState('');
   const [thinkingLevel, setThinkingLevel] =
     useState<import('@piwin/contracts').ThinkingLevel>('off');
+  /**
+   * Bridge for session-resume model restore. useSessionActions is declared
+   * before the restore callback, so we keep a stable ref it can call.
+   */
+  const sessionComposerProfileRestoredRef = useRef<
+    (profile: {
+      model?: import('@piwin/contracts').ModelRef;
+      thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+    }) => void
+  >(() => undefined);
   const [recentProjects, setRecentProjects] = useState<ProjectRecord[]>([]);
   const [runClock, setRunClock] = useState(() => Date.now());
   const hasHydratedInitialGeneralSessions = useRef(false);
@@ -840,6 +850,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setComposer: (value) => {
       composerSetterRef.current(value);
     },
+    onSessionComposerProfileRestored: (profile) => {
+      sessionComposerProfileRestoredRef.current(profile);
+    },
   });
   /**
    * Ensure a chat session, resume it, then send a prompt for doc-card generation.
@@ -920,12 +933,73 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     state.hostReady,
   ]);
 
+  /** Only re-apply session model when the active session id changes. */
+  const lastAppliedSessionModelIdRef = useRef<string | null>(null);
+
+  const applyComposerModelSelection = useCallback(
+    (
+      modelKey: string,
+      requestedThinking: import('@piwin/contracts').ThinkingLevel | undefined,
+    ): void => {
+      const selected = modelOptions.find(
+        (model) => `${model.providerId}::${model.modelId}` === modelKey,
+      );
+      const resolvedKey = selected ? `${selected.providerId}::${selected.modelId}` : modelKey;
+      setSelectedModelKey(resolvedKey);
+      const resolvedThinking = resolveThinkingLevelForModel(
+        selected,
+        requestedThinking ?? selected?.thinkingLevel ?? 'off',
+        config?.thinking?.ultraEnabled === true,
+      );
+      setThinkingLevel(resolvedThinking ?? 'off');
+    },
+    [config?.thinking?.ultraEnabled, modelOptions],
+  );
+
   // Resolve the effective model selection. Priority:
-  //   1. composerProfile.model (per-desktop persisted selection)
-  //   2. config.defaultProviderId / defaultModelId (product default)
-  // When neither resolves to a live model option, clear the selection so the
+  //   1. active session last-used model (session index / resume)
+  //   2. composerProfile.model (desktop default for new sessions)
+  //   3. config.defaultProviderId / defaultModelId (product default)
+  // When none resolve to a live model option, clear the selection so the
   // composer falls back to host defaults instead of holding a stale key.
   useEffect(() => {
+    const activeSessionId = state.activeSessionId;
+    const sessionChanged = lastAppliedSessionModelIdRef.current !== activeSessionId;
+    const activeSession =
+      activeSessionId == null
+        ? undefined
+        : state.sessions.find((session) => session.id === activeSessionId) ??
+          state.generalSessions.find((session) => session.id === activeSessionId);
+    // Prefer the session's last-used model only when switching into the
+    // session (or first apply). Do not re-stomp the picker while the user
+    // is mid-edit on the same session before the next prompt persists.
+    if (sessionChanged && activeSession?.model) {
+      const sessionModel = modelOptions.find(
+        (model) =>
+          model.providerId === activeSession.model?.providerId &&
+          model.modelId === activeSession.model?.modelId &&
+          model.protocol === activeSession.model?.protocol,
+      );
+      if (sessionModel) {
+        lastAppliedSessionModelIdRef.current = activeSessionId;
+        applyComposerModelSelection(
+          `${sessionModel.providerId}::${sessionModel.modelId}`,
+          activeSession.thinkingLevel,
+        );
+        return;
+      }
+    }
+    if (!sessionChanged && activeSessionId) {
+      // Stay on the user/session selection; only re-resolve defaults when
+      // providers/catalog change and the current key disappeared.
+      const stillValid = modelOptions.some(
+        (model) => `${model.providerId}::${model.modelId}` === selectedModelKey,
+      );
+      if (stillValid || !selectedModelKey) {
+        return;
+      }
+    }
+
     const composerProfile = config?.desktop?.composerProfile;
     const desired = composerProfile?.model
       ? modelOptions.find(
@@ -945,20 +1019,60 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         : undefined;
     const resolved = desired ?? fallback;
     const resolvedKey = resolved ? `${resolved.providerId}::${resolved.modelId}` : '';
-    setSelectedModelKey(resolvedKey);
-
-    const requestedThinking = composerProfile?.thinkingLevel ?? resolved?.thinkingLevel ?? 'off';
-    const resolvedThinking = resolveThinkingLevelForModel(
-      resolved,
-      requestedThinking,
-      config?.thinking?.ultraEnabled === true,
+    lastAppliedSessionModelIdRef.current = activeSessionId;
+    applyComposerModelSelection(
+      resolvedKey,
+      composerProfile?.thinkingLevel ?? resolved?.thinkingLevel ?? 'off',
     );
-    setThinkingLevel(resolvedThinking ?? 'off');
   }, [
+    applyComposerModelSelection,
     config?.desktop?.composerProfile,
     config?.defaultProviderId,
     config?.defaultModelId,
     modelOptions,
+    selectedModelKey,
+    state.activeSessionId,
+    state.generalSessions,
+    state.sessions,
+  ]);
+
+  // Resume payload may carry model before the session list row is updated.
+  useEffect(() => {
+    sessionComposerProfileRestoredRef.current = (profile) => {
+      if (profile.model) {
+        const match = modelOptions.find(
+          (model) =>
+            model.providerId === profile.model?.providerId &&
+            model.modelId === profile.model?.modelId &&
+            model.protocol === profile.model?.protocol,
+        );
+        if (match) {
+          lastAppliedSessionModelIdRef.current = state.activeSessionId;
+          applyComposerModelSelection(
+            `${match.providerId}::${match.modelId}`,
+            profile.thinkingLevel,
+          );
+          return;
+        }
+      }
+      if (profile.thinkingLevel) {
+        const selected = modelOptions.find(
+          (model) => `${model.providerId}::${model.modelId}` === selectedModelKey,
+        );
+        const resolvedThinking = resolveThinkingLevelForModel(
+          selected,
+          profile.thinkingLevel,
+          config?.thinking?.ultraEnabled === true,
+        );
+        setThinkingLevel(resolvedThinking ?? profile.thinkingLevel);
+      }
+    };
+  }, [
+    applyComposerModelSelection,
+    config?.thinking?.ultraEnabled,
+    modelOptions,
+    selectedModelKey,
+    state.activeSessionId,
   ]);
 
   const saveSettingsInOrder = useCallback(

@@ -128,6 +128,13 @@ export async function duplicateProductSession(
   record.isArchived = false;
   delete record.pinnedAt;
   delete record.archivedAt;
+  // Carry the source composer model so the duplicate opens on the same model.
+  if (sourceRecord.model) {
+    record.model = sourceRecord.model;
+  }
+  if (sourceRecord.thinkingLevel) {
+    record.thinkingLevel = sourceRecord.thinkingLevel;
+  }
 
   // SF-01: record duplicate origin metadata.
   const origin: ProductSessionOrigin = {

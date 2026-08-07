@@ -1,5 +1,6 @@
 /** Lightweight session index (product-side, not Pi JSONL internals). */
 
+import type { ModelRef, ThinkingLevel } from './host.js';
 import type { SessionScope } from './host.js';
 import type { SubagentRuntimeSnapshot } from './subagent-profile.js';
 import type { SubagentLifecycleState } from './subagent-lifecycle.js';
@@ -34,6 +35,15 @@ export type SessionIndexRecord = {
   updatedAt: string;
   messageCount: number;
   lastPreview?: string;
+  /**
+   * Last composer model used for this session (product index, not Pi JSONL).
+   * Restored on resume so switching sessions does not fall back to the global
+   * desktop default. Absent on legacy records — resume may recover from the
+   * last assistant transcript message model snapshot instead.
+   */
+  model?: ModelRef;
+  /** Last composer thinking level used with `model` for this session. */
+  thinkingLevel?: ThinkingLevel;
   /** Optional path to Pi session file when known */
   piSessionFile?: string;
   /** Parent session when this is a product-layer sub-agent. */

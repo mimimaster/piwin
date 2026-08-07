@@ -108,6 +108,10 @@ export type SessionListItemUi = {
   archivedAt?: string;
   /** SF-04: product session origin for branch/duplicate badge. */
   origin?: import('@piwin/contracts').ProductSessionOrigin;
+  /** Last composer model for this session (restored on open/resume). */
+  model?: import('@piwin/contracts').ModelRef;
+  /** Last composer thinking level paired with `model`. */
+  thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
 };
 
 export type RunTerminalState =

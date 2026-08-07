@@ -80,6 +80,10 @@ export type SessionResumeData = {
   workingDirectory?: string;
   projectPath?: string;
   name?: string;
+  /** Last composer model for this session (index or transcript recovery). */
+  model?: ModelRef;
+  /** Last composer thinking level for this session when known. */
+  thinkingLevel?: import('./host.js').ThinkingLevel;
   /** Linear message outline for jump-scroll UI (not a multi-branch Pi tree). */
   outline?: SessionOutlineNode[];
 };

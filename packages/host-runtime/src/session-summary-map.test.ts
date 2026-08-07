@@ -77,4 +77,27 @@ describe('indexRecordToSummary', () => {
     expect('subagentSkillIds' in summary).toBe(false);
     expect('subagentCapabilities' in summary).toBe(false);
   });
+
+  it('projects last composer model and thinking level', () => {
+    const record: SessionIndexRecord = {
+      id: 'main-1',
+      projectPath: '/tmp/project',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      messageCount: 2,
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'custom-openai',
+        modelId: 'deepseek-v4-flash',
+      },
+      thinkingLevel: 'medium',
+    };
+    const summary = indexRecordToSummary(record);
+    expect(summary.model).toEqual({
+      protocol: 'openai-compatible',
+      providerId: 'custom-openai',
+      modelId: 'deepseek-v4-flash',
+    });
+    expect(summary.thinkingLevel).toBe('medium');
+  });
 });

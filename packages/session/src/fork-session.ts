@@ -218,6 +218,13 @@ export async function forkProductSession(
     record.lastPreview = lastMessage.text.slice(0, 160);
   }
   record.origin = origin;
+  // Fork inherits the source composer model (same conversation lineage).
+  if (sourceRecord.model) {
+    record.model = sourceRecord.model;
+  }
+  if (sourceRecord.thinkingLevel) {
+    record.thinkingLevel = sourceRecord.thinkingLevel;
+  }
 
   await upsertSessionRecord(paths.indexPath, record);
   return { record, transcript, origin };
