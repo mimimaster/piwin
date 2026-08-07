@@ -1,57 +1,81 @@
 /**
  * ORCH: Orchestration Scheme contracts (per-send opt-in subagent orchestration).
  *
- * Spec: docs/specs/orchestration-scheme.md
+ * Spec: docs/specs/orchestration-scheme.md (v1 shell)
+ * Enhancement: docs/specs/orchestration-scheme-v2-enhancement.md (members / role)
  *
- * Schemes package main-agent spawn discipline + profile references + concurrency
- * ceilings. They never define providers/models. Off / omit means zero scheme work.
+ * Schemes package main-agent spawn discipline + role roster + concurrency
+ * ceilings. They never define providers. Off / omit means zero scheme work.
  */
 
-import type { ThinkingLevel } from './host.js';
+import type { ModelRef, ThinkingLevel } from './host.js';
 import { isThinkingLevel } from './host.js';
+import type { SubagentIsolationMode } from './subagent.js';
 
 /** Wait policy for orchestration schemes. */
 export type OrchestrationWaitPolicy = 'await-all' | 'fire-and-continue';
 
+/** Spawn-before unavailability handling for a scheme member. */
+export type OrchestrationMemberFallback = 'main' | 'none';
+
+/**
+ * One callable role inside a scheme (main agent points at `role`).
+ * description is required so the main agent knows when to delegate (Claude-style).
+ */
+export type OrchestrationSchemeMember = {
+  /** Main-agent call name, unique within the scheme (e.g. searcher). */
+  role: string;
+  /** When to use this role — injected into the scheme roster. */
+  description: string;
+  /** Optional global SubagentProfile template id. */
+  profileId?: string;
+  /** Pinned model; omit inherits profile then parent session model. */
+  model?: ModelRef;
+  thinkingLevel?: ThinkingLevel;
+  isolation?: SubagentIsolationMode;
+  /** Default `main`: tell parent to do the work itself when spawn is impossible. */
+  fallback?: OrchestrationMemberFallback;
+};
+
 /**
  * Settings-backed orchestration scheme recipe.
- * Schemes reference SubagentProfile ids; they never define providers/models.
+ * v2: members[] is the roster; defaultProfileId remains for v1 migration.
  */
 export type OrchestrationSchemeSettings = {
   id: string;
   name: string;
   description: string;
   /**
-   * Default profile for generic spawn and for calls that omit profileId.
-   * Must resolve against builtin + settings profiles.
+   * Main-agent discipline (AGENTS.md analogue). Injected only when selected.
    */
-  defaultProfileId: string;
+  systemPreamble: string;
   /**
-   * Optional allowlist. When present, spawn may only use these profile ids.
-   * When exposeSpawnMetadata is false, only defaultProfileId is used.
+   * Scheme roster. Empty/missing is migrated from defaultProfileId at resolve.
+   */
+  members?: OrchestrationSchemeMember[];
+  /**
+   * Default role when spawn omits role (or soft-generic). Must exist in members
+   * after migration.
+   */
+  defaultRole?: string;
+  /**
+   * v1 compatibility: default profile when members are absent.
+   * Prefer defaultRole + members in new UI.
+   */
+  defaultProfileId?: string;
+  /**
+   * Optional allowlist of profile ids (v1). Prefer members for allow-set.
    */
   allowedProfileIds?: string[];
   /**
-   * When false (Ultra Code default), soft/hard generic spawn: model-visible
-   * profileId/model/thinkingLevel are ignored (and may be stripped from schema
-   * in hard-generic mode). Host forces defaultProfileId.
+   * When false, hide model/thinking from free-form spawn; Host uses role/member.
+   * Role remains the product call name.
    */
   exposeSpawnMetadata: boolean;
-  /** Optional override; clamped by SubagentConfig.maxConcurrency. */
   maxConcurrency?: number;
-  /** Optional override; clamped by SubagentConfig.maxTasksPerRun. */
   maxTasksPerRun?: number;
   waitPolicy: OrchestrationWaitPolicy;
-  /**
-   * Ceiling for subagent thinking. Host clamps profile/call thinking to this.
-   * Does not affect the parent turn's thinkingLevel.
-   */
   maxSubagentThinkingLevel?: ThinkingLevel;
-  /**
-   * Main-agent orchestration discipline. Injected only when this scheme is
-   * selected for a prompt. Empty string is invalid for user schemes.
-   */
-  systemPreamble: string;
 };
 
 export type OrchestrationScheme = OrchestrationSchemeSettings & {
@@ -75,18 +99,28 @@ export const ULTRA_CODE_SCHEME_ID = 'ultra-code' as const;
 /** Scheme ids are lowercase kebab tokens (builtins: ultra-code). */
 export const ORCHESTRATION_SCHEME_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** True when id matches the v1 character set (excludes the pseudo-id `off`). */
+/** Role ids: start with a letter; lowercase alnum, hyphen, underscore. */
+export const ORCHESTRATION_ROLE_ID_PATTERN = /^[a-z][a-z0-9_-]*$/;
+
+/** True when id matches the scheme id character set (excludes `off`). */
 export function isValidOrchestrationSchemeId(value: string): boolean {
   const trimmed = value.trim();
   if (!trimmed || trimmed === ORCHESTRATION_SCHEME_OFF_ID) return false;
   return ORCHESTRATION_SCHEME_ID_PATTERN.test(trimmed);
 }
 
+/** True when role is a valid member role token. */
+export function isValidOrchestrationRoleId(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return ORCHESTRATION_ROLE_ID_PATTERN.test(trimmed);
+}
+
 /** Stable error name for unknown / invalid scheme ids on prompt. */
 export const ORCHESTRATION_SCHEME_ERROR_NAME = 'OrchestrationSchemeError';
 
 export class OrchestrationSchemeError extends Error {
-  readonly code: 'unknown-scheme' | 'invalid-scheme' | 'missing-profile';
+  readonly code: 'unknown-scheme' | 'invalid-scheme' | 'missing-profile' | 'unknown-role';
 
   constructor(
     code: OrchestrationSchemeError['code'],
@@ -98,10 +132,27 @@ export class OrchestrationSchemeError extends Error {
   }
 }
 
+/** Resolved roster row after migrate + validation. */
+export type ResolvedOrchestrationMember = {
+  role: string;
+  description: string;
+  profileId?: string;
+  model?: ModelRef;
+  thinkingLevel?: ThinkingLevel;
+  isolation?: SubagentIsolationMode;
+  fallback: OrchestrationMemberFallback;
+  available: boolean;
+  unavailableReason?: string;
+};
+
 export type ResolvedOrchestrationScheme = {
   schemeId: string;
   scheme: OrchestrationScheme;
+  /** Effective default profile (from default member profileId or v1 field). */
   defaultProfileId: string;
+  /** Effective default role for soft-generic / omitted role. */
+  defaultRole: string;
+  members: ResolvedOrchestrationMember[];
   exposeSpawnMetadata: boolean;
   maxConcurrency: number;
   maxTasksPerRun: number;
@@ -119,6 +170,21 @@ const THINKING_RANK: Readonly<Record<ThinkingLevel, number>> = {
   xhigh: 5,
   max: 6,
   ultra: 7,
+};
+
+/** Map legacy defaultProfileId → product role name when synthesizing members. */
+const PROFILE_TO_DEFAULT_ROLE: Readonly<Record<string, string>> = {
+  explorer: 'searcher',
+  implementer: 'coder',
+  reviewer: 'reviewer',
+  tester: 'tester',
+};
+
+const PROFILE_DEFAULT_DESCRIPTION: Readonly<Record<string, string>> = {
+  explorer: 'Fast read-only codebase exploration and evidence gathering.',
+  implementer: 'Isolated implementation with write and execute in a worktree.',
+  reviewer: 'Read-only code review and analysis.',
+  tester: 'Isolated test execution and fixture writes.',
 };
 
 /** Compare thinking levels for clamp (lower rank = less effort). */
@@ -140,39 +206,94 @@ export function clampThinkingLevelToMax(
   return compareThinkingLevel(value, maximum) <= 0 ? value : maximum;
 }
 
+const ULTRA_CODE_SEARCHER_DESCRIPTION =
+  'Read-only codebase scout. Use for broad search, file reads, and evidence gathering that would pollute the main context. Return dense citations only; do not edit files or make final design decisions.';
+
+const ULTRA_CODE_PREAMBLE = [
+  'Orchestration scheme Ultra Code is active for this turn.',
+  'You are the main agent (composer model). Proactively delegate work that would pollute this context — broad search, multi-file reads, long greps — to the searcher role via piwin_subagent_run with role "searcher".',
+  'Subagents are scouts only: gather facts, paths, and citations; return dense evidence reports. They must not make final product decisions or large design calls; you synthesize and verify.',
+  'After a parallel wave of spawns, wait for all tool results before continuing analysis, search, commands, or edits. Do not re-do the same broad search the scouts were assigned; use their reports.',
+  'Prefer role-based delegation; do not invent expensive models or high thinking for subagents.',
+  'Do not spawn nested subagents. Trivial single-file lookups need not force a subagent (avoid schedule pollution).',
+  'If a role is unavailable, complete the subtask yourself carefully and keep context pollution minimal.',
+].join(' ');
+
 /**
- * Builtin Ultra Code full recipe (also re-exported from host-runtime for merge).
- * Kept in contracts so resolve + tests stay pure without host imports.
+ * Builtin Ultra Code: article-aligned scout pack (single searcher template +
+ * wait discipline + soft generic). Users may overlay-edit via settings.
  */
 export const BUILTIN_ULTRA_CODE_SCHEME: OrchestrationScheme = {
   id: ULTRA_CODE_SCHEME_ID,
   name: 'Ultra Code',
   description:
-    'Read-only scout pack: low subagent thinking, generic spawn, wait-all; pin a cheap model on explorer for cost',
+    'Built-in scout pack for high-effort main agents: cheap readonly searcher, low thinking, wait-for-scouts discipline',
   source: 'builtin',
+  defaultRole: 'searcher',
   defaultProfileId: 'explorer',
   exposeSpawnMetadata: false,
   maxConcurrency: 6,
   maxTasksPerRun: 8,
   waitPolicy: 'await-all',
   maxSubagentThinkingLevel: 'low',
-  systemPreamble: [
-    'Orchestration scheme Ultra Code is active for this turn.',
-    'You may proactively spawn read-only subagents when work splits into independent investigation workflows and parallel scouts clearly improve speed or quality.',
-    'Subagents are scouts only: gather facts, paths, and citations; return dense evidence reports.',
-    'Do not ask subagents to make final product decisions or large design calls; you synthesize and verify.',
-    'After a parallel wave of spawns, wait for all results before continuing analysis, search, commands, or edits.',
-    'Do not re-do the same broad search the scouts were assigned; use their reports.',
-    'Prefer the default scout profile; do not try to pick exotic models or high thinking for subagents.',
-  ].join(' '),
+  members: [
+    {
+      role: 'searcher',
+      description: ULTRA_CODE_SEARCHER_DESCRIPTION,
+      profileId: 'explorer',
+      thinkingLevel: 'low',
+      isolation: 'readonly',
+      fallback: 'main',
+    },
+  ],
+  systemPreamble: ULTRA_CODE_PREAMBLE,
 };
 
 const BUILTIN_SCHEMES: readonly OrchestrationScheme[] = [BUILTIN_ULTRA_CODE_SCHEME];
 
 /**
+ * Default role seeds for new user schemes (Settings "add role" templates).
+ * Not auto-inserted into every scheme — UI may offer these as starters.
+ */
+export const DEFAULT_ORCHESTRATION_ROLE_TEMPLATES: readonly OrchestrationSchemeMember[] = [
+  {
+    role: 'searcher',
+    description: ULTRA_CODE_SEARCHER_DESCRIPTION,
+    profileId: 'explorer',
+    isolation: 'readonly',
+    thinkingLevel: 'low',
+    fallback: 'main',
+  },
+  {
+    role: 'coder',
+    description:
+      'Implement changes in an isolated worktree. Return what changed and how to verify; do not own final product decisions.',
+    profileId: 'implementer',
+    isolation: 'worktree',
+    fallback: 'main',
+  },
+  {
+    role: 'reviewer',
+    description:
+      'Read-only review for correctness, security, and missing tests. Lead with concrete findings.',
+    profileId: 'reviewer',
+    isolation: 'readonly',
+    fallback: 'main',
+  },
+  {
+    role: 'tester',
+    description:
+      'Run tests and reproduce failures in isolation. Report failing commands and likely causes.',
+    profileId: 'tester',
+    isolation: 'worktree',
+    fallback: 'main',
+  },
+] as const;
+
+/**
  * Merge builtin schemes with Settings schemes. Settings with the same id
- * override builtin fields (except source becomes settings). Settings-only
- * schemes append after builtins.
+ * override builtin fields (source becomes settings). Settings-only schemes
+ * append after builtins.
  */
 export function listOrchestrationSchemes(
   config: OrchestrationSchemeConfigSlice,
@@ -201,22 +322,162 @@ export function listOrchestrationSchemes(
 }
 
 export type ResolveOrchestrationSchemeOptions = {
-  /**
-   * Known profile ids (builtin + settings). When omitted, only checks that
-   * defaultProfileId is a non-empty string (Host should pass full set).
-   */
   knownProfileIds?: ReadonlySet<string> | readonly string[] | undefined;
-  /** Global concurrency ceiling from SubagentConfig. */
   globalMaxConcurrency?: number | undefined;
-  /** Global tasks-per-run ceiling from SubagentConfig. */
   globalMaxTasksPerRun?: number | undefined;
+  /**
+   * Optional set of "providerId::modelId" keys known to be configured.
+   * When set, member.model not in the set marks the member unavailable.
+   */
+  knownModelKeys?: ReadonlySet<string> | readonly string[] | undefined;
 };
 
-function knownProfileIdSet(
-  known: ResolveOrchestrationSchemeOptions['knownProfileIds'],
+function knownIdSet(
+  known: ReadonlySet<string> | readonly string[] | undefined,
 ): ReadonlySet<string> | undefined {
   if (!known) return undefined;
   return known instanceof Set ? known : new Set(known);
+}
+
+function modelKey(model: ModelRef): string {
+  return `${model.providerId}::${model.modelId}`;
+}
+
+/**
+ * Synthesize members from v1 defaultProfileId when members are missing/empty.
+ */
+export function migrateSchemeMembers(
+  scheme: Pick<
+    OrchestrationSchemeSettings,
+    'members' | 'defaultProfileId' | 'defaultRole' | 'id'
+  >,
+): OrchestrationSchemeMember[] {
+  const existing = scheme.members?.filter(
+    (member) =>
+      typeof member.role === 'string' &&
+      member.role.trim() &&
+      typeof member.description === 'string' &&
+      member.description.trim(),
+  );
+  if (existing && existing.length > 0) {
+    return existing.map((member) => ({
+      role: member.role.trim(),
+      description: member.description.trim(),
+      ...(member.profileId?.trim() ? { profileId: member.profileId.trim() } : {}),
+      ...(member.model ? { model: member.model } : {}),
+      ...(member.thinkingLevel && isThinkingLevel(member.thinkingLevel)
+        ? { thinkingLevel: member.thinkingLevel }
+        : {}),
+      ...(member.isolation === 'readonly' || member.isolation === 'worktree'
+        ? { isolation: member.isolation }
+        : {}),
+      ...(member.fallback === 'none' || member.fallback === 'main'
+        ? { fallback: member.fallback }
+        : { fallback: 'main' as const }),
+    }));
+  }
+
+  const profileId = scheme.defaultProfileId?.trim() || 'explorer';
+  const role =
+    scheme.defaultRole?.trim() ||
+    PROFILE_TO_DEFAULT_ROLE[profileId] ||
+    (isValidOrchestrationRoleId(profileId) ? profileId : 'searcher');
+  const description =
+    PROFILE_DEFAULT_DESCRIPTION[profileId] ??
+    `Delegated work using profile "${profileId}".`;
+
+  return [
+    {
+      role,
+      description,
+      profileId,
+      fallback: 'main',
+      ...(profileId === 'explorer' || profileId === 'reviewer'
+        ? { isolation: 'readonly' as const }
+        : profileId === 'implementer' || profileId === 'tester'
+          ? { isolation: 'worktree' as const }
+          : {}),
+    },
+  ];
+}
+
+function resolveMembers(
+  schemeId: string,
+  rawMembers: OrchestrationSchemeMember[],
+  options: ResolveOrchestrationSchemeOptions,
+): ResolvedOrchestrationMember[] {
+  const knownProfiles = knownIdSet(options.knownProfileIds);
+  const knownModels = knownIdSet(options.knownModelKeys);
+  const seenRoles = new Set<string>();
+  const resolved: ResolvedOrchestrationMember[] = [];
+
+  for (const member of rawMembers) {
+    const role = member.role.trim();
+    if (!isValidOrchestrationRoleId(role)) {
+      throw new OrchestrationSchemeError(
+        'invalid-scheme',
+        `orchestration scheme "${schemeId}" has invalid role "${role}"`,
+      );
+    }
+    if (seenRoles.has(role)) {
+      throw new OrchestrationSchemeError(
+        'invalid-scheme',
+        `orchestration scheme "${schemeId}" has duplicate role "${role}"`,
+      );
+    }
+    seenRoles.add(role);
+
+    const description = member.description.trim();
+    if (!description) {
+      throw new OrchestrationSchemeError(
+        'invalid-scheme',
+        `orchestration scheme "${schemeId}" role "${role}" has empty description`,
+      );
+    }
+
+    const profileId = member.profileId?.trim();
+    let available = true;
+    let unavailableReason: string | undefined;
+
+    if (profileId && knownProfiles && !knownProfiles.has(profileId)) {
+      available = false;
+      unavailableReason = `unknown profile "${profileId}"`;
+    }
+
+    if (member.model && knownModels) {
+      const key = modelKey(member.model);
+      if (!knownModels.has(key)) {
+        available = false;
+        unavailableReason = `unconfigured model ${member.model.providerId}/${member.model.modelId}`;
+      }
+    }
+
+    const row: ResolvedOrchestrationMember = {
+      role,
+      description,
+      fallback: member.fallback === 'none' ? 'none' : 'main',
+      available,
+    };
+    if (profileId) row.profileId = profileId;
+    if (member.model) row.model = member.model;
+    if (member.thinkingLevel && isThinkingLevel(member.thinkingLevel)) {
+      row.thinkingLevel = member.thinkingLevel;
+    }
+    if (member.isolation === 'readonly' || member.isolation === 'worktree') {
+      row.isolation = member.isolation;
+    }
+    if (unavailableReason) row.unavailableReason = unavailableReason;
+    resolved.push(row);
+  }
+
+  if (resolved.length === 0) {
+    throw new OrchestrationSchemeError(
+      'invalid-scheme',
+      `orchestration scheme "${schemeId}" has no members after migration`,
+    );
+  }
+
+  return resolved;
 }
 
 /**
@@ -224,7 +485,7 @@ function knownProfileIdSet(
  *
  * - omit / empty / `off` → `undefined` (caller skips all scheme work)
  * - unknown id → throws OrchestrationSchemeError (never silent Off)
- * - missing default profile → throws
+ * - migrates v1 schemes without members
  */
 export function resolveOrchestrationScheme(
   config: OrchestrationSchemeConfigSlice,
@@ -251,20 +512,32 @@ export function resolveOrchestrationScheme(
     );
   }
 
-  const defaultProfileId = scheme.defaultProfileId.trim();
-  if (!defaultProfileId) {
-    throw new OrchestrationSchemeError(
-      'invalid-scheme',
-      `orchestration scheme "${trimmed}" has empty defaultProfileId`,
-    );
-  }
+  const migratedMembers = migrateSchemeMembers(scheme);
+  const members = resolveMembers(trimmed, migratedMembers, options);
 
-  const known = knownProfileIdSet(options.knownProfileIds);
-  if (known && !known.has(defaultProfileId)) {
-    throw new OrchestrationSchemeError(
-      'missing-profile',
-      `orchestration scheme "${trimmed}" references unknown profile "${defaultProfileId}"`,
-    );
+  const defaultRoleRaw = scheme.defaultRole?.trim();
+  const defaultRole =
+    defaultRoleRaw && members.some((member) => member.role === defaultRoleRaw)
+      ? defaultRoleRaw
+      : members[0]!.role;
+
+  const defaultMember = members.find((member) => member.role === defaultRole) ?? members[0]!;
+  const defaultProfileId =
+    defaultMember.profileId?.trim() ||
+    scheme.defaultProfileId?.trim() ||
+    'explorer';
+
+  const known = knownIdSet(options.knownProfileIds);
+  if (known && defaultMember.profileId && !known.has(defaultMember.profileId)) {
+    // Member already marked unavailable; scheme can still resolve for injection.
+  } else if (known && scheme.defaultProfileId?.trim() && !scheme.members?.length) {
+    const legacyProfile = scheme.defaultProfileId.trim();
+    if (!known.has(legacyProfile)) {
+      throw new OrchestrationSchemeError(
+        'missing-profile',
+        `orchestration scheme "${trimmed}" references unknown profile "${legacyProfile}"`,
+      );
+    }
   }
 
   if (scheme.allowedProfileIds) {
@@ -275,15 +548,6 @@ export function resolveOrchestrationScheme(
           `orchestration scheme "${trimmed}" allowlist references unknown profile "${allowedId}"`,
         );
       }
-    }
-    if (
-      scheme.allowedProfileIds.length > 0 &&
-      !scheme.allowedProfileIds.includes(defaultProfileId)
-    ) {
-      throw new OrchestrationSchemeError(
-        'invalid-scheme',
-        `orchestration scheme "${trimmed}" defaultProfileId is not in allowedProfileIds`,
-      );
     }
   }
 
@@ -300,15 +564,24 @@ export function resolveOrchestrationScheme(
     );
   }
 
+  // Attach migrated members onto scheme view for consumers that read scheme.members.
+  const schemeWithMembers: OrchestrationScheme = {
+    ...scheme,
+    members: migratedMembers,
+    defaultRole,
+    defaultProfileId,
+  };
+
   const resolved: ResolvedOrchestrationScheme = {
     schemeId: scheme.id,
-    scheme,
+    scheme: schemeWithMembers,
     defaultProfileId,
+    defaultRole,
+    members,
     exposeSpawnMetadata: scheme.exposeSpawnMetadata,
     maxConcurrency: Math.max(1, Math.min(schemeConcurrency, globalMaxConcurrency)),
     maxTasksPerRun: Math.max(1, Math.min(schemeTasks, globalMaxTasksPerRun)),
-    // MVP: piwin_subagent_run is synchronous (spawn+merge), so await-all is the only
-    // supported wait policy. fire-and-continue is accepted on input but clamped here.
+    // MVP: piwin_subagent_run is synchronous (spawn+merge).
     waitPolicy: 'await-all',
     systemPreamble: preamble,
   };
@@ -318,12 +591,38 @@ export function resolveOrchestrationScheme(
   return resolved;
 }
 
-/** Format model-facing scheme preamble block (preparePrompt injects this). */
-export function formatOrchestrationSchemePreamble(resolved: ResolvedOrchestrationScheme): string {
-  return `[piwin-scheme:${resolved.schemeId}]\n${resolved.systemPreamble}`;
+/** Format roster block for model-facing injection. */
+export function formatOrchestrationSchemeRoster(resolved: ResolvedOrchestrationScheme): string {
+  const lines = resolved.members.map((member) => {
+    const bits: string[] = [];
+    if (member.model) {
+      bits.push(`model: ${member.model.providerId}/${member.model.modelId}`);
+    } else {
+      bits.push('model: inherit');
+    }
+    if (member.isolation) bits.push(member.isolation);
+    if (member.thinkingLevel) bits.push(`thinking≤${member.thinkingLevel}`);
+    else if (resolved.maxSubagentThinkingLevel) {
+      bits.push(`thinking≤${resolved.maxSubagentThinkingLevel}`);
+    }
+    if (!member.available) {
+      bits.push(`UNAVAILABLE: ${member.unavailableReason ?? 'unknown'}`);
+    }
+    return `- ${member.role}: ${member.description} (${bits.join('; ')})`;
+  });
+  return [
+    '[piwin-scheme-roster]',
+    ...lines,
+    'When delegating, call piwin_subagent_run with role set to one of the roster roles.',
+  ].join('\n');
 }
 
-/** Inject scheme preamble ahead of model-facing user text. */
+/** Format model-facing scheme preamble block (preparePrompt injects this). */
+export function formatOrchestrationSchemePreamble(resolved: ResolvedOrchestrationScheme): string {
+  return `[piwin-scheme:${resolved.schemeId}]\n${resolved.systemPreamble}\n\n${formatOrchestrationSchemeRoster(resolved)}`;
+}
+
+/** Inject scheme preamble + roster ahead of model-facing user text. */
 export function mergeOrchestrationSchemeIntoPrompt(
   resolved: ResolvedOrchestrationScheme,
   userFacingText: string,
@@ -334,58 +633,122 @@ export function mergeOrchestrationSchemeIntoPrompt(
   return `${block}\n\n---\n${body}`;
 }
 
-/** Soft-generic: force profile / strip model overrides when exposeSpawnMetadata is false. */
+export type SchemeSpawnApplication = {
+  role?: string;
+  profileId?: string;
+  model?: ModelRef;
+  thinkingLevel?: ThinkingLevel;
+  isolation?: SubagentIsolationMode;
+  clearedModel: boolean;
+  forcedProfile: boolean;
+  /** When set, Host should not spawn — return fallback tool result instead. */
+  fallback?: {
+    kind: OrchestrationMemberFallback;
+    role: string;
+    reason: string;
+  };
+};
+
+/**
+ * Soft-generic + role roster application for subagent spawn.
+ * When scheme is active, prefer `role` → member resolution over free model picks.
+ */
 export function applySchemeToSubagentSpawnInput(
   resolved: ResolvedOrchestrationScheme | undefined,
   input: {
+    role?: string;
     profileId?: string;
-    model?: unknown;
+    model?: ModelRef | unknown;
     thinkingLevel?: ThinkingLevel;
   },
-): {
-  profileId?: string;
-  thinkingLevel?: ThinkingLevel;
-  clearedModel: boolean;
-  forcedProfile: boolean;
-} {
+): SchemeSpawnApplication {
   if (!resolved) {
-    return {
-      ...(input.profileId ? { profileId: input.profileId } : {}),
-      ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+    const result: SchemeSpawnApplication = {
       clearedModel: false,
       forcedProfile: false,
     };
+    if (input.role?.trim()) result.role = input.role.trim();
+    if (input.profileId) result.profileId = input.profileId;
+    if (input.thinkingLevel) result.thinkingLevel = input.thinkingLevel;
+    return result;
   }
 
-  if (!resolved.exposeSpawnMetadata) {
-    const thinkingLevel = clampThinkingLevelToMax(
-      input.thinkingLevel,
-      resolved.maxSubagentThinkingLevel,
-    );
+  const requestedRole = input.role?.trim();
+  const role = requestedRole || resolved.defaultRole;
+  const member = resolved.members.find((item) => item.role === role);
+
+  if (!member) {
     return {
-      profileId: resolved.defaultProfileId,
-      ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
-      clearedModel: input.model !== undefined,
+      role,
+      clearedModel: true,
       forcedProfile: true,
+      fallback: {
+        kind: 'main',
+        role,
+        reason: `unknown role "${role}" in scheme "${resolved.schemeId}"`,
+      },
     };
   }
 
-  let profileId = input.profileId?.trim() || resolved.defaultProfileId;
-  const allowedProfileIds = resolved.scheme.allowedProfileIds;
-  if (allowedProfileIds && allowedProfileIds.length > 0) {
-    if (!allowedProfileIds.includes(profileId)) {
-      profileId = resolved.defaultProfileId;
-    }
+  if (!member.available) {
+    const kind = member.fallback;
+    return {
+      role: member.role,
+      ...(member.profileId ? { profileId: member.profileId } : {}),
+      clearedModel: true,
+      forcedProfile: true,
+      fallback: {
+        kind,
+        role: member.role,
+        reason: member.unavailableReason ?? 'member unavailable',
+      },
+    };
   }
-  const thinkingLevel = clampThinkingLevelToMax(
-    input.thinkingLevel,
-    resolved.maxSubagentThinkingLevel,
-  );
+
+  const thinkingCeiling =
+    member.thinkingLevel !== undefined
+      ? clampThinkingLevelToMax(member.thinkingLevel, resolved.maxSubagentThinkingLevel)
+      : resolved.maxSubagentThinkingLevel;
+
+  const thinkingLevel = resolved.exposeSpawnMetadata
+    ? clampThinkingLevelToMax(input.thinkingLevel ?? member.thinkingLevel, thinkingCeiling)
+    : clampThinkingLevelToMax(member.thinkingLevel ?? input.thinkingLevel, thinkingCeiling);
+
+  const profileId =
+    member.profileId ||
+    (resolved.exposeSpawnMetadata ? input.profileId : undefined) ||
+    resolved.defaultProfileId;
+
+  const allowInputModel =
+    resolved.exposeSpawnMetadata &&
+    input.model &&
+    typeof input.model === 'object' &&
+    input.model !== null &&
+    'providerId' in input.model &&
+    'modelId' in input.model;
+
+  const model: ModelRef | undefined = member.model
+    ? member.model
+    : allowInputModel
+      ? (input.model as ModelRef)
+      : undefined;
+
   return {
-    profileId,
+    role: member.role,
+    ...(profileId ? { profileId } : {}),
+    ...(model ? { model } : {}),
     ...(thinkingLevel !== undefined ? { thinkingLevel } : {}),
-    clearedModel: false,
+    ...(member.isolation ? { isolation: member.isolation } : {}),
+    clearedModel: !resolved.exposeSpawnMetadata || Boolean(member.model),
     forcedProfile: !input.profileId || input.profileId !== profileId,
   };
 }
 
+/** Look up a resolved member by role (Host helper). */
+export function findResolvedSchemeMember(
+  resolved: ResolvedOrchestrationScheme,
+  role: string | undefined,
+): ResolvedOrchestrationMember | undefined {
+  const key = role?.trim() || resolved.defaultRole;
+  return resolved.members.find((member) => member.role === key);
+}

@@ -10,9 +10,13 @@ import {
   formatOrchestrationSchemePreamble,
   listOrchestrationSchemes,
   mergeOrchestrationSchemeIntoPrompt,
+  migrateSchemeMembers,
   resolveOrchestrationScheme,
 } from './orchestration-scheme.js';
-import type { OrchestrationSchemeConfigSlice, OrchestrationSchemeSettings } from './orchestration-scheme.js';
+import type {
+  OrchestrationSchemeConfigSlice,
+  OrchestrationSchemeSettings,
+} from './orchestration-scheme.js';
 
 function baseConfig(
   overrides?: Partial<OrchestrationSchemeConfigSlice> & {
@@ -35,18 +39,24 @@ describe('resolveOrchestrationScheme', () => {
     expect(resolveOrchestrationScheme(config, 'off')).toBeUndefined();
   });
 
-  it('resolves builtin ultra-code with clamps', () => {
+  it('resolves builtin ultra-code with searcher roster and clamps', () => {
     const config = baseConfig({ maxConcurrency: 4, maxTasksPerRun: 8 });
     const resolved = resolveOrchestrationScheme(config, 'ultra-code', {
       knownProfileIds: ['explorer', 'reviewer'],
     });
     expect(resolved?.schemeId).toBe('ultra-code');
+    expect(resolved?.defaultRole).toBe('searcher');
     expect(resolved?.defaultProfileId).toBe('explorer');
     expect(resolved?.exposeSpawnMetadata).toBe(false);
-    expect(resolved?.maxConcurrency).toBe(4); // min(6, 4)
+    expect(resolved?.maxConcurrency).toBe(4);
     expect(resolved?.maxTasksPerRun).toBe(8);
     expect(resolved?.maxSubagentThinkingLevel).toBe('low');
-    expect(resolved?.systemPreamble.length).toBeGreaterThan(20);
+    expect(resolved?.systemPreamble).toMatch(/searcher/i);
+    expect(resolved?.systemPreamble).toMatch(/wait/i);
+    expect(resolved?.members).toHaveLength(1);
+    expect(resolved?.members[0]?.role).toBe('searcher');
+    expect(resolved?.members[0]?.profileId).toBe('explorer');
+    expect(resolved?.members[0]?.available).toBe(true);
     expect(resolved?.scheme.source).toBe('builtin');
   });
 
@@ -68,40 +78,46 @@ describe('resolveOrchestrationScheme', () => {
     expect(() => resolveOrchestrationScheme(baseConfig(), 'Bad_Id')).toThrow(
       OrchestrationSchemeError,
     );
-    expect(() => resolveOrchestrationScheme(baseConfig(), 'Bad_Id')).toThrow(
-      /invalid orchestration scheme id/,
-    );
   });
 
-  it('throws when default profile is unknown', () => {
-    const config = baseConfig();
-    expect(() =>
-      resolveOrchestrationScheme(config, 'ultra-code', { knownProfileIds: ['reviewer'] }),
-    ).toThrow(/unknown profile/);
-  });
-
-  it('merges settings override for ultra-code', () => {
+  it('merges settings override for ultra-code including members', () => {
     const config = baseConfig({
       schemes: [
         {
           id: 'ultra-code',
           name: 'Ultra Custom',
           description: 'override',
+          defaultRole: 'searcher',
           defaultProfileId: 'explorer',
           exposeSpawnMetadata: true,
           waitPolicy: 'await-all',
           systemPreamble: 'custom preamble for ultra',
           maxConcurrency: 2,
+          members: [
+            {
+              role: 'searcher',
+              description: 'custom scout',
+              profileId: 'explorer',
+              fallback: 'main',
+            },
+            {
+              role: 'reviewer',
+              description: 'custom review',
+              profileId: 'reviewer',
+              fallback: 'none',
+            },
+          ],
         },
       ],
     });
     const resolved = resolveOrchestrationScheme(config, 'ultra-code', {
-      knownProfileIds: ['explorer'],
+      knownProfileIds: ['explorer', 'reviewer'],
     });
     expect(resolved?.scheme.name).toBe('Ultra Custom');
     expect(resolved?.exposeSpawnMetadata).toBe(true);
     expect(resolved?.scheme.source).toBe('settings');
     expect(resolved?.maxConcurrency).toBe(2);
+    expect(resolved?.members.map((member) => member.role)).toEqual(['searcher', 'reviewer']);
   });
 
   it('lists custom schemes after builtins', () => {
@@ -123,6 +139,52 @@ describe('resolveOrchestrationScheme', () => {
   });
 });
 
+describe('migrateSchemeMembers', () => {
+  it('synthesizes searcher from v1 explorer defaultProfileId', () => {
+    const members = migrateSchemeMembers({
+      id: 'legacy',
+      defaultProfileId: 'explorer',
+    });
+    expect(members).toHaveLength(1);
+    expect(members[0]?.role).toBe('searcher');
+    expect(members[0]?.profileId).toBe('explorer');
+    expect(members[0]?.description.length).toBeGreaterThan(10);
+  });
+
+  it('keeps explicit members', () => {
+    const members = migrateSchemeMembers({
+      id: 'x',
+      members: [
+        { role: 'coder', description: 'implement stuff', profileId: 'implementer' },
+      ],
+    });
+    expect(members).toHaveLength(1);
+    expect(members[0]?.role).toBe('coder');
+  });
+
+  it('resolves v1 scheme without members via resolveOrchestrationScheme', () => {
+    const config = baseConfig({
+      schemes: [
+        {
+          id: 'legacy-pack',
+          name: 'Legacy',
+          description: 'v1 shape',
+          defaultProfileId: 'explorer',
+          exposeSpawnMetadata: false,
+          waitPolicy: 'await-all',
+          systemPreamble: 'go scout',
+        },
+      ],
+    });
+    const resolved = resolveOrchestrationScheme(config, 'legacy-pack', {
+      knownProfileIds: ['explorer'],
+    });
+    expect(resolved?.defaultRole).toBe('searcher');
+    expect(resolved?.members[0]?.role).toBe('searcher');
+    expect(resolved?.defaultProfileId).toBe('explorer');
+  });
+});
+
 describe('thinking clamp helpers', () => {
   it('orders thinking levels', () => {
     expect(compareThinkingLevel('low', 'high')).toBeLessThan(0);
@@ -136,20 +198,22 @@ describe('thinking clamp helpers', () => {
   });
 });
 
-describe('preamble merge', () => {
-  it('prefixes model-facing text without losing user body', () => {
+describe('preamble and roster merge', () => {
+  it('prefixes model-facing text with roster', () => {
     const resolved = resolveOrchestrationScheme(baseConfig(), 'ultra-code', {
       knownProfileIds: ['explorer'],
     })!;
     const merged = mergeOrchestrationSchemeIntoPrompt(resolved, 'find the bug');
     expect(merged.startsWith('[piwin-scheme:ultra-code]')).toBe(true);
-    expect(merged.includes('find the bug')).toBe(true);
+    expect(merged).toContain('[piwin-scheme-roster]');
+    expect(merged).toContain('searcher:');
+    expect(merged).toContain('find the bug');
     expect(formatOrchestrationSchemePreamble(resolved)).toContain(BUILTIN_ULTRA_CODE_SCHEME.id);
   });
 });
 
 describe('applySchemeToSubagentSpawnInput', () => {
-  it('forces default profile and clears model when generic', () => {
+  it('forces default searcher role and clears free model when generic', () => {
     const resolved = resolveOrchestrationScheme(baseConfig(), 'ultra-code', {
       knownProfileIds: ['explorer'],
     })!;
@@ -158,10 +222,90 @@ describe('applySchemeToSubagentSpawnInput', () => {
       model: { protocol: 'openai-compatible', providerId: 'x', modelId: 'y' },
       thinkingLevel: 'high',
     });
+    expect(applied.role).toBe('searcher');
     expect(applied.profileId).toBe('explorer');
     expect(applied.forcedProfile).toBe(true);
     expect(applied.clearedModel).toBe(true);
     expect(applied.thinkingLevel).toBe('low');
+    expect(applied.isolation).toBe('readonly');
+    expect(applied.fallback).toBeUndefined();
+  });
+
+  it('resolves explicit role', () => {
+    const config = baseConfig({
+      schemes: [
+        {
+          id: 'team',
+          name: 'Team',
+          description: 'multi',
+          exposeSpawnMetadata: false,
+          waitPolicy: 'await-all',
+          systemPreamble: 'use roles',
+          defaultRole: 'searcher',
+          members: [
+            {
+              role: 'searcher',
+              description: 'scout',
+              profileId: 'explorer',
+              isolation: 'readonly',
+            },
+            {
+              role: 'coder',
+              description: 'implement',
+              profileId: 'implementer',
+              isolation: 'worktree',
+              thinkingLevel: 'medium',
+            },
+          ],
+        },
+      ],
+    });
+    const resolved = resolveOrchestrationScheme(config, 'team', {
+      knownProfileIds: ['explorer', 'implementer'],
+    })!;
+    const applied = applySchemeToSubagentSpawnInput(resolved, { role: 'coder' });
+    expect(applied.role).toBe('coder');
+    expect(applied.profileId).toBe('implementer');
+    expect(applied.isolation).toBe('worktree');
+    expect(applied.thinkingLevel).toBe('medium');
+  });
+
+  it('returns fallback main for unknown role', () => {
+    const resolved = resolveOrchestrationScheme(baseConfig(), 'ultra-code', {
+      knownProfileIds: ['explorer'],
+    })!;
+    const applied = applySchemeToSubagentSpawnInput(resolved, { role: 'nope' });
+    expect(applied.fallback?.kind).toBe('main');
+    expect(applied.fallback?.role).toBe('nope');
+  });
+
+  it('returns fallback none when member unavailable and fallback none', () => {
+    const config = baseConfig({
+      schemes: [
+        {
+          id: 'strict',
+          name: 'Strict',
+          description: 'x',
+          exposeSpawnMetadata: false,
+          waitPolicy: 'await-all',
+          systemPreamble: 'strict',
+          members: [
+            {
+              role: 'searcher',
+              description: 'scout',
+              profileId: 'missing-profile',
+              fallback: 'none',
+            },
+          ],
+        },
+      ],
+    });
+    const resolved = resolveOrchestrationScheme(config, 'strict', {
+      knownProfileIds: ['explorer'],
+    })!;
+    expect(resolved.members[0]?.available).toBe(false);
+    const applied = applySchemeToSubagentSpawnInput(resolved, { role: 'searcher' });
+    expect(applied.fallback?.kind).toBe('none');
   });
 
   it('passes through when no scheme', () => {

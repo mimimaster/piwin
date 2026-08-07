@@ -2064,20 +2064,38 @@ export class HostRuntime {
           }
           const { applySchemeToSubagentSpawnInput } = await import('@piwin/contracts');
           const schemeSpawn = applySchemeToSubagentSpawnInput(activeScheme, {
+            ...(input.role ? { role: input.role } : {}),
             ...(input.profileId ? { profileId: input.profileId } : {}),
             ...(input.model ? { model: input.model } : {}),
             ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
           });
-          // Soft-generic: force default profile / drop model / clamp thinking.
-          // Soft-generic scouts always run readonly (even if model asked worktree).
+          // ORCH-V2: spawn-before unavailability → do not open a child session.
+          if (schemeSpawn.fallback) {
+            const reason = schemeSpawn.fallback.reason;
+            const roleLabel = schemeSpawn.fallback.role;
+            if (schemeSpawn.fallback.kind === 'none') {
+              throw new Error(
+                `subagent role "${roleLabel}" unavailable (fallback=none): ${reason}`,
+              );
+            }
+            throw new Error(
+              `subagent-unavailable-fallback-main: role "${roleLabel}" unavailable (${reason}). ` +
+                'Complete this subtask in the main session yourself; keep context pollution minimal.',
+            );
+          }
+          // Soft-generic / member isolation: prefer member isolation; generic scouts default readonly.
           let mode = input.mode;
-          if (activeScheme && !activeScheme.exposeSpawnMetadata) {
+          if (schemeSpawn.isolation) {
+            mode = schemeSpawn.isolation;
+          } else if (activeScheme && !activeScheme.exposeSpawnMetadata) {
             mode = 'readonly';
           }
-          const allowModelOverride =
+          const resolvedModel = schemeSpawn.model;
+          const allowInputModel =
             Boolean(input.model) &&
             (!activeScheme || activeScheme.exposeSpawnMetadata) &&
-            !schemeSpawn.clearedModel;
+            !schemeSpawn.clearedModel &&
+            !resolvedModel;
           // One model tool call = one task; turn-scoped gate limits parallel calls.
           const preparedRequest = await this.prepareSubagentBatch({
             parentSessionId: sessionId,
@@ -2090,7 +2108,11 @@ export class HostRuntime {
                 ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
                 ...(input.sessionName ? { sessionName: input.sessionName } : {}),
                 ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
-                ...(allowModelOverride && input.model ? { model: input.model } : {}),
+                ...(resolvedModel
+                  ? { model: resolvedModel }
+                  : allowInputModel && input.model
+                    ? { model: input.model }
+                    : {}),
                 ...(schemeSpawn.thinkingLevel
                   ? { thinkingLevel: schemeSpawn.thinkingLevel }
                   : {}),
