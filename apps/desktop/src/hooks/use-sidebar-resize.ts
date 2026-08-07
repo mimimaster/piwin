@@ -44,7 +44,7 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
     startX: number;
     startWidth: number;
   } | null>(null);
-  const pendingFrameRef = useRef<number | null>(null);
+  // Drag updates CSS only; React width state commits on pointer-up.
 
   useEffect(() => {
     widthRef.current = widthPx;
@@ -115,14 +115,8 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
         return;
       }
       widthRef.current = next;
+      // CSS-only during drag to avoid whole-App re-renders every pointer sample.
       writeSidebarWidthCss(next);
-      if (pendingFrameRef.current != null) {
-        return;
-      }
-      pendingFrameRef.current = requestAnimationFrame(() => {
-        pendingFrameRef.current = null;
-        setWidthState(widthRef.current);
-      });
     }
 
     function endDrag(event: PointerEvent): void {
@@ -131,28 +125,21 @@ export function useSidebarResize(options: UseSidebarResizeOptions): UseSidebarRe
         return;
       }
       dragRef.current = null;
-      if (pendingFrameRef.current != null) {
-        cancelAnimationFrame(pendingFrameRef.current);
-        pendingFrameRef.current = null;
-        writeSidebarWidthCss(widthRef.current);
-        setWidthState(widthRef.current);
-      }
+      const commit = widthRef.current;
+      writeSidebarWidthCss(commit);
+      setWidthState(commit);
       setTimeout(() => {
         setIsResizing(false);
       }, 60);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      saveSidebarWidth(widthRef.current);
+      saveSidebarWidth(commit);
     }
 
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
     return () => {
-      if (pendingFrameRef.current != null) {
-        cancelAnimationFrame(pendingFrameRef.current);
-        pendingFrameRef.current = null;
-      }
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);

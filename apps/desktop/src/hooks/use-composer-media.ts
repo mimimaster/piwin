@@ -635,6 +635,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       text: string;
       attachments?: PromptAttachment[];
       agentMode: AgentModeId;
+      clientMessageId?: string;
     }): {
       text: string;
       attachments?: PromptAttachment[];
@@ -642,6 +643,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
       agentMode?: import('@piwin/contracts').AgentModeId;
       orchestrationSchemeId?: string;
+      clientMessageId?: string;
     } => {
       const input: {
         text: string;
@@ -650,10 +652,14 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
         agentMode?: import('@piwin/contracts').AgentModeId;
         orchestrationSchemeId?: string;
+        clientMessageId?: string;
       } = {
         text: params.text,
         agentMode: params.agentMode,
       };
+      if (params.clientMessageId && params.clientMessageId.trim().length > 0) {
+        input.clientMessageId = params.clientMessageId.trim();
+      }
       const schemeId = args.orchestrationSchemeId?.trim();
       if (schemeId && schemeId !== 'off') {
         input.orchestrationSchemeId = schemeId;
@@ -910,6 +916,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           text: hostPromptText,
           attachments: promptAttachments,
           agentMode: promptAgentMode,
+          clientMessageId,
         });
         const response = await args.hostClient.request({
           type: 'session/prompt',

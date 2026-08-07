@@ -5,7 +5,7 @@
 
 export const RIGHT_PANEL_DEFAULT_WIDTH_PX = 280;
 export const RIGHT_PANEL_MIN_WIDTH_PX = 200;
-export const RIGHT_PANEL_MAX_WIDTH_PX = 960;
+export const RIGHT_PANEL_MAX_WIDTH_PX = 1600;
 
 const STORAGE_KEY = 'piwin.desktop.rightPanelWidth';
 
@@ -28,7 +28,7 @@ export function clampRightPanelWidthForViewport(
   viewportWidth: number,
   options?: { minStagePx?: number; reservedChromePx?: number },
 ): number {
-  const minStagePx = options?.minStagePx ?? 360;
+  const minStagePx = options?.minStagePx ?? 420;
   const reservedChromePx = options?.reservedChromePx ?? 0;
   const maxFromViewport = Math.max(
     RIGHT_PANEL_MIN_WIDTH_PX,

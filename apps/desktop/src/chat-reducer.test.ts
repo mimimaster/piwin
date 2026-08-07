@@ -2,10 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ExecutionRunRecord } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
 
-function makeRun(
-  runId: string,
-  overrides: Partial<ExecutionRunRecord> = {},
-): ExecutionRunRecord {
+function makeRun(runId: string, overrides: Partial<ExecutionRunRecord> = {}): ExecutionRunRecord {
   return {
     runId,
     kind: 'session-turn',
@@ -885,6 +882,54 @@ describe('chatUiReducer', () => {
       expect(state.generalSessions.map((item) => item.id)).toEqual(['g2']);
     });
 
+    it('session/hydrate-project populates projectSessionsByPath without touching active scope', () => {
+      let state = createInitialChatUiState();
+      // Active scope is general with its own sessions.
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [{ id: 'g1', name: 'General 1' }],
+      });
+      // Hydrate a non-active project folder.
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-project',
+        projectPath: '/other-proj',
+        sessions: [{ id: 'p1', name: 'Other Project Session' }],
+      });
+      expect(state.projectSessionsByPath['/other-proj']?.map((s) => s.id)).toEqual(['p1']);
+      // Active scope sessions and generalSessions must be untouched.
+      expect(state.sessions.map((s) => s.id)).toEqual(['g1']);
+      expect(state.generalSessions.map((s) => s.id)).toEqual(['g1']);
+      expect(state.activeSessionId).toBeNull();
+    });
+
+    it('session/hydrate mirrors into projectSessionsByPath for the active project', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'project/set', path: '/proj', trusted: true });
+      state = chatUiReducer(state, {
+        type: 'session/hydrate',
+        sessions: [{ id: 'p1', name: 'Project Session' }],
+      });
+      expect(state.sessions.map((s) => s.id)).toEqual(['p1']);
+      expect(state.projectSessionsByPath['/proj']?.map((s) => s.id)).toEqual(['p1']);
+    });
+
+    it('session/remove drops from projectSessionsByPath across all projects', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-project',
+        projectPath: '/proj-a',
+        sessions: [{ id: 'shared', name: 'A' }],
+      });
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-project',
+        projectPath: '/proj-b',
+        sessions: [{ id: 'shared', name: 'B' }],
+      });
+      state = chatUiReducer(state, { type: 'session/remove', sessionId: 'shared' });
+      expect(state.projectSessionsByPath['/proj-a']).toEqual([]);
+      expect(state.projectSessionsByPath['/proj-b']).toEqual([]);
+    });
+
     it('project/set and project/clear preserve generalSessions', () => {
       let state = createInitialChatUiState();
       state = chatUiReducer(state, {
@@ -1532,5 +1577,4 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.messages).toHaveLength(0);
     expect(state.streaming).toBe(false);
   });
-
 });

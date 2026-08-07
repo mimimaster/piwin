@@ -521,8 +521,12 @@ export class MockHostBackend {
         this.mockActiveRunIds.set(command.sessionId, runId);
         this.pushMockRunUpdated(command.sessionId, runId, 'running', 'accepted', now);
         this.pushMockRunUpdated(command.sessionId, runId, 'running', 'preparing');
+        const clientMessageId = command.input.clientMessageId?.trim();
         const userMessage: SessionTranscriptMessage = {
-          id: crypto.randomUUID(),
+          id:
+            clientMessageId && clientMessageId.length > 0
+              ? clientMessageId
+              : crypto.randomUUID(),
           role: 'user',
           text: command.input.text,
           createdAt: now,

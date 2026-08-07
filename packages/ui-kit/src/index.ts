@@ -107,3 +107,17 @@ export type {
   SolidBarsProps,
   AnimationCatalogEntry,
 } from './animations.js';
+export {
+  OrganicBlob,
+  BreathMatrix,
+  RadialBellow,
+  CascadeRipple,
+  AsteriskBreath,
+} from './animations.js';
+export type {
+  OrganicBlobProps,
+  BreathMatrixProps,
+  RadialBellowProps,
+  CascadeRippleProps,
+  AsteriskBreathProps,
+} from './animations.js';

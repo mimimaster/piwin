@@ -15,8 +15,10 @@ export type PageTitleProps = {
 export function PageTitle(props: PageTitleProps): ReactElement {
   return (
     <div className="settings-card-heading">
-      <h4>{props.title}</h4>
-      {props.description ? <p>{props.description}</p> : null}
+      <div className="settings-card-heading-body">
+        <h4>{props.title}</h4>
+        {props.description ? <p>{props.description}</p> : null}
+      </div>
       {props.trailing ? <div className="settings-card-heading-trailing">{props.trailing}</div> : null}
     </div>
   );

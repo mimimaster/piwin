@@ -12,7 +12,7 @@ import type {
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reducer';
 import type { NotificationAction } from '../notification-queue';
-import { pushInfo, pushSuccess } from '../notification-queue';
+import { pushError, pushInfo, pushSuccess } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
 import { applyAgentModeToPrompt, type AgentModeId } from '../agent-mode';
 import type { SessionRowMenuAction } from '../session-row-menu';
@@ -103,9 +103,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   }, [modelOptions, selectedModelKey]);
 
   const selectedModelOption = useCallback(() => {
-    return modelOptions.find(
-      (item) => `${item.providerId}::${item.modelId}` === selectedModelKey,
-    );
+    return modelOptions.find((item) => `${item.providerId}::${item.modelId}` === selectedModelKey);
   }, [modelOptions, selectedModelKey]);
 
   const hydrateSessions = useCallback(
@@ -170,13 +168,38 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       // Determine the scope that was actually listed so we can dispatch the
       // correct hydrate action. General sessions go into generalSessions
       // (the reducer also mirrors them into sessions when general is the
-      // active scope); project sessions go into sessions only.
+      // active scope); project sessions go into sessions only when the listed
+      // project is the active scope, and always into the per-project folder
+      // map so any open folder shows its own conversations.
       const listedGeneral =
         (typeof projectPathOrScope === 'object' && projectPathOrScope.kind === 'general') ||
         (!projectPathOrScope && state.activeScope.kind === 'general') ||
         (!projectPathOrScope && !state.projectPath);
+      const listedProjectPath =
+        typeof projectPathOrScope === 'object' && projectPathOrScope.kind === 'project'
+          ? projectPathOrScope.projectPath
+          : typeof projectPathOrScope === 'string' && projectPathOrScope.trim()
+            ? projectPathOrScope
+            : !listedGeneral && state.activeScope.kind === 'project'
+              ? state.activeScope.projectPath
+              : null;
       if (listedGeneral) {
         dispatch({ type: 'session/hydrate-general', sessions: visible });
+      } else if (listedProjectPath != null) {
+        const isActiveProject =
+          state.activeScope.kind === 'project' &&
+          state.activeScope.projectPath === listedProjectPath;
+        if (isActiveProject) {
+          // session/hydrate populates `sessions` and mirrors into the folder map.
+          dispatch({ type: 'session/hydrate', sessions: visible });
+        } else {
+          // Non-active project folder: only update the folder tree.
+          dispatch({
+            type: 'session/hydrate-project',
+            projectPath: listedProjectPath,
+            sessions: visible,
+          });
+        }
       } else {
         dispatch({ type: 'session/hydrate', sessions: visible });
       }
@@ -910,9 +933,67 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     ],
   );
 
+  /**
+   * Resolve a UI user-message id to a host transcript id.
+   *
+   * Live chat paints optimistic bubbles with clientMessageId. Older turns may
+   * still have host-generated `user-…` ids after resume. Prefer exact id match;
+   * fall back to the Nth user turn so Revert works for pre-alignment sessions.
+   */
+  const resolveHostUserMessageId = useCallback(
+    async (
+      sessionId: string,
+      uiMessageId: string,
+    ): Promise<{ messageId: string; messages: SessionTranscriptMessage[] } | null> => {
+      const listed = await hostClient.request({
+        type: 'session/messages',
+        sessionId,
+      });
+      if (!listed.success) {
+        dispatch({ type: 'error', message: listed.error });
+        dispatchNotification(pushError(listed.error));
+        return null;
+      }
+      const listedData = listed.data as { messages?: SessionTranscriptMessage[] };
+      const hostMessages = listedData.messages ?? [];
+      if (hostMessages.some((message) => message.id === uiMessageId)) {
+        return { messageId: uiMessageId, messages: hostMessages };
+      }
+
+      const uiUserIndex = state.messages
+        .filter((message) => message.role === 'user')
+        .findIndex((message) => message.id === uiMessageId);
+      if (uiUserIndex < 0) {
+        const errorMessage = `Cannot restore: message not found in chat (${uiMessageId})`;
+        dispatch({ type: 'error', message: errorMessage });
+        dispatchNotification(pushError(errorMessage));
+        return null;
+      }
+
+      const hostUserMessages = hostMessages.filter((message) => message.role === 'user');
+      const hostMatch = hostUserMessages[uiUserIndex];
+      if (!hostMatch) {
+        const errorMessage =
+          'Cannot restore: conversation history is out of sync with the host transcript. Re-open the session and try again.';
+        dispatch({ type: 'error', message: errorMessage });
+        dispatchNotification(pushError(errorMessage));
+        return null;
+      }
+      return { messageId: hostMatch.id, messages: hostMessages };
+    },
+    [dispatch, dispatchNotification, hostClient, state.messages],
+  );
+
   const handleEditAndResend = useCallback(
     async (messageId: string, nextText: string): Promise<void> => {
-      if (!state.activeSessionId || state.streaming) {
+      if (!state.activeSessionId) {
+        dispatchNotification(pushError('No active session to restore.'));
+        return;
+      }
+      if (state.streaming) {
+        dispatchNotification(
+          pushInfo('Wait for the current run to finish (or stop it) before restoring.'),
+        );
         return;
       }
       const text = nextText.trim();
@@ -924,13 +1005,20 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         dispatch({ type: 'project/trust-dialog', open: true });
         return;
       }
+
+      const resolved = await resolveHostUserMessageId(state.activeSessionId, messageId);
+      if (!resolved) {
+        return;
+      }
+
       const truncate = await hostClient.request({
         type: 'session/truncate-from',
         sessionId: state.activeSessionId,
-        messageId,
+        messageId: resolved.messageId,
       });
       if (!truncate.success) {
         dispatch({ type: 'error', message: truncate.error });
+        dispatchNotification(pushError(truncate.error));
         return;
       }
       const truncData = truncate.data as { messages?: SessionTranscriptMessage[] };
@@ -941,14 +1029,22 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       });
       setEditingMessageId(null);
       const promptText = applyAgentModeToPrompt(agentMode, text);
-      dispatch({ type: 'user/send', text });
+      // Keep the same client id for the resend bubble so a later Revert can
+      // still match the host transcript without a resume.
+      const resendClientMessageId = crypto.randomUUID();
+      dispatch({ type: 'user/send', text, clientMessageId: resendClientMessageId });
       const editInput: {
         text: string;
         model?: import('@piwin/contracts').ModelRef;
         thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
         agentMode?: import('@piwin/contracts').AgentModeId;
         orchestrationSchemeId?: string;
-      } = { text: promptText, agentMode: agentMode };
+        clientMessageId?: string;
+      } = {
+        text: promptText,
+        agentMode: agentMode,
+        clientMessageId: resendClientMessageId,
+      };
       if (orchestrationSchemeId && orchestrationSchemeId !== 'off') {
         editInput.orchestrationSchemeId = orchestrationSchemeId;
       }
@@ -967,6 +1063,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       });
       if (!response.success) {
         dispatch({ type: 'error', message: response.error });
+        dispatchNotification(pushError(response.error));
       } else {
         const accepted = response.data as { runId?: string; acceptedAt?: string };
         if (typeof accepted.runId === 'string') {
@@ -981,7 +1078,10 @@ export function useSessionActions(args: UseSessionActionsArgs) {
     [
       agentMode,
       dispatch,
+      dispatchNotification,
       hostClient,
+      orchestrationSchemeId,
+      resolveHostUserMessageId,
       selectedModelRef,
       setEditingMessageId,
       state.activeScope.kind,
@@ -996,12 +1096,24 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const handleRetryFromMessage = useCallback(
     async (messageId: string): Promise<void> => {
+      if (!state.activeSessionId) {
+        dispatchNotification(pushError('No active session to restore.'));
+        return;
+      }
+      if (state.streaming) {
+        dispatchNotification(
+          pushInfo('Wait for the current run to finish (or stop it) before restoring.'),
+        );
+        return;
+      }
       const message = state.messages.find((item) => item.id === messageId);
-      if (!message || message.role !== 'user' || !state.activeSessionId || state.streaming) {
+      if (!message || message.role !== 'user') {
+        dispatchNotification(pushError('Can only restore from a user message.'));
         return;
       }
       const text = message.text.trim();
       if (!text && message.attachments.length === 0) {
+        dispatchNotification(pushError('Nothing to restore from this message.'));
         return;
       }
       const isGeneral = state.activeScope.kind === 'general' || !state.projectPath;
@@ -1009,16 +1121,23 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         dispatch({ type: 'project/trust-dialog', open: true });
         return;
       }
+
       // Cursor-style Restore chat: truncate the transcript at this user turn,
       // put the text back into the composer, and wait for the user to resend.
-      // Edit-and-resend still auto-submits via handleEditAndResend.
+      // Map UI bubble id → host transcript id first (optimistic id mismatch).
+      const resolved = await resolveHostUserMessageId(state.activeSessionId, messageId);
+      if (!resolved) {
+        return;
+      }
+
       const truncate = await hostClient.request({
         type: 'session/truncate-from',
         sessionId: state.activeSessionId,
-        messageId,
+        messageId: resolved.messageId,
       });
       if (!truncate.success) {
         dispatch({ type: 'error', message: truncate.error });
+        dispatchNotification(pushError(truncate.error));
         return;
       }
       const truncData = truncate.data as { messages?: SessionTranscriptMessage[] };
@@ -1036,6 +1155,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
       dispatch,
       dispatchNotification,
       hostClient,
+      resolveHostUserMessageId,
       setComposer,
       state.activeScope.kind,
       state.activeSessionId,

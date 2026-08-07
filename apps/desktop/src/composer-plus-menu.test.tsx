@@ -175,4 +175,24 @@ describe('ComposerPlusMenu', () => {
       'No servers configured',
     );
   });
+
+  it('renders orchestration options when orchestration flyout is open', () => {
+    const onOrchestrationSchemeChange = vi.fn();
+    render(
+      createBaseProps({
+        submenu: 'orchestration',
+        orchestrationSchemeOptions: [
+          { id: 'off', name: 'Off', description: 'Disable orchestration' },
+          { id: 'ultra-code', name: 'Ultra Code', description: 'Multi-step coding plan' },
+        ],
+        orchestrationSchemeId: 'ultra-code',
+        onOrchestrationSchemeChange,
+      }),
+      root,
+    );
+
+    const flyout = document.querySelector('[aria-label="Orchestration Scheme"]');
+    expect(flyout).not.toBeNull();
+    expect(flyout?.textContent).toContain('Ultra Code');
+  });
 });

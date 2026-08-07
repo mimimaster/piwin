@@ -106,6 +106,10 @@ export type ProjectSessionSidebarProps = {
   filteredSessions: SessionListItemUi[];
   /** General-scope sessions for the Conversations section (always visible). */
   generalSessions: SessionListItemUi[];
+  /** Per-project session lists for the folder tree, keyed by project path.
+   *  Independent from `filteredSessions` (the active scope's list) so any
+   *  number of project folders can stay open with their own conversations. */
+  projectSessionsByPath?: Record<string, SessionListItemUi[]>;
   sessionGroups: SessionTimeGroup<SessionListItemUi>[];
   activeSessionId: string | null;
   sessionSearch: string;
@@ -531,18 +535,20 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           onDoubleClick={props.onResizeReset}
         />
       ) : null}
-            <div
-              className="sidebar-header sidebar-titlebar-box"
-              data-testid="sidebar-titlebar"
-              data-tauri-drag-region
-              onMouseDown={handleNativeWindowDragMouseDown}
-            >
+      <div
+        className="sidebar-header sidebar-titlebar-box"
+        data-testid="sidebar-titlebar"
+        data-tauri-drag-region
+        onMouseDown={handleNativeWindowDragMouseDown}
+      >
         <div className="sidebar-header-left" data-no-window-drag>
           {props.onToggleSessions ? (
             <IconButton
               className="sidebar-sessions-toggle"
               data-testid="rail-chats-btn"
-              label={props.sessionsExpanded ? copy.titlebar.collapseSidebar : copy.titlebar.expandSidebar}
+              label={
+                props.sessionsExpanded ? copy.titlebar.collapseSidebar : copy.titlebar.expandSidebar
+              }
               aria-expanded={props.sessionsExpanded}
               onClick={props.onToggleSessions}
             >
@@ -839,9 +845,18 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           <div className="tree-node-list">
             {visibleProjects.map((project) => {
               const isActiveProject = project.path === props.projectPath;
+              // The active project folder is open by default for display.
+              // Clicking a folder only toggles its expansion and never
+              // switches scope or the active session.
               const isProjectOpen = openProjects[project.path] ?? isActiveProject;
               const displayName = project.displayName ?? projectDisplayName(project.path);
-              const projectSessions = isActiveProject ? sortedFilteredSessions : [];
+              // Each folder shows its own sessions from the per-project map.
+              // The active project falls back to the filtered active list so
+              // search/archive filters still apply to the open project.
+              const projectSessions =
+                (isActiveProject
+                  ? sortedFilteredSessions
+                  : props.projectSessionsByPath?.[project.path]) ?? [];
 
               const activeSessionIndex = projectSessions.findIndex(
                 (s) => s.id === props.activeSessionId,
@@ -862,15 +877,13 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                     data-project-path={project.path}
                     onClick={(e) => {
                       e.preventDefault();
+                      // Folder clicks only toggle expansion; they never switch
+                      // the active session or project scope. Selecting a
+                      // specific conversation is the only way to switch.
                       setOpenProjects((prev) => ({
                         ...prev,
                         [project.path]: !isProjectOpen,
                       }));
-                      // Only open the project when expanding the folder.
-                      // Collapsing should not reset the active session.
-                      if (!isProjectOpen) {
-                        props.onOpenProject(project.path);
-                      }
                     }}
                     title={project.path}
                   >
@@ -897,7 +910,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                   </summary>
 
                   {/* Sessions under this project */}
-                  {isActiveProject && projectSessions.length > 0 ? (
+                  {isProjectOpen && projectSessions.length > 0 ? (
                     <ul className="tree-session-list">
                       {visibleProjectSessions.map((session) => (
                         <SessionRowItem

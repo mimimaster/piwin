@@ -53,16 +53,9 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
             className="jump-to-latest-btn"
             data-testid="jump-to-latest-btn"
             onClick={scroll.jumpToLatest}
-            aria-label={
-              scroll.unreadActivityCount > 0
-                ? `Jump to latest, ${scroll.unreadActivityCount} unread activities`
-                : 'Jump to latest'
-            }
+            aria-label="Jump to latest"
           >
             Jump to latest
-            {scroll.unreadActivityCount > 0
-              ? ` (${scroll.unreadActivityCount})`
-              : ''}
           </button>
         ) : null}
       </div>

@@ -28,7 +28,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10px;
+  gap: 0;
   width: 100%;
   max-width: none;
   margin: 0;
@@ -89,50 +89,51 @@
   padding: 0 4px;
 }
 
-/* Floating context layer OUTSIDE the input card (project / branch / runtime). */
+/* Context layer flush OUTSIDE the input card (project / branch / runtime). */
 .composer-context-rail {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  /* Sit just above the card as a separate layer — no card chrome. */
-  margin-bottom: 6px;
-  padding: 0 4px;
+  gap: 2px 8px;
+  /* Sit flush directly above the card as a transparent layer — no card chrome. */
+  margin-bottom: 4px;
+  padding: 0 2px;
   min-height: 0;
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   pointer-events: auto;
   z-index: 2;
 }
 
 .composer-dock.layout-centered .composer-context-rail {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   padding: 0 2px;
 }
 
 .composer-context-link {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  max-width: 240px;
-  height: 28px;
-  padding: 2px 6px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted);
+  gap: 4px;
+  max-width: 360px;
+  height: 24px;
+  padding: 2px 4px;
+  border: none !important;
+  border-radius: 4px;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--muted, rgba(255, 255, 255, 0.6));
   font: inherit;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.3;
   cursor: pointer;
   transition: color 120ms ease, background 120ms ease;
 }
 
 .composer-context-link:hover:not(:disabled) {
-  color: var(--text);
-  background: color-mix(in srgb, var(--text) 5%, transparent);
+  color: var(--text, #ffffff);
+  background: color-mix(in srgb, var(--text, #ffffff) 6%, transparent) !important;
 }
 
 .composer-context-link:disabled,
@@ -1035,7 +1036,205 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
-/* ─── Send / stop / steer ───────────────────────────────────────────── */
+/* ─── Steer Queue Dock ──────────────────────────────────────────────── */
+
+.steer-queue-dock {
+  width: var(--chat-max);
+  max-width: 100%;
+  margin: 0 auto 8px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--text, #ffffff) 10%, transparent);
+  background: color-mix(in srgb, var(--card, #1c1c21) 92%, #000000);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  padding: 8px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: steerQueuePopIn 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes steerQueuePopIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.steer-queue-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+  padding: 2px 2px;
+}
+
+.steer-queue-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.steer-queue-count {
+  font-weight: 600;
+  color: var(--text, #f4f4f5);
+}
+
+.steer-queue-title {
+  font-weight: 500;
+  color: var(--text, #f4f4f5);
+}
+
+.steer-queue-subtitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: color-mix(in srgb, var(--text, #ffffff) 45%, transparent);
+  font-size: 12px;
+  margin-left: 2px;
+}
+
+.steer-queue-shortcut-key {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.steer-queue-multitask-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text, #ffffff) 65%, transparent);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.steer-queue-multitask-btn:hover {
+  color: var(--text, #ffffff);
+  background: color-mix(in srgb, var(--text, #ffffff) 8%, transparent);
+}
+
+.steer-queue-multitask-icon {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.steer-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.steer-queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 34px;
+  padding: 4px 10px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text, #ffffff) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text, #ffffff) 5%, transparent);
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.steer-queue-item:hover {
+  background: color-mix(in srgb, var(--text, #ffffff) 7%, transparent);
+  border-color: color-mix(in srgb, var(--text, #ffffff) 10%, transparent);
+}
+
+.steer-queue-item-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.steer-queue-item-text {
+  font-size: 13px;
+  color: var(--text, #f4f4f5);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.steer-queue-edit-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--panel, #111115) 90%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, #6ea8fe) 50%, transparent);
+  border-radius: 6px;
+  color: var(--text, #ffffff);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 4px 8px;
+  outline: none;
+  resize: none;
+}
+
+.steer-queue-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.steer-queue-action {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, var(--text, #ffffff) 55%, transparent);
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.steer-queue-action:hover {
+  color: var(--text, #ffffff);
+  background: color-mix(in srgb, var(--text, #ffffff) 10%, transparent);
+}
+
+.steer-queue-action.is-remove:hover {
+  color: var(--danger, #ef4444);
+  background: color-mix(in srgb, var(--danger, #ef4444) 15%, transparent);
+}
+
+.steer-queue-action.is-confirm {
+  color: var(--accent, #6ea8fe);
+}
+
+.steer-queue-action.is-confirm:hover {
+  background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent);
+}
+
+/* ─── Send / stop / steer action button ─────────────────────────────── */
+
+.composer-v2-action-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+}
 
 /* Class display:grid would otherwise override the UA [hidden] { display:none }. */
 .composer-v2-send-btn[hidden],
@@ -1050,30 +1249,32 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   width: 32px;
   height: 32px;
   padding: 0;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-fg, #ffffff);
   cursor: pointer;
-  box-shadow: none;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 25%, transparent);
+  animation: composerActionBtnPopIn 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transition:
-    transform 0.16s ease,
-    opacity 0.16s ease,
-    filter 0.16s ease,
-    box-shadow 0.16s ease,
-    background-color 0.16s ease;
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.18s ease,
+    filter 0.18s ease,
+    box-shadow 0.18s ease,
+    background-color 0.18s ease;
   flex-shrink: 0;
 }
 
 .composer-v2-send-btn svg {
   width: 15px;
   height: 15px;
+  transition: transform 0.18s ease;
 }
 
 .composer-v2-send-btn:hover:not(:disabled) {
   filter: brightness(1.08);
-  transform: none;
-  box-shadow: none;
+  transform: scale(1.05);
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .composer-v2-send-btn:active:not(:disabled) {
@@ -1087,6 +1288,7 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   background: color-mix(in srgb, var(--fg) 8%, transparent);
   color: color-mix(in srgb, var(--fg) 40%, transparent);
   box-shadow: none;
+  animation: none;
 }
 
 .composer-v2-stop-btn {
@@ -1098,36 +1300,70 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--fg) 12%, transparent);
+  background: color-mix(in srgb, var(--text, #ffffff) 14%, var(--composer, #1c1c21));
   color: var(--danger, #ef4444);
   cursor: pointer;
+  animation: composerActionBtnPopIn 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transition:
-    background 160ms ease,
-    color 160ms ease,
-    transform 160ms ease,
-    box-shadow 160ms ease;
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
 }
 
-.composer-v2-stop-btn .stop-btn-pulse {
+.composer-v2-stop-btn.is-running::before {
   display: none;
 }
 
 .composer-v2-stop-btn svg {
   position: relative;
   z-index: 1;
-  width: 24px;
-  height: 24px;
+  width: 14px;
+  height: 14px;
+  transition: transform 180ms ease;
 }
 
 .composer-v2-stop-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--fg) 18%, transparent);
-  color: color-mix(in srgb, var(--danger, #ef4444) 92%, #ffffff);
+  background: color-mix(in srgb, var(--text, #ffffff) 22%, var(--composer, #1c1c21));
+  color: color-mix(in srgb, var(--danger, #ef4444) 95%, #ffffff);
   transform: scale(1.05);
 }
 
 .composer-v2-stop-btn:active:not(:disabled) {
-  transform: scale(0.93);
+  transform: scale(0.92);
+}
+
+.composer-v2-stop-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: color-mix(in srgb, var(--text, #ffffff) 8%, var(--composer, #1c1c21));
+  color: color-mix(in srgb, var(--fg) 40%, transparent);
+  animation: none;
+}
+
+@keyframes composerActionBtnPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.75) rotate(-8deg);
+  }
+  65% {
+    transform: scale(1.05) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes composerStopPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
 }
 
 .composer-v2-streaming-actions {

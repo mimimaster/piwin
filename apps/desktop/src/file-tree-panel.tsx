@@ -1,16 +1,20 @@
 /**
  * Workspace file tree (right inspector Files tab).
  * Lazy-loads children via host project/list-dir.
- * File click → split layout inside the right panel (left: content, right: tree).
+ * File click → single split rail inside the right panel (left: content, right: tree).
+ * Preview never leaves this panel for the chat stage; switching files reuses the same rail.
  * Directory rows are pure-text expand/collapse controls (no folder icon).
  * Optional onOpenFile still fires for host/App integration; drag / Insert path → composer.
  */
 import {
   useCallback,
   useEffect,
+  useRef,
   useState,
   type DragEvent,
   type KeyboardEvent,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
   type ReactElement,
 } from 'react';
 import { formatError } from '@piwin/contracts';
@@ -26,6 +30,15 @@ import { Button, EmptyState, IconButton, Notice, Spinner } from '@piwin/ui-kit';
 import { IconChevronDown, IconChevronRight, IconClose, IconRefresh } from './shell-icons';
 import { FileTypeIcon } from './file-type-icon';
 import { CodePreviewView } from './code-preview-view';
+import { EnhancedMarkdownView } from './EnhancedMarkdownView';
+import {
+  FILE_TREE_RAIL_DEFAULT_WIDTH_PX,
+  FILE_TREE_RAIL_MAX_WIDTH_PX,
+  FILE_TREE_RAIL_MIN_WIDTH_PX,
+  clampFileTreeRailWidthForContainer,
+  loadFileTreeRailWidth,
+  saveFileTreeRailWidth,
+} from './file-tree-rail-width';
 import {
   buildGitStatusByPath,
   filterTreeNodes,
@@ -75,6 +88,16 @@ type FilePreviewState = {
   truncated: boolean;
   isBinary: boolean;
 };
+
+
+/** Markdown / plaintext files render through EnhancedMarkdownView (same path as DocPreview). */
+const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'mdx', 'txt', 'text']);
+
+function isMarkdownPreviewPath(path: string): boolean {
+  const extensionMatch = /\.([a-zA-Z0-9]+)$/.exec(path);
+  const extension = extensionMatch?.[1]?.toLowerCase() ?? '';
+  return extension === '' || MARKDOWN_EXTENSIONS.has(extension);
+}
 
 function entryToNode(entry: ProjectDirEntry): FileTreeNodeState {
   return {
@@ -184,7 +207,20 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
   const [preview, setPreview] = useState<FilePreviewState | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [railWidthPx, setRailWidthPx] = useState(() => loadFileTreeRailWidth());
+  const [isRailResizing, setIsRailResizing] = useState(false);
+  const splitContainerRef = useRef<HTMLDivElement | null>(null);
+  const railWidthRef = useRef(railWidthPx);
+  const railDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
   const locale = props.locale ?? 'zh-CN';
+
+  useEffect(() => {
+    railWidthRef.current = railWidthPx;
+  }, [railWidthPx]);
 
   const loadDirectory = useCallback(
     async (relativePath: string): Promise<ProjectDirEntry[]> => {
@@ -200,7 +236,10 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       const data = response.data as ProjectListDirData;
       return data.entries ?? [];
     },
-    [props],
+    // Depend on the stable request identity + project path only. Using the
+    // whole `props` object recreated loadDirectory on every parent render
+    // (e.g. right-panel resize), which re-fired reloadRoot and flashed the tree.
+    [props.projectPath, props.request],
   );
 
   // Fetch git status for the workspace. Failures (e.g. not a git repo) are
@@ -225,7 +264,7 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       // Not a repository / git unavailable: leave the map empty.
       setGitStatusMap(new Map());
     }
-  }, [props]);
+  }, [props.projectPath, props.request]);
 
   const reloadRoot = useCallback(async () => {
     if (!props.projectPath) {
@@ -428,6 +467,82 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     setSelectedPath(null);
   }, [props.projectPath]);
 
+  function resolveRailWidth(candidate: number): number {
+    const containerWidth = splitContainerRef.current?.clientWidth ?? 0;
+    return clampFileTreeRailWidthForContainer(candidate, containerWidth);
+  }
+
+  function onRailResizePointerDown(event: ReactPointerEvent<HTMLElement>): void {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+    railDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: railWidthRef.current,
+    };
+    setIsRailResizing(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }
+
+  useEffect(() => {
+    if (!isRailResizing) {
+      return;
+    }
+
+    function onPointerMove(event: PointerEvent): void {
+      const drag = railDragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) {
+        return;
+      }
+      // Handle sits on the left edge of the tree rail: drag left → wider tree rail.
+      const delta = drag.startX - event.clientX;
+      const next = resolveRailWidth(drag.startWidth + delta);
+      if (next === railWidthRef.current) {
+        return;
+      }
+      railWidthRef.current = next;
+      // Live CSS only — avoid React commits every sample while dragging.
+      const split = splitContainerRef.current;
+      if (split) {
+        split.style.setProperty('--file-tree-rail-width', `${next}px`);
+      }
+    }
+
+    function endDrag(event: PointerEvent): void {
+      const drag = railDragRef.current;
+      if (!drag || event.pointerId !== drag.pointerId) {
+        return;
+      }
+      railDragRef.current = null;
+      const commit = resolveRailWidth(railWidthRef.current);
+      railWidthRef.current = commit;
+      setRailWidthPx(commit);
+      saveFileTreeRailWidth(commit);
+      setTimeout(() => {
+        setIsRailResizing(false);
+      }, 40);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', endDrag);
+      window.removeEventListener('pointercancel', endDrag);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isRailResizing]);
+
   const isSplitOpen = preview != null || previewLoading || previewError != null;
   const previewFileName = preview
     ? preview.relativePath.split(/[\\/]/).pop() || preview.relativePath
@@ -443,11 +558,22 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     );
   }
 
+  const showMarkdownPreview =
+    preview != null && !preview.isBinary && isMarkdownPreviewPath(preview.relativePath);
+
   return (
     <div
-      className={`file-tree-panel${isSplitOpen ? ' file-tree-panel-split' : ''}`}
+      ref={splitContainerRef}
+      className={`file-tree-panel${isSplitOpen ? ' file-tree-panel-split' : ''}${isRailResizing ? ' is-rail-resizing' : ''}`}
       data-testid="file-tree-panel"
       data-split={isSplitOpen ? 'true' : 'false'}
+      style={
+        isSplitOpen
+          ? ({
+              ['--file-tree-rail-width' as string]: `${railWidthPx}px`,
+            } as CSSProperties)
+          : undefined
+      }
     >
       {isSplitOpen ? (
         <section className="file-tree-preview" data-testid="file-tree-preview" aria-label="File preview">
@@ -495,7 +621,15 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                     {locale === 'zh-CN' ? '内容已截断' : 'Content truncated'}
                   </div>
                 ) : null}
-                <CodePreviewView code={preview.content} filePath={preview.relativePath} />
+                {showMarkdownPreview ? (
+                  <EnhancedMarkdownView
+                    text={preview.content}
+                    docTitle={previewFileName || preview.relativePath}
+                    filePath={preview.relativePath}
+                  />
+                ) : (
+                  <CodePreviewView code={preview.content} filePath={preview.relativePath} />
+                )}
               </>
             ) : null}
           </div>
@@ -503,6 +637,30 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
       ) : null}
 
       <div className="file-tree-main" data-testid="file-tree-browser">
+        {isSplitOpen ? (
+          <div
+            className="file-tree-rail-resize-handle"
+            data-testid="file-tree-rail-resize-handle"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label={locale === 'zh-CN' ? '调整文件树宽度' : 'Resize file tree'}
+            aria-valuemin={FILE_TREE_RAIL_MIN_WIDTH_PX}
+            aria-valuemax={FILE_TREE_RAIL_MAX_WIDTH_PX}
+            aria-valuenow={railWidthPx}
+            title={
+              locale === 'zh-CN'
+                ? '拖动调整文件树宽度，双击恢复默认'
+                : 'Drag to resize file tree. Double-click to reset.'
+            }
+            onPointerDown={onRailResizePointerDown}
+            onDoubleClick={() => {
+              const reset = resolveRailWidth(FILE_TREE_RAIL_DEFAULT_WIDTH_PX);
+              railWidthRef.current = reset;
+              setRailWidthPx(reset);
+              saveFileTreeRailWidth(reset);
+            }}
+          />
+        ) : null}
         <header className="file-tree-header">
           <div>
             <span className="inspector-kicker">Workspace</span>
@@ -522,7 +680,9 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
           placeholder={locale === 'zh-CN' ? '筛选已加载文件…' : 'Filter loaded files…'}
           aria-label={locale === 'zh-CN' ? '筛选文件' : 'Filter files'}
         />
-        {loading ? (
+        {/* Keep the existing tree visible during reload so resize/parent re-renders
+            cannot flash an empty Loading state over the file list. */}
+        {loading && rootNodes.length === 0 ? (
           <div className="file-tree-loading">
             <Spinner />
             <span className="muted">Loading…</span>

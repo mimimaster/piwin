@@ -129,10 +129,14 @@ export function ContextUsageRing(props: ContextUsageRingProps): ReactElement {
   const limit = resolveLimit(props.usage, props.modelContextWindow);
   const used = resolveUsed(props.usage);
   const ratio =
-    typeof props.usage?.contextRatio === 'number'
-      ? Math.min(1, Math.max(0, props.usage.contextRatio))
-      : typeof used === 'number' && limit > 0
-        ? Math.min(1, Math.max(0, used / limit))
+    typeof used === 'number' && limit > 0
+      ? // Always recompute against the *displayed* limit. Host `contextRatio`
+        // may have been computed against a different window (e.g. Pi default
+        // 128K while the selected model is 1M) and would disagree with the
+        // "~used / limit Tokens" line if trusted blindly.
+        Math.min(1, Math.max(0, used / limit))
+      : typeof props.usage?.contextRatio === 'number'
+        ? Math.min(1, Math.max(0, props.usage.contextRatio))
         : 0;
   const percent = Math.round(ratio * 100);
   const circumference = 2 * Math.PI * 9;

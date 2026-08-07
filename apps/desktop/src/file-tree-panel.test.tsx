@@ -150,7 +150,7 @@ describe('FileTreePanel', () => {
     expect(panel?.getAttribute('data-split')).toBe('true');
     expect(queryByTestId('file-tree-preview')).toBeTruthy();
     expect(queryByTestId('file-tree-browser')).toBeTruthy();
-    expect(queryByTestId('code-preview-view')?.textContent).toContain('preview body');
+    expect(queryByTestId('file-tree-preview')?.textContent).toContain('preview body');
 
     // Directory row is pure text: no folder icon svg under the src row.
     const srcRow = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find(

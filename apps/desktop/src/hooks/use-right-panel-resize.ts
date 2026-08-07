@@ -51,9 +51,7 @@ export function useRightPanelResize(
     startX: number;
     startWidth: number;
   } | null>(null);
-  // Coalesce pointermove bursts into one React render + one window setSize
-  // per animation frame so the stage does not reflow on every input event.
-  const pendingFrameRef = useRef<number | null>(null);
+  // Drag updates CSS only; React width state commits on pointer-up.
 
   useEffect(() => {
     widthRef.current = widthPx;
@@ -77,8 +75,9 @@ export function useRightPanelResize(
         options.layoutMode === 'desktop' && options.navDrawerOpen ? sidebarWidthPx : 0;
       return clampRightPanelWidthForViewport(candidate, viewport, {
         reservedChromePx: reserved,
-        // Keep a usable chat column, but don't over-constrain the panel.
-        minStagePx: options.layoutMode === 'compact' ? 0 : 280,
+        // Keep the chat/composer column usable — below this the empty-state
+        // composer card deforms when the right panel is dragged wide.
+        minStagePx: options.layoutMode === 'compact' ? 0 : 420,
       });
     },
     [options.layoutMode, options.navDrawerOpen, sidebarWidthPx],
@@ -131,19 +130,11 @@ export function useRightPanelResize(
         return;
       }
       widthRef.current = next;
-      // Live CSS first so chrome (title actions) tracks the edge immediately.
-      // React state still coalesces to one commit per frame for aria / persistence.
+      // CSS-only during drag. Updating React width state every frame re-rendered
+      // the entire App (file tree, transcript, glass blur) and caused visible flicker.
+      // Aria / persistence catch up on pointer-up.
       writeRightPanelWidthCss(next);
-      // Coalesce: a single rAF will apply React state at most once per paint.
-      if (pendingFrameRef.current != null) {
-        return;
-      }
-      pendingFrameRef.current = requestAnimationFrame(() => {
-        pendingFrameRef.current = null;
-        const commit = widthRef.current;
-        setWidthState(commit);
-        liveWidthCommitRef.current?.(commit);
-      });
+      liveWidthCommitRef.current?.(next);
     }
 
     function endDrag(event: PointerEvent): void {
@@ -152,36 +143,24 @@ export function useRightPanelResize(
         return;
       }
       dragRef.current = null;
-      // Flush any in-flight frame so the final drag position lands before
-      // the gesture ends; otherwise the panel can snap to a stale width.
-      if (pendingFrameRef.current != null) {
-        cancelAnimationFrame(pendingFrameRef.current);
-        pendingFrameRef.current = null;
-        const commit = widthRef.current;
-        writeRightPanelWidthCss(commit);
-        setWidthState(commit);
-        liveWidthCommitRef.current?.(commit);
-      }
-      // Keep transitions disabled briefly after drag ends so the panel
-      // doesn't animate from the drag-end width (which is already correct).
-      // The CSS .is-resizing class suppresses the width transition; removing
-      // it immediately would trigger a 260ms animation on the same value.
+      const commit = widthRef.current;
+      writeRightPanelWidthCss(commit);
+      setWidthState(commit);
+      liveWidthCommitRef.current?.(commit);
+      // Keep transitions / blur disabled briefly after drag ends so the panel
+      // does not animate from the already-correct width.
       setTimeout(() => {
         setIsResizing(false);
       }, 60);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      saveRightPanelWidth(widthRef.current);
+      saveRightPanelWidth(commit);
     }
 
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', endDrag);
     window.addEventListener('pointercancel', endDrag);
     return () => {
-      if (pendingFrameRef.current != null) {
-        cancelAnimationFrame(pendingFrameRef.current);
-        pendingFrameRef.current = null;
-      }
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', endDrag);
       window.removeEventListener('pointercancel', endDrag);
