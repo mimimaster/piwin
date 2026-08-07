@@ -201,7 +201,7 @@ function attachConsoleAndNetworkListeners(
     const duration = startTime !== undefined ? ts - startTime : 0;
     const event: BrowserNetworkPush = {
       type: 'browser/network',
-      method: response.request().method,
+      method: response.request().method(),
       url: response.url(),
       status: response.status(),
       resourceType: response.request().resourceType(),
@@ -251,9 +251,19 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       mkdirSync(profileDir, { recursive: true });
     }
 
-    let launched: Browser;
+    const viewport = {
+      width: Math.min(requestedViewport.width, maxDimension),
+      height: Math.min(requestedViewport.height, maxDimension),
+    };
+    let launched: BrowserContext;
     try {
-      launched = await chromium.launch({ headless, userDataDir: profileDir });
+      // Persistent profile keeps cookies/session across launches; the returned
+      // context owns the single Chromium instance for this profile dir.
+      launched = await chromium.launchPersistentContext(profileDir, {
+        headless,
+        viewport,
+        ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
+      });
     } catch (error) {
       // Playwright throws when the executable is missing; surface an actionable
       // install hint instead of a raw launch error.
@@ -263,15 +273,8 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
         { cause: error },
       );
     }
-    browser = launched;
-    const viewport = {
-      width: Math.min(requestedViewport.width, maxDimension),
-      height: Math.min(requestedViewport.height, maxDimension),
-    };
-    context = await launched.newContext({
-      viewport,
-      ...(options.userAgent !== undefined ? { userAgent: options.userAgent } : {}),
-    });
+    browser = launched.browser() ?? undefined;
+    context = launched;
     // Context-level init script so @medv/finder is present on every page and
     // navigation (including the initial about:blank document).
     await injectFinder(context);

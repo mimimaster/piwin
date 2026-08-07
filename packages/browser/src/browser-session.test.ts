@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const launchMock = vi.hoisted(() => vi.fn());
 
 vi.mock('playwright-core', () => ({
-  chromium: { launch: launchMock },
+  chromium: { launchPersistentContext: launchMock },
 }));
 
 import {
@@ -53,10 +53,9 @@ function installWorkingBrowser() {
     on: vi.fn(),
   };
   const browser = {
-    newContext: vi.fn().mockResolvedValue(context),
     close: vi.fn().mockResolvedValue(undefined),
   };
-  launchMock.mockResolvedValue(browser);
+  launchMock.mockResolvedValue({ ...context, browser: () => browser });
   return { page, context, browser };
 }
 
@@ -104,7 +103,7 @@ describe('lazy launch', () => {
     await session.click('button.submit'); // css selector -> raw locator
 
     expect(launchMock).toHaveBeenCalledTimes(1);
-    expect(launchMock).toHaveBeenCalledWith({ headless: true, userDataDir: expect.any(String) });
+    expect(launchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headless: true }));
     expect(page.locator).toHaveBeenNthCalledWith(1, 'aria-ref=e5');
     expect(page.locator).toHaveBeenNthCalledWith(2, 'button.submit');
   });
@@ -113,7 +112,7 @@ describe('lazy launch', () => {
     installWorkingBrowser();
     const session = createBrowserSession({ headless: false });
     await session.snapshot();
-    expect(launchMock).toHaveBeenCalledWith({ headless: false, userDataDir: expect.any(String) });
+    expect(launchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headless: false }));
   });
 
   it('close() waits for an in-flight launch so the Chromium child is always closed', async () => {
@@ -281,9 +280,7 @@ describe('profile persistence', () => {
     installWorkingBrowser();
     const session = createBrowserSession({ profileDir: '/tmp/piwin-test-profile' });
     await session.navigate('https://example.com');
-    expect(launchMock).toHaveBeenCalledWith(
-      expect.objectContaining({ userDataDir: '/tmp/piwin-test-profile' }),
-    );
+    expect(launchMock).toHaveBeenCalledWith('/tmp/piwin-test-profile', expect.anything());
   });
 
   it('defaults userDataDir to ~/.piwin/browser-profile', async () => {
@@ -291,9 +288,8 @@ describe('profile persistence', () => {
     const session = createBrowserSession();
     await session.navigate('https://example.com');
     expect(launchMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userDataDir: expect.stringContaining('.piwin/browser-profile'),
-      }),
+      expect.stringContaining('.piwin/browser-profile'),
+      expect.anything(),
     );
   });
 });
