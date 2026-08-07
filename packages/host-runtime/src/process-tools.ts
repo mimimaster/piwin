@@ -117,7 +117,7 @@ export function buildProcessTools(options: BuildProcessToolsOptions): HostToolRe
     descriptor: {
       name: 'process_start',
       description:
-        'Start a Job using argv only. The default run lifetime stops it when the current Agent Run ends; choose session or host lifetime explicitly for longer-lived services.',
+        'Start a native Job with argv only (no shell). Default lifetime is run (ends with the Agent Run); use session/host for longer services.',
       parameters: {
         type: 'object',
         properties: {

@@ -5,7 +5,7 @@ import type { SessionPlan } from '@piwin/contracts';
 
 export function formatPlanForModelContext(plan: SessionPlan): string {
   const lines: string[] = [
-    '[piwin plan context — follow this plan unless the user revises it]',
+    '[piwin plan context v2 — follow this plan unless the user revises it]',
     `Title: ${plan.title}`,
     `Status: ${plan.status}`,
     `Goal: ${plan.goal}`,
@@ -27,9 +27,12 @@ export function formatPlanForModelContext(plan: SessionPlan): string {
   }
   if (plan.status === 'approved' || plan.status === 'executing') {
     lines.push(
-      'Instruction: When you finish or start a step, call piwin_plan_set_step.',
+      'Success: complete steps against their acceptance criteria; mark done only with evidence.',
     );
-    lines.push('Only one step should be active at a time.');
+    lines.push(
+      'Use piwin_plan_set_step to set active/done/skipped; include a short verification note when marking done.',
+    );
+    lines.push('Stop at blockers or failed verification; do not invent scope beyond this plan.');
   }
   lines.push('[end plan context]');
   return lines.join(String.fromCharCode(10));

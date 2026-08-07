@@ -78,6 +78,35 @@ describe('scanSkills', () => {
   });
 });
 
+
+  it('discovers the bundled improve skill', async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const repoSkillsRoot = resolve(here, '..', '..', '..', 'skills');
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-improve-'));
+    try {
+      const skills = await scanSkills({ piwinRoot: rootDir, bundledRoot: repoSkillsRoot });
+      const improve = skills.find((skill) => skill.id === 'improve');
+      expect(improve).toBeTruthy();
+      expect(improve?.source).toBe('bundled');
+      expect(improve?.name).toBe('improve');
+      expect(improve?.description.toLowerCase()).toContain('advisor');
+    } finally {
+      const { rm } = await import('node:fs/promises');
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
+
+  it('improve SKILL.md is read-only advisor with self-contained plans', async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const skillPath = resolve(here, '..', '..', '..', 'skills', 'improve', 'SKILL.md');
+    const content = await readFile(skillPath, 'utf8');
+    expect(content).toContain('improve');
+    expect(content).toContain('plans/');
+    expect(content).toContain('Never modify application source');
+    expect(content).toContain('STOP');
+    expect(content).toContain('piwin_plan_create');
+  });
+
 describe('scanSkills hidden flag', () => {
   it('marks a skill hidden when frontmatter has hidden: true', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-skills-hidden-true-'));
