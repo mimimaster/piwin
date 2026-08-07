@@ -5,15 +5,42 @@
  * light/dark theme automatically.
  */
 import type { ReactElement } from 'react';
-import { ANIMATION_CATALOG, BreathDot, PulseBlock, SolidBars } from '@piwin/ui-kit';
+import {
+  ANIMATION_CATALOG,
+  BreathDot,
+  PulseBlock,
+  SolidBars,
+  OrganicBlob,
+  BreathMatrix,
+  RadialBellow,
+  CascadeRipple,
+  AsteriskBreath,
+  type AnimationSize,
+} from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { PageTitle } from '../page-title';
+
+const SIZE_VARIANT_GROUPS: ReadonlyArray<{
+  label: string;
+  render: (size: AnimationSize) => ReactElement;
+}> = [
+  { label: '圆点呼吸', render: (s) => <BreathDot size={s} /> },
+  { label: '方块脉冲', render: (s) => <PulseBlock size={s} /> },
+  { label: '条形呼吸', render: (s) => <SolidBars size={s} /> },
+  { label: '变形有机体', render: (s) => <OrganicBlob size={s} /> },
+  { label: '呼吸矩阵', render: (s) => <BreathMatrix size={s} /> },
+  { label: '辐射风箱', render: (s) => <RadialBellow size={s} /> },
+  { label: '级联涟漪', render: (s) => <CascadeRipple size={s} /> },
+  { label: '星芒呼吸', render: (s) => <AsteriskBreath size={s} /> },
+];
+
+const SIZES: readonly AnimationSize[] = ['sm', 'md', 'lg'] as const;
 
 export function AnimationsPage(): ReactElement {
   const { locale } = useDesktopLocale();
   const isChinese = locale === 'zh-CN';
 
- return (
+  return (
     <div className="settings-card" data-testid="settings-animations">
       <div className="settings-section settings-section-card animations-page">
         <PageTitle
@@ -53,16 +80,19 @@ export function AnimationsPage(): ReactElement {
                 : 'Each animation supports sm / md / lg sizes.'
             }
           />
-          <div className="animations-sizes-row" style={{ gap: 24, flexWrap: 'wrap' }}>
-            <div className="animations-sizes-row"><span className="animations-sizes-label">sm</span><BreathDot size="sm" /></div>
-            <div className="animations-sizes-row"><span className="animations-sizes-label">md</span><BreathDot size="md" /></div>
-            <div className="animations-sizes-row"><span className="animations-sizes-label">lg</span><BreathDot size="lg" /></div>
-            <div className="animations-sizes-row"><span className="animations-sizes-label">sm</span><PulseBlock size="sm" /></div>
-            <div className="animations-sizes-row"><span className="animations-sizes-label">md</span><PulseBlock size="md" /></div>
-            <div className="animations-sizes-row"><span className="animations-sizes-label">lg</span><PulseBlock size="lg" /></div>
-            <div className="animations-sizes-row"><span className="animations-sizes-label">sm</span><SolidBars size="sm" /></div>
-            <div className="animations-sizes-row"><span className="animations-sizes-label">md</span><SolidBars size="md" /></div>
-            <div className="animations-sizes-row"><span className="animations-sizes-label">lg</span><SolidBars size="lg" /></div>
+          <div className="animations-sizes-table">
+            {SIZE_VARIANT_GROUPS.map((group) => (
+              <div key={group.label} className="animations-sizes-row">
+                <span className="animations-sizes-label">{group.label}</span>
+                <div className="animations-sizes-cells">
+                  {SIZES.map((size) => (
+                    <div key={size} className="animations-sizes-cell">
+                      {group.render(size)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

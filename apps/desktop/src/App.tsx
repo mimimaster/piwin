@@ -10,11 +10,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { formatError } from '@piwin/contracts';
-import {
-  isJobActive,
-  modeToPreset,
-  resolvePreset,
-} from '@piwin/contracts';
+import { isJobActive, modeToPreset, resolvePreset } from '@piwin/contracts';
 import type {
   PermissionPreset,
   PiwinConfig,
@@ -24,10 +20,7 @@ import type {
   ThemeManifest,
   WalkthroughArtifact,
 } from '@piwin/contracts';
-import {
-  listOrchestrationSchemes,
-  ORCHESTRATION_SCHEME_OFF_ID,
-} from '@piwin/contracts';
+import { listOrchestrationSchemes, ORCHESTRATION_SCHEME_OFF_ID } from '@piwin/contracts';
 import { chatUiReducer, createInitialChatUiState, type SessionListItemUi } from './chat-reducer';
 import { HostClient } from './host-client';
 import { useHostRequestAdapters } from './host-request-adapters';
@@ -196,10 +189,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     content?: string | undefined;
     filePath?: string | null | undefined;
   } | null>(null);
-  const [documentPreviewTarget, setDocumentPreviewTarget] = useState<'stage' | 'inspector'>(
-    'inspector',
-  );
-
   const handleOpenDocument = useCallback(
     (
       doc: { title: string; path?: string; content?: string },
@@ -210,13 +199,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       const rawName = cleanPath ? cleanPath.split(/[\\/]/).pop() || doc.title : doc.title;
       const cleanTitle = (rawName || 'Implementation Plan').replace(/\.md$/i, '');
 
-      setDocumentPreviewTarget(target);
+      void target;
+      // Workspace documents stay in the right inspector — never replace chat stage.
       setActiveDocument({
         title: cleanTitle,
         content: doc.content || (filePath ? '加载文档内容中...' : undefined),
         filePath: cleanPath,
       });
-      const inspectorTab = target === 'stage' ? 'files' : 'docPreview';
+      const inspectorTab = 'docPreview';
       shell.setInspectorTab(inspectorTab);
       if (!rightPanelOpen) {
         shell.openInspector(inspectorTab);
@@ -391,10 +381,18 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     () =>
       ({
         ...preferencesStyle,
-        '--sidebar-width': `${sidebarResize.widthPx}px`,
-        '--right-panel-width': `${rightPanelResize.widthPx}px`,
+        ...(sidebarResize.isResizing ? {} : { '--sidebar-width': `${sidebarResize.widthPx}px` }),
+        ...(rightPanelResize.isResizing
+          ? {}
+          : { '--right-panel-width': `${rightPanelResize.widthPx}px` }),
       }) as React.CSSProperties,
-    [preferencesStyle, sidebarResize.widthPx, rightPanelResize.widthPx],
+    [
+      preferencesStyle,
+      sidebarResize.isResizing,
+      sidebarResize.widthPx,
+      rightPanelResize.isResizing,
+      rightPanelResize.widthPx,
+    ],
   );
   const [desktopLocale, setDesktopLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
@@ -606,7 +604,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         source: scheme.source,
       })),
     ];
-  }, [config?.subagents?.schemes, config?.subagents?.maxConcurrency, config?.subagents?.maxTasksPerRun]);
+  }, [
+    config?.subagents?.schemes,
+    config?.subagents?.maxConcurrency,
+    config?.subagents?.maxTasksPerRun,
+  ]);
 
   // ORCH §7.6: if the selected scheme was deleted from config, fall back to Off
   // before send so Desktop does not paint a bubble that Host will reject.
@@ -716,9 +718,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               void import('@tauri-apps/plugin-shell')
                 .then(({ open }) => open(result.path as string))
                 .catch((error: unknown) => {
-                  console.warn(
-                    `[piwin] open-source shell open failed: ${formatError(error)}`,
-                  );
+                  console.warn(`[piwin] open-source shell open failed: ${formatError(error)}`);
                 });
             }
           });
@@ -807,6 +807,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     (
       command: Parameters<import('./KnowledgeCenterPanel').KnowledgeCenterPanelProps['request']>[0],
     ) => hostClient.request(command as unknown as Parameters<typeof hostClient.request>[0]),
+    [hostClient],
+  );
+  // File tree reloads on request identity change — keep this stable so right-panel
+  // resize (which re-renders App every rAF) does not re-fetch the whole tree.
+  const requestFileTree = useCallback(
+    (command: import('./file-tree-panel').FileTreeRequest) => hostClient.request(command),
     [hostClient],
   );
   const {
@@ -898,6 +904,34 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config, state.hostReady, state.projectPath]);
 
+  // Hydrate every recent project's session list so the sidebar folder tree can
+  // show each open folder's conversations without forcing the user to click
+  // into it. The reducer keeps these per-project lists independent from the
+  // active scope, so multiple folders can stay open with their own sessions.
+  useEffect(() => {
+    if (recentProjects.length === 0 || !state.hostReady) return;
+    let cancelled = false;
+    void (async () => {
+      for (const project of recentProjects) {
+        if (cancelled) return;
+        // hydrateSessions dispatches session/hydrate-project for non-active
+        // projects and session/hydrate for the active one.
+        await hydrateSessions(
+          { kind: 'project', projectPath: project.path },
+          { includeArchived: showArchivedSessions },
+        ).catch(() => {
+          // A single project failing to load should not block the rest.
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Only re-run when the set of recent projects changes. hydrateSessions is
+    // intentionally omitted (its identity changes with UI state).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentProjects, state.hostReady]);
+
   useEffect(() => {
     if (!state.hostReady || config === null || hasRestoredDesktopSession.current) {
       return;
@@ -968,8 +1002,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     const activeSession =
       activeSessionId == null
         ? undefined
-        : state.sessions.find((session) => session.id === activeSessionId) ??
-          state.generalSessions.find((session) => session.id === activeSessionId);
+        : (state.sessions.find((session) => session.id === activeSessionId) ??
+          state.generalSessions.find((session) => session.id === activeSessionId));
     // Prefer the session's last-used model only when switching into the
     // session (or first apply). Do not re-stomp the picker while the user
     // is mid-edit on the same session before the next prompt persists.
@@ -1441,9 +1475,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     shell.openInspector(tab);
   }
 
-  const openSettingsSection = useCallback((section: ShellSettingsSection): void => {
-    shell.openSettings(section);
-  }, [shell.openSettings]);
+  const openSettingsSection = useCallback(
+    (section: ShellSettingsSection): void => {
+      shell.openSettings(section);
+    },
+    [shell.openSettings],
+  );
 
   function runDesktopCommand(commandId: DesktopCommandId): void {
     switch (commandId) {
@@ -1652,6 +1689,37 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     )?.contextWindow;
   }, [modelOptions, selectedModelKey, config?.defaultProviderId, config?.defaultModelId]);
 
+  /**
+   * Status-bar percent must match ContextUsageRing: recompute used/limit against
+   * the selected model window rather than trusting host `contextRatio`, which may
+   * have been computed against a different limit (e.g. 128K vs 1M).
+   */
+  const contextUsagePercent = useMemo(() => {
+    const usage = state.contextUsage;
+    if (!usage) return 0;
+    const used =
+      typeof usage.tokensUsed === 'number'
+        ? usage.tokensUsed
+        : typeof usage.totalTokens === 'number'
+          ? usage.totalTokens
+          : typeof usage.promptTokens === 'number' || typeof usage.completionTokens === 'number'
+            ? (usage.promptTokens ?? 0) + (usage.completionTokens ?? 0)
+            : undefined;
+    const limit =
+      typeof selectedModelContextWindow === 'number' && selectedModelContextWindow > 0
+        ? selectedModelContextWindow
+        : typeof usage.tokensLimit === 'number' && usage.tokensLimit > 0
+          ? usage.tokensLimit
+          : undefined;
+    if (typeof used === 'number' && typeof limit === 'number' && limit > 0) {
+      return Math.round(Math.min(1, Math.max(0, used / limit)) * 100);
+    }
+    if (typeof usage.contextRatio === 'number') {
+      return Math.round(Math.min(1, Math.max(0, usage.contextRatio)) * 100);
+    }
+    return 0;
+  }, [state.contextUsage, selectedModelContextWindow]);
+
   const composerLayoutMode =
     state.messages.length === 0 ? ('centered' as const) : ('docked' as const);
 
@@ -1826,6 +1894,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onOrchestrationSchemeChange: setOrchestrationSchemeId,
       onOpenOrchestrationSchemeSettings: handleOpenOrchestrationSchemeSettings,
       branchRequest: requestGit as ComposerDockProps['branchRequest'],
+      onOpenProjectPicker: () => setProjectPickerOpen(true),
     }),
     [
       agentMode,
@@ -2016,7 +2085,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       }}
     >
       <div
-        className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}`}
+        className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
         style={appShellStyle}
         data-testid="app-shell"
         data-layout={layoutMode}
@@ -2051,6 +2120,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               sessions={state.sessions}
               filteredSessions={filteredSessions}
               generalSessions={filteredGeneralSessions}
+              projectSessionsByPath={state.projectSessionsByPath}
               sessionGroups={sessionGroups}
               activeSessionId={state.activeSessionId}
               sessionSearch={sessionSearch}
@@ -2260,115 +2330,69 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   />
                 </div>
               ) : null}
-              {documentPreviewTarget === 'stage' && activeDocument ? (
-                <div className="workspace-document-stage" data-testid="workspace-document-stage">
-                  <DocPreviewPanel
-                    title={activeDocument.title}
-                    content={activeDocument.content}
-                    filePath={activeDocument.filePath}
-                    sessionDocuments={sessionDocuments}
-                    onClose={() => {
-                      setActiveDocument(null);
-                      setDocumentPreviewTarget('inspector');
-                    }}
-                    onOpenFile={(filePath) => {
-                      handleOpenDocument(
-                        {
-                          title: filePath.split(/[\\/]/).pop() || filePath,
-                          path: filePath,
-                        },
-                        'stage',
-                      );
-                    }}
-                    onCommentLine={handleCommentLine}
-                    comments={activeComments}
-                    onAddComment={handleAddDocComment}
-                    onEditComment={handleEditDocComment}
-                    onDeleteComment={handleDeleteDocComment}
-                    onSelectDocument={(doc) => {
-                      const walkthroughMatch = doc.path?.match(/^walkthroughs\/(.+)\.md$/);
-                      const walkthroughArtifact = walkthroughMatch
-                        ? state.walkthroughsByMessageId[walkthroughMatch[1] as string]
-                        : undefined;
-                      handleOpenDocument(
-                        {
-                          title: doc.title,
-                          ...(doc.path ? { path: doc.path } : {}),
-                          ...(walkthroughArtifact?.status === 'ready'
-                            ? { content: walkthroughArtifact.markdown }
-                            : {}),
-                        },
-                        'stage',
-                      );
-                    }}
-                    locale={desktopLocale}
-                  />
-                </div>
-              ) : (
-                <TranscriptViewport
-                  messageCount={state.messages.length}
-                  activitySignal={activitySignal}
-                  messages={state.messages}
-                >
-                  <ArtifactHeightSignalProvider value={artifactHeightSignal}>
-                    {state.messages.length > 0 ? (
-                      <ChatThread
-                        messages={state.messages}
-                        streaming={state.streaming}
-                        editingMessageId={editingMessageId}
-                        lastUserMessageId={lastUserMessageId}
-                        activeTheme={activeTheme}
-                        artifactThemeKey={artifactThemeKey}
-                        runRecordsById={state.runRecordsById}
-                        activeRunId={state.activeRunId}
-                        permissionPrompt={state.permissionPrompt}
-                        projectPath={state.projectPath}
-                        toolDiffRequest={requestGit as never}
-                        filesChangedRequest={requestGit as never}
-                        onReviewChanges={() => openRightTab('review')}
-                        onPermission={(decision, scope) => {
-                          void handlePermission(decision, scope);
-                        }}
-                        workDetailsExpanded={preferences.workDetailsExpanded}
-                        toolDensity={preferences.toolDensity}
-                        showThinking={preferences.verboseAgentChat}
-                        artifactPreviewEnabled={config?.artifact?.enabled ?? true}
-                        artifactCodeFirst={preferences.artifactCodeFirst}
-                        plan={sessionPlan}
-                        {...(config?.artifact?.maxBytes !== undefined
-                          ? { artifactMaxBytes: config.artifact.maxBytes }
-                          : {})}
-                        locale={desktopLocale}
-                        onInspectSubagent={handleInspectSubagent}
-                        onEdit={setEditingMessageId}
-                        onCancelEdit={handleCancelMessageEdit}
-                        onEditResend={handleEditAndResendMessage}
-                        onRetry={handleRetryMessage}
-                        onFeedback={handleMessageFeedback}
-                        onArtifactAction={handleArtifactAction}
-                        onOpenDocument={handleOpenDocument}
-                        onPlanExecute={handlePlanExecute}
-                        onPlanAbort={handlePlanAbort}
-                        composerCard={composerCard}
-                        walkthroughsByMessageId={state.walkthroughsByMessageId}
-                        walkthroughEnabled={config?.walkthrough?.enabled !== false}
-                        walkthroughAutoGenerate={false}
-                        onGenerateWalkthrough={handleGenerateWalkthrough}
-                        onCancelWalkthrough={handleCancelWalkthrough}
-                        {...(state.activeSessionId
-                          ? {
-                              onDuplicateSession: () =>
-                                void handleDuplicateSession(state.activeSessionId!),
-                              onForkFromMessage: (messageId: string) =>
-                                void handleForkSession(state.activeSessionId!, messageId),
-                            }
-                          : {})}
-                        derivedActionsDisabled={!state.activeSessionId || state.streaming}
-                      />
-                    ) : null}
-                  </ArtifactHeightSignalProvider>
-                </TranscriptViewport>
-              )}
+              <TranscriptViewport
+                messageCount={state.messages.length}
+                activitySignal={activitySignal}
+                messages={state.messages}
+              >
+                <ArtifactHeightSignalProvider value={artifactHeightSignal}>
+                  {state.messages.length > 0 ? (
+                    <ChatThread
+                      messages={state.messages}
+                      streaming={state.streaming}
+                      editingMessageId={editingMessageId}
+                      lastUserMessageId={lastUserMessageId}
+                      activeTheme={activeTheme}
+                      artifactThemeKey={artifactThemeKey}
+                      runRecordsById={state.runRecordsById}
+                      activeRunId={state.activeRunId}
+                      permissionPrompt={state.permissionPrompt}
+                      projectPath={state.projectPath}
+                      toolDiffRequest={requestGit as never}
+                      filesChangedRequest={requestGit as never}
+                      onReviewChanges={() => openRightTab('review')}
+                      onPermission={(decision, scope) => {
+                        void handlePermission(decision, scope);
+                      }}
+                      workDetailsExpanded={preferences.workDetailsExpanded}
+                      toolDensity={preferences.toolDensity}
+                      showThinking={preferences.verboseAgentChat}
+                      artifactPreviewEnabled={config?.artifact?.enabled ?? true}
+                      artifactCodeFirst={preferences.artifactCodeFirst}
+                      plan={sessionPlan}
+                      {...(config?.artifact?.maxBytes !== undefined
+                        ? { artifactMaxBytes: config.artifact.maxBytes }
+                        : {})}
+                      locale={desktopLocale}
+                      onInspectSubagent={handleInspectSubagent}
+                      onEdit={setEditingMessageId}
+                      onCancelEdit={handleCancelMessageEdit}
+                      onEditResend={handleEditAndResendMessage}
+                      onRetry={handleRetryMessage}
+                      onFeedback={handleMessageFeedback}
+                      onArtifactAction={handleArtifactAction}
+                      onOpenDocument={handleOpenDocument}
+                      onPlanExecute={handlePlanExecute}
+                      onPlanAbort={handlePlanAbort}
+                      composerCard={composerCard}
+                      walkthroughsByMessageId={state.walkthroughsByMessageId}
+                      walkthroughEnabled={config?.walkthrough?.enabled !== false}
+                      walkthroughAutoGenerate={false}
+                      onGenerateWalkthrough={handleGenerateWalkthrough}
+                      onCancelWalkthrough={handleCancelWalkthrough}
+                      {...(state.activeSessionId
+                        ? {
+                            onDuplicateSession: () =>
+                              void handleDuplicateSession(state.activeSessionId!),
+                            onForkFromMessage: (messageId: string) =>
+                              void handleForkSession(state.activeSessionId!, messageId),
+                          }
+                        : {})}
+                      derivedActionsDisabled={!state.activeSessionId || state.streaming}
+                    />
+                  ) : null}
+                </ArtifactHeightSignalProvider>
+              </TranscriptViewport>
               {state.compacting ? (
                 <Notice
                   tone="info"
@@ -2446,11 +2470,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               mcpCount={menuMcp.filter((m) => m.running).length}
               agentState={state.streaming ? 'running' : state.error ? 'error' : 'idle'}
               terminalAttention={terminalAttention}
-              contextPercent={
-                typeof state.contextUsage?.contextRatio === 'number'
-                  ? Math.round(state.contextUsage.contextRatio * 100)
-                  : 0
-              }
+              contextPercent={contextUsagePercent}
               onOpenSkills={() => openSettingsSection('skills')}
               onOpenMcp={() => openSettingsSection('tools')}
               locale={desktopLocale}
@@ -2506,7 +2526,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 filesContent={
                   <FileTreePanel
                     projectPath={state.projectPath}
-                    request={(command) => hostClient.request(command)}
+                    request={requestFileTree}
                     onInsertPath={(absolutePath) => {
                       setComposer((current) =>
                         current.trim().length > 0
@@ -2525,7 +2545,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     agentRunning={state.streaming}
                   />
                 }
-               sideChatContent={<SideChatPanel sessionId={state.activeSessionId} hostClient={hostClient} />}
+                sideChatContent={
+                  <SideChatPanel sessionId={state.activeSessionId} hostClient={hostClient} />
+                }
                 docPreviewContent={
                   <DocPreviewPanel
                     title={activeDocument?.title}
@@ -2580,12 +2602,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         projectPath={state.projectPath}
                         request={requestGit as never}
                         onOpenFile={(absolutePath, relativePath) => {
+                          // Workspace files open beside the file rail only — never the chat stage.
                           handleOpenDocument(
                             {
                               title: relativePath.split(/[\\/]/).pop() || relativePath,
                               path: absolutePath,
                             },
-                            'stage',
+                            'inspector',
                           );
                         }}
                       />

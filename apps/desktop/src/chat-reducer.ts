@@ -112,6 +112,8 @@ export type SessionListItemUi = {
   model?: import('@piwin/contracts').ModelRef;
   /** Last composer thinking level paired with `model`. */
   thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+  /** Optional session scope for multi-project list tracking. */
+  scope?: import('@piwin/contracts').SessionScope;
 };
 
 export type RunTerminalState =
@@ -133,6 +135,8 @@ export type ChatUiState = {
   /** General-scope sessions, maintained independently so the Conversations
    *  sidebar section stays populated even when a project is active. */
   generalSessions: SessionListItemUi[];
+  /** Per-project session lists for the sidebar folder tree (see above). */
+  projectSessionsByPath: Record<string, SessionListItemUi[]>;
   activeSessionId: string | null;
   messages: ChatMessageUi[];
   outline: SessionOutlineNode[];
@@ -218,6 +222,11 @@ export type ChatUiAction =
   | { type: 'session/hydrate'; sessions: SessionListItemUi[] }
   | { type: 'session/hydrate-general'; sessions: SessionListItemUi[] }
   | {
+      type: 'session/hydrate-project';
+      projectPath: string;
+      sessions: SessionListItemUi[];
+    }
+  | {
       type: 'session/load-messages';
       sessionId: string;
       messages: SessionTranscriptMessage[];
@@ -300,6 +309,10 @@ export function createInitialChatUiState(): ChatUiState {
     trustDialogOpen: false,
     sessions: [],
     generalSessions: [],
+    /** Per-project session lists for the sidebar folder tree. Kept independent
+     *  from `sessions` (the active scope's list) so any number of project
+     *  folders can stay open with their own conversations visible. */
+    projectSessionsByPath: {},
     activeSessionId: null,
     messages: [],
     outline: [],
@@ -481,9 +494,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         runPhase: preserveOptimisticDraftSend ? state.runPhase : 'idle',
         activeRunId: preserveOptimisticDraftSend ? state.activeRunId : null,
         activeRunPhase: preserveOptimisticDraftSend ? state.activeRunPhase : null,
-        activeRunPhaseDetail: preserveOptimisticDraftSend
-          ? state.activeRunPhaseDetail
-          : null,
+        activeRunPhaseDetail: preserveOptimisticDraftSend ? state.activeRunPhaseDetail : null,
         activeRunStartedAt: preserveOptimisticDraftSend ? state.activeRunStartedAt : null,
         lastTerminalRunId: null,
         streaming: preserveOptimisticDraftSend ? true : false,
@@ -548,18 +559,23 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       // Sidebar policy: placeholder / empty names never enter the list. The
       // session can still be active (composer) until the first text title lands.
       const listable = !isPlaceholderSessionName(action.name);
+      const projectPath =
+        state.activeScope.kind === 'project' ? state.activeScope.projectPath : null;
+      const nextSessionsForPath = listable
+        ? [newSession, ...state.sessions.filter((item) => item.id !== action.sessionId)]
+        : state.sessions.filter((item) => item.id !== action.sessionId);
       return {
         ...state,
-        sessions: listable
-          ? [newSession, ...state.sessions.filter((item) => item.id !== action.sessionId)]
-          : state.sessions.filter((item) => item.id !== action.sessionId),
+        sessions: nextSessionsForPath,
         generalSessions:
           state.activeScope.kind === 'general' && listable
-            ? [
-                newSession,
-                ...state.generalSessions.filter((item) => item.id !== action.sessionId),
-              ]
+            ? [newSession, ...state.generalSessions.filter((item) => item.id !== action.sessionId)]
             : state.generalSessions.filter((item) => item.id !== action.sessionId),
+        // Mirror the new row into the folder tree for the active project.
+        projectSessionsByPath:
+          projectPath != null && listable
+            ? { ...state.projectSessionsByPath, [projectPath]: nextSessionsForPath }
+            : state.projectSessionsByPath,
         activeSessionId: action.sessionId,
         messages: [],
         runPhase: 'idle',
@@ -575,23 +591,36 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       };
     }
     case 'session/hydrate': {
-      const listable = action.sessions.filter(
-        (session) => !isPlaceholderSessionName(session.name),
-      );
+      const listable = action.sessions.filter((session) => !isPlaceholderSessionName(session.name));
+      const activeProjectPath =
+        state.activeScope.kind === 'project' ? state.activeScope.projectPath : null;
       return {
         ...state,
         sessions: listable,
         // Keep generalSessions in sync when general is the active scope.
         generalSessions: state.activeScope.kind === 'general' ? listable : state.generalSessions,
+        // Keep the sidebar folder tree in sync for the active project.
+        projectSessionsByPath:
+          activeProjectPath != null
+            ? { ...state.projectSessionsByPath, [activeProjectPath]: listable }
+            : state.projectSessionsByPath,
         activeSessionId: listable.some((session) => session.id === state.activeSessionId)
           ? state.activeSessionId
           : null,
       };
     }
+    case 'session/hydrate-project': {
+      const listable = action.sessions.filter((session) => !isPlaceholderSessionName(session.name));
+      return {
+        ...state,
+        projectSessionsByPath: {
+          ...state.projectSessionsByPath,
+          [action.projectPath]: listable,
+        },
+      };
+    }
     case 'session/hydrate-general': {
-      const listable = action.sessions.filter(
-        (session) => !isPlaceholderSessionName(session.name),
-      );
+      const listable = action.sessions.filter((session) => !isPlaceholderSessionName(session.name));
       return {
         ...state,
         generalSessions: listable,
@@ -617,7 +646,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
           }
           // Missing updatedAt = just created; keep above stamped rows.
           const leftTime = left.updatedAt ? Date.parse(left.updatedAt) : Number.POSITIVE_INFINITY;
-          const rightTime = right.updatedAt ? Date.parse(right.updatedAt) : Number.POSITIVE_INFINITY;
+          const rightTime = right.updatedAt
+            ? Date.parse(right.updatedAt)
+            : Number.POSITIVE_INFINITY;
           const leftSafe = Number.isFinite(leftTime) ? leftTime : 0;
           const rightSafe = Number.isFinite(rightTime) ? rightTime : 0;
           return rightSafe - leftSafe;
@@ -629,8 +660,10 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       );
       const mergedForCheck = {
         ...(state.sessions.find((session) => session.id === action.session.id) ??
-          state.generalSessions.find((session) => session.id === action.session.id) ??
-          { id: action.session.id, name: '' }),
+          state.generalSessions.find((session) => session.id === action.session.id) ?? {
+            id: action.session.id,
+            name: '',
+          }),
         ...action.session,
       };
       const listable = !isPlaceholderSessionName(mergedForCheck.name);
@@ -672,6 +705,47 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         nextGeneral = nextGeneral.filter((session) => session.id !== action.session.id);
       }
       sortPinnedThenUpdated(nextGeneral);
+      // Mirror the update into the owning project folder in the sidebar tree.
+      // The session's own scope is authoritative; fall back to the active
+      // project for UI-generated interim updates that lack a scope.
+      const ownProjectPath =
+        action.session.scope?.kind === 'project' ? action.session.scope.projectPath : undefined;
+      const owningProjectPath =
+        ownProjectPath ??
+        Object.entries(state.projectSessionsByPath).find(([, list]) =>
+          list.some((session) => session.id === action.session.id),
+        )?.[0] ??
+        (state.activeScope.kind === 'project' ? state.activeScope.projectPath : null);
+      if (owningProjectPath != null) {
+        const owned = state.projectSessionsByPath[owningProjectPath] ?? [];
+        const nextOwned = owned.map((session) =>
+          session.id === action.session.id ? { ...session, ...action.session } : session,
+        );
+        if (listable) {
+          if (!nextOwned.some((session) => session.id === action.session.id)) {
+            nextOwned.unshift({
+              ...action.session,
+              id: action.session.id,
+              name: action.session.name ?? mergedForCheck.name,
+            });
+          }
+        } else {
+          const dropIdx = nextOwned.findIndex((session) => session.id === action.session.id);
+          if (dropIdx >= 0) {
+            nextOwned.splice(dropIdx, 1);
+          }
+        }
+        sortPinnedThenUpdated(nextOwned);
+        return {
+          ...state,
+          sessions: nextSessions,
+          generalSessions: nextGeneral,
+          projectSessionsByPath: {
+            ...state.projectSessionsByPath,
+            [owningProjectPath]: nextOwned,
+          },
+        };
+      }
       return { ...state, sessions: nextSessions, generalSessions: nextGeneral };
     }
     case 'session/remove': {
@@ -679,11 +753,18 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       const nextGeneralSessions = state.generalSessions.filter(
         (session) => session.id !== action.sessionId,
       );
+      const nextProjectSessionsByPath = Object.fromEntries(
+        Object.entries(state.projectSessionsByPath).map(([projectPath, list]) => [
+          projectPath,
+          list.filter((session) => session.id !== action.sessionId),
+        ]),
+      );
       const activeRemoved = state.activeSessionId === action.sessionId;
       return {
         ...state,
         sessions: nextSessions,
         generalSessions: nextGeneralSessions,
+        projectSessionsByPath: nextProjectSessionsByPath,
         // Do not auto-select another session when the active one is removed.
         activeSessionId: activeRemoved ? null : state.activeSessionId,
         messages: activeRemoved ? [] : state.messages,
@@ -1637,9 +1718,7 @@ function applyRunRecord(state: ChatUiState, run: ExecutionRunRecord): ChatUiStat
       activeRunId: run.runId,
       activeRunPhase: run.phase ?? state.activeRunPhase,
       activeRunPhaseDetail: run.phaseDetail ?? null,
-      activeRunStartedAt: run.startedAt
-        ? parseEventTime(run.startedAt)
-        : state.activeRunStartedAt,
+      activeRunStartedAt: run.startedAt ? parseEventTime(run.startedAt) : state.activeRunStartedAt,
       runPhase: run.status === 'cancelling' ? 'aborting' : 'streaming',
       streaming: true,
       lastTerminalRunId: null,
@@ -1651,7 +1730,11 @@ function applyRunRecord(state: ChatUiState, run: ExecutionRunRecord): ChatUiStat
   if (state.activeRunId !== null && state.activeRunId !== run.runId) {
     return { ...state, runRecordsById: records };
   }
-  if (state.activeRunId === null && state.lastTerminalRunId !== null && state.lastTerminalRunId !== run.runId) {
+  if (
+    state.activeRunId === null &&
+    state.lastTerminalRunId !== null &&
+    state.lastTerminalRunId !== run.runId
+  ) {
     return { ...state, runRecordsById: records };
   }
   if (state.activeRunId === null && state.lastTerminalRunId === run.runId) {

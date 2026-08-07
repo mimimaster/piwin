@@ -526,8 +526,16 @@
   transition: background-color var(--motion-quick, 120ms) var(--motion-ease, ease);
 }
 
-.piwin-switch-input:checked + .piwin-switch-track.piwin-switch-track {
-  background-color: var(--accent);
+.piwin-switch-input:checked + .piwin-switch-track.piwin-switch-track,
+.piwin-switch-track[data-checked="true"],
+.piwin-switch-root[data-checked="true"] .piwin-switch-track {
+  background-color: var(--ok, #10b981);
+}
+
+.piwin-switch-input:not(:checked) + .piwin-switch-track.piwin-switch-track,
+.piwin-switch-track[data-checked="false"],
+.piwin-switch-root[data-checked="false"] .piwin-switch-track {
+  background-color: var(--faint, rgba(255, 255, 255, 0.18));
 }
 
 .piwin-switch-track .piwin-switch-thumb.piwin-switch-thumb {
@@ -887,12 +895,227 @@
   }
 }
 
+/* ── Organic Blob (变形有机体) ──────────────────────────────────── */
+
+.ui-anim-organic-blob {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-anim-organic-blob__shape {
+  display: block;
+  background-color: var(--text);
+  animation: ui-anim-organic-blob 4.2s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.ui-anim--sm .ui-anim-organic-blob__shape { width: 16px; height: 16px; }
+.ui-anim--md .ui-anim-organic-blob__shape { width: 42px; height: 42px; }
+.ui-anim--lg .ui-anim-organic-blob__shape { width: 64px; height: 64px; }
+
+@keyframes ui-anim-organic-blob {
+  0% {
+    border-radius: 60% 40% 30% 70% / 50% 60% 40% 50%;
+    transform: scale(0.55) rotate(0deg);
+    opacity: 0.5;
+  }
+  50% {
+    border-radius: 30% 70% 50% 50% / 30% 40% 60% 60%;
+    transform: scale(1.25) rotate(18deg);
+    opacity: 1;
+  }
+  100% {
+    border-radius: 60% 40% 30% 70% / 50% 60% 40% 50%;
+    transform: scale(0.55) rotate(0deg);
+    opacity: 0.5;
+  }
+}
+
+/* ── Breath Matrix (呼吸矩阵) ──────────────────────────────────── */
+
+.ui-anim-breath-matrix {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.ui-anim--sm.ui-anim-breath-matrix { gap: 2px; }
+.ui-anim--lg.ui-anim-breath-matrix { gap: 5px; }
+
+.ui-anim-breath-matrix__cell {
+  background-color: var(--text);
+  border-radius: 3px;
+  animation: ui-anim-breath-matrix 3.6s ease-in-out infinite;
+  animation-delay: calc((var(--i) * 0.15s) + (var(--j) * 0.15s));
+  transform: scale(0.3);
+  opacity: 0.15;
+}
+
+@keyframes ui-anim-breath-matrix {
+  0%, 100% {
+    transform: scale(0.3);
+    opacity: 0.15;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.95;
+  }
+}
+
+/* ── Radial Bellow (辐射风箱) ──────────────────────────────────── */
+
+.ui-anim-radial-bellow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.ui-anim-radial-bellow__vane {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  background-color: var(--text);
+  border-radius: 4px;
+  transform-origin: center center;
+  animation: ui-anim-radial-bellow 4s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.5s);
+  opacity: 0.1;
+}
+
+/* Vane dimensions per size — width/height/margins relative to container */
+.ui-anim--sm .ui-anim-radial-bellow__vane { width: 6px; height: 18px; margin-left: -3px; margin-top: -9px; }
+.ui-anim--md .ui-anim-radial-bellow__vane { width: 8px; height: 24px; margin-left: -4px; margin-top: -12px; }
+.ui-anim--lg .ui-anim-radial-bellow__vane { width: 10px; height: 32px; margin-left: -5px; margin-top: -16px; }
+
+/* Translate distance per size — how far vanes radiate from center */
+.ui-anim--sm.ui-anim-radial-bellow .ui-anim-radial-bellow__vane { --vane-radius: 14px; }
+.ui-anim--md.ui-anim-radial-bellow .ui-anim-radial-bellow__vane { --vane-radius: 20px; }
+.ui-anim--lg.ui-anim-radial-bellow .ui-anim-radial-bellow__vane { --vane-radius: 28px; }
+
+@keyframes ui-anim-radial-bellow {
+  0%, 100% {
+    transform: rotate(calc(var(--i) * 45deg)) translateX(var(--vane-radius, 20px)) scale(0.4, 0.3);
+    opacity: 0.1;
+  }
+  50% {
+    transform: rotate(calc(var(--i) * 45deg)) translateX(var(--vane-radius, 20px)) scale(1.5, 1.8);
+    opacity: 0.95;
+  }
+}
+
+/* ── Cascade Ripple (级联涟漪) ─────────────────────────────────── */
+
+.ui-anim-cascade-ripple {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+.ui-anim--sm.ui-anim-cascade-ripple { gap: 2px; }
+.ui-anim--lg.ui-anim-cascade-ripple { gap: 4px; }
+
+.ui-anim-cascade-ripple__bar {
+  width: 100%;
+  border-radius: 3px;
+  background-color: var(--text);
+  animation: ui-anim-cascade-ripple 3.2s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.2s);
+  transform: scaleY(0.2);
+  opacity: 0.1;
+  transform-origin: center;
+}
+
+/* Bar height per size */
+.ui-anim--sm .ui-anim-cascade-ripple__bar { height: 3px; }
+.ui-anim--md .ui-anim-cascade-ripple__bar { height: 5px; }
+.ui-anim--lg .ui-anim-cascade-ripple__bar { height: 6px; }
+
+@keyframes ui-anim-cascade-ripple {
+  0%, 100% {
+    transform: scaleY(0.2);
+    opacity: 0.1;
+  }
+  50% {
+    transform: scaleY(1.9);
+    opacity: 0.95;
+  }
+}
+
+/* ── Asterisk Breath (星芒呼吸) ─────────────────────────────────── */
+
+.ui-anim-asterisk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-anim-asterisk__icon {
+  width: 100%;
+  height: 100%;
+}
+
+.ui-anim-asterisk__spinner {
+  transform-origin: 24px 24px;
+  animation: ui-anim-asterisk-spin 10s linear infinite;
+}
+
+.ui-anim-asterisk__arm {
+  fill: var(--text);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ui-anim-asterisk-arm 2.8s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -0.35s);
+}
+
+.ui-anim-asterisk__core {
+  fill: var(--text);
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ui-anim-asterisk-core 2.8s ease-in-out infinite;
+}
+
+@keyframes ui-anim-asterisk-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ui-anim-asterisk-arm {
+  0%, 100% {
+    transform: scaleY(0.45);
+    opacity: 0.25;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes ui-anim-asterisk-core {
+  0%, 100% {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+}
+
 /* ── Reduced motion: freeze all breathing animations ────────────── */
 
 @media (prefers-reduced-motion: reduce) {
   .ui-anim-breath-dot__core,
   .ui-anim-pulse-block__cell,
-  .ui-anim-solid-bars__bar {
+  .ui-anim-solid-bars__bar,
+  .ui-anim-organic-blob__shape,
+  .ui-anim-breath-matrix__cell,
+  .ui-anim-radial-bellow__vane,
+  .ui-anim-cascade-ripple__bar,
+  .ui-anim-asterisk__spinner,
+  .ui-anim-asterisk__arm,
+  .ui-anim-asterisk__core {
     animation: none;
     opacity: 0.6;
   }

@@ -207,3 +207,19 @@
     scroll-behavior: auto;
   }
 }
+
+/* While a column is drag-resized, drop expensive glass blur so the shell does
+   not re-composite backdrop filters on every width sample (visible flicker). */
+.app-shell.is-resizing-panels .workspace,
+.app-shell.is-resizing-panels .chat-column,
+.app-shell.is-resizing-panels .sidebar,
+.app-shell.is-resizing-panels .right-panel,
+.app-shell.is-resizing-panels .workspace-document-stage {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transition: none !important;
+}
+
+.app-shell.is-resizing-panels {
+  cursor: col-resize;
+}

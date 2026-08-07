@@ -38,6 +38,7 @@ import {
 import {
   IconBook,
   IconChat,
+  IconChevronDown,
   IconClose,
   IconDocument,
   IconPlus,
@@ -67,6 +68,7 @@ import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
 import { BranchChip, type BranchChipRequest } from './branch-chip';
 import { RuntimeTargetChip } from './runtime-target-chip';
+import { SteerQueue, type SteerQueueMessage } from './steer-queue';
 
 export type ComposerModelOption = {
   providerId: string;
@@ -166,6 +168,14 @@ export type ComposerDockProps = {
   onOpenOrchestrationSchemeSettings?: () => void;
   /** Optional git request adapter for the footer branch chip. */
   branchRequest?: ((command: BranchChipRequest) => Promise<import('@piwin/contracts').HostResponse>) | undefined;
+  /** Optional handler to trigger project picker dialog when project path chip is clicked. */
+  onOpenProjectPicker?: (() => void) | undefined;
+  /** Steer messages queued for execution */
+  steerQueueMessages?: readonly SteerQueueMessage[];
+  onSteerQueueSendNow?: (messageId: string) => void | Promise<void>;
+  onSteerQueueEdit?: (messageId: string, text: string) => void;
+  onSteerQueueRemove?: (messageId: string) => void;
+  onToggleMultitasking?: () => void;
 };
 
 function getAgentPlaceholder(
@@ -869,6 +879,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               mcpServers={props.menuMcp}
               onOpenMcpPanel={props.onOpenMcpPanel}
               onAttachImage={props.onAttachImage}
+              orchestrationSchemeOptions={props.orchestrationSchemeOptions}
+              orchestrationSchemeId={props.orchestrationSchemeId}
+              onOrchestrationSchemeChange={props.onOrchestrationSchemeChange}
+              onOpenOrchestrationSchemeSettings={props.onOpenOrchestrationSchemeSettings}
             />
           </div>
 
@@ -909,7 +923,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             />
           ) : null}
 
-          {props.onOrchestrationSchemeChange && props.orchestrationSchemeOptions ? (
+          {props.onOrchestrationSchemeChange &&
+          props.orchestrationSchemeOptions &&
+          props.orchestrationSchemeId &&
+          props.orchestrationSchemeId !== 'off' ? (
             <OrchestrationSchemeControl
               disabled={false}
               value={props.orchestrationSchemeId ?? 'off'}
@@ -945,57 +962,59 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           />
 
           {/* Send / Stop Action Button */}
-          {isStreamingRun ? (
-            isExtensionUiActive ? (
-              <button
-                type="button"
-                className="composer-v2-stop-btn is-running"
-                data-testid="stop-btn"
-                disabled={!props.activeSessionId || props.runPhase === 'aborting'}
-                onClick={props.onAbort}
-                aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
-                title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
-              >
-                <IconStop />
-              </button>
-            ) : hasContent ? (
-              <button
-                type="button"
-                className="composer-v2-send-btn is-steer"
-                data-testid="send-btn"
-                disabled={!props.onSteer}
-                onClick={triggerSteer}
-                aria-label={copy.sendSteerMessage}
-                title={copy.sendSteerHint}
-              >
-                <IconSend />
-              </button>
+          <div className="composer-v2-action-slot">
+            {isStreamingRun ? (
+              isExtensionUiActive ? (
+                <button
+                  type="button"
+                  className="composer-v2-stop-btn is-running"
+                  data-testid="stop-btn"
+                  disabled={!props.activeSessionId || props.runPhase === 'aborting'}
+                  onClick={props.onAbort}
+                  aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
+                  title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
+                >
+                  <IconStop />
+                </button>
+              ) : hasContent ? (
+                <button
+                  type="button"
+                  className="composer-v2-send-btn is-steer"
+                  data-testid="send-btn"
+                  disabled={!props.onSteer}
+                  onClick={triggerSteer}
+                  aria-label={copy.sendSteerMessage}
+                  title={copy.sendSteerHint}
+                >
+                  <IconSend />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="composer-v2-stop-btn is-running"
+                  data-testid="stop-btn"
+                  disabled={!props.activeSessionId || props.runPhase === 'aborting'}
+                  onClick={props.onAbort}
+                  aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
+                  title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
+                >
+                  <IconStop />
+                </button>
+              )
             ) : (
               <button
                 type="button"
-                className="composer-v2-stop-btn is-running"
-                data-testid="stop-btn"
-                disabled={!props.activeSessionId || props.runPhase === 'aborting'}
-                onClick={props.onAbort}
-                aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
-                title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
+                className="composer-v2-send-btn"
+                data-testid="send-btn"
+                disabled={!hasContent || attachmentsBlockingSend}
+                onClick={triggerSend}
+                aria-label={copy.send}
+                title={copy.sendShortcut}
               >
-                <IconStop />
+                <IconSend />
               </button>
-            )
-          ) : (
-            <button
-              type="button"
-              className="composer-v2-send-btn"
-              data-testid="send-btn"
-              disabled={!hasContent || attachmentsBlockingSend}
-              onClick={triggerSend}
-              aria-label={copy.send}
-              title={copy.sendShortcut}
-            >
-              <IconSend />
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -1033,6 +1052,29 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
     >
       {/* Outside the input card: floating context layer (project / branch / runtime). */}
       <div className="composer-context-rail" data-testid="composer-context-row">
+        {props.onOpenProjectPicker && props.projectPath ? (
+          <button
+            type="button"
+            className="composer-context-link"
+            data-testid="composer-project-chip"
+            onClick={props.onOpenProjectPicker}
+            title={props.projectPath}
+            aria-label={props.projectPath}
+          >
+            <span className="composer-context-link-label">{props.projectPath}</span>
+            <span className="composer-context-link-caret" aria-hidden>
+              <IconChevronDown width={13} height={13} />
+            </span>
+          </button>
+        ) : props.projectPath ? (
+          <span
+            className="composer-context-link is-static"
+            data-testid="composer-project-chip"
+            title={props.projectPath}
+          >
+            <span className="composer-context-link-label">{props.projectPath}</span>
+          </span>
+        ) : null}
         {props.branchRequest && props.projectPath ? (
           <BranchChip
             projectPath={props.projectPath}
@@ -1042,6 +1084,15 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         ) : null}
         <RuntimeTargetChip />
       </div>
+      {props.steerQueueMessages && props.steerQueueMessages.length > 0 ? (
+        <SteerQueue
+          messages={props.steerQueueMessages}
+          onSendNow={props.onSteerQueueSendNow || (() => {})}
+          onEdit={props.onSteerQueueEdit || (() => {})}
+          onRemove={props.onSteerQueueRemove || (() => {})}
+          onToggleMultitasking={props.onToggleMultitasking}
+        />
+      ) : null}
       <ComposerCard {...props} />
       <div className="composer-footer-row">
         <button

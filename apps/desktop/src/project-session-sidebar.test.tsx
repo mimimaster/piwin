@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
@@ -369,4 +369,113 @@ it('opens customize menu with ordering, group by, and archived filter', () => {
     archivedFilter?.click();
   });
   expect(toggledArchived).toBe(true);
+});
+
+describe('ProjectSessionSidebar folder click behavior', () => {
+  it('does not call onOpenProject when a project folder is clicked (only toggles expansion)', () => {
+    const onOpenProject = vi.fn();
+    const projects = createMockProjects(2);
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      projectPath: projects[0]?.path ?? null,
+      onOpenProject,
+    });
+
+    const folderSummary = container.querySelector<HTMLDivElement>(
+      '[data-testid="repository-item"]',
+    );
+    expect(folderSummary).not.toBeNull();
+
+    act(() => {
+      folderSummary?.click();
+    });
+
+    // Clicking the folder must not switch project scope or session.
+    expect(onOpenProject).not.toHaveBeenCalled();
+  });
+
+  it('shows sessions from projectSessionsByPath for a non-active open folder', () => {
+    const projects = createMockProjects(2);
+    const otherProjectPath = projects[1]!.path;
+    const otherSessions: SessionListItemUi[] = [
+      {
+        id: 'other-session-1',
+        name: 'Other Project Chat',
+        updatedAt: new Date().toISOString(),
+        isPinned: false,
+        isArchived: false,
+      },
+    ];
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      projectPath: projects[0]?.path ?? null,
+      projectSessionsByPath: { [otherProjectPath]: otherSessions },
+    });
+
+    // The non-active folder is closed by default; open it.
+    const folders = container.querySelectorAll<HTMLDivElement>('[data-testid="repository-item"]');
+    const otherFolder = Array.from(folders).find(
+      (el) => el.getAttribute('data-project-path') === otherProjectPath,
+    );
+    expect(otherFolder).toBeDefined();
+    act(() => {
+      otherFolder?.click();
+    });
+
+    // The other project's session is now visible without switching scope.
+    const sessionItems = container.querySelectorAll('[data-testid="session-item"]');
+    const names = Array.from(sessionItems).map((el) => el.textContent ?? '');
+    expect(names.some((name) => name.includes('Other Project Chat'))).toBe(true);
+  });
+
+  it('keeps multiple project folders open simultaneously', () => {
+    const projects = createMockProjects(3);
+    const sessionsByPath: Record<string, SessionListItemUi[]> = {
+      [projects[1]!.path]: [
+        {
+          id: 'session-b1',
+          name: 'Project B Chat',
+          updatedAt: new Date().toISOString(),
+          isPinned: false,
+          isArchived: false,
+        },
+      ],
+      [projects[2]!.path]: [
+        {
+          id: 'session-c1',
+          name: 'Project C Chat',
+          updatedAt: new Date().toISOString(),
+          isPinned: false,
+          isArchived: false,
+        },
+      ],
+    };
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      projectPath: projects[0]?.path ?? null,
+      projectSessionsByPath: sessionsByPath,
+    });
+
+    const folders = container.querySelectorAll<HTMLDivElement>('[data-testid="repository-item"]');
+    const folderB = Array.from(folders).find(
+      (el) => el.getAttribute('data-project-path') === projects[1]!.path,
+    );
+    const folderC = Array.from(folders).find(
+      (el) => el.getAttribute('data-project-path') === projects[2]!.path,
+    );
+
+    // Open both non-active folders.
+    act(() => {
+      folderB?.click();
+    });
+    act(() => {
+      folderC?.click();
+    });
+
+    const names = Array.from(container.querySelectorAll('[data-testid="session-item"]')).map(
+      (el) => el.textContent ?? '',
+    );
+    expect(names.some((n) => n.includes('Project B Chat'))).toBe(true);
+    expect(names.some((n) => n.includes('Project C Chat'))).toBe(true);
+  });
 });

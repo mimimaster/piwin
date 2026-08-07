@@ -523,4 +523,32 @@ describe('ComposerDock host status', () => {
     expect(sendButton?.getAttribute('aria-label')).toBe('发送');
     expect(hostStatus?.textContent).toContain('Host：SDK');
   });
+
+  it('hides orchestration scheme trigger when scheme is off, and shows it when active', () => {
+    const options = [
+      { id: 'off', name: 'Off', description: 'Disabled' },
+      { id: 'ultra-code', name: 'Ultra Code', description: 'Multi-step coding plan' },
+    ];
+    const onOrchestrationSchemeChange = vi.fn();
+
+    let rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        orchestrationSchemeId="off"
+        orchestrationSchemeOptions={options}
+        onOrchestrationSchemeChange={onOrchestrationSchemeChange}
+      />,
+    );
+    expect(rendered.container.querySelector('[data-testid="orchestration-scheme-trigger"]')).toBeNull();
+
+    rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        orchestrationSchemeId="ultra-code"
+        orchestrationSchemeOptions={options}
+        onOrchestrationSchemeChange={onOrchestrationSchemeChange}
+      />,
+    );
+    expect(rendered.container.querySelector('[data-testid="orchestration-scheme-trigger"]')).not.toBeNull();
+  });
 });

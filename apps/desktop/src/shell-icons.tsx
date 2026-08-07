@@ -731,3 +731,13 @@ export function IconForkConversation(props: IconProps): ReactElement {
     </IconBase>
   );
 }
+
+/** Up arrow icon matching steer queue prioritize send-now button. */
+export function IconArrowUp(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    </IconBase>
+  );
+}
+

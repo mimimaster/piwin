@@ -14,6 +14,7 @@ import {
   TabsList,
   TabsTrigger,
   TextInput,
+  showUiNotification,
 } from '@piwin/ui-kit';
 import type {
   HostResponse,
@@ -59,7 +60,6 @@ export function McpPanel(props: McpPanelProps) {
   const [registryQuery, setRegistryQuery] = useState('');
   const [registryLoading, setRegistryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [document, setDocument] = useState<McpConfigDocument>({
     mcpServers: {},
     pinnedSelectors: [],
@@ -95,7 +95,6 @@ export function McpPanel(props: McpPanelProps) {
   const loadConfig = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setInfo(null);
     const response = await props.request({ type: 'mcp/get' });
     if (!response.success) {
       setError(response.error);
@@ -136,15 +135,24 @@ export function McpPanel(props: McpPanelProps) {
 
   async function saveDocumentNow(payload: McpConfigDocument): Promise<boolean> {
     setError(null);
-    setInfo(null);
     const response = await props.request({ type: 'mcp/save', document: payload });
     if (!response.success) {
       setError(response.error);
+      showUiNotification({
+        tone: 'error',
+        title: isChinese ? 'MCP 保存失败' : 'MCP Save Failed',
+        message: response.error,
+        autoClose: 5000,
+      });
       return false;
     }
     const data = response.data as { path: string; document: McpConfigDocument };
     updateDocument(data.document);
-    setInfo(isChinese ? `已保存 ${data.path}` : `Saved ${data.path}`);
+    showUiNotification({
+      tone: 'success',
+      message: isChinese ? `已保存 ${data.path}` : `Saved ${data.path}`,
+      autoClose: 3500,
+    });
     return true;
   }
 
@@ -234,8 +242,6 @@ export function McpPanel(props: McpPanelProps) {
     serverId: string,
     config: McpServerConfig,
   ): Promise<McpToolSummary[]> {
-    // Temporarily save then probe, then restore? No — just probe via list_tools
-    // which requires the server to exist. For new servers, we save first.
     const exists = Boolean(document.mcpServers[serverId]);
     if (!exists) {
       const nextServers = { ...document.mcpServers, [serverId]: config };
@@ -255,17 +261,26 @@ export function McpPanel(props: McpPanelProps) {
     const server = document.mcpServers[serverId];
     if (!server) return;
     setError(null);
-    setInfo(null);
     if (enable) {
       const nextServers = { ...document.mcpServers, [serverId]: { ...server, disabled: false } };
       if (!(await saveDocument({ mcpServers: nextServers }))) return;
       const response = await props.request({ type: 'mcp/start', serverId });
       if (!response.success) {
-        setError(response.error);
+        showUiNotification({
+          tone: 'error',
+          title: isChinese ? '启动 MCP 服务器失败' : 'Failed to start MCP server',
+          message: response.error,
+          autoClose: 5000,
+        });
         return;
       }
       const data = response.data as { health: McpServerHealth };
       setHealthById((current) => ({ ...current, [data.health.serverId]: data.health }));
+      showUiNotification({
+        tone: 'success',
+        message: isChinese ? `已启动 ${serverId}` : `Started ${serverId}`,
+        autoClose: 3000,
+      });
     } else {
       const stopResponse = await props.request({ type: 'mcp/stop', serverId });
       if (stopResponse.success) {
@@ -273,7 +288,14 @@ export function McpPanel(props: McpPanelProps) {
         setHealthById((current) => ({ ...current, [data.health.serverId]: data.health }));
       }
       const nextServers = { ...document.mcpServers, [serverId]: { ...server, disabled: true } };
-      await saveDocument({ mcpServers: nextServers });
+      const saved = await saveDocument({ mcpServers: nextServers });
+      if (saved) {
+        showUiNotification({
+          tone: 'success',
+          message: isChinese ? `已禁用 ${serverId}` : `Disabled ${serverId}`,
+          autoClose: 3000,
+        });
+      }
     }
   }
 
@@ -290,17 +312,25 @@ export function McpPanel(props: McpPanelProps) {
     if (!ok) return;
     const nextServers = { ...document.mcpServers };
     delete nextServers[serverId];
-    await saveDocument({ mcpServers: nextServers });
+    const saved = await saveDocument({ mcpServers: nextServers });
+    if (saved) {
+      showUiNotification({
+        tone: 'success',
+        message: isChinese ? `已移除 ${serverId}` : `Removed ${serverId}`,
+        autoClose: 3000,
+      });
+    }
   }
 
   async function handleInstallDraft(card: McpRegistryCard): Promise<void> {
     setError(null);
-    setInfo(null);
     const draft = card.installDraft ?? (card.manualDraft as McpServerConfig | undefined);
     if (!draft || !draft.command) {
-      setError(
-        isChinese ? '此卡片没有安装草稿，请手动配置。' : 'This card has no install draft — configure manually.',
-      );
+      showUiNotification({
+        tone: 'error',
+        message: isChinese ? '此卡片没有安装草稿，请手动配置。' : 'This card has no install draft — configure manually.',
+        autoClose: 4000,
+      });
       return;
     }
     const response = await props.request({
@@ -309,10 +339,19 @@ export function McpPanel(props: McpPanelProps) {
       draft,
     });
     if (!response.success) {
-      setError(response.error);
+      showUiNotification({
+        tone: 'error',
+        title: isChinese ? '安装草稿失败' : 'Failed to install draft',
+        message: response.error,
+        autoClose: 5000,
+      });
       return;
     }
-    setInfo(isChinese ? `已安装 ${card.title} 的草稿` : `Installed draft for ${card.title}`);
+    showUiNotification({
+      tone: 'success',
+      message: isChinese ? `已安装 ${card.title} 的草稿` : `Installed draft for ${card.title}`,
+      autoClose: 3500,
+    });
     setMainTab('configured');
     await loadConfig();
   }
@@ -329,51 +368,47 @@ export function McpPanel(props: McpPanelProps) {
             onValueChange={(value) => setMainTab(value as 'configured' | 'registry')}
             testId="mcp-main-tabs"
           >
-            <div className="mcp-header-bar" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, gap: 16 }}>
-              {props.variant !== 'inline' ? (
-                <PageTitle
-                  title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
-                  description={
-                    mainTab === 'configured'
-                      ? (isChinese ? '管理本地 MCP 服务器配置。点击服务器卡片编辑详情。' : 'Manage local MCP server configurations. Click a server to edit details.')
-                      : (isChinese ? '从开放市场浏览并安装社区 MCP 服务器。' : 'Browse and install MCP servers from the community marketplace.')
-                  }
-                />
-              ) : null}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-                <TabsList className="segmented-control" label={isChinese ? 'MCP 视图' : 'MCP views'}>
-                  <TabsTrigger value="configured" className="segmented-control-item" testId="mcp-tab-configured">
-                    {isChinese ? '已配置' : 'Configured'}
-                  </TabsTrigger>
-                  <TabsTrigger value="registry" className="segmented-control-item" testId="mcp-tab-registry">
-                    {isChinese ? '市场' : 'Marketplace'}
-                  </TabsTrigger>
-                </TabsList>
-                {mainTab === 'configured' && (
-                  <Button size="compact" variant="primary" onClick={openAddEditor} data-testid="mcp-add-btn">
-                    + {isChinese ? '添加服务器' : 'Add Server'}
-                  </Button>
-                )}
-              </div>
+            {props.variant !== 'inline' ? (
+              <PageTitle
+                title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
+                description={
+                  mainTab === 'configured'
+                    ? (isChinese ? '管理本地 MCP 服务器配置。点击服务器卡片编辑详情。' : 'Manage local MCP server configurations. Click a server to edit details.')
+                    : (isChinese ? '从开放市场浏览并安装社区 MCP 服务器。' : 'Browse and install MCP servers from the community marketplace.')
+                }
+              />
+            ) : null}
+
+            <div className="mcp-tabs-toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
+              <TabsList className="segmented-control" label={isChinese ? 'MCP 视图' : 'MCP views'}>
+                <TabsTrigger value="configured" className="segmented-control-item" testId="mcp-tab-configured">
+                  {isChinese ? `已配置 (${serverIds.length})` : `Configured (${serverIds.length})`}
+                </TabsTrigger>
+                <TabsTrigger value="registry" className="segmented-control-item" testId="mcp-tab-registry">
+                  {isChinese ? '市场' : 'Marketplace'}
+                </TabsTrigger>
+              </TabsList>
+              {mainTab === 'configured' && (
+                <Button size="compact" variant="primary" onClick={openAddEditor} data-testid="mcp-add-btn">
+                  + {isChinese ? '添加服务器' : 'Add Server'}
+                </Button>
+              )}
             </div>
 
             <TabsContent value="configured" className="mcp-tab-content">
-              {(error || info) ? (
+              {error && serverIds.length === 0 ? (
                 <div className="ui-feedback-host" aria-live="polite" style={{ marginBottom: 16 }}>
-                  {error ? (
-                    <Notice tone="error" title={isChinese ? 'MCP 操作失败' : 'MCP action failed'}>
-                      {error}
-                    </Notice>
-                  ) : null}
-                  {info ? <Notice tone="info">{info}</Notice> : null}
+                  <Notice tone="error" title={isChinese ? 'MCP 加载失败' : 'MCP load failed'}>
+                    {error}
+                  </Notice>
                 </div>
               ) : null}
 
               {loading ? (
                 <div className="mcp-loading-state"><Spinner /></div>
               ) : serverIds.length === 0 ? (
-                <div className="mcp-empty-list" style={{ textAlign: 'center', padding: '40px 20px' }}>
-                  <p className="muted" style={{ marginBottom: 16 }}>
+                <div className="mcp-empty-list">
+                  <p style={{ marginBottom: 16 }}>
                     {isChinese ? '尚未配置服务器。点击「添加服务器」创建第一个 MCP 服务器。' : 'No servers configured. Click "Add Server" to create your first MCP server.'}
                   </p>
                   <Button size="compact" variant="primary" onClick={openAddEditor}>
@@ -385,31 +420,55 @@ export function McpPanel(props: McpPanelProps) {
                   {serverIds.map((serverId) => {
                     const server = document.mcpServers[serverId];
                     const health = healthById[serverId];
-                    const runtimeStatus = health?.status ?? 'stopped';
                     const isEnabled = !server?.disabled;
+                    const runtimeStatus = !isEnabled
+                      ? 'stopped'
+                      : (health?.status === 'error'
+                        ? 'error'
+                        : (health?.status === 'starting'
+                          ? 'starting'
+                          : 'running'));
                     const toolCount = health?.toolCount ?? 0;
+                    const fullCommand = [server?.command ?? '', ...(server?.args ?? [])].filter(Boolean).join(' ');
+                    const envCount = Object.keys(server?.env ?? {}).length;
 
                     return (
                       <li key={serverId} className="ext-list-item mcp-server-card" data-testid={`mcp-server-${serverId}`}>
                         <div className="mcp-server-card-body" onClick={() => openEditEditor(serverId)}>
                           <div className="mcp-server-card-title">
-                            <span className={`mcp-status-dot-inline ${runtimeStatus}`} />
-                            <strong>{serverId}</strong>
-                            {/* Always-mounted status chip (visibility only) so toggle never shifts layout. */}
                             <span
-                              className={
-                                isEnabled
-                                  ? 'mcp-disabled-label mcp-disabled-label--hidden'
-                                  : 'mcp-disabled-label'
+                              className={`mcp-status-dot-inline ${runtimeStatus}`}
+                              title={
+                                runtimeStatus === 'running'
+                                  ? (isChinese ? '运行中' : 'Running')
+                                  : runtimeStatus === 'starting'
+                                    ? (isChinese ? '启动中' : 'Starting')
+                                    : runtimeStatus === 'error'
+                                      ? (isChinese ? '运行错误' : 'Error')
+                                      : (isChinese ? '已停止' : 'Stopped')
                               }
-                              aria-hidden={isEnabled}
-                            >
-                              {isChinese ? '已禁用' : 'disabled'}
-                            </span>
+                            />
+                            <strong className="mcp-server-id">{serverId}</strong>
+                            {!isEnabled ? (
+                              <span className="mcp-disabled-pill">
+                                {isChinese ? '已禁用' : 'disabled'}
+                              </span>
+                            ) : null}
                           </div>
                           <div className="mcp-server-card-meta">
-                            <code>{server?.command ?? ''}</code>
-                            {toolCount > 0 && <span> · {isChinese ? `${toolCount} 个工具` : `${toolCount} tools`}</span>}
+                            <code className="mcp-command-snippet" title={fullCommand}>
+                              {fullCommand || (isChinese ? '(无命令)' : '(no command)')}
+                            </code>
+                            {toolCount > 0 && (
+                              <span className="mcp-meta-badge mcp-tools-badge">
+                                {isChinese ? `${toolCount} 个工具` : `${toolCount} tools`}
+                              </span>
+                            )}
+                            {envCount > 0 && (
+                              <span className="mcp-meta-badge mcp-env-badge">
+                                {isChinese ? `${envCount} 个环境变量` : `${envCount} env vars`}
+                              </span>
+                            )}
                           </div>
                         </div>
                         <div className="mcp-server-card-actions">

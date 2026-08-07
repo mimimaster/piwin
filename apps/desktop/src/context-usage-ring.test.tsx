@@ -166,6 +166,35 @@ describe('ContextUsageRing', () => {
     expect(queryPopover()?.textContent).toContain('95% Full');
   });
 
+  it('recomputes percent from used/limit when host contextRatio used a different window', () => {
+    // Host snapshot may carry contextRatio against a smaller window (e.g. 128K)
+    // while the selected model exposes a 1M window for display.
+    render(
+      createBaseProps({
+        usage: {
+          sessionId: 'session-test',
+          tokensUsed: 21_000,
+          tokensLimit: 128_000,
+          contextRatio: 21_000 / 128_000, // ~16% against the host window
+          updatedAt: '2026-07-26T00:00:00.000Z',
+        },
+        modelContextWindow: 1_000_000,
+      }),
+      root,
+    );
+
+    const trigger = queryTrigger();
+    expect(trigger.getAttribute('title')).toBe('Context 21K / 1M (2%)');
+    expect(trigger.className).toContain('tone-ok');
+
+    activateTrigger();
+    const popover = queryPopover();
+    expect(popover?.textContent).toContain('2% Full');
+    expect(popover?.textContent).toContain('21K / 1M Tokens');
+    // Must NOT still show the host-window ratio against the 1M denominator.
+    expect(popover?.textContent).not.toContain('16% Full');
+  });
+
   it('invokes the model-settings callback and closes the popover', () => {
     const onOpenModelSettings = vi.fn();
     render(createBaseProps({ onOpenModelSettings }), root);

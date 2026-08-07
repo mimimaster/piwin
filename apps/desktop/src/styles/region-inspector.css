@@ -72,8 +72,7 @@
 
 .right-panel.is-resizing {
   border-left-color: var(--accent);
-  /* Drag is rAF-batched; no transition so width/transform follow the pointer
-     exactly without chasing it. */
+  /* Drag writes --right-panel-width directly; no transition chase. */
   transition: none;
   will-change: width;
   /* Prevent scrollbar appearance/disappearance from causing layout shifts. */
@@ -81,6 +80,7 @@
   /* Backdrop blur is expensive while the column reflows every pointer sample. */
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  contain: layout style;
 }
 
 .right-panel-resize-handle {
@@ -722,20 +722,23 @@
 }
 
 /* Split lives entirely inside the right panel: left content, right folder tree.
-   Never expands into the chat/stage column. */
+   Never expands into the chat/stage column. Only one preview rail is allowed;
+   clicking another file reuses this same left pane. */
 .file-tree-panel-split {
   flex-direction: row;
   align-items: stretch;
+  min-width: 0;
 }
 
 .file-tree-preview {
   display: flex;
   flex-direction: column;
-  flex: 1 1 58%;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 160px;
   min-height: 0;
   border-right: 1px solid var(--line-soft);
   background: var(--panel, var(--sidebar));
+  contain: layout paint;
 }
 
 .file-tree-preview-header {
@@ -773,7 +776,9 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 8px 0 16px;
+  padding: 8px 0 0 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .file-tree-preview-binary,
@@ -782,12 +787,57 @@
   font-size: 12px;
 }
 
-/* When split is open, the tree column stays a compact navigator on the right. */
+/* When split is open, the tree column stays a compact navigator on the right.
+   Fixed basis so the single left preview rail absorbs remaining width. */
+/* File tree rail — draggable divider between left preview and right file tree. */
 .file-tree-panel-split > .file-tree-main {
-  flex: 0 0 min(42%, 220px);
-  width: min(42%, 220px);
-  max-width: 260px;
-  border-left: 0;
+  position: relative;
+  flex: 0 0 var(--file-tree-rail-width, 220px);
+  width: var(--file-tree-rail-width, 220px);
+  max-width: 60%;
+  min-width: 140px;
+  border-left: 1px solid var(--line-soft);
+  contain: layout paint;
+}
+
+.file-tree-rail-resize-handle {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+  -webkit-app-region: no-drag;
+}
+
+.file-tree-rail-resize-handle::after {
+  position: absolute;
+  top: 50%;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  height: 42px;
+  border-radius: 1px;
+  background: transparent;
+  content: '';
+  transform: translateY(-50%);
+  transition: background 120ms ease;
+}
+
+.file-tree-rail-resize-handle:hover::after,
+.file-tree-rail-resize-handle:active::after,
+.is-rail-resizing .file-tree-rail-resize-handle::after {
+  background: var(--accent);
+}
+
+.file-tree-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .file-tree-panel-split > .file-tree-footer {
@@ -2546,12 +2596,17 @@
 
 .code-preview-view {
   margin: 0;
-  padding: 0;
+  padding: 0 0 24px 0;
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
   font-size: 12.5px;
   line-height: 1.5;
   white-space: pre;
   overflow-x: auto;
+  flex: 1;
+  min-height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .code-preview-row {
@@ -2585,8 +2640,12 @@
   flex-direction: column;
   gap: 10px;
   max-width: 820px;
+  width: 100%;
   margin: 0 auto;
   padding: 8px 28px 48px;
+  flex: 1;
+  min-height: 100%;
+  box-sizing: border-box;
   font-family:
     -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'Segoe UI', Roboto, sans-serif;
   color: var(--text, #1e293b);

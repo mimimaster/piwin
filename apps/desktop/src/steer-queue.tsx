@@ -1,6 +1,13 @@
 import { useEffect, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { IconButton } from '@piwin/ui-kit';
-import { IconCheck, IconChevronRight, IconClose, IconEdit, IconTrash } from './shell-icons';
+import {
+  IconArrowUp,
+  IconCheck,
+  IconChevronDown,
+  IconClose,
+  IconEdit,
+  IconTrash,
+} from './shell-icons';
 
 export type SteerQueueMessage = {
   id: string;
@@ -12,6 +19,7 @@ export type SteerQueueProps = {
   onSendNow: (messageId: string) => void | Promise<void>;
   onEdit: (messageId: string, text: string) => void;
   onRemove: (messageId: string) => void;
+  onToggleMultitasking?: (() => void) | undefined;
 };
 
 export function SteerQueue(props: SteerQueueProps): ReactElement | null {
@@ -67,23 +75,32 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
     <section className="steer-queue-dock" data-testid="steer-queue" aria-label="Queued messages">
       <div className="steer-queue-header">
         <div className="steer-queue-heading">
-          <span className="steer-queue-title">Queued Messages</span>
           <span
             className="steer-queue-count"
             aria-label={`${props.messages.length} queued messages`}
           >
             {props.messages.length}
           </span>
-          <span className="steer-queue-subtitle">Sends after agent finishes working</span>
+          <span className="steer-queue-title">Queued</span>
+          <span className="steer-queue-subtitle">
+            <span className="steer-queue-shortcut-key" aria-hidden>
+              ↩
+            </span>{' '}
+            to Send
+          </span>
         </div>
-        <span className="steer-queue-status" aria-hidden>
-          <span className="steer-queue-status-dot" />
-          waiting
-        </span>
+        <button
+          type="button"
+          className="steer-queue-multitask-btn"
+          onClick={props.onToggleMultitasking}
+        >
+          <span>Start Multitasking</span>
+          <IconChevronDown className="steer-queue-multitask-icon" />
+        </button>
       </div>
 
       <div className="steer-queue-list">
-        {props.messages.map((message, index) => {
+        {props.messages.map((message) => {
           const isEditing = editingMessageId === message.id;
           return (
             <div
@@ -91,9 +108,6 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
               className="steer-queue-item"
               data-testid={`steer-queue-item-${message.id}`}
             >
-              <span className="steer-queue-item-index" aria-hidden>
-                {index + 1}
-              </span>
               <div className="steer-queue-item-content">
                 {isEditing ? (
                   <textarea
@@ -135,15 +149,6 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                 ) : (
                   <>
                     <IconButton
-                      className="steer-queue-action is-send-now"
-                      data-testid={`steer-queue-send-${message.id}`}
-                      label="Send queued message now"
-                      title="Send now"
-                      onClick={() => void props.onSendNow(message.id)}
-                    >
-                      <IconChevronRight />
-                    </IconButton>
-                    <IconButton
                       className="steer-queue-action"
                       data-testid={`steer-queue-edit-button-${message.id}`}
                       label="Edit queued message"
@@ -151,6 +156,15 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                       onClick={() => startEditing(message)}
                     >
                       <IconEdit />
+                    </IconButton>
+                    <IconButton
+                      className="steer-queue-action is-send-now"
+                      data-testid={`steer-queue-send-${message.id}`}
+                      label="Send queued message now"
+                      title="Send now"
+                      onClick={() => void props.onSendNow(message.id)}
+                    >
+                      <IconArrowUp />
                     </IconButton>
                     <IconButton
                       className="steer-queue-action is-remove"
@@ -171,3 +185,4 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
     </section>
   );
 }
+

@@ -17,8 +17,9 @@ import {
 } from '@piwin/ui-kit';
 import { AGENT_MODES, type AgentModeId } from './agent-mode';
 import { IconFolder, IconListTree, IconMcp, IconSkill, IconSpark, IconUsers } from './shell-icons';
+import type { OrchestrationSchemeOption } from './OrchestrationSchemeControl';
 
-export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp';
+export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp' | 'orchestration';
 
 export type ComposerSkillOption = {
   id: string;
@@ -46,6 +47,10 @@ export type ComposerPlusMenuProps = {
   mcpServers: ComposerMcpOption[];
   onOpenMcpPanel: () => void;
   onAttachImage: () => void;
+  orchestrationSchemeOptions?: readonly OrchestrationSchemeOption[] | undefined;
+  orchestrationSchemeId?: string | undefined;
+  onOrchestrationSchemeChange?: ((schemeId: string) => void) | undefined;
+  onOpenOrchestrationSchemeSettings?: (() => void) | undefined;
 };
 
 function modeIcon(modeId: AgentModeId): ReactElement {
@@ -160,6 +165,47 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
+
+      {props.orchestrationSchemeOptions && props.orchestrationSchemeOptions.length > 0 ? (
+        <DropdownMenuSub
+          open={props.submenu === 'orchestration'}
+          onOpenChange={(open) => props.onSubmenu(open ? 'orchestration' : 'none')}
+        >
+          <DropdownMenuSubTrigger testId="plus-menu-orchestration">
+            <span className="plus-menu-icon">
+              <IconSpark width={16} height={16} />
+            </span>
+            <span className="plus-menu-label">Orchestration</span>
+            <span className="plus-menu-chevron">›</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="plus-submenu" label="Orchestration Scheme">
+            <DropdownMenuLabel className="plus-menu-caption muted">Orchestration</DropdownMenuLabel>
+            {props.orchestrationSchemeOptions.map((scheme) => (
+              <DropdownMenuItem
+                key={scheme.id}
+                onSelect={() => props.onOrchestrationSchemeChange?.(scheme.id)}
+                testId={`plus-menu-orchestration-${scheme.id}`}
+              >
+                <span className="plus-menu-label">{scheme.name}</span>
+                {(props.orchestrationSchemeId ?? 'off') === scheme.id ? (
+                  <span className="plus-menu-check">✓</span>
+                ) : null}
+              </DropdownMenuItem>
+            ))}
+            {props.onOpenOrchestrationSchemeSettings ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={props.onOpenOrchestrationSchemeSettings}
+                  testId="plus-menu-manage-orchestration"
+                >
+                  Manage schemes…
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      ) : null}
     </DropdownMenu>
   );
 }
