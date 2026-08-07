@@ -287,7 +287,7 @@ describe('applyAppearanceToDocument Paper/Noir projection', () => {
     expect(s.getPropertyValue('--faint').trim()).toBe('#585862');
     expect(s.getPropertyValue('--text').trim()).toBe('#e4e4e7');
     expect(s.getPropertyValue('--muted').trim()).toBe('#8e8e98');
-    expect(s.getPropertyValue('--accent').trim()).toBe('#6366f1');
+    expect(s.getPropertyValue('--accent').trim()).toBe('#f4f4f5');
     expect(s.getPropertyValue('--border').trim()).toBe('rgba(255, 255, 255, 0.05)');
     // Column chrome is intentionally stronger than card borders.
     expect(s.getPropertyValue('--column-divider').trim()).toBe('rgba(255, 255, 255, 0.16)');

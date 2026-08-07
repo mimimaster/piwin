@@ -3,8 +3,8 @@
  * - Walkthrough is always generated when a plan completes.
  * - Switch (default on): inject the custom prompt into generation.
  * - Switch off: no prompt injected — model generates freely (Pi norm).
- * - Prompt textarea is always visible and editable.
- * - Save button appears only when the textarea is focused.
+ * - Prompt editor is shown only while the custom-prompt switch is on.
+ * - Save / reset appear when the draft differs from the saved config.
  */
 
 import { useEffect, useMemo, useState, type ReactElement } from 'react';
@@ -17,7 +17,7 @@ import {
   type SessionCompactExportData,
   type WalkthroughConfig,
 } from '@piwin/contracts';
-import { Button, Field, Switch } from '@piwin/ui-kit';
+import { Button, Switch, TextArea } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { FieldRow } from '../field-row';
 import { PageTitle } from '../page-title';
@@ -40,7 +40,6 @@ export function SessionPage(): ReactElement {
 
   const [useCustomPrompt, setUseCustomPrompt] = useState<boolean>(walkthrough.enabled);
   const [prompt, setPrompt] = useState<string>(walkthrough.custom.prompt);
-  const [editing, setEditing] = useState<boolean>(false);
   const [compactExporting, setCompactExporting] = useState(false);
 
   const compactExportAvailable =
@@ -51,7 +50,6 @@ export function SessionPage(): ReactElement {
   useEffect(() => {
     setUseCustomPrompt(walkthrough.enabled);
     setPrompt(walkthrough.custom.prompt);
-    setEditing(false);
   }, [walkthrough]);
 
   const draft: WalkthroughConfig = useMemo(
@@ -70,6 +68,8 @@ export function SessionPage(): ReactElement {
 
   const issues = useMemo(() => validateWalkthroughConfig(draft), [draft]);
   const promptIssue = issues.find((issue) => issue.path === 'walkthrough.custom.prompt');
+  const isDirty =
+    useCustomPrompt !== walkthrough.enabled || prompt !== walkthrough.custom.prompt;
 
   async function handleSave(): Promise<void> {
     if (!config) return;
@@ -87,7 +87,6 @@ export function SessionPage(): ReactElement {
     };
     if (await saveConfig(next)) {
       setInfo(isZh ? '已保存 WalkThrough 设置。' : 'WalkThrough settings saved.');
-      setEditing(false);
     } else {
       setInfo(isZh ? '保存失败：无法写入配置文件。' : 'Save failed: could not write config.');
     }
@@ -192,8 +191,8 @@ export function SessionPage(): ReactElement {
               label={isZh ? '自定义生成提示词' : 'Custom generation prompt'}
               description={
                 isZh
-                  ? '开启后，下方提示词会注入到 Walkthrough 生成中。关闭后不注入任何提示词，模型根据证据自由生成。计划完成时始终生成 Walkthrough，不受此开关影响。'
-                  : 'When on, the prompt below is injected into Walkthrough generation. When off, no prompt is injected — the model generates freely from the evidence. Walkthrough is always generated on plan completion regardless of this setting.'
+                  ? '开启后使用下方自定义提示词生成 Walkthrough；关闭后使用内置默认提示词。计划完成时始终生成 Walkthrough 卡片，不受此开关影响。'
+                  : 'When on, Walkthrough uses the custom prompt below; when off, the built-in default prompt is used. A Walkthrough card is always generated on plan completion.'
               }
               testId="walkthrough-enabled-row"
             >
@@ -205,39 +204,42 @@ export function SessionPage(): ReactElement {
               />
             </FieldRow>
 
-            <Field
-              label={isZh ? '生成提示词' : 'Generation prompt'}
-              description={
-                isZh
-                  ? '生成 Walkthrough 时使用的提示词。'
-                  : 'Prompt used when generating a Walkthrough.'
-              }
-              testId="walkthrough-prompt-field"
-            >
-              <textarea
-                className="mcp-raw-editor"
+            {useCustomPrompt ? (
+              <TextArea
+                label={isZh ? '生成提示词' : 'Generation prompt'}
+                description={
+                  isZh
+                    ? '生成 Walkthrough 时注入的自定义提示词。'
+                    : 'Custom prompt injected when generating a Walkthrough.'
+                }
+                testId="walkthrough-prompt-textarea"
                 rows={12}
                 value={prompt}
-                onChange={(event) => setPrompt(event.currentTarget.value)}
-                onFocus={() => setEditing(true)}
-                style={{ resize: 'vertical' }}
-                data-testid="walkthrough-prompt-textarea"
+                onChange={(nextValue) => setPrompt(nextValue)}
+                error={promptIssue?.message ?? null}
+                placeholder={
+                  isZh
+                    ? '描述你希望 Walkthrough 如何组织与表述…'
+                    : 'Describe how the Walkthrough should be structured…'
+                }
+                nativeProps={{
+                  style: { resize: 'vertical', minHeight: 220 },
+                  spellCheck: true,
+                }}
               />
-            </Field>
-            {promptIssue ? (
-              <p className="muted" data-testid="walkthrough-prompt-error">
-                {promptIssue.message}
-              </p>
             ) : null}
-            {editing ? (
+
+            {isDirty ? (
               <div className="ui-field-row-control" style={{ justifyContent: 'flex-end', gap: 8 }}>
-                <Button
-                  variant="ghost"
-                  data-testid="walkthrough-prompt-reset-button"
-                  onClick={() => setPrompt(DEFAULT_WALKTHROUGH_PROMPT)}
-                >
-                  {isZh ? '恢复默认提示词' : 'Reset prompt'}
-                </Button>
+                {useCustomPrompt ? (
+                  <Button
+                    variant="ghost"
+                    data-testid="walkthrough-prompt-reset-button"
+                    onClick={() => setPrompt(DEFAULT_WALKTHROUGH_PROMPT)}
+                  >
+                    {isZh ? '恢复默认提示词' : 'Reset prompt'}
+                  </Button>
+                ) : null}
                 <Button data-testid="walkthrough-save-button" onClick={() => void handleSave()}>
                   {isZh ? '保存' : 'Save'}
                 </Button>

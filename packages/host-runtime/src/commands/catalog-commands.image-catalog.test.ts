@@ -29,8 +29,12 @@ function createMinimalContext(): HostCommandContext {
     runCronJob: async () => ({ ok: false }),
     pendingPermissions: new Map(),
     pendingExtensionUi: new Map(),
-    rememberProjectPermission: () => {},
-  } as HostCommandContext;
+    rememberProjectPermission: async () => {},
+    rememberSessionPermission: () => {},
+    sessionPermissionOverrides: new Map(),
+    setSessionPermissionOverride: () => {},
+    clearSessionPermissionOverride: () => {},
+  } as unknown as HostCommandContext;
 }
 
 describe('handleCatalogCommand models/image-catalog/search', () => {
