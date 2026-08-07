@@ -104,22 +104,6 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       <circle cx="12" cy="12" r="3" />
     </svg>
   ),
-  'image-generation': (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
-      <circle cx="9" cy="9" r="2" />
-      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-    </svg>
-  ),
   artifact: (
     <svg
       width="14"
@@ -350,6 +334,23 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
     </svg>
   ),
   usage: (
+   <svg
+     width="14"
+     height="14"
+     viewBox="0 0 24 24"
+     fill="none"
+     stroke="currentColor"
+     strokeWidth="2.5"
+     strokeLinecap="round"
+     strokeLinejoin="round"
+   >
+     <path d="M3 3v18h18" />
+     <path d="M7 15v3" />
+     <path d="M12 10v8" />
+     <path d="M17 5v13" />
+   </svg>
+ ),
+  animations: (
     <svg
       width="14"
       height="14"
@@ -360,10 +361,15 @@ const SECTION_ICONS: Record<SettingsSectionId, ReactNode> = {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M3 3v18h18" />
-      <path d="M7 15v3" />
-      <path d="M12 10v8" />
-      <path d="M17 5v13" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v3" />
+      <path d="M12 18v3" />
+      <path d="M3 12h3" />
+      <path d="M18 12h3" />
+      <path d="M5.6 5.6l2.1 2.1" />
+      <path d="M16.3 16.3l2.1 2.1" />
+      <path d="M18.4 5.6l-2.1 2.1" />
+      <path d="M7.7 16.3l-2.1 2.1" />
     </svg>
   ),
 };

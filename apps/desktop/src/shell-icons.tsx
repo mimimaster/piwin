@@ -330,7 +330,7 @@ export function IconPaperclip(props: IconProps): ReactElement {
 export function IconStop(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
-      <rect x="7.5" y="7.5" width="9" height="9" rx="2" fill="currentColor" stroke="none" />
+      <rect x="5.5" y="5.5" width="13" height="13" rx="3" fill="currentColor" stroke="none" />
     </IconBase>
   );
 }

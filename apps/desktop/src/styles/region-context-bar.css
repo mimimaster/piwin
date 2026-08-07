@@ -180,19 +180,10 @@
   color: var(--text);
 }
 
-/* Run status sits after title when active; hidden when idle. */
-.context-bar-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: min(220px, 28%);
-  overflow: hidden;
-}
-
-.context-bar[data-kind='idle'] .context-bar-status {
-  display: none;
+/* Run status sits after title when active; permanently hidden per user instruction. */
+.context-bar-status,
+[data-testid="run-status-strip"] {
+  display: none !important;
 }
 
 .context-bar-phase-dot {

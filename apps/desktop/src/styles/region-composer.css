@@ -1093,68 +1093,41 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   position: relative;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
+  border: none;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--danger, #ef4444) 14%, transparent);
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
   color: var(--danger, #ef4444);
   cursor: pointer;
   transition:
     background 160ms ease,
     color 160ms ease,
-    border-color 160ms ease,
     transform 160ms ease,
     box-shadow 160ms ease;
   flex-shrink: 0;
 }
 
 .composer-v2-stop-btn .stop-btn-pulse {
-  position: absolute;
-  inset: -2px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--danger, #ef4444) 25%, transparent);
-  animation: stop-btn-pulse-wave 2s infinite ease-in-out;
-  pointer-events: none;
-}
-
-@keyframes stop-btn-pulse-wave {
-  0% {
-    transform: scale(0.95);
-    opacity: 0.7;
-  }
-  50% {
-    transform: scale(1.25);
-    opacity: 0.2;
-  }
-  100% {
-    transform: scale(0.95);
-    opacity: 0.7;
-  }
+  display: none;
 }
 
 .composer-v2-stop-btn svg {
   position: relative;
   z-index: 1;
-  width: 12px;
-  height: 12px;
+  width: 24px;
+  height: 24px;
 }
 
 .composer-v2-stop-btn:hover:not(:disabled) {
-  background: var(--danger, #ef4444);
-  color: #ffffff;
-  border-color: var(--danger, #ef4444);
-  transform: scale(1.06);
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--danger, #ef4444) 40%, transparent);
-}
-
-.composer-v2-stop-btn:hover:not(:disabled) .stop-btn-pulse {
-  opacity: 0;
+  background: color-mix(in srgb, var(--fg) 18%, transparent);
+  color: color-mix(in srgb, var(--danger, #ef4444) 92%, #ffffff);
+  transform: scale(1.05);
 }
 
 .composer-v2-stop-btn:active:not(:disabled) {
-  transform: scale(0.92);
+  transform: scale(0.93);
 }
 
 .composer-v2-streaming-actions {

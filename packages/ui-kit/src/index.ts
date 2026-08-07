@@ -98,3 +98,12 @@ export type { ColorInputProps } from './color-input.js';
 
 export { Card } from './card.js';
 export type { CardProps } from './card.js';
+
+export { BreathDot, PulseBlock, SolidBars, ANIMATION_CATALOG } from './animations.js';
+export type {
+  AnimationSize,
+  BreathDotProps,
+  PulseBlockProps,
+  SolidBarsProps,
+  AnimationCatalogEntry,
+} from './animations.js';

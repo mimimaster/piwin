@@ -16,7 +16,6 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'permissions',
   'models',
   'vision',
-  'image-generation',
   'artifact',
   'skills',
   'extensions',
@@ -31,6 +30,8 @@ const ALL_SECTION_IDS: SettingsSectionId[] = [
   'pets',
   'usage',
   'shortcuts',
+  'artifact-playground',
+  'animations',
 ];
 
 describe('section registry', () => {
@@ -67,6 +68,8 @@ describe('section registry', () => {
     expect(isLegacySettingsSectionId('rules')).toBe(true);
     expect(isLegacySettingsSectionId('agents')).toBe(true);
     expect(isLegacySettingsSectionId('general')).toBe(false);
-    expect(Object.keys(LEGACY_SETTINGS_REDIRECTS)).toHaveLength(2);
+    expect(isLegacySettingsSectionId('image-generation')).toBe(true);
+    expect(normalizeSettingsSection('image-generation')).toBe('models');
+    expect(Object.keys(LEGACY_SETTINGS_REDIRECTS)).toHaveLength(3);
   });
 });
