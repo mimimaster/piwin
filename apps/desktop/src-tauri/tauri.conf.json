@@ -32,7 +32,8 @@
           "x": 14,
           "y": 18
         },
-        "label": "main"
+        "label": "main",
+        "dragDropEnabled": false
       }
     ],
     "security": {

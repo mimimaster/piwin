@@ -1709,7 +1709,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     [handleComposerPaste],
   );
   const handleComposerDropEvent = useCallback(
-    (event: DragEvent<HTMLTextAreaElement>): void => {
+    (event: DragEvent<HTMLElement>): void => {
       void handleComposerDrop(event);
     },
     [handleComposerDrop],

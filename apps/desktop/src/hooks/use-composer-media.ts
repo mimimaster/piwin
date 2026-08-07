@@ -516,7 +516,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   );
 
   const handleComposerDrop = useCallback(
-    async (event: DragEvent<HTMLTextAreaElement>): Promise<void> => {
+    async (event: DragEvent<HTMLElement>): Promise<void> => {
       event.preventDefault();
       setDropActive(false);
 
@@ -549,8 +549,21 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         return;
       }
 
-      const files = [...(event.dataTransfer?.files ?? [])].filter((file) =>
-        resolveImageMimeType(file) !== null || file.type.startsWith('image/'),
+      // dataTransfer.files is authoritative; some engines (macOS WKWebView)
+      // only expose the drop via dataTransfer.items, so fall back to that.
+      const droppedFiles: File[] = [...(event.dataTransfer?.files ?? [])];
+      if (droppedFiles.length === 0 && event.dataTransfer?.items) {
+        for (const item of [...event.dataTransfer.items]) {
+          if (item.kind === 'file') {
+            const file = item.getAsFile();
+            if (file) {
+              droppedFiles.push(file);
+            }
+          }
+        }
+      }
+      const files = droppedFiles.filter(
+        (file) => resolveImageMimeType(file) !== null || file.type.startsWith('image/'),
       );
       for (const file of files) {
         enqueueImageFile(file, 'drop');

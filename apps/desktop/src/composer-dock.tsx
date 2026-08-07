@@ -127,7 +127,7 @@ export type ComposerDockProps = {
   onOpenMcpPanel: () => void;
   onAttachImage: () => void;
   onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
-  onDrop: (event: DragEvent<HTMLTextAreaElement>) => void;
+  onDrop: (event: DragEvent<HTMLElement>) => void;
   onSend: () => void;
   onAbort: () => void;
   /** Model-originated question rendered inline above the composer input. */
@@ -221,6 +221,13 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   }));
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  /**
+   * dragenter/dragleave pair depth for the composer card. Children fire
+   * dragleave when the pointer crosses into a sibling child (toolbar,
+   * attachment row), so the drop-active state must only clear once the
+   * pointer actually leaves the card (depth 0).
+   */
+  const dragDepthRef = useRef(0);
   const [caretIndex, setCaretIndex] = useState(0);
 
   // Slash Menu State
@@ -629,6 +636,30 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     <div
       className={`composer-card-v2${props.dropActive ? ' drop-active' : ''}${isStreamingRun ? ' is-streaming' : ''}`}
       data-testid="composer-card"
+      onDragEnter={(event) => {
+        event.preventDefault();
+        dragDepthRef.current += 1;
+        props.onDropActiveChange(true);
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        // dragover repeats continuously while dragging; it is the stable
+        // "still dragging" signal even if a child boundary fired a spurious
+        // dragleave (WebKit can do this when the drop overlay mounts).
+        dragDepthRef.current = Math.max(1, dragDepthRef.current);
+        props.onDropActiveChange(true);
+      }}
+      onDragLeave={() => {
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) {
+          props.onDropActiveChange(false);
+        }
+      }}
+      onDrop={(event) => {
+        dragDepthRef.current = 0;
+        props.onDropActiveChange(false);
+        props.onDrop(event);
+      }}
     >
       {/* Drop Zone Overlay */}
       {props.dropActive ? (
@@ -792,12 +823,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
           onClick={syncCaretFromTextarea}
           onKeyUp={syncCaretFromTextarea}
           onPaste={(event) => props.onPaste(event)}
-          onDragOver={(event) => {
-            event.preventDefault();
-            props.onDropActiveChange(true);
-          }}
-          onDragLeave={() => props.onDropActiveChange(false)}
-          onDrop={(event) => props.onDrop(event)}
           onKeyDown={handleComposerKeyDown}
           readOnly={false}
           placeholder={
