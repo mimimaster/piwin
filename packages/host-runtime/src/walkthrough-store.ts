@@ -148,11 +148,24 @@ async function writeJsonAtomic(targetPath: string, data: WalkthroughArtifact): P
  * exists in the transcript) are skipped (spec §7.2). When the transcript is
  * missing, returns an empty array.
  */
+export type ListWalkthroughsOptions = {
+  /**
+   * When provided (e.g. from a just-loaded transcript), skip re-reading
+   * transcript.json solely to filter orphan walkthrough files.
+   */
+  validMessageIds?: ReadonlySet<string> | readonly string[];
+};
+
 export async function listWalkthroughs(
   rootDir: string,
   sessionId: string,
+  options?: ListWalkthroughsOptions,
 ): Promise<WalkthroughArtifact[]> {
-  const validMessageIds = await loadTranscriptMessageIds(rootDir, sessionId);
+  const validMessageIds = options?.validMessageIds
+    ? options.validMessageIds instanceof Set
+      ? options.validMessageIds
+      : new Set(options.validMessageIds)
+    : await loadTranscriptMessageIds(rootDir, sessionId);
   if (validMessageIds.size === 0) {
     return [];
   }

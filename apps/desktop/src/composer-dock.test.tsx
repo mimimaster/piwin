@@ -524,14 +524,14 @@ describe('ComposerDock host status', () => {
     expect(hostStatus?.textContent).toContain('Host：SDK');
   });
 
-  it('hides orchestration scheme trigger when scheme is off, and shows it when active', () => {
+  it('always shows orchestration scheme trigger (mode picker, including freehand/None)', () => {
     const options = [
-      { id: 'off', name: 'Off', description: 'Disabled' },
+      { id: 'off', name: 'None', description: 'Freehand — no scheme prompt injection' },
       { id: 'ultra-code', name: 'Ultra Code', description: 'Multi-step coding plan' },
     ];
     const onOrchestrationSchemeChange = vi.fn();
 
-    let rendered = renderDock(
+    const freehand = renderDock(
       <ComposerDock
         {...baseProps}
         orchestrationSchemeId="off"
@@ -539,9 +539,14 @@ describe('ComposerDock host status', () => {
         onOrchestrationSchemeChange={onOrchestrationSchemeChange}
       />,
     );
-    expect(rendered.container.querySelector('[data-testid="orchestration-scheme-trigger"]')).toBeNull();
+    const freehandTrigger = freehand.container.querySelector(
+      '[data-testid="orchestration-scheme-trigger"]',
+    );
+    expect(freehandTrigger).not.toBeNull();
+    expect(freehandTrigger?.getAttribute('data-scheme')).toBe('off');
+    expect(freehandTrigger?.textContent).toContain('None');
 
-    rendered = renderDock(
+    const active = renderDock(
       <ComposerDock
         {...baseProps}
         orchestrationSchemeId="ultra-code"
@@ -549,6 +554,11 @@ describe('ComposerDock host status', () => {
         onOrchestrationSchemeChange={onOrchestrationSchemeChange}
       />,
     );
-    expect(rendered.container.querySelector('[data-testid="orchestration-scheme-trigger"]')).not.toBeNull();
+    const activeTrigger = active.container.querySelector(
+      '[data-testid="orchestration-scheme-trigger"]',
+    );
+    expect(activeTrigger).not.toBeNull();
+    expect(activeTrigger?.getAttribute('data-scheme')).toBe('ultra-code');
+    expect(activeTrigger?.textContent).toContain('Ultra Code');
   });
 });

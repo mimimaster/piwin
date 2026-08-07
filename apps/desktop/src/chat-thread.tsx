@@ -711,6 +711,10 @@ const ChatMessageRow = memo(
             {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
             {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
             {...(props.locale ? { locale: props.locale } : {})}
+            {...(message.status !== 'streaming' &&
+            !(message.runId && props.activeRunId && message.runId === props.activeRunId)
+              ? { historyCollapsed: true }
+              : {})}
           />
         ) : null}
         {message.role === 'assistant' && hasRunningImageGeneration(message) ? (

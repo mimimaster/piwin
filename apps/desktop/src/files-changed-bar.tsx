@@ -17,6 +17,42 @@ export type FilesChangedBarRequest = (command: {
   projectPath: string;
 }) => Promise<HostResponse>;
 
+/** Session-open can mount many FilesChangedBar rows; share one in-flight/result per project. */
+const GIT_DIFF_SUMMARY_CACHE_TTL_MS = 15_000;
+const gitDiffSummaryCache = new Map<
+  string,
+  { expiresAt: number; promise: Promise<HostResponse> }
+>();
+
+function requestGitDiffSummaryCached(
+  request: FilesChangedBarRequest,
+  projectPath: string,
+): Promise<HostResponse> {
+  const now = Date.now();
+  const cached = gitDiffSummaryCache.get(projectPath);
+  if (cached && cached.expiresAt > now) {
+    return cached.promise;
+  }
+  const promise = request({ type: 'git/diff-summary', projectPath }).then(
+    (response) => {
+      // Keep successful summaries briefly; do not cache hard failures forever.
+      if (!response.success) {
+        gitDiffSummaryCache.delete(projectPath);
+      }
+      return response;
+    },
+    (error: unknown) => {
+      gitDiffSummaryCache.delete(projectPath);
+      throw error;
+    },
+  );
+  gitDiffSummaryCache.set(projectPath, {
+    expiresAt: now + GIT_DIFF_SUMMARY_CACHE_TTL_MS,
+    promise,
+  });
+  return promise;
+}
+
 export type FilesChangedBarProps = {
   tools: ToolCardUi[];
   /** When false, hide the bar even if tools have paths (e.g. still streaming with no writes). */
@@ -51,7 +87,7 @@ export function FilesChangedBar(props: FilesChangedBarProps): ReactElement | nul
     let cancelled = false;
     const projectPath = props.projectPath;
     const request = props.request;
-    void request({ type: 'git/diff-summary', projectPath })
+    void requestGitDiffSummaryCached(request, projectPath)
       .then((response) => {
         if (cancelled) return;
         if (!response.success) {

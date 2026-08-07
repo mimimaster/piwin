@@ -93,14 +93,18 @@ export type WebSearchResult = {
   warning?: string;
 };
 
+export type WebFetchTruncationReason = 'response-limit' | 'parse-limit' | 'text-limit';
+
 export type WebFetchResult = {
   url: string;
   finalUrl: string;
   title: string | null;
   text: string;
   contentType: string;
+  /** Bytes retained/read; when truncated this is the bounded prefix size. */
   byteSize: number;
   truncated: boolean;
+  truncationReason?: WebFetchTruncationReason;
 };
 
 export type WebConfig = {

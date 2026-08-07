@@ -41,10 +41,72 @@ export type ApprovalScope = 'once' | 'session' | 'project';
 export type SandboxProfileName = 'read-only' | 'workspace' | 'none';
 
 /**
- * Agent collaboration mode (mirrors `apps/desktop/src/agent-mode.ts`).
- * Used by {@link resolvePreset} to raise a read-only floor under Plan/Ask.
+ * Agent collaboration mode for Desktop / host prompt preparation.
+ * Used by {@link resolvePreset} (Plan/Ask floor) and {@link mergeAgentModeIntoPrompt}.
  */
 export type AgentModeId = 'agent' | 'plan' | 'ask';
+
+/**
+ * Operating contracts injected ahead of model-facing user text for each
+ * agent collaboration mode. Host-only: transcript / session naming must keep
+ * the raw user body, never this preamble.
+ */
+export const AGENT_MODE_SYSTEM_PREAMBLES: Readonly<Record<AgentModeId, string>> = {
+  agent: [
+    '[piwin-prompt-meta kind="mode:agent" version="2" applies="every-turn"]',
+    'Operating contract for this turn:',
+    "Success: satisfy the user's stated goal with the smallest correct change; leave clear evidence of what was verified.",
+    'If success criteria, technical choices, or constraints are ambiguous in a way that changes the outcome, state the real options and ask — especially for stack/architecture decisions.',
+    'Stop: do not expand scope, invent requirements, or keep working past a blocker; surface conflicts instead of thrashing.',
+    'Verify: do not claim done, fixed, or passing without checks run in this environment when the claim depends on them.',
+    'Safety and permissions are enforced by the host; follow tool results and denials rather than restating policy.',
+    'Prefer outcomes and evidence over process narration.',
+  ].join('\n'),
+  plan: [
+    '[piwin-prompt-meta kind="mode:plan" version="2" applies="plan-mode"]',
+    'You are in Plan Mode until the user explicitly ends it.',
+    'Success: a decision-complete implementation plan — goal, non-goals, steps, affected files, risks, acceptance criteria, and verification — grounded in the repo.',
+    'Do not implement or mutate files; explore (read/search) only.',
+    'Discover repo facts yourself first; ask only questions that would change the plan (especially technical choices).',
+    'Stop when the plan is reviewable or a blocking decision needs the user; do not pad with process theater.',
+  ].join('\n'),
+  ask: [
+    '[piwin-prompt-meta kind="mode:ask" version="2" applies="ask-mode"]',
+    'You are in Ask Mode.',
+    'Success: accurate answers about the codebase and design, with paths cited when helpful.',
+    'Do not edit files, run mutating commands, or implement features unless the user exits Ask mode.',
+    'Stop at explanation; if implementation is required, say so and wait for Agent/Plan mode.',
+  ].join('\n'),
+};
+
+/** Normalize optional mode id; unknown / empty → agent. */
+export function normalizeAgentModeId(modeId: string | undefined | null): AgentModeId {
+  if (modeId === 'plan' || modeId === 'ask' || modeId === 'agent') {
+    return modeId;
+  }
+  return 'agent';
+}
+
+/**
+ * Inject agent-mode operating contract ahead of model-facing user text.
+ * Mirrors orchestration-scheme injection: transcript keeps the original body.
+ */
+export function mergeAgentModeIntoPrompt(
+  modeId: AgentModeId | undefined,
+  userFacingText: string,
+): string {
+  const mode = normalizeAgentModeId(modeId);
+  const preamble = AGENT_MODE_SYSTEM_PREAMBLES[mode];
+  const body = userFacingText.trim();
+  if (!preamble) {
+    return body;
+  }
+  if (!body) {
+    return `[piwin-mode:${mode}]\n${preamble}\n\n---\n`;
+  }
+  return `[piwin-mode:${mode}]\n${preamble}\n\n---\nUser:\n${body}`;
+}
+
 
 /** Pattern side of a rule. */
 export type PermissionRuleTarget =

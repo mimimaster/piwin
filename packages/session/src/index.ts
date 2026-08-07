@@ -23,7 +23,7 @@ export type {
 } from './session-index-store.js';
 export { createSubagentRunStore } from './subagent-run-store.js';
 export type { SubagentRunStore, SubagentRunManifest, SubagentRunStoreOptions } from './subagent-run-store.js';
-export { deriveDefaultNameFromMessage } from './derive-default-name.js';
+export { deriveDefaultNameFromMessage, extractUserFacingBody } from './derive-default-name.js';
 export {
   filterListableSessions,
   isPlaceholderSessionName,
@@ -169,3 +169,9 @@ export {
   markNextPlanStepActive,
   MAX_PLAN_STEP_NOTE_CHARS,
 } from './plan-step-updates.js';
+
+export {
+  projectTranscriptMessagesForUi,
+  slimToolCardForUi,
+  slimToolPresentation,
+} from './transcript-ui-projection.js';

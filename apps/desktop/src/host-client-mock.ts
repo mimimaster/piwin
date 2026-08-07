@@ -1,4 +1,5 @@
 import { isPlaceholderSessionName } from './title-display';
+import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
 /** Browser mock host backend — isolated from live Tauri transport. */
 import type {
   AgentEvent,
@@ -3099,7 +3100,7 @@ export class MockHostBackend {
       return;
     }
     const firstUser = session.transcript.find((message) => message.role === 'user');
-    const name = firstUser?.text?.replace(/\s+/g, ' ').trim().slice(0, 60);
+    const name = firstUser?.text ? deriveDefaultNameFromMessage(firstUser.text) : '';
     if (!name) {
       return;
     }

@@ -307,7 +307,15 @@ export async function handleWalkthroughList(
   context: WalkthroughCommandContext,
 ): Promise<HostResponse> {
   const rootDir = getPiwinRoot(context.piwinRoot);
-  const artifacts = await listWalkthroughs(rootDir, command.sessionId);
+  const knownMessageIds =
+    'knownMessageIds' in command && Array.isArray(command.knownMessageIds)
+      ? command.knownMessageIds
+      : undefined;
+  const artifacts = await listWalkthroughs(
+    rootDir,
+    command.sessionId,
+    knownMessageIds ? { validMessageIds: knownMessageIds } : undefined,
+  );
   return ok(requestId, 'walkthrough/list', { sessionId: command.sessionId, artifacts });
 }
 

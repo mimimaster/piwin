@@ -81,9 +81,9 @@ export async function webFetch(
 
     const contentType = response.headers.get('content-type') ?? 'application/octet-stream';
     const hardCap = config.fetchMaxBytes * 4;
-    const buffer = await readResponseBodyWithCap(response, hardCap, signal);
-    const byteSize = buffer.byteLength;
-    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+    const boundedBody = await readResponseBodyWithCap(response, hardCap, signal);
+    const byteSize = boundedBody.buffer.byteLength;
+    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(boundedBody.buffer);
     const finalUrl = response.url || currentUrl;
 
     if (contentType.includes('text/html') || looksLikeHtml(rawText)) {
@@ -94,17 +94,27 @@ export async function webFetch(
       // readability) well below the raw body cap so a giant page cannot stall
       // the turn inside synchronous parsing.
       const parseCap = config.fetchMaxBytes * 2;
-      const htmlToParse = rawText.length > parseCap ? rawText.slice(0, parseCap) : rawText;
+      const parseTruncated = rawText.length > parseCap;
+      const htmlToParse = parseTruncated ? rawText.slice(0, parseCap) : rawText;
       const extracted = await extractReadableText(htmlToParse, finalUrl, signal);
-      const truncated = extracted.text.length > config.fetchMaxBytes;
+      const textTruncated = extracted.text.length > config.fetchMaxBytes;
+      const truncated = boundedBody.truncated || parseTruncated || textTruncated;
+      const truncationReason = boundedBody.truncated
+        ? 'response-limit'
+        : parseTruncated
+          ? 'parse-limit'
+          : textTruncated
+            ? 'text-limit'
+            : undefined;
       return {
         url: validateFetchUrl(url, config.fetchBlockedUrlPrefixes),
         finalUrl,
         title: extracted.title,
-        text: truncated ? extracted.text.slice(0, config.fetchMaxBytes) : extracted.text,
+        text: textTruncated ? extracted.text.slice(0, config.fetchMaxBytes) : extracted.text,
         contentType,
         byteSize,
         truncated,
+        ...(truncationReason ? { truncationReason } : {}),
       };
     }
 
@@ -113,15 +123,22 @@ export async function webFetch(
       contentType.includes('json') ||
       contentType.includes('xml')
     ) {
-      const truncated = rawText.length > config.fetchMaxBytes;
+      const textTruncated = rawText.length > config.fetchMaxBytes;
+      const truncated = boundedBody.truncated || textTruncated;
+      const truncationReason = boundedBody.truncated
+        ? 'response-limit'
+        : textTruncated
+          ? 'text-limit'
+          : undefined;
       return {
         url: validateFetchUrl(url, config.fetchBlockedUrlPrefixes),
         finalUrl,
         title: null,
-        text: truncated ? rawText.slice(0, config.fetchMaxBytes) : rawText,
+        text: textTruncated ? rawText.slice(0, config.fetchMaxBytes) : rawText,
         contentType,
         byteSize,
         truncated,
+        ...(truncationReason ? { truncationReason } : {}),
       };
     }
 
@@ -191,22 +208,28 @@ function isRedirectStatus(status: number): boolean {
   return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
+type BoundedResponseBody = {
+  buffer: Uint8Array;
+  truncated: boolean;
+};
+
 async function readResponseBodyWithCap(
   response: Response,
   maxBytes: number,
   signal: AbortSignal,
-): Promise<Uint8Array> {
+): Promise<BoundedResponseBody> {
   if (!response.body) {
     const buffer = new Uint8Array(await response.arrayBuffer());
-    if (buffer.byteLength > maxBytes) {
-      throw new Error(`response too large: ${buffer.byteLength} bytes (cap ${maxBytes})`);
+    if (buffer.byteLength <= maxBytes) {
+      return { buffer, truncated: false };
     }
-    return buffer;
+    return { buffer: buffer.slice(0, maxBytes), truncated: true };
   }
 
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
+  let truncated = false;
   try {
     while (true) {
       if (signal.aborted) {
@@ -215,12 +238,22 @@ async function readResponseBodyWithCap(
       const { done, value } = await reader.read();
       if (done) break;
       if (!value) continue;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel('byte-cap');
-        throw new Error(`response too large: >${maxBytes} bytes (stream cap)`);
+      const remaining = maxBytes - total;
+      if (value.byteLength > remaining) {
+        if (remaining > 0) {
+          chunks.push(value.slice(0, remaining));
+          total += remaining;
+        }
+        truncated = true;
+        try {
+          await reader.cancel('byte-cap');
+        } catch {
+          // The bounded prefix is already safe to return; cancellation is best effort.
+        }
+        break;
       }
       chunks.push(value);
+      total += value.byteLength;
     }
   } finally {
     reader.releaseLock();
@@ -232,7 +265,7 @@ async function readResponseBodyWithCap(
     merged.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return merged;
+  return { buffer: merged, truncated };
 }
 
 function looksLikeHtml(text: string): boolean {
@@ -312,16 +345,24 @@ async function fetchViaJina(
     if (!response.ok) {
       throw new Error(`Jina Reader failed: HTTP ${response.status} for ${validated}`);
     }
-    const text = await response.text();
-    const truncated = text.length > config.fetchMaxBytes;
+    const boundedBody = await readResponseBodyWithCap(response, config.fetchMaxBytes * 4, signal);
+    const rawText = new TextDecoder('utf-8', { fatal: false }).decode(boundedBody.buffer);
+    const textTruncated = rawText.length > config.fetchMaxBytes;
+    const truncated = boundedBody.truncated || textTruncated;
+    const truncationReason = boundedBody.truncated
+      ? 'response-limit'
+      : textTruncated
+        ? 'text-limit'
+        : undefined;
     return {
       url: validated,
       finalUrl: validated,
-      title: extractMarkdownTitle(text),
-      text: truncated ? text.slice(0, config.fetchMaxBytes) : text,
+      title: extractMarkdownTitle(rawText),
+      text: textTruncated ? rawText.slice(0, config.fetchMaxBytes) : rawText,
       contentType: response.headers.get('content-type') ?? 'text/markdown',
-      byteSize: new TextEncoder().encode(text).byteLength,
+      byteSize: boundedBody.buffer.byteLength,
       truncated,
+      ...(truncationReason ? { truncationReason } : {}),
     };
   } finally {
     clearTimeout(timeout);
@@ -365,7 +406,23 @@ async function fetchViaFirecrawl(
     if (!response.ok) {
       throw new Error(`Firecrawl scrape failed: HTTP ${response.status} for ${validated}`);
     }
-    const payload = (await response.json()) as {
+    const boundedBody = await readResponseBodyWithCap(response, config.fetchMaxBytes * 4, signal);
+    const contentType = response.headers.get('content-type') ?? 'application/json';
+    if (boundedBody.truncated) {
+      return {
+        url: validated,
+        finalUrl: validated,
+        title: null,
+        text: `Firecrawl response exceeded the ${config.fetchMaxBytes * 4}-byte provider envelope limit; retry with the supermarkdown or jina fetch provider.`,
+        contentType,
+        byteSize: boundedBody.buffer.byteLength,
+        truncated: true,
+        truncationReason: 'response-limit',
+      };
+    }
+    const payload = JSON.parse(
+      new TextDecoder('utf-8', { fatal: false }).decode(boundedBody.buffer),
+    ) as {
       success?: boolean;
       data?: {
         markdown?: string;
@@ -385,6 +442,7 @@ async function fetchViaFirecrawl(
       contentType: 'text/markdown',
       byteSize: new TextEncoder().encode(markdown).byteLength,
       truncated,
+      ...(truncated ? { truncationReason: 'text-limit' as const } : {}),
     };
   } finally {
     clearTimeout(timeout);

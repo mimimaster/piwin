@@ -144,8 +144,15 @@ describe('HistoryTicksDrawer component', () => {
 
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
-        top: 0,
-        right: 12,
+        top: 100,
+        left: 8,
+        right: 50,
+        bottom: 200,
+        width: 42,
+        height: 100,
+        x: 8,
+        y: 100,
+        toJSON: () => ({}),
       } as DOMRect);
     }
 
@@ -154,13 +161,20 @@ describe('HistoryTicksDrawer component', () => {
         new window.MouseEvent('mousemove', {
           bubbles: true,
           cancelable: true,
-          clientY: 8.5,
+          clientY: 108.5,
         }),
       );
     });
 
-    expect(container?.querySelector('[data-testid="history-message-bubble"]')).not.toBeNull();
-    expect(container?.querySelector('.history-bubble-text')?.textContent).toBe(
+    // Portaled to document.body so fixed coords are viewport-relative (not
+    // rebased by chat-column backdrop-filter containing blocks).
+    const bubble = document.querySelector('[data-testid="history-message-bubble"]');
+    expect(bubble).not.toBeNull();
+    expect(bubble?.parentElement).toBe(document.body);
+    expect(container?.contains(bubble)).toBe(false);
+    // left = rail.left(8) + wave max(36) + gap(8) = 52 — tight to the tick tip.
+    expect((bubble as HTMLElement).style.left).toBe('52px');
+    expect(bubble?.querySelector('.history-bubble-text')?.textContent).toBe(
       '内置的浏览器有优化的方案吗',
     );
     expect(firstTick?.classList.contains('is-hovered')).toBe(true);
@@ -190,7 +204,14 @@ describe('HistoryTicksDrawer component', () => {
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
         top: 0,
-        right: 12,
+        left: 8,
+        right: 50,
+        bottom: 100,
+        width: 42,
+        height: 100,
+        x: 8,
+        y: 0,
+        toJSON: () => ({}),
       } as DOMRect);
     }
 
@@ -238,7 +259,14 @@ describe('HistoryTicksDrawer component', () => {
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
         top: 0,
-        right: 12,
+        left: 8,
+        right: 50,
+        bottom: 100,
+        width: 42,
+        height: 100,
+        x: 8,
+        y: 0,
+        toJSON: () => ({}),
       } as DOMRect);
     }
 
@@ -259,7 +287,7 @@ describe('HistoryTicksDrawer component', () => {
       );
     });
 
-    expect(container?.querySelector('.history-bubble-text')?.textContent).toBe('第二条用户消息');
+    expect(document.querySelector('.history-bubble-text')?.textContent).toBe('第二条用户消息');
     expect(firstTick?.classList.contains('is-hovered')).toBe(false);
     expect(secondTick?.classList.contains('is-hovered')).toBe(true);
   });
@@ -275,7 +303,14 @@ describe('HistoryTicksDrawer component', () => {
     if (rail instanceof HTMLElement) {
       vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
         top: 0,
-        right: 12,
+        left: 8,
+        right: 50,
+        bottom: 100,
+        width: 42,
+        height: 100,
+        x: 8,
+        y: 0,
+        toJSON: () => ({}),
       } as DOMRect);
     }
 
@@ -288,7 +323,7 @@ describe('HistoryTicksDrawer component', () => {
         }),
       );
     });
-    expect(container?.querySelector('[data-testid="history-message-bubble"]')).not.toBeNull();
+    expect(document.querySelector('[data-testid="history-message-bubble"]')).not.toBeNull();
 
     act(() => {
       drawer?.dispatchEvent(
@@ -300,7 +335,7 @@ describe('HistoryTicksDrawer component', () => {
       );
     });
 
-    expect(container?.querySelector('[data-testid="history-message-bubble"]')).toBeNull();
+    expect(document.querySelector('[data-testid="history-message-bubble"]')).toBeNull();
   });
 
   it('jumps directly to the historical message when a tick is clicked', () => {

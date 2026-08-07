@@ -125,10 +125,22 @@ export function PreviewInterruption(): ReactElement {
             </div>
           </Collapse>
           <div className="permission-bar-actions">
-            <Button variant="primary" size="compact" className="permission-bar-btn-allow-session">允许本次会话</Button>
-            <Button variant="secondary" size="compact">仅允许这一次</Button>
-            <Button variant="secondary" size="compact">允许此项目</Button>
-            <Button variant="danger" size="compact">拒绝</Button>
+            <Button variant="primary" size="compact" className="permission-bar-btn-allow-session">
+              <span className="agent-interruption-choice-badge">A</span>
+              <span>允许本次会话</span>
+            </Button>
+            <Button variant="secondary" size="compact" className="permission-bar-btn-allow-once">
+              <span className="agent-interruption-choice-badge">B</span>
+              <span>仅允许这一次</span>
+            </Button>
+            <Button variant="secondary" size="compact" className="permission-bar-btn-allow-project">
+              <span className="agent-interruption-choice-badge">C</span>
+              <span>允许此项目</span>
+            </Button>
+            <Button variant="danger" size="compact" className="permission-bar-btn-deny">
+              <span className="agent-interruption-choice-badge">D</span>
+              <span>拒绝</span>
+            </Button>
           </div>
         </Frame>
 
@@ -153,14 +165,23 @@ export function PreviewInterruption(): ReactElement {
                 <dt>Command</dt>
                 <dd><pre className="permission-detail">rm -rf node_modules dist</pre></dd>
                 <dt>Risk</dt>
-                <dd style={{ color: 'var(--danger, #ef4444)' }}>Destructive — removes directories recursively</dd>
+                <dd className="permission-risk-danger">Destructive — removes directories recursively</dd>
               </dl>
             </div>
           </Collapse>
           <div className="permission-bar-actions">
-            <Button variant="primary" size="compact" className="permission-bar-btn-allow-session">允许本次会话</Button>
-            <Button variant="secondary" size="compact">仅允许这一次</Button>
-            <Button variant="danger" size="compact">拒绝</Button>
+            <Button variant="primary" size="compact" className="permission-bar-btn-allow-session">
+              <span className="agent-interruption-choice-badge">A</span>
+              <span>允许本次会话</span>
+            </Button>
+            <Button variant="secondary" size="compact" className="permission-bar-btn-allow-once">
+              <span className="agent-interruption-choice-badge">B</span>
+              <span>仅允许这一次</span>
+            </Button>
+            <Button variant="danger" size="compact" className="permission-bar-btn-deny">
+              <span className="agent-interruption-choice-badge">C</span>
+              <span>拒绝</span>
+            </Button>
           </div>
         </Frame>
       </div>

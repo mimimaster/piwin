@@ -213,7 +213,20 @@ export function McpPanel(props: McpPanelProps) {
       delete nextServers[originalId];
     }
     nextServers[id] = config;
-    const ok = await saveDocument({ mcpServers: nextServers });
+    let nextPins = documentRef.current.pinnedSelectors ?? [];
+    if (originalId && originalId !== id) {
+      const oldPrefix = `${originalId}.`;
+      const newPrefix = `${id}.`;
+      nextPins = nextPins.map((selector) =>
+        selector.startsWith(oldPrefix)
+          ? `${newPrefix}${selector.slice(oldPrefix.length)}`
+          : selector,
+      );
+    }
+    const ok = await saveDocument({
+      mcpServers: nextServers,
+      pinnedSelectors: nextPins,
+    });
     if (ok) {
       await refreshHealth();
     }
@@ -238,24 +251,27 @@ export function McpPanel(props: McpPanelProps) {
     return saveDocument(next);
   }
 
-  async function handlePreviewToolsFromEditor(
-    serverId: string,
-    config: McpServerConfig,
-  ): Promise<McpToolSummary[]> {
-    const exists = Boolean(document.mcpServers[serverId]);
-    if (!exists) {
-      const nextServers = { ...document.mcpServers, [serverId]: config };
-      const ok = await saveDocument({ mcpServers: nextServers });
-      if (!ok) return [];
-    }
-    const response = await props.request({ type: 'mcp/list_tools', serverId });
-    if (!response.success) {
-      setError(response.error);
-      return [];
-    }
-    const data = response.data as McpListToolsData;
-    return data.tools ?? [];
-  }
+  const handlePreviewToolsFromEditor = useCallback(
+    async (serverId: string, config: McpServerConfig): Promise<McpToolSummary[]> => {
+      const currentDocument = documentRef.current;
+      const exists = Boolean(currentDocument.mcpServers[serverId]);
+      if (!exists) {
+        const nextServers = { ...currentDocument.mcpServers, [serverId]: config };
+        const ok = await saveDocument({ mcpServers: nextServers });
+        if (!ok) return [];
+      }
+      const response = await props.request({ type: 'mcp/list_tools', serverId });
+      if (!response.success) {
+        setError(response.error);
+        return [];
+      }
+      const data = response.data as McpListToolsData;
+      return data.tools ?? [];
+    },
+    // saveDocument closes over documentRef/saveQueueRef; request is the only external input.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [props.request],
+  );
 
   async function handleToggleServer(serverId: string, enable: boolean): Promise<void> {
     const server = document.mcpServers[serverId];
@@ -312,7 +328,14 @@ export function McpPanel(props: McpPanelProps) {
     if (!ok) return;
     const nextServers = { ...document.mcpServers };
     delete nextServers[serverId];
-    const saved = await saveDocument({ mcpServers: nextServers });
+    const pinPrefix = `${serverId}.`;
+    const nextPins = (documentRef.current.pinnedSelectors ?? []).filter(
+      (selector) => !selector.startsWith(pinPrefix),
+    );
+    const saved = await saveDocument({
+      mcpServers: nextServers,
+      pinnedSelectors: nextPins,
+    });
     if (saved) {
       showUiNotification({
         tone: 'success',
@@ -373,7 +396,9 @@ export function McpPanel(props: McpPanelProps) {
                 title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
                 description={
                   mainTab === 'configured'
-                    ? (isChinese ? '管理本地 MCP 服务器配置。点击服务器卡片编辑详情。' : 'Manage local MCP server configurations. Click a server to edit details.')
+                    ? (isChinese
+                      ? '管理本地 MCP 服务器。打开服务器可固定直调工具；未固定工具由 Agent 通过 mcp_gateway 调用。'
+                      : 'Manage local MCP servers. Open a server to pin direct tools; unpinned tools are called via mcp_gateway.')
                     : (isChinese ? '从开放市场浏览并安装社区 MCP 服务器。' : 'Browse and install MCP servers from the community marketplace.')
                 }
               />
@@ -431,6 +456,10 @@ export function McpPanel(props: McpPanelProps) {
                     const toolCount = health?.toolCount ?? 0;
                     const fullCommand = [server?.command ?? '', ...(server?.args ?? [])].filter(Boolean).join(' ');
                     const envCount = Object.keys(server?.env ?? {}).length;
+                    const pinPrefix = `${serverId}.`;
+                    const pinnedCount = (document.pinnedSelectors ?? []).filter((selector) =>
+                      selector.startsWith(pinPrefix),
+                    ).length;
 
                     return (
                       <li key={serverId} className="ext-list-item mcp-server-card" data-testid={`mcp-server-${serverId}`}>
@@ -462,6 +491,19 @@ export function McpPanel(props: McpPanelProps) {
                             {toolCount > 0 && (
                               <span className="mcp-meta-badge mcp-tools-badge">
                                 {isChinese ? `${toolCount} 个工具` : `${toolCount} tools`}
+                              </span>
+                            )}
+                            {pinnedCount > 0 && (
+                              <span
+                                className="mcp-meta-badge mcp-pinned-badge"
+                                title={
+                                  isChinese
+                                    ? `${pinnedCount} 个工具已固定为直接调用`
+                                    : `${pinnedCount} tool(s) pinned for direct call`
+                                }
+                                data-testid={`mcp-server-pinned-count-${serverId}`}
+                              >
+                                {isChinese ? `${pinnedCount} 直调` : `${pinnedCount} pinned`}
                               </span>
                             )}
                             {envCount > 0 && (

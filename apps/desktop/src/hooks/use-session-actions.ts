@@ -14,7 +14,7 @@ import type { ChatUiAction, ChatUiState, SessionListItemUi } from '../chat-reduc
 import type { NotificationAction } from '../notification-queue';
 import { pushError, pushInfo, pushSuccess } from '../notification-queue';
 import { appendHostLogEntry, type HostLogEntry } from '../HostLogPanel';
-import { applyAgentModeToPrompt, type AgentModeId } from '../agent-mode';
+import { type AgentModeId } from '../agent-mode';
 import type { SessionRowMenuAction } from '../session-row-menu';
 import { isDesktopShellRuntime, pickProjectDirectory } from '../pick-project-directory';
 import { mapSummariesToListItems, summaryToListItem } from './session-list-item';
@@ -212,7 +212,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const handleResumeSession = useCallback(
     async (sessionId: string): Promise<void> => {
-      dispatch({ type: 'session/set', sessionId });
+      dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
       const resumed = await hostClient.request({
         type: 'session/resume',
         sessionId,
@@ -221,6 +221,14 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         dispatch({
           type: 'error',
           message: `${resumed.error} — start a New session to continue in this process.`,
+        });
+        // Clear the painted previous transcript and exit awaitingTranscript so
+        // the UI does not stay stuck showing another session's rows.
+        dispatch({
+          type: 'session/load-messages',
+          sessionId,
+          messages: [],
+          live: false,
         });
         return;
       }
@@ -1028,9 +1036,8 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         messages: truncData.messages ?? [],
       });
       setEditingMessageId(null);
-      const promptText = applyAgentModeToPrompt(agentMode, text);
       // Keep the same client id for the resend bubble so a later Revert can
-      // still match the host transcript without a resume.
+      // still match the host transcript without a resume. Host injects mode.
       const resendClientMessageId = crypto.randomUUID();
       dispatch({ type: 'user/send', text, clientMessageId: resendClientMessageId });
       const editInput: {
@@ -1041,7 +1048,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         orchestrationSchemeId?: string;
         clientMessageId?: string;
       } = {
-        text: promptText,
+        text,
         agentMode: agentMode,
         clientMessageId: resendClientMessageId,
       };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveDefaultNameFromMessage } from './derive-default-name.js';
+import { deriveDefaultNameFromMessage, extractUserFacingBody } from './derive-default-name.js';
 
 describe('deriveDefaultNameFromMessage', () => {
   it('returns trimmed first line for a simple prompt', () => {
@@ -66,5 +66,74 @@ describe('deriveDefaultNameFromMessage', () => {
 
   it('returns empty string for input that is only markdown/urls', () => {
     expect(deriveDefaultNameFromMessage('### `https://x.com`')).toBe('');
+  });
+
+  it('strips agent-mode injection wrappers and keeps the user body', () => {
+    const wrapped = [
+      '[piwin-mode:agent]',
+      '[piwin-prompt-meta kind="mode:agent" version="2" applies="every-turn"]',
+      'Operating contract for this turn:',
+      'Success: satisfy the goal.',
+      '',
+      '---',
+      'User:',
+      'Fix the login bug',
+    ].join('\n');
+    expect(deriveDefaultNameFromMessage(wrapped)).toBe('Fix the login bug');
+  });
+
+  it('strips skill wrappers and keeps the user body', () => {
+    const wrapped = [
+      '[piwin-skill:create-skill]',
+      'Follow the installed skill "create-skill" (id: skill-1).',
+      '---',
+      'generate a skill for docs',
+    ].join('\n');
+    expect(deriveDefaultNameFromMessage(wrapped)).toBe('generate a skill for docs');
+  });
+
+  it('returns empty for pure directive noise', () => {
+    expect(
+      deriveDefaultNameFromMessage(
+        '[piwin-mode:agent]\n[piwin-prompt-meta kind="mode:agent" version="2"]',
+      ),
+    ).toBe('');
+  });
+});
+
+describe('extractUserFacingBody', () => {
+  it('returns plain user text unchanged', () => {
+    expect(extractUserFacingBody('Fix the login bug')).toBe('Fix the login bug');
+  });
+
+  it('keeps the body after ---\\nUser: mode wrappers', () => {
+    const wrapped = [
+      '[piwin-mode:agent]',
+      '[piwin-prompt-meta kind="mode:agent" version="2" applies="every-turn"]',
+      'Operating contract for this turn:',
+      "Success: satisfy the user's stated goal with the smallest correct change.",
+      '',
+      '---',
+      'User:',
+      '排查刻度条间距',
+    ].join('\n');
+    expect(extractUserFacingBody(wrapped)).toBe('排查刻度条间距');
+  });
+
+  it('strips mode wrappers when no User section is present', () => {
+    const wrapped = [
+      '[piwin-mode:agent]',
+      '[piwin-prompt-meta kind="mode:agent" version="2" applies="every-turn"]',
+      'Operating contract for this turn:',
+      'Success: satisfy the goal.',
+    ].join('\n');
+    const body = extractUserFacingBody(wrapped);
+    expect(body).not.toContain('piwin-mode');
+    expect(body).not.toContain('piwin-prompt-meta');
+    expect(body).not.toContain('Operating contract');
+  });
+
+  it('preserves image-path notes that are not piwin wrappers', () => {
+    expect(extractUserFacingBody('See the screenshot below')).toBe('See the screenshot below');
   });
 });

@@ -104,11 +104,13 @@ function CodeBodyWithLineNumbers({
   source,
   language,
   defaultCollapsed = true,
+  renderCursor = false,
 }: {
   source: string;
   language: string;
   /** When false (e.g. streaming), keep expanded so new lines stay visible. */
   defaultCollapsed?: boolean;
+  renderCursor?: boolean;
 }): ReactElement {
   const normalizedLang = normalizeLanguage(language);
   const isDiff = normalizedLang === 'diff';
@@ -123,6 +125,7 @@ function CodeBodyWithLineNumbers({
     <pre className={`md-code${isDiff ? ' md-code-diff' : ''}`}>
       <div className="md-code-content" data-language={language || undefined}>
         {lines.map((line, index) => {
+          const isLastLine = index === lines.length - 1;
           const tokens: TokenLine | null = tokenLines?.[index] ?? null;
           let lineClass = 'md-code-line';
           if (isDiff) {
@@ -158,6 +161,9 @@ function CodeBodyWithLineNumbers({
               {gutter}
               <span className="md-code-line-text">
                 {tokens ? <TokenSpans tokens={tokens} /> : line}
+                {renderCursor && isLastLine ? (
+                  <span className="streaming-cursor-pulse" aria-hidden="true" />
+                ) : null}
               </span>
             </div>
           );
@@ -208,6 +214,9 @@ export function MarkdownView({
   return (
     <div className="markdown" data-rendering-phase={phase}>
       {blocks.map((block, index) => {
+        const isLastBlock = index === blocks.length - 1;
+        const shouldRenderCursor = streamMode && isLastBlock;
+
         if (block.type === 'code') {
           const fenceProps: {
             language: string;
@@ -222,6 +231,7 @@ export function MarkdownView({
             artifactPreviewEnabled: boolean;
             artifactCodeFirst?: boolean;
             artifactMaxBytes?: number;
+            renderCursor?: boolean;
           } = {
             language: block.language,
             source: block.source,
@@ -232,6 +242,7 @@ export function MarkdownView({
             artifactThemeKey,
             artifactPreviewEnabled,
             artifactCodeFirst,
+            renderCursor: shouldRenderCursor,
           };
           if (artifactTheme) {
             fenceProps.artifactTheme = artifactTheme;
@@ -250,6 +261,9 @@ export function MarkdownView({
           return (
             <HeadingTag key={index} className={`md-h md-h${block.level}`}>
               {renderInline(block.text, onOpenDocument)}
+              {shouldRenderCursor ? (
+                <span className="streaming-cursor-pulse" aria-hidden="true" />
+              ) : null}
             </HeadingTag>
           );
         }
@@ -269,11 +283,17 @@ export function MarkdownView({
                 <tbody>
                   {block.rows.map((row, rIdx) => (
                     <tr key={rIdx}>
-                      {row.map((cell, cIdx) => (
-                        <td key={cIdx} style={{ textAlign: getTextAlign(block.alignments[cIdx]) }}>
-                          {renderInline(cell, onOpenDocument)}
-                        </td>
-                      ))}
+                      {row.map((cell, cIdx) => {
+                        const isLastCell = rIdx === block.rows.length - 1 && cIdx === row.length - 1;
+                        return (
+                          <td key={cIdx} style={{ textAlign: getTextAlign(block.alignments[cIdx]) }}>
+                            {renderInline(cell, onOpenDocument)}
+                            {shouldRenderCursor && isLastCell ? (
+                              <span className="streaming-cursor-pulse" aria-hidden="true" />
+                            ) : null}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
@@ -292,13 +312,21 @@ export function MarkdownView({
                 <div className="md-callout-header">
                   <span className="md-callout-badge">{block.kind.toUpperCase()}</span>
                 </div>
-                <div className="md-callout-body">{renderInline(block.text, onOpenDocument)}</div>
+                <div className="md-callout-body">
+                  {renderInline(block.text, onOpenDocument)}
+                  {shouldRenderCursor ? (
+                    <span className="streaming-cursor-pulse" aria-hidden="true" />
+                  ) : null}
+                </div>
               </div>
             );
           }
           return (
             <blockquote key={index} className="md-blockquote">
               {renderInline(block.text, onOpenDocument)}
+              {shouldRenderCursor ? (
+                <span className="streaming-cursor-pulse" aria-hidden="true" />
+              ) : null}
             </blockquote>
           );
         }
@@ -306,23 +334,46 @@ export function MarkdownView({
           if (block.ordered) {
             return (
               <ol key={index} className="md-list md-list-ordered">
-                {block.items.map((item, itemIndex) => (
-                  <li key={itemIndex}>{renderInline(item, onOpenDocument)}</li>
-                ))}
+                {block.items.map((item, itemIndex) => {
+                  const isLastItem = itemIndex === block.items.length - 1;
+                  return (
+                    <li key={itemIndex}>
+                      {renderInline(item, onOpenDocument)}
+                      {shouldRenderCursor && isLastItem ? (
+                        <span className="streaming-cursor-pulse" aria-hidden="true" />
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ol>
             );
           }
           return (
             <ul key={index} className="md-list">
-              {block.items.map((item, itemIndex) => (
-                <li key={itemIndex}>{renderInline(item, onOpenDocument)}</li>
-              ))}
+              {block.items.map((item, itemIndex) => {
+                const isLastItem = itemIndex === block.items.length - 1;
+                return (
+                  <li key={itemIndex}>
+                    {renderInline(item, onOpenDocument)}
+                    {shouldRenderCursor && isLastItem ? (
+                      <span className="streaming-cursor-pulse" aria-hidden="true" />
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           );
         }
-        return <ParagraphView key={index} value={block.value} onOpenDocument={onOpenDocument} />;
+        return (
+          <ParagraphView
+            key={index}
+            value={block.value}
+            onOpenDocument={onOpenDocument}
+            renderCursor={shouldRenderCursor}
+          />
+        );
       })}
-      {phase === 'streaming' && text.length > 0 ? (
+      {streamMode && blocks.length === 0 && text.length > 0 ? (
         <span className="streaming-cursor-pulse" aria-hidden="true" />
       ) : null}
     </div>
@@ -332,12 +383,23 @@ export function MarkdownView({
 function ParagraphView(props: {
   value: string;
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
+  renderCursor?: boolean;
 }): ReactElement {
   const standaloneMath = extractStandaloneDisplayMath(props.value);
   if (standaloneMath !== null) {
-    return <MathView tex={standaloneMath} display />;
+    return (
+      <>
+        <MathView tex={standaloneMath} display />
+        {props.renderCursor ? <span className="streaming-cursor-pulse" aria-hidden="true" /> : null}
+      </>
+    );
   }
-  return <p className="md-p">{renderInline(props.value, props.onOpenDocument)}</p>;
+  return (
+    <p className="md-p">
+      {renderInline(props.value, props.onOpenDocument)}
+      {props.renderCursor ? <span className="streaming-cursor-pulse" aria-hidden="true" /> : null}
+    </p>
+  );
 }
 
 function CodeFenceView(props: {
@@ -353,6 +415,7 @@ function CodeFenceView(props: {
   artifactPreviewEnabled: boolean;
   artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
+  renderCursor?: boolean;
 }): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
   const artifactCodeFirst = props.artifactCodeFirst ?? false;
@@ -366,6 +429,9 @@ function CodeFenceView(props: {
       return (
         <pre className="md-code" data-testid="mermaid-stream-source">
           <code data-language="mermaid">{props.source}</code>
+          {props.renderCursor ? (
+            <span className="streaming-cursor-pulse" aria-hidden="true" />
+          ) : null}
         </pre>
       );
     }
@@ -418,6 +484,7 @@ function CodeFenceView(props: {
           source={props.source}
           language={props.language}
           defaultCollapsed={false}
+          {...(props.renderCursor !== undefined ? { renderCursor: props.renderCursor } : {})}
         />
       </div>
     );

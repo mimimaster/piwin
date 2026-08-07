@@ -32,6 +32,7 @@ import {
   formatError,
   DEFAULT_PERMISSION_PRESET,
   resolvePreset,
+  mergeAgentModeIntoPrompt,
   resolveOrchestrationScheme,
   mergeOrchestrationSchemeIntoPrompt,
   OrchestrationSchemeError,
@@ -46,6 +47,7 @@ import {
 import {
   buildSessionOutline,
   buildProductHistoryContext,
+  projectTranscriptMessagesForUi,
   clearSessionPlan,
   createSessionRecord,
   exportTranscript,
@@ -554,6 +556,12 @@ async function preparePromptInput(
     context.clearSessionPermissionOverride(command.sessionId);
   }
 
+  // Agent mode operating contract: model-facing only. Transcript already
+  // recorded the original command.input (user text only) so naming stays clean.
+  if (command.input.agentMode) {
+    promptInput.text = mergeAgentModeIntoPrompt(command.input.agentMode, promptInput.text);
+  }
+
   // ORCH: per-send orchestration scheme — inject model-facing preamble only.
   // Transcript already recorded original command.input (user text only).
   const schemeIdRaw = command.input.orchestrationSchemeId;
@@ -927,6 +935,9 @@ export async function handleSessionLiveCommand(
         return fail(requestId, 'session/resume', `Unknown session: ${command.sessionId}`);
       }
       const messages = await context.loadTranscriptMessages(command.sessionId);
+      // Full messages seed the product shell / history inject; IPC gets a slim
+      // projection so Desktop does not deserialize multi-MB tool bodies.
+      const uiMessages = projectTranscriptMessagesForUi(messages);
       let session: SessionHandle;
       let live = true;
       try {
@@ -964,7 +975,7 @@ export async function handleSessionLiveCommand(
       const data: SessionResumeData = {
         sessionId: session.id,
         live,
-        messages,
+        messages: uiMessages,
         projectPath: existing.projectPath,
         outline: buildSessionOutline(messages),
       };
@@ -1007,7 +1018,7 @@ export async function handleSessionLiveCommand(
       const messages = await context.loadTranscriptMessages(command.sessionId);
       return ok(requestId, 'session/messages', {
         sessionId: command.sessionId,
-        messages,
+        messages: projectTranscriptMessagesForUi(messages),
       });
     }
     case 'session/prompt': {

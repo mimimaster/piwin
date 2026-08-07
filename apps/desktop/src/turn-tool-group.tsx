@@ -22,6 +22,12 @@ export type TurnToolGroupProps = {
   projectPath?: string | null;
   /** Host request adapter forwarded to ToolCallCard → DiffCard. */
   request?: DiffCardRequest;
+  /**
+   * When true (historical hydrate), collapse completed tools into a single
+   * summary row so opening a long session does not mount every ToolCallCard.
+   * Running/error tools always stay visible.
+   */
+  historyCollapsed?: boolean;
 };
 
 function exploreBatchIsActive(tools: ToolCardUi[]): boolean {
@@ -126,12 +132,96 @@ function renderSegment(
   );
 }
 
+function HistoryToolsCollapsed(props: {
+  tools: ToolCardUi[];
+  density: ToolCallDensity;
+  locale: 'zh-CN' | 'en';
+  projectPath?: string | null;
+  request?: DiffCardRequest;
+}): ReactElement {
+  const isZh = props.locale === 'zh-CN';
+  const attentionTools = props.tools.filter(
+    (tool) => tool.status === 'running' || tool.status === 'error',
+  );
+  const completedCount = props.tools.length - attentionTools.length;
+  const hasFailure = props.tools.some((tool) => tool.status === 'error');
+  const [expanded, setExpanded] = useState(attentionTools.length > 0 && completedCount === 0);
+  const [userToggled, setUserToggled] = useState(false);
+
+  useEffect(() => {
+    if (!userToggled && attentionTools.length > 0 && completedCount === 0) {
+      setExpanded(true);
+    }
+  }, [attentionTools.length, completedCount, userToggled]);
+
+  const cardProps = {
+    density: props.density,
+    ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
+    ...(props.request !== undefined ? { request: props.request } : {}),
+  };
+
+  const summaryLabel =
+    completedCount <= 0
+      ? isZh
+        ? `${props.tools.length} 个工具`
+        : `${props.tools.length} tools`
+      : isZh
+        ? hasFailure
+          ? `${completedCount} 个工具已完成（含失败）`
+          : `${completedCount} 个工具已完成`
+        : hasFailure
+          ? `${completedCount} tools completed (with failures)`
+          : `${completedCount} tools completed`;
+
+  return (
+    <div
+      className={`activity-history-tools${expanded ? ' is-expanded' : ' is-collapsed'}${
+        hasFailure ? ' has-failure' : ''
+      }`}
+      data-testid="activity-history-tools"
+    >
+      {completedCount > 0 ? (
+        <button
+          type="button"
+          className="activity-history-tools-summary"
+          aria-expanded={expanded}
+          data-testid="activity-history-tools-summary"
+          onClick={() => {
+            setUserToggled(true);
+            setExpanded((previous) => !previous);
+          }}
+        >
+          <IconSearch className="activity-explore-icon" width={13} height={13} />
+          <span className="activity-explore-label">{summaryLabel}</span>
+          <IconChevronDown
+            className={`activity-explore-chevron${expanded ? ' is-open' : ''}`}
+            width={12}
+            height={12}
+          />
+        </button>
+      ) : null}
+      {expanded ? (
+        <div className="activity-history-tools-children" data-testid="activity-history-tools-children">
+          {props.tools.map((tool) => (
+            <ToolCallCard key={tool.toolCallId} tool={tool} {...cardProps} />
+          ))}
+        </div>
+      ) : (
+        attentionTools.map((tool) => (
+          <ToolCallCard key={tool.toolCallId} tool={tool} {...cardProps} />
+        ))
+      )}
+    </div>
+  );
+}
+
 export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
   const tools = props.tools;
   const density = props.density ?? 'compact';
   const locale = props.locale ?? 'zh-CN';
 
   const segments = useMemo(() => groupToolsForTimeline(tools), [tools]);
+  const historyCollapsed = props.historyCollapsed === true;
 
   if (tools.length === 0) {
     return null;
@@ -142,6 +232,20 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
   };
+
+  if (historyCollapsed && tools.length >= 3) {
+    return (
+      <div className="activity-timeline" data-testid="turn-tool-group">
+        <HistoryToolsCollapsed
+          tools={tools}
+          density={density}
+          locale={locale}
+          {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+          {...(props.request !== undefined ? { request: props.request } : {})}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="activity-timeline" data-testid="turn-tool-group">

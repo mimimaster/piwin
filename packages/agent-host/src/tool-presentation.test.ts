@@ -236,6 +236,25 @@ describe('buildToolPresentation', () => {
     expect(serverOnly.summary).toBeUndefined();
     expect(serverOnly.inputPreview).toBe('{"project":"piwin"}');
   });
+
+  it('marks a successful web fetch result as truncated in the tool view', () => {
+    const presentation = buildToolPresentation({
+      toolName: 'web_fetch',
+      args: { url: 'https://example.com/docs' },
+      outputText: JSON.stringify({
+        url: 'https://example.com/docs',
+        finalUrl: 'https://example.com/docs',
+        title: 'Docs',
+        text: 'partial content',
+        contentType: 'text/plain',
+        byteSize: 262144,
+        truncated: true,
+        truncationReason: 'response-limit',
+      }),
+    });
+
+    expect(presentation.output?.truncated).toBe(true);
+  });
 });
 
 describe('redactToolText / boundToolOutput', () => {
@@ -259,8 +278,7 @@ describe('buildToolPresentation cancel', () => {
     const presentation = buildToolPresentation({
       toolName: 'bash',
       args: { command: 'pnpm test' },
-      outputText:
-        'Command aborted: A newer user message started, so this run was interrupted.',
+      outputText: 'Command aborted: A newer user message started, so this run was interrupted.',
       isError: true,
     });
     expect(presentation.error?.category).toBe('cancelled');

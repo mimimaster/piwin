@@ -1,4 +1,4 @@
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -87,5 +87,19 @@ describe('message-store', () => {
     expect(result.remainingCount).toBe(1);
     const messages = await listTranscriptMessages(filePath);
     expect(messages.map((item) => item.id)).toEqual(['u1']);
+  });
+
+  it('writes compact JSON without pretty indentation', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-transcript-compact-'));
+    const filePath = join(dir, 'transcript.json');
+    await appendTranscriptMessage(
+      filePath,
+      's1',
+      '/tmp/proj',
+      createUserTranscriptMessage({ id: 'u1', text: 'hello' }),
+    );
+    const raw = await readFile(filePath, 'utf8');
+    expect(raw.includes('\n  ')).toBe(false);
+    expect(raw.trim().startsWith('{')).toBe(true);
   });
 });

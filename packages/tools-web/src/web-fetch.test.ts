@@ -60,6 +60,51 @@ describe('webFetch', () => {
     }
   });
 
+  it('returns bounded partial markdown from Jina when the provider response is oversized', async () => {
+    const result = await webFetch('https://example.com/jina', {
+      fetchImpl: async () =>
+        new Response('z'.repeat(5000), {
+          status: 200,
+          headers: { 'content-type': 'text/markdown' },
+        }),
+      config: {
+        fetchProvider: 'jina',
+        fetchMaxBytes: 100,
+        fetchTimeoutMs: 5000,
+        fetchBlockedUrlPrefixes: [],
+      },
+    });
+
+    expect(result.truncated).toBe(true);
+    expect(result.truncationReason).toBe('response-limit');
+    expect(result.text).toBe('z'.repeat(100));
+  });
+
+  it('returns a structured truncation notice when Firecrawl JSON is oversized', async () => {
+    const body = JSON.stringify({
+      success: true,
+      data: { markdown: 'q'.repeat(5000) },
+    });
+    const result = await webFetch('https://example.com/firecrawl', {
+      apiKey: 'firecrawl-test-key',
+      fetchImpl: async () =>
+        new Response(body, {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      config: {
+        fetchProvider: 'firecrawl',
+        fetchMaxBytes: 100,
+        fetchTimeoutMs: 5000,
+        fetchBlockedUrlPrefixes: [],
+      },
+    });
+
+    expect(result.truncated).toBe(true);
+    expect(result.truncationReason).toBe('response-limit');
+    expect(result.text).toContain('retry with the supermarkdown or jina fetch provider');
+  });
+
   it('extracts text from html via mock fetch', async () => {
     const html = '<html><head><title>Hello</title></head><body><p>World article</p></body></html>';
     const result = await webFetch('https://example.com/post', {
@@ -102,23 +147,48 @@ describe('webFetch', () => {
     expect(calls).toBe(1);
   });
 
-  it('enforces stream byte cap', async () => {
+  it('returns a bounded partial result when the response exceeds the stream cap', async () => {
     const body = 'x'.repeat(5000);
-    await expect(
-      webFetch('https://example.com/big', {
-        resolveHostAddresses: async () => ['93.184.216.34'],
-        fetchImpl: async () =>
-          new Response(body, {
-            status: 200,
-            headers: { 'content-type': 'text/plain' },
-          }),
-        config: {
-          fetchMaxBytes: 100,
-          fetchTimeoutMs: 5000,
-          fetchBlockedUrlPrefixes: [],
-        },
-      }),
-    ).rejects.toThrow(/too large|cap/);
+    const result = await webFetch('https://example.com/big', {
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      fetchImpl: async () =>
+        new Response(body, {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        }),
+      config: {
+        fetchMaxBytes: 100,
+        fetchTimeoutMs: 5000,
+        fetchBlockedUrlPrefixes: [],
+      },
+    });
+
+    expect(result.truncated).toBe(true);
+    expect(result.truncationReason).toBe('response-limit');
+    expect(result.byteSize).toBe(400);
+    expect(result.text).toHaveLength(100);
+    expect(result.text).toBe('x'.repeat(100));
+  });
+
+  it('marks text-only truncation when the raw response fits the stream cap', async () => {
+    const result = await webFetch('https://example.com/text', {
+      resolveHostAddresses: async () => ['93.184.216.34'],
+      fetchImpl: async () =>
+        new Response('y'.repeat(300), {
+          status: 200,
+          headers: { 'content-type': 'text/plain' },
+        }),
+      config: {
+        fetchMaxBytes: 100,
+        fetchTimeoutMs: 5000,
+        fetchBlockedUrlPrefixes: [],
+      },
+    });
+
+    expect(result.truncated).toBe(true);
+    expect(result.truncationReason).toBe('text-limit');
+    expect(result.byteSize).toBe(300);
+    expect(result.text).toBe('y'.repeat(100));
   });
 
   it('caps oversized HTML before parsing so a giant page cannot stall', async () => {

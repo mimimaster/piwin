@@ -688,6 +688,12 @@
   border-color: rgba(59, 130, 246, 0.2);
 }
 
+.mcp-pinned-badge {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
 .mcp-env-badge {
   color: var(--muted);
 }
@@ -777,13 +783,38 @@
   border-radius: var(--radius-sm);
 }
 
-.cherry-dialog--mcp-editor .mcp-tools-preview h5 {
+.mcp-tools-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.cherry-dialog--mcp-editor .mcp-tools-preview h5,
+.mcp-tools-preview-header h5 {
   margin: 0 0 8px;
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.mcp-tools-preview-header h5 {
+  margin: 0;
+}
+
+.mcp-tools-preview-hint {
+  margin: 0 0 10px;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.mcp-tools-empty {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .cherry-dialog--mcp-editor .mcp-tools-list {
@@ -795,10 +826,78 @@
   gap: 6px;
 }
 
-.cherry-dialog--mcp-editor .mcp-tools-list li {
+.cherry-dialog--mcp-editor .mcp-tools-list li,
+.mcp-tool-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 6px;
+  border-radius: 8px;
+}
+
+.mcp-tool-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mcp-tool-pin-btn {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.mcp-tool-pin-btn--active,
+.mcp-tool-pin-btn[aria-pressed='true'] {
+  color: #f59e0b;
+}
+
+.mcp-tool-pin-icon--filled {
+  fill: currentColor;
+}
+
+.mcp-tool-row-body {
+  min-width: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
+}
+
+.mcp-tool-row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mcp-tool-row-desc {
+  display: block;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.mcp-tool-selector {
+  font-size: 10.5px;
+  opacity: 0.8;
+}
+
+.mcp-tool-pin-pill,
+.mcp-tool-gateway-pill {
+  font-size: 10px;
+  line-height: 1.3;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+}
+
+.mcp-tool-pin-pill {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.mcp-tool-gateway-pill {
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .cherry-dialog--mcp-editor .mcp-tools-list strong {

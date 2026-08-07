@@ -76,7 +76,9 @@ export async function saveSessionTranscript(
   document: SessionTranscriptDocument,
 ): Promise<void> {
   await mkdir(dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+  // Compact JSON: pretty-print bloats multi-MB tool-heavy transcripts and slows
+  // every session/resume parse. Human debugging can pretty-print on demand.
+  await writeFile(filePath, `${JSON.stringify(document)}\n`, 'utf8');
 }
 
 /**
@@ -92,7 +94,7 @@ export async function saveSessionTranscriptAtomic(
     .toString(36)
     .slice(2, 8)}`;
   try {
-    await writeFile(temporaryPath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+    await writeFile(temporaryPath, `${JSON.stringify(document)}\n`, 'utf8');
     await rename(temporaryPath, filePath);
   } catch (error) {
     try {
