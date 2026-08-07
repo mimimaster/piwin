@@ -9,7 +9,6 @@
 
 import type { ThinkingLevel } from './host.js';
 import { isThinkingLevel } from './host.js';
-import type { SubagentProfileSettings } from './subagent-profile.js';
 
 /** Wait policy for orchestration schemes. */
 export type OrchestrationWaitPolicy = 'await-all' | 'fire-and-continue';
@@ -68,20 +67,6 @@ export type OrchestrationSchemeConfigSlice = {
   maxConcurrency?: number | undefined;
   maxTasksPerRun?: number | undefined;
 };
-
-/** UI summaries without importing host. Full builtin recipes live in host-runtime. */
-export const BUILTIN_ORCHESTRATION_SCHEME_SUMMARIES: readonly {
-  id: string;
-  name: string;
-  description: string;
-}[] = [
-  {
-    id: 'ultra-code',
-    name: 'Ultra Code',
-    description:
-      'Read-only scout pack: low subagent thinking, generic spawn, wait-all; pin a cheap model on explorer for cost',
-  },
-] as const;
 
 export const ORCHESTRATION_SCHEME_OFF_ID = 'off' as const;
 
@@ -143,15 +128,6 @@ export function clampThinkingLevelToMax(
     return value;
   }
   return compareThinkingLevel(value, maximum) <= 0 ? value : maximum;
-}
-
-export function isOrchestrationWaitPolicy(value: unknown): value is OrchestrationWaitPolicy {
-  return value === 'await-all' || value === 'fire-and-continue';
-}
-
-/** Valid scheme id: lowercase alnum + hyphen (builtin ultra-code). */
-export function isValidOrchestrationSchemeId(value: string): boolean {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value) && value !== ORCHESTRATION_SCHEME_OFF_ID;
 }
 
 /**
@@ -314,7 +290,9 @@ export function resolveOrchestrationScheme(
     exposeSpawnMetadata: scheme.exposeSpawnMetadata,
     maxConcurrency: Math.max(1, Math.min(schemeConcurrency, globalMaxConcurrency)),
     maxTasksPerRun: Math.max(1, Math.min(schemeTasks, globalMaxTasksPerRun)),
-    waitPolicy: scheme.waitPolicy === 'fire-and-continue' ? 'await-all' : 'await-all',
+    // MVP: piwin_subagent_run is synchronous (spawn+merge), so await-all is the only
+    // supported wait policy. fire-and-continue is accepted on input but clamped here.
+    waitPolicy: 'await-all',
     systemPreamble: preamble,
   };
   if (scheme.maxSubagentThinkingLevel && isThinkingLevel(scheme.maxSubagentThinkingLevel)) {
@@ -349,7 +327,6 @@ export function applySchemeToSubagentSpawnInput(
   },
 ): {
   profileId?: string;
-  model?: undefined;
   thinkingLevel?: ThinkingLevel;
   clearedModel: boolean;
   forcedProfile: boolean;
@@ -395,10 +372,4 @@ export function applySchemeToSubagentSpawnInput(
   };
 }
 
-/** Helper for tests / UI: known builtin profile ids from summaries alone are incomplete; Host passes full set. */
-export function collectSettingsProfileIds(
-  profiles: readonly SubagentProfileSettings[],
-): string[] {
-  return profiles.map((profile) => profile.id);
-}
 

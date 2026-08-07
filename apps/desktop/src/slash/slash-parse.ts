@@ -118,7 +118,8 @@ export function parseComposerSlashSubmit(
   // ORCH: /scheme [id] or /ultra-code — set per-send scheme only (no chat bubble).
   if (name === 'scheme') {
     const schemeId = (args.split(/\s+/)[0] ?? 'off').trim().toLowerCase() || 'off';
-    return { kind: 'scheme', schemeId, name, args: schemeId === 'off' ? '' : args };
+    const remainingArgs = schemeId === 'off' ? '' : args.slice(schemeId.length).trim();
+    return { kind: 'scheme', schemeId, name, args: remainingArgs };
   }
   if (name === 'ultra-code') {
     return { kind: 'scheme', schemeId: 'ultra-code', name, args };

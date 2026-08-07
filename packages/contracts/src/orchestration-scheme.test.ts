@@ -149,7 +149,6 @@ describe('applySchemeToSubagentSpawnInput', () => {
     expect(applied.forcedProfile).toBe(true);
     expect(applied.clearedModel).toBe(true);
     expect(applied.thinkingLevel).toBe('low');
-    expect(applied.model).toBeUndefined();
   });
 
   it('passes through when no scheme', () => {
