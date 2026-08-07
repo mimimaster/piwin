@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { applyAgentModeToPrompt, getAgentMode } from './agent-mode';
 
 describe('agent-mode', () => {
-  it('leaves agent mode text unchanged', () => {
-    expect(applyAgentModeToPrompt('agent', 'hello')).toBe('hello');
+  it('prefixes agent mode with the operating contract', () => {
+    const out = applyAgentModeToPrompt('agent', 'hello');
+    expect(out).toContain('[piwin-mode:agent]');
+    expect(out).toContain('Operating contract');
+    expect(out).toContain('hello');
   });
 
   it('prefixes plan mode with non-mutating constraints', () => {

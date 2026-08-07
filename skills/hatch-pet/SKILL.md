@@ -5,9 +5,11 @@ description: Hatch Pet — package generator guidance for piwin
 
 # hatch-pet
 
-Create a Codex-compatible pet package for piwin.
+## Goal
+A Codex-compatible pet package installable in piwin (Desktop Pet panel or `~/.piwin/pets/<id>/`).
 
-## Package layout
+## Done means
+Package layout:
 
 ```text
 my-pet/
@@ -15,36 +17,16 @@ my-pet/
   spritesheet.webp   # or .png
 ```
 
-## pet.json minimum
+`pet.json` minimum: `id`, `displayName`, `description`, `spritesheetPath` (relative inside package).
 
-```json
-{
-  "id": "my-pet",
-  "displayName": "My Pet",
-  "description": "One specific sentence about the pet.",
-  "spritesheetPath": "spritesheet.webp"
-}
-```
+Spritesheet: prefer 1536×1872 (8×9 cells of 192×208); rows = idle, running, waiting, failed, waving, jumping, review; columns = frames.
 
-## Spritesheet convention
+## Stop when
+- Package would need executable fields (js/script/hooks) — not allowed; redesign as data-only.
 
-- Preferred Codex size: 1536×1872 (8×9 cells of 192×208)
-- Rows map to states: idle, running, waiting, failed, waving, jumping, review
-- Columns are animation frames
+## Constraints
+- `id`: alphanumeric plus `-`/`_`.
+- Optional: import existing Codex pets via Desktop → Pet → Import `~/.codex/pets` (copy-only).
 
-## Install into piwin
-
-```bash
-# Desktop: Pet panel → Install local
-# or copy to:
-# ~/.piwin/pets/<id>/
-```
-
-Optional: import existing Codex pets with Desktop → Pet → Import ~/.codex/pets (copy-only).
-
-## Validation rules
-
-- No executable fields (js/script/hooks)
-- spritesheetPath must be relative inside the package
-- id: alphanumeric with -/_
-
+## Verify
+- Install/import succeeds; no executables; spritesheet path resolves inside the package.

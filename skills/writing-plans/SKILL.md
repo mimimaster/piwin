@@ -1,60 +1,30 @@
 ---
 name: writing-plans
-description: Turn a goal into a scoped, ordered, executable implementation plan with exit criteria. Trigger via /writing-plans or /write-plan.
+description: Turn a goal into a scoped, reviewable SessionPlan with acceptance criteria, verification, and stop conditions. Trigger via /writing-plans or /write-plan.
 ---
 
 # Writing Plans
 
-Use this skill when the user invokes `/writing-plans` or `/write-plan` (alias).
-Produce a **structured, reviewable plan artifact** — not just a Markdown checklist.
+## Goal
+Produce one reviewable `SessionPlan` the user can approve before any implementation. The plan is the deliverable — not a Markdown checklist and not code changes.
 
-## 1. Research before planning
+## Done means
+- Relevant code/docs/ADRs are grounded enough that steps are decision-complete (or open decisions are explicit questions).
+- `piwin_plan_create` succeeds with: `title`, `goal`, ordered `steps` (stable ids, short titles), and each step `detail` covering affected area, **acceptance criteria**, and **verification**.
+- `source: 'skill'`, `skillId: 'writing-plans'`.
+- `independentSteps` lists only steps safe to run in isolated child sessions (no shared-file conflicts). Omit when work is sequential.
+- Optional `profileId` per step only when a non-default subagent role is needed (`explorer` | `reviewer` | `implementer` | `tester`).
+- Chat summary states plan size: **short** (<4 steps and <2 independent) or **long** (otherwise), so the UI can recommend execution mode.
+- No shell commands, scripts, or hooks as step fields — plans are reviewable artifacts, not executables.
 
-1. Read the relevant code, docs, and ADRs first.
-2. Restate the goal and non-goals in one short block.
-3. List constraints (architecture boundaries, locks, packages, naming).
+## Stop when
+- Goal, constraints, or technical choices are ambiguous in a way that would change the plan — surface the real options and ask; do not invent scope.
+- Plan is draft-created. Do **not** implement, mutate source, or start execution until the user approves and picks a mode (`inline` or `subagent-driven`).
 
-## 2. Create a structured SessionPlan
+## Constraints
+- Prefer thin, correct plans over speculative multi-week epics.
+- Host permissions and isolation are enforced by runtime; do not restate security policy.
 
-Do not start modifying source files before the plan is approved.
-
-Call the piwin plan-create capability with:
-
-- `title` and `goal`;
-- ordered `steps`, each with:
-  - a **stable id** (e.g. `1`, `2`, `3` — never reuse ids);
-  - a short title;
-  - `detail` covering affected area, acceptance criteria, and the verification command;
-  - **no shell commands, scripts, or hooks as step fields** — plans are reviewable artifacts, not executables;
-  - `profileId` (optional): a subagent profile id (e.g. `explorer`, `reviewer`, `implementer`, `tester`) to use when this step runs in subagent-driven mode. Omit when the default worktree+explicit profile is sufficient.
-- `source: 'skill'` and `skillId: 'writing-plans'`;
-- `independentSteps`: list step ids **only** when the work can safely run in an isolated child session without touching the same files as another step. Omit it when steps must run sequentially in one session.
-
-## 3. Classify the plan
-
-- **short**: fewer than 4 steps and fewer than 2 independent steps.
-- **long**: 4+ steps, or 2+ valid independent steps.
-
-State the classification in your chat summary so the UI can recommend an execution mode.
-
-## 4. Execution modes (do not start execution yourself)
-
-The user picks one after reviewing the plan card:
-
-- `inline` — execute in the current session, updating steps via `piwin_plan_set_step`.
-- `subagent-driven` — delegate each independent step to a child session, then merge and verify in the parent.
-
-For **long** plans, `subagent-driven` is the recommended path; `inline` remains available as an explicit fallback. For **short** plans, `inline` is the default.
-
-Do not begin implementation until the user approves the plan and selects a mode.
-
-## 5. Walkthrough
-
-When execution completes, produce a bounded walkthrough summary containing:
-
-- what changed (files/areas);
-- verification results;
-- merged child sessions (if subagent-driven);
-- unresolved items or follow-ups.
-
-Keep it concise. Prefer thin, correct plans over speculative multi-week epics.
+## Verify
+- Every step has checkable acceptance criteria and a concrete verification signal (command, test, or observable outcome).
+- Independent steps truly do not contend on the same files or external resources.

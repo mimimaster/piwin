@@ -1,21 +1,24 @@
 ---
 name: web-research
-description: Use web_search and web_fetch for current docs and facts. Prefer web_search first; it may aggregate multiple host-configured sources into one hit list.
+description: Answer with current, cited facts via web_search and web_fetch. Prefer web_search first; the host may merge multiple configured sources.
 ---
 
 # Web Research
 
-Host-configured multi-source search is **transparent** to you: call `web_search` once. Do not invent extra search tools or assume a single vendor.
+## Goal
+A user answer grounded in current sources, with concrete URLs the reader can open.
 
-## Workflow
+## Done means
+- `web_search` used for discovery when the question needs the live web (host may multi-source merge; do not invent extra search tools).
+- 1–5 promising hits read with `web_fetch` before strong claims.
+- Answer cites specific URLs; only evidence that addresses the question is kept.
 
-1. Call **web_search** with a focused query.
-2. Read the returned `hits` (title, url, snippet, optional `source` tag). Ranking may be simple host-side merge; **you** select which links matter.
-3. Call **web_fetch** on 1–5 promising URLs for page text before making claims.
-4. Cite concrete URLs in the answer.
+## Stop when
+- Search disabled / empty hits / warning — rephrase, use a known official URL with `web_fetch`, or tell the user to enable sources in Settings → Web.
+- Insufficient sources for a claim — say what is unknown.
 
-## Notes
+## Constraints
+- Do not dump every hit. Ranking may be crude; selection is your job.
 
-- Empty `hits` or a `warning` field means no usable results — rephrase the query or fetch a known official URL.
-- If web_search is disabled (no enabled sources in Settings → Web), say so and ask the user to enable sources, or use a known documentation URL with web_fetch only.
-- Do not dump every hit; pick evidence that answers the user question.
+## Verify
+- Claims that depend on the web are traceable to fetched or clearly snipped sources.

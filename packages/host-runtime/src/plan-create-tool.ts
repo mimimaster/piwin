@@ -35,9 +35,9 @@ export function createPlanCreateTool(options: PlanCreateToolOptions): HostToolDe
   return {
     name: 'piwin_plan_create',
     description:
-      'Create a reviewable draft SessionPlan artifact. Use after researching a task and before modifying source files. ' +
-      'Steps must have stable ids, a short title, and detail with acceptance criteria + verification. ' +
-      'Do not include shell commands or scripts as step fields. The plan stays in draft status until the user approves it.',
+      'Create a draft SessionPlan for user approval before implementation. ' +
+      'Success: title, goal, ordered steps with stable ids, titles, and detail (acceptance criteria + verification). ' +
+      'No shell/scripts as step fields. Remains draft until the user approves.',
     parameters: {
       type: 'object',
       properties: {

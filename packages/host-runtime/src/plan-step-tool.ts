@@ -28,8 +28,8 @@ export function createPlanStepTool(options: PlanStepToolOptions): HostToolDefini
   return {
     name: 'piwin_plan_set_step',
     description:
-      'Update a step status on the session plan (pending|active|done|skipped). ' +
-      'Call when you finish or start a plan step. Only one step should be active.',
+      'Update plan step status (pending|active|done|skipped). ' +
+      'Mark done only when acceptance criteria are met; put verification evidence in note.',
     parameters: {
       type: 'object',
       properties: {
