@@ -85,7 +85,7 @@ describe('MediaPreview', () => {
       path: '/tmp/piwin/media/session-1/shot.jpg',
       mimeType: 'image/jpeg',
       byteSize: 1024,
-      source: 'upload',
+      source: 'file-picker',
     };
     let parentClickCount = 0;
 

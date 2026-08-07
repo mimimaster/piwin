@@ -117,7 +117,7 @@ describe('SessionPage settings', () => {
     container = null;
   });
 
-  it('shows enable switch and prompt editor, not auto/model/mode', () => {
+  it('defaults custom prompt on and shows the prompt editor', () => {
     act(() => {
       root!.render(
         <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
@@ -129,11 +129,37 @@ describe('SessionPage settings', () => {
         </PiwinUiProvider>,
       );
     });
-    expect(container!.querySelector('[data-testid="walkthrough-enabled-switch"]')).toBeTruthy();
+    const enableSwitch = container!.querySelector<HTMLButtonElement | HTMLInputElement>(
+      '[data-testid="walkthrough-enabled-switch"]',
+    );
+    expect(enableSwitch).toBeTruthy();
+    // Default config has enabled: true → prompt editor is visible.
     expect(container!.querySelector('[data-testid="walkthrough-prompt-textarea"]')).toBeTruthy();
     expect(container!.querySelector('[data-testid="walkthrough-auto-generate-switch"]')).toBeNull();
     expect(container!.querySelector('[data-testid="walkthrough-mode-select"]')).toBeNull();
     expect(container!.querySelector('[data-testid="walkthrough-retired-notice"]')).toBeNull();
+  });
+
+  it('hides the prompt editor when custom prompt is turned off', () => {
+    const config = baseConfig();
+    config.walkthrough = {
+      ...createDefaultWalkthroughConfig(),
+      enabled: false,
+    };
+    act(() => {
+      root!.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <DesktopLocaleProvider locale="en" onLocaleChange={() => {}}>
+            <SettingsProvider value={createContextValue(config)}>
+              <SessionPage />
+            </SettingsProvider>
+          </DesktopLocaleProvider>
+        </PiwinUiProvider>,
+      );
+    });
+    expect(container!.querySelector('[data-testid="walkthrough-enabled-switch"]')).toBeTruthy();
+    expect(container!.querySelector('[data-testid="walkthrough-prompt-textarea"]')).toBeNull();
+    expect(container!.querySelector('[data-testid="walkthrough-save-button"]')).toBeNull();
   });
 
   it('offers compact-summary export for the active session', async () => {

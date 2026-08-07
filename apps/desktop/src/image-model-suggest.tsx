@@ -202,12 +202,12 @@ export function ImageModelSuggest(props: ImageModelSuggestProps): ReactElement {
     : [];
 
   // Apply query filter.
-  const queryFilteredMatched = filterSuggestions(
-    visibleMatched.map((m) => m.entry),
-    value,
-  );
-  const filteredMatched: SuggestionItem[] = visibleMatched.filter((m) =>
-    queryFilteredMatched.some((e) => e.modelId === m.entry.modelId),
+  const matchedEntries = visibleMatched
+    .filter((m): m is Extract<SuggestionItem, { kind: 'matched' }> => m.kind === 'matched')
+    .map((m) => m.entry);
+  const queryFilteredMatched = filterSuggestions(matchedEntries, value);
+  const filteredMatched: SuggestionItem[] = visibleMatched.filter(
+    (m) => m.kind === 'matched' && queryFilteredMatched.some((e) => e.modelId === m.entry.modelId),
   );
   const queryLower = value.trim().toLowerCase();
   const filteredDiscovered: SuggestionItem[] = visibleDiscovered.filter((item) => {
@@ -219,8 +219,8 @@ export function ImageModelSuggest(props: ImageModelSuggestProps): ReactElement {
     );
   });
   const filteredUnmatched: SuggestionItem[] = showAll
-    ? visibleUnmatched.filter((m) =>
-        filterSuggestions([m.entry], value).length > 0,
+    ? visibleUnmatched.filter(
+        (m) => m.kind === 'unmatched' && filterSuggestions([m.entry], value).length > 0,
       )
     : [];
 

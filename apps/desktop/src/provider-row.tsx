@@ -88,6 +88,14 @@ function modelCaps(
       fg: '#b26a00',
     });
   }
+  if (model.capabilities?.includes('video-generation')) {
+    caps.push({
+      key: 'video',
+      label: isChinese ? '视频' : 'Video',
+      bg: '#dcefff',
+      fg: '#0066cc',
+    });
+  }
   return caps;
 }
 

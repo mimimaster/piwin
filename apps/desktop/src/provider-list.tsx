@@ -5,7 +5,7 @@ import type {
   ModelProviderConfig,
   PiwinConfig,
 } from '@piwin/contracts';
-import { Button, TextInput } from '@piwin/ui-kit';
+import { Button } from '@piwin/ui-kit';
 import type { ReactElement } from 'react';
 import { ProviderRow } from './provider-row.js';
 import type { ProviderTestStatus } from './provider-status.js';
@@ -97,34 +97,18 @@ export function ProviderList({
 
   return (
     <div className="provider-settings" data-testid="provider-settings">
-      <div className="provider-list-header">
-        <div>
-          <h2 className="provider-list-title">{copy.modelsHeading}</h2>
-          <div className="provider-list-meta muted">
-            {formatCount(isChinese, providerCount, providerLabel)}
-            <span className="provider-list-meta-dot" aria-hidden>
-              ·
-            </span>
-            {formatCount(isChinese, enabledCount, enabledLabel)}
-            <span className="provider-list-meta-dot" aria-hidden>
-              ·
-            </span>
-            {formatCount(isChinese, modelCount, modelLabel)}
-          </div>
-        </div>
-      </div>
-
       <div className="provider-list-toolbar">
-        <div className="provider-list-search">
+        <label className="provider-list-search">
           <IconSearch width={14} height={14} />
-          <TextInput
+          <input
+            type="text"
             value={query}
             onChange={(event) => setQuery(event.currentTarget.value)}
             placeholder={copy.searchPlaceholder}
             spellCheck={false}
-            testId="provider-search-input"
+            data-testid="provider-search-input"
           />
-        </div>
+        </label>
         <div className="provider-list-filters">
           {(['all', 'on', 'off'] as const).map((f) => (
             <button
@@ -139,6 +123,17 @@ export function ProviderList({
           ))}
         </div>
         <div className="provider-list-toolbar-spacer" />
+        <div className="provider-list-meta muted">
+          {formatCount(isChinese, providerCount, providerLabel)}
+          <span className="provider-list-meta-dot" aria-hidden>
+            ·
+          </span>
+          {formatCount(isChinese, enabledCount, enabledLabel)}
+          <span className="provider-list-meta-dot" aria-hidden>
+            ·
+          </span>
+          {formatCount(isChinese, modelCount, modelLabel)}
+        </div>
         <Button
           size="compact"
           onClick={onAddOpen}

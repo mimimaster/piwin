@@ -13,7 +13,7 @@ import { DesktopLocaleProvider } from './desktop-locale-context';
 import { ImageGenerationSettings } from './ImageGenerationSettings';
 import { VideoGenerationSettings } from './VideoGenerationSettings';
 import { SettingsProvider, type SettingsContextValue } from './settings/settings-context';
-import { ImageGenerationPage } from './settings/pages/image-generation-page';
+import { ModelsPage } from './settings/pages/models-page';
 import { webToDraft } from './settings/web-draft';
 
 declare global {
@@ -312,19 +312,30 @@ describe('ImageGenerationSettings', () => {
     ({ root, container } = renderSettings(
       config,
       vi.fn(async () => true),
-      <ImageGenerationPage />,
+      <ModelsPage />,
     ));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
-    expect(container!.querySelector('[data-testid="media-generation-tab-image"]')).not.toBeNull();
-    expect(container!.querySelector('[data-testid="media-generation-tab-video"]')).not.toBeNull();
-    expect(container!.querySelector('[data-testid="media-generation-panel-image"]')).not.toBeNull();
+    // ModelsPage defaults to the text tab; switch to image first.
+    expect(container!.querySelector('[data-testid="model-config-tab-image"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="model-config-tab-video"]')).not.toBeNull();
+
+    await act(async () => {
+      const imageTab = container!.querySelector<HTMLButtonElement>(
+        '[data-testid="model-config-tab-image"]',
+      );
+      imageTab?.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, button: 0, ctrlKey: false }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(container!.querySelector('[data-testid="model-config-panel-image"]')).not.toBeNull();
 
     await act(async () => {
       const videoTab = container!.querySelector<HTMLButtonElement>(
-        '[data-testid="media-generation-tab-video"]',
+        '[data-testid="model-config-tab-video"]',
       );
       videoTab?.dispatchEvent(
         new MouseEvent('mousedown', { bubbles: true, button: 0, ctrlKey: false }),

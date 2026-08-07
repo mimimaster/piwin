@@ -279,8 +279,8 @@ export function VideoGenerationSettings(): ReactElement {
         {allProviders.length === 0 ? (
           <p className="muted" style={{ marginTop: 8 }}>
             {locale === 'zh-CN'
-              ? '请先在「模型」中添加接口通道。'
-              : 'Add a provider under Models first.'}
+              ? '请先在「文本模型」中添加接口通道。'
+              : 'Add a provider under Text models first.'}
           </p>
         ) : (
           <VideoGenerationModelForm
