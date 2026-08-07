@@ -8,10 +8,16 @@
 | Supersedes | Nothing — extends ADR 0019 |
 | Positioning | Open-source, single-user, self-hosted. No admin tier, no multi-user, no SIEM. |
 
+> **MCP note:** The MCP permission recommendations in this draft are
+> superseded by [ADR 0033](../adr/0033-mcp-supervisor-architecture.md). MCP is
+> outside the permission rule engine; keep this document only for the general
+> approval/sandbox design discussion.
+
 ## 0. TL;DR
 
 ADR 0019 already has a clean **approval layer** (deny→ask→allow rules, modes,
-file-write gate, MCP server trust, project trust). That is the right foundation.
+file-write gate, and project trust). MCP is intentionally outside that layer;
+its trust and lifecycle are defined by ADR 0033.
 
 What is still immature is not "enterprise controls" — it is that **approval is
 the only boundary**. In `auto` mode the model can run almost anything with full
@@ -59,7 +65,7 @@ Not in scope: a malicious local user with admin rights on their own machine.
 | Layered rules: bundled → user → project | Yes | Untrusted project drops `allow` — correct |
 | Modes: `auto` / `ask-all` / `bypass` | Mostly | Refine semantics; see §4 |
 | File-write gate (secret deny, out-of-project ask) | Yes | Largest security win of ADR 0019 |
-| MCP: enabled server = trusted | Yes | Avoids prompt fatigue; rules can still deny/ask |
+| MCP: configured server = user-trusted | Defined by ADR 0033 | No MCP permission prompts or rule exceptions |
 | Project trust + bypass guard | Yes | Untrusted repo cannot disable prompts |
 | Remembered allow (bash exact, path prefix) | Yes | Add `session` scope only |
 | Non-interactive ask → deny | Yes | CLI safety |
@@ -453,7 +459,8 @@ No data migration scripts. One release note + guide update is enough.
 - Windows: document WSL2 / fall back to approval-only with warning.
 
 ### Phase 3 — Polish (optional, separate small ADRs)
-- MCP `destructiveHint` / `requiresUserInteraction` as extra ask.
+- MCP diagnostics remain informational under ADR 0033; they do not become an
+  extra permission ask without a new product decision.
 - Network allowlist inside sandbox (if people actually need it).
 - Stronger bash matching (prefix rules like Codex) if glob bypasses become a real issue.
 

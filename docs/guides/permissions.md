@@ -3,10 +3,10 @@
 | Field | Value |
 |-------|-------|
 | Status | Living document |
-| Related | [ADR 0019](../adr/0019-permission-rule-engine.md), [ADR 0024](../adr/0024-run-modes-and-sandbox.md), [Architecture §3.4](../architecture.md#34-permission-system) |
+| Related | [ADR 0019](../adr/0019-permission-rule-engine.md), [ADR 0024](../adr/0024-run-modes-and-sandbox.md), [ADR 0033](../adr/0033-mcp-supervisor-architecture.md), [Architecture §3.4](../architecture.md#34-permission-system) |
 
-piwin gates the tools an agent can run — bash commands, file writes, network
-fetches through a host-owned permission system built on
+piwin gates the tools an agent can run — bash commands, file writes, and network
+fetches — through a host-owned permission system built on
 two orthogonal axes:
 
 1. **Run Mode** (ADR 0024) — a user-facing preset that collapses the sandbox
@@ -33,25 +33,18 @@ Permissions, or via CLI flags.
 |------|---------|----------|
 | `auto` | On | Low-friction inside the sandbox. Safe commands and in-project writes run without prompts; leaving the workspace or opening network asks. |
 | `ask` | On | Prompts on almost every tool call (still sandboxed). Use when you want to watch every step. |
-| `yolo` (default) | Off | No sandbox, no routine prompts. Matched **ask** rules are auto-allowed; **deny** circuit breakers still fire (see below). Refused for untrusted projects (downgraded to `auto`). |
+| `yolo` (default) | Off | No sandbox, no routine prompts. **Circuit breakers still fire** (see below). Refused for untrusted projects (downgraded to `auto`). |
 
 ### Circuit breakers (apply in all modes, including `yolo`)
 
-`yolo` (`bypass`) promotes matched **ask** rules to allow so routine prompts do
-not appear (Pi-compatible). Hard **deny** rules still always block:
+Even in `yolo`, these actions always prompt (or are denied non-interactively):
 
-- `rm -rf /` and equivalent root-deletion patterns (deny).
-- Writes to secret paths via the file-write gate (`~/.ssh/**`, `**/.env`,
-  `**/*.pem`, `**/id_rsa`, …) — deny.
-- Pipe-to-shell / disk-destroy / shutdown-style bundled deny rules.
-- Any user or project `deny` rule that matches.
+- `rm -rf /` and equivalent root-deletion patterns.
+- Writes to secret paths (`~/.ssh/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …).
+- Force-push to `main` / `master`.
+- Any `deny` rule that matches.
 
-Matched **ask** patterns (for example `rm -rf` outside root, `sudo`,
-`git push --force`, `cat .env` / `tee .env`) are **not** circuit breakers under
-`yolo`: they allow with reason `bypass-ask:<rule-reason>`. Under `auto` /
-`ask` they still prompt.
-
-Deny rules cannot be allowed away by project rules or `yolo` mode.
+Circuit breakers cannot be allowed away by project rules or `yolo` mode.
 
 ### YOLO guard
 
@@ -145,6 +138,7 @@ lower layers.
 | `file-write` | `pathGlob` | Glob over the resolved absolute path. `~` expands to your home directory at load time. `*` matches within a path segment; `**` matches across segments. | Both `writeFile` and `mkdir` are gated. |
 | `web-fetch` | `hostGlob` | Glob over the URL hostname. `*.example.com` matches subdomains. | Domain defaults (private/local deny, public ask) still apply when no rule matches. |
 | `web-search` | — | Any web search. | |
+
 `git`, `process`, and `notes-mutate` kinds are reserved in the contracts but
 not yet migrated to the rule engine. Force-push stays a bundled **bash ask**
 rule; process start/stop and notes mutations keep their existing ask behavior.
@@ -153,8 +147,8 @@ rule; process start/stop and notes mutations keep their existing ask behavior.
 
 ## Allow / deny / ask — how evaluation works
 
-For each tool call the host builds a **subject** (the concrete command, path,
-host, or MCP selector) and evaluates it against the merged rule set:
+For each gated tool call the host builds a **subject** (the concrete command,
+path, or host) and evaluates it against the merged rule set:
 
 1. **Deny tier** — if any deny rule matches, the action is blocked (no prompt).
 2. **Ask tier** — if any ask rule matches, the action prompts (or is denied
@@ -186,14 +180,23 @@ points outside the project is treated as an out-of-project write.
 
 ---
 
-## MCP configuration trust
+## MCP execution boundary
 
-MCP is outside this permission system. Adding a server in
-`~/.piwin/mcp.json` (or Settings) is the trust decision; its enabled tools do
-not create permission prompts. Legacy MCP rules in `permissions.json` are
-ignored. The MCP Supervisor still rejects disabled/unknown servers and owns
-connect, timeout, drain, and shutdown lifecycle. Risk classification, if shown,
-is diagnostic only.
+MCP is outside this permission system. Adding or enabling a server in
+`~/.piwin/mcp.json` is the user's trust decision. Its tools never produce
+per-call permission prompts and do not consult `permissions.json`, permission
+modes, or project trust. MCP servers run with the Host user's OS permissions;
+this is not an OS sandbox.
+
+`@piwin/host-runtime` owns one `McpSupervisor` per Host. The default model tool
+surface is the stable `mcp_gateway`; direct MCP tools are exposed only when
+explicitly pinned. Both paths use the same Supervisor, which owns the process
+from spawn through timeout, config replacement, and shutdown.
+
+If an old `permissions.json` contains `mcp` rules, piwin silently ignores them
+(it may emit one diagnostic log entry). They are not migrated or upgraded and
+cannot block or prompt. `~/.piwin/mcp.json` remains active. Use the MCP server
+configuration itself to add, disable, or remove a server.
 
 ---
 
@@ -243,8 +246,7 @@ Remembered entries are stored in `~/.piwin/projects.json`:
   allows writes beneath it.
 
 Revoke remembered permissions in Settings → Permissions (remembered list) or
-via `project/permissions-revoke`. MCP has no remember because it is outside the
-permission system.
+via `project/permissions-revoke`. MCP has no permission remember/revoke entry.
 
 ---
 

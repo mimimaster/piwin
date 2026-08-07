@@ -6,6 +6,8 @@ export type {
   BrowserSessionEvent,
   BrowserFramePush,
   BrowserStatePush,
+  BrowserConsolePush,
+  BrowserNetworkPush,
   ScreenshotResult,
 } from './browser-session.js';
 export {

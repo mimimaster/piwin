@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Active architecture |
-| Date | 2026-08-05 |
+| Date | 2026-08-04 |
 | Related | [PRD](./prd.md), [ADRs](./adr/), [Artifact research](./artifact-research.md) |
 
 ## 1. Goals
@@ -117,45 +117,20 @@ Pi backends normalize Pi SDK and worker events into one `AgentEvent` union:
 
 Product transport uses a broader `HostPush` union. `agent/event` carries the
 normalized Agent stream; Job, Run, Plan, subagent, permission, browser, and
-diagnostic pushes are sibling variants, including `session/runtime-updated` for
-runtime-generation status. Product services never manufacture fake Pi-native
-`AgentEvent` variants for operational state.
-
-### 3.3 Tool surface
-
-`@piwin/host-runtime` is the only product composition root and
-`buildSessionHostTools()` is the only Host tool composition point. It produces
-Host-local registrations containing the descriptor, family, permission facts,
-and executor. The current generation freezes that surface; SDK and RPC receive
-the same descriptor projection, while the execution port only accepts a
-previously registered `(sessionId, runtimeGenerationId)` surface.
-
-```text
-Application tool providers
-        ↓
-buildSessionHostTools()
-        ↓
-HostToolRegistration[] ──→ family index + permission specs + executor
-        ↓
-HostToolDescriptor[] ────→ Session Blueprint → SDK / RPC / Pi schema
-```
-
-`PermissionMode` remains dynamic and is read once at the start of each tool
-call. The merged rule set and static permission facts are generation inputs;
-the concrete allow/ask/deny decision is not frozen in the descriptor.
+diagnostic pushes are sibling variants. Product services never manufacture
+fake Pi-native `AgentEvent` variants for operational state.
 
 ### 3.4 Permission system
 
 Host-owned (not UI). Implemented per [ADR 0019](./adr/0019-permission-rule-engine.md)
 as a layered rule engine + permission modes + file-write gate. **This is an
 approval-layer guard, not an OS sandbox** — it prompts and blocks, it does not
-isolate the process. MCP is configuration-trusted and is owned separately by
-the Host Supervisor; it does not enter this rule engine (ADR 0033).
+isolate the process.
 
 #### Rule engine (deny → ask → allow)
 
 A single pure function (`permission-rule-engine.ts`) evaluates a
-`PermissionSubject` (concrete command / path / host / selector) against a merged
+`PermissionSubject` (concrete command / path / host) against a merged
 `PermissionRuleSet`. Evaluation order is **deny → ask → allow**, first match
 wins within a tier (Claude Code semantics). Specificity does **not** change
 order: a broader bundled `ask` beats a more specific user `allow` because tiers
@@ -167,8 +142,8 @@ path/command.
 Rule kinds: `bash` (glob, or `re:`-prefixed regex for bundled precision),
 `file-write` (`pathGlob` with `~` expansion to `homedir()` at load time),
 `web-fetch` (`hostGlob`), `web-search`, and reserved kinds `git` / `process` /
-`notes-mutate`
-(not yet migrated to the engine — see ADR 0019 §8).
+`notes-mutate` (not yet migrated to the engine — see ADR 0019 §8). MCP is not a
+rule kind.
 
 #### Layered rule sources (merge, not override)
 
@@ -185,26 +160,19 @@ Rule files use `version: 1`. Project shared/local **`allow` arrays are dropped
 at load time when the project is untrusted** (a repo can only make the agent
 *more* cautious, not less); project `deny`/`ask` always apply. User-global
 allow always applies (the user's machine, their choice). The merged rule set is
-an in-memory construct loaded when a **Runtime Generation** is created;
-mid-session edits mark the runtime stale and take effect when the Host replaces
-that generation (no in-place mutation).
-
-The merged rule set is the frozen policy input for a Runtime Generation.
-`PermissionMode` is deliberately not part of that snapshot: the Host reads the
-current session override, host override, or config mode at each tool admission.
-The concrete allow/ask/deny result is calculated only after the tool arguments
-have been converted into a `PermissionSubject`.
+an in-memory construct loaded at **session create**; mid-session edits take
+effect on the next session (no hot-reload).
 
 #### Permission modes
 
 `config.permissions.mode` in `~/.piwin/config.json` (`PermissionMode =
 'auto' | 'ask-all' | 'bypass'`):
 
-| Mode | bash unmatched | file-write in-project | file-write out-of-project | public network | MCP | deny rules |
-|------|----------------|----------------------|--------------------------|----------------|-----|------------|
-| `ask-all` | ask | ask | ask | ask | outside permission engine (§MCP) | always enforced |
-| `auto` | allow¹ | allow | ask | ask | outside permission engine | always enforced |
-| `bypass` | allow | allow | allow | allow | outside permission engine | **still enforced** |
+| Mode | bash unmatched | file-write in-project | file-write out-of-project | public network | deny rules |
+|------|----------------|----------------------|--------------------------|----------------|------------|
+| `ask-all` | ask | ask | ask | ask | always enforced |
+| `auto` | allow¹ | allow | ask | ask | always enforced |
+| `bypass` | allow | allow | allow | allow | **still enforced** |
 
 ¹ `auto` bash unmatched → allow **only after** bundled deny **and** bundled ask
 tiers. A built-in safe-prefix allowlist (`ls *`, `git status`, `pnpm test`, …)
@@ -220,24 +188,44 @@ CLI: `ask` resolves to `deny` (`resolveNonInteractiveDecision`).
 
 #### File-write gate
 
-File writes and Bash are Host-owned registrations. Their static
-`permissionSpec` stays outside the model-visible descriptor. The unified Host
-admission gate converts the actual path or command into a subject, checks the
-remembered project allowlist, evaluates the domain policy, and prompts on
-`ask` through the interactive gate; executors only validate arguments and
-perform the operation. Both `writeFile` and `mkdir` are gated. Bundled deny
-covers secret paths (`~/.ssh/**`,
-`~/.piwin/**`, `**/.env`, `**/*.pem`, `**/id_rsa`, …); `~/.config/**` is
-bundled **ask**. The execution port is shared by SDK and RPC, so there is no
-second Pi-native filesystem/Bash gate in the product path.
+`gated-file-tools.ts` wraps Pi's `write`/`edit` tools (same shape as
+`gated-bash-tool.ts`): resolves the path (`realpath` when the file exists,
+pre-realpath absolute path for new files), checks the project remembered
+allowlist, evaluates `evaluateFileWritePermission` against the merged rules,
+then prompts on `ask` via the interactive gate. Both `writeFile` and `mkdir`
+are gated (recursive mkdir can create trees outside the project before a
+write). Bundled deny covers secret paths (`~/.ssh/**`, `~/.piwin/**`,
+`**/.env`, `**/*.pem`, `**/id_rsa`, …); `~/.config/**` is bundled **ask**
+(sensitive but sometimes legitimate). The legacy `path-guard` Pi extension
+remains as a defense-in-depth second layer; the primary gate is the host rule
+engine so it is configurable, testable, and rememberable.
 
-#### MCP: configuration trust
+#### MCP execution boundary (ADR 0033)
 
-MCP is outside the permission rule engine. Adding a server to
-`~/.piwin/mcp.json` is the trust decision; enabled MCP calls do not prompt and
-legacy MCP rules in `permissions.json` are ignored. The Host Supervisor still
-enforces server existence, enabled state, lifecycle deadlines, and call
-ownership. Risk classification may remain as display-only diagnostics.
+MCP is deliberately outside the permission rule engine. Adding or enabling a
+server in `~/.piwin/mcp.json` is the user's trust decision; configured MCP
+tools never produce per-call permission prompts and never consult
+`PermissionRuleSet`, `PermissionMode`, or `PermissionSubject`. MCP servers run
+with the Host user's OS permissions and are not sandboxed by this layer.
+
+`@piwin/host-runtime` creates one `McpSupervisor` per Host, implemented by
+`@piwin/mcp`. It owns each MCP process from spawn through readiness, config
+replacement, timeout, crash, and shutdown. The gateway and any explicitly
+pinned direct tools call the same Supervisor; sessions and UI never own MCP
+clients. The default model surface is gateway-only (`search`, `describe`,
+`call`, `status`); direct tools require explicit `pinnedSelectors`.
+
+`pinnedSelectors` lives at the top level of `~/.piwin/mcp.json` and contains
+exact `serverId.toolName` selectors. The MCP tool catalog persists outline/filled
+pin state through `mcp/save`; pinning keeps a tool in the model surface but does
+not make its process resident or trigger a spawn. Pin-only changes update the
+exposure revision without draining a server and take effect on the next session
+or an explicit tool-surface rebuild.
+
+Legacy `mcp` rules left in `permissions.json` are silently ignored (optionally
+one diagnostic log entry); they are not migrated, upgraded, or used to block
+or prompt. `mcp.json` remains fully active. See [ADR 0033](./adr/0033-mcp-supervisor-architecture.md)
+for lifecycle and config-reload invariants.
 
 #### Project remember (scope extended)
 
@@ -250,14 +238,15 @@ ownership. Risk classification may remain as display-only diagnostics.
   matched by **path-safe prefix** (`path === stored || path.startsWith(stored + sep)`).
 - **network** — unchanged (`allowedFetchHosts`, `allowWebSearch` — exact host).
 
-MCP is outside this remember/revoke surface. Revocation
-(`project/permissions-revoke`) covers only the permissioned domains above.
+MCP has no permission remember/revoke entry because it is outside this rule
+engine. Revocation (`project/permissions-revoke`) applies to the bash and
+file-write keys above; `listRememberedPermissions` surfaces those in Settings.
 
 #### Dual host modes
 
-File-write gate, Bash gate, rule loading, and the bypass guard apply on every
+File-write gate, bash gate, rule loading, and the bypass guard apply on every
 Host tool execution path. `@piwin/host-runtime` owns those gates and injects a
-runtime-generation-scoped tool surface into either backend. SDK calls it
+runtime-generation-scoped tool router into either backend. SDK calls it
 directly; the isolated worker proxies calls back to the parent. Apps never
 import Pi, and `@piwin/agent-host` never owns product permission policy.
 
@@ -266,8 +255,7 @@ import Pi, and `@piwin/agent-host` never owns product permission policy.
 Settings → Permissions page: mode switcher bound to the user-facing
 `config.permissions?.preset ?? 'yolo'` with trust-aware notices. New sessions
 default to Pi-compatible YOLO: ordinary actions run without approval prompts;
-matched ask rules are auto-allowed under yolo; hard deny circuit breakers and
-the untrusted-project guard remain active.
+deny rules, circuit breakers, and the untrusted-project guard remain active.
 Context bar shows a **mode badge** (click → open Permissions; `bypass` rendered
 with a warning tone). Permission prompt dialog offers **"Allow for project"**
 for bash/file-write subjects (persisted via the remember keys above). A full
@@ -327,10 +315,6 @@ generation. Dirty-base parallel writes default to an explicit one-run `ask`
 decision; worktrees are retained on integration conflicts and no automatic
 retry or conflict resolution is performed.
 
-Subagent cancellation waits on the Run/AbortSignal path rather than polling a
-cancel marker. Desktop runtime Settings consumes the HostPush status stream and
-performs only an initial status read.
-
 ## 4. Package map
 
 | Package | Responsibility |
@@ -341,7 +325,7 @@ performs only an initial status read.
 | `@piwin/session` | History index, tree projection, naming |
 | `@piwin/project` | Workspace/project trust, cwd binding |
 | `@piwin/skills` | Discovery, install, defaults, find/create helpers |
-| `@piwin/mcp` | Config document, client lifecycle, tools bridge |
+| `@piwin/mcp` | Config document, MCP Supervisor/ProcessSlot lifecycle, owned transport, metadata catalog |
 | `@piwin/tools-web` | `web_search`, `web_fetch` providers |
 | `@piwin/git` | Status, diff, commit graph model |
 | `@piwin/theme` | Theme packages install/apply |
@@ -357,7 +341,7 @@ performs only an initial status read.
 
 ```text
 ~/.piwin/
-  config.json                 # product config (host mode, providers, imageGeneration/videoGeneration, Desktop composer/session restore)
+  config.json                 # product config (host mode, providers, imageGeneration, Desktop composer/session restore)
   credentials/                # secrets (prefer OS keychain)
   sessions-index/             # SQLite or JSONL index over Pi sessions
   skills/
@@ -372,17 +356,15 @@ performs only an initial status read.
 Pi native paths remain under `~/.pi/agent/`. piwin maps:
 
 - sessions: prefer Pi session files; maintain index for UI
-- skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs. System skills (e.g. `imagegen`, `videogen`) use frontmatter `hidden: true` to stay out of the Skills panel/CLI while remaining loadable by Pi; their host tools are toggled independently via `config.skills.disabledIds`.
+- skills: bundled + `~/.piwin/skills` + optional maps to other harness skill dirs. System skills (e.g. `imagegen`) use frontmatter `hidden: true` to stay out of the Skills panel/CLI while remaining loadable by Pi; the `imagegen` skill is toggled via `config.skills.disabledIds` (enables/disables both the skill and the `image_gen` host tool).
 - extensions: optional Pi extensions under `extensions/` shipped with piwin
 
 `config.json` may retain the Desktop's per-next-turn composer profile (model
 and thinking effort) and last selected session. These are product settings,
 not browser-local presentation preferences. Restoring a project session opens
 the project without granting new trust; sending remains gated by its current
-trust state. The `imageGeneration` and `videoGeneration` config sections hold
-the default image/video models, configured through the two Tabs on the
-Desktop's `Image Generation` settings page. Video model routes also record the
-native async API style needed by the Host adapter.
+trust state. The `imageGeneration` config section holds the default image model,
+configured through the Desktop's `Image Generation` settings page.
 
 ## 6. Model protocols
 
@@ -390,12 +372,6 @@ User-configured entries, not hardcoded vendors:
 
 1. `openai-compatible` — baseUrl, apiKey env/ref, models
 2. `anthropic-compatible` — baseUrl, apiKey env/ref, models
-3. `google-gemini` — baseUrl, apiKey env/ref, models
-
-Video generation additionally selects a provider wire format on the model
-route (`openai-videos`, `google-veo`, `runway-tasks`, `luma-generations`,
-`minimax-tasks`, or `custom`). The async job lifecycle is normalized by Host
-adapters; Desktop does not parse provider-native task payloads.
 
 Host translates config into Pi model/provider registration.
 
@@ -408,7 +384,6 @@ Assistant message
       → plain code block
       → HTML artifact candidate → artifact runtime (security → srcdoc → iframe)
   → Image attachments → media preview components
-  → Video attachments → local media video preview components
 ```
 
 User composer:
@@ -432,7 +407,7 @@ the user sees == what the agent controls".
 - **Agent tools** — `browser_navigate` / `browser_snapshot` / `browser_click` /
   `browser_type` / `browser_fill_form` / `browser_scroll` / `browser_screenshot` /
   `browser_find` / `browser_back` / `browser_forward` / `browser_wait`, registered
-  by `@piwin/host-runtime` (`browser-tools.ts`). Snapshots use the **same ref
+  by `@piwin/agent-host` (`browser-tools.ts`). Snapshots use the **same ref
   grammar as `@playwright/mcp`**: `locator('html').ariaSnapshot({ mode: 'ai',
   boxes: true })` emits `[ref=eN]` + `[box=x,y,w,h]` annotations, and refs resolve
   via `locator('aria-ref=e5')`. The snapshot output is **not** parseable YAML

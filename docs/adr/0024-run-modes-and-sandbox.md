@@ -7,8 +7,10 @@ Accepted (2026-07-30) · Phase 1 implementation in progress.
 ## Context
 
 ADR 0019 built a solid **approval layer**: deny→ask→allow rule engine, layered
-rules, `auto`/`ask-all`/`bypass` modes, file-write gate, MCP server trust,
-bypass guard. It is honest about being "not an OS sandbox."
+rules, `auto`/`ask-all`/`bypass` modes, and the file-write gate. MCP is outside
+that approval layer; its configuration trust and process lifecycle are defined
+by [ADR 0033](./0033-mcp-supervisor-architecture.md). The permission layer is
+honest about being "not an OS sandbox."
 
 That honesty exposes the gap: **approval is the only boundary**. In `auto` mode
 the model can run almost anything with full host privilege; we just don't ask.
@@ -32,7 +34,7 @@ Externally: three **Run Modes** that set both.
 |----------|---------|----------|------|
 | `ask` | workspace-write, net off | ask almost everything | Sensitive / untrusted |
 | `auto` | workspace-write, net off | low friction inside; ask to leave | Explicitly safer daily coding |
-| `yolo` (default) | none (full host) | no prompts except hard deny circuit breakers | Pi-compatible default; disposable VM / CI |
+| `yolo` (default) | none (full host) | no prompts except circuit breakers | Pi-compatible default; disposable VM / CI |
 
 **`auto` uses sandbox ON**. Leave-sandbox approval is the escape hatch until
 network allowlist ships (Phase 3).
@@ -47,23 +49,16 @@ floor (sandbox `read-only`, mutators always ask) even under `auto`. User can
 still pick `yolo` while in Plan/Ask — UI shows a one-line warning, host does
 not hard-block (locked).
 
-### 3. Circuit breakers are hard deny (not ask)
+### 3. Circuit breakers always ask
 
-Under `yolo`, matched **ask** rules are promoted to allow so the product stays
-close to Pi-native "no permission popups". The remaining circuit breakers are
-**deny** rules that still block (or map ask→deny non-interactively only when a
-prompt would have been required under non-bypass modes):
+Even under `yolo`, these still prompt (or deny non-interactive):
 
-- Root / home recursive delete (`rm -rf /`, `rm -rf ~`) — bundled **deny**
-- Secret path writes (`~/.ssh/**`, `**/.env`, keys, credentials) — file-write
-  **deny**
-- Pipe-to-shell / disk-destroy / shutdown-style bundled **deny** rules
-- Any explicit user/project **deny** rule
+- Root / home recursive delete (`rm -rf /`, `rm -rf ~`)
+- Secret path writes (`~/.ssh/**`, `**/.env`, keys, credentials)
+- Force-push to main/master (bundled ask rule)
 
-Bundled **ask** patterns (`rm -rf` outside root, `sudo`, force-push,
-env-adjacent bash) are **not** circuit breakers under `yolo`; they auto-allow
-with reason `bypass-ask:<rule-reason>`. This is intentionally hotter than the
-Phase-1 sketch that treated force-push as always-prompt, and closer to Pi.
+This matches Claude Code's circuit breaker. Today's `bypass` allows everything
+except deny rules — too hot for a tool people leave on.
 
 ### 4. Approval scopes: once | session | project
 
@@ -94,7 +89,8 @@ Old values accepted; new values `ask` / `yolo` also accepted.
   session scope + docs. No sandbox yet — approval-only under the hood, but the
   user model is clean.
 - **Phase 2**: workspace sandbox (macOS Seatbelt, Linux Landlock/bwrap).
-- **Phase 3**: network allowlist, MCP annotations, polish.
+- **Phase 3**: network allowlist and polish. MCP diagnostics are owned by ADR
+  0033 and are not permission annotations.
 
 ## Consequences
 
@@ -103,9 +99,11 @@ Old values accepted; new values `ask` / `yolo` also accepted.
   leave-sandbox approval or `yolo`.
 - `PermissionMode` (`auto`/`ask-all`/`bypass`) stays as the internal approval
   axis; `PermissionPreset` (`ask`/`auto`/`yolo`) is the user-facing knob.
-- Rule files, rule engine, loaders, file-write gate, MCP trust — all unchanged.
-- ADR 0019's `bypass` semantics (full host, no prompts except deny) become
-  `yolo` + hard-deny circuit breakers. Ask rules no longer prompt under yolo.
+- Rule files, rule engine, loaders, and file-write gate remain unchanged by this
+  ADR. MCP is not a permission concern; Run Modes do not change MCP trust or
+  Supervisor ownership.
+- ADR 0019's `bypass` semantics (full host, no prompts) become `yolo` + circuit
+  breakers. Strictly safer.
 
 ## Out of scope (future ADRs)
 
