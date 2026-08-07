@@ -97,6 +97,8 @@ export type ComposerDockProps = {
   onAgentModeChange: (mode: AgentModeId) => void;
   pendingAttachments: PendingComposerAttachment[];
   onRemoveAttachment: (localId: string) => void;
+  /** One-tap retry after a failed media/save. */
+  onRetryAttachment?: (localId: string) => void;
   docCommentsAttachment?: { docTitle: string; commentCount: number } | null | undefined;
   onRemoveDocComments?: (() => void) | undefined;
   dropActive: boolean;
@@ -184,6 +186,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       ? extensionUiInput.trim().length > 0
       : props.composer.trim().length > 0
     : props.composer.trim().length > 0 || props.pendingAttachments.length > 0;
+  const hasFailedAttachment = props.pendingAttachments.some(
+    (item) => item.attachment.kind === 'media' && item.uploadStatus === 'error',
+  );
+  // Saving chips do not block send — handleSend awaits in-flight saves.
+  // Only hard-failed chips need user action (retry or remove).
+  const attachmentsBlockingSend = hasFailedAttachment;
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
@@ -383,6 +391,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 
   function triggerSend(): void {
     if (isExtensionUiActive) {
+      // Extension UI path is text-only and does not use media attachments.
       const text = isExtensionUiInput ? extensionUiInput.trim() : props.composer.trim();
       if (text.length > 0) {
         props.onExtensionUiResolve?.({ value: text });
@@ -392,6 +401,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       } else if (isExtensionUiInput) {
         props.onExtensionUiResolve?.({ value: '' });
       }
+      return;
+    }
+    if (attachmentsBlockingSend) {
       return;
     }
     const trimmed = props.composer.trim();
@@ -557,7 +569,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     // 4. ⌘Enter force send (bypasses IME protection)
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.shiftKey) {
       event.preventDefault();
-      if (hasContent) {
+      if (hasContent && !attachmentsBlockingSend) {
         if (isStreamingRun) {
           triggerSteer();
         } else {
@@ -578,7 +590,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
-      if (hasContent) {
+      if (hasContent && !attachmentsBlockingSend) {
         if (isStreamingRun) {
           triggerSteer();
         } else {
@@ -672,11 +684,46 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             </div>
           ) : null}
           {props.pendingAttachments.map((item) => (
-            <div key={item.localId} className="composer-v2-attachment-chip">
+            <div
+              key={item.localId}
+              className="composer-v2-attachment-chip"
+              data-upload-status={item.uploadStatus ?? 'ready'}
+            >
               {item.attachment.kind === 'web-element' ? (
                 <WebElementChip attachment={item.attachment} compact />
               ) : (
-                <MediaPreview attachment={item.attachment} previewUrl={item.previewUrl} compact />
+                <>
+                  <MediaPreview attachment={item.attachment} previewUrl={item.previewUrl} compact />
+                  {item.uploadStatus === 'saving' ? (
+                    <span
+                      className="composer-v2-attachment-status"
+                      data-testid="composer-attachment-saving"
+                    >
+                      Preparing…
+                    </span>
+                  ) : null}
+                  {item.uploadStatus === 'error' ? (
+                    props.onRetryAttachment ? (
+                      <button
+                        type="button"
+                        className="composer-v2-attachment-status is-error is-action"
+                        data-testid="composer-attachment-error"
+                        title={item.uploadError ?? 'Failed to save image — click to retry'}
+                        onClick={() => props.onRetryAttachment?.(item.localId)}
+                      >
+                        Retry
+                      </button>
+                    ) : (
+                      <span
+                        className="composer-v2-attachment-status is-error"
+                        data-testid="composer-attachment-error"
+                        title={item.uploadError ?? 'Failed to save image'}
+                      >
+                        Failed
+                      </span>
+                    )
+                  ) : null}
+                </>
               )}
               <button
                 type="button"
@@ -897,7 +944,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               type="button"
               className="composer-v2-send-btn"
               data-testid="send-btn"
-              disabled={!hasContent}
+              disabled={!hasContent || attachmentsBlockingSend}
               onClick={triggerSend}
               aria-label={copy.send}
               title={copy.sendShortcut}

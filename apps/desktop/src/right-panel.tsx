@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { IconClose, IconMoon, IconPanelRight, IconSun } from './shell-icons';
+import { IconClose, IconExpand, IconPanelRight } from './shell-icons';
 import { getDesktopCopy } from './desktop-locale';
 import type { DesktopLocale } from './desktop-locale';
 import { IconButton } from '@piwin/ui-kit';
@@ -32,6 +32,8 @@ export type RightPanelProps = {
   isResizing: boolean;
   onResizePointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   onResizeReset: () => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
   isOverlayPresentation?: boolean;
   filesContent: ReactNode;
   /** Terminal panel body (no context-window chrome). */
@@ -306,20 +308,38 @@ export function RightPanel(props: RightPanelProps): ReactElement {
         />
 
         <div className="right-panel-actions" data-no-window-drag>
-          {props.onToggleAppearance ? (
-            <IconButton
-              className="right-panel-action-btn"
-              data-testid="titlebar-theme-toggle"
-              label={props.appearanceMode === 'light' ? getDesktopCopy(locale).titlebar.switchToDarkTheme : getDesktopCopy(locale).titlebar.switchToLightTheme}
-              title={props.appearanceMode === 'light' ? getDesktopCopy(locale).titlebar.switchToDarkTheme : getDesktopCopy(locale).titlebar.switchToLightTheme}
-              aria-pressed={props.appearanceMode === 'dark'}
-              onClick={props.onToggleAppearance}
-            >
-              {props.appearanceMode === 'light' ? <IconMoon /> : <IconSun />}
-            </IconButton>
-          ) : null}
-
-
+          <IconButton
+            className={`right-panel-action-btn${props.isExpanded ? ' active' : ''}`}
+            data-testid="right-panel-expand-btn"
+            label={
+              props.isExpanded
+                ? locale === 'zh-CN'
+                  ? '还原面板宽度'
+                  : 'Restore panel width'
+                : locale === 'zh-CN'
+                  ? '展开面板'
+                  : 'Expand panel'
+            }
+            title={
+              props.isExpanded
+                ? locale === 'zh-CN'
+                  ? '还原面板宽度'
+                  : 'Restore panel width'
+                : locale === 'zh-CN'
+                  ? '展开面板'
+                  : 'Expand panel'
+            }
+            aria-pressed={props.isExpanded ?? false}
+            onClick={() => {
+              if (props.onToggleExpand) {
+                props.onToggleExpand();
+              } else {
+                props.onResizeReset();
+              }
+            }}
+          >
+            <IconExpand />
+          </IconButton>
 
           <IconButton
             className="right-panel-action-btn active"
@@ -332,7 +352,6 @@ export function RightPanel(props: RightPanelProps): ReactElement {
             <IconPanelRight />
           </IconButton>
         </div>
-
       </div>
 
       {openTabs.length === 0 ? (

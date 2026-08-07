@@ -11,6 +11,10 @@ import { Button } from '@piwin/ui-kit';
 import { getDesktopCopy } from '../desktop-locale';
 import { useDesktopLocale } from '../desktop-locale-context';
 import {
+  WindowDragRegion,
+  handleNativeWindowDragMouseDown,
+} from '../native-window-drag';
+import {
   SETTINGS_GROUPS,
   SETTINGS_SECTIONS,
   getSettingsSection,
@@ -405,30 +409,45 @@ export function SettingsShell(props: SettingsShellProps): ReactElement {
         aria-modal="true"
         aria-label={copy.settings}
       >
-        <aside className="settings-nav">
+        {/* Full-width titleband: settings covers the shell chrome, so this is the only window drag surface. */}
+        <div
+          className="settings-titlebar settings-titlebar-box"
+          data-testid="settings-titlebar"
+          data-tauri-drag-region
+          onMouseDown={handleNativeWindowDragMouseDown}
+        >
           {onClose ? (
-            <Button
-              variant="ghost"
-              className="settings-back-button"
-              onClick={onClose}
-              data-testid="settings-back-button"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+            <div className="settings-titlebar-leading" data-no-window-drag>
+              <Button
+                variant="ghost"
+                className="settings-back-button"
+                onClick={onClose}
+                data-testid="settings-back-button"
               >
-                <path d="m15 18-6-6 6-6" />
-              </svg>
-              {translator.settings.backToWorkspace}
-            </Button>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+                {translator.settings.backToWorkspace}
+              </Button>
+            </div>
           ) : null}
+          <WindowDragRegion
+            className="settings-titlebar-drag"
+            data-testid="settings-titlebar-drag"
+            aria-label={copy.titlebar.dragWindow}
+          />
+        </div>
+        <aside className="settings-nav">
           <div className="settings-search-container">
             <svg
               className="settings-search-icon"

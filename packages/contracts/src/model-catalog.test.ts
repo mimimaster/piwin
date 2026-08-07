@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   filterSuggestions,
+  isLikelyImageGenerationModel,
   matchImageCatalog,
   splitModelName,
 } from './model-catalog.js';
@@ -34,6 +35,7 @@ describe('matchImageCatalog', () => {
     expect(result.matched[1]!.entry.modelId).toBe('google/gemini-3-pro-image');
     expect(result.matched[1]!.matchedId).toBe('gemini-3-pro-image');
     expect(result.unmatched).toHaveLength(2);
+    expect(result.discoveredOnly).toHaveLength(0);
     expect(result.unmatched[0]!.modelId).toBe('black-forest-labs/flux.2-pro');
     expect(result.unmatched[1]!.modelId).toBe('recraft/recraft-v3');
   });
@@ -61,6 +63,7 @@ describe('matchImageCatalog', () => {
   it('returns all unmatched when discovered list is empty', () => {
     const result = matchImageCatalog(catalog, []);
     expect(result.matched).toHaveLength(0);
+    expect(result.discoveredOnly).toHaveLength(0);
     expect(result.unmatched).toHaveLength(4);
   });
 
@@ -69,6 +72,51 @@ describe('matchImageCatalog', () => {
     const result = matchImageCatalog(catalog, discovered);
     expect(result.matched).toHaveLength(1);
     expect(result.matched[0]!.entry.modelId).toBe('openai/gpt-image-1');
+  });
+
+  it('family-matches SiliconFlow FLUX ids that differ from OpenRouter catalog ids', () => {
+    const discovered = ['black-forest-labs/FLUX.1-schnell', 'deepseek-chat'];
+    const result = matchImageCatalog(catalog, discovered);
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0]!.entry.modelId).toBe('black-forest-labs/flux.2-pro');
+    expect(result.matched[0]!.matchedId).toBe('black-forest-labs/FLUX.1-schnell');
+    // Chat models must not appear as discovered-only image suggestions.
+    expect(result.discoveredOnly.map((item) => item.modelId)).not.toContain('deepseek-chat');
+  });
+
+  it('surfaces image-like discovered models that are not in the Pi catalog', () => {
+    const discovered = [
+      'Kwai-Kolors/Kolors',
+      'Qwen/Qwen-Image',
+      'deepseek-chat',
+      'Pro/black-forest-labs/FLUX.1-dev',
+    ];
+    const result = matchImageCatalog(catalog, discovered, {
+      labelsById: {
+        'Kwai-Kolors/Kolors': 'Kolors',
+        'Qwen/Qwen-Image': 'Qwen Image',
+      },
+    });
+    // FLUX.1-dev family-matches flux.2-pro; the rest of image-like ids are discoveredOnly.
+    expect(result.matched.some((item) => item.matchedId.includes('FLUX'))).toBe(true);
+    const discoveredOnlyIds = result.discoveredOnly.map((item) => item.modelId);
+    expect(discoveredOnlyIds).toEqual(
+      expect.arrayContaining(['Kwai-Kolors/Kolors', 'Qwen/Qwen-Image']),
+    );
+    expect(discoveredOnlyIds).not.toContain('deepseek-chat');
+  });
+});
+
+describe('isLikelyImageGenerationModel', () => {
+  it('detects common gateway image model ids', () => {
+    expect(isLikelyImageGenerationModel('black-forest-labs/FLUX.1-schnell')).toBe(true);
+    expect(isLikelyImageGenerationModel('Kwai-Kolors/Kolors')).toBe(true);
+    expect(isLikelyImageGenerationModel('Qwen/Qwen-Image')).toBe(true);
+    expect(isLikelyImageGenerationModel('deepseek-chat')).toBe(false);
+    expect(isLikelyImageGenerationModel('gpt-4o')).toBe(false);
+    expect(
+      isLikelyImageGenerationModel('custom-model', 'Custom', ['image-generation']),
+    ).toBe(true);
   });
 });
 

@@ -185,6 +185,34 @@ describe('SettingsShell', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('exposes a native window drag region while settings covers shell chrome', () => {
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <SettingsShell
+            activeSection="general"
+            onSelectSection={vi.fn()}
+            contextValue={createContextValue(vi.fn())}
+            onClose={vi.fn()}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const titlebar = container.querySelector('[data-testid="settings-titlebar"]');
+    const dragStrip = container.querySelector('[data-testid="settings-titlebar-drag"]');
+    expect(titlebar).not.toBeNull();
+    expect(titlebar?.hasAttribute('data-tauri-drag-region')).toBe(true);
+    expect(dragStrip).not.toBeNull();
+    expect(dragStrip?.hasAttribute('data-tauri-drag-region')).toBe(true);
+    // Back control must opt out so clicks do not start a window move.
+    expect(
+      container
+        .querySelector('[data-testid="settings-back-button"]')
+        ?.closest('[data-no-window-drag]'),
+    ).not.toBeNull();
+  });
+
   it('switches content when a nav item is clicked', () => {
     act(() => {
       root.render(<ShellHarness initialSection="skills" />);

@@ -393,6 +393,7 @@ export type DesktopTranslator = {
       discoveringModels: string;
       setDefault: string;
       addModel: string;
+      saveHint: string;
       removeModel: string;
       noModels: string;
       discoveryError: string;
@@ -1076,7 +1077,10 @@ export function getDesktopTranslator(locale: DesktopLocale): DesktopTranslator {
         discoverModels: isChinese ? '获取模型' : 'Fetch models',
         discoveringModels: isChinese ? '获取中…' : 'Fetching…',
         setDefault: isChinese ? '设为默认图片模型' : 'Set as default image model',
-        addModel: isChinese ? '添加图片模型' : 'Add image model',
+        addModel: isChinese ? '保存图片模型' : 'Save image model',
+        saveHint: isChinese
+          ? '从下拉框选中模型只是填入 ID，还需点击下方「保存图片模型」才会写入配置。'
+          : 'Choosing a model only fills the ID — click “Save image model” below to write it into config.',
         removeModel: isChinese ? '移除' : 'Remove',
         noModels: isChinese ? '尚未配置图片生成模型。' : 'No image generation models configured.',
         modelsHeading: isChinese ? '图片生成模型' : 'Image generation models',

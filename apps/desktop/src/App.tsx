@@ -5,6 +5,8 @@ import {
   useReducer,
   useRef,
   useState,
+  type ClipboardEvent,
+  type DragEvent,
   type SetStateAction,
 } from 'react';
 import { formatError } from '@piwin/contracts';
@@ -1079,6 +1081,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     handlePickImageFiles,
     addWebElement,
     handleSend,
+    retryPendingAttachment,
     handleSteer,
     handleFollowUp,
   } = useComposerMedia({
@@ -1229,7 +1232,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     onThemeApplied(theme);
   }
 
-  async function refreshComposerMenus(): Promise<void> {
+  const refreshComposerMenus = useCallback(async (): Promise<void> => {
     const skillsResponse = await hostClient.request({
       type: 'skills/list',
       ...(state.projectPath ? { projectPath: state.projectPath } : {}),
@@ -1260,7 +1263,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         })),
       );
     }
-  }
+  }, [hostClient, state.projectPath]);
 
   useEffect(() => {
     if (state.activeSessionId && state.projectTrusted) {
@@ -1272,9 +1275,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     shell.openInspector(tab);
   }
 
-  function openSettingsSection(section: ShellSettingsSection): void {
+  const openSettingsSection = useCallback((section: ShellSettingsSection): void => {
     shell.openSettings(section);
-  }
+  }, [shell.openSettings]);
 
   function runDesktopCommand(commandId: DesktopCommandId): void {
     switch (commandId) {
@@ -1502,88 +1505,219 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     state.sessions.find((item) => item.id === state.activeSessionId)?.origin ?? null;
   const desktopCopy = getDesktopCopy(desktopLocale);
 
-  // Shared composer card props for the bottom dock and in-place message editing.
-  // Local state fields (composer text, attachments, plus menu, etc.) are overridden
-  // by the bottom dock or the edit card; this bundle carries the global config.
-  const composerCard: ComposerDockProps = {
-    layoutMode: composerLayoutMode,
-    projectPath: state.projectPath,
-    projectTrusted: state.projectTrusted,
-    activeSessionId: state.activeSessionId,
-    streaming: state.streaming,
-    runPhase: state.runPhase,
-    compacting: state.compacting,
-    composer,
-    onComposerChange: setComposer,
-    agentMode,
-    onAgentModeChange: setAgentMode,
-    pendingAttachments,
-    onRemoveAttachment: revokePending,
-    docCommentsAttachment:
+  // Stable callback identities so composerCard useMemo does not thrash on every App render.
+  const handleRemoveDocComments = useCallback((): void => {
+    setDocComments((prev) => ({
+      ...prev,
+      [activeDocKey]: [],
+    }));
+  }, [activeDocKey]);
+  const handleRefreshComposerMenus = useCallback((): void => {
+    void refreshComposerMenus();
+  }, [refreshComposerMenus]);
+  const handleOpenSkillsPanel = useCallback((): void => {
+    openSettingsSection('skills');
+  }, [openSettingsSection]);
+  const handleOpenMcpPanel = useCallback((): void => {
+    openSettingsSection('tools');
+  }, [openSettingsSection]);
+  const handleOpenModelSettings = useCallback((): void => {
+    openSettingsSection('models');
+  }, [openSettingsSection]);
+  const handleOpenHostSettings = useCallback((): void => {
+    openSettingsSection('general');
+  }, [openSettingsSection]);
+  const handleOpenPermissionsSettings = useCallback((): void => {
+    openSettingsSection('permissions');
+  }, [openSettingsSection]);
+  const handleComposerAttachImage = useCallback((): void => {
+    void handlePickImageFiles();
+  }, [handlePickImageFiles]);
+  const handleComposerPasteEvent = useCallback(
+    (event: ClipboardEvent<HTMLTextAreaElement>): void => {
+      void handleComposerPaste(event);
+    },
+    [handleComposerPaste],
+  );
+  const handleComposerDropEvent = useCallback(
+    (event: DragEvent<HTMLTextAreaElement>): void => {
+      void handleComposerDrop(event);
+    },
+    [handleComposerDrop],
+  );
+  const handleComposerSend = useCallback((): void => {
+    void handleSendWithComments();
+  }, [handleSendWithComments]);
+  const handleComposerSteer = useCallback((): void => {
+    void handleSteer();
+  }, [handleSteer]);
+  const handleComposerFollowUp = useCallback((): void => {
+    void handleFollowUp();
+  }, [handleFollowUp]);
+  const handleComposerExtensionUiResolve = useCallback(
+    (payload: { confirmed?: boolean; value?: string; cancelled?: boolean }): void => {
+      void handleExtensionUiResolve(payload);
+    },
+    // handleExtensionUiResolve closes over request state; rebind when request changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [extensionUiRequest],
+  );
+  const handleComposerExtensionUiAbort = useCallback((): void => {
+    void handleExtensionUiAbort();
+  }, [extensionUiRequest]);
+  const handleComposerAbort = useCallback((): void => {
+    void handleAbort();
+  }, [handleAbort]);
+  const handleComposerCompact = useCallback((): void => {
+    void handleCompact();
+  }, [handleCompact]);
+
+  const docCommentsAttachment = useMemo(
+    () =>
       activeComments.length > 0
         ? {
             docTitle: activeDocument?.title || 'Document',
             commentCount: activeComments.length,
           }
         : null,
-    onRemoveDocComments: () => {
-      setDocComments((prev) => ({
-        ...prev,
-        [activeDocKey]: [],
-      }));
-    },
-    dropActive,
-    onDropActiveChange: setDropActive,
-    plusMenuOpen,
-    onPlusMenuOpenChange: setPlusMenuOpen,
-    plusSubmenu,
-    onPlusSubmenuChange: setPlusSubmenu,
-    modelOptions,
-    selectedModelKey,
-    selectedModelLabel,
-    onSelectModel: handleSelectModel,
-    visionDelegationEnabled: config?.visionDelegation?.enabled === true,
-    menuSkills,
-    menuMcp,
-    onRefreshComposerMenus: () => {
-      void refreshComposerMenus();
-    },
-    onOpenSkillsPanel: () => openSettingsSection('skills'),
-    onOpenMcpPanel: () => openSettingsSection('tools'),
-    onAttachImage: () => void handlePickImageFiles(),
-    onPaste: (event) => void handleComposerPaste(event),
-    onDrop: (event) => void handleComposerDrop(event),
-    onSend: () => void handleSendWithComments(),
-    onSteer: () => void handleSteer(),
-    onFollowUp: () => void handleFollowUp(),
-    extensionUiRequest,
-    extensionUiInput,
-    onExtensionUiInputChange: setExtensionUiInput,
-    onExtensionUiResolve: (payload) => void handleExtensionUiResolve(payload),
-    onExtensionUiAbort: () => void handleExtensionUiAbort(),
-    thinkingLevel,
-    onThinkingLevelChange: handleThinkingLevelChange,
-    ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
-    onAbort: () => void handleAbort(),
-    onCompact: () => void handleCompact(),
-    compactionSupported: hostStatus?.capabilities?.compaction !== false,
-    contextUsage: state.contextUsage,
-    ...(typeof selectedModelContextWindow === 'number'
-      ? { modelContextWindow: selectedModelContextWindow }
-      : {}),
-    onOpenModelSettings: () => openSettingsSection('models'),
-    hostStatus,
-    hostReady: state.hostReady,
-    hostMock: state.hostMock,
-    transportLabel: hostClient.getTransport(),
-    onOpenHostSettings: () => openSettingsSection('general'),
-    runModePreset: effectiveRunMode,
-    onRunModeChange: handleRunModeChange,
-    onRunModeSetDefault: handleRunModeSetDefault,
-    onOpenPermissionsSettings: () => openSettingsSection('permissions'),
-    runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted,
-    branchRequest: requestGit as ComposerDockProps['branchRequest'],
-  };
+    [activeComments.length, activeDocument?.title],
+  );
+
+  // Shared composer card props for the bottom dock and in-place message editing.
+  // Local state fields (composer text, attachments, plus menu, etc.) are overridden
+  // by the bottom dock or the edit card; this bundle carries the global config.
+  const composerCard: ComposerDockProps = useMemo(
+    () => ({
+      layoutMode: composerLayoutMode,
+      projectPath: state.projectPath,
+      projectTrusted: state.projectTrusted,
+      activeSessionId: state.activeSessionId,
+      streaming: state.streaming,
+      runPhase: state.runPhase,
+      compacting: state.compacting,
+      composer,
+      onComposerChange: setComposer,
+      agentMode,
+      onAgentModeChange: setAgentMode,
+      pendingAttachments,
+      onRemoveAttachment: revokePending,
+      onRetryAttachment: retryPendingAttachment,
+      docCommentsAttachment,
+      onRemoveDocComments: handleRemoveDocComments,
+      dropActive,
+      onDropActiveChange: setDropActive,
+      plusMenuOpen,
+      onPlusMenuOpenChange: setPlusMenuOpen,
+      plusSubmenu,
+      onPlusSubmenuChange: setPlusSubmenu,
+      modelOptions,
+      selectedModelKey,
+      selectedModelLabel,
+      onSelectModel: handleSelectModel,
+      visionDelegationEnabled: config?.visionDelegation?.enabled === true,
+      menuSkills,
+      menuMcp,
+      onRefreshComposerMenus: handleRefreshComposerMenus,
+      onOpenSkillsPanel: handleOpenSkillsPanel,
+      onOpenMcpPanel: handleOpenMcpPanel,
+      onAttachImage: handleComposerAttachImage,
+      onPaste: handleComposerPasteEvent,
+      onDrop: handleComposerDropEvent,
+      onSend: handleComposerSend,
+      onSteer: handleComposerSteer,
+      onFollowUp: handleComposerFollowUp,
+      extensionUiRequest,
+      extensionUiInput,
+      onExtensionUiInputChange: setExtensionUiInput,
+      onExtensionUiResolve: handleComposerExtensionUiResolve,
+      onExtensionUiAbort: handleComposerExtensionUiAbort,
+      thinkingLevel,
+      onThinkingLevelChange: handleThinkingLevelChange,
+      ultraThinkingEnabled: config?.thinking?.ultraEnabled === true,
+      onAbort: handleComposerAbort,
+      onCompact: handleComposerCompact,
+      compactionSupported: hostStatus?.capabilities?.compaction !== false,
+      contextUsage: state.contextUsage,
+      ...(typeof selectedModelContextWindow === 'number'
+        ? { modelContextWindow: selectedModelContextWindow }
+        : {}),
+      onOpenModelSettings: handleOpenModelSettings,
+      hostStatus,
+      hostReady: state.hostReady,
+      hostMock: state.hostMock,
+      transportLabel: hostClient.getTransport(),
+      onOpenHostSettings: handleOpenHostSettings,
+      runModePreset: effectiveRunMode,
+      onRunModeChange: handleRunModeChange,
+      onRunModeSetDefault: handleRunModeSetDefault,
+      onOpenPermissionsSettings: handleOpenPermissionsSettings,
+      runModeYoloDisabled: state.projectPath !== null && !state.projectTrusted,
+      branchRequest: requestGit as ComposerDockProps['branchRequest'],
+    }),
+    [
+      agentMode,
+      composer,
+      composerLayoutMode,
+      config?.thinking?.ultraEnabled,
+      config?.visionDelegation?.enabled,
+      docCommentsAttachment,
+      dropActive,
+      effectiveRunMode,
+      extensionUiInput,
+      extensionUiRequest,
+      handleComposerAbort,
+      handleComposerAttachImage,
+      handleComposerCompact,
+      handleComposerDropEvent,
+      handleComposerExtensionUiAbort,
+      handleComposerExtensionUiResolve,
+      handleComposerFollowUp,
+      handleComposerPasteEvent,
+      handleComposerSend,
+      handleComposerSteer,
+      handleOpenHostSettings,
+      handleOpenMcpPanel,
+      handleOpenModelSettings,
+      handleOpenPermissionsSettings,
+      handleOpenSkillsPanel,
+      handleRefreshComposerMenus,
+      handleRemoveDocComments,
+      handleRunModeChange,
+      handleRunModeSetDefault,
+      handleSelectModel,
+      handleThinkingLevelChange,
+      hostClient,
+      hostStatus,
+      menuMcp,
+      menuSkills,
+      modelOptions,
+      pendingAttachments,
+      plusMenuOpen,
+      plusSubmenu,
+      requestGit,
+      retryPendingAttachment,
+      revokePending,
+      selectedModelContextWindow,
+      selectedModelKey,
+      selectedModelLabel,
+      setAgentMode,
+      setComposer,
+      setDropActive,
+      setExtensionUiInput,
+      setPlusMenuOpen,
+      setPlusSubmenu,
+      state.activeSessionId,
+      state.compacting,
+      state.contextUsage,
+      state.hostMock,
+      state.hostReady,
+      state.projectPath,
+      state.projectTrusted,
+      state.runPhase,
+      state.streaming,
+      thinkingLevel,
+    ],
+  );
 
   // Subagent session inspector: preview stays in-place, promotion navigates.
   const handleEnterSubagentSession = useCallback(
@@ -2174,6 +2308,12 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 isResizing={rightPanelResize.isResizing}
                 onResizePointerDown={rightPanelResize.onResizePointerDown}
                 onResizeReset={() => rightPanelResize.setWidthPx(RIGHT_PANEL_DEFAULT_WIDTH_PX)}
+                isExpanded={rightPanelResize.widthPx > 450}
+                onToggleExpand={() =>
+                  rightPanelResize.setWidthPx(
+                    rightPanelResize.widthPx > 450 ? RIGHT_PANEL_DEFAULT_WIDTH_PX : 600,
+                  )
+                }
                 isOverlayPresentation={isOverlayPresentation}
                 runningJobCount={jobs.length}
                 terminalAttention={terminalAttention}

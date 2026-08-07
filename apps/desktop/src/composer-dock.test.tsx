@@ -418,6 +418,92 @@ describe('ComposerDock host status', () => {
     expect(container.querySelector('[data-testid="composer-text-only-image-warning"]')).toBeNull();
   });
 
+  it('keeps send enabled while a media attachment is preparing (send will wait)', () => {
+    const handleSend = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="look at this"
+        onSend={handleSend}
+        pendingAttachments={[
+          {
+            localId: 'local-saving',
+            previewUrl: 'blob:test',
+            uploadStatus: 'saving',
+            attachment: {
+              id: 'a-saving',
+              kind: 'media',
+              path: 'pending://local-saving',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const sendBtn = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
+    // Preparing must not block the button — handleSend awaits saves.
+    expect(sendBtn?.disabled).toBe(false);
+    expect(container.querySelector('[data-testid="composer-attachment-saving"]')).not.toBeNull();
+
+    act(() => {
+      sendBtn?.click();
+    });
+    expect(handleSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('disables send and offers Retry when a media attachment failed to save', () => {
+    const handleSend = vi.fn();
+    const handleRetry = vi.fn();
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        composer="look at this"
+        onSend={handleSend}
+        onRetryAttachment={handleRetry}
+        pendingAttachments={[
+          {
+            localId: 'local-error',
+            previewUrl: 'blob:test',
+            uploadStatus: 'error',
+            uploadError: 'media too large',
+            attachment: {
+              id: 'a-error',
+              kind: 'media',
+              path: 'pending://local-error',
+              mimeType: 'image/png',
+              byteSize: 100,
+              source: 'paste',
+            },
+          },
+        ]}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const sendBtn = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
+    expect(sendBtn?.disabled).toBe(true);
+    const errorChip = container.querySelector('[data-testid="composer-attachment-error"]');
+    expect(errorChip).not.toBeNull();
+    expect(errorChip?.getAttribute('title')).toContain('media too large');
+    expect(errorChip?.textContent).toContain('Retry');
+
+    act(() => {
+      (errorChip as HTMLButtonElement).click();
+    });
+    expect(handleRetry).toHaveBeenCalledWith('local-error');
+
+    act(() => {
+      sendBtn?.click();
+    });
+    expect(handleSend).not.toHaveBeenCalled();
+  });
+
   it('localizes Composer controls and placeholders for Simplified Chinese', () => {
     const rendered = renderDock(<ComposerDock {...baseProps} />, 'zh-CN');
     root = rendered.root;

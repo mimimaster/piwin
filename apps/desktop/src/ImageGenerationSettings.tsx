@@ -518,6 +518,12 @@ export function ImageGenerationSettings(): ReactElement {
                 </Field>
               </div>
 
+              {addModelId.trim() && !editingKey ? (
+                <p className="muted" style={{ marginTop: 12, fontSize: 12 }} data-testid="image-add-model-hint">
+                  {copy.saveHint}
+                </p>
+              ) : null}
+
               <div style={{ marginTop: 16, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 {editingKey ? (
                   <Button size="compact" variant="ghost" onClick={resetAddForm}>
@@ -526,6 +532,7 @@ export function ImageGenerationSettings(): ReactElement {
                 ) : null}
                 <Button
                   size="compact"
+                  variant="primary"
                   data-testid="image-add-model-submit"
                   disabled={!addModelId.trim() || !selectedProvider}
                   onClick={() => void handleAddModel()}

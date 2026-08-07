@@ -216,4 +216,32 @@ describe('RightPanel multi-tab', () => {
     expect(container.querySelector('[data-testid="right-panel-open-tab-terminal"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
   });
+
+  it('renders expand button and positions + button before tabs', () => {
+    writeStoredRightPanelState({ openTabs: ['terminal'], activeTab: 'terminal' });
+    let expandToggled = false;
+    const rendered = renderPanel({
+      activeTab: 'terminal',
+      onToggleExpand: () => {
+        expandToggled = true;
+      },
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    const expandBtn = container.querySelector<HTMLButtonElement>('[data-testid="right-panel-expand-btn"]');
+    expect(expandBtn).not.toBeNull();
+    act(() => {
+      expandBtn?.click();
+    });
+    expect(expandToggled).toBe(true);
+
+    const tabstrip = container.querySelector('[data-testid="right-panel-tabstrip"]');
+    const addBtn = tabstrip?.querySelector('[data-testid="right-panel-tab-add"]');
+    const tabsContainer = tabstrip?.querySelector('.right-panel-tabs');
+    expect(addBtn).not.toBeNull();
+    expect(tabsContainer).not.toBeNull();
+    // Verify + button comes before tabs container in DOM tree
+    expect(tabstrip?.firstElementChild).toBe(addBtn);
+  });
 });

@@ -1,8 +1,8 @@
 /**
  * Host IPC handlers: catalog.
  */
-import type { HostCommand, HostResponse, MediaSaveData } from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
+import type { HostCommand, HostResponse, MediaSaveData } from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import { SettingsRevisionConflictError, SettingsService } from '../settings/settings-service.js';
 import { createMediaService } from '@piwin/media';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
@@ -413,6 +413,18 @@ export async function handleCatalogCommand(
       } catch (error) {
         const message = formatError(error);
         return fail(requestId, 'models/catalog/search', message);
+      }
+    }
+    case 'models/image-catalog/search': {
+      // Pi maintains a separate ImagesModel catalog from the chat Model catalog.
+      // Image Generation settings uses this to match discovered provider models
+      // against known image-generation model ids (split-name / full-id).
+      try {
+        const result = searchPiImagesCatalog();
+        return ok(requestId, 'models/image-catalog/search', result);
+      } catch (error) {
+        const message = formatError(error);
+        return fail(requestId, 'models/image-catalog/search', message);
       }
     }
     case 'models/test': {

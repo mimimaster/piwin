@@ -739,6 +739,53 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   background: var(--surface, rgba(255, 255, 255, 0.04));
 }
 
+.composer-v2-attachment-status {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface, #0f172a) 82%, transparent);
+  color: var(--text, #f8fafc);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+.composer-v2-attachment-status.is-error {
+  background: color-mix(in srgb, var(--danger, #ef4444) 88%, transparent);
+  color: #fff;
+}
+
+.composer-v2-attachment-status.is-action {
+  pointer-events: auto;
+  cursor: pointer;
+  border: none;
+  font: inherit;
+}
+
+.composer-v2-attachment-status.is-action:hover {
+  filter: brightness(1.08);
+}
+
+.composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb,
+.composer-v2-attachment-chip[data-upload-status='saving'] .media-chip-thumb-button {
+  opacity: 0.72;
+}
+
+.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb,
+.composer-v2-attachment-chip[data-upload-status='error'] .media-chip-thumb-button {
+  opacity: 0.55;
+  filter: grayscale(0.35);
+}
+
 .composer-v2-attachment-chip .media-chip-thumb {
   width: 48px;
   height: 48px;
