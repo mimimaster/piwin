@@ -1,41 +1,22 @@
 /**
  * FLASHCARD_QUALITY_RULES — always embedded in the Doc Cards generation
- * prompt (spec §9.4). The bundled skill body should stay in sync with this
- * constant (snapshot test); skill discovery alone is not relied on.
+ * prompt (spec §9.4). Keep aligned with skills/generate-flashcards.
  */
-export const FLASHCARD_QUALITY_RULES = `# Flashcard quality rules
+export const FLASHCARD_QUALITY_RULES = `[piwin-prompt-meta kind="flashcard:quality" version="2" applies="flashcard-batch"]
 
-## Source types
+# Flashcard quality
 
-1. **Folder/docs (RAG-sourced)**: the prompt includes retrieved passages from
-   the user's folder, each with a file path and line range. Ground every card
-   in these passages. Fill \`sourceFolder\`, \`sourceFile\`, \`sourceLine\`, and
-   \`sourceExcerpt\` (the exact passage the card is derived from). Do not use
-   knowledge outside the provided passages for sourced cards.
+## Success
+A batch of study-ready cards: one atomic concept each; front is a question that does not leak the answer; back is 1–3 concise sentences; difficulty matches the ask.
 
-2. **Notes**: the prompt references notes from the library. Fill
-   \`sourceNoteId\` and \`sourceExcerpt\`.
-
-3. **Open**: no source passages provided. Do not fill source fields. The card
-   stands on general knowledge or web search results.
+## Source modes
+- **Folder/docs**: ground every card in provided passages; fill sourceFolder, sourceFile, sourceLine, sourceExcerpt. No outside knowledge for sourced cards.
+- **Notes**: fill sourceNoteId + sourceExcerpt.
+- **Open**: no source fields.
 
 ## Output
+One flashcard_batch_create with the full array (not per-card create).
 
-Call \`flashcard_batch_create\` once with all cards as an array. Do not call
-\`flashcard_create\` individually for batch generation.
-
-## Card quality
-
-- One atomic concept per card.
-- Front is a question; it must not leak the answer.
-- Back is concise: 1–3 sentences, no essay.
-- Difficulty: easy = terms / definitions; medium = concepts / mechanisms;
-  hard = application / analysis / trade-offs.
-- If the user specified a topic, stay on topic; skip unrelated material even
-  if present in the retrieved passages.
-
-## Dedup
-
-Call \`flashcard_list\` before \`flashcard_batch_create\` to check existing
-cards and avoid duplicate fronts. The store also rejects near-duplicates by
-trigram similarity; duplicates in a batch are skipped (not fatal).`;
+## Stop
+Skip off-topic material. Never invent source attribution. Prefer flashcard_list first to reduce duplicate fronts (store may also skip near-duplicates).
+`;

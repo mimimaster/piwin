@@ -20,7 +20,6 @@ describe('formatPlanForModelContext', () => {
     expect(text).toContain('Goal: G');
     expect(text).toContain('1: A');
   });
-});
 
   it('includes set_step instruction when approved/executing', () => {
     const text = formatPlanForModelContext({
@@ -37,5 +36,6 @@ describe('formatPlanForModelContext', () => {
       source: 'user',
     });
     expect(text).toContain('piwin_plan_set_step');
-    expect(text).toContain('Only one step should be active');
+    expect(text).toContain('acceptance criteria');
   });
+});
