@@ -31,6 +31,19 @@ describe('transcript-outline', () => {
     ]);
   });
 
+  it('strips mode wrappers from user transcript previews', () => {
+    const outline = buildOutlineFromTranscriptMessages([
+      {
+        id: 'u1',
+        role: 'user',
+        text: '[piwin-mode:agent]\nOperating contract\n\n---\nUser:\nhello world',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'done',
+      },
+    ]);
+    expect(outline[0]?.preview).toBe('hello world');
+  });
+
   it('prefers provided outline over derivation', () => {
     const resolved = resolveSessionOutline({
       outline: [

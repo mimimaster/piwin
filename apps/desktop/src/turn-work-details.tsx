@@ -31,6 +31,8 @@ export type TurnWorkDetailsProps = {
   projectPath?: string | null;
   /** Host request adapter forwarded to tool cards → DiffCard. */
   request?: DiffCardRequest;
+  /** Collapse historical tool cards into a summary on session hydrate. */
+  historyCollapsed?: boolean;
 };
 
 function thinkingSummaryLabel(input: {
@@ -64,13 +66,14 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
 
   useEffect(() => {
     setThinkingOpen(resolveWorkDetailsDefaultOpen(presentation, props.workDetailsExpanded));
-    // Re-evaluate when activity, answer start, or failure changes.
+    // Re-evaluate when activity, answer start, tool execution, or failure changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- presentation fields are intentional
   }, [
     presentation.isActive,
     presentation.answerStarted,
     presentation.hasFailure,
     presentation.isWaitingForModel,
+    presentation.toolCallCount,
     props.workDetailsExpanded,
     presentation.summaryLabel,
     presentation.outcome,
@@ -101,6 +104,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     locale,
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
+    ...(props.historyCollapsed ? { historyCollapsed: true } : {}),
   };
 
   return (

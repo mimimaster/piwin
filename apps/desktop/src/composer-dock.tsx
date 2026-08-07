@@ -161,7 +161,7 @@ export type ComposerDockProps = {
   onOpenPermissionsSettings?: () => void;
   /** YOLO unavailable for untrusted projects. */
   runModeYoloDisabled?: boolean;
-  /** ORCH: per-send orchestration scheme id (off default). */
+  /** ORCH: always-visible scheme mode picker; freehand (`off`) means no injection. */
   orchestrationSchemeId?: string;
   orchestrationSchemeOptions?: readonly OrchestrationSchemeOption[];
   onOrchestrationSchemeChange?: (schemeId: string) => void;
@@ -923,10 +923,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
             />
           ) : null}
 
-          {props.onOrchestrationSchemeChange &&
-          props.orchestrationSchemeOptions &&
-          props.orchestrationSchemeId &&
-          props.orchestrationSchemeId !== 'off' ? (
+          {/* Always visible: scheme is a mode picker, not a feature switch.
+              Default `off` = freehand (no injection); Ultra Code etc. inject on send. */}
+          {props.onOrchestrationSchemeChange && props.orchestrationSchemeOptions ? (
             <OrchestrationSchemeControl
               disabled={false}
               value={props.orchestrationSchemeId ?? 'off'}

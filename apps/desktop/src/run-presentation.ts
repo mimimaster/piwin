@@ -160,9 +160,11 @@ export function resolveWorkDetailsDefaultOpen(
 ): boolean {
   if (preference === 'always') return true;
   if (preference === 'collapsed') return false;
-  // Quiet workbench auto: expand while process streams; collapse once answer starts.
+  // Quiet workbench auto: expand while thinking streams; collapse once thinking finishes (answer starts, tools run, or turn completes).
   if (presentation.hasFailure) return true;
-  if (presentation.isActive && !presentation.answerStarted) return true;
+  if (presentation.isActive && !presentation.answerStarted && presentation.toolCallCount === 0) {
+    return true;
+  }
   return false;
 }
 

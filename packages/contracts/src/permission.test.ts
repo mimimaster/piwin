@@ -7,6 +7,7 @@ import {
   mergeRuleSets,
   modeToPreset,
   resolvePreset,
+  mergeAgentModeIntoPrompt,
   type AgentModeId,
   type PermissionMode,
   type PermissionPreset,
@@ -133,5 +134,22 @@ describe('mergeRuleSets', () => {
     expect(merged.deny).toHaveLength(1);
     expect(merged.ask).toHaveLength(1);
     expect(merged.allow).toHaveLength(1);
+  });
+});
+
+describe('mergeAgentModeIntoPrompt', () => {
+  it('prefixes agent mode contract and keeps the user body', () => {
+    const out = mergeAgentModeIntoPrompt('agent', 'hello');
+    expect(out).toContain('[piwin-mode:agent]');
+    expect(out).toContain('piwin-prompt-meta');
+    expect(out).toContain('Operating contract');
+    expect(out).toContain('---\nUser:\nhello');
+  });
+
+  it('prefixes plan mode with non-mutating constraints', () => {
+    const out = mergeAgentModeIntoPrompt('plan', 'build auth');
+    expect(out).toContain('[piwin-mode:plan]');
+    expect(out).toContain('Plan Mode');
+    expect(out).toContain('build auth');
   });
 });

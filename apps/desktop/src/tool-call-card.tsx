@@ -272,6 +272,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   }, [tool.status, tool.output, density]);
 
   const displayOutput = tool.presentation?.output?.text ?? tool.output;
+  const outputTruncated = tool.presentation?.output?.truncated === true;
   const citations = parseToolCitations(tool.toolName, displayOutput);
   const previewMax = density === 'compact' ? 48 : density === 'detailed' ? 160 : 96;
   const displayName = tool.presentation?.title ?? tool.toolName;
@@ -314,8 +315,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const pillLabel = multiPath || (isPathLike && !targetPaths[0]) ? summary : singleBasename;
   // Prefer host inputPreview; fall back when legacy presentations stuffed JSON into summary.
   const inputPreview =
-    tool.presentation?.inputPreview ||
-    (looksLikeArgsDumpSummary(summary) ? summary : undefined);
+    tool.presentation?.inputPreview || (looksLikeArgsDumpSummary(summary) ? summary : undefined);
   const hasDetailInBody = Boolean(tool.presentation?.command || inputPreview);
   const isArgsDumpSummary =
     Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary);
@@ -376,6 +376,15 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         {tool.presentation?.countTag ? (
           <span className="tool-call-count-tag">{tool.presentation.countTag}</span>
         ) : null}
+        {outputTruncated ? (
+          <span
+            className="tool-call-truncated-tag"
+            data-testid="tool-call-output-truncated"
+            aria-label="Output truncated"
+          >
+            truncated
+          </span>
+        ) : null}
         <span className={previewClassName}>{previewText}</span>
         {tool.status === 'done' ? (
           <span className="tool-call-ok" aria-label="done" data-testid="tool-call-ok" />
@@ -395,6 +404,17 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       </button>
       {expanded && hasBody ? (
         <div className="tool-call-body">
+          {outputTruncated ? (
+            <div
+              className="tool-call-output-notice"
+              data-testid="tool-call-output-notice"
+              role="status"
+            >
+              {kind === 'web'
+                ? 'The web response was too large; only a bounded partial result is shown.'
+                : 'The tool output was too large; only a bounded partial result is shown.'}
+            </div>
+          ) : null}
           {canRenderDiffCard
             ? changedPaths.map((path) => (
                 <DiffCard

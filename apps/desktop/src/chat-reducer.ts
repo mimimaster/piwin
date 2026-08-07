@@ -20,6 +20,7 @@ import type {
   WalkthroughArtifact,
 } from '@piwin/contracts';
 import type { SessionOutlineNode } from '@piwin/contracts';
+import { extractUserFacingBody } from '@piwin/session/derive-default-name';
 
 const MAX_RETAINED_TOOL_OUTPUT_BYTES = 256 * 1024;
 const TOOL_OUTPUT_TRUNCATION_MARKER = '\n[output truncated: retention limit reached]';
@@ -143,6 +144,14 @@ export type ChatUiState = {
   /** Active session was archived without switching context. */
   activeSessionArchived: boolean;
   /**
+   * True after resume `session/set({ awaitTranscript: true })` until
+   * `session/load-messages` arrives. Keeps the previous transcript painted
+   * (no blank flash) while ignoring stream events for the newly selected
+   * session so they cannot append onto the still-visible previous rows.
+   * New empty sessions must leave this false (no load-messages is coming).
+   */
+  awaitingTranscript: boolean;
+  /**
    * idle | streaming | aborting — replaces overloaded boolean for Stop UI.
    * `streaming` remains true for both streaming and aborting so existing guards keep working.
    */
@@ -209,6 +218,12 @@ export type ChatUiState = {
    * on sessions that are running in the background.
    */
   workingSessionIds: Record<string, true>;
+  /**
+   * Session IDs whose latest session-turn finished while the user was looking
+   * elsewhere. Sidebar shows a dismissible completed marker until the user
+   * opens the session (or the marker is cleared explicitly).
+   */
+  completedAttentionSessionIds: Record<string, true>;
 };
 
 export type ChatUiAction =
@@ -217,7 +232,7 @@ export type ChatUiAction =
   | { type: 'project/clear' }
   | { type: 'project/trust-dialog'; open: boolean }
   | { type: 'project/trusted' }
-  | { type: 'session/set'; sessionId: string }
+  | { type: 'session/set'; sessionId: string; awaitTranscript?: boolean }
   | { type: 'session/add'; sessionId: string; name: string }
   | { type: 'session/hydrate'; sessions: SessionListItemUi[] }
   | { type: 'session/hydrate-general'; sessions: SessionListItemUi[] }
@@ -253,6 +268,7 @@ export type ChatUiAction =
   | { type: 'run/updated'; run: ExecutionRunRecord }
   | { type: 'run/terminal'; run: ExecutionRunRecord }
   | { type: 'run/terminal-dismiss' }
+  | { type: 'session/attention-dismiss'; sessionId: string }
   | { type: 'host/status'; ready: boolean; mock: boolean }
   | { type: 'permission/show'; prompt: PermissionPromptUi }
   | { type: 'permission/clear'; requestId: string }
@@ -317,6 +333,7 @@ export function createInitialChatUiState(): ChatUiState {
     messages: [],
     outline: [],
     activeSessionArchived: false,
+    awaitingTranscript: false,
     runPhase: 'idle',
     activeRunId: null,
     activeRunPhase: null,
@@ -346,6 +363,7 @@ export function createInitialChatUiState(): ChatUiState {
     subagentTaskResults: {},
     walkthroughsByMessageId: {},
     workingSessionIds: {},
+    completedAttentionSessionIds: {},
   };
 }
 
@@ -364,7 +382,10 @@ export function mapTranscriptMessagesToUi(
   return messages.map((message) => ({
     id: message.id,
     role: message.role,
-    text: message.text,
+    // Legacy transcripts may still store mode/skill wrappers that were once
+    // sent as input.text. Project only the human-authored body for display;
+    // attachments stay untouched so vision media still renders as originals.
+    text: message.role === 'user' ? extractUserFacingBody(message.text) : message.text,
     thinking: message.thinking ?? '',
     tools: (message.tools ?? []).map((tool) => ({
       toolCallId: tool.toolCallId,
@@ -409,6 +430,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         messages: [],
         outline: [],
         activeSessionArchived: false,
+        awaitingTranscript: false,
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
@@ -434,6 +456,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         messages: [],
         outline: [],
         activeSessionArchived: false,
+        awaitingTranscript: false,
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
@@ -461,6 +484,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         messages: [],
         outline: [],
         activeSessionArchived: false,
+        awaitingTranscript: false,
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
@@ -487,10 +511,21 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         state.streaming === true &&
         state.messages.length > 0 &&
         state.messages.every((message) => message.role === 'user');
+      // Explicit opt-in from handleResumeSession only. session/create → session/set
+      // must NOT await (no load-messages follows; events/walkthrough would stall).
+      const awaitingTranscript =
+        !preserveOptimisticDraftSend && action.awaitTranscript === true;
+      // Keep previous rows painted only on the resume path (awaitTranscript).
+      // Plain session/set switches still clear immediately.
+      const keepPreviousTranscript =
+        awaitingTranscript &&
+        state.activeSessionId !== null &&
+        state.activeSessionId !== action.sessionId &&
+        state.messages.length > 0;
       return {
         ...state,
         activeSessionId: action.sessionId,
-        messages: preserveOptimisticDraftSend ? state.messages : [],
+        messages: preserveOptimisticDraftSend || keepPreviousTranscript ? state.messages : [],
         runPhase: preserveOptimisticDraftSend ? state.runPhase : 'idle',
         activeRunId: preserveOptimisticDraftSend ? state.activeRunId : null,
         activeRunPhase: preserveOptimisticDraftSend ? state.activeRunPhase : null,
@@ -498,13 +533,14 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeRunStartedAt: preserveOptimisticDraftSend ? state.activeRunStartedAt : null,
         lastTerminalRunId: null,
         streaming: preserveOptimisticDraftSend ? true : false,
-        outline: [],
+        outline: keepPreviousTranscript ? state.outline : [],
         activeSessionArchived: false,
+        awaitingTranscript,
         runTerminal: { kind: 'none' },
         // C1: clear event id ring for the new session
         receivedEventIds: [],
         lastAcceptedSequenceByRun: {},
-        runRecordsById: {},
+        runRecordsById: keepPreviousTranscript ? state.runRecordsById : {},
         walkthroughsByMessageId: {},
         // Subagent activity belongs to the previously active parent; the new
         // session hydrates its own children on resume.
@@ -513,9 +549,17 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         workingSessionIds: preserveOptimisticDraftSend
           ? { ...state.workingSessionIds, [action.sessionId]: true }
           : state.workingSessionIds,
+        completedAttentionSessionIds: removeSessionIdMarker(
+          state.completedAttentionSessionIds,
+          action.sessionId,
+        ),
       };
     }
     case 'session/load-messages': {
+      // Drop stale resume responses if the user already switched again.
+      if (state.activeSessionId !== null && state.activeSessionId !== action.sessionId) {
+        return state;
+      }
       const messages: ChatMessageUi[] = mapTranscriptMessagesToUi(action.messages);
       return {
         ...state,
@@ -530,6 +574,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         streaming: false,
         outline: action.outline ?? [],
         activeSessionArchived: false,
+        awaitingTranscript: false,
         runTerminal: { kind: 'none' },
         error: null,
         runRecordsById: buildRunRecordsFromTranscriptMessages(action.messages),
@@ -770,12 +815,17 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         messages: activeRemoved ? [] : state.messages,
         outline: activeRemoved ? [] : state.outline,
         activeSessionArchived: activeRemoved ? false : state.activeSessionArchived,
+        awaitingTranscript: activeRemoved ? false : state.awaitingTranscript,
         runPhase: activeRemoved ? 'idle' : state.runPhase,
         activeRunId: activeRemoved ? null : state.activeRunId,
         activeRunPhase: activeRemoved ? null : state.activeRunPhase,
         activeRunStartedAt: activeRemoved ? null : state.activeRunStartedAt,
         streaming: activeRemoved ? false : state.streaming,
         runTerminal: activeRemoved ? { kind: 'none' } : state.runTerminal,
+        completedAttentionSessionIds: removeSessionIdMarker(
+          state.completedAttentionSessionIds,
+          action.sessionId,
+        ),
       };
     }
     case 'session/mark-archived-active':
@@ -804,6 +854,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         messages: [],
         outline: [],
         activeSessionArchived: false,
+        awaitingTranscript: false,
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
@@ -871,6 +922,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         workingSessionIds: state.activeSessionId
           ? { ...state.workingSessionIds, [state.activeSessionId]: true }
           : state.workingSessionIds,
+        completedAttentionSessionIds: state.activeSessionId
+          ? removeSessionIdMarker(state.completedAttentionSessionIds, state.activeSessionId)
+          : state.completedAttentionSessionIds,
       };
     }
     case 'user/send-rollback': {
@@ -939,22 +993,47 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
     case 'run/terminal':
       if (state.activeSessionId !== action.run.sessionId) {
         // Terminal pushes are global. A run can finish after the user has
-        // switched sessions, so still clear its background working marker.
-        return action.run.kind === 'session-turn'
-          ? {
-              ...state,
-              workingSessionIds: removeWorkingSessionId(
-                state.workingSessionIds,
+        // switched sessions, so still clear its background working marker and
+        // optionally mark the session as needing attention.
+        if (action.run.kind !== 'session-turn') {
+          return state;
+        }
+        const nextWorking = removeWorkingSessionId(
+          state.workingSessionIds,
+          action.run.sessionId,
+        );
+        // Only completed / failed turns leave a sticky "done" marker. Cancelled
+        // and interrupted runs already communicate stop intent and should not
+        // keep demanding attention in the sidebar.
+        const shouldMarkCompletedAttention =
+          action.run.status === 'completed' || action.run.status === 'failed';
+        return {
+          ...state,
+          workingSessionIds: nextWorking,
+          completedAttentionSessionIds: shouldMarkCompletedAttention
+            ? {
+                ...state.completedAttentionSessionIds,
+                [action.run.sessionId]: true,
+              }
+            : removeSessionIdMarker(
+                state.completedAttentionSessionIds,
                 action.run.sessionId,
               ),
-            }
-          : state;
+        };
       }
       return applyRunRecord(state, action.run);
     case 'run/terminal-dismiss':
       return {
         ...state,
         runTerminal: { kind: 'none' },
+      };
+    case 'session/attention-dismiss':
+      return {
+        ...state,
+        completedAttentionSessionIds: removeSessionIdMarker(
+          state.completedAttentionSessionIds,
+          action.sessionId,
+        ),
       };
     case 'host/status':
       return { ...state, hostReady: action.ready, hostMock: action.mock };
@@ -1013,7 +1092,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       };
     }
     case 'event':
-      if (state.activeSessionId !== action.sessionId) {
+      if (state.activeSessionId !== action.sessionId || state.awaitingTranscript) {
         return state;
       }
       if (isStaleByEnvelope(state, action)) {
@@ -1021,7 +1100,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       }
       return applyAgentEvent(recordEventEnvelope(state, action), action.event);
     case 'event/batch': {
-      if (state.activeSessionId !== action.sessionId) {
+      if (state.activeSessionId !== action.sessionId || state.awaitingTranscript) {
         return state;
       }
       // C1: process batch events individually, checking each for envelope staleness
@@ -1091,6 +1170,11 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       return { ...state, subagentStreams: nextStreams };
     }
     case 'walkthrough/hydrate': {
+      // While the previous session's rows are still painted, ignore hydrate so
+      // walkthrough chips cannot attach to the wrong transcript.
+      if (state.awaitingTranscript) {
+        return state;
+      }
       const walkthroughsByMessageId: Record<string, WalkthroughArtifact> = {};
       for (const artifact of action.artifacts) {
         walkthroughsByMessageId[artifact.messageId] = artifact;
@@ -1352,17 +1436,25 @@ function recordEventEnvelope(
   return recordEnvelope(state, envelope);
 }
 
+/** Remove a session ID from a marker set, returning a new record. */
+function removeSessionIdMarker(
+  markers: Record<string, true>,
+  sessionId: string | null,
+): Record<string, true> {
+  if (!sessionId || !(sessionId in markers)) {
+    return markers;
+  }
+  const next = { ...markers };
+  delete next[sessionId];
+  return next;
+}
+
 /** Remove a session ID from the working set, returning a new record. */
 function removeWorkingSessionId(
   working: Record<string, true>,
   sessionId: string | null,
 ): Record<string, true> {
-  if (!sessionId || !(sessionId in working)) {
-    return working;
-  }
-  const next = { ...working };
-  delete next[sessionId];
-  return next;
+  return removeSessionIdMarker(working, sessionId);
 }
 
 function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {

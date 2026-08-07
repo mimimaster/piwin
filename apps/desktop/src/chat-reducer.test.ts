@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ExecutionRunRecord } from '@piwin/contracts';
-import { chatUiReducer, createInitialChatUiState } from './chat-reducer';
+import {
+  chatUiReducer,
+  createInitialChatUiState,
+  mapTranscriptMessagesToUi,
+} from './chat-reducer';
 
 function makeRun(runId: string, overrides: Partial<ExecutionRunRecord> = {}): ExecutionRunRecord {
   return {
@@ -163,6 +167,99 @@ describe('chatUiReducer', () => {
 
     expect(state.workingSessionIds).toEqual({});
     expect(state.streaming).toBe(false);
+  });
+
+  it('keeps previous transcript painted while resume awaits load-messages', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          text: 'hello from s1',
+          createdAt: '2026-07-24T00:00:00.000Z',
+          status: 'done',
+        },
+      ],
+    });
+    expect(state.awaitingTranscript).toBe(false);
+    expect(state.messages).toHaveLength(1);
+
+    state = chatUiReducer(state, {
+      type: 'session/set',
+      sessionId: 's2',
+      awaitTranscript: true,
+    });
+    expect(state.activeSessionId).toBe('s2');
+    expect(state.awaitingTranscript).toBe(true);
+    // Previous rows stay painted (no blank flash).
+    expect(state.messages[0]?.text).toBe('hello from s1');
+
+    // Stream events for the new session must not append onto stale rows.
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's2',
+      event: { type: 'message/start', messageId: 'a-new', role: 'assistant' },
+    });
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]?.id).toBe('u1');
+
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's2',
+      messages: [
+        {
+          id: 'u2',
+          role: 'user',
+          text: 'hello from s2',
+          createdAt: '2026-07-24T00:00:01.000Z',
+          status: 'done',
+        },
+      ],
+    });
+    expect(state.awaitingTranscript).toBe(false);
+    expect(state.messages).toHaveLength(1);
+    expect(state.messages[0]?.text).toBe('hello from s2');
+  });
+
+  it('does not await transcript for brand-new empty sessions', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'new-1' });
+    expect(state.awaitingTranscript).toBe(false);
+    expect(state.messages).toEqual([]);
+  });
+
+  it('ignores walkthrough/hydrate while awaiting transcript', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, {
+      type: 'session/set',
+      sessionId: 's1',
+      awaitTranscript: true,
+    });
+    expect(state.awaitingTranscript).toBe(true);
+    state = chatUiReducer(state, {
+      type: 'walkthrough/hydrate',
+      artifacts: [
+        {
+          version: 1,
+          id: 'wt-a1',
+          sessionId: 's1',
+          messageId: 'a1',
+          mode: 'default',
+          model: { protocol: 'openai-compatible', providerId: 'mock', modelId: 'm' },
+          sourceHash: 'h',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+          status: 'ready',
+          markdown: '# x',
+          generatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    });
+    expect(state.walkthroughsByMessageId).toEqual({});
   });
 
   it('reduces a stream event batch in order', () => {
@@ -616,6 +713,79 @@ describe('chatUiReducer', () => {
       firstAttachment && firstAttachment.kind === 'media' ? firstAttachment.path : '',
     ).toContain('a.png');
     expect(state.messages[1]?.text).toBe('seen');
+  });
+
+  it('projects legacy mode wrappers to the user-facing body on hydrate', () => {
+    const wrappedUserText = [
+      '[piwin-mode:agent]',
+      '[piwin-prompt-meta kind="mode:agent" version="2" applies="every-turn"]',
+      'Operating contract for this turn:',
+      "Success: satisfy the user's stated goal with the smallest correct change.",
+      '',
+      '---',
+      'User:',
+      '排查刻度条间距',
+    ].join('\n');
+
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          text: wrappedUserText,
+          createdAt: new Date().toISOString(),
+          status: 'done',
+          attachments: [
+            {
+              id: 'a1',
+              kind: 'media',
+              path: '/tmp/.piwin/media/s/shot.png',
+              mimeType: 'image/png',
+              byteSize: 42,
+              source: 'paste',
+            },
+          ],
+        },
+        {
+          id: 'a2',
+          role: 'assistant',
+          text: 'ok',
+          createdAt: new Date().toISOString(),
+          status: 'done',
+        },
+      ],
+    });
+
+    expect(state.messages[0]?.text).toBe('排查刻度条间距');
+    expect(state.messages[0]?.text).not.toContain('piwin-mode');
+    expect(state.messages[0]?.text).not.toContain('Operating contract');
+    const media = state.messages[0]?.attachments[0];
+    expect(media && media.kind === 'media' ? media.path : '').toContain('shot.png');
+    expect(state.messages[1]?.text).toBe('ok');
+  });
+
+  it('mapTranscriptMessagesToUi keeps assistant text raw and strips user wrappers', () => {
+    const [userMessage, assistantMessage] = mapTranscriptMessagesToUi([
+      {
+        id: 'u1',
+        role: 'user',
+        text: '[piwin-mode:agent]\nOperating contract\n\n---\nUser:\nhello',
+        createdAt: '2026-08-07T00:00:00.000Z',
+        status: 'done',
+      },
+      {
+        id: 'a1',
+        role: 'assistant',
+        text: 'raw assistant reply with [piwin-mode:agent] mention',
+        createdAt: '2026-08-07T00:00:01.000Z',
+        status: 'done',
+      },
+    ]);
+    expect(userMessage?.text).toBe('hello');
+    expect(assistantMessage?.text).toBe('raw assistant reply with [piwin-mode:agent] mention');
   });
 
   it('tracks compaction banner state', () => {
@@ -1568,12 +1738,14 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.workingSessionIds).toEqual({ 'new-session': true });
   });
 
-  it('still clears messages when switching to another existing session', () => {
+  it('still clears messages when switching without awaitTranscript', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
     state = chatUiReducer(state, { type: 'user/send', text: 'keep me' });
+    // Non-resume session/set (no awaitTranscript) clears immediately.
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
     expect(state.activeSessionId).toBe('s2');
+    expect(state.awaitingTranscript).toBe(false);
     expect(state.messages).toHaveLength(0);
     expect(state.streaming).toBe(false);
   });

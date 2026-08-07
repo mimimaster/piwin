@@ -15,6 +15,7 @@ import {
   type FocusEvent as ReactFocusEvent,
   type ReactElement,
 } from 'react';
+import { createPortal } from 'react-dom';
 import type { ChatMessageUi } from './chat-reducer';
 
 export type HistoryTicksDrawerProps = {
@@ -46,7 +47,6 @@ export function truncateMessageText(text: string, maxLength: number = 100): stri
 const COLLAPSED_TICK_HEIGHT_PX = 1;
 const COLLAPSED_TICK_GAP_PX = 10;
 const COLLAPSED_TICK_PADDING_TOP_PX = 8;
-const COLLAPSED_TICK_PADDING_RIGHT_PX = 6;
 const COLLAPSED_TICK_STEP_PX = COLLAPSED_TICK_HEIGHT_PX + COLLAPSED_TICK_GAP_PX;
 
 // The wave is an arithmetic progression of widths. Keep the base width in
@@ -82,7 +82,9 @@ type CollapsedRailMetrics = {
   tickCount: number;
 };
 
-const COLLAPSED_BUBBLE_OFFSET_PX = 12;
+/** Gap between the peak wave tip and the preview bubble. Keep small so the
+ *  tooltip reads as attached to the tick rail rather than floating mid-stage. */
+const COLLAPSED_BUBBLE_OFFSET_PX = 8;
 const COLLAPSED_BUBBLE_MAX_HALF_HEIGHT_PX = 120;
 const COLLAPSED_BUBBLE_VIEWPORT_PADDING_PX = 12;
 
@@ -96,14 +98,17 @@ function clampCollapsedBubbleTop(centerY: number): number {
   return Math.min(Math.max(centerY, minTop), maxTop);
 }
 
+/** Viewport X just past the peak wave tip for a given rail left edge. */
+function getBubbleLeftFromRailLeft(railLeft: number): number {
+  return railLeft + HISTORY_TICK_WAVE_MAX_WIDTH_PX + COLLAPSED_BUBBLE_OFFSET_PX;
+}
+
 function getCollapsedBubbleAnchor(element: HTMLElement): CollapsedBubbleAnchor {
   const bounds = element.getBoundingClientRect();
   return {
-    left:
-      bounds.left +
-      HISTORY_TICK_WAVE_MAX_WIDTH_PX +
-      COLLAPSED_TICK_PADDING_RIGHT_PX +
-      COLLAPSED_BUBBLE_OFFSET_PX,
+    // Focus path measures the tick itself; use its painted right edge so a
+    // scaled wave tip is the anchor rather than the full reserved strip.
+    left: bounds.right + COLLAPSED_BUBBLE_OFFSET_PX,
     top: clampCollapsedBubbleTop(bounds.top + bounds.height / 2),
   };
 }
@@ -139,10 +144,10 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
   const refreshRailMetrics = useCallback((rail: HTMLDivElement): CollapsedRailMetrics => {
     const bounds = rail.getBoundingClientRect();
     const tickElements = Array.from(rail.querySelectorAll<HTMLElement>('.border-tick-line'));
-    const bubbleAnchorRight =
-      typeof bounds.left === 'number' && Number.isFinite(bounds.left)
-        ? bounds.left + HISTORY_TICK_WAVE_MAX_WIDTH_PX + COLLAPSED_TICK_PADDING_RIGHT_PX
-        : bounds.right;
+    // Anchor at the peak wave tip (base left + max wave width). Do not add the
+    // strip's right padding — that pushed the bubble far into the stage gutter,
+    // especially when a parent backdrop-filter rebased fixed coordinates.
+    const bubbleAnchorRight = getBubbleLeftFromRailLeft(bounds.left);
 
     const metrics: CollapsedRailMetrics = {
       rail,
@@ -180,7 +185,7 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
         if (message) {
           setHoveredMessageId(message.id);
           setCollapsedBubbleAnchor({
-            left: metrics.right + COLLAPSED_BUBBLE_OFFSET_PX,
+            left: metrics.right,
             top: clampCollapsedBubbleTop(
               metrics.top +
                 COLLAPSED_TICK_PADDING_TOP_PX +
@@ -317,21 +322,29 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
       </div>
 
       {previewMessage && collapsedBubbleAnchor ? (
-        <div
-          id="history-message-bubble"
-          className="history-message-bubble history-message-bubble--collapsed"
-          data-testid="history-message-bubble"
-          role="tooltip"
-          style={{
-            left: `${collapsedBubbleAnchor.left}px`,
-            top: `${collapsedBubbleAnchor.top}px`,
-          }}
-        >
-          <div className="history-bubble-header">
-            {formatFullTimestamp(previewMessage.createdAt) || 'User Message'}
-          </div>
-          <div className="history-bubble-text">{truncateMessageText(previewMessage.text, 240)}</div>
-        </div>
+        // Portal to document.body so position:fixed is viewport-relative.
+        // Parent chat-column/workspace use backdrop-filter, which creates a
+        // containing block and made the bubble sit far from the tick rail.
+        createPortal(
+          <div
+            id="history-message-bubble"
+            className="history-message-bubble history-message-bubble--collapsed"
+            data-testid="history-message-bubble"
+            role="tooltip"
+            style={{
+              left: `${collapsedBubbleAnchor.left}px`,
+              top: `${collapsedBubbleAnchor.top}px`,
+            }}
+          >
+            <div className="history-bubble-header">
+              {formatFullTimestamp(previewMessage.createdAt) || 'User Message'}
+            </div>
+            <div className="history-bubble-text">
+              {truncateMessageText(previewMessage.text, 240)}
+            </div>
+          </div>,
+          document.body,
+        )
       ) : null}
     </div>
   );

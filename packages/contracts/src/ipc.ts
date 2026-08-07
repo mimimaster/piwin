@@ -526,7 +526,13 @@ export type HostCommand =
   | { id?: string; type: 'browser/pick-at'; x: number; y: number }
   | { id?: string; type: 'browser/screenshot'; path?: string }
   | { id?: string; type: 'browser/stop' }
-  | { id?: string; type: 'walkthrough/list'; sessionId: string }
+  | {
+      id?: string;
+      type: 'walkthrough/list';
+      sessionId: string;
+      /** Optional message ids from a just-hydrated transcript — avoids a second full transcript read. */
+      knownMessageIds?: string[];
+    }
   | {
       id?: string;
       type: 'walkthrough/generate';

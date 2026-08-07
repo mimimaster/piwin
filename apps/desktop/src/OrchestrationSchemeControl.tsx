@@ -1,9 +1,10 @@
 /**
  * Composer Orchestration Scheme pill (ORCH).
  *
- * Per-send opt-in: Off by default; selecting Ultra Code (or a user scheme)
- * only affects the next prompt via PromptInput.orchestrationSchemeId.
- * No "set as default"; no cross-session persistence.
+ * Always-on mode picker in the composer toolbar (not a feature switch).
+ * Default selection is freehand (`off`) — no scheme preamble is injected.
+ * Choosing Ultra Code (or a user scheme) sets PromptInput.orchestrationSchemeId
+ * for that send only. No "set as default"; no cross-session persistence.
  */
 import { useState, type ReactElement } from 'react';
 import { Popover } from '@piwin/ui-kit';
@@ -39,7 +40,25 @@ export function OrchestrationSchemeControl({
     options.find((option) => option.id === 'off') ??
     options[0];
   const isActive = value !== 'off' && value !== '';
-  const label = selected?.name ?? (isZh ? '关闭' : 'Off');
+  const displayName = (option: OrchestrationSchemeOption | undefined): string => {
+    if (!option) {
+      return isZh ? '无' : 'None';
+    }
+    // Freehand is a mode value, not a power switch — only named schemes inject.
+    if (option.id === 'off' || option.source === 'off') {
+      return isZh ? '无' : 'None';
+    }
+    return option.name;
+  };
+  const displayDescription = (option: OrchestrationSchemeOption): string => {
+    if (option.id === 'off' || option.source === 'off') {
+      return isZh
+        ? '自由对话 — 不注入编排提示词'
+        : 'Freehand — no scheme prompt injection';
+    }
+    return option.description;
+  };
+  const selectedLabel = displayName(selected);
 
   return (
     <div
@@ -61,7 +80,7 @@ export function OrchestrationSchemeControl({
             className="orchestration-scheme-trigger"
             disabled={disabled}
             aria-label={
-              isZh ? `编排方案: ${label}` : `Orchestration scheme: ${label}`
+              isZh ? `编排方案: ${selectedLabel}` : `Orchestration scheme: ${selectedLabel}`
             }
             data-testid="orchestration-scheme-trigger"
             data-scheme={value || 'off'}
@@ -69,7 +88,7 @@ export function OrchestrationSchemeControl({
             <span className="orchestration-scheme-prefix">
               {isZh ? '编排' : 'Scheme'}
             </span>
-            <span className="orchestration-scheme-value">{label}</span>
+            <span className="orchestration-scheme-value">{selectedLabel}</span>
             <span className="orchestration-scheme-chevron" aria-hidden />
           </button>
         }
@@ -95,9 +114,11 @@ export function OrchestrationSchemeControl({
                   setOpen(false);
                 }}
               >
-                <span className="orchestration-scheme-option-label">{option.name}</span>
+                <span className="orchestration-scheme-option-label">
+                  {displayName(option)}
+                </span>
                 <span className="orchestration-scheme-option-desc">
-                  {option.description}
+                  {displayDescription(option)}
                 </span>
               </button>
             );

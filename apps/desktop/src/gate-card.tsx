@@ -56,7 +56,8 @@ export function GateCard(props: GateCardProps): ReactElement {
           data-testid="gate-allow-session"
           onClick={() => props.onPermission('allow', 'session')}
         >
-          本次允许
+          <span className="agent-interruption-choice-badge">A</span>
+          <span>允许本次会话</span>
         </Button>
         <Button
           variant="secondary"
@@ -64,7 +65,8 @@ export function GateCard(props: GateCardProps): ReactElement {
           data-testid="gate-allow-once"
           onClick={() => props.onPermission('allow', 'once')}
         >
-          允许一次
+          <span className="agent-interruption-choice-badge">B</span>
+          <span>仅允许这一次</span>
         </Button>
         {canRemember ? (
           <Button
@@ -74,16 +76,18 @@ export function GateCard(props: GateCardProps): ReactElement {
             title="Remember this allow for the current project"
             onClick={() => props.onPermission('allow', 'project')}
           >
-            总是允许
+            <span className="agent-interruption-choice-badge">C</span>
+            <span>允许此项目</span>
           </Button>
         ) : null}
         <Button
-          variant="secondary"
+          variant="danger"
           className="gate-btn-deny"
           data-testid="gate-deny"
           onClick={() => props.onPermission('deny')}
         >
-          拒绝
+          <span className="agent-interruption-choice-badge">{canRemember ? 'D' : 'C'}</span>
+          <span>拒绝</span>
         </Button>
         <span className="gate-hint">权限: {prompt.defaultDecision}</span>
       </div>

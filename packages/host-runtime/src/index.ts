@@ -73,6 +73,7 @@ export {
   deleteWalkthrough,
   deleteSessionWalkthroughs,
 } from './walkthrough-store.js';
+export type { ListWalkthroughsOptions } from './walkthrough-store.js';
 export { buildSessionTools } from './session-tools.js';
 export type { SessionToolRegistration, BuildSessionToolsOptions } from './session-tools.js';
 export { ensureGeneralWorkspace } from './general-workspace.js';

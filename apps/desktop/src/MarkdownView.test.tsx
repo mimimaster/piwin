@@ -392,4 +392,16 @@ describe('MarkdownView path chips', () => {
     expect((headers[0] as HTMLElement).style.textAlign).toBe('left');
     expect((headers[1] as HTMLElement).style.textAlign).toBe('right');
   });
+
+  it('renders streaming cursor inline inside paragraph element following latest token', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text="Hello streaming token" renderingPhase="streaming" />,
+    );
+    const p = container.querySelector('p.md-p');
+    expect(p).not.toBeNull();
+    const cursor = p?.querySelector('.streaming-cursor-pulse');
+    expect(cursor).not.toBeNull();
+    // Cursor should be inside the paragraph, not a direct child of container outside p
+    expect(container.querySelector('.markdown > .streaming-cursor-pulse')).toBeNull();
+  });
 });

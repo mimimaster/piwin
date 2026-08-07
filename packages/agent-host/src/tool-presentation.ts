@@ -115,6 +115,22 @@ export function boundToolOutput(text: string): ToolOutputView {
   };
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object';
+}
+
+function hasSemanticTruncation(toolName: string, outputText: string): boolean {
+  if (resolveActionFamily(toolName) !== 'web-fetch') {
+    return false;
+  }
+  try {
+    const parsed: unknown = JSON.parse(outputText);
+    return isRecord(parsed) && parsed.truncated === true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Build a ToolPresentation from known tool metadata. Does not invent fields
  * the provider did not supply.
@@ -163,7 +179,10 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
   }
 
   if (typeof input.outputText === 'string' && input.outputText.length > 0) {
-    presentation.output = boundToolOutput(input.outputText);
+    const output = boundToolOutput(input.outputText);
+    presentation.output = hasSemanticTruncation(input.toolName, input.outputText)
+      ? { ...output, truncated: true }
+      : output;
   }
 
   let toolWasCancelled = false;

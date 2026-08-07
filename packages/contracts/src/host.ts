@@ -139,9 +139,12 @@ export type PromptInput = {
   thinkingLevel?: ThinkingLevel;
   streamingBehavior?: 'steer' | 'followUp';
   /**
-   * Agent collaboration mode for this prompt. When set to 'plan' or 'ask',
-   * the host raises the permission floor to read-only (ask-all + read-only
-   * sandbox) regardless of the session's configured preset.
+   * Agent collaboration mode for this prompt.
+   * - Host injects the mode operating contract into model-facing text only
+   *   (transcript / naming keep the raw user body).
+   * - When set to 'plan' or 'ask', the host also raises the permission floor
+   *   to read-only (ask-all + read-only sandbox) regardless of the session
+   *   preset.
    */
   agentMode?: AgentModeId;
   /**

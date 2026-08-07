@@ -418,6 +418,49 @@ describe('session live control commands', () => {
       expect(boundSchemes.some((scheme) => scheme?.schemeId === 'ultra-code')).toBe(true);
     });
 
+    it('injects agent-mode contract model-facing only; transcript keeps user text', async () => {
+      const session = createDelayedSessionHandle();
+      const promptContext = createPromptContext(session);
+      const context = promptContext.context;
+      const recordedPrompts: PromptInput[] = [];
+      let modelFacingText = '';
+
+      context.recordUserPrompt = async (_sessionId, input): Promise<void> => {
+        recordedPrompts.push({
+          text: input.text,
+          ...(input.agentMode ? { agentMode: input.agentMode } : {}),
+        });
+      };
+      const originalPrompt = session.prompt.bind(session);
+      session.prompt = async (input: PromptInput): Promise<void> => {
+        modelFacingText = input.text;
+        await originalPrompt(input);
+      };
+
+      const response = await handleSessionLiveCommand(
+        {
+          type: 'session/prompt',
+          sessionId: session.id,
+          input: { text: 'fix the login bug', agentMode: 'agent' },
+        },
+        undefined,
+        context,
+      );
+      expect(response?.success).toBe(true);
+
+      await session.promptSettled;
+      await vi.waitFor(() => {
+        expect(modelFacingText).toContain('[piwin-mode:agent]');
+      });
+
+      expect(recordedPrompts).toHaveLength(1);
+      expect(recordedPrompts[0]?.text).toBe('fix the login bug');
+      expect(recordedPrompts[0]?.text).not.toContain('[piwin-mode:');
+      expect(modelFacingText).toContain('fix the login bug');
+      expect(modelFacingText).toContain('Operating contract');
+      expect(modelFacingText.startsWith('[piwin-mode:agent]')).toBe(true);
+    });
+
     it('clears scheme binding on Off turn (no residual force)', async () => {
       const session = createDelayedSessionHandle();
       const promptContext = createPromptContext(session);

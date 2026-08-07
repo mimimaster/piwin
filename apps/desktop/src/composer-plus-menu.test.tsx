@@ -182,7 +182,7 @@ describe('ComposerPlusMenu', () => {
       createBaseProps({
         submenu: 'orchestration',
         orchestrationSchemeOptions: [
-          { id: 'off', name: 'Off', description: 'Disable orchestration' },
+          { id: 'off', name: 'None', description: 'Freehand — no scheme prompt injection' },
           { id: 'ultra-code', name: 'Ultra Code', description: 'Multi-step coding plan' },
         ],
         orchestrationSchemeId: 'ultra-code',

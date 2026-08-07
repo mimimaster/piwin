@@ -188,23 +188,33 @@ describe('resolveWorkDetailsDefaultOpen', () => {
     expect(resolveWorkDetailsDefaultOpen(base, 'collapsed')).toBe(false);
   });
 
-  it('auto-opens for active or failed turns', () => {
-    const activeProcess = {
+  it('auto-opens for active turns during thinking, and auto-collapses when answer starts or tools execute', () => {
+    const activeThinking = {
       ...base,
       isActive: true,
       answerStarted: false,
       hasFailure: false,
+      toolCallCount: 0,
     };
     const activeWithAnswer = {
       ...base,
       isActive: true,
       answerStarted: true,
       hasFailure: false,
+      toolCallCount: 0,
+    };
+    const activeWithTools = {
+      ...base,
+      isActive: true,
+      answerStarted: false,
+      hasFailure: false,
+      toolCallCount: 1,
     };
     const failed = { ...base, isActive: false, hasFailure: true };
     const quiet = { ...base, isActive: false, hasFailure: false };
-    expect(resolveWorkDetailsDefaultOpen(activeProcess, 'auto')).toBe(true);
+    expect(resolveWorkDetailsDefaultOpen(activeThinking, 'auto')).toBe(true);
     expect(resolveWorkDetailsDefaultOpen(activeWithAnswer, 'auto')).toBe(false);
+    expect(resolveWorkDetailsDefaultOpen(activeWithTools, 'auto')).toBe(false);
     expect(resolveWorkDetailsDefaultOpen(failed, 'auto')).toBe(true);
     expect(resolveWorkDetailsDefaultOpen(quiet, 'auto')).toBe(false);
   });

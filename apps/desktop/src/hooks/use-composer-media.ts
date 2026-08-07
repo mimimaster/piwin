@@ -26,7 +26,7 @@ import {
   resolveImageMimeType,
   type PendingComposerAttachment,
 } from '../media-utils.js';
-import { applyAgentModeToPrompt, type AgentModeId } from '../agent-mode';
+import { type AgentModeId } from '../agent-mode';
 import {
   applySkillToPrompt,
   normalizeCompactCustomInstructions,
@@ -870,8 +870,10 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       }
 
       let clientMessageId: string | null = null;
+      // Host injects agent-mode contracts on the model path. Send clean user
+      // text so transcript + session naming never see [piwin-mode:…] noise.
       let displayText = text;
-      let hostPromptText = applyAgentModeToPrompt(args.agentMode, text);
+      let hostPromptText = text;
       let promptAgentMode: AgentModeId = args.agentMode;
       let promptAttachments: PromptAttachment[] = attachments;
 
@@ -885,12 +887,13 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         if (parsed.kind === 'mode' && parsed.args) {
           args.onAgentModeChange?.(parsed.modeId);
           displayText = parsed.args;
-          hostPromptText = applyAgentModeToPrompt(parsed.modeId, parsed.args);
+          hostPromptText = parsed.args;
           promptAgentMode = parsed.modeId;
           promptAttachments = [];
         } else if (parsed.kind === 'skill') {
-          const hostText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
-          hostPromptText = applyAgentModeToPrompt(args.agentMode, hostText);
+          // Skill wrapper is model-facing guidance; host still receives it as
+          // text (skill is not a first-class host field). Naming strips it.
+          hostPromptText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
           promptAttachments = [];
         }
       }

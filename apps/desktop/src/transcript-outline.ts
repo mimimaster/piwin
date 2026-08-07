@@ -3,6 +3,7 @@
  */
 import type { SessionOutlineNode, SessionTranscriptMessage } from '@piwin/contracts';
 import type { ChatMessageUi } from './chat-reducer';
+import { extractUserFacingBody } from '@piwin/session/derive-default-name';
 
 const PREVIEW_MAX_CHARS = 120;
 
@@ -16,7 +17,9 @@ export function buildOutlineFromTranscriptMessages(
   return messages.map((message) => ({
     id: message.id,
     role: message.role,
-    preview: collapsePreview(message.text),
+    preview: collapsePreview(
+      message.role === 'user' ? extractUserFacingBody(message.text) : message.text,
+    ),
     createdAt: message.createdAt,
   }));
 }

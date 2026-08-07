@@ -74,6 +74,7 @@
 
 ```text
 fetch(url) → size/timeout/redirect 限制
+  → 超限时保留有界前缀并返回 `truncated`（不把内容超限当执行失败）
   → content-type 分支
       text/html → linkedom + Readability → markdown/text
       text/*    → 截断纯文本

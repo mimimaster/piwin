@@ -3,6 +3,7 @@ import type {
   SessionOutlineNode,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
+import { extractUserFacingBody } from './derive-default-name.js';
 
 const PREVIEW_MAX_CHARS = 120;
 
@@ -16,7 +17,9 @@ export function buildSessionOutline(
   return messages.map((message) => ({
     id: message.id,
     role: message.role as AgentMessageRole,
-    preview: buildPreview(message.text),
+    preview: buildPreview(
+      message.role === 'user' ? extractUserFacingBody(message.text) : message.text,
+    ),
     createdAt: message.createdAt,
   }));
 }

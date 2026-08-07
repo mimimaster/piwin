@@ -219,6 +219,22 @@ describe('walkthrough-store', () => {
     expect(list).toEqual([]);
   });
 
+  it('listWalkthroughs accepts validMessageIds without re-reading transcript', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
+    const sessionId = 'sess-1';
+    const liveId = 'msg-live';
+    const orphanId = 'msg-orphan';
+    // No transcript on disk — only the provided id set is used.
+    await saveWalkthrough(rootDir, sessionId, makeReadyArtifact(sessionId, liveId));
+    await saveWalkthrough(rootDir, sessionId, makeReadyArtifact(sessionId, orphanId));
+
+    const list = await listWalkthroughs(rootDir, sessionId, {
+      validMessageIds: [liveId],
+    });
+    expect(list).toHaveLength(1);
+    expect(list[0]?.messageId).toBe(liveId);
+  });
+
   it('listWalkthroughs skips orphan artifacts (message no longer in transcript)', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-wt-'));
     const sessionId = 'sess-1';

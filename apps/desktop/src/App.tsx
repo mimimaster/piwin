@@ -325,7 +325,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const [orchestrationSchemeId, setOrchestrationSchemeId] = useState<string>(
     ORCHESTRATION_SCHEME_OFF_ID,
   );
-  // ORCH: switching sessions returns the scheme dropdown to Off (no cross-session persist).
+  // ORCH: scheme picker stays visible; switching sessions resets to freehand (no injection).
   useEffect(() => {
     setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
   }, [state.activeSessionId]);
@@ -586,8 +586,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const orchestrationSchemeOptions = useMemo(() => {
     const offOption = {
       id: ORCHESTRATION_SCHEME_OFF_ID,
-      name: 'Off',
-      description: 'Freehand — no orchestration injection',
+      name: 'None',
+      description: 'Freehand — no scheme prompt injection',
       source: 'off' as const,
     };
     const schemes = listOrchestrationSchemes({
@@ -776,8 +776,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   // (empty list when none exist) which we dispatch into the reducer map.
   useEffect(() => {
     if (!state.activeSessionId) return;
+    // Wait until transcript hydrate finishes so walkthrough chips attach to the
+    // real rows (session switch keeps previous rows painted while awaiting).
+    if (state.awaitingTranscript) return;
+    const sessionId = state.activeSessionId;
+    const knownMessageIds = state.messages.map((message) => message.id);
     void hostClient
-      .request({ type: 'walkthrough/list', sessionId: state.activeSessionId })
+      .request({ type: 'walkthrough/list', sessionId, knownMessageIds })
       .then((response) => {
         if (!response.success) return;
         const data = response.data as { artifacts?: WalkthroughArtifact[] } | undefined;
@@ -785,9 +790,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           dispatch({ type: 'walkthrough/hydrate', artifacts: data.artifacts });
         }
       });
-    // Only re-run when the active session changes (not on every message delta).
+    // Re-run when session changes or when transcript hydrate completes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.activeSessionId, hostClient]);
+  }, [state.activeSessionId, state.awaitingTranscript, hostClient]);
 
   // Stable identities: panels reload via useEffect([request]) — a fresh
   // closure per render would re-fire full loads on every App render.

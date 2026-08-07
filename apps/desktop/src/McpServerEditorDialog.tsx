@@ -3,9 +3,21 @@
  * Extracted from McpPanel so the main page stays a clean list.
  */
 import { useEffect, useState, type ReactElement } from 'react';
-import { Button, Field, Modal, Notice, Tabs, TabsContent, TabsList, TabsTrigger, TextInput } from '@piwin/ui-kit';
+import {
+  Button,
+  Field,
+  IconButton,
+  Modal,
+  Notice,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  TextInput,
+} from '@piwin/ui-kit';
 import type { McpConfigDocument, McpServerConfig, McpToolSummary } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
+import { IconPin } from './shell-icons';
 
 export type McpServerEditorDialogProps = {
   open: boolean;
@@ -34,20 +46,6 @@ type ServerFormDraft = {
   argsText: string;
   envText: string;
 };
-
-function McpPinIcon({ pinned }: { pinned: boolean }): ReactElement {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path
-        d="M5 2h6l-.7 3.3 2.2 2.2v1H8.7v4.5L8 14l-.7-1V8.5H3.5v-1l2.2-2.2L5 2Z"
-        fill={pinned ? 'currentColor' : 'none'}
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function emptyDraft(): ServerFormDraft {
   return { id: '', command: '', argsText: '', envText: '' };
@@ -83,6 +81,10 @@ function draftToServer(draft: ServerFormDraft): McpServerConfig {
   return config;
 }
 
+function formatToolSelector(serverId: string, toolName: string): string {
+  return `${serverId}.${toolName}`;
+}
+
 export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactElement {
   const isChinese = props.isChinese;
   const [tab, setTab] = useState<'form' | 'raw'>('form');
@@ -93,14 +95,19 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
   const [saving, setSaving] = useState(false);
   const [tools, setTools] = useState<McpToolSummary[]>([]);
   const [loadingTools, setLoadingTools] = useState(false);
+  const [togglingPinSelector, setTogglingPinSelector] = useState<string | null>(null);
+  const pinnedSelectors = props.document.pinnedSelectors ?? [];
 
-  // Reset state when dialog opens
+  // Reset editor form when the dialog opens or the target server changes.
+  // Intentionally does NOT depend on `document`: pin toggles update the
+  // document and must not wipe the tools list mid-edit.
   useEffect(() => {
     if (!props.open) return;
     setError(null);
     setInfo(null);
     setTools([]);
     setTab('form');
+    setTogglingPinSelector(null);
 
     if (props.prefillDraft) {
       const id = props.prefillId ?? '';
@@ -109,7 +116,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
         command: props.prefillDraft.command,
         argsText: (props.prefillDraft.args ?? []).join(' '),
         envText: Object.entries(props.prefillDraft.env ?? {})
-          .map(([k, v]) => `${k}=${v}`)
+          .map(([key, value]) => `${key}=${value}`)
           .join('\n'),
       });
     } else if (props.serverId && props.server) {
@@ -118,7 +125,14 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
       setDraft(emptyDraft());
     }
     setRawJson(`${JSON.stringify(props.document, null, 2)}\n`);
-  }, [props.open, props.serverId, props.server, props.prefillDraft, props.prefillId, props.document]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- document is intentionally omitted; pin saves must not reset the form
+  }, [props.open, props.serverId, props.server, props.prefillDraft, props.prefillId]);
+
+  // Keep raw JSON tab in sync when pins change while the dialog is open.
+  useEffect(() => {
+    if (!props.open || tab !== 'raw') return;
+    setRawJson(`${JSON.stringify(props.document, null, 2)}\n`);
+  }, [props.open, props.document, tab]);
 
   async function handleSaveForm(): Promise<void> {
     const id = draft.id.trim();
@@ -206,7 +220,48 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     );
   }
 
+  async function handleTogglePinned(selector: string, nextPinned: boolean): Promise<void> {
+    setTogglingPinSelector(selector);
+    setError(null);
+    try {
+      const ok = await props.onTogglePinned(selector, nextPinned);
+      if (!ok) {
+        setError(
+          isChinese
+            ? '固定状态保存失败，请重试。'
+            : 'Failed to save pin state. Please try again.',
+        );
+      }
+    } finally {
+      setTogglingPinSelector(null);
+    }
+  }
+
   const isEditing = Boolean(props.serverId);
+  const draftServerId = draft.id.trim();
+  // Show already-pinned selectors for this server even before probing, so users
+  // can unpin without starting the process.
+  const dormantPinnedTools: McpToolSummary[] =
+    draftServerId.length === 0
+      ? []
+      : pinnedSelectors
+          .filter((selector) => selector.startsWith(`${draftServerId}.`))
+          .filter((selector) => !tools.some((tool) => formatToolSelector(tool.serverId, tool.name) === selector))
+          .map((selector) => {
+            const toolName = selector.slice(draftServerId.length + 1);
+            return {
+              serverId: draftServerId,
+              name: toolName,
+              exposedName: `mcp__${draftServerId}__${toolName}`,
+              description: isChinese
+                ? '已固定（尚未探测到当前工具列表）'
+                : 'Pinned (not yet seen in the current tools probe)',
+            };
+          });
+  const displayTools = [...tools, ...dormantPinnedTools];
+  const pinnedCountForServer = displayTools.filter((tool) =>
+    pinnedSelectors.includes(formatToolSelector(tool.serverId, tool.name)),
+  ).length;
 
   return (
     <Modal
@@ -216,7 +271,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
       testId="mcp-editor-dialog"
       size="lg"
     >
-      <div className="cherry-dialog-body">
+      <div className="cherry-dialog-body cherry-dialog--mcp-editor">
           {error ? <Notice tone="error">{error}</Notice> : null}
           {info ? <Notice tone="info">{info}</Notice> : null}
 
@@ -271,55 +326,112 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
                 </Field>
               </div>
 
-              {tools.length > 0 ? (
-                <section className="mcp-tools-preview">
-                  <h5>{isChinese ? '工具预览' : 'Tools preview'}</h5>
+              <section className="mcp-tools-preview" data-testid="mcp-tools-preview">
+                <div className="mcp-tools-preview-header">
+                  <h5>
+                    {isChinese ? '工具固定（直调）' : 'Pin tools (direct call)'}
+                    {tools.length > 0
+                      ? ` · ${pinnedCountForServer}/${tools.length}`
+                      : pinnedCountForServer > 0
+                        ? isChinese
+                          ? ` · 已固定 ${pinnedCountForServer}`
+                          : ` · ${pinnedCountForServer} pinned`
+                        : null}
+                  </h5>
+                  <Button
+                    variant="ghost"
+                    size="compact"
+                    disabled={loadingTools || !draft.id.trim()}
+                    onClick={() => void handlePreviewTools()}
+                    data-testid="mcp-editor-tools"
+                  >
+                    {loadingTools
+                      ? isChinese
+                        ? '探测中…'
+                        : 'Probing…'
+                      : isChinese
+                        ? '探测工具'
+                        : 'Probe tools'}
+                  </Button>
+                </div>
+                <p className="mcp-tools-preview-hint muted">
+                  {isChinese
+                    ? '钉选后以 mcp__server__tool 直接暴露给 Agent。未钉选的工具仍可通过 mcp_gateway（search → describe → call）调用。'
+                    : 'Pinned tools appear as mcp__server__tool for the agent. Unpinned tools stay reachable via mcp_gateway (search → describe → call).'}
+                </p>
+                {loadingTools && tools.length === 0 ? (
+                  <p className="mcp-tools-empty muted">
+                    {isChinese ? '正在加载工具列表…' : 'Loading tools…'}
+                  </p>
+                ) : null}
+                {!loadingTools && displayTools.length === 0 ? (
+                  <p className="mcp-tools-empty muted">
+                    {isChinese
+                      ? '尚未加载工具。保存服务器后点击「探测工具」以列出并固定高频工具。'
+                      : 'No tools loaded yet. Save the server, then click "Probe tools" to list and pin high-frequency tools.'}
+                  </p>
+                ) : null}
+                {displayTools.length > 0 ? (
                   <ul className="mcp-tools-list">
-                    {tools.map((tool) => (
-                      <li key={tool.exposedName} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Button
-                          variant="ghost"
-                          size="compact"
-                          title={
-                            (props.document.pinnedSelectors ?? []).includes(`${tool.serverId}.${tool.name}`)
-                              ? isChinese
-                                ? '取消固定直接调用'
-                                : 'Unpin direct call'
-                              : isChinese
-                                ? '固定为直接调用工具'
-                                : 'Pin as direct tool'
-                          }
-                          aria-label={
-                            (props.document.pinnedSelectors ?? []).includes(`${tool.serverId}.${tool.name}`)
-                              ? isChinese
-                                ? '取消固定'
-                                : 'Unpin'
-                              : isChinese
-                                ? '固定为直接调用工具'
-                                : 'Pin as direct tool'
-                          }
-                          aria-pressed={(props.document.pinnedSelectors ?? []).includes(`${tool.serverId}.${tool.name}`)}
-                          onClick={() => {
-                            const selector = `${tool.serverId}.${tool.name}`;
-                            const pinned = (props.document.pinnedSelectors ?? []).includes(selector);
-                            void props.onTogglePinned(selector, !pinned);
-                          }}
-                        >
-                          <McpPinIcon
-                            pinned={(props.document.pinnedSelectors ?? []).includes(
-                              `${tool.serverId}.${tool.name}`,
-                            )}
-                          />
-                        </Button>
-                        <span>
-                          <strong>{tool.exposedName}</strong>
-                          <span className="muted" style={{ display: 'block' }}>{tool.description || tool.name}</span>
-                        </span>
-                      </li>
-                    ))}
+                    {displayTools.map((tool) => {
+                      const selector = formatToolSelector(tool.serverId, tool.name);
+                      const isPinned = pinnedSelectors.includes(selector);
+                      const pinLabel = isPinned
+                        ? isChinese
+                          ? '取消固定直接调用'
+                          : 'Unpin direct call'
+                        : isChinese
+                          ? '固定为直接调用工具'
+                          : 'Pin as direct tool';
+                      return (
+                        <li key={tool.exposedName} className="mcp-tool-row">
+                          <IconButton
+                            className={
+                              isPinned
+                                ? 'mcp-tool-pin-btn mcp-tool-pin-btn--active'
+                                : 'mcp-tool-pin-btn'
+                            }
+                            label={pinLabel}
+                            title={pinLabel}
+                            aria-pressed={isPinned}
+                            disabled={togglingPinSelector === selector}
+                            data-testid={`mcp-pin-${selector}`}
+                            onClick={() => {
+                              void handleTogglePinned(selector, !isPinned);
+                            }}
+                          >
+                            <IconPin
+                              className={
+                                isPinned ? 'mcp-tool-pin-icon mcp-tool-pin-icon--filled' : 'mcp-tool-pin-icon'
+                              }
+                              width={16}
+                              height={16}
+                            />
+                          </IconButton>
+                          <div className="mcp-tool-row-body">
+                            <div className="mcp-tool-row-title">
+                              <strong>{tool.exposedName}</strong>
+                              {isPinned ? (
+                                <span className="mcp-tool-pin-pill">
+                                  {isChinese ? '直调' : 'direct'}
+                                </span>
+                              ) : (
+                                <span className="mcp-tool-gateway-pill">
+                                  gateway
+                                </span>
+                              )}
+                            </div>
+                            <span className="muted mcp-tool-row-desc">
+                              {tool.description || tool.name}
+                            </span>
+                            <code className="mcp-tool-selector muted">{selector}</code>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
-                </section>
-              ) : null}
+                ) : null}
+              </section>
             </TabsContent>
 
             <TabsContent value="raw" className="mcp-tab-content">
@@ -341,14 +453,6 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
           <div className="mcp-editor-actions">
             {tab === 'form' ? (
               <>
-                <Button
-                  variant="ghost"
-                  disabled={loadingTools}
-                  onClick={() => void handlePreviewTools()}
-                  data-testid="mcp-editor-tools"
-                >
-                  {loadingTools ? (isChinese ? '探测中…' : 'Probing…') : isChinese ? '工具' : 'Tools'}
-                </Button>
                 <span className="mcp-editor-spacer" />
                 <Button onClick={() => props.onOpenChange(false)}>
                   {isChinese ? '取消' : 'Cancel'}
