@@ -50,6 +50,7 @@ function installWorkingBrowser() {
   const context = {
     addInitScript: vi.fn().mockResolvedValue(undefined),
     newPage: vi.fn().mockResolvedValue(page),
+    on: vi.fn(),
   };
   const browser = {
     newContext: vi.fn().mockResolvedValue(context),
@@ -103,7 +104,7 @@ describe('lazy launch', () => {
     await session.click('button.submit'); // css selector -> raw locator
 
     expect(launchMock).toHaveBeenCalledTimes(1);
-    expect(launchMock).toHaveBeenCalledWith({ headless: true });
+    expect(launchMock).toHaveBeenCalledWith({ headless: true, userDataDir: expect.any(String) });
     expect(page.locator).toHaveBeenNthCalledWith(1, 'aria-ref=e5');
     expect(page.locator).toHaveBeenNthCalledWith(2, 'button.submit');
   });
@@ -112,7 +113,7 @@ describe('lazy launch', () => {
     installWorkingBrowser();
     const session = createBrowserSession({ headless: false });
     await session.snapshot();
-    expect(launchMock).toHaveBeenCalledWith({ headless: false });
+    expect(launchMock).toHaveBeenCalledWith({ headless: false, userDataDir: expect.any(String) });
   });
 });
 
@@ -259,5 +260,58 @@ describe('session operations', () => {
     const session = createBrowserSession();
     await session.close();
     await expect(session.close()).resolves.toBeUndefined();
+  });
+});
+
+describe('profile persistence', () => {
+  it('passes a userDataDir to chromium.launch', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession({ profileDir: '/tmp/piwin-test-profile' });
+    await session.navigate('https://example.com');
+    expect(launchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userDataDir: '/tmp/piwin-test-profile' }),
+    );
+  });
+
+  it('defaults userDataDir to ~/.piwin/browser-profile', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.navigate('https://example.com');
+    expect(launchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userDataDir: expect.stringContaining('.piwin/browser-profile'),
+      }),
+    );
+  });
+});
+
+describe('console and network capture', () => {
+  it('does not attach console/network listeners by default', async () => {
+    const { page, context } = installWorkingBrowser();
+    const session = createBrowserSession();
+    await session.navigate('https://example.com');
+
+    // page.on is called for framenavigated and load, but not 'console' or 'pageerror'
+    const consoleCalls = page.on.mock.calls.filter((c: unknown[]) => c[0] === 'console');
+    const errorCalls = page.on.mock.calls.filter((c: unknown[]) => c[0] === 'pageerror');
+    const networkCalls = context.on.mock.calls.filter((c: unknown[]) => c[0] === 'request' || c[0] === 'response');
+    expect(consoleCalls).toHaveLength(0);
+    expect(errorCalls).toHaveLength(0);
+    expect(networkCalls).toHaveLength(0);
+  });
+
+  it('attaches console and network listeners when captureConsoleAndNetwork is true', async () => {
+    const { page, context } = installWorkingBrowser();
+    const session = createBrowserSession({ captureConsoleAndNetwork: true });
+    await session.navigate('https://example.com');
+
+    const consoleCalls = page.on.mock.calls.filter((c: unknown[]) => c[0] === 'console');
+    const errorCalls = page.on.mock.calls.filter((c: unknown[]) => c[0] === 'pageerror');
+    const requestCalls = context.on.mock.calls.filter((c: unknown[]) => c[0] === 'request');
+    const responseCalls = context.on.mock.calls.filter((c: unknown[]) => c[0] === 'response');
+    expect(consoleCalls).toHaveLength(1);
+    expect(errorCalls).toHaveLength(1);
+    expect(requestCalls).toHaveLength(1);
+    expect(responseCalls).toHaveLength(1);
   });
 });

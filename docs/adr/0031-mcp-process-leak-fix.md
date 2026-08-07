@@ -3,7 +3,7 @@
 **Status:** Accepted
 **Date:** 2026-08-05
 **Supersedes:** None
-**Related:** None
+**Related:** [ADR 0033](./0033-mcp-supervisor-architecture.md)
 **Severity:** Critical — ~1.5 GB RSS leaked across 334 orphaned processes
 
 ## Context
@@ -87,3 +87,8 @@ orphaned processes consuming ~1.5 GB RSS**.
   escalation), which is acceptable for a shutdown path.
 - The `afterAll` safety net is macOS-specific (`ps` command) but degrades
   gracefully on other platforms (catch block, no-op).
+
+ADR 0033 keeps these fixes as the transport-level baseline and adds the missing
+ownership guarantees for config replacement, call-failure cooldown, and Host
+shutdown. The test safety net remains useful, but it is not a substitute for
+awaited Supervisor cleanup.
