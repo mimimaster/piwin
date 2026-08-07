@@ -18,6 +18,8 @@ export function summaryToListItem(
   if (session.isArchived === true) item.isArchived = true;
   if (session.archivedAt) item.archivedAt = session.archivedAt;
   if (session.origin) item.origin = session.origin;
+  if (session.model) item.model = session.model;
+  if (session.thinkingLevel !== undefined) item.thinkingLevel = session.thinkingLevel;
   return item;
 }
 
@@ -35,5 +37,9 @@ export function mapSummariesToListItems(
     ...(session.isArchived === true ? { isArchived: true } : {}),
     ...(session.archivedAt ? { archivedAt: session.archivedAt } : {}),
     ...(session.origin ? { origin: session.origin } : {}),
+    ...(session.model ? { model: session.model } : {}),
+    ...(session.thinkingLevel !== undefined
+      ? { thinkingLevel: session.thinkingLevel }
+      : {}),
   }));
 }

@@ -209,6 +209,13 @@ export type SessionSummary = {
   name?: string;
   /** @see SessionIndexRecord.nameSource */
   nameSource?: 'default' | 'text' | 'llm' | 'user';
+  /**
+   * Last composer model for this session (restored into the Desktop/CLI
+   * picker on open/resume). Absent on legacy sessions.
+   */
+  model?: ModelRef;
+  /** Last composer thinking level paired with `model`. */
+  thinkingLevel?: ThinkingLevel;
   updatedAt: string;
   messageCount: number;
   /** Short last user/assistant preview for session list UI. */

@@ -34,6 +34,8 @@ export function indexRecordToSummary(
     | 'subagentRuntime'
     | 'subagentLifecycle'
     | 'origin'
+    | 'model'
+    | 'thinkingLevel'
   >,
 ): SessionSummary {
   const scope: SessionScope = scopeFromIndexRecord(record);
@@ -48,6 +50,8 @@ export function indexRecordToSummary(
   };
   if (record.name) summary.name = record.name;
   if (record.nameSource) summary.nameSource = record.nameSource;
+  if (record.model) summary.model = record.model;
+  if (record.thinkingLevel !== undefined) summary.thinkingLevel = record.thinkingLevel;
   if (record.lastPreview) summary.lastPreview = record.lastPreview;
   if (record.parentSessionId) summary.parentSessionId = record.parentSessionId;
   if (typeof record.depth === 'number') summary.depth = record.depth;

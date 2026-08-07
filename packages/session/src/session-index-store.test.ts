@@ -34,6 +34,26 @@ describe('session-index-store', () => {
     expect(listed[0]?.name).toBe('demo');
   });
 
+  it('persists last composer model and thinking level on the index record', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-model-'));
+    const filePath = join(dir, 'index.json');
+    const record = createSessionRecord({
+      id: 's-model',
+      projectPath: '/tmp/proj',
+      name: 'with-model',
+      model: {
+        protocol: 'openai-compatible',
+        providerId: 'custom-openai',
+        modelId: 'deepseek-v4-flash',
+      },
+      thinkingLevel: 'high',
+    });
+    await upsertSessionRecord(filePath, record);
+    const reloaded = await loadSessionIndex(filePath);
+    expect(reloaded.sessions[0]?.model?.modelId).toBe('deepseek-v4-flash');
+    expect(reloaded.sessions[0]?.thinkingLevel).toBe('high');
+  });
+
   it('pins sessions and sorts pinned first across reloads', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-session-pin-'));
     const filePath = join(dir, 'index.json');

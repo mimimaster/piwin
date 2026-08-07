@@ -931,7 +931,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
                 title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
               >
-                <span className="stop-btn-pulse" aria-hidden />
                 <IconStop />
               </button>
             ) : hasContent ? (
@@ -956,7 +955,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                 aria-label={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
                 title={props.runPhase === 'aborting' ? copy.stopping : copy.stop}
               >
-                <span className="stop-btn-pulse" aria-hidden />
                 <IconStop />
               </button>
             )

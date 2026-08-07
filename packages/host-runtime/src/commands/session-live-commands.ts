@@ -15,6 +15,7 @@ import type {
   HostPush,
   HostResponse,
   ModelRef,
+  ThinkingLevel,
   PiwinConfig,
   PromptInput,
   SessionHandle,
@@ -600,6 +601,14 @@ async function preparePromptInput(
   context.sessionLastPromptText.set(command.sessionId, command.input.text);
   if (command.input.model) {
     context.sessionModels.set(command.sessionId, command.input.model);
+    // Persist the composer model on the session index so resume/open restores
+    // the last-used model instead of falling back to the desktop default.
+    await persistSessionComposerProfile(context, command.sessionId, {
+      model: command.input.model,
+      ...(command.input.thinkingLevel !== undefined
+        ? { thinkingLevel: command.input.thinkingLevel }
+        : {}),
+    });
   }
   throwIfPromptPreparationAborted(context, run.runId);
   return promptInput;
@@ -706,6 +715,61 @@ async function readBoundedFileForRef(
   }
 }
 
+/**
+ * Persist the last composer model/thinking onto the product session index so
+ * resume and session switch can restore them after process restart.
+ */
+async function persistSessionComposerProfile(
+  context: SessionLiveContext,
+  sessionId: string,
+  profile: { model?: ModelRef; thinkingLevel?: ThinkingLevel },
+): Promise<void> {
+  if (!profile.model && profile.thinkingLevel === undefined) {
+    return;
+  }
+  const rootDir = getPiwinRoot(context.piwinRoot);
+  const indexPath = getPiwinSessionIndexPath(rootDir);
+  const record = await getSessionRecord(indexPath, sessionId);
+  if (!record) {
+    return;
+  }
+  let changed = false;
+  if (profile.model) {
+    const previous = record.model;
+    const sameModel =
+      previous &&
+      previous.protocol === profile.model.protocol &&
+      previous.providerId === profile.model.providerId &&
+      previous.modelId === profile.model.modelId;
+    if (!sameModel) {
+      record.model = profile.model;
+      changed = true;
+    }
+  }
+  if (profile.thinkingLevel !== undefined && record.thinkingLevel !== profile.thinkingLevel) {
+    record.thinkingLevel = profile.thinkingLevel;
+    changed = true;
+  }
+  if (!changed) {
+    return;
+  }
+  record.updatedAt = new Date().toISOString();
+  await upsertSessionRecord(indexPath, record);
+}
+
+/** Recover the last assistant model snapshot from transcript (legacy sessions). */
+function recoverModelFromTranscript(
+  messages: readonly SessionTranscriptMessage[],
+): ModelRef | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === 'assistant' && message.model) {
+      return message.model;
+    }
+  }
+  return undefined;
+}
+
 export async function handleSessionLiveCommand(
   command: HostCommand,
   requestId: string | undefined,
@@ -753,6 +817,19 @@ export async function handleSessionLiveCommand(
         command.input.sessionName,
         lineage,
       );
+      // Seed the session composer profile at create time so a new session
+      // remembers the model even before the first prompt is sent.
+      if (command.input.model || command.input.thinkingLevel !== undefined) {
+        if (command.input.model) {
+          context.sessionModels.set(session.id, command.input.model);
+        }
+        await persistSessionComposerProfile(context, session.id, {
+          ...(command.input.model ? { model: command.input.model } : {}),
+          ...(command.input.thinkingLevel !== undefined
+            ? { thinkingLevel: command.input.thinkingLevel }
+            : {}),
+        });
+      }
       context.pushStatus();
       return ok(requestId, 'session/create', {
         sessionId: session.id,
@@ -876,6 +953,14 @@ export async function handleSessionLiveCommand(
         live = true;
       }
       await context.bindSession(session, existing.projectPath, existing.name);
+      // Restore the last composer model into the in-memory map so subsequent
+      // host features (walkthrough, naming, transcript snapshot) see it even
+      // before the next prompt. Prefer index, then last assistant message.
+      const restoredModel =
+        existing.model ?? recoverModelFromTranscript(messages) ?? undefined;
+      if (restoredModel) {
+        context.sessionModels.set(command.sessionId, restoredModel);
+      }
       const data: SessionResumeData = {
         sessionId: session.id,
         live,
@@ -885,6 +970,12 @@ export async function handleSessionLiveCommand(
       };
       if (existing.name) {
         data.name = existing.name;
+      }
+      if (restoredModel) {
+        data.model = restoredModel;
+      }
+      if (existing.thinkingLevel) {
+        data.thinkingLevel = existing.thinkingLevel;
       }
       return ok(requestId, 'session/resume', data);
     }

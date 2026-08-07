@@ -8,6 +8,8 @@ import type {
   SideChatRelation,
   SubagentLifecycleState,
   SubagentRuntimeSnapshot,
+  ThinkingLevel,
+  ModelRef,
 } from '@piwin/contracts';
 import { isPlaceholderSessionName } from './session-display-name.js';
 
@@ -222,6 +224,10 @@ export function createSessionRecord(input: {
   subagentRuntime?: SubagentRuntimeSnapshot;
   /** CE-SUB-LIFE: orthogonal execution/summary/integration state axes. */
   subagentLifecycle?: SubagentLifecycleState;
+  /** Last composer model used in this session (restored on open/resume). */
+  model?: ModelRef;
+  /** Last composer thinking level paired with `model`. */
+  thinkingLevel?: ThinkingLevel;
 }): SessionIndexRecord {
   const timestamp = nowIso();
   const resolvedScope: SessionScope = input.scope ?? {
@@ -300,6 +306,12 @@ export function createSessionRecord(input: {
   }
   if (input.subagentLifecycle) {
     record.subagentLifecycle = input.subagentLifecycle;
+  }
+  if (input.model) {
+    record.model = input.model;
+  }
+  if (input.thinkingLevel !== undefined) {
+    record.thinkingLevel = input.thinkingLevel;
   }
   return record;
 }
