@@ -2,9 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement ADR 0019 — a unified host-owned permission rule engine with `auto`/`ask-all`/`bypass` modes, a file-write gate (the current largest blind spot), MCP server-level trust (no per-call prompts), project-scoped remember extended to bash and file-write, and first-tier Desktop UI controls.
+**Goal:** Implement ADR 0019 — a unified host-owned permission rule engine with
+`auto`/`ask-all`/`bypass` modes, a file-write gate (the current largest blind
+spot), project-scoped remember extended to bash and file-write, and first-tier
+Desktop UI controls. MCP is handled separately by ADR 0033.
 
-**Architecture:** Contracts-first. New permission types in `@piwin/contracts` (`PermissionRuleTarget` for patterns, `PermissionSubject` for runtime); pure-function rule engine + glob matcher in `@piwin/agent-host`; file-write gate wraps Pi `write`/`edit` via `createWriteToolDefinition`/`createEditToolDefinition` with custom `operations` (thin `fs/promises` local ops after gate — **no** `createLocalWriteOperations` export exists); MCP gate stops prompting per call; `@piwin/project` gains `bashAllowlist`/`fileWriteAllowlist` + path-safe match helpers + shared path-traversal helper; rule files loaded from `~/.piwin/permissions.json` + project `.piwin/permissions{,.local}.json` with **trust-aware project allow** (ADR 0019 §2); `config.json` holds only `mode`. No UI→FS, no apps→Pi, no circular deps. Dual host paths that register gated tools (SDK + RPC→SDK fallback) both wire the same gates. All new pure logic is unit-tested with golden cases (AGENTS.md §3.7), including **non-regression** of current bash deny/ask decisions.
+> **MCP scope superseded:** the MCP portions of this older execution plan are
+> no longer implementation instructions. ADR 0033 moves MCP completely out of
+> the permission rule engine, ignores legacy MCP rules, and defines the
+> Host-owned Supervisor, gateway-only default, pinned direct exposure, and
+> lifecycle tests. Follow [ADR 0033](../adr/0033-mcp-supervisor-architecture.md)
+> for MCP; the remaining tasks in this plan cover bash, file-write, web, and
+> general permission behavior.
+
+**Architecture:** Contracts-first. New permission types in `@piwin/contracts` (`PermissionRuleTarget` for patterns, `PermissionSubject` for runtime); pure-function rule engine + glob matcher in `@piwin/agent-host`; file-write gate wraps Pi `write`/`edit` via `createWriteToolDefinition`/`createEditToolDefinition` with custom `operations` (thin `fs/promises` local ops after gate — **no** `createLocalWriteOperations` export exists); MCP is outside this rule engine (see ADR 0033); `@piwin/project` gains `bashAllowlist`/`fileWriteAllowlist` + path-safe match helpers + shared path-traversal helper; rule files loaded from `~/.piwin/permissions.json` + project `.piwin/permissions{,.local}.json` with **trust-aware project allow** (ADR 0019 §2); `config.json` holds only `mode`. No UI→FS, no apps→Pi, no circular deps. Dual host paths that register gated tools (SDK + RPC→SDK fallback) both wire the same gates. All new pure logic is unit-tested with golden cases (AGENTS.md §3.7), including **non-regression** of current bash deny/ask decisions.
 
 **Tech Stack:** TypeScript (strict, NodeNext, ESM), vitest, pnpm workspace, Tauri 2 (desktop).
 
@@ -21,7 +32,7 @@
 - Node `>= 20`, pnpm `9.15.0` (see root `packageManager`).
 - Keep diffs minimal — do not refactor unrelated code.
 - Deny rules always enforced, even in `bypass` mode (ADR 0019 §3).
-- MCP: server enabled = tools run without per-call prompt (ADR 0019 §5).
+- MCP permission behavior: see ADR 0033; it is outside this rule engine.
 - `PermissionConfig` in `PiwinConfig` holds only `mode`; rules live in separate `permissions.json` files (ADR 0019 §2).
 - Git/process/notes as dedicated rule kinds are **deferred** (ADR 0019 §8); force-push stays covered by **bundled bash ask** rules (non-regression).
 - **Non-regression:** existing `permission-policy.test.ts` bash ask/deny cases must keep the same decisions in `auto` — do not rewrite ask→allow to pass.

@@ -2,15 +2,13 @@
 
 ## Status
 
-Accepted (2026-07-24) · Implemented (hybrid gateway + lazy lifecycle + structured call risk)
+Accepted (2026-07-24) · Implemented in part; lifecycle/exposure details superseded
 
-> **Superseded in part by [ADR 0019](./0019-permission-rule-engine.md) §5:**
-> Decision 5's "per-call until a later structured risk policy lands" MCP
-> approval is superseded. ADR 0019 makes **server enablement the trust
-> boundary** — once an MCP server is enabled in config, its tools run without
-> per-call prompts; explicit `deny`/`ask` MCP rules in `permissions.json` still
-> apply. ADR 0014's other decisions (hybrid gateway, lazy lifecycle, metadata
-> cache, "MCP is not a sandbox") stand.
+> **Superseded in part by [ADR 0033](./0033-mcp-supervisor-architecture.md):**
+> the gateway/lazy-connect direction and metadata cache remain, while MCP
+> process ownership, configuration replacement, default exposure, and
+> permission handling are defined by ADR 0033. ADR 0019's former MCP
+> server-level permission section is historical and is superseded as well.
 
 ## Context
 
@@ -18,20 +16,22 @@ Project open / session create was coupling to MCP process startup and
 project-scoped `mcp:connect` permissions. That produced host timeouts and
 permission deadlocks. Pi's project trust is an input-loading guard, not an MCP
 connection authorization model. Mature Pi ecosystem adapters use lazy connect
-and dynamic discovery (`pi-mcp-adapter`, `pi-mcporter`).
+and dynamic discovery (`pi-mcp-adapter`, `pi-mcporter`). The remaining lifecycle
+ownership and config-reload hazards are handled by ADR 0033.
 
 ## Decision
 
 1. MCP configuration remains global: `~/.piwin/mcp.json`.
 2. `project/open` and `session/create` perform **zero MCP transport calls**.
 3. Session tools are built as:
-   - direct `mcp__server__tool` entries from **valid cached metadata** only
-     (budgeted hybrid exposure policy);
-   - always one `mcp_gateway` tool (`search | describe | call | status`).
+   - one stable `mcp_gateway` tool (`search | describe | call | status`);
+   - optional direct `mcp__server__tool` entries from valid cached metadata only
+     when explicitly selected by `McpExposurePolicy.pinnedSelectors`.
 4. Direct tool execute and gateway `call` lazy-connect only the selected server
-   via host-owned `McpLifecycleManager`.
-5. MCP connection is **not** a project permission. Only actual tool calls may
-   ask for approval (per-call until a later structured risk policy lands).
+   through the Host-owned `McpSupervisor` defined in ADR 0033.
+5. MCP is **outside piwin's permission rule engine**. Enabled/configured
+   servers run without per-call prompts; legacy MCP rules in `permissions.json`
+   are ignored.
 6. Metadata cache lives at `~/.piwin/mcp-metadata.json`, keyed by redacted
    server fingerprint (env names only, never secret values).
 7. Project `mcpPolicy` / `all-mcp-project` / `mcp:connect` are removed.
@@ -41,6 +41,7 @@ and dynamic discovery (`pi-mcp-adapter`, `pi-mcporter`).
 - Opening a project no longer waits on MCP servers.
 - First-use of an uncached server requires Settings Discover or gateway
   `describe`/`call` (which may connect).
-- Direct-tool UX remains available when metadata is cached.
+- Pinned direct-tool UX remains available when metadata is cached; automatic
+  cached-tool promotion is not part of the default.
 - ADR 0008 remains valid for Skills wiring and Pi customTools-at-create; its
   MCP "connect each enabled server in the session bridge" path is superseded.

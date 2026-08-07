@@ -8,6 +8,9 @@
  * against a mid-navigation page. Chromium launches lazily on first use and fails
  * fast with an actionable error when the binary is missing.
  */
+import { existsSync, mkdirSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { chromium } from 'playwright-core';
 import type { BrowserSnapshotNode, HostPush, WebElementPickResult } from '@piwin/contracts';
@@ -24,7 +27,13 @@ import { parseAriaSnapshot } from './snapshot.js';
 
 export type BrowserFramePush = Extract<HostPush, { type: 'browser/frame' }>;
 export type BrowserStatePush = Extract<HostPush, { type: 'browser/state' }>;
-export type BrowserSessionEvent = BrowserFramePush | BrowserStatePush;
+export type BrowserConsolePush = Extract<HostPush, { type: 'browser/console' }>;
+export type BrowserNetworkPush = Extract<HostPush, { type: 'browser/network' }>;
+export type BrowserSessionEvent =
+  | BrowserFramePush
+  | BrowserStatePush
+  | BrowserConsolePush
+  | BrowserNetworkPush;
 
 export type BrowserSessionOptions = {
   /** Default true. When false the browser runs headed (useful for debugging). */
@@ -36,6 +45,14 @@ export type BrowserSessionOptions = {
   /** Frame stream ceiling in fps (default 4). */
   maxFps?: number;
   userAgent?: string;
+  /**
+   * Persistent browser profile directory. When provided, Chromium uses this
+   * directory as its user-data dir so cookies, localStorage, and IndexedDB
+   * survive across launches. Default: `~/.piwin/browser-profile`.
+   */
+  profileDir?: string;
+  /** When true (default false), capture console logs and network requests as HostPush events. */
+  captureConsoleAndNetwork?: boolean;
 };
 
 export type BrowserSessionState = { url?: string; title?: string };
@@ -117,6 +134,85 @@ function toLocator(target: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Console & network capture helpers
+// ---------------------------------------------------------------------------
+
+/** Max text length for a console message before truncation. */
+const MAX_CONSOLE_TEXT_LENGTH = 2000;
+
+/** Truncate long console text to avoid unbounded push payloads. */
+function truncateText(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+/** Map Playwright console message types to push levels. */
+function consoleLevel(type: string): 'log' | 'warning' | 'error' {
+  if (type === 'error') return 'error';
+  if (type === 'warning') return 'warning';
+  return 'log';
+}
+
+/**
+ * Attach console and network listeners to the page/context. Each event is
+ * forwarded to subscribers as a `browser/console` or `browser/network` HostPush.
+ * Network timing is measured from request start to response received.
+ */
+function attachConsoleAndNetworkListeners(
+  page: Page,
+  context: BrowserContext,
+  subscribers: Set<(event: BrowserSessionEvent) => void>,
+): void {
+  page.on('console', (msg) => {
+    const ts = Date.now();
+    const text = truncateText(msg.text(), MAX_CONSOLE_TEXT_LENGTH);
+    const event: BrowserConsolePush = {
+      type: 'browser/console',
+      level: consoleLevel(msg.type()),
+      text,
+      url: page.url(),
+      ts,
+    };
+    for (const listener of subscribers) listener(event);
+  });
+
+  page.on('pageerror', (err) => {
+    const ts = Date.now();
+    const event: BrowserConsolePush = {
+      type: 'browser/console',
+      level: 'error',
+      text: truncateText(err.message, MAX_CONSOLE_TEXT_LENGTH),
+      url: page.url(),
+      ts,
+    };
+    for (const listener of subscribers) listener(event);
+  });
+
+  const requestStartTimes = new Map<string, number>();
+
+  context.on('request', (request) => {
+    requestStartTimes.set(request.url() + request.method(), Date.now());
+  });
+
+  context.on('response', (response) => {
+    const ts = Date.now();
+    const key = response.url() + response.request().method();
+    const startTime = requestStartTimes.get(key);
+    requestStartTimes.delete(key);
+    const duration = startTime !== undefined ? ts - startTime : 0;
+    const event: BrowserNetworkPush = {
+      type: 'browser/network',
+      method: response.request().method,
+      url: response.url(),
+      status: response.status(),
+      resourceType: response.request().resourceType(),
+      duration,
+      ts,
+    };
+    for (const listener of subscribers) listener(event);
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Session factory
 // ---------------------------------------------------------------------------
 
@@ -125,6 +221,8 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   const requestedViewport = options.viewport ?? { width: 1280, height: 800 };
   const headless = options.headless ?? true;
   const maxFps = options.maxFps ?? 4;
+  const profileDir = options.profileDir ?? join(homedir(), '.piwin', 'browser-profile');
+  const captureConsoleAndNetwork = options.captureConsoleAndNetwork ?? false;
 
   const { runExclusive } = createExclusiveQueue();
   const subscribers = new Set<(event: BrowserSessionEvent) => void>();
@@ -148,9 +246,14 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
   }
 
   async function launch(): Promise<Page> {
+    // Ensure the persistent profile directory exists so Chromium can use it.
+    if (!existsSync(profileDir)) {
+      mkdirSync(profileDir, { recursive: true });
+    }
+
     let launched: Browser;
     try {
-      launched = await chromium.launch({ headless });
+      launched = await chromium.launch({ headless, userDataDir: profileDir });
     } catch (error) {
       // Playwright throws when the executable is missing; surface an actionable
       // install hint instead of a raw launch error.
@@ -181,6 +284,10 @@ export function createBrowserSession(options: BrowserSessionOptions = {}): Brows
       void emitState();
       void frameLoop.requestFrame();
     });
+
+    if (captureConsoleAndNetwork) {
+      attachConsoleAndNetworkListeners(page, context, subscribers);
+    }
 
     return page;
   }

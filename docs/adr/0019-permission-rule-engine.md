@@ -4,6 +4,11 @@
 
 Accepted (2026-07-29) · Implemented (Tasks 1–10 of the execution plan)
 
+> **MCP note:** MCP permission decisions in this ADR are superseded by
+> [ADR 0033](./0033-mcp-supervisor-architecture.md). MCP is outside the
+> permission rule engine; the material below is retained as historical context
+> for the original implementation and migration.
+
 ### Implementation notes
 
 **Built (Tasks 1–10):**
@@ -11,8 +16,8 @@ Accepted (2026-07-29) · Implemented (Tasks 1–10 of the execution plan)
 - **Rule engine** (`packages/agent-host/src/permission-rule-engine.ts`) — pure
   `evaluateRules` with deny→ask→allow, first-match-wins. Matchers: `matchBashGlob`
   (glob with `*`, plus `re:` regex prefix for bundled precision),
-  `matchPathGlob` (`*` within a segment, `**` across segments),
-  `matchHostGlob`, `matchMcpSelectorGlob`. Contracts in
+  `matchPathGlob` (`*` within a segment, `**` across segments), and
+  `matchHostGlob`. Contracts in
   `packages/contracts/src/permission.ts` (`PermissionRuleTarget` vs
   `PermissionSubject` kept distinct; `PermissionRulesFile` `version: 1`;
   `PermissionConfig { mode }`; `mergeRuleSets`).
@@ -28,9 +33,9 @@ Accepted (2026-07-29) · Implemented (Tasks 1–10 of the execution plan)
   evaluates rules, prompts on ask. Both `writeFile` and `mkdir` gated.
 - **Bash gate** (`gated-bash-tool.ts`) — delegates to `evaluateBashPermission`
   which runs the rule engine then applies the mode-aware unmatched default.
-- **MCP server-level trust** (`mcp-call-permission.ts`) — enabled server =
-  trusted; `assertMcpToolCallAllowed` consults the rule engine for explicit
-  deny/ask only; risk classification kept for display.
+- **MCP boundary (historical)** — the former `mcp-call-permission.ts` path is
+  removed by ADR 0033; risk classification/redaction may remain only as
+  display diagnostics and never enter this rule engine.
 - **Permission modes + bypass guard** — `resolveBypassGuard` in `sdk-adapter.ts`
   refuses `bypass` for untrusted projects (downgrades to `auto` + `host/log`).
   Non-interactive `ask` → `deny` via `resolveNonInteractiveDecision`.
@@ -74,8 +79,9 @@ implementation is split across several pure functions in `agent-host`:
   **default-allow** for everything else.
 - `evaluateWebPermission` — denies private/local + non-http(s), asks public,
   with project-scoped remember (`ProjectNetworkPolicy`).
-- `evaluateMcpToolCallRisk` — classifies by tool-name hints, returns `ask` for
-  every non-empty tool name. No persistent allow (ADR 0014 Slice 1 choice).
+- `evaluateMcpToolCallRisk` — historical MCP classifier. If retained, it is a
+  display-only diagnostic and does not return an admission decision (see ADR
+  0033).
 - `path-guard` bundled extension — blocks `write`/`edit` to secret-like
   basenames. **No other file-write gate exists.**
 - `evaluateNotesPermission` / `evaluateProcessPermission` — mutating ops ask.
@@ -121,8 +127,9 @@ project trust influencing defaults.
   ("almost never asks").
 - **File-write**: project-internal → allow, project-external → ask, secret
   paths → deny.
-- **MCP**: once a server is enabled in config, all its tools run without
-  per-call permission prompts. Server enablement is the trust boundary.
+- **MCP**: removed from this permission system by ADR 0033. The configured
+  server is the user's trust boundary; MCP calls do not prompt or consult
+  these rules.
 - OS-level sandboxing (Codex Seatbelt/Landlock) and LLM classifier approval
   (Cursor Auto-review) are explicitly **out of scope** for this ADR; the rule
   engine is an approval-layer guard, not a sandbox. This honesty follows ADR
@@ -143,7 +150,6 @@ export type PermissionRuleTarget =
   | { kind: 'file-write'; pathGlob: string } // glob over resolved absolute path
   | { kind: 'web-fetch'; hostGlob: string }
   | { kind: 'web-search' }
-  | { kind: 'mcp'; selectorGlob: string }    // "serverId.toolName"
   | { kind: 'git'; pattern: string }
   | { kind: 'process' }
   | { kind: 'notes-mutate' };
@@ -158,7 +164,6 @@ export type PermissionSubject =
   | { kind: 'file-write'; path: string }     // resolved absolute path
   | { kind: 'web-fetch'; host: string }
   | { kind: 'web-search' }
-  | { kind: 'mcp'; selector: string }
   | { kind: 'git'; command: string }
   | { kind: 'process' }
   | { kind: 'notes-mutate' };
@@ -265,11 +270,11 @@ state under `~/.piwin`, project-shared under the project's `.piwin/`.
 `PiwinConfig.permissions.mode: PermissionMode` (new), with
 `PermissionMode = 'ask-all' | 'auto' | 'bypass'`:
 
-| Mode | bash unmatched | file-write in-project | file-write out-of-project | network public | MCP | deny rules |
-|------|----------------|----------------------|--------------------------|----------------|-----|------------|
-| `ask-all` | ask | ask | ask | ask | (server-gated, §5) | always enforced |
-| `auto` (default) | allow¹ | allow | ask | ask | (server-gated, §5) | always enforced |
-| `bypass` | allow | allow | allow | allow | (server-gated, §5) | **still enforced** |
+| Mode | bash unmatched | file-write in-project | file-write out-of-project | network public | deny rules |
+|------|----------------|----------------------|--------------------------|----------------|------------|
+| `ask-all` | ask | ask | ask | ask | always enforced |
+| `auto` (default) | allow¹ | allow | ask | ask | always enforced |
+| `bypass` | allow | allow | allow | allow | **still enforced** |
 
 The table above applies when the configured mode is in force. For **untrusted**
 projects (§7), `bypass` is refused (downgraded to `auto`). Domain defaults for
@@ -363,30 +368,23 @@ Pi API (verified on `@earendil-works/pi-coding-agent@0.80.10`):
 extension layer still blocks secret basenames), but the primary gate moves to
 the host rule engine so it is configurable, testable, and rememberable.
 
-### 5. MCP: server-enablement is the trust boundary (supersedes ADR 0014 §5)
+### 5. MCP boundary (superseded by ADR 0033)
 
-**Once an MCP server is enabled in config, its tools run without per-call
-permission prompts.** This reverses the ADR 0014 Slice 1 choice ("every tool
-call asks"):
+MCP is outside this permission ADR. The configured server is the user's trust
+boundary, so MCP calls do not prompt and do not consult the rule engine.
 
-- MCP server **enablement** is the deliberate, trusted action (already
-  configured in `~/.piwin/mcp.json` / Settings). Adding a server is the moment
-  of trust, not each tool call.
-- `assertMcpToolCallAllowed` no longer prompts per call. It still:
-  - redacts secret argument keys for logs/UI (`redactMcpArgumentsSummary`),
-  - computes `McpToolRisk` for UI presentation (kept, but informational only).
-  - Disabled-server checks remain upstream in the lifecycle manager / gateway
-    (they already refuse to connect or call tools on disabled servers).
-- `evaluateMcpToolCallRisk` is retained for risk display but no longer drives
-  an `ask` decision.
-- Users who want per-tool gating can still add `deny`/`ask` MCP rules in
-  `permissions.json` (rule engine §1); by default there are none.
+- `mcp-call-permission.ts` is removed from the execution path.
+- Argument redaction and risk classification may remain for logs/UI, but are
+  informational only.
+- MCP permission targets, subjects, mode-table columns, and policy paths are
+  removed from contracts and admission code.
+- Legacy MCP rules in `permissions.json` are ignored without migration,
+  upgrade, blocking, or prompting.
 
-**Risk acknowledged:** a malicious or compromised MCP server has full reign
-once enabled. Mitigation: server enablement is explicit and visible in
-Settings; disabled-by-default for bundled-but-unconfigured servers; the doctor
-command reports enabled servers. This is the same trust model as installing any
-CLI tool or editor extension. Documented honestly in UI/doctor.
+The lifecycle, process ownership, config replacement, gateway exposure, and
+cooldown semantics are defined by [ADR 0033](./0033-mcp-supervisor-architecture.md).
+The risk remains explicit: an enabled MCP server runs with the Host user's OS
+permissions and is not sandboxed by piwin's permission layer.
 
 ### 6. Remember scope extended to bash and file-write
 
@@ -408,8 +406,9 @@ CLI tool or editor extension. Documented honestly in UI/doctor.
   `/home/u/a` matching `/home/u/ab`.
 - **network**: unchanged (`allowedFetchHosts`, `allowWebSearch` — exact host).
 
-MCP needs no remember (server-gated). Revoke flow (`project/permissions-revoke`)
-extends to the new keys. `listRememberedPermissions` surfaces them in Settings.
+MCP has no permission remember/revoke entry because it is outside this rule
+engine. Revoke flow (`project/permissions-revoke`) extends to the bash and
+file-write keys. `listRememberedPermissions` surfaces those in Settings.
 
 The `permission/resolve` handler needs the permission request's `context.kind`
 to branch correctly. Currently `pendingPermissions` stores `action` and
@@ -443,7 +442,9 @@ bypass and untrusted project allow rules. Cross-boundary actions already ask in
 
 - **bash** — deny/ask/allow rules + mode-aware unmatched default
 - **file-write** — gate + rules + domain defaults
-- **MCP** — server-level trust; optional deny/ask rules; risk display only
+
+MCP is explicitly excluded from this rule-engine scope; see ADR 0033 for
+configuration trust, Supervisor lifecycle, and display-only diagnostics.
 
 **Partial this ADR:**
 
@@ -496,8 +497,9 @@ that builds the same custom tools). Apps never import Pi; only
 - Rule engine + layered merge + glob matching is new pure logic requiring
   golden unit tests (AGENTS.md §3.7), including non-regression for current
   bash deny/ask decisions and allowlist boundary cases.
-- ADR 0014 §5 (no persistent MCP approval) is superseded; ADR 0014's other
-  decisions (gateway, lifecycle, "MCP is not a sandbox") stand.
+- MCP permission behavior and the remaining MCP lifecycle details are governed
+  by ADR 0033; ADR 0014 is retained only as historical context for the original
+  gateway/lazy-connect direction.
 
 ## Alternatives considered
 

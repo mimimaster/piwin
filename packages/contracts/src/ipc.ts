@@ -637,6 +637,22 @@ export type HostPushVariant =
   | { type: 'browser/state'; url?: string; title?: string; ts: number }
   | { type: 'browser/picked'; result: WebElementPickResult }
   | {
+      type: 'browser/console';
+      level: 'log' | 'warning' | 'error';
+      text: string;
+      url: string;
+      ts: number;
+    }
+  | {
+      type: 'browser/network';
+      method: string;
+      url: string;
+      status: number;
+      resourceType: string;
+      duration: number;
+      ts: number;
+    }
+  | {
       type: 'walkthrough/updated';
       sessionId: string;
       artifact: WalkthroughArtifact;

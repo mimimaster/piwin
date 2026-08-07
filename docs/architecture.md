@@ -123,15 +123,14 @@ fake Pi-native `AgentEvent` variants for operational state.
 ### 3.4 Permission system
 
 Host-owned (not UI). Implemented per [ADR 0019](./adr/0019-permission-rule-engine.md)
-as a layered rule engine + permission modes + file-write gate + MCP server-level
-trust. **This is an approval-layer guard, not an OS sandbox** — it prompts and
-blocks, it does not isolate the process (see ADR 0014's "MCP is not a sandbox"
-wording for the same honesty applied to MCP).
+as a layered rule engine + permission modes + file-write gate. **This is an
+approval-layer guard, not an OS sandbox** — it prompts and blocks, it does not
+isolate the process.
 
 #### Rule engine (deny → ask → allow)
 
 A single pure function (`permission-rule-engine.ts`) evaluates a
-`PermissionSubject` (concrete command / path / host / selector) against a merged
+`PermissionSubject` (concrete command / path / host) against a merged
 `PermissionRuleSet`. Evaluation order is **deny → ask → allow**, first match
 wins within a tier (Claude Code semantics). Specificity does **not** change
 order: a broader bundled `ask` beats a more specific user `allow` because tiers
@@ -142,9 +141,9 @@ path/command.
 
 Rule kinds: `bash` (glob, or `re:`-prefixed regex for bundled precision),
 `file-write` (`pathGlob` with `~` expansion to `homedir()` at load time),
-`web-fetch` (`hostGlob`), `web-search`, `mcp` (`selectorGlob` of the form
-`serverId.toolName`), and reserved kinds `git` / `process` / `notes-mutate`
-(not yet migrated to the engine — see ADR 0019 §8).
+`web-fetch` (`hostGlob`), `web-search`, and reserved kinds `git` / `process` /
+`notes-mutate` (not yet migrated to the engine — see ADR 0019 §8). MCP is not a
+rule kind.
 
 #### Layered rule sources (merge, not override)
 
@@ -169,11 +168,11 @@ effect on the next session (no hot-reload).
 `config.permissions.mode` in `~/.piwin/config.json` (`PermissionMode =
 'auto' | 'ask-all' | 'bypass'`):
 
-| Mode | bash unmatched | file-write in-project | file-write out-of-project | public network | MCP | deny rules |
-|------|----------------|----------------------|--------------------------|----------------|-----|------------|
-| `ask-all` | ask | ask | ask | ask | server-gated (§MCP) | always enforced |
-| `auto` | allow¹ | allow | ask | ask | server-gated | always enforced |
-| `bypass` | allow | allow | allow | allow | server-gated | **still enforced** |
+| Mode | bash unmatched | file-write in-project | file-write out-of-project | public network | deny rules |
+|------|----------------|----------------------|--------------------------|----------------|------------|
+| `ask-all` | ask | ask | ask | ask | always enforced |
+| `auto` | allow¹ | allow | ask | ask | always enforced |
+| `bypass` | allow | allow | allow | allow | **still enforced** |
 
 ¹ `auto` bash unmatched → allow **only after** bundled deny **and** bundled ask
 tiers. A built-in safe-prefix allowlist (`ls *`, `git status`, `pnpm test`, …)
@@ -201,16 +200,32 @@ write). Bundled deny covers secret paths (`~/.ssh/**`, `~/.piwin/**`,
 remains as a defense-in-depth second layer; the primary gate is the host rule
 engine so it is configurable, testable, and rememberable.
 
-#### MCP: server-level trust (supersedes ADR 0014 §5)
+#### MCP execution boundary (ADR 0033)
 
-**Once an MCP server is enabled in config, its tools run without per-call
-permission prompts.** Server enablement is the deliberate trust boundary (the
-moment of trust is adding the server in `~/.piwin/mcp.json` / Settings, not each
-tool call). `assertMcpToolCallAllowed` consults the rule engine for explicit
-`deny`/`ask` MCP rules; on `allow` or `no-match` it allows. Risk classification
-(`evaluateMcpToolCallRisk`) and argument redaction still run for UI display but
-no longer drive an `ask` decision. Users who want per-tool gating add
-`deny`/`ask` MCP rules in `permissions.json`.
+MCP is deliberately outside the permission rule engine. Adding or enabling a
+server in `~/.piwin/mcp.json` is the user's trust decision; configured MCP
+tools never produce per-call permission prompts and never consult
+`PermissionRuleSet`, `PermissionMode`, or `PermissionSubject`. MCP servers run
+with the Host user's OS permissions and are not sandboxed by this layer.
+
+`@piwin/host-runtime` creates one `McpSupervisor` per Host, implemented by
+`@piwin/mcp`. It owns each MCP process from spawn through readiness, config
+replacement, timeout, crash, and shutdown. The gateway and any explicitly
+pinned direct tools call the same Supervisor; sessions and UI never own MCP
+clients. The default model surface is gateway-only (`search`, `describe`,
+`call`, `status`); direct tools require explicit `pinnedSelectors`.
+
+`pinnedSelectors` lives at the top level of `~/.piwin/mcp.json` and contains
+exact `serverId.toolName` selectors. The MCP tool catalog persists outline/filled
+pin state through `mcp/save`; pinning keeps a tool in the model surface but does
+not make its process resident or trigger a spawn. Pin-only changes update the
+exposure revision without draining a server and take effect on the next session
+or an explicit tool-surface rebuild.
+
+Legacy `mcp` rules left in `permissions.json` are silently ignored (optionally
+one diagnostic log entry); they are not migrated, upgraded, or used to block
+or prompt. `mcp.json` remains fully active. See [ADR 0033](./adr/0033-mcp-supervisor-architecture.md)
+for lifecycle and config-reload invariants.
 
 #### Project remember (scope extended)
 
@@ -223,8 +238,9 @@ no longer drive an `ask` decision. Users who want per-tool gating add
   matched by **path-safe prefix** (`path === stored || path.startsWith(stored + sep)`).
 - **network** — unchanged (`allowedFetchHosts`, `allowWebSearch` — exact host).
 
-MCP needs no remember (server-gated). Revocation (`project/permissions-revoke`)
-extends to the new keys; `listRememberedPermissions` surfaces them in Settings.
+MCP has no permission remember/revoke entry because it is outside this rule
+engine. Revocation (`project/permissions-revoke`) applies to the bash and
+file-write keys above; `listRememberedPermissions` surfaces those in Settings.
 
 #### Dual host modes
 
@@ -309,7 +325,7 @@ retry or conflict resolution is performed.
 | `@piwin/session` | History index, tree projection, naming |
 | `@piwin/project` | Workspace/project trust, cwd binding |
 | `@piwin/skills` | Discovery, install, defaults, find/create helpers |
-| `@piwin/mcp` | Config document, client lifecycle, tools bridge |
+| `@piwin/mcp` | Config document, MCP Supervisor/ProcessSlot lifecycle, owned transport, metadata catalog |
 | `@piwin/tools-web` | `web_search`, `web_fetch` providers |
 | `@piwin/git` | Status, diff, commit graph model |
 | `@piwin/theme` | Theme packages install/apply |

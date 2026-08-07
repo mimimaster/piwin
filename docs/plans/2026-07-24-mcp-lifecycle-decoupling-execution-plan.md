@@ -2,11 +2,18 @@
 
 | Field | Value |
 |---|---|
-| Status | Approved execution plan |
+| Status | Superseded (2026-08-06) by ADR 0033 |
 | Date | 2026-07-24 |
 | Scope | Fix project-open/session-create MCP blocking while retaining direct MCP tools where safe |
 | Supersedes for implementation | `2026-07-24-mcp-lifecycle-permission-redesign.md` and `2026-07-24-pi-ecosystem-mcp-gateway-plan.md` |
 | Required ADR | Supersede MCP lifecycle portions of ADR 0008 before Commit 2 |
+
+> This document is retained as implementation history. Do not implement it as
+> written: its automatic cached direct-tool exposure and actual-call MCP
+> permission gate are superseded. Use [ADR 0033](../adr/0033-mcp-supervisor-architecture.md)
+> and [the ADR 0033 review](../mcp-supervisor-architecture-review.md), which
+> define gateway-only default, explicit pinned tools, owned ProcessSlot
+> cleanup, config-reload serialization, and failure cooldown.
 
 ## 1. Decision
 

@@ -2,11 +2,15 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed -- do not implement piecemeal |
+| Status | Superseded (2026-08-06) by ADR 0033 |
 | Date | 2026-07-24 |
 | Owners | `@piwin/contracts`, `@piwin/mcp`, `@piwin/agent-host`, `@piwin/project`, Desktop, CLI |
 | Supersedes | The project-scoped MCP connection permission behavior added during the project-open freeze investigation |
 | Requires ADR | Yes -- update or supersede ADR 0008 before implementation |
+
+> Retained as investigation history. Its project permission and per-call
+> approval model is no longer valid. Use [ADR 0033](../adr/0033-mcp-supervisor-architecture.md)
+> for the configuration-as-trust and Supervisor design.
 
 > **Pi-first revision (2026-07-24):** The initial delivery is deliberately
 > narrower than an abstract "global plus project overlay" design. It supports

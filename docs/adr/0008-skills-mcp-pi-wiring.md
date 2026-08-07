@@ -4,6 +4,10 @@
 
 Accepted (2026-07-20) · Partially implemented (SDK path)
 
+> **MCP lifecycle note:** [ADR 0033](./0033-mcp-supervisor-architecture.md)
+> supersedes this ADR's MCP process-ownership and exposure details. This ADR
+> remains the reference for Pi Skills/resource-loader wiring.
+
 ## Context
 
 M4 requires Skills path mapping and MCP tools to reach a live Pi session.
@@ -24,27 +28,28 @@ Earlier piwin code incorrectly used:
 ### SDK mode (default)
 
 1. Build host tools (`web_search` / `web_fetch` / MCP proxies) as `@piwin` host
-   tool descriptors first (permission-gated).
+   tool descriptors first. MCP proxies route through the Host Supervisor;
+   ordinary permission gating applies only to the non-MCP domains.
 2. Convert them with a Pi tool adapter into `customTools` and pass them **at
    createAgentSession time**.
 3. Construct `DefaultResourceLoader` with:
    - `additionalSkillPaths`: `~/.piwin/skills` + `config.skills.extraPaths` (+ project skill roots when available)
    - `skillsOverride`: filter out `config.skills.disabledIds`
 4. MCP process ownership:
-   - `HostRuntime` owns a single `McpLifecycleManager` and injects it into
-     `createAgentHost` / `PiSdkAdapter`.
-   - Bare `createAgentHost` (CLI) creates a host-owned manager so session tools
-     still share one process model.
-   - Session bridge reuses `lifecycleManager.ensureStarted` (no double-spawn of
-     the same server id for UI Start + session tools).
-   - Bridge close does **not** stop host-owned clients; host/manager dispose does.
+   - `HostRuntime` owns one `McpSupervisor` and injects it into all session/tool
+     composition paths.
+   - Sessions and Pi adapters do not create fallback managers or own clients.
+   - Gateway and explicitly pinned direct tools resolve the current server via
+     the Supervisor; `dispose()` is the Host-wide shutdown path.
 5. MCP transport: `McpTransportClient` interface with dual implementations —
    **official** `@modelcontextprotocol/sdk` stdio client (default / auto) and
    **handcrafted** NDJSON fallback when official connect fails. Override via
    `PIWIN_MCP_CLIENT=official|handcrafted|auto`. Handcrafted retained until
    official is proven across all user servers.
-6. Register `mcp__<server>__<tool>` custom tools with a route table that keeps
-   the original tool name (do not reverse-parse sanitized names alone).
+6. Register the stable `mcp_gateway` custom tool by default. Register
+   `mcp__<server>__<tool>` only for explicit pinned selectors, with a route
+   table that keeps the original tool name (do not reverse-parse sanitized
+   names alone).
 
 ### RPC mode
 
@@ -60,7 +65,8 @@ Until a piwin-owned RPC worker or Pi extension channel exists:
 - `typebox` is a direct dependency of `@piwin/agent-host` (same major as Pi).
 - `@modelcontextprotocol/sdk` is a direct dependency of `@piwin/mcp`.
 - Dual MCP client is temporary; prefer official for Content-Length servers.
-- Host-owned permission gate wraps tool `execute` before network/MCP I/O.
+- Host-owned permission gate wraps non-MCP tool `execute` before network I/O;
+  MCP execution uses the Supervisor's configuration-as-trust boundary.
 - Desktop permission modal already resolves `permission/request`; tools must emit
   through HostRuntime.
 - Future: bash hard-gate via Pi extension `tool_call` hook (separate from custom tools).
