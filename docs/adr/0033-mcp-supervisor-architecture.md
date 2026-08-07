@@ -1,72 +1,66 @@
 # ADR 0033: MCP Supervisor Architecture
 
-**Status:** Accepted — core implementation landed (2026-08-06)
-**Date:** 2026-08-06
-**Supersedes when accepted:** MCP-specific parts of ADR 0014 and ADR 0019 §5
-**Related:** ADR 0008 (Skills + MCP wiring), ADR 0031 (MCP child process leak fix)
+## Status
+
+Accepted (2026-08-06) — implementation pending
+
+**Supersedes:** MCP permission and lifecycle decisions in ADR 0014 and ADR
+0019 §5
+
+**Related:** ADR 0008, ADR 0031
 
 ## Context
 
 piwin is a private, local, open-source coding-agent shell. Users install and
 configure their own MCP servers and are responsible for the code and commands
-they run. piwin therefore does not need to impose a second MCP permission
-model on top of the user's configuration.
+those servers run. MCP therefore does not need a second piwin permission model.
 
-The current MCP path has three separate concerns coupled together:
+The current implementation has already removed the old generation snapshot and
+keeps one `McpLifecycleManager` map in `HostRuntime`, but two lifecycle gaps
+remain:
 
-1. MCP calls enter the Host-wide permission admission gate.
-2. MCP clients are split between ordinary manager entries and
-   runtime-generation entries.
-3. MCP configuration is persisted separately from the in-memory session tool
-   surface and is refreshed through multiple paths.
+1. `refreshConfig()` can replace a server while `startInternal()` is still
+   connecting. It drops the old start bookkeeping and schedules client close
+   without awaiting the raw connect operation. The child can therefore outlive
+   the configuration that created it.
+2. A timed-out tool call closes a client, but the next model call can
+   immediately spawn the same unhealthy server again. A bad server can produce
+   a repeated spawn → timeout → close storm.
 
-This makes MCP process ownership difficult to reason about. The critical leak
-fixed by ADR 0031 exposed the underlying problem: a child process was spawned
-before the MCP initialize promise resolved, but the lifecycle manager only had
-an easy cleanup path after a client object had been returned. A timeout rejected
-the wrapper promise while the underlying connection remained pending, leaving
-the child process alive.
+There is also an ownership leak in the composition boundary: the session bridge
+can create a temporary lifecycle manager when the Host does not inject one.
+Production code must have one Host-owned owner; a session must never own an MCP
+process.
 
-The product needs one clear owner for every MCP child process from spawn until
-exit. The owner must cover successful connections, failed connects, timeouts,
-configuration changes, crashes, session disposal, and Host shutdown.
+ADR 0031 fixed the most visible child-process leak by adding abort and hard-kill
+behavior. This ADR makes ownership and replacement semantics explicit so the
+same class of leak cannot return through configuration reload, cancellation,
+crash, or shutdown paths.
 
 ## Decision
 
-### 1. MCP uses configuration-as-trust
+### 1. MCP is configuration-as-trust
 
-MCP is not part of piwin's permission rule engine.
+MCP is outside piwin's permission rule engine entirely.
 
-- A configured server is trusted by the user who configured it.
-- MCP calls do not produce permission prompts.
-- MCP calls do not use `PermissionRuleSet`, `PermissionMode`, or
-  `PermissionSubject`.
-- MCP risk classification, if retained, is informational only.
+- Adding/enabling a server in `~/.piwin/mcp.json` is the user's trust action.
+- MCP calls never produce permission prompts and never consult
+  `PermissionRuleSet`, `PermissionMode`, or `PermissionSubject`.
+- MCP is not an OS sandbox. A server runs with the Host user's OS permissions.
 - `disabled` is an operational availability flag, not a trust state.
-- piwin does not sandbox MCP processes; they run with the Host user's OS
-  permissions.
+- Risk classification and argument redaction may remain as informational
+  diagnostics, but they cannot block or prompt.
 
-piwin is a local, open-source tool: every MCP server is user-configured and
-user-owned, and the user alone is responsible for what those servers do.
-MCP is deliberately kept outside the permission rule engine entirely. There
-is no per-server or per-tool permission state, no MCP rows in permission
-modes, and no second trust model layered on top of the user's own
-configuration.
+Legacy `mcp` `deny`/`ask`/`allow` entries in `permissions.json` are silently
+ignored. They are not migrated, upgraded, or treated as an error. The loader
+may emit one diagnostic `host/log` entry per load, but it must not block or
+prompt because of those entries. `mcp.json` is unaffected.
 
-Legacy MCP `deny`/`ask`/`allow` rules in `~/.piwin/permissions.json` are
-**not honored and silently ignored**. They are not migrated and not upgraded;
-users who relied on them must remove them or accept that the tools they used
-to block now run. The config loader may emit a single `host/log` diagnostic
-warning when it encounters ignored MCP rules; it never blocks or prompts.
+### 2. One Host owns one Supervisor
 
-The user-facing documentation must state this explicitly. Removing the
-permission layer does not make an MCP server safe or isolated.
-
-### 2. One Host owns one MCP Supervisor
-
-`@piwin/host-runtime` creates exactly one `McpSupervisor` for each Host process.
-The Supervisor is implemented by `@piwin/mcp`; it is not a new OS daemon or
-new top-level package.
+`@piwin/host-runtime` creates exactly one `McpSupervisor` for a Host process.
+The implementation lives in `@piwin/mcp`; it is not an OS daemon or a new
+top-level package.
 
 ```text
 Desktop / CLI
@@ -75,68 +69,79 @@ Desktop / CLI
 @piwin/host-runtime
       |
       +-- McpConfigStore
-      +-- McpSupervisor ------------------+
-      |       one ProcessSlot per server   |
-      +-- mcp_gateway Host tool            |
-                                          v
-                               MCP server process tree
+      +-- McpSupervisor ---- one ProcessSlot per server
+      +-- mcp_gateway
+                              |
+                              v
+                      MCP server process tree
 ```
 
-The scope is one Host process. A Desktop Host and an independently running CLI
-Host may have separate MCP processes. Cross-Host sharing through a daemon or
-socket is explicitly out of scope for this ADR.
+Ownership invariants:
 
-Ownership rules:
+- Only the Supervisor may spawn, close, restart, or adopt an MCP process.
+- The Supervisor registers a process immediately after `spawn`, before MCP
+  `initialize` completes.
+- Sessions, gateway tools, UI commands, and Pi adapters hold service handles,
+  never clients or child-process handles.
+- `McpSupervisor.dispose()` is the only normal Host-wide MCP shutdown entry
+  point and is idempotent.
+- An independently running Desktop Host and CLI Host do not share processes;
+  cross-Host daemons are out of scope.
 
-- `McpSupervisor` is the only component allowed to spawn or close MCP
-  processes.
-- Sessions, Pi adapters, the gateway tool, and UI commands never own a client
-  or child process.
-- `McpSupervisor.dispose()` is the only normal global shutdown entry point.
-- A process is registered in a `ProcessSlot` immediately after `spawn`, before
-  MCP initialization begins.
+The production session bridge must require an injected Supervisor. A local
+manager fallback is allowed only in an explicitly named unit-test factory; it
+must not be reachable from normal Host composition.
 
-### 3. ProcessSlot owns the process before MCP is ready
+### 3. ProcessSlot owns the process before readiness
 
-The current `Promise<McpTransportClient>` abstraction is insufficient for
-failed or hanging connects. The transport layer must expose an owned process
-handle as soon as the child is spawned.
-
-Conceptually:
+`Promise<McpTransportClient>` is not sufficient because the promise may remain
+pending after the child has been spawned. The transport boundary therefore
+returns an owned process handle immediately:
 
 ```ts
 type OwnedMcpProcess = {
-  readonly pid: number | undefined;
+  readonly pid?: number;
   readonly ready: Promise<McpTransportClient>;
-  close(): Promise<void>;
+  close(reason: string): Promise<void>;
 };
 ```
 
-`close()` is idempotent and awaited. `ready` only describes connection
-readiness; it does not define resource ownership.
+`ready` describes protocol readiness only. It does not define ownership.
+`close()` is idempotent, can be called before `ready` settles, and is always
+awaited by the Supervisor.
 
-Each `ProcessSlot` has one runtime state:
+Each server has one slot and one operation token:
 
 ```text
 stopped → starting → ready → draining → stopping → stopped
-                    └──────→ error ───────────────┘
+                    └──────→ unhealthy ────────┘
 ```
 
-The slot contains the process handle, connection abort controller, readiness
-promise, close promise, active-call count, config fingerprint, health state, and
-last error. Concurrent `ensureReady(serverId)` calls share one readiness
-promise and never spawn duplicate processes.
+The slot contains at least:
 
-### 4. Supervisor lifecycle
+- `serverId`, validated config, config fingerprint, and revision token;
+- current state and last error;
+- owned process, client, connect `AbortController`, readiness promise, and
+  close promise;
+- active-call count and an accepting-calls flag;
+- `unhealthyUntil`, failure count, and last failure reason;
+- one exit subscription and one crash-restart decision.
 
-The Supervisor exposes service-level operations:
+No code may clear a pending start promise, abort controller, or close promise
+without first awaiting or superseding the corresponding operation token.
+
+### 4. Supervisor API and lazy behavior
+
+The public service is named `McpSupervisor`. A compatibility type alias may
+keep existing callers compiling during the migration, but there must be only
+one implementation and one runtime instance.
 
 ```ts
-type McpSupervisor = {
+interface McpSupervisor {
   getConfig(): McpConfigDocument;
   applyConfig(config: McpConfigDocument): Promise<McpConfigApplyReport>;
   listHealth(): Promise<McpServerHealth[]>;
-  discoverTools(serverId: string, signal?: AbortSignal): Promise<McpToolSummary[]>;
+  listTools(serverId: string, signal?: AbortSignal): Promise<McpToolSummary[]>;
   callTool(
     serverId: string,
     toolName: string,
@@ -145,94 +150,90 @@ type McpSupervisor = {
   ): Promise<unknown>;
   restart(serverId: string): Promise<McpServerHealth>;
   dispose(): Promise<void>;
-};
+}
 ```
 
-`ensureReady`, `ProcessSlot`, `closeSlot`, and transport ownership are
-internal. `start` and `stop` are not model-facing capabilities. They may remain
-as explicit Host commands for diagnostics and Settings UI, but they delegate to
-the same Supervisor and never implement a second lifecycle.
+`start`, `stop`, and `restart` are diagnostic/Settings operations that
+delegate to the same Supervisor. They never create another lifecycle path.
 
-#### Lazy start
+- `status` and cached `search` do not connect a server.
+- Live `listTools`/`describe` and `callTool` connect lazily.
+- Concurrent readiness requests for one server share one promise.
+- Calls to a disabled, removed, draining, or disposed server fail with stable
+  operational errors (`server-disabled`, `server-restarting`, or
+  `host-closing`) and do not spawn a process.
 
-`callTool` and live `discoverTools` start a server lazily. Status and cached
-search do not start a server.
+### 5. Configuration replacement is a serialized transaction
 
-#### Connect failure
-
-Every connect failure follows the same path:
+`mcp/save` is the only normal refresh path:
 
 ```text
-spawn and register slot
-  → initialize with deadline
-  → timeout/error/abort
-  → await slot.close()
-  → SIGTERM
-  → wait for exit
-  → SIGKILL the process tree if needed
-  → remove or mark slot error
+validate → atomically write ~/.piwin/mcp.json → await supervisor.applyConfig
 ```
 
-The timeout implementation must cancel the underlying operation and await
-cleanup. A `Promise.race` that only rejects an outer promise is not sufficient.
-
-#### Tool-call failure
-
-A tool-call timeout marks the slot unhealthy and closes the underlying MCP
-connection. A later call can create a fresh slot. A single crash restart may be
-supported as an explicit server configuration, but restart loops are forbidden.
-
-Caller cancellation should use MCP request cancellation when the transport
-supports it. If safe cancellation cannot be guaranteed, the Supervisor closes
-the affected slot rather than leaving an unknown in-flight process state.
-
-### 5. Configuration is applied through the Supervisor
-
-The source of truth is the validated document at `~/.piwin/mcp.json`.
-
-`mcp/save` performs:
-
-```text
-validate
-  → atomically write mcp.json
-  → supervisor.applyConfig(document)
-```
-
-The Supervisor compares server fingerprints:
+`applyConfig` is serialized per Supervisor and compares server fingerprints.
+The server fingerprint deliberately excludes the document's exposure policy
+(`pinnedSelectors`). Exposure changes increment a separate exposure revision;
+they must not restart, drain, or reconnect an MCP server.
 
 | Change | Action |
 |---|---|
-| unchanged server | Keep its ProcessSlot and client |
+| unchanged server | Retain slot and client |
 | new server | Add stopped slot; start lazily |
-| disabled server | Drain and close its slot |
+| disabled server | Stop accepting calls; drain and close |
 | removed server | Drain, close, remove metadata and slot |
-| command/args/env/cwd changed | Drain, close, invalidate metadata, replace slot |
+| command/args/env/cwd changed | Increment revision; drain, abort, close, invalidate metadata, install new config |
+| `pinnedSelectors` only | Update exposure revision; keep every server slot unchanged |
 
-Configuration changes do not create new MCP runtime generations and do not
-require rebuilding every session's tool surface. A changed server stops
-accepting new calls, drains active calls until its deadline, then closes.
-The stable gateway therefore remains usable while the server inventory changes;
-only optional pinned direct-tool exposure is considered when a later runtime
-surface is compiled.
+The replacement sequence for a starting or ready slot is mandatory:
 
-Project-level MCP configuration is not automatic in this version. If it is
-added later, it must be explicit opt-in and must still flow through the same
-Host Supervisor.
+```text
+mark draining / reject new calls
+  → abort pending connect
+  → stop accepting new calls
+  → wait for active calls up to drain deadline
+  → await ownedProcess.close()
+  → verify old operation token cannot publish a client
+  → install new fingerprint and stopped slot
+```
 
-### 6. MCP exposes one stable gateway by default, with pinned direct tools
+The old slot must be closed before the new revision can spawn. The old start
+continuation may finish later, but it can only observe the stale token and
+perform idempotent cleanup; it must never publish the old client. Do not use
+`void close(...)` or delete `startPromise` as a substitute for this sequence.
 
-Every active Host registers one `mcp_gateway` Host tool when the Supervisor is
-available, even when no server is currently configured. The gateway supports:
+The persisted document is authoritative. If cleanup reports an error after the
+atomic write, `applyConfig` returns a diagnostic failure and leaves the old
+slot non-accepting; it must not silently run both old and new configurations.
 
-- `search`: metadata cache only;
-- `describe`: cache first, then live discovery;
-- `call`: resolve and invoke one server tool;
-- `status`: return health without starting servers.
+### 6. Failure cooldown prevents restart storms
 
-The default session surface does not register every MCP tool as a direct Pi
-tool. This avoids tool-surface rebuilds, schema-budget management, and a large
-number of permission/admission entries. Users can opt individual high-frequency
-tools into direct exposure with exact, top-level `pinnedSelectors`:
+Every connect failure and tool-call timeout that invalidates a slot records a
+per-server cooldown. The default is 5 seconds; the value is configurable with
+a bounded maximum for tests and deployments.
+
+During cooldown:
+
+- `callTool` and implicit lazy start fail immediately with
+  `server-unhealthy` and include `unhealthyUntil` in health/diagnostics;
+- no child process is spawned;
+- repeated model retries do not extend the cooldown indefinitely.
+
+Explicit `start`/`restart` from Settings or a diagnostic command bypasses the
+cooldown. A successful ready state clears the failure count. A config revision
+change also bypasses the old revision's cooldown. Intentional stop, Host
+dispose, and caller cancellation do not count as server failures.
+
+The cooldown applies in addition to the per-operation deadline. It is not a
+replacement for killing the owned process.
+
+### 7. Gateway-first exposure with pinned direct tools
+
+The default session surface always exposes one `mcp_gateway` with
+`search | describe | call | status`. It does not automatically register every
+valid cached tool as a direct Pi tool.
+
+Users may pin high-frequency tools in the same global MCP document:
 
 ```json
 {
@@ -246,179 +247,240 @@ tools into direct exposure with exact, top-level `pinnedSelectors`:
 }
 ```
 
-Pins are exact `serverId.toolName` strings: no wildcards, no implicit
-server-wide pinning. A pinned tool is still executed through the Supervisor and
-does not own a process. Stale pins remain dormant until matching metadata exists;
-they are not errors. Direct exposure is bounded by the current 48-tool /
-48,000-schema-byte budgets; overflow remains gateway-only with a diagnostic.
-Changing only pins changes the next session's exposure revision and does not
-drain or restart a running server. The Desktop tool catalog uses an empty/solid
-pin icon with the tooltip “固定为直接调用工具”.
+`pinnedSelectors` is exposure configuration, not permission or process
+configuration. Its rules are:
 
-The gateway always resolves the current Supervisor configuration. It must not
-close over a session-owned MCP config or client.
+- selectors are exact `serverId.toolName` strings; wildcards are invalid;
+- values are deduplicated and syntax-validated on `mcp/save`;
+- an unknown server/tool may be stored as a dormant pin so discovery can happen
+  later; it is not allowed to trigger transport I/O while saving;
+- the default policy is gateway-only (`pinnedSelectors: []`);
+- only explicitly pinned selectors can become direct tools; there is no
+  lexical fill, automatic “first N tools”, or cached direct-tool promotion;
+- a pinned tool requires metadata whose server fingerprint matches the current
+  server config. Missing or stale metadata leaves the pin dormant, emits a
+  diagnostic, and keeps the tool callable through gateway `describe`/`call`;
+- direct execution and gateway `call` both invoke the same Supervisor
+  `callTool` and never own a client or process.
 
-### 7. Transport implementation
+The exposure policy has two hard budgets: direct tool count and serialized
+schema bytes. Pinned tools consume those budgets. The Settings UI refuses a pin
+that would exceed a budget and explains the limit. If a manually edited config
+contains too many pins, session composition registers no overflowing direct
+tools, keeps `mcp_gateway` available, and emits one actionable diagnostic; it
+must not silently choose arbitrary pins.
 
-The default implementation uses the official MCP SDK `Client` over piwin's
-`OwnedMcpStdioTransport`. The SDK remains responsible for MCP protocol
-behavior, while piwin's transport owns the spawned process group. The SDK's
-stock `StdioClientTransport` is not used because it only closes its direct PID
-and clears that PID during close.
+The contract should represent the policy explicitly:
 
-If a compatibility transport is needed later, it must implement the same owned
-process contract beneath the Supervisor. The Supervisor must never have two
-separate cleanup paths for official and handcrafted clients.
+```ts
+type McpExposurePolicy = {
+  mode: 'gateway' | 'pinned';
+  maxDirectTools: number;
+  maxDirectSchemaBytes: number;
+  pinnedSelectors: string[];
+};
+```
 
-The transport must:
+`mode: 'gateway'` is the default. `mode: 'pinned'` means “use only the
+validated pinned selectors”, not “fill the remaining budget automatically”.
 
-- capture the child/process-group identity at spawn;
-- expose a close operation before initialization resolves;
-- await graceful exit;
-- escalate to hard kill after a deadline;
-- report unexpected exit exactly once;
-- redact secret environment values and arguments from diagnostics.
+#### Pin UI
 
-Official and compatibility stdio transports share the same process-tree close
-helper. On Unix they launch a detached process group; on Windows the close
-path uses recursive process termination. Auto fallback awaits closure of the
-official candidate before spawning the compatibility candidate.
+The MCP tool catalog shows a per-tool outline pin icon. Clicking it persists the
+selector through the normal `mcp/save` path (validate → atomic write →
+`applyConfig`); multiple tools may be pinned independently. The filled icon
+means the selector is persisted, not that a process is resident.
 
-Where the platform permits it, cleanup targets the MCP process group/tree, not
-only the immediate PID. A JavaScript `dispose()` cannot run after `SIGKILL`,
-power loss, or an OS crash; an external OS-level reaper is required for that
-stronger guarantee and is out of scope here.
+Use the accessible label/tooltip **“固定为直接调用工具”** rather than
+“常驻 MCP”: pinning keeps the tool in the model tool surface, while the
+Supervisor remains lazy and may stop the process during shutdown or recovery.
+The UI shows dormant/stale pins and the diagnostic reason instead of silently
+losing the user's selection.
 
-### 8. Host shutdown order
+Pi custom tools are static for a created Agent session in the current host
+integration. Therefore v1 applies a pin change to the next session or an
+explicit session tool-surface rebuild; the current session keeps using
+`mcp_gateway` and does not receive an implicit runtime replacement. Pinning
+never starts a server.
 
-The Product Host owns shutdown ordering:
+This keeps the high-frequency direct-tool UX without creating a second
+lifecycle or permission path. A direct tool resolves the current server at
+call time, and an exposure-only config change never drains or restarts a
+ProcessSlot.
+
+### 8. Host shutdown and terminal state
+
+The Host shutdown order is:
 
 ```text
-mark Host closing and reject new requests
+mark Host closing / reject new commands
   → abort active Agent runs and MCP operations
   → await McpSupervisor.dispose()
   → close Pi SDK/RPC workers
-  → flush transcripts and Host state
+  → flush Host state
 ```
 
-`dispose()` is idempotent, has a hard deadline, and reports cleanup failures as
-Host diagnostics. No shutdown path may use an unawaited MCP close operation.
+`HostRuntime` keeps a terminal `closing` flag. `getMcpManager()` must never
+recreate a Supervisor after `dispose()` has started or completed; commands
+arriving after that point return `host-closing`.
 
-### 9. Host tool admission contract
+### 9. Host-tool admission
 
-MCP must not be represented as `readOnly: true`, because MCP tools may mutate
-external systems. The Host tool contract should have an explicit admission
-variant:
+MCP must not be represented as `readOnly`, because an MCP tool may mutate an
+external system. The Host tool router uses an explicit admission variant:
 
 ```ts
 type HostToolAdmission =
   | { kind: 'unrestricted' }
-  | {
-      kind: 'permission';
-      action: string;
-      risk: PermissionRiskKind;
-      subjectBuilder?: SubjectBuilder;
-    };
+  | { kind: 'permission'; action: string; risk: PermissionRiskKind };
 ```
 
-The MCP gateway/direct registrations use
-`permissionSpec.admission: 'trusted'`. They still go through the Host tool
-router and Supervisor; they simply do not enter the permission rule engine.
-
-MCP-specific permission subjects, rule targets, `mcp:tool-call` policy paths,
-and MCP rows in permission modes are removed from the contracts and the
-admission gate. The `mcp` rule kind, MCP `PermissionSubject`, and MCP entries
-in the permission modes table are deleted; nothing in the permission layer
-knows about MCP anymore. MCP tool risk may remain as a display-only
-diagnostic type.
+`mcp_gateway` and pinned direct MCP tools use `unrestricted`. They still pass
+through the Host tool router and Supervisor; they simply do not enter the
+permission rule engine. MCP rule kinds, MCP permission subjects, MCP mode-table
+rows, and `mcp:tool-call` policy paths are removed from contracts and runtime
+admission. Legacy on-disk rules are ignored as described in §1.
 
 ### 10. Package ownership
 
 | Concern | Owner |
 |---|---|
-| Config document and atomic persistence | `@piwin/mcp` |
-| Config validation and fingerprinting | `@piwin/mcp` |
-| ProcessSlot and MCP Supervisor | `@piwin/mcp` |
-| MCP SDK transport | `@piwin/mcp` |
-| Metadata catalog | `@piwin/mcp` |
-| Host command/push wiring | `@piwin/host-runtime` |
-| Gateway tool composition | `@piwin/host-runtime` |
+| Config schema, validation, fingerprinting, atomic persistence | `@piwin/mcp` |
+| ProcessSlot, Supervisor, owned transport, cooldown | `@piwin/mcp` |
+| Metadata catalog and cache invalidation | `@piwin/mcp` |
+| Host command/push wiring and one-instance composition | `@piwin/host-runtime` |
+| Gateway and pinned direct tool definitions | `@piwin/host-runtime` |
 | Pi custom-tool adaptation | `@piwin/agent-host` |
 | Desktop/CLI presentation | `apps/desktop`, `apps/cli` |
 
 `@piwin/agent-host` does not import or own MCP lifecycle code. Apps do not read
 `mcp.json` or spawn MCP processes directly.
 
+## Implementation plan
+
+The current repository already has a single manager map, so the implementation
+plan does not include deleting generation snapshots that are not present in
+`piwin-dev`.
+
+### Phase 1 — contracts and admission boundary
+
+1. Remove MCP target/subject kinds and MCP mode-table fields from
+   `packages/contracts/src/permission.ts`.
+2. Add/retain `unrestricted` Host-tool admission as an explicit union member;
+   do not overload `readOnly`.
+3. Keep `McpToolRisk` only if the UI/diagnostic surface needs it, and document
+   that it is display-only.
+4. Add `McpExposurePolicy` (`gateway` | `pinned`) with gateway-only default,
+   exact `pinnedSelectors`, hard count/schema budgets, and validation that
+   rejects wildcard selectors.
+5. Add `pinnedSelectors` to the top level of `McpConfigDocument`; pin changes
+   must be persisted through `mcp/save` and treated as exposure-only changes.
+
+### Phase 2 — owned process and Supervisor
+
+1. Split transport creation from readiness: spawn returns `OwnedMcpProcess`.
+2. Make official SDK and compatibility transports implement the same close
+   contract, including process-group escalation and PID capture.
+3. Refactor `mcp-lifecycle-manager.ts` into the Supervisor/ProcessSlot model.
+4. Store the connect abort controller and operation token in the slot.
+5. Implement serialized `applyConfig`, drain deadlines, stale-token checks,
+   cooldown state, and idempotent `dispose`.
+6. Keep compatibility exports only as aliases; do not retain a second manager.
+
+### Phase 3 — Host wiring and tool surface
+
+1. Construct one Supervisor in `HostRuntime` and inject it into every session
+   bridge and tool definition.
+2. Remove the production session-bridge fallback that creates a manager.
+3. Make `mcp/save` validate, atomically persist, then await `applyConfig`;
+   exposure-only changes must not drain or restart ProcessSlots.
+4. Make gateway status/search/describe/call resolve through the current
+   Supervisor; no session-owned config or client is captured.
+5. Change cached direct exposure to gateway-only by default and pinned-only
+   when explicitly configured; add the per-tool outline/filled pin UI and make
+   pin changes take effect on the next session or explicit tool-surface rebuild.
+6. Remove `mcp-call-permission.ts` from the call path and make legacy MCP
+   permission rules inert at load time.
+
+### Phase 4 — verification
+
+Add tests before changing the public behavior:
+
+- concurrent readiness creates at most one child;
+- hanging initialize timeout kills the process tree;
+- dispose during initialize kills the process tree and is fully awaited;
+- config replacement during `starting` aborts and closes the old process before
+  the new revision can start;
+- config replacement during active calls drains and rejects new calls;
+- timeout/call failure enters cooldown and repeated calls do not spawn;
+- explicit restart bypasses cooldown and success clears it;
+- stale old operation cannot publish a client after replacement;
+- `mcp/save` updates the live Supervisor;
+- Host dispose followed by a command cannot recreate a Supervisor;
+- no MCP call emits a permission request and legacy MCP rules are ignored;
+- gateway-only default, exact pinned selectors, stale/dormant pins, budget
+  rejection, no-spawn-on-pin, exposure-only config reload, and shared
+  Supervisor routing;
+- pin UI persists through `mcp/save` and uses an accessible fixed-tool label;
+- ADR 0031 hanging-connect regression passes repeatedly with no orphan.
+
+Run `pnpm typecheck` and the touched package tests after each phase. Keep
+transport, lifecycle, permission-boundary, and docs changes in separate commits.
+
 ## Consequences
 
 ### Positive
 
-- MCP has one process owner and one destruction path.
-- A hanging initialize cannot escape the Supervisor's ownership.
-- Sessions no longer own MCP clients or generation cleanup.
-- MCP configuration changes do not rebuild every Agent runtime.
-- The model sees one stable gateway instead of a changing tool surface.
-- MCP is consistent between SDK and RPC modes.
-- Permission complexity is removed from a user-owned local integration.
+- One process owner and one destruction path cover connect, call, reload,
+  crash, cancellation, and shutdown.
+- A hanging initialize cannot escape before a client object exists.
+- A failing server cannot create an unbounded restart storm.
+- MCP configuration changes do not create hidden session lifecycles.
+- The model gets one stable gateway while high-frequency pinned tools remain
+  available.
+- MCP behavior is the same in SDK and RPC Host modes.
 
 ### Negative
 
-- MCP server processes are trusted with the Host user's OS permissions.
-- Desktop and independently running CLI Hosts do not share MCP processes.
-- Gateway discovery adds one model-facing indirection compared with direct
-  tools.
-- Stateful MCP servers remain alive for the lifetime of the Host and require
-  correct shutdown behavior.
-- Hard cleanup after an uncatchable Host crash requires a future OS-level
-  supervisor.
-
-## Migration plan
-
-1. Add this ADR and update the MCP sections of `AGENTS.md`,
-   `docs/architecture.md`, `docs/guides/permissions.md`, ADR 0014, and
-   ADR 0019 after the proposal is accepted. The docs state explicitly that
-   MCP has no permission layer and that legacy MCP rules in
-   `permissions.json` are silently ignored (no migration, no upgrade).
-2. Replace the two MCP lifecycle maps with one Host-scoped `ProcessSlot` map.
-3. Make the transport return an owned process handle at spawn time.
-4. Implement `McpSupervisor.applyConfig()` and make `mcp/save` call it after
-   atomic persistence.
-5. Remove generation-owned MCP transports; keep immutable generation data only
-   for session exposure compatibility. HostRuntime generation release is now a
-   lifecycle no-op.
-6. Register the stable `mcp_gateway` by default, then add exact pinned direct
-   tools from cached metadata only.
-7. Remove MCP from the permission rule engine and introduce the explicit
-   trusted Host-tool admission variant. Delete the `mcp` rule kind,
-   MCP `PermissionSubject`, MCP rows in permission modes, and the
-   `mcp:tool-call` policy path from contracts and the admission gate. The
-   permission loader ignores legacy MCP rules without blocking or prompting.
-8. Prefer the official SDK transport and keep any compatibility adapter below
-   the owned-process boundary.
-9. Add lifecycle, timeout, shutdown, config-reload, and no-orphan tests.
-10. Run `pnpm typecheck` and the touched package tests; keep the ADR's
-    acceptance status aligned with the implementation and verification notes.
+- Enabled MCP servers run with the Host user's OS permissions.
+- Gateway calls add indirection compared with direct tools.
+- A Host crash or power loss can still leave a process that only an external OS
+  reaper can clean up; that reaper is outside this ADR.
+- Config persistence can succeed while cleanup reports a diagnostic failure;
+  the runtime must remain fail-closed for that server until an explicit repair.
 
 ## Acceptance criteria
 
-The implementation satisfies the following criteria:
+This ADR is implemented when:
 
-- one Host creates one MCP Supervisor;
-- concurrent calls to one server create at most one child process;
-- a connect timeout leaves no child or descendant process behind;
-- shutdown during connect leaves no child or descendant process behind;
-- config replacement drains and closes the old server;
-- `dispose()` is idempotent and fully awaited;
+- one Host creates one Supervisor and no session bridge creates a production
+  fallback manager;
+- concurrent calls to one server create at most one process;
+- connect timeout, replacement during connect, call timeout, and shutdown leave
+  no MCP child or descendant process;
+- old config revisions cannot publish clients after replacement;
+- cooldown prevents automatic spawn storms and explicit restart bypasses it;
+- `applyConfig` is the only runtime refresh path after `mcp/save`;
+- gateway-only is the default; pinned direct tools share Supervisor routing;
+  pin-only config changes do not restart or drain a server;
 - MCP calls never create permission requests;
-- SDK and RPC use the same Host-owned MCP Supervisor;
-- no session or UI component directly owns an MCP client;
-- the process-leak regression test passes repeatedly.
+- legacy MCP permission rules are ignored without changing `mcp.json` behavior;
+- `dispose()` is idempotent and fully awaited;
+- ADR 0031's regression test passes repeatedly.
 
-## Verification notes
+---
 
-The implementation was verified on 2026-08-06 with:
+## Verification notes (superseded draft, 2026-08-06)
+
+The earlier draft of this ADR (as of 2026-08-06) documented the state after
+the supervisor-owned gateway lifecycle landed and recorded the following
+verification:
 
 - `pnpm typecheck` across all workspace projects;
 - `@piwin/mcp` typecheck and 26 tests;
 - `@piwin/host-runtime` typecheck and 875 tests;
 - `@piwin/desktop` typecheck and 780 tests.
+
+The remaining gaps captured in this revision (config-reload race, restart
+storm, composition-boundary ownership) are tracked in the implementation plan
+above.

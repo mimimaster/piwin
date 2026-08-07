@@ -142,7 +142,8 @@ packages/<name>/
 - Treat model output and artifact HTML as **untrusted**.
 - Artifact: sandbox iframe + CSP; default block external resources (see artifact research).
 - Secrets: never log API keys; prefer env/keychain refs in config.
-- Permission policy for destructive bash, secret file writes, network tools, force-push — implemented as a layered rule engine with `auto`/`ask-all`/`bypass` modes and a file-write gate. MCP is configuration-trusted and is outside this permission engine; lifecycle/availability is owned by the MCP Supervisor (ADR 0033; see [Permissions guide](./docs/guides/permissions.md)). Not an OS sandbox.
+- Permission policy for destructive bash, secret file writes, network tools, force-push — implemented as a layered rule engine with `auto`/`ask-all`/`bypass` modes and a file-write gate (ADR 0019; see [Permissions guide](./docs/guides/permissions.md)). Not an OS sandbox.
+- MCP is outside the permission layer entirely: configured servers run with the Host user's OS permissions and never produce prompts or rules (ADR 0033). Legacy MCP rules in `permissions.json` are silently ignored. The user alone owns MCP risk.
 - Media paths must stay under `~/.piwin/media/` (no path traversal).
 
 ### 3.7 Testing requirements

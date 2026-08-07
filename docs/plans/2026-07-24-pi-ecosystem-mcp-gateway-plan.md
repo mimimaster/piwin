@@ -2,11 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed -- successor implementation plan |
+| Status | Superseded (2026-08-06) by ADR 0033 |
 | Date | 2026-07-24 |
 | Primary reference | Pi Agent Harness extension model and mature Pi MCP adapters |
 | Replaces for implementation | `2026-07-24-mcp-lifecycle-permission-redesign.md` (keep as research history only) |
 | Required architecture record | New ADR superseding MCP lifecycle portions of ADR 0008 |
+
+> Retained as ecosystem research. Do not use its permission-gate or automatic
+> direct-exposure instructions for implementation; follow [ADR 0033](../adr/0033-mcp-supervisor-architecture.md).
 
 ## 1. Decision
 
