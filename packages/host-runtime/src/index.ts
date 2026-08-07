@@ -187,6 +187,17 @@ export {
   ULTRA_CODE_SCHEME_ID,
 } from '@piwin/contracts';
 
+// ORCH: turn-scoped scheme concurrency gate
+export {
+  TurnScopedSchemeAdmissionGate,
+  decideSchemeAdmission,
+} from './orchestration-scheme-admission.js';
+export type {
+  SchemeAdmissionLimits,
+  SchemeAdmissionSnapshot,
+  SchemeAdmissionDecision,
+} from './orchestration-scheme-admission.js';
+
 // CE-SUB-PROF: subagent profile resolution
 export {
   BUILTIN_SUBAGENT_PROFILES,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BUILTIN_ULTRA_CODE_SCHEME,
   ORCHESTRATION_SCHEME_OFF_ID,
+  isValidOrchestrationSchemeId,
   OrchestrationSchemeError,
   applySchemeToSubagentSpawnInput,
   clampThinkingLevelToMax,
@@ -58,6 +59,18 @@ describe('resolveOrchestrationScheme', () => {
       expect(error).toBeInstanceOf(OrchestrationSchemeError);
       expect((error as OrchestrationSchemeError).code).toBe('unknown-scheme');
     }
+  });
+
+  it('throws on invalid scheme id characters', () => {
+    expect(isValidOrchestrationSchemeId('ultra-code')).toBe(true);
+    expect(isValidOrchestrationSchemeId('off')).toBe(false);
+    expect(isValidOrchestrationSchemeId('Bad_Id')).toBe(false);
+    expect(() => resolveOrchestrationScheme(baseConfig(), 'Bad_Id')).toThrow(
+      OrchestrationSchemeError,
+    );
+    expect(() => resolveOrchestrationScheme(baseConfig(), 'Bad_Id')).toThrow(
+      /invalid orchestration scheme id/,
+    );
   });
 
   it('throws when default profile is unknown', () => {

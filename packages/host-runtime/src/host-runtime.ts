@@ -223,6 +223,7 @@ import {
   createRuntimeResourceCoordinator,
   type RuntimeResourceCoordinator,
 } from './runtime-resource-coordinator.js';
+import { TurnScopedSchemeAdmissionGate } from './orchestration-scheme-admission.js';
 import { compileBlueprintForWorker } from './blueprint-compiler.js';
 import type { SubagentRunSeam } from './subagent-run-tool.js';
 import type {
@@ -302,6 +303,11 @@ export class HostRuntime {
     string,
     import('@piwin/contracts').ResolvedOrchestrationScheme
   >();
+  /**
+   * ORCH §8.4: turn-scoped concurrency / tasks-per-run gate for scheme-bound
+   * parent runs. Bound when a scheme resolves; cleared on run terminate.
+   */
+  private readonly schemeAdmissionGate = new TurnScopedSchemeAdmissionGate();
   /** Deduplicates concurrent cleanup callbacks for one crashed Run tree. */
   private readonly workerCrashCleanupRoots = new Set<string>();
   /** CE-OBS: last known usage snapshot per session. */
@@ -1148,7 +1154,12 @@ export class HostRuntime {
     signal?: AbortSignal,
   ): Promise<PromptInput> {
     if (!input.attachments || input.attachments.length === 0) {
-      return input;
+      // Shallow copy so preparePromptInput can rewrite model-facing text
+      // (scheme / plan / history) without mutating the caller's PromptInput.
+      return {
+        ...input,
+        text: input.text,
+      };
     }
 
     const mediaRoot = getPiwinMediaDir(getPiwinRoot(this.options.piwinRoot));
@@ -2041,70 +2052,84 @@ export class HostRuntime {
         const activeScheme = parentRunId
           ? this.runOrchestrationSchemes.get(parentRunId)
           : undefined;
-        const { applySchemeToSubagentSpawnInput } = await import('@piwin/contracts');
-        const schemeSpawn = applySchemeToSubagentSpawnInput(activeScheme, {
-          ...(input.profileId ? { profileId: input.profileId } : {}),
-          ...(input.model ? { model: input.model } : {}),
-          ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
-        });
-        // Soft-generic Ultra Code: force default profile, drop model override,
-        // clamp thinking; prefer readonly when metadata is hidden.
-        let mode = input.mode;
-        if (activeScheme && !activeScheme.exposeSpawnMetadata && mode === undefined) {
-          mode = 'readonly';
-        }
-        const allowModelOverride =
-          Boolean(input.model) &&
-          (!activeScheme || activeScheme.exposeSpawnMetadata) &&
-          !schemeSpawn.clearedModel;
-        const preparedRequest = await this.prepareSubagentBatch({
-          parentSessionId: sessionId,
-          tasks: [
-            {
-              id: randomUUID(),
-              parentSessionId: sessionId,
-              task: input.task,
-              ...(mode ? { isolationOverride: mode } : {}),
-              ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
-              ...(input.sessionName ? { sessionName: input.sessionName } : {}),
-              ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
-              ...(allowModelOverride && input.model ? { model: input.model } : {}),
-              ...(schemeSpawn.thinkingLevel
-                ? { thinkingLevel: schemeSpawn.thinkingLevel }
-                : {}),
-            },
-          ],
-          maxConcurrency: 1,
-        });
-        const handle = orchestrator.startBatch(preparedRequest, parentRunId);
-        const cancelBatch = (): void => {
-          void orchestrator.cancelBatch(handle.runId).catch(() => {
-            // The batch completion is still owned by the orchestrator; the
-            // model-facing tool only needs the abort request to be durable.
-          });
+        // ORCH §8.4: scheme ceilings gate concurrent scouts for this parent turn.
+        // Unbound (Off) runs skip the gate entirely.
+        const admission = await this.schemeAdmissionGate.acquire(parentRunId, input.signal);
+        const releaseAdmission = (): void => {
+          admission?.release();
         };
-        if (input.signal?.aborted) {
-          cancelBatch();
-        } else if (input.signal) {
-          input.signal.addEventListener('abort', cancelBatch, { once: true });
-        }
-        let result: SubagentBatchResult;
         try {
-          result = await handle.completion;
-        } finally {
-          if (input.signal) {
-            input.signal.removeEventListener('abort', cancelBatch);
+          if (input.signal?.aborted) {
+            throw new Error('aborted before subagent spawn');
           }
+          const { applySchemeToSubagentSpawnInput } = await import('@piwin/contracts');
+          const schemeSpawn = applySchemeToSubagentSpawnInput(activeScheme, {
+            ...(input.profileId ? { profileId: input.profileId } : {}),
+            ...(input.model ? { model: input.model } : {}),
+            ...(input.thinkingLevel ? { thinkingLevel: input.thinkingLevel } : {}),
+          });
+          // Soft-generic: force default profile / drop model / clamp thinking.
+          // Soft-generic scouts always run readonly (even if model asked worktree).
+          let mode = input.mode;
+          if (activeScheme && !activeScheme.exposeSpawnMetadata) {
+            mode = 'readonly';
+          }
+          const allowModelOverride =
+            Boolean(input.model) &&
+            (!activeScheme || activeScheme.exposeSpawnMetadata) &&
+            !schemeSpawn.clearedModel;
+          // One model tool call = one task; turn-scoped gate limits parallel calls.
+          const preparedRequest = await this.prepareSubagentBatch({
+            parentSessionId: sessionId,
+            tasks: [
+              {
+                id: randomUUID(),
+                parentSessionId: sessionId,
+                task: input.task,
+                ...(mode ? { isolationOverride: mode } : {}),
+                ...(input.applyPolicy ? { applyPolicy: input.applyPolicy } : {}),
+                ...(input.sessionName ? { sessionName: input.sessionName } : {}),
+                ...(schemeSpawn.profileId ? { profileId: schemeSpawn.profileId } : {}),
+                ...(allowModelOverride && input.model ? { model: input.model } : {}),
+                ...(schemeSpawn.thinkingLevel
+                  ? { thinkingLevel: schemeSpawn.thinkingLevel }
+                  : {}),
+              },
+            ],
+            maxConcurrency: 1,
+          });
+          const handle = orchestrator.startBatch(preparedRequest, parentRunId);
+          const cancelBatch = (): void => {
+            void orchestrator.cancelBatch(handle.runId).catch(() => {
+              // The batch completion is still owned by the orchestrator; the
+              // model-facing tool only needs the abort request to be durable.
+            });
+          };
+          if (input.signal?.aborted) {
+            cancelBatch();
+          } else if (input.signal) {
+            input.signal.addEventListener('abort', cancelBatch, { once: true });
+          }
+          let result: SubagentBatchResult;
+          try {
+            result = await handle.completion;
+          } finally {
+            if (input.signal) {
+              input.signal.removeEventListener('abort', cancelBatch);
+            }
+          }
+          const taskResult = result.results[0];
+          const childSessionId = taskResult?.childSessionId ?? '';
+          if (taskResult && childSessionId) {
+            this.subagentTaskResults.set(childSessionId, taskResult);
+          }
+          if (!childSessionId) {
+            throw new Error(`subagent batch ${result.status} without a child session result`);
+          }
+          return { childSessionId };
+        } finally {
+          releaseAdmission();
         }
-        const taskResult = result.results[0];
-        const childSessionId = taskResult?.childSessionId ?? '';
-        if (taskResult && childSessionId) {
-          this.subagentTaskResults.set(childSessionId, taskResult);
-        }
-        if (!childSessionId) {
-          throw new Error(`subagent batch ${result.status} without a child session result`);
-        }
-        return { childSessionId };
       },
       merge: async (childSessionId) => {
         const result = this.subagentTaskResults.get(childSessionId);
@@ -2566,8 +2591,13 @@ export class HostRuntime {
       setRunOrchestrationScheme: (runId, scheme) => {
         if (scheme) {
           this.runOrchestrationSchemes.set(runId, scheme);
+          this.schemeAdmissionGate.bind(runId, {
+            maxConcurrency: scheme.maxConcurrency,
+            maxTasksPerRun: scheme.maxTasksPerRun,
+          });
         } else {
           this.runOrchestrationSchemes.delete(runId);
+          this.schemeAdmissionGate.clear(runId);
         }
       },
       getRunOrchestrationScheme: (runId) => this.runOrchestrationSchemes.get(runId),
@@ -2647,6 +2677,7 @@ export class HostRuntime {
         if (!terminal) return false;
         // ORCH: drop turn-scoped scheme binding when the run ends.
         this.runOrchestrationSchemes.delete(runId);
+        this.schemeAdmissionGate.clear(runId);
         this.runEventCorrelator.markRunTerminal(sessionId, runId);
         // CE-NAME: auto-name after first completed exchange (fire-and-forget).
         if (outcome === 'completed') {
@@ -2807,8 +2838,31 @@ export class HostRuntime {
               })),
             };
           }
-          const preparedRequest = await this.prepareSubagentBatch(request);
-          const handle = this.subagentOrchestrator.startBatch(preparedRequest, parentRunId);
+          // ORCH §8.4: clamp multi-task batches under an active parent scheme.
+          let batchRequest = request;
+          const activeScheme = parentRunId
+            ? this.runOrchestrationSchemes.get(parentRunId)
+            : undefined;
+          if (activeScheme) {
+            if (request.tasks.length > activeScheme.maxTasksPerRun) {
+              throw new Error(
+                `orchestration scheme maxTasksPerRun (${activeScheme.maxTasksPerRun}) exceeded for this turn`,
+              );
+            }
+            const clampedConcurrency = Math.min(
+              request.maxConcurrency ?? activeScheme.maxConcurrency,
+              activeScheme.maxConcurrency,
+            );
+            batchRequest = {
+              ...request,
+              maxConcurrency: Math.max(1, clampedConcurrency),
+            };
+          }
+          const preparedRequest = await this.prepareSubagentBatch(batchRequest);
+          const handle = this.subagentOrchestrator.startBatch(
+            preparedRequest,
+            parentRunId,
+          );
           return handle.completion;
         },
       },

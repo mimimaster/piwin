@@ -48,6 +48,7 @@ import {
   normalizeWalkthroughConfig,
   resolvePreset,
   SUBAGENT_CAPABILITIES,
+  isValidOrchestrationSchemeId,
 } from '@piwin/contracts';
 import { getPiwinConfigPath, getPiwinRoot } from './paths.js';
 import { sanitizeProvidersForSave, validatePiwinConfig } from './provider-validation.js';
@@ -902,7 +903,7 @@ function normalizeOrchestrationScheme(value: unknown): OrchestrationSchemeSettin
   if (!id || !name || !description || !defaultProfileId || !systemPreamble) {
     return undefined;
   }
-  if (id === 'off') return undefined;
+  if (!isValidOrchestrationSchemeId(id)) return undefined;
   // MVP: only await-all is supported (synchronous spawn+merge). Accept any input.
   const waitPolicy: 'await-all' = 'await-all';
   const scheme: OrchestrationSchemeSettings = {

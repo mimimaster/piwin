@@ -270,6 +270,71 @@ describe('config-store', () => {
     expect(loaded.subagents?.dirtyBasePolicy).toBe('ask');
   });
 
+  it('round-trips orchestration schemes and drops invalid ids', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-orch-schemes-'));
+    const config = createDefaultPiwinConfig();
+    config.subagents = {
+      profiles: [],
+      maxConcurrency: 4,
+      maxTasksPerRun: 8,
+      processIsolation: 'required',
+      parallelWritePolicy: 'worktree-only',
+      dirtyBasePolicy: 'ask',
+      schemes: [
+        {
+          id: 'my-review',
+          name: 'My Review',
+          description: 'Custom review pack',
+          defaultProfileId: 'reviewer',
+          exposeSpawnMetadata: true,
+          waitPolicy: 'await-all',
+          systemPreamble: 'Review carefully and wait for scouts.',
+          maxConcurrency: 2,
+          maxSubagentThinkingLevel: 'low',
+        },
+      ],
+    };
+    await savePiwinConfig(config, rootDir);
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.subagents?.schemes).toHaveLength(1);
+    expect(loaded.subagents?.schemes?.[0]?.id).toBe('my-review');
+    expect(loaded.subagents?.schemes?.[0]?.maxSubagentThinkingLevel).toBe('low');
+
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        ...loaded,
+        subagents: {
+          ...loaded.subagents,
+          schemes: [
+            ...(loaded.subagents?.schemes ?? []),
+            {
+              id: 'Bad_Id',
+              name: 'Bad',
+              description: 'invalid id',
+              defaultProfileId: 'explorer',
+              exposeSpawnMetadata: false,
+              waitPolicy: 'await-all',
+              systemPreamble: 'x',
+            },
+            {
+              id: 'off',
+              name: 'Off',
+              description: 'pseudo',
+              defaultProfileId: 'explorer',
+              exposeSpawnMetadata: false,
+              waitPolicy: 'await-all',
+              systemPreamble: 'x',
+            },
+          ],
+        },
+      }),
+      'utf8',
+    );
+    const reloaded = await loadPiwinConfig(rootDir);
+    expect(reloaded.subagents?.schemes?.map((scheme) => scheme.id)).toEqual(['my-review']);
+  });
+
   it('drops invalid profile entries (missing id or description)', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-subagents-invalid-'));
     const config = createDefaultPiwinConfig();

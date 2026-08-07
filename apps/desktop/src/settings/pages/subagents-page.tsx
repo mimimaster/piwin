@@ -9,6 +9,8 @@ import { useEffect, useMemo, useState, type ReactElement } from 'react';
 import {
   createDefaultSubagentConfig,
   listOrchestrationSchemes,
+  BUILTIN_ULTRA_CODE_SCHEME,
+  type OrchestrationSchemeSettings,
   SUBAGENT_CAPABILITIES,
   type ModelRef,
   type SubagentCapability,
@@ -90,7 +92,10 @@ export function SubagentProfilesPage(): ReactElement {
         dirtyBasePolicy: '脏基线并行写入策略',
         schemesTitle: '编排方案',
         schemesDescription:
-          '编排方案是发送时的可选项（Composer 下拉）。Off 表示自由模式；选择后才注入约束。此处只读预览；自定义方案编辑将在后续版本开放。',
+          '编排方案是发送时的可选项（Composer 下拉）。Off 表示自由模式；选择后才注入约束。内置方案只读，可 Clone 出可编辑副本。',
+        schemeClone: '克隆',
+        schemeCloneSaved: '已克隆并保存',
+        schemeClonedSuffix: '（副本）',
         schemeSourceBuiltin: '内置',
         schemeSourceSettings: '自定义',
         schemeDefaultProfile: '默认档案',
@@ -127,7 +132,10 @@ export function SubagentProfilesPage(): ReactElement {
         dirtyBasePolicy: 'Dirty-base parallel write policy',
         schemesTitle: 'Orchestration schemes',
         schemesDescription:
-          'Schemes are a per-send Composer choice. Off is freehand; selection injects constraints only for that prompt. Read-only preview here; full scheme editor comes later.',
+          'Schemes are a per-send Composer choice. Off is freehand; selection injects constraints only for that prompt. Built-ins are read-only; Clone makes an editable copy.',
+        schemeClone: 'Clone',
+        schemeCloneSaved: 'Cloned and saved',
+        schemeClonedSuffix: ' (copy)',
         schemeSourceBuiltin: 'Built-in',
         schemeSourceSettings: 'Custom',
         schemeDefaultProfile: 'Default profile',
@@ -137,6 +145,10 @@ export function SubagentProfilesPage(): ReactElement {
 
   const subagents: SubagentConfig = config?.subagents ?? createDefaultSubagentConfig();
 
+  const [schemeDrafts, setSchemeDrafts] = useState<OrchestrationSchemeSettings[]>(
+    () => subagents.schemes ?? [],
+  );
+  const [schemeNotice, setSchemeNotice] = useState<string | null>(null);
   // Drafts: built-ins (overridable) + custom (editable). Id is editable only
   // for custom profiles; built-in ids are fixed so overrides merge by id.
   const [drafts, setDrafts] = useState<ProfileDraft[]>([]);
@@ -167,6 +179,8 @@ export function SubagentProfilesPage(): ReactElement {
     setProcessIsolation(subagents.processIsolation);
     setParallelWritePolicy(subagents.parallelWritePolicy);
     setDirtyBasePolicy(subagents.dirtyBasePolicy);
+    setSchemeDrafts(subagents.schemes ?? []);
+    setSchemeNotice(null);
     // We intentionally only re-sync on config identity change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
@@ -174,11 +188,11 @@ export function SubagentProfilesPage(): ReactElement {
   const orchestrationSchemes = useMemo(
     () =>
       listOrchestrationSchemes({
-        schemes: subagents.schemes,
+        schemes: schemeDrafts,
         maxConcurrency: subagents.maxConcurrency,
         maxTasksPerRun: subagents.maxTasksPerRun,
       }),
-    [subagents.schemes, subagents.maxConcurrency, subagents.maxTasksPerRun],
+    [schemeDrafts, subagents.maxConcurrency, subagents.maxTasksPerRun],
   );
 
   const modelOptions = useMemo(() => {
@@ -237,6 +251,64 @@ export function SubagentProfilesPage(): ReactElement {
     setDrafts((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function buildUniqueSchemeCloneId(baseId: string, existingIds: ReadonlySet<string>): string {
+    const sanitizedBase = baseId
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'scheme';
+    let candidate = `${sanitizedBase}-copy`;
+    let suffix = 2;
+    while (existingIds.has(candidate)) {
+      candidate = `${sanitizedBase}-copy-${suffix}`;
+      suffix += 1;
+    }
+    return candidate;
+  }
+
+  async function handleCloneScheme(schemeId: string): Promise<void> {
+    if (!config) return;
+    const source =
+      orchestrationSchemes.find((scheme) => scheme.id === schemeId) ??
+      (schemeId === BUILTIN_ULTRA_CODE_SCHEME.id ? BUILTIN_ULTRA_CODE_SCHEME : undefined);
+    if (!source) return;
+
+    const existingIds = new Set([
+      ...schemeDrafts.map((scheme) => scheme.id),
+      ...orchestrationSchemes.map((scheme) => scheme.id),
+    ]);
+    const clonedId = buildUniqueSchemeCloneId(source.id, existingIds);
+    const cloned: OrchestrationSchemeSettings = {
+      id: clonedId,
+      name: `${source.name}${copy.schemeClonedSuffix}`,
+      description: source.description,
+      defaultProfileId: source.defaultProfileId,
+      exposeSpawnMetadata: source.exposeSpawnMetadata,
+      waitPolicy: 'await-all',
+      systemPreamble: source.systemPreamble,
+      ...(source.allowedProfileIds ? { allowedProfileIds: [...source.allowedProfileIds] } : {}),
+      ...(source.maxConcurrency !== undefined ? { maxConcurrency: source.maxConcurrency } : {}),
+      ...(source.maxTasksPerRun !== undefined ? { maxTasksPerRun: source.maxTasksPerRun } : {}),
+      ...(source.maxSubagentThinkingLevel
+        ? { maxSubagentThinkingLevel: source.maxSubagentThinkingLevel }
+        : {}),
+    };
+
+    const nextSchemes = [...schemeDrafts, cloned];
+    setSchemeDrafts(nextSchemes);
+
+    const nextSubagents: SubagentConfig = {
+      ...subagents,
+      schemes: nextSchemes,
+    };
+    const ok = await saveConfig({ ...config, subagents: nextSubagents });
+    if (!ok) {
+      setError(isChinese ? '克隆失败' : 'Clone failed');
+      return;
+    }
+    setSchemeNotice(copy.schemeCloneSaved);
+  }
+
   async function handleSave(): Promise<void> {
     if (!config) return;
     // Filter out invalid drafts (missing id or description).
@@ -267,7 +339,7 @@ export function SubagentProfilesPage(): ReactElement {
       parallelWritePolicy,
       dirtyBasePolicy,
       // ORCH: never drop user schemes when saving profiles/limits.
-      ...(subagents.schemes && subagents.schemes.length > 0 ? { schemes: subagents.schemes } : {}),
+      ...(schemeDrafts.length > 0 ? { schemes: schemeDrafts } : {}),
     };
     const ok = await saveConfig({ ...config, subagents: next });
     if (!ok) {
@@ -528,6 +600,9 @@ export function SubagentProfilesPage(): ReactElement {
         <p className="muted" style={{ marginBottom: 12, fontSize: 13, lineHeight: 1.45 }}>
           {copy.schemesDescription}
         </p>
+        {schemeNotice ? (
+          <Notice tone="success">{schemeNotice}</Notice>
+        ) : null}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {orchestrationSchemes.map((scheme) => (
             <div
@@ -538,9 +613,21 @@ export function SubagentProfilesPage(): ReactElement {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                 <strong style={{ fontSize: 14 }}>{scheme.name}</strong>
-                <span className="muted" style={{ fontSize: 12 }}>
-                  {scheme.source === 'builtin' ? copy.schemeSourceBuiltin : copy.schemeSourceSettings}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {scheme.source === 'builtin'
+                      ? copy.schemeSourceBuiltin
+                      : copy.schemeSourceSettings}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    disabled={saving}
+                    data-testid={`orchestration-scheme-clone-${scheme.id}`}
+                    onClick={() => void handleCloneScheme(scheme.id)}
+                  >
+                    {copy.schemeClone}
+                  </Button>
+                </div>
               </div>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
                 <code>{scheme.id}</code>

@@ -598,6 +598,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     ];
   }, [config?.subagents?.schemes, config?.subagents?.maxConcurrency, config?.subagents?.maxTasksPerRun]);
 
+  // ORCH §7.6: if the selected scheme was deleted from config, fall back to Off
+  // before send so Desktop does not paint a bubble that Host will reject.
+  useEffect(() => {
+    if (!orchestrationSchemeId || orchestrationSchemeId === ORCHESTRATION_SCHEME_OFF_ID) {
+      return;
+    }
+    const stillAvailable = orchestrationSchemeOptions.some(
+      (option) => option.id === orchestrationSchemeId,
+    );
+    if (!stillAvailable) {
+      setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
+    }
+  }, [orchestrationSchemeId, orchestrationSchemeOptions]);
+
   const sessionDocuments = useMemo<SessionDocItem[]>(() => {
     const items: SessionDocItem[] = [];
     const seenPaths = new Set<string>();
