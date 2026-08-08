@@ -63,6 +63,8 @@ export type ContextBarProps = {
   onOpenSettings?: () => void;
   workPanelOpen?: boolean;
   onToggleWorkPanel?: () => void;
+  /** Whether the current session is a conversation (general) session. */
+  isConversationSession?: boolean;
 };
 
 function modeBadgeLabel(preset: PermissionPreset): string {
@@ -316,7 +318,7 @@ export function ContextBar(props: ContextBarProps): ReactElement {
           </IconButton>
         ) : null}
 
-        {props.onToggleWorkPanel ? (
+        {props.onToggleWorkPanel && !props.isConversationSession ? (
           <IconButton
             className={
               workPanelOpen ? 'context-bar-inspector-btn active' : 'context-bar-inspector-btn'

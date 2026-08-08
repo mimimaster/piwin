@@ -53,12 +53,14 @@ export async function maybeAutoNameSession(input: {
 
     // Attempt LLM title when a model ref + matching provider are available.
     let llmTitle: string | null = null;
+    let llmAttempted = false;
     if (modelRef) {
       const provider = providers.find((item) => item.id === modelRef.providerId);
       if (provider) {
         try {
           const apiKey = await secretResolver.resolveProviderSecret(provider);
           if (apiKey) {
+            llmAttempted = true;
             const userPrompt = assistantReply
               ? `User: ${firstMessage}\nAssistant: ${assistantReply}`
               : firstMessage;
@@ -75,6 +77,12 @@ export async function maybeAutoNameSession(input: {
           warn(`LLM title failed for ${sessionId}: ${detail}`);
         }
       }
+    }
+    // The LLM path ran but produced no usable title (empty response, gate
+    // rejection, proxy error, …). Surface it once per exchange so silent
+    // no-ops like reasoning models starving the token budget are visible.
+    if (llmAttempted && !llmTitle) {
+      warn(`LLM title produced no usable title for ${sessionId}; keeping text fallback`);
     }
 
     // An LLM title upgrades a `default` or `text` name to `llm`; the text

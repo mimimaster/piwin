@@ -32,9 +32,15 @@ export type McpServerEditorDialogProps = {
   prefillDraft?: McpServerConfig | null;
   /** Pre-filled id from marketplace install. */
   prefillId?: string;
+  /** Open the dialog and immediately probe tools for an existing server. */
+  autoProbe?: boolean;
   isChinese: boolean;
   onSave: (id: string, config: McpServerConfig, originalId: string) => Promise<boolean>;
-  onValidateRaw: (document: unknown) => Promise<{ valid: boolean; document?: McpConfigDocument; issues?: Array<{ path: string; message: string }> }>;
+  onValidateRaw: (document: unknown) => Promise<{
+    valid: boolean;
+    document?: McpConfigDocument;
+    issues?: Array<{ path: string; message: string }>;
+  }>;
   onSaveRaw: (document: McpConfigDocument) => Promise<boolean>;
   onPreviewTools: (serverId: string, config: McpServerConfig) => Promise<McpToolSummary[]>;
   onTogglePinned: (selector: string, pinned: boolean) => Promise<boolean>;
@@ -109,24 +115,37 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     setTab('form');
     setTogglingPinSelector(null);
 
+    let initialDraft: ServerFormDraft;
     if (props.prefillDraft) {
       const id = props.prefillId ?? '';
-      setDraft({
+      initialDraft = {
         id,
         command: props.prefillDraft.command,
         argsText: (props.prefillDraft.args ?? []).join(' '),
         envText: Object.entries(props.prefillDraft.env ?? {})
           .map(([key, value]) => `${key}=${value}`)
           .join('\n'),
-      });
+      };
     } else if (props.serverId && props.server) {
-      setDraft(serverToDraft(props.serverId, props.server));
+      initialDraft = serverToDraft(props.serverId, props.server);
     } else {
-      setDraft(emptyDraft());
+      initialDraft = emptyDraft();
     }
+    setDraft(initialDraft);
     setRawJson(`${JSON.stringify(props.document, null, 2)}\n`);
+
+    if (props.autoProbe && props.serverId) {
+      void previewForDraft(initialDraft);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- document is intentionally omitted; pin saves must not reset the form
-  }, [props.open, props.serverId, props.server, props.prefillDraft, props.prefillId]);
+  }, [
+    props.open,
+    props.serverId,
+    props.server,
+    props.prefillDraft,
+    props.prefillId,
+    props.autoProbe,
+  ]);
 
   // Keep raw JSON tab in sync when pins change while the dialog is open.
   useEffect(() => {
@@ -142,9 +161,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     }
     if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
       setError(
-        isChinese
-          ? '服务器 ID 必须匹配 [a-zA-Z0-9_-]+。'
-          : 'Server ID must match [a-zA-Z0-9_-]+.',
+        isChinese ? '服务器 ID 必须匹配 [a-zA-Z0-9_-]+。' : 'Server ID must match [a-zA-Z0-9_-]+.',
       );
       return;
     }
@@ -198,15 +215,15 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     }
   }
 
-  async function handlePreviewTools(): Promise<void> {
-    const id = draft.id.trim();
+  async function previewForDraft(targetDraft: ServerFormDraft): Promise<void> {
+    const id = targetDraft.id.trim();
     if (!id) {
       setError(isChinese ? '请先填写服务器 ID。' : 'Enter a server ID first.');
       return;
     }
     setLoadingTools(true);
     setError(null);
-    const result = await props.onPreviewTools(id, draftToServer(draft));
+    const result = await props.onPreviewTools(id, draftToServer(targetDraft));
     setLoadingTools(false);
     setTools(result);
     setInfo(
@@ -220,6 +237,10 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     );
   }
 
+  async function handlePreviewTools(): Promise<void> {
+    await previewForDraft(draft);
+  }
+
   async function handleTogglePinned(selector: string, nextPinned: boolean): Promise<void> {
     setTogglingPinSelector(selector);
     setError(null);
@@ -227,9 +248,7 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
       const ok = await props.onTogglePinned(selector, nextPinned);
       if (!ok) {
         setError(
-          isChinese
-            ? '固定状态保存失败，请重试。'
-            : 'Failed to save pin state. Please try again.',
+          isChinese ? '固定状态保存失败，请重试。' : 'Failed to save pin state. Please try again.',
         );
       }
     } finally {
@@ -246,7 +265,10 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
       ? []
       : pinnedSelectors
           .filter((selector) => selector.startsWith(`${draftServerId}.`))
-          .filter((selector) => !tools.some((tool) => formatToolSelector(tool.serverId, tool.name) === selector))
+          .filter(
+            (selector) =>
+              !tools.some((tool) => formatToolSelector(tool.serverId, tool.name) === selector),
+          )
           .map((selector) => {
             const toolName = selector.slice(draftServerId.length + 1);
             return {
@@ -265,218 +287,248 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
 
   return (
     <Modal
-      title={isEditing ? (isChinese ? '编辑服务器' : 'Edit Server') : (isChinese ? '添加服务器' : 'Add Server')}
+      title={
+        isEditing
+          ? isChinese
+            ? '编辑服务器'
+            : 'Edit Server'
+          : isChinese
+            ? '添加服务器'
+            : 'Add Server'
+      }
       open={props.open}
       onOpenChange={props.onOpenChange}
       testId="mcp-editor-dialog"
       size="lg"
     >
       <div className="cherry-dialog-body cherry-dialog--mcp-editor">
-          {error ? <Notice tone="error">{error}</Notice> : null}
-          {info ? <Notice tone="info">{info}</Notice> : null}
+        {error ? <Notice tone="error">{error}</Notice> : null}
+        {info ? <Notice tone="info">{info}</Notice> : null}
 
-          <Tabs value={tab} onValueChange={(value) => setTab(value as 'form' | 'raw')}>
-            <TabsList className="segmented-control" label={isChinese ? '编辑模式' : 'Editor mode'}>
-              <TabsTrigger className="segmented-control-item" value="form">
-                {isChinese ? '表单' : 'Form'}
-              </TabsTrigger>
-              <TabsTrigger className="segmented-control-item" value="raw">
-                Raw JSON
-              </TabsTrigger>
-            </TabsList>
+        <Tabs value={tab} onValueChange={(value) => setTab(value as 'form' | 'raw')}>
+          <TabsList className="segmented-control" label={isChinese ? '编辑模式' : 'Editor mode'}>
+            <TabsTrigger className="segmented-control-item" value="form">
+              {isChinese ? '表单' : 'Form'}
+            </TabsTrigger>
+            <TabsTrigger className="segmented-control-item" value="raw">
+              Raw JSON
+            </TabsTrigger>
+          </TabsList>
 
-            <TabsContent value="form" className="mcp-tab-content">
-              <div className="mcp-editor-body">
-                <div className="mcp-form-grid">
-                  <Field label={isChinese ? '服务器 ID' : 'Server ID'} required>
-                    <TextInput
-                      value={draft.id}
-                      onChange={(event) => setDraft({ ...draft, id: event.currentTarget.value })}
-                      placeholder="memory"
-                      data-testid="mcp-editor-id"
-                      autoFocus
-                    />
-                  </Field>
-                  <Field label={isChinese ? '命令' : 'Command'} required>
-                    <TextInput
-                      value={draft.command}
-                      onChange={(event) => setDraft({ ...draft, command: event.currentTarget.value })}
-                      placeholder="npx"
-                      data-testid="mcp-editor-command"
-                    />
-                  </Field>
-                </div>
-                <Field label={isChinese ? '参数（以空格分隔）' : 'Args (space-separated)'}>
+          <TabsContent value="form" className="mcp-tab-content">
+            <div className="mcp-editor-body">
+              <div className="mcp-form-grid">
+                <Field label={isChinese ? '服务器 ID' : 'Server ID'} required>
                   <TextInput
-                    value={draft.argsText}
-                    onChange={(event) => setDraft({ ...draft, argsText: event.currentTarget.value })}
-                    placeholder="-y @modelcontextprotocol/server-memory"
-                    data-testid="mcp-editor-args"
+                    value={draft.id}
+                    onChange={(event) => setDraft({ ...draft, id: event.currentTarget.value })}
+                    placeholder="memory"
+                    data-testid="mcp-editor-id"
+                    autoFocus
                   />
                 </Field>
-                <Field label={isChinese ? `环境变量（每行 KEY=VALUE，支持 ${'{ENV}'}）` : `Env (KEY=VALUE per line, supports ${'{ENV}'})`}>
-                  <textarea
-                    className="mcp-raw-editor"
-                    rows={5}
-                    value={draft.envText}
-                    onChange={(event) => setDraft({ ...draft, envText: event.target.value })}
-                    placeholder="API_KEY=${API_KEY}"
-                    data-testid="mcp-editor-env"
+                <Field label={isChinese ? '命令' : 'Command'} required>
+                  <TextInput
+                    value={draft.command}
+                    onChange={(event) => setDraft({ ...draft, command: event.currentTarget.value })}
+                    placeholder="npx"
+                    data-testid="mcp-editor-command"
                   />
                 </Field>
               </div>
-
-              <section className="mcp-tools-preview" data-testid="mcp-tools-preview">
-                <div className="mcp-tools-preview-header">
-                  <h5>
-                    {isChinese ? '工具固定（直调）' : 'Pin tools (direct call)'}
-                    {tools.length > 0
-                      ? ` · ${pinnedCountForServer}/${tools.length}`
-                      : pinnedCountForServer > 0
-                        ? isChinese
-                          ? ` · 已固定 ${pinnedCountForServer}`
-                          : ` · ${pinnedCountForServer} pinned`
-                        : null}
-                  </h5>
-                  <Button
-                    variant="ghost"
-                    size="compact"
-                    disabled={loadingTools || !draft.id.trim()}
-                    onClick={() => void handlePreviewTools()}
-                    data-testid="mcp-editor-tools"
-                  >
-                    {loadingTools
-                      ? isChinese
-                        ? '探测中…'
-                        : 'Probing…'
-                      : isChinese
-                        ? '探测工具'
-                        : 'Probe tools'}
-                  </Button>
-                </div>
-                <p className="mcp-tools-preview-hint muted">
-                  {isChinese
-                    ? '钉选后以 mcp__server__tool 直接暴露给 Agent。未钉选的工具仍可通过 mcp_gateway（search → describe → call）调用。'
-                    : 'Pinned tools appear as mcp__server__tool for the agent. Unpinned tools stay reachable via mcp_gateway (search → describe → call).'}
-                </p>
-                {loadingTools && tools.length === 0 ? (
-                  <p className="mcp-tools-empty muted">
-                    {isChinese ? '正在加载工具列表…' : 'Loading tools…'}
-                  </p>
-                ) : null}
-                {!loadingTools && displayTools.length === 0 ? (
-                  <p className="mcp-tools-empty muted">
-                    {isChinese
-                      ? '尚未加载工具。保存服务器后点击「探测工具」以列出并固定高频工具。'
-                      : 'No tools loaded yet. Save the server, then click "Probe tools" to list and pin high-frequency tools.'}
-                  </p>
-                ) : null}
-                {displayTools.length > 0 ? (
-                  <ul className="mcp-tools-list">
-                    {displayTools.map((tool) => {
-                      const selector = formatToolSelector(tool.serverId, tool.name);
-                      const isPinned = pinnedSelectors.includes(selector);
-                      const pinLabel = isPinned
-                        ? isChinese
-                          ? '取消固定直接调用'
-                          : 'Unpin direct call'
-                        : isChinese
-                          ? '固定为直接调用工具'
-                          : 'Pin as direct tool';
-                      return (
-                        <li key={tool.exposedName} className="mcp-tool-row">
-                          <IconButton
-                            className={
-                              isPinned
-                                ? 'mcp-tool-pin-btn mcp-tool-pin-btn--active'
-                                : 'mcp-tool-pin-btn'
-                            }
-                            label={pinLabel}
-                            title={pinLabel}
-                            aria-pressed={isPinned}
-                            disabled={togglingPinSelector === selector}
-                            data-testid={`mcp-pin-${selector}`}
-                            onClick={() => {
-                              void handleTogglePinned(selector, !isPinned);
-                            }}
-                          >
-                            <IconPin
-                              className={
-                                isPinned ? 'mcp-tool-pin-icon mcp-tool-pin-icon--filled' : 'mcp-tool-pin-icon'
-                              }
-                              width={16}
-                              height={16}
-                            />
-                          </IconButton>
-                          <div className="mcp-tool-row-body">
-                            <div className="mcp-tool-row-title">
-                              <strong>{tool.exposedName}</strong>
-                              {isPinned ? (
-                                <span className="mcp-tool-pin-pill">
-                                  {isChinese ? '直调' : 'direct'}
-                                </span>
-                              ) : (
-                                <span className="mcp-tool-gateway-pill">
-                                  gateway
-                                </span>
-                              )}
-                            </div>
-                            <span className="muted mcp-tool-row-desc">
-                              {tool.description || tool.name}
-                            </span>
-                            <code className="mcp-tool-selector muted">{selector}</code>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : null}
-              </section>
-            </TabsContent>
-
-            <TabsContent value="raw" className="mcp-tab-content">
-              <Field label="mcpServers" required>
-                <textarea
-                  className="mcp-raw-editor mcp-raw-document"
-                  rows={16}
-                  value={rawJson}
-                  onChange={(event) => setRawJson(event.target.value)}
-                  spellCheck={false}
-                  data-testid="mcp-raw-json"
+              <Field label={isChinese ? '参数（以空格分隔）' : 'Args (space-separated)'}>
+                <TextInput
+                  value={draft.argsText}
+                  onChange={(event) => setDraft({ ...draft, argsText: event.currentTarget.value })}
+                  placeholder="-y @modelcontextprotocol/server-memory"
+                  data-testid="mcp-editor-args"
                 />
               </Field>
-            </TabsContent>
-          </Tabs>
-        </div>
+              <Field
+                label={
+                  isChinese
+                    ? `环境变量（每行 KEY=VALUE，支持 ${'{ENV}'}）`
+                    : `Env (KEY=VALUE per line, supports ${'{ENV}'})`
+                }
+              >
+                <textarea
+                  className="mcp-raw-editor"
+                  rows={5}
+                  value={draft.envText}
+                  onChange={(event) => setDraft({ ...draft, envText: event.target.value })}
+                  placeholder="API_KEY=${API_KEY}"
+                  data-testid="mcp-editor-env"
+                />
+              </Field>
+            </div>
 
-        <footer className="cherry-dialog-footer">
-          <div className="mcp-editor-actions">
-            {tab === 'form' ? (
-              <>
-                <span className="mcp-editor-spacer" />
-                <Button onClick={() => props.onOpenChange(false)}>
-                  {isChinese ? '取消' : 'Cancel'}
+            <section className="mcp-tools-preview" data-testid="mcp-tools-preview">
+              <div className="mcp-tools-preview-header">
+                <h5>
+                  {isChinese ? '工具固定（直调）' : 'Pin tools (direct call)'}
+                  {tools.length > 0
+                    ? ` · ${pinnedCountForServer}/${tools.length}`
+                    : pinnedCountForServer > 0
+                      ? isChinese
+                        ? ` · 已固定 ${pinnedCountForServer}`
+                        : ` · ${pinnedCountForServer} pinned`
+                      : null}
+                </h5>
+                <Button
+                  variant="ghost"
+                  size="compact"
+                  disabled={loadingTools || !draft.id.trim()}
+                  onClick={() => void handlePreviewTools()}
+                  data-testid="mcp-editor-tools"
+                >
+                  {loadingTools
+                    ? isChinese
+                      ? '探测中…'
+                      : 'Probing…'
+                    : isChinese
+                      ? '探测工具'
+                      : 'Probe tools'}
                 </Button>
-                <Button variant="primary" disabled={saving} onClick={() => void handleSaveForm()} data-testid="mcp-editor-save">
-                  {saving ? (isChinese ? '保存中…' : 'Saving…') : (isChinese ? '保存' : 'Save')}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button onClick={() => void handleValidateRaw()} data-testid="mcp-editor-validate">
-                  {isChinese ? '验证' : 'Validate'}
-                </Button>
-                <span className="mcp-editor-spacer" />
-                <Button onClick={() => props.onOpenChange(false)}>
-                  {isChinese ? '取消' : 'Cancel'}
-                </Button>
-                <Button variant="primary" disabled={saving} onClick={() => void handleSaveRaw()} data-testid="mcp-editor-save-raw">
-                  {saving ? (isChinese ? '保存中…' : 'Saving…') : (isChinese ? '保存 JSON' : 'Save JSON')}
-                </Button>
-              </>
-            )}
-          </div>
-        </footer>
+              </div>
+              <p className="mcp-tools-preview-hint muted">
+                {isChinese
+                  ? '钉选后以 mcp__server__tool 直接暴露给 Agent。未钉选的工具仍可通过 mcp_gateway（search → describe → call）调用。'
+                  : 'Pinned tools appear as mcp__server__tool for the agent. Unpinned tools stay reachable via mcp_gateway (search → describe → call).'}
+              </p>
+              {loadingTools && tools.length === 0 ? (
+                <p className="mcp-tools-empty muted">
+                  {isChinese ? '正在加载工具列表…' : 'Loading tools…'}
+                </p>
+              ) : null}
+              {!loadingTools && displayTools.length === 0 ? (
+                <p className="mcp-tools-empty muted">
+                  {isChinese
+                    ? '尚未加载工具。保存服务器后点击「探测工具」以列出并固定高频工具。'
+                    : 'No tools loaded yet. Save the server, then click "Probe tools" to list and pin high-frequency tools.'}
+                </p>
+              ) : null}
+              {displayTools.length > 0 ? (
+                <ul className="mcp-tools-list">
+                  {displayTools.map((tool) => {
+                    const selector = formatToolSelector(tool.serverId, tool.name);
+                    const isPinned = pinnedSelectors.includes(selector);
+                    const pinLabel = isPinned
+                      ? isChinese
+                        ? '取消固定直接调用'
+                        : 'Unpin direct call'
+                      : isChinese
+                        ? '固定为直接调用工具'
+                        : 'Pin as direct tool';
+                    return (
+                      <li key={tool.exposedName} className="mcp-tool-row">
+                        <IconButton
+                          className={
+                            isPinned
+                              ? 'mcp-tool-pin-btn mcp-tool-pin-btn--active'
+                              : 'mcp-tool-pin-btn'
+                          }
+                          label={pinLabel}
+                          title={pinLabel}
+                          aria-pressed={isPinned}
+                          disabled={togglingPinSelector === selector}
+                          data-testid={`mcp-pin-${selector}`}
+                          onClick={() => {
+                            void handleTogglePinned(selector, !isPinned);
+                          }}
+                        >
+                          <IconPin
+                            className={
+                              isPinned
+                                ? 'mcp-tool-pin-icon mcp-tool-pin-icon--filled'
+                                : 'mcp-tool-pin-icon'
+                            }
+                            width={16}
+                            height={16}
+                          />
+                        </IconButton>
+                        <div className="mcp-tool-row-body">
+                          <div className="mcp-tool-row-title">
+                            <strong>{tool.exposedName}</strong>
+                            {isPinned ? (
+                              <span className="mcp-tool-pin-pill">
+                                {isChinese ? '直调' : 'direct'}
+                              </span>
+                            ) : (
+                              <span className="mcp-tool-gateway-pill">gateway</span>
+                            )}
+                          </div>
+                          <span className="muted mcp-tool-row-desc">
+                            {tool.description || tool.name}
+                          </span>
+                          <code className="mcp-tool-selector muted">{selector}</code>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </section>
+          </TabsContent>
+
+          <TabsContent value="raw" className="mcp-tab-content">
+            <Field label="mcpServers" required>
+              <textarea
+                className="mcp-raw-editor mcp-raw-document"
+                rows={16}
+                value={rawJson}
+                onChange={(event) => setRawJson(event.target.value)}
+                spellCheck={false}
+                data-testid="mcp-raw-json"
+              />
+            </Field>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      <footer className="cherry-dialog-footer">
+        <div className="mcp-editor-actions">
+          {tab === 'form' ? (
+            <>
+              <span className="mcp-editor-spacer" />
+              <Button onClick={() => props.onOpenChange(false)}>
+                {isChinese ? '取消' : 'Cancel'}
+              </Button>
+              <Button
+                variant="primary"
+                disabled={saving}
+                onClick={() => void handleSaveForm()}
+                data-testid="mcp-editor-save"
+              >
+                {saving ? (isChinese ? '保存中…' : 'Saving…') : isChinese ? '保存' : 'Save'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={() => void handleValidateRaw()} data-testid="mcp-editor-validate">
+                {isChinese ? '验证' : 'Validate'}
+              </Button>
+              <span className="mcp-editor-spacer" />
+              <Button onClick={() => props.onOpenChange(false)}>
+                {isChinese ? '取消' : 'Cancel'}
+              </Button>
+              <Button
+                variant="primary"
+                disabled={saving}
+                onClick={() => void handleSaveRaw()}
+                data-testid="mcp-editor-save-raw"
+              >
+                {saving
+                  ? isChinese
+                    ? '保存中…'
+                    : 'Saving…'
+                  : isChinese
+                    ? '保存 JSON'
+                    : 'Save JSON'}
+              </Button>
+            </>
+          )}
+        </div>
+      </footer>
     </Modal>
   );
 }

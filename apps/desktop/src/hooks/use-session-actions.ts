@@ -109,7 +109,17 @@ export function useSessionActions(args: UseSessionActionsArgs) {
   const hydrateSessions = useCallback(
     async (
       projectPathOrScope?: string | { kind: 'general' } | { kind: 'project'; projectPath: string },
-      options?: { includeArchived?: boolean },
+      options?: {
+        includeArchived?: boolean;
+        /**
+         * When true, an explicit project list also fills the active `sessions`
+         * array. Needed after `project/set` in the same tick: the hydrate
+         * closure still sees the previous activeScope, so isActiveProject
+         * would otherwise only update the folder map and leave the open
+         * project empty in the sidebar.
+         */
+        fillActiveList?: boolean;
+      },
     ): Promise<SessionSummary[]> => {
       const includeArchived = options?.includeArchived ?? showArchivedSessions;
       let listed;
@@ -189,7 +199,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         const isActiveProject =
           state.activeScope.kind === 'project' &&
           state.activeScope.projectPath === listedProjectPath;
-        if (isActiveProject) {
+        if (isActiveProject || options?.fillActiveList === true) {
           // session/hydrate populates `sessions` and mirrors into the folder map.
           dispatch({ type: 'session/hydrate', sessions: visible });
         } else {
@@ -212,6 +222,63 @@ export function useSessionActions(args: UseSessionActionsArgs) {
 
   const handleResumeSession = useCallback(
     async (sessionId: string): Promise<void> => {
+      // Project ownership wins when a session is dual-listed (the bug that
+      // painted the same row under both Projects and Conversations).
+      const knownProjectPath = Object.entries(state.projectSessionsByPath).find(([, list]) =>
+        list.some((session) => session.id === sessionId),
+      )?.[0];
+      const knownGeneral = state.generalSessions.some((session) => session.id === sessionId);
+      const existingListItem =
+        knownProjectPath != null
+          ? state.projectSessionsByPath[knownProjectPath]?.find(
+              (session) => session.id === sessionId,
+            )
+          : state.generalSessions.find((session) => session.id === sessionId) ??
+            state.sessions.find((session) => session.id === sessionId);
+
+      if (
+        knownProjectPath &&
+        (state.activeScope.kind !== 'project' ||
+          state.activeScope.projectPath !== knownProjectPath)
+      ) {
+        // Switch into the owning project without going through handleOpenProject
+        // (that helper also resumes, which would recurse).
+        const openResponse = await hostClient.request({
+          type: 'project/open',
+          path: knownProjectPath,
+        });
+        if (!openResponse.success) {
+          dispatch({ type: 'error', message: openResponse.error });
+          return;
+        }
+        const openPayload = openResponse.data as {
+          path?: string;
+          trusted?: boolean;
+          trust?: string;
+        };
+        let trusted = openPayload.trusted === true || openPayload.trust === 'trusted';
+        const openedPath = openPayload.path ?? knownProjectPath;
+        if (!trusted) {
+          const trustResponse = await hostClient.request({
+            type: 'project/trust',
+            path: openedPath,
+          });
+          if (!trustResponse.success) {
+            dispatch({ type: 'project/set', path: openedPath, trusted: false });
+            dispatch({ type: 'error', message: trustResponse.error });
+            return;
+          }
+          trusted = true;
+        }
+        dispatch({ type: 'project/set', path: openedPath, trusted });
+        await hydrateSessions(openedPath, { fillActiveList: true });
+        void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+      }
+      if (knownGeneral && !knownProjectPath && state.activeScope.kind === 'project') {
+        dispatch({ type: 'project/clear' });
+        await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+      }
+
       dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
       const resumed = await hostClient.request({
         type: 'session/resume',
@@ -232,6 +299,85 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         });
         return;
       }
+      const data = resumed.data as {
+        sessionId: string;
+        live: boolean;
+        messages?: SessionTranscriptMessage[];
+        outline?: import('@piwin/contracts').SessionOutlineNode[];
+        model?: ModelRef;
+        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+        scope?: import('@piwin/contracts').SessionScope;
+        projectPath?: string;
+        name?: string;
+      };
+      // Host scope is authoritative. Prefer explicit scope; only treat a
+      // non-empty projectPath as project when scope is missing (legacy).
+      const resumedProjectPath =
+        data.scope?.kind === 'project'
+          ? data.scope.projectPath
+          : data.scope?.kind === 'general'
+            ? null
+            : data.projectPath?.trim()
+              ? data.projectPath
+              : null;
+      if (
+        resumedProjectPath &&
+        (state.activeScope.kind !== 'project' ||
+          state.activeScope.projectPath !== resumedProjectPath) &&
+        knownProjectPath !== resumedProjectPath
+      ) {
+        const openResponse = await hostClient.request({
+          type: 'project/open',
+          path: resumedProjectPath,
+        });
+        if (openResponse.success) {
+          const openPayload = openResponse.data as {
+            path?: string;
+            trusted?: boolean;
+            trust?: string;
+          };
+          let trusted = openPayload.trusted === true || openPayload.trust === 'trusted';
+          const openedPath = openPayload.path ?? resumedProjectPath;
+          if (!trusted) {
+            const trustResponse = await hostClient.request({
+              type: 'project/trust',
+              path: openedPath,
+            });
+            trusted = trustResponse.success;
+          }
+          if (trusted) {
+            dispatch({ type: 'project/set', path: openedPath, trusted: true });
+            await hydrateSessions(openedPath, {
+              fillActiveList: true,
+              includeArchived: showArchivedSessions,
+            });
+            void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+            dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
+          }
+        }
+      }
+      if (
+        data.scope?.kind === 'general' &&
+        state.activeScope.kind === 'project' &&
+        !knownGeneral &&
+        !resumedProjectPath
+      ) {
+        dispatch({ type: 'project/clear' });
+        await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+        dispatch({ type: 'session/set', sessionId, awaitTranscript: true });
+      }
+      // Re-assert ownership with host scope so dual-listed rows collapse to
+      // the correct sidebar section (project vs Conversations).
+      if (data.scope || data.name) {
+        dispatch({
+          type: 'session/update',
+          session: {
+            id: sessionId,
+            name: data.name ?? existingListItem?.name ?? '',
+            ...(data.scope ? { scope: data.scope } : {}),
+          },
+        });
+      }
       // Hydrate child summaries in the background so the activity dock and
       // inspector have data without blocking transcript load. The reducer
       // ignores children whose parent is not the active session, so a stale
@@ -251,14 +397,6 @@ export function useSessionActions(args: UseSessionActionsArgs) {
           children: childrenData?.sessions ?? [],
         });
       })();
-      const data = resumed.data as {
-        sessionId: string;
-        live: boolean;
-        messages?: SessionTranscriptMessage[];
-        outline?: import('@piwin/contracts').SessionOutlineNode[];
-        model?: ModelRef;
-        thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
-      };
       if (data.model || data.thinkingLevel !== undefined) {
         onSessionComposerProfileRestored?.({
           ...(data.model ? { model: data.model } : {}),
@@ -321,7 +459,18 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         );
       }
     },
-    [dispatch, dispatchNotification, hostClient, onSessionComposerProfileRestored],
+    [
+      dispatch,
+      dispatchNotification,
+      hostClient,
+      hydrateSessions,
+      onSessionComposerProfileRestored,
+      showArchivedSessions,
+      state.activeScope,
+      state.generalSessions,
+      state.projectSessionsByPath,
+      state.sessions,
+    ],
   );
 
   const ensureSession = useCallback(

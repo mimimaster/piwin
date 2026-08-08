@@ -223,6 +223,8 @@ export type ChatThreadProps = {
   artifactMaxBytes?: number;
   /** Global composer configuration so the in-place edit card matches the bottom dock. */
   composerCard: ComposerDockProps;
+  /** Callback when clicking a search result file or file link. */
+  onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /** Callback when clicking a markdown document link or plan document chip. */
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
   /** Called when the user selects an execution mode for the session plan. */
@@ -372,6 +374,7 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               {...(props.artifactMaxBytes !== undefined
                 ? { artifactMaxBytes: props.artifactMaxBytes }
                 : {})}
+              {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
               {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
               {...(props.locale ? { locale: props.locale } : {})}
               {...(props.walkthroughsByMessageId
@@ -464,6 +467,8 @@ type ChatMessageRowProps = {
   artifactCodeFirst?: boolean;
   /** Security byte cap forwarded to evaluateCodeFence. */
   artifactMaxBytes?: number;
+  /** Callback when clicking a search result file or file link. */
+  onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
   /** Callback when clicking a markdown document link or plan document chip. */
   onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
   /** Locale used by all run activity components. */
@@ -710,6 +715,7 @@ const ChatMessageRow = memo(
             showThinking={props.showThinking}
             {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
             {...(props.toolDiffRequest !== undefined ? { request: props.toolDiffRequest } : {})}
+            {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
             {...(props.locale ? { locale: props.locale } : {})}
             {...(message.status !== 'streaming' &&
             !(message.runId && props.activeRunId && message.runId === props.activeRunId)

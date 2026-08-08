@@ -11,7 +11,7 @@ import {
 } from './run-presentation';
 import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
 import { TurnToolGroup } from './turn-tool-group';
-import { IconChevronDown, IconBrain } from './shell-icons';
+import { IconChevronRight, IconBrain } from './shell-icons';
 import { RunActivitySplash } from './RunActivitySplash.js';
 import { turnPresentationToActivityInput } from './run-activity-mappers.js';
 import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
@@ -31,6 +31,8 @@ export type TurnWorkDetailsProps = {
   projectPath?: string | null;
   /** Host request adapter forwarded to tool cards → DiffCard. */
   request?: DiffCardRequest;
+  /** Callback when user clicks a matched file in tool results. */
+  onOpenFile?: (absolutePath: string, relativePath?: string) => void;
   /** Collapse historical tool cards into a summary on session hydrate. */
   historyCollapsed?: boolean;
 };
@@ -104,6 +106,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
     locale,
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
+    ...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {}),
     ...(props.historyCollapsed ? { historyCollapsed: true } : {}),
   };
 
@@ -148,7 +151,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
               className={`turn-work-details-chevron${thinkingOpen ? ' is-open' : ''}`}
               aria-hidden
             >
-              <IconChevronDown />
+              <IconChevronRight />
             </span>
           </button>
 

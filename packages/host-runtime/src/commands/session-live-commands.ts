@@ -87,6 +87,7 @@ import {
   indexProjectPathForScope,
   resolveSessionLocation,
   scopeFromIndexRecord,
+  workingDirectoryFromIndexRecord,
 } from '../session-scope.js';
 
 export type SessionLiveContext = {
@@ -979,6 +980,12 @@ export async function handleSessionLiveCommand(
         projectPath: existing.projectPath,
         outline: buildSessionOutline(messages),
       };
+      const resumeScope = scopeFromIndexRecord(existing);
+      data.scope = resumeScope;
+      const resumeWorkingDirectory = workingDirectoryFromIndexRecord(existing);
+      if (resumeWorkingDirectory) {
+        data.workingDirectory = resumeWorkingDirectory;
+      }
       if (existing.name) {
         data.name = existing.name;
       }

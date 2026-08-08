@@ -2113,15 +2113,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               transportLabel={hostClient.getTransport()}
               hostStatus={hostStatus}
               recentProjects={recentProjects}
-              projectsSectionCollapsed={preferences.projectsSectionCollapsed === true}
-              onToggleProjectsSection={() => {
-                const nextPreferences: DesktopPreferences = {
-                  ...preferences,
-                  projectsSectionCollapsed: !(preferences.projectsSectionCollapsed === true),
-                };
-                setPreferences(nextPreferences);
-                saveDesktopPreferences(nextPreferences);
-              }}
               sessions={state.sessions}
               filteredSessions={filteredSessions}
               generalSessions={filteredGeneralSessions}
@@ -2226,6 +2217,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       ? '项目'
                       : 'Project',
               }}
+              isConversationSession={state.activeScope.kind === 'general'}
               runState={runStatus}
               onStop={() => void handleAbort()}
               onViewActivity={() => openRightTab('terminal')}
@@ -2376,6 +2368,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       onRetry={handleRetryMessage}
                       onFeedback={handleMessageFeedback}
                       onArtifactAction={handleArtifactAction}
+                      onOpenFile={(absolutePath, relativePath) => {
+                        handleOpenDocument(
+                          {
+                            title: (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
+                            path: absolutePath,
+                          },
+                          'inspector',
+                        );
+                      }}
                       onOpenDocument={handleOpenDocument}
                       onPlanExecute={handlePlanExecute}
                       onPlanAbort={handlePlanAbort}

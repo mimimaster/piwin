@@ -20,6 +20,7 @@ export function summaryToListItem(
   if (session.origin) item.origin = session.origin;
   if (session.model) item.model = session.model;
   if (session.thinkingLevel !== undefined) item.thinkingLevel = session.thinkingLevel;
+  if (session.scope) item.scope = session.scope;
   return item;
 }
 
@@ -41,5 +42,6 @@ export function mapSummariesToListItems(
     ...(session.thinkingLevel !== undefined
       ? { thinkingLevel: session.thinkingLevel }
       : {}),
+    ...(session.scope ? { scope: session.scope } : {}),
   }));
 }

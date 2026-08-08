@@ -6,6 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  IconButton,
   Notice,
   Spinner,
   Switch,
@@ -29,6 +30,7 @@ import type {
 } from '@piwin/contracts';
 import { PageTitle } from './settings/page-title';
 import { McpServerEditorDialog } from './McpServerEditorDialog';
+import { IconPin } from './shell-icons';
 
 export type McpPanelProps = {
   request: (command: {
@@ -71,6 +73,7 @@ export function McpPanel(props: McpPanelProps) {
 
   // Editor dialog state
   const [editorOpen, setEditorOpen] = useState(false);
+  const [editorAutoProbe, setEditorAutoProbe] = useState(false);
   const [editServerId, setEditServerId] = useState('');
   const [editServer, setEditServer] = useState<McpServerConfig | undefined>(undefined);
   const [prefillDraft, setPrefillDraft] = useState<McpServerConfig | null>(null);
@@ -192,6 +195,7 @@ export function McpPanel(props: McpPanelProps) {
     setEditServer(undefined);
     setPrefillDraft(null);
     setPrefillId('');
+    setEditorAutoProbe(false);
     setEditorOpen(true);
   }
 
@@ -200,6 +204,16 @@ export function McpPanel(props: McpPanelProps) {
     setEditServer(document.mcpServers[serverId]);
     setPrefillDraft(null);
     setPrefillId('');
+    setEditorAutoProbe(false);
+    setEditorOpen(true);
+  }
+
+  function openPinEditor(serverId: string): void {
+    setEditServerId(serverId);
+    setEditServer(document.mcpServers[serverId]);
+    setPrefillDraft(null);
+    setPrefillId('');
+    setEditorAutoProbe(true);
     setEditorOpen(true);
   }
 
@@ -233,9 +247,11 @@ export function McpPanel(props: McpPanelProps) {
     return ok;
   }
 
-  async function handleValidateRawFromEditor(
-    raw: unknown,
-  ): Promise<{ valid: boolean; document?: McpConfigDocument; issues?: Array<{ path: string; message: string }> }> {
+  async function handleValidateRawFromEditor(raw: unknown): Promise<{
+    valid: boolean;
+    document?: McpConfigDocument;
+    issues?: Array<{ path: string; message: string }>;
+  }> {
     const response = await props.request({ type: 'mcp/validate', document: raw });
     if (!response.success) {
       return { valid: false, issues: [{ path: '', message: response.error }] };
@@ -351,7 +367,9 @@ export function McpPanel(props: McpPanelProps) {
     if (!draft || !draft.command) {
       showUiNotification({
         tone: 'error',
-        message: isChinese ? '此卡片没有安装草稿，请手动配置。' : 'This card has no install draft — configure manually.',
+        message: isChinese
+          ? '此卡片没有安装草稿，请手动配置。'
+          : 'This card has no install draft — configure manually.',
         autoClose: 4000,
       });
       return;
@@ -385,7 +403,11 @@ export function McpPanel(props: McpPanelProps) {
     <>
       {confirmDialog.dialog}
       <div className={props.variant === 'inline' ? 'settings-inline-manager' : 'modal-backdrop'}>
-        <div className={props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'}>
+        <div
+          className={
+            props.variant === 'inline' ? 'settings-inline-content' : 'modal settings-modal'
+          }
+        >
           <Tabs
             value={mainTab}
             onValueChange={(value) => setMainTab(value as 'configured' | 'registry')}
@@ -396,25 +418,49 @@ export function McpPanel(props: McpPanelProps) {
                 title={isChinese ? 'MCP 服务器' : 'MCP Servers'}
                 description={
                   mainTab === 'configured'
-                    ? (isChinese
+                    ? isChinese
                       ? '管理本地 MCP 服务器。打开服务器可固定直调工具；未固定工具由 Agent 通过 mcp_gateway 调用。'
-                      : 'Manage local MCP servers. Open a server to pin direct tools; unpinned tools are called via mcp_gateway.')
-                    : (isChinese ? '从开放市场浏览并安装社区 MCP 服务器。' : 'Browse and install MCP servers from the community marketplace.')
+                      : 'Manage local MCP servers. Open a server to pin direct tools; unpinned tools are called via mcp_gateway.'
+                    : isChinese
+                      ? '从开放市场浏览并安装社区 MCP 服务器。'
+                      : 'Browse and install MCP servers from the community marketplace.'
                 }
               />
             ) : null}
 
-            <div className="mcp-tabs-toolbar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
+            <div
+              className="mcp-tabs-toolbar"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 16,
+                gap: 12,
+              }}
+            >
               <TabsList className="segmented-control" label={isChinese ? 'MCP 视图' : 'MCP views'}>
-                <TabsTrigger value="configured" className="segmented-control-item" testId="mcp-tab-configured">
+                <TabsTrigger
+                  value="configured"
+                  className="segmented-control-item"
+                  testId="mcp-tab-configured"
+                >
                   {isChinese ? `已配置 (${serverIds.length})` : `Configured (${serverIds.length})`}
                 </TabsTrigger>
-                <TabsTrigger value="registry" className="segmented-control-item" testId="mcp-tab-registry">
+                <TabsTrigger
+                  value="registry"
+                  className="segmented-control-item"
+                  testId="mcp-tab-registry"
+                >
                   {isChinese ? '市场' : 'Marketplace'}
                 </TabsTrigger>
               </TabsList>
               {mainTab === 'configured' && (
-                <Button size="compact" variant="primary" onClick={openAddEditor} data-testid="mcp-add-btn">
+                <Button
+                  size="compact"
+                  variant="primary"
+                  onClick={openAddEditor}
+                  data-testid="mcp-add-btn"
+                >
                   + {isChinese ? '添加服务器' : 'Add Server'}
                 </Button>
               )}
@@ -430,11 +476,15 @@ export function McpPanel(props: McpPanelProps) {
               ) : null}
 
               {loading ? (
-                <div className="mcp-loading-state"><Spinner /></div>
+                <div className="mcp-loading-state">
+                  <Spinner />
+                </div>
               ) : serverIds.length === 0 ? (
                 <div className="mcp-empty-list">
                   <p style={{ marginBottom: 16 }}>
-                    {isChinese ? '尚未配置服务器。点击「添加服务器」创建第一个 MCP 服务器。' : 'No servers configured. Click "Add Server" to create your first MCP server.'}
+                    {isChinese
+                      ? '尚未配置服务器。点击「添加服务器」创建第一个 MCP 服务器。'
+                      : 'No servers configured. Click "Add Server" to create your first MCP server.'}
                   </p>
                   <Button size="compact" variant="primary" onClick={openAddEditor}>
                     + {isChinese ? '添加服务器' : 'Add Server'}
@@ -448,13 +498,15 @@ export function McpPanel(props: McpPanelProps) {
                     const isEnabled = !server?.disabled;
                     const runtimeStatus = !isEnabled
                       ? 'stopped'
-                      : (health?.status === 'error'
+                      : health?.status === 'error'
                         ? 'error'
-                        : (health?.status === 'starting'
+                        : health?.status === 'starting'
                           ? 'starting'
-                          : 'running'));
+                          : 'running';
                     const toolCount = health?.toolCount ?? 0;
-                    const fullCommand = [server?.command ?? '', ...(server?.args ?? [])].filter(Boolean).join(' ');
+                    const fullCommand = [server?.command ?? '', ...(server?.args ?? [])]
+                      .filter(Boolean)
+                      .join(' ');
                     const envCount = Object.keys(server?.env ?? {}).length;
                     const pinPrefix = `${serverId}.`;
                     const pinnedCount = (document.pinnedSelectors ?? []).filter((selector) =>
@@ -462,19 +514,34 @@ export function McpPanel(props: McpPanelProps) {
                     ).length;
 
                     return (
-                      <li key={serverId} className="ext-list-item mcp-server-card" data-testid={`mcp-server-${serverId}`}>
-                        <div className="mcp-server-card-body" onClick={() => openEditEditor(serverId)}>
+                      <li
+                        key={serverId}
+                        className="ext-list-item mcp-server-card"
+                        data-testid={`mcp-server-${serverId}`}
+                      >
+                        <div
+                          className="mcp-server-card-body"
+                          onClick={() => openEditEditor(serverId)}
+                        >
                           <div className="mcp-server-card-title">
                             <span
                               className={`mcp-status-dot-inline ${runtimeStatus}`}
                               title={
                                 runtimeStatus === 'running'
-                                  ? (isChinese ? '运行中' : 'Running')
+                                  ? isChinese
+                                    ? '运行中'
+                                    : 'Running'
                                   : runtimeStatus === 'starting'
-                                    ? (isChinese ? '启动中' : 'Starting')
+                                    ? isChinese
+                                      ? '启动中'
+                                      : 'Starting'
                                     : runtimeStatus === 'error'
-                                      ? (isChinese ? '运行错误' : 'Error')
-                                      : (isChinese ? '已停止' : 'Stopped')
+                                      ? isChinese
+                                        ? '运行错误'
+                                        : 'Error'
+                                      : isChinese
+                                        ? '已停止'
+                                        : 'Stopped'
                               }
                             />
                             <strong className="mcp-server-id">{serverId}</strong>
@@ -520,12 +587,41 @@ export function McpPanel(props: McpPanelProps) {
                               void handleToggleServer(serverId, checked);
                             }}
                             onClick={(event) => event.stopPropagation()}
-                            aria-label={
-                              isChinese
-                                ? `切换 ${serverId}`
-                                : `Toggle ${serverId}`
-                            }
+                            aria-label={isChinese ? `切换 ${serverId}` : `Toggle ${serverId}`}
                           />
+                          <IconButton
+                            label={
+                              isChinese
+                                ? `管理 ${serverId} 的固定工具`
+                                : `Manage pinned tools for ${serverId}`
+                            }
+                            title={
+                              pinnedCount > 0
+                                ? isChinese
+                                  ? `${pinnedCount} 个工具已固定`
+                                  : `${pinnedCount} tool(s) pinned`
+                                : isChinese
+                                  ? '打开并探测工具以固定'
+                                  : 'Open and probe tools to pin'
+                            }
+                            className={
+                              pinnedCount > 0
+                                ? 'mcp-server-pin-btn mcp-server-pin-btn--active'
+                                : 'mcp-server-pin-btn'
+                            }
+                            data-testid={`mcp-server-pin-trigger-${serverId}`}
+                            onClick={() => openPinEditor(serverId)}
+                          >
+                            <IconPin
+                              className={
+                                pinnedCount > 0
+                                  ? 'mcp-server-pin-icon mcp-server-pin-icon--filled'
+                                  : 'mcp-server-pin-icon'
+                              }
+                              width={16}
+                              height={16}
+                            />
+                          </IconButton>
                           <DropdownMenu
                             align="end"
                             side="bottom"
@@ -574,7 +670,9 @@ export function McpPanel(props: McpPanelProps) {
                   data-testid="mcp-registry-search"
                   value={registryQuery}
                   onChange={(event) => setRegistryQuery(event.currentTarget.value)}
-                  placeholder={isChinese ? '筛选标题、ID 或描述…' : 'Filter by title, id, or description…'}
+                  placeholder={
+                    isChinese ? '筛选标题、ID 或描述…' : 'Filter by title, id, or description…'
+                  }
                   aria-label={isChinese ? '筛选' : 'Filter'}
                 />
                 <Button
@@ -583,13 +681,25 @@ export function McpPanel(props: McpPanelProps) {
                   disabled={registryLoading}
                   onClick={() => void loadRegistry()}
                 >
-                  {registryLoading ? (isChinese ? '加载中...' : 'Loading...') : isChinese ? '刷新' : 'Refresh'}
+                  {registryLoading
+                    ? isChinese
+                      ? '加载中...'
+                      : 'Loading...'
+                    : isChinese
+                      ? '刷新'
+                      : 'Refresh'}
                 </Button>
               </div>
-              {registryLoading && <div className="mcp-loading-state"><Spinner /></div>}
+              {registryLoading && (
+                <div className="mcp-loading-state">
+                  <Spinner />
+                </div>
+              )}
               <ul className="ext-list" data-testid="mcp-registry-list">
                 {registryCards.length === 0 && !registryLoading ? (
-                  <li className="mcp-empty-inline muted">{isChinese ? '未找到相关服务器' : 'No servers found'}</li>
+                  <li className="mcp-empty-inline muted">
+                    {isChinese ? '未找到相关服务器' : 'No servers found'}
+                  </li>
                 ) : (
                   registryCards.map((card) => (
                     <li key={card.id} className="ext-list-item" data-testid="mcp-registry-item">
@@ -626,6 +736,7 @@ export function McpPanel(props: McpPanelProps) {
         document={document}
         prefillDraft={prefillDraft}
         prefillId={prefillId}
+        autoProbe={editorAutoProbe}
         isChinese={isChinese}
         onSave={handleSaveFromEditor}
         onValidateRaw={handleValidateRawFromEditor}
