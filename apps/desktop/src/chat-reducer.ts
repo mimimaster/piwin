@@ -596,16 +596,20 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       // Stamp updatedAt so Conversations / project lists sort the new row to the
       // top (sort is pinned first, then updatedAt desc; missing timestamps sink).
       const createdAt = new Date().toISOString();
+      const projectPath =
+        state.activeScope.kind === 'project' ? state.activeScope.projectPath : null;
       const newSession: SessionListItemUi = {
         id: action.sessionId,
         name: action.name,
         updatedAt: createdAt,
+        scope:
+          projectPath != null
+            ? { kind: 'project', projectPath }
+            : { kind: 'general' },
       };
       // Sidebar policy: placeholder / empty names never enter the list. The
       // session can still be active (composer) until the first text title lands.
       const listable = !isPlaceholderSessionName(action.name);
-      const projectPath =
-        state.activeScope.kind === 'project' ? state.activeScope.projectPath : null;
       const nextSessionsForPath = listable
         ? [newSession, ...state.sessions.filter((item) => item.id !== action.sessionId)]
         : state.sessions.filter((item) => item.id !== action.sessionId);
@@ -700,95 +704,109 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         });
         return list;
       };
-      const nextSessions = state.sessions.map((session) =>
-        session.id === action.session.id ? { ...session, ...action.session } : session,
-      );
+      // Resolve ownership from the session itself first, then from whichever
+      // sidebar list already tracks it. Never invent ownership from activeScope
+      // alone — that is what dual-listed project rows into Conversations.
       const mergedForCheck = {
         ...(state.sessions.find((session) => session.id === action.session.id) ??
-          state.generalSessions.find((session) => session.id === action.session.id) ?? {
+          state.generalSessions.find((session) => session.id === action.session.id) ??
+          Object.values(state.projectSessionsByPath)
+            .flat()
+            .find((session) => session.id === action.session.id) ?? {
             id: action.session.id,
             name: '',
           }),
         ...action.session,
       };
       const listable = !isPlaceholderSessionName(mergedForCheck.name);
-      if (listable) {
-        if (!nextSessions.some((session) => session.id === action.session.id)) {
-          nextSessions.unshift({
-            ...action.session,
-            id: action.session.id,
-            name: action.session.name ?? mergedForCheck.name,
-          });
-        }
-      } else {
-        // Drop unlisted placeholders if a bad name ever lands.
-        const dropIdx = nextSessions.findIndex((session) => session.id === action.session.id);
-        if (dropIdx >= 0) {
-          nextSessions.splice(dropIdx, 1);
-        }
-      }
-      sortPinnedThenUpdated(nextSessions);
-      // Mirror into generalSessions (insert on first real name for general scope).
-      let nextGeneral = state.generalSessions.map((session) =>
-        session.id === action.session.id ? { ...session, ...action.session } : session,
+      const knownInGeneral = state.generalSessions.some(
+        (session) => session.id === action.session.id,
       );
-      if (listable) {
-        if (!nextGeneral.some((session) => session.id === action.session.id)) {
-          // Prefer general list when active scope is general OR session already general-tracked.
-          if (
-            state.activeScope.kind === 'general' ||
-            state.generalSessions.some((session) => session.id === action.session.id)
-          ) {
-            nextGeneral.unshift({
-              ...action.session,
-              id: action.session.id,
-              name: action.session.name ?? mergedForCheck.name,
-            });
-          }
-        }
-      } else {
-        nextGeneral = nextGeneral.filter((session) => session.id !== action.session.id);
-      }
-      sortPinnedThenUpdated(nextGeneral);
-      // Mirror the update into the owning project folder in the sidebar tree.
-      // The session's own scope is authoritative; fall back to the active
-      // project for UI-generated interim updates that lack a scope.
+      const knownProjectPath = Object.entries(state.projectSessionsByPath).find(([, list]) =>
+        list.some((session) => session.id === action.session.id),
+      )?.[0];
+      const ownScope = action.session.scope ?? mergedForCheck.scope;
       const ownProjectPath =
-        action.session.scope?.kind === 'project' ? action.session.scope.projectPath : undefined;
+        ownScope?.kind === 'project'
+          ? ownScope.projectPath
+          : action.session.scope?.kind === 'project'
+            ? action.session.scope.projectPath
+            : undefined;
+      const isExplicitGeneral = ownScope?.kind === 'general';
+      const isExplicitProject = ownScope?.kind === 'project' || ownProjectPath != null;
+      // Project ownership wins over general so a project session cannot leak
+      // into Conversations just because general is currently active.
       const owningProjectPath =
         ownProjectPath ??
-        Object.entries(state.projectSessionsByPath).find(([, list]) =>
-          list.some((session) => session.id === action.session.id),
-        )?.[0] ??
-        (state.activeScope.kind === 'project' ? state.activeScope.projectPath : null);
-      if (owningProjectPath != null) {
-        const owned = state.projectSessionsByPath[owningProjectPath] ?? [];
-        const nextOwned = owned.map((session) =>
+        knownProjectPath ??
+        (!isExplicitGeneral &&
+        !knownInGeneral &&
+        state.activeScope.kind === 'project'
+          ? state.activeScope.projectPath
+          : null);
+      const belongsToGeneral =
+        isExplicitGeneral ||
+        (!isExplicitProject &&
+          owningProjectPath == null &&
+          (knownInGeneral || state.activeScope.kind === 'general'));
+
+      const upsertIntoList = (
+        list: SessionListItemUi[],
+        shouldOwn: boolean,
+      ): SessionListItemUi[] => {
+        let next = list.map((session) =>
           session.id === action.session.id ? { ...session, ...action.session } : session,
         );
-        if (listable) {
-          if (!nextOwned.some((session) => session.id === action.session.id)) {
-            nextOwned.unshift({
+        if (shouldOwn && listable) {
+          if (!next.some((session) => session.id === action.session.id)) {
+            next.unshift({
               ...action.session,
               id: action.session.id,
               name: action.session.name ?? mergedForCheck.name,
             });
           }
-        } else {
-          const dropIdx = nextOwned.findIndex((session) => session.id === action.session.id);
-          if (dropIdx >= 0) {
-            nextOwned.splice(dropIdx, 1);
+        } else if (!shouldOwn || !listable) {
+          next = next.filter((session) => session.id !== action.session.id);
+        }
+        return sortPinnedThenUpdated(next);
+      };
+
+      // Active list only receives inserts for sessions that belong to the
+      // current scope. Always patch/remove when the id is already present so
+      // renames and archive flags stay consistent.
+      const activeListOwnsSession =
+        state.activeScope.kind === 'general'
+          ? belongsToGeneral
+          : owningProjectPath != null &&
+            state.activeScope.kind === 'project' &&
+            state.activeScope.projectPath === owningProjectPath;
+      const nextSessions = upsertIntoList(state.sessions, activeListOwnsSession);
+      const nextGeneral = upsertIntoList(state.generalSessions, belongsToGeneral);
+
+      if (owningProjectPath != null) {
+        const owned = state.projectSessionsByPath[owningProjectPath] ?? [];
+        const nextOwned = upsertIntoList(owned, true);
+        // Drop the same id from any other project folders so a re-homed
+        // session cannot appear under two project trees at once.
+        const nextProjectSessionsByPath: Record<string, SessionListItemUi[]> = {
+          ...state.projectSessionsByPath,
+          [owningProjectPath]: nextOwned,
+        };
+        for (const [projectPath, list] of Object.entries(state.projectSessionsByPath)) {
+          if (projectPath === owningProjectPath) {
+            continue;
+          }
+          if (list.some((session) => session.id === action.session.id)) {
+            nextProjectSessionsByPath[projectPath] = list.filter(
+              (session) => session.id !== action.session.id,
+            );
           }
         }
-        sortPinnedThenUpdated(nextOwned);
         return {
           ...state,
           sessions: nextSessions,
           generalSessions: nextGeneral,
-          projectSessionsByPath: {
-            ...state.projectSessionsByPath,
-            [owningProjectPath]: nextOwned,
-          },
+          projectSessionsByPath: nextProjectSessionsByPath,
         };
       }
       return { ...state, sessions: nextSessions, generalSessions: nextGeneral };

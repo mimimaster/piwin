@@ -56,8 +56,6 @@ export type DesktopCopy = {
     deleteSessionPermanently: string;
     sessionActions: string;
     projects: string;
-    collapseProjects: string;
-    expandProjects: string;
     viewAllProjects: (count: number) => string;
     allProjects: string;
     projectPickerDescription: string;
@@ -478,8 +476,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deleteSessionPermanently: '永久删除会话',
       sessionActions: '会话操作',
       projects: '项目',
-      collapseProjects: '收起项目列表',
-      expandProjects: '展开项目列表',
       viewAllProjects: (count) => `查看全部项目（${count}）`,
       allProjects: '全部项目',
       projectPickerDescription: '搜索并切换到最近打开的项目。',
@@ -669,8 +665,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deleteSessionPermanently: 'Delete session permanently',
       sessionActions: 'Session actions',
       projects: 'Projects',
-      collapseProjects: 'Collapse project list',
-      expandProjects: 'Expand project list',
       viewAllProjects: (count) => `View all projects (${count})`,
       allProjects: 'All projects',
       projectPickerDescription: 'Search and switch to a recently opened project.',

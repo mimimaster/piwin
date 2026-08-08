@@ -25,7 +25,6 @@ import {
   IconBook,
   IconChat,
   IconCheck,
-  IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
   IconDocument,
@@ -99,9 +98,6 @@ export type ProjectSessionSidebarProps = {
   transportLabel: string;
   hostStatus: HostStatusData | null;
   recentProjects: ProjectRecord[];
-  /** Whether the project section is currently folded. */
-  projectsSectionCollapsed?: boolean;
-  onToggleProjectsSection?: () => void;
   sessions: SessionListItemUi[];
   filteredSessions: SessionListItemUi[];
   /** General-scope sessions for the Conversations section (always visible). */
@@ -500,13 +496,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     ].slice(0, VISIBLE_PROJECT_LIMIT);
   }, [props.projectPath, props.recentProjects]);
 
-  const activeProject = props.projectPath
-    ? props.recentProjects.find((project) => project.path === props.projectPath)
-    : undefined;
-  const activeProjectName =
-    activeProject?.displayName ??
-    (props.projectPath ? projectDisplayName(props.projectPath) : undefined);
-  const projectsSectionCollapsed = props.projectsSectionCollapsed === true;
   const hasMoreProjects = props.recentProjects.length > VISIBLE_PROJECT_LIMIT;
 
   const showResizeHandle =
@@ -667,26 +656,9 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       <div className="sidebar-folder-tree" data-testid="sessions-list">
         {/* Header Toolbar: Projects Title, Display Options, Add Project */}
         <div className="sidebar-section-label sidebar-section-label-row tree-header-row">
-          <button
-            type="button"
-            className="sidebar-section-toggle"
-            data-testid="projects-section-toggle"
-            aria-expanded={!projectsSectionCollapsed}
-            aria-label={
-              projectsSectionCollapsed ? sidebarCopy.expandProjects : sidebarCopy.collapseProjects
-            }
-            title={
-              projectsSectionCollapsed ? sidebarCopy.expandProjects : sidebarCopy.collapseProjects
-            }
-            onClick={() => props.onToggleProjectsSection?.()}
-          >
-            {projectsSectionCollapsed ? (
-              <IconChevronRight width={12} height={12} aria-hidden />
-            ) : (
-              <IconChevronDown width={12} height={12} aria-hidden />
-            )}
-            <span>{sidebarCopy.projects}</span>
-          </button>
+          <span className="sidebar-section-title" data-testid="projects-section-title">
+            {sidebarCopy.projects}
+          </span>
           <div className="sidebar-section-label-actions">
             <span className="sidebar-section-count muted">{props.recentProjects.length}</span>
 
@@ -841,131 +813,117 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
         </div>
 
         {/* Project Folders list */}
-        {!projectsSectionCollapsed ? (
-          <div className="tree-node-list">
-            {visibleProjects.map((project) => {
-              const isActiveProject = project.path === props.projectPath;
-              // The active project folder is open by default for display.
-              // Clicking a folder only toggles its expansion and never
-              // switches scope or the active session.
-              const isProjectOpen = openProjects[project.path] ?? isActiveProject;
-              const displayName = project.displayName ?? projectDisplayName(project.path);
-              // Each folder shows its own sessions from the per-project map.
-              // The active project falls back to the filtered active list so
-              // search/archive filters still apply to the open project.
-              const projectSessions =
-                (isActiveProject
-                  ? sortedFilteredSessions
-                  : props.projectSessionsByPath?.[project.path]) ?? [];
+        <div className="tree-node-list">
+          {visibleProjects.map((project) => {
+            const isActiveProject = project.path === props.projectPath;
+            // The active project folder is open by default for display.
+            // Clicking a folder only toggles its expansion and never
+            // switches scope or the active session.
+            const isProjectOpen = openProjects[project.path] ?? isActiveProject;
+            const displayName = project.displayName ?? projectDisplayName(project.path);
+            // Each folder shows its own sessions from the per-project map.
+            // The active project falls back to the filtered active list so
+            // search/archive filters still apply to the open project.
+            const projectSessions =
+              (isActiveProject
+                ? sortedFilteredSessions
+                : props.projectSessionsByPath?.[project.path]) ?? [];
 
-              const activeSessionIndex = projectSessions.findIndex(
-                (s) => s.id === props.activeSessionId,
-              );
-              const hasActiveInHidden = activeSessionIndex >= 6;
-              const isProjectExpanded = showAllProjectSessions[project.path] ?? hasActiveInHidden;
-              const visibleProjectSessions = isProjectExpanded
-                ? projectSessions
-                : projectSessions.slice(0, 6);
+            const activeSessionIndex = projectSessions.findIndex(
+              (s) => s.id === props.activeSessionId,
+            );
+            const hasActiveInHidden = activeSessionIndex >= 6;
+            const isProjectExpanded = showAllProjectSessions[project.path] ?? hasActiveInHidden;
+            const visibleProjectSessions = isProjectExpanded
+              ? projectSessions
+              : projectSessions.slice(0, 6);
 
-              return (
-                <details key={project.path} className="tree-folder-details" open={isProjectOpen}>
-                  <summary
-                    className={
-                      isActiveProject ? 'tree-folder-summary active' : 'tree-folder-summary'
-                    }
-                    data-testid="repository-item"
-                    data-project-path={project.path}
+            return (
+              <details key={project.path} className="tree-folder-details" open={isProjectOpen}>
+                <summary
+                  className={
+                    isActiveProject ? 'tree-folder-summary active' : 'tree-folder-summary'
+                  }
+                  data-testid="repository-item"
+                  data-project-path={project.path}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    // Folder clicks only toggle expansion; they never switch
+                    // the active session or project scope. Selecting a
+                    // specific conversation is the only way to switch.
+                    setOpenProjects((prev) => ({
+                      ...prev,
+                      [project.path]: !isProjectOpen,
+                    }));
+                  }}
+                  title={project.path}
+                >
+                  <span className="tree-folder-title">
+                    {isProjectOpen ? (
+                      <IconFolderOpen className="tree-folder-icon" />
+                    ) : (
+                      <IconFolder className="tree-folder-icon" />
+                    )}
+                    <span>{displayName}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="tree-folder-add-btn"
+                    title={sidebarCopy.newConversationInProject(displayName)}
                     onClick={(e) => {
-                      e.preventDefault();
-                      // Folder clicks only toggle expansion; they never switch
-                      // the active session or project scope. Selecting a
-                      // specific conversation is the only way to switch.
-                      setOpenProjects((prev) => ({
-                        ...prev,
-                        [project.path]: !isProjectOpen,
-                      }));
+                      e.stopPropagation();
+                      props.onOpenProject(project.path);
+                      props.onNewSession();
                     }}
-                    title={project.path}
                   >
-                    <span className="tree-folder-title">
-                      {isProjectOpen ? (
-                        <IconFolderOpen className="tree-folder-icon" />
-                      ) : (
-                        <IconFolder className="tree-folder-icon" />
-                      )}
-                      <span>{displayName}</span>
-                    </span>
-                    <button
-                      type="button"
-                      className="tree-folder-add-btn"
-                      title={sidebarCopy.newConversationInProject(displayName)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        props.onOpenProject(project.path);
-                        props.onNewSession();
-                      }}
-                    >
-                      <IconPlus width={12} height={12} />
-                    </button>
-                  </summary>
+                    <IconPlus width={12} height={12} />
+                  </button>
+                </summary>
 
-                  {/* Sessions under this project */}
-                  {isProjectOpen && projectSessions.length > 0 ? (
-                    <ul className="tree-session-list">
-                      {visibleProjectSessions.map((session) => (
-                        <SessionRowItem
-                          key={session.id}
-                          session={session}
-                          activeSessionId={props.activeSessionId}
-                          onResumeSession={props.onResumeSession}
-                          onOpenSessionMenu={props.onOpenSessionMenu}
-                          workingSessionIds={props.workingSessionIds}
-                          backendServiceSessionIds={props.backendServiceSessionIds}
-                          onTogglePin={props.onTogglePin}
-                          onArchiveSession={props.onArchiveSession}
-                          onUnarchiveSession={props.onUnarchiveSession}
-                          onDeleteSession={props.onDeleteSession}
-                          copy={sidebarCopy}
-                        />
-                      ))}
-                      {projectSessions.length > 6 ? (
-                        <li className="session-row see-all-row">
-                          <button
-                            type="button"
-                            className="sidebar-see-all-btn"
-                            data-testid="see-all-btn"
-                            onClick={() =>
-                              setShowAllProjectSessions((prev) => ({
-                                ...prev,
-                                [project.path]: !isProjectExpanded,
-                              }))
-                            }
-                          >
-                            {isProjectExpanded
-                              ? sidebarCopy.showLess
-                              : sidebarCopy.seeAll(projectSessions.length)}
-                          </button>
-                        </li>
-                      ) : null}
-                    </ul>
-                  ) : null}
-                </details>
-              );
-            })}
-          </div>
-        ) : activeProjectName && props.projectPath ? (
-          <button
-            type="button"
-            className="sidebar-active-project"
-            data-testid="active-project-summary"
-            title={props.projectPath}
-            onClick={() => props.onToggleProjectsSection?.()}
-          >
-            <IconFolder width={15} height={15} aria-hidden />
-            <span className="sidebar-active-project-name">{activeProjectName}</span>
-            <IconChevronRight width={13} height={13} aria-hidden />
-          </button>
-        ) : null}
+                {/* Sessions under this project */}
+                {isProjectOpen && projectSessions.length > 0 ? (
+                  <ul className="tree-session-list">
+                    {visibleProjectSessions.map((session) => (
+                      <SessionRowItem
+                        key={session.id}
+                        session={session}
+                        activeSessionId={props.activeSessionId}
+                        onResumeSession={props.onResumeSession}
+                        onOpenSessionMenu={props.onOpenSessionMenu}
+                        workingSessionIds={props.workingSessionIds}
+                        backendServiceSessionIds={props.backendServiceSessionIds}
+                        onTogglePin={props.onTogglePin}
+                        onArchiveSession={props.onArchiveSession}
+                        onUnarchiveSession={props.onUnarchiveSession}
+                        onDeleteSession={props.onDeleteSession}
+                        copy={sidebarCopy}
+                      />
+                    ))}
+                    {projectSessions.length > 6 ? (
+                      <li className="session-row see-all-row">
+                        <button
+                          type="button"
+                          className="sidebar-see-all-btn"
+                          data-testid="see-all-btn"
+                          onClick={() =>
+                            setShowAllProjectSessions((prev) => ({
+                              ...prev,
+                              [project.path]: !isProjectExpanded,
+                            }))
+                          }
+                        >
+                          {isProjectExpanded
+                            ? sidebarCopy.showLess
+                            : sidebarCopy.seeAll(projectSessions.length)}
+                        </button>
+                      </li>
+                    ) : null}
+                  </ul>
+                ) : null}
+              </details>
+            );
+          })}
+        </div>
 
         {hasMoreProjects ? (
           <button

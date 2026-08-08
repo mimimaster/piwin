@@ -81,56 +81,13 @@ describe('ComposerDock host status', () => {
     container = null;
   });
 
-  it('renders host status badge in the bottom left footer row', () => {
-    const handleOpenHostSettings = vi.fn();
-    const rendered = renderDock(
-      <ComposerDock
-        {...baseProps}
-        hostReady={true}
-        hostStatus={{
-          mode: 'sdk',
-          ready: true,
-          mock: false,
-          piwinRoot: '/tmp/.piwin',
-          activeSessionIds: [],
-          capabilities: {
-            customTools: true,
-            mcpLifecycle: true,
-            productTranscript: true,
-            compaction: true,
-            extensions: true,
-            prompts: true,
-          },
-        }}
-        transportLabel="IPC (SDK)"
-        onOpenHostSettings={handleOpenHostSettings}
-      />,
-    );
+  it('does not render the bottom host status footer row in ComposerDock', () => {
+    const rendered = renderDock(<ComposerDock {...baseProps} />);
     root = rendered.root;
     container = rendered.container;
 
-    const hostStatusBtn = container.querySelector(
-      '[data-testid="composer-host-status"]',
-    ) as HTMLButtonElement;
-    expect(hostStatusBtn).not.toBeNull();
-    expect(hostStatusBtn.textContent).toContain('Host: SDK');
-
-    act(() => {
-      hostStatusBtn.click();
-    });
-    expect(handleOpenHostSettings).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders connecting state when hostReady is false', () => {
-    const rendered = renderDock(<ComposerDock {...baseProps} hostReady={false} />);
-    root = rendered.root;
-    container = rendered.container;
-
-    const hostStatusBtn = container.querySelector(
-      '[data-testid="composer-host-status"]',
-    ) as HTMLButtonElement;
-    expect(hostStatusBtn).not.toBeNull();
-    expect(hostStatusBtn.textContent).toContain('Host: Connecting…');
+    const hostStatusBtn = container.querySelector('[data-testid="composer-host-status"]');
+    expect(hostStatusBtn).toBeNull();
   });
 
   it('resets textarea height when composer text is cleared or changed', async () => {
@@ -514,14 +471,10 @@ describe('ComposerDock host status', () => {
       '[data-testid="composer-plus-btn"]',
     );
     const sendButton = container.querySelector<HTMLButtonElement>('[data-testid="send-btn"]');
-    const hostStatus = container.querySelector<HTMLButtonElement>(
-      '[data-testid="composer-host-status"]',
-    );
 
     expect(textarea?.placeholder).toBe('规划、搜索或构建任何内容');
     expect(attachButton?.getAttribute('aria-label')).toBe('添加文件和上下文');
     expect(sendButton?.getAttribute('aria-label')).toBe('发送');
-    expect(hostStatus?.textContent).toContain('Host：SDK');
   });
 
   it('always shows orchestration scheme trigger (mode picker, including freehand/None)', () => {

@@ -27,14 +27,16 @@ import type { ToolKind } from '@piwin/contracts';
 export type ToolCallCardProps = {
   tool: ToolCardUi;
   /** Default expanded while running; collapsed when done. */
-  defaultExpanded?: boolean;
+  defaultExpanded?: boolean | undefined;
   /** @deprecated prefer density */
-  compact?: boolean;
-  density?: ToolCallDensity;
+  compact?: boolean | undefined;
+  density?: ToolCallDensity | undefined;
   /** Project root for DiffCard git/diff-file requests. */
-  projectPath?: string | null;
+  projectPath?: string | null | undefined;
   /** Host request adapter for DiffCard (same signature as ChangesPanel). */
-  request?: DiffCardRequest;
+  request?: DiffCardRequest | undefined;
+  /** Callback when user clicks a matched file in tool results. */
+  onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
 };
 
 function summarizeToolOutput(toolName: string, output: string, maxLength: number): string {

@@ -22,6 +22,11 @@ function mockFetch(responseBody: unknown, ok = true): void {
   } as unknown as Response));
 }
 
+function lastFetchBody(): Record<string, unknown> {
+  const call = vi.mocked(fetch).mock.calls.at(-1);
+  return JSON.parse((call?.[1]?.body as string) ?? '{}') as Record<string, unknown>;
+}
+
 describe('generateTitleViaProvider', () => {
   it('extracts title from openai-compatible response', async () => {
     mockFetch({ choices: [{ message: { content: '{"title":"Fix login bug"}' } }] });
@@ -123,4 +128,32 @@ describe('generateTitleViaProvider', () => {
     });
     expect(title).toBeNull();
   });
+  it('gives reasoning models enough token budget to emit content', async () => {
+    // Regression: a 50-token budget is fully consumed by `reasoning_content`
+    // on reasoning models, so `content` comes back empty and the title is
+    // silently lost. The budget must leave room for reasoning + the title.
+    mockFetch({ choices: [{ message: { content: 'Proxy node access test' } }] });
+    const title = await generateTitleViaProvider({
+      provider: openaiProvider, modelId: 'deepseek-reasoner', apiKey: 'sk-test',
+      userPrompt: 'hello',
+    });
+    expect(title).toBe('Proxy node access test');
+    const body = lastFetchBody();
+    expect(body.max_tokens).toBeGreaterThanOrEqual(256);
+  });
+
+  it('returns null when a reasoning model emits only reasoning_content', async () => {
+    mockFetch({
+      choices: [{
+        finish_reason: 'length',
+        message: { content: '', reasoning_content: 'thinking but out of budget...' },
+      }],
+    });
+    const title = await generateTitleViaProvider({
+      provider: openaiProvider, modelId: 'deepseek-reasoner', apiKey: 'sk-test',
+      userPrompt: 'hello',
+    });
+    expect(title).toBeNull();
+  });
+
 });

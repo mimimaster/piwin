@@ -213,34 +213,18 @@ describe('ProjectSessionSidebar "See all" functionality', () => {
     });
   });
 
-  it('keeps the active project visible when the project section is folded', () => {
+  it('always renders the project folder list without a section fold toggle', () => {
     const projects = createMockProjects(8);
-    let toggled = false;
     const { container } = renderSidebar({
       recentProjects: projects,
       projectPath: projects[7]?.path ?? null,
-      projectsSectionCollapsed: true,
-      onToggleProjectsSection: () => {
-        toggled = true;
-      },
     });
 
-    expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(0);
-    expect(
-      container.querySelector('[data-testid="active-project-summary"]')?.textContent,
-    ).toContain('project-8');
-    expect(
-      container
-        .querySelector('[data-testid="projects-section-toggle"]')
-        ?.getAttribute('aria-expanded'),
-    ).toBe('false');
-
-    act(() => {
-      container
-        .querySelector<HTMLButtonElement>('[data-testid="projects-section-toggle"]')
-        ?.click();
-    });
-    expect(toggled).toBe(true);
+    // The Projects section is always expanded: every visible folder renders.
+    expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(6);
+    // The fold toggle has been removed; the section title remains.
+    expect(container.querySelector('[data-testid="projects-section-toggle"]')).toBeNull();
+    expect(container.querySelector('[data-testid="projects-section-title"]')).not.toBeNull();
   });
 });
 

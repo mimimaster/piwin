@@ -1032,15 +1032,6 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 }
 
 export function ComposerDock(props: ComposerDockProps): ReactElement {
-  const { locale } = useDesktopLocale();
-  const copy = getDesktopCopy(locale).composer;
-  const hostReady = props.hostReady ?? props.hostStatus?.ready ?? true;
-  const hostMode = (props.hostStatus?.mode ?? 'sdk').toUpperCase();
-  const isMock = props.hostMock ?? props.hostStatus?.mock ?? false;
-
-  const statusLabel = hostReady ? copy.hostStatus(hostMode, isMock) : copy.hostConnecting;
-  const tooltipText = copy.hostTooltip(hostMode, isMock, hostReady, props.transportLabel);
-
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
   return (
@@ -1049,40 +1040,43 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
       data-testid="composer-dock"
       data-layout={props.layoutMode}
     >
-      {/* Outside the input card: floating context layer (project / branch / runtime). */}
-      <div className="composer-context-rail" data-testid="composer-context-row">
-        {props.onOpenProjectPicker && props.projectPath ? (
-          <button
-            type="button"
-            className="composer-context-link"
-            data-testid="composer-project-chip"
-            onClick={props.onOpenProjectPicker}
-            title={props.projectPath}
-            aria-label={props.projectPath}
-          >
-            <span className="composer-context-link-label">{props.projectPath}</span>
-            <span className="composer-context-link-caret" aria-hidden>
-              <IconChevronDown width={13} height={13} />
+      {/* Outside the input card: floating context layer (project / branch / runtime).
+          Only displayed at the start of a session before user inputs (layoutMode === 'centered'). */}
+      {props.layoutMode === 'centered' ? (
+        <div className="composer-context-rail" data-testid="composer-context-row">
+          {props.onOpenProjectPicker && props.projectPath ? (
+            <button
+              type="button"
+              className="composer-context-link"
+              data-testid="composer-project-chip"
+              onClick={props.onOpenProjectPicker}
+              title={props.projectPath}
+              aria-label={props.projectPath}
+            >
+              <span className="composer-context-link-label">{props.projectPath}</span>
+              <span className="composer-context-link-caret" aria-hidden>
+                <IconChevronDown width={13} height={13} />
+              </span>
+            </button>
+          ) : props.projectPath ? (
+            <span
+              className="composer-context-link is-static"
+              data-testid="composer-project-chip"
+              title={props.projectPath}
+            >
+              <span className="composer-context-link-label">{props.projectPath}</span>
             </span>
-          </button>
-        ) : props.projectPath ? (
-          <span
-            className="composer-context-link is-static"
-            data-testid="composer-project-chip"
-            title={props.projectPath}
-          >
-            <span className="composer-context-link-label">{props.projectPath}</span>
-          </span>
-        ) : null}
-        {props.branchRequest && props.projectPath ? (
-          <BranchChip
-            projectPath={props.projectPath}
-            disabled={isStreamingRun}
-            request={props.branchRequest}
-          />
-        ) : null}
-        <RuntimeTargetChip />
-      </div>
+          ) : null}
+          {props.branchRequest && props.projectPath ? (
+            <BranchChip
+              projectPath={props.projectPath}
+              disabled={isStreamingRun}
+              request={props.branchRequest}
+            />
+          ) : null}
+          <RuntimeTargetChip />
+        </div>
+      ) : null}
       {props.steerQueueMessages && props.steerQueueMessages.length > 0 ? (
         <SteerQueue
           messages={props.steerQueueMessages}
@@ -1093,20 +1087,6 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
         />
       ) : null}
       <ComposerCard {...props} />
-      <div className="composer-footer-row">
-        <button
-          type="button"
-          className="composer-host-status"
-          data-testid="composer-host-status"
-          title={tooltipText}
-          aria-label={tooltipText}
-          onClick={props.onOpenHostSettings}
-        >
-          <span className={`host-status-dot ${hostReady ? 'online' : 'offline'}`} />
-          <span className="host-status-label">{statusLabel}</span>
-        </button>
-        <div className="composer-hint">{copy.shortcutHint}</div>
-      </div>
     </footer>
   );
 }

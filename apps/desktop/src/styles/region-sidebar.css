@@ -258,36 +258,11 @@
   gap: 4px;
 }
 
-.sidebar-section-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.sidebar-section-title {
   min-width: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  letter-spacing: inherit;
-  text-align: left;
-  text-transform: inherit;
-}
-
-.sidebar-section-toggle:hover,
-.sidebar-section-toggle:focus-visible {
-  color: var(--text);
-}
-
-.sidebar-section-toggle:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.sidebar-section-toggle svg {
-  flex: 0 0 auto;
-  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-section-count {
@@ -373,13 +348,51 @@
   flex-direction: column;
   gap: 6px;
   padding: 0 4px;
-  /* Hide scrollbar so list rows use full column width; scroll still works. */
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  /* Thin scrollbar, revealed on hover so rows keep their full width. */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.sidebar-folder-tree:hover {
+  scrollbar-color: color-mix(in srgb, var(--text) 20%, transparent) transparent;
 }
 
 .sidebar-folder-tree::-webkit-scrollbar {
-  display: none;
+  width: 5px;
+}
+
+.sidebar-folder-tree::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-folder-tree::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.sidebar-folder-tree:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text) 20%, transparent);
+}
+
+/* Progressive blur-fade at the bottom edge of the scrollable tree so the
+   overflowing list tail dissolves into the sidebar instead of being cut. */
+.sidebar-folder-tree::after {
+  content: '';
+  position: sticky;
+  bottom: -1px;
+  z-index: 1;
+  flex: none;
+  height: 32px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--sidebar) 70%, transparent)
+  );
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 100%);
 }
 
 .tree-header-row {
@@ -391,46 +404,6 @@
   flex-direction: column;
   gap: 4px;
   flex: none;
-}
-
-.sidebar-active-project {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 32px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--selected);
-  color: var(--text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
-  text-align: left;
-}
-
-.sidebar-active-project:hover {
-  background: var(--hover);
-}
-
-.sidebar-active-project > svg:first-child {
-  flex: 0 0 auto;
-  color: var(--accent);
-}
-
-.sidebar-active-project-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sidebar-active-project > svg:last-child {
-  flex: 0 0 auto;
-  margin-left: auto;
-  color: var(--faint);
 }
 
 .sidebar-projects-see-all-btn {
@@ -571,10 +544,11 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
   padding: 6px 10px;
   border: none;
   border-radius: 6px;
-  /* Readable action, not a second primary CTA — avoid pure accent glare on dark. */
-  background: color-mix(in srgb, var(--text) 6%, transparent);
+  /* Quiet plain-text "show more" row: no fill, gray label, slightly larger
+     than the previous 12.5px so it reads as a clear affordance. */
+  background: transparent;
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
@@ -585,23 +559,13 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
 }
 
 .sidebar-see-all-btn:hover {
-  background: color-mix(in srgb, var(--text) 10%, transparent);
+  background: transparent;
   color: var(--text);
 }
 
 .sidebar-see-all-btn:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--text) 28%, transparent);
   outline-offset: 1px;
-}
-
-html[data-theme-mode='light'] .sidebar-see-all-btn {
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  color: var(--accent);
-}
-
-html[data-theme-mode='light'] .sidebar-see-all-btn:hover {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
 }
 
 /* ── Sessions list ────────────────────────────────────────────────── */

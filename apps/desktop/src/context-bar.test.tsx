@@ -258,6 +258,20 @@ describe('ContextBar', () => {
     expect(onToggleAppearance).toHaveBeenCalledTimes(1);
   });
 
+  it('hides work-panel toggle when isConversationSession is true', () => {
+    const onToggleWorkPanel = vi.fn();
+    renderContextBar(
+      createBaseProps({
+        runState: createIdleRunStatus(),
+        onToggleWorkPanel,
+        isConversationSession: true,
+      }),
+      root,
+    );
+
+    expect(container.querySelector('[data-testid="right-panel-open-btn"]')).toBeNull();
+  });
+
   it('renders a permission mode badge when permissionMode is provided', () => {
     const onOpenPermissions = vi.fn();
     renderContextBar(

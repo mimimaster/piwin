@@ -118,6 +118,42 @@ describe('session-index-store', () => {
     expect(afterDelete.map((item) => item.id)).toEqual(['s2']);
   });
 
+  it('legacy string project filter excludes general-scope sessions', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-session-scope-filter-'));
+    const filePath = join(dir, 'index.json');
+    await upsertSessionRecord(
+      filePath,
+      createSessionRecord({
+        id: 'proj-1',
+        projectPath: '/tmp/proj',
+        scope: { kind: 'project', projectPath: '/tmp/proj' },
+        name: 'Project Session',
+      }),
+    );
+    // Corrupt / edge case: general session with the same projectPath string.
+    await upsertSessionRecord(
+      filePath,
+      createSessionRecord({
+        id: 'gen-1',
+        projectPath: '/tmp/proj',
+        scope: { kind: 'general' },
+        name: 'General Leak',
+      }),
+    );
+
+    const byString = await listSessionsForProject(filePath, '/tmp/proj');
+    expect(byString.map((item) => item.id)).toEqual(['proj-1']);
+
+    const byScope = await listSessionsForProject(filePath, {
+      kind: 'project',
+      projectPath: '/tmp/proj',
+    });
+    expect(byScope.map((item) => item.id)).toEqual(['proj-1']);
+
+    const generalOnly = await listSessionsForProject(filePath, { kind: 'general' });
+    expect(generalOnly.map((item) => item.id)).toEqual(['gen-1']);
+  });
+
   it('rejects empty rename names', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'piwin-session-rename-'));
     const filePath = join(dir, 'index.json');

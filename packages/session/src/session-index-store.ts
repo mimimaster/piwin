@@ -546,7 +546,19 @@ export async function listAllSessionRecords(
  */
 function buildScopeFilter(filter: string | SessionScope): (record: SessionIndexRecord) => boolean {
   if (typeof filter === 'string') {
-    return (record) => record.projectPath === filter;
+    // Legacy string path means "project sessions for this path" only.
+    // General sessions must never match a project list query, even if a
+    // corrupt/legacy record reused the same projectPath field.
+    return (record) => {
+      if (record.scope?.kind === 'general') {
+        return false;
+      }
+      if (record.scope?.kind === 'project') {
+        return record.scope.projectPath === filter;
+      }
+      // v1 records without scope: projectPath is the project root.
+      return record.projectPath === filter;
+    };
   }
   if (filter.kind === 'general') {
     return (record) => record.scope?.kind === 'general';

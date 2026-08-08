@@ -71,8 +71,6 @@ export type DesktopPreferences = {
   terminalLastCwd?: string;
   /** Recent terminal directories (most recent first, max 5). */
   terminalRecentDirs?: string[];
-  /** Keep the sidebar project section folded when the user chooses to fold it. */
-  projectsSectionCollapsed?: boolean;
   /** When true, revert checkpoint confirmation modal is bypassed. */
   dontAskRevertConfirm?: boolean;
 };
@@ -91,7 +89,6 @@ const LIGHT_THEME_KEY = 'piwin.desktop.lightTheme';
 const DARK_THEME_KEY = 'piwin.desktop.darkTheme';
 const TERMINAL_LAST_CWD_KEY = 'piwin.desktop.terminalLastCwd';
 const TERMINAL_RECENT_DIRS_KEY = 'piwin.desktop.terminalRecentDirs';
-const PROJECTS_SECTION_COLLAPSED_KEY = 'piwin.desktop.projectsSectionCollapsed';
 const DONT_ASK_REVERT_CONFIRM_KEY = 'piwin.desktop.dontAskRevertConfirm';
 
 function readString(key: string): string | null {
@@ -206,7 +203,6 @@ function parseAppearanceTheme(
 export function loadDesktopPreferences(): DesktopPreferences {
   const lastCwd = readString(TERMINAL_LAST_CWD_KEY);
   const recentDirsRaw = readString(TERMINAL_RECENT_DIRS_KEY);
-  const projectsSectionCollapsedRaw = readString(PROJECTS_SECTION_COLLAPSED_KEY);
   return {
     assistantTextSize: parseSizeOption(readString(ASSISTANT_TEXT_SIZE_KEY), 'default'),
     codeTextSize: parseSizeOption(readString(CODE_TEXT_SIZE_KEY), 'default'),
@@ -223,9 +219,6 @@ export function loadDesktopPreferences(): DesktopPreferences {
     dontAskRevertConfirm: parseBoolean(readString(DONT_ASK_REVERT_CONFIRM_KEY), false),
     ...(lastCwd ? { terminalLastCwd: lastCwd } : {}),
     ...(recentDirsRaw ? { terminalRecentDirs: parseStringArray(recentDirsRaw) ?? [] } : {}),
-    ...(projectsSectionCollapsedRaw !== null
-      ? { projectsSectionCollapsed: parseBoolean(projectsSectionCollapsedRaw, false) }
-      : {}),
   };
 }
 
@@ -248,9 +241,6 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   }
   if (prefs.terminalRecentDirs) {
     writeString(TERMINAL_RECENT_DIRS_KEY, JSON.stringify(prefs.terminalRecentDirs));
-  }
-  if (prefs.projectsSectionCollapsed !== undefined) {
-    writeString(PROJECTS_SECTION_COLLAPSED_KEY, String(prefs.projectsSectionCollapsed));
   }
 }
 

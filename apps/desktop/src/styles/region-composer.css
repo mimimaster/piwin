@@ -18,10 +18,17 @@
   /* Full stage wrapper; .composer-card-v2 below owns the selected content measure. */
   max-width: none;
   margin: 0;
-  padding: 8px var(--chat-inline-pad, 24px) 14px;
+  padding: 4px var(--chat-inline-pad, 24px) 12px;
   box-sizing: border-box;
-  border-top: none;
-  background: transparent;
+  border: none !important;
+  border-top: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.composer-dock::before,
+.composer-dock::after {
+  display: none !important;
 }
 
 .composer-dock.layout-centered {
@@ -685,22 +692,40 @@ html[data-theme-mode='light'] .agent-interruption {
   width: var(--chat-max);
   max-width: 100%;
   margin: 0 auto;
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-  border-radius: 14px;
-  background: var(--composer, var(--card));
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--composer, var(--card)) 92%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow:
+    0 12px 32px -4px rgba(0, 0, 0, 0.12),
+    0 4px 12px -2px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(255, 255, 255, 0.1) inset;
   transition:
     background-color 200ms ease,
     border-color 200ms ease,
-    box-shadow 200ms ease;
+    box-shadow 200ms ease,
+    transform 200ms ease;
   /* Popovers (slash menu, thinking effort) open upward past the card edge. */
   overflow: visible;
 }
 
 html[data-theme-mode='dark'] .composer-card-v2 {
-  background: var(--composer, #1c1c21);
-  border-color: rgba(255, 255, 255, 0.05);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  background: color-mix(in srgb, var(--composer, #1c1c21) 90%, transparent);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 16px 40px -4px rgba(0, 0, 0, 0.45),
+    0 6px 18px -2px rgba(0, 0, 0, 0.25),
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.composer-card-v2:hover,
+.composer-card-v2:focus-within {
+  border-color: color-mix(in srgb, var(--accent, #6ea8fe) 35%, rgba(255, 255, 255, 0.12));
+  box-shadow:
+    0 20px 48px -4px rgba(0, 0, 0, 0.55),
+    0 8px 24px -2px rgba(0, 0, 0, 0.32),
+    0 1px 0 0 rgba(255, 255, 255, 0.09) inset;
 }
 
 /* No focus glow — selected composer keeps the idle border/background.

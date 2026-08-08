@@ -6,6 +6,15 @@ const MAX_TITLE_CHARS = 80;
 /** Loosest plausible title size; anything longer is almost certainly a summary dump. */
 const MAX_TITLE_WORDS = 12;
 
+/**
+ * Token budget for the one-shot title call. Generous on purpose: reasoning
+ * models spend tokens on `reasoning_content` before they emit any `content`,
+ * so a tight budget (50) comes back with an empty `content` and the title is
+ * silently lost — the fallback name then sticks for the session's lifetime.
+ * The output gate (MAX_TITLE_CHARS / MAX_TITLE_WORDS) still rejects dumps.
+ */
+const MAX_TITLE_TOKENS = 512;
+
 const TITLE_SYSTEM_PROMPT =
   'Generate a concise, descriptive title (3-7 words) for this coding session from the user message and optional assistant reply. Return ONLY the title text, no quotes, no markdown, no trailing punctuation.';
 
@@ -76,7 +85,7 @@ async function fetchOpenAiCompatible(
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      max_tokens: 50,
+      max_tokens: MAX_TITLE_TOKENS,
       temperature: 0.3,
     }),
   });
@@ -108,7 +117,7 @@ async function fetchAnthropicCompatible(
       model: modelId,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
-      max_tokens: 50,
+      max_tokens: MAX_TITLE_TOKENS,
     }),
   });
   if (!response.ok) return null;

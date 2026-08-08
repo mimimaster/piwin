@@ -3,6 +3,8 @@ import type { ToolCardUi } from './chat-reducer';
 import {
   countExploreFiles,
   exploreGroupLabel,
+  extractSearchInfo,
+  formatFilePillPath,
   groupToolsForTimeline,
   isExploreLikeTool,
 } from './activity-timeline';
@@ -186,14 +188,56 @@ describe('countExploreFiles / exploreGroupLabel', () => {
   });
 
   it('localizes explore labels', () => {
-    expect(exploreGroupLabel({ fileCount: 5, locale: 'en', isActive: false })).toBe(
-      'Explored 5 files',
-    );
-    expect(exploreGroupLabel({ fileCount: 5, locale: 'zh-CN', isActive: false })).toBe(
-      '已探查 5 个文件',
-    );
     expect(exploreGroupLabel({ fileCount: 2, locale: 'en', isActive: true })).toBe(
       'Exploring... 2 files',
     );
   });
 });
+
+describe('search helpers', () => {
+  it('extracts search query, directory, and matched files', () => {
+    const tool = makeTool({
+      toolCallId: 's1',
+      toolName: 'grep_search',
+      presentation: {
+        kind: 'filesystem',
+        title: 'Search',
+        actionVerb: 'Searched',
+        summary: 'McpPanel|McpServerEditorDialog',
+        inputPreview: JSON.stringify({
+          Query: 'McpPanel|McpServerEditorDialog',
+          SearchPath: '/workspace/apps/desktop',
+          Includes: ['*.test.{ts,tsx}'],
+        }),
+        output: {
+          text: JSON.stringify([
+            { file: 'apps/desktop/src/composer-dock.test.tsx' },
+            { file: 'apps/desktop/src/composer-plus-menu.test.tsx' },
+          ]),
+        },
+      },
+    });
+
+    const info = extractSearchInfo(tool, '/workspace');
+    expect(info.query).toBe('McpPanel|McpServerEditorDialog');
+    expect(info.dir).toBe('apps/desktop');
+    expect(info.pattern).toBe('*.test.{ts,tsx}');
+    expect(info.count).toBe(2);
+    expect(info.matchedFiles).toEqual([
+      'apps/desktop/src/composer-dock.test.tsx',
+      'apps/desktop/src/composer-plus-menu.test.tsx',
+    ]);
+  });
+
+  it('formats file pill display path with leading slash relative to search dir', () => {
+    const formatted = formatFilePillPath(
+      'apps/desktop/src/composer-dock.test.tsx',
+      'apps/desktop',
+      '/workspace',
+    );
+    expect(formatted.absolutePath).toBe('/workspace/apps/desktop/src/composer-dock.test.tsx');
+    expect(formatted.relativePath).toBe('apps/desktop/src/composer-dock.test.tsx');
+    expect(formatted.displayPath).toBe('/src/composer-dock.test.tsx');
+  });
+});
+

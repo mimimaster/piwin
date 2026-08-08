@@ -1157,6 +1157,80 @@ describe('chatUiReducer', () => {
       expect(state.sessions.map((item) => item.id)).toEqual(['g1']);
       expect(state.generalSessions.map((item) => item.id)).toEqual(['g1']);
     });
+
+    it('session/update does not insert a project session into generalSessions when general is active', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [{ id: 'g1', name: 'General 1', scope: { kind: 'general' } }],
+      });
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-project',
+        projectPath: '/proj',
+        sessions: [
+          {
+            id: 'p1',
+            name: 'Project Session',
+            scope: { kind: 'project', projectPath: '/proj' },
+          },
+        ],
+      });
+      // Simulate a name-updated push while Conversations (general) is active.
+      state = chatUiReducer(state, {
+        type: 'session/update',
+        session: {
+          id: 'p1',
+          name: 'Renamed Project',
+          scope: { kind: 'project', projectPath: '/proj' },
+        },
+      });
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['g1']);
+      expect(state.projectSessionsByPath['/proj']?.map((item) => item.id)).toEqual(['p1']);
+      expect(state.projectSessionsByPath['/proj']?.[0]?.name).toBe('Renamed Project');
+      // Active general list must not gain the project row either.
+      expect(state.sessions.map((item) => item.id)).toEqual(['g1']);
+    });
+
+    it('session/update rehomes a dual-listed project row out of Conversations', () => {
+      let state = createInitialChatUiState();
+      // Corrupt dual listing: same id under general and a project folder.
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-general',
+        sessions: [
+          {
+            id: 'shared',
+            name: '继续',
+            scope: { kind: 'general' },
+          },
+        ],
+      });
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-project',
+        projectPath: '/Users/dev/piwin',
+        sessions: [
+          {
+            id: 'shared',
+            name: '继续',
+            scope: { kind: 'project', projectPath: '/Users/dev/piwin' },
+          },
+        ],
+      });
+      expect(state.generalSessions.map((item) => item.id)).toEqual(['shared']);
+      // Authoritative project scope from host clears the Conversations copy.
+      state = chatUiReducer(state, {
+        type: 'session/update',
+        session: {
+          id: 'shared',
+          name: '继续',
+          scope: { kind: 'project', projectPath: '/Users/dev/piwin' },
+        },
+      });
+      expect(state.generalSessions.map((item) => item.id)).toEqual([]);
+      expect(state.projectSessionsByPath['/Users/dev/piwin']?.map((item) => item.id)).toEqual([
+        'shared',
+      ]);
+      expect(state.sessions.map((item) => item.id)).toEqual([]);
+    });
   });
 
   describe('C1: envelope-based dedup', () => {
