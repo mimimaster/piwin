@@ -6,6 +6,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import type { ToolCardUi } from './chat-reducer';
 import type { ToolCallDensity } from './ui-preferences';
+import { formatFilePillPath } from './activity-timeline';
 import { CitationCards } from './CitationCards';
 import { parseToolCitations } from './tool-citations';
 import { DiffCard, type DiffCardRequest } from './diff-card';
@@ -23,6 +24,14 @@ import {
   IconSpark,
 } from './shell-icons';
 import type { ToolKind } from '@piwin/contracts';
+import {
+  behaviorTextClass,
+  getBehaviorActivitySpec,
+  localizeBehaviorAction,
+  resolveToolBehaviorId,
+  resolveToolBehaviorStateId,
+} from './behavior-activity.js';
+import type { BehaviorActivityId } from './behavior-activity.js';
 
 export type ToolCallCardProps = {
   tool: ToolCardUi;
@@ -37,7 +46,81 @@ export type ToolCallCardProps = {
   request?: DiffCardRequest | undefined;
   /** Callback when user clicks a matched file in tool results. */
   onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+  /** Locale for the stable behavior label. */
+  locale?: 'zh-CN' | 'en';
 };
+
+/**
+ * Resolve a tool path (absolute or project-relative) into open-file args.
+ * Reuses the same absolute/relative rules as search result pills.
+ */
+export function resolveToolOpenPath(
+  filePath: string,
+  projectPath?: string | null,
+): { absolutePath: string; relativePath: string } {
+  const formatted = formatFilePillPath(filePath, undefined, projectPath);
+  return {
+    absolutePath: formatted.absolutePath,
+    relativePath: formatted.relativePath,
+  };
+}
+
+function openResolvedToolPath(
+  filePath: string,
+  projectPath: string | null | undefined,
+  onOpenFile: ((absolutePath: string, relativePath?: string) => void) | undefined,
+): void {
+  if (!onOpenFile) {
+    return;
+  }
+  const resolved = resolveToolOpenPath(filePath, projectPath);
+  onOpenFile(resolved.absolutePath, resolved.relativePath);
+}
+
+/** Clickable path list for expanded tool body (targetPaths / changedPaths). */
+function ToolPathLinkList(props: {
+  paths: string[];
+  projectPath?: string | null | undefined;
+  onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
+  testId: string;
+  prefix?: string | undefined;
+}): ReactElement {
+  const canOpen = Boolean(props.onOpenFile);
+  return (
+    <div className="tool-call-paths" data-testid={props.testId}>
+      {props.prefix ? <span className="tool-call-paths-prefix">{props.prefix}</span> : null}
+      {props.paths.map((filePath, index) => {
+        const resolved = resolveToolOpenPath(filePath, props.projectPath);
+        const separator = index > 0 ? <span key={`sep-${filePath}`}> · </span> : null;
+        if (!canOpen) {
+          return (
+            <span key={filePath}>
+              {separator}
+              {filePath}
+            </span>
+          );
+        }
+        return (
+          <span key={filePath}>
+            {separator}
+            <button
+              type="button"
+              className="tool-call-path-link"
+              title={resolved.absolutePath}
+              data-testid="tool-call-path-link"
+              data-full-path={resolved.absolutePath}
+              onClick={() => {
+                openResolvedToolPath(filePath, props.projectPath, props.onOpenFile);
+              }}
+            >
+              {filePath}
+            </button>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
 
 function summarizeToolOutput(toolName: string, output: string, maxLength: number): string {
   const trimmed = output.replace(/\s+/g, ' ').trim();
@@ -63,7 +146,36 @@ function kindIcon(
   kind: ToolKind | 'unknown',
   toolName?: string,
   actionVerb?: string,
+  behaviorId?: BehaviorActivityId,
 ): ReactElement {
+  switch (behaviorId) {
+    case 'mcp.server.connect':
+    case 'mcp.discovery':
+    case 'mcp.call':
+      return <IconPlug className="tool-call-kind-icon" />;
+    case 'web.search':
+    case 'web.fetch':
+    case 'browser':
+      return <IconBrowser className="tool-call-kind-icon" />;
+    case 'search':
+    case 'explore':
+      return <IconSearch className="tool-call-kind-icon" />;
+    case 'read':
+    case 'edit':
+      return <IconFile className="tool-call-kind-icon" />;
+    case 'shell':
+    case 'test':
+    case 'build':
+    case 'process':
+      return <IconTerminal className="tool-call-kind-icon" />;
+    case 'git':
+      return <IconGit className="tool-call-kind-icon" />;
+    case 'image':
+    case 'video':
+      return <IconSpark className="tool-call-kind-icon" />;
+    default:
+      break;
+  }
   const verb = (actionVerb ?? '').toLowerCase();
   const name = (toolName ?? '').toLowerCase();
 
@@ -74,6 +186,9 @@ function kindIcon(
     return <IconFile className="tool-call-kind-icon" />;
   }
   if (verb.startsWith('ran command') || verb === 'bash') {
+    return <IconTerminal className="tool-call-kind-icon" />;
+  }
+  if (verb.startsWith('ran test') || verb.startsWith('built')) {
     return <IconTerminal className="tool-call-kind-icon" />;
   }
   if (verb.startsWith('git')) {
@@ -117,6 +232,8 @@ function kindIcon(
     name.includes('bash') ||
     name.includes('command') ||
     name.includes('exec') ||
+    name.includes('test') ||
+    name.includes('build') ||
     name === 'shell'
   ) {
     return <IconTerminal className="tool-call-kind-icon" />;
@@ -154,6 +271,8 @@ function kindVerb(kind: ToolKind | 'unknown', toolName: string): string {
   if (name.includes('glob') || name.includes('list_dir') || name === 'ls') return 'Explored';
   if (name.includes('read') || name.includes('view')) return 'Read';
   if (name.includes('write') || name.includes('edit') || name.includes('replace')) return 'Edited';
+  if (name.includes('test')) return 'Ran tests';
+  if (name.includes('build') || name.includes('compile')) return 'Built';
   if (name.includes('bash') || name.includes('shell') || name.includes('command'))
     return 'Ran command';
   if (name.includes('git')) return 'Git';
@@ -291,17 +410,27 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         : [];
   const hasChangedPaths = changedPaths.length > 0;
   const canRenderDiffCard = hasChangedPaths && Boolean(props.projectPath) && Boolean(props.request);
-  const actionVerb = tool.presentation?.actionVerb ?? kindVerb(kind, tool.toolName);
+  const rawActionVerb = tool.presentation?.actionVerb ?? kindVerb(kind, tool.toolName);
+  const baseBehaviorId = resolveToolBehaviorId({
+    kind,
+    toolName: tool.toolName,
+    actionVerb: rawActionVerb,
+  });
+  const behaviorId = resolveToolBehaviorStateId(baseBehaviorId, tool.status);
+  const behaviorSpec = getBehaviorActivitySpec(behaviorId);
+  const locale = props.locale ?? 'en';
+  const actionVerb = localizeBehaviorAction(behaviorId, locale, rawActionVerb);
   const targetPaths = tool.presentation?.targetPaths ?? [];
   const multiPath = targetPaths.length > 1;
   const isQueryLike =
-    actionVerb === 'Searched' ||
-    actionVerb === 'Explored' ||
-    actionVerb === 'Fetched' ||
-    actionVerb === 'Generated image' ||
-    actionVerb.startsWith('MCP');
-  const isPathLike =
-    actionVerb === 'Read' || actionVerb === 'Edited' || actionVerb.startsWith('Git');
+    baseBehaviorId === 'search' ||
+    baseBehaviorId === 'explore' ||
+    baseBehaviorId === 'web.search' ||
+    baseBehaviorId === 'web.fetch' ||
+    baseBehaviorId === 'image' ||
+    baseBehaviorId === 'mcp.call' ||
+    baseBehaviorId === 'mcp.discovery';
+  const isPathLike = behaviorId === 'read' || behaviorId === 'edit' || behaviorId === 'git';
   const summary =
     tool.presentation?.summary ??
     tool.presentation?.command ??
@@ -315,14 +444,24 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const singleBasename = targetPaths[0]?.split(/[\\/]/).pop() || targetPaths[0] || '';
   const showFilePill = isPathLike && (targetPaths.length >= 1 || Boolean(summary));
   const pillLabel = multiPath || (isPathLike && !targetPaths[0]) ? summary : singleBasename;
+  const primaryTargetPath = targetPaths[0];
+  const canOpenPrimaryFile = Boolean(props.onOpenFile) && Boolean(primaryTargetPath) && !multiPath;
+  const primaryOpenPath = primaryTargetPath
+    ? resolveToolOpenPath(primaryTargetPath, props.projectPath)
+    : null;
   // Prefer host inputPreview; fall back when legacy presentations stuffed JSON into summary.
   const inputPreview =
     tool.presentation?.inputPreview || (looksLikeArgsDumpSummary(summary) ? summary : undefined);
   const hasDetailInBody = Boolean(tool.presentation?.command || inputPreview);
   const isArgsDumpSummary =
     Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary);
+  const isMcpBehavior = baseBehaviorId === 'mcp.call' || baseBehaviorId === 'mcp.discovery';
+  const headerSummary =
+    isMcpBehavior && displayName !== 'MCP gateway' && displayName !== tool.toolName
+      ? displayName
+      : summary;
   const previewText = resolveToolCallHeaderPreview({
-    summary,
+    summary: headerSummary,
     displayName,
     showFilePill,
     pillLabel: pillLabel || '',
@@ -330,12 +469,14 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     isPathLike,
     expanded,
     hasDetailInBody,
-    isArgsDumpSummary,
+    isArgsDumpSummary: isMcpBehavior ? false : isArgsDumpSummary,
   });
   const previewClassName =
-    isQueryLike || actionVerb === 'Ran command'
-      ? 'tool-call-preview is-query'
-      : 'tool-call-preview';
+    isQueryLike || baseBehaviorId === 'shell' ? 'tool-call-preview is-query' : 'tool-call-preview';
+  const behaviorClassName =
+    tool.status === 'error'
+      ? 'behavior-error'
+      : behaviorTextClass(baseBehaviorId, tool.status === 'running');
 
   const hasBody =
     Boolean(displayOutput) ||
@@ -356,24 +497,65 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
       data-tool-kind={kind}
       data-tool-status={tool.status}
       data-action-verb={actionVerb}
+      data-activity-id={behaviorId}
+      data-activity-animation={behaviorSpec.animation}
       data-density={density}
     >
-      <button
-        type="button"
+      {/*
+        Summary is a div (not a <button>) so the openable file pill can be a
+        real button without illegal nested interactive content.
+      */}
+      <div
         className="tool-call-summary"
         onClick={() => setExpanded((previous) => !previous)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setExpanded((previous) => !previous);
+          }
+        }}
+        role="button"
         aria-expanded={expanded}
         aria-label={`${actionVerb} ${summary || displayName} ${tool.status}`}
+        tabIndex={0}
       >
-        {kindIcon(kind, tool.toolName, actionVerb)}
-        <span className="tool-call-action-verb">{actionVerb}</span>
+        {kindIcon(kind, tool.toolName, rawActionVerb, baseBehaviorId)}
+        <span className={`tool-call-action-verb ${behaviorClassName}`}>{actionVerb}</span>
         {showFilePill && pillLabel ? (
-          <span className="tool-call-file-pill">
-            <span className="tool-call-file-name">{pillLabel}</span>
-            {!multiPath && tool.presentation?.lineRange ? (
-              <span className="tool-call-line-range">#{tool.presentation.lineRange}</span>
-            ) : null}
-          </span>
+          canOpenPrimaryFile && primaryOpenPath && primaryTargetPath ? (
+            <button
+              type="button"
+              className="tool-call-file-pill is-openable"
+              title={primaryOpenPath.absolutePath}
+              data-testid="tool-call-file-pill"
+              data-full-path={primaryOpenPath.absolutePath}
+              onClick={(event) => {
+                // Open file without toggling the card body.
+                event.stopPropagation();
+                openResolvedToolPath(primaryTargetPath, props.projectPath, props.onOpenFile);
+              }}
+              onKeyDown={(event) => {
+                // Keep Space/Enter on the pill from also expanding the card.
+                event.stopPropagation();
+              }}
+            >
+              <span className="tool-call-file-name">{pillLabel}</span>
+              {tool.presentation?.lineRange ? (
+                <span className="tool-call-line-range">#{tool.presentation.lineRange}</span>
+              ) : null}
+            </button>
+          ) : (
+            <span
+              className="tool-call-file-pill"
+              data-testid="tool-call-file-pill"
+              title={primaryOpenPath?.absolutePath ?? pillLabel}
+            >
+              <span className="tool-call-file-name">{pillLabel}</span>
+              {!multiPath && tool.presentation?.lineRange ? (
+                <span className="tool-call-line-range">#{tool.presentation.lineRange}</span>
+              ) : null}
+            </span>
+          )
         ) : null}
         {tool.presentation?.countTag ? (
           <span className="tool-call-count-tag">{tool.presentation.countTag}</span>
@@ -403,7 +585,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
           <span className="tool-call-duration tool-call-duration-live">…</span>
         ) : null}
         <IconChevronDown className={expanded ? 'tool-call-chevron open' : 'tool-call-chevron'} />
-      </button>
+      </div>
       {expanded && hasBody ? (
         <div className="tool-call-body">
           {outputTruncated ? (
@@ -428,14 +610,21 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               ))
             : null}
           {tool.presentation?.targetPaths && tool.presentation.targetPaths.length > 0 ? (
-            <div className="tool-call-paths" data-testid="tool-call-paths">
-              {tool.presentation.targetPaths.join(' · ')}
-            </div>
+            <ToolPathLinkList
+              paths={tool.presentation.targetPaths}
+              projectPath={props.projectPath}
+              onOpenFile={props.onOpenFile}
+              testId="tool-call-paths"
+            />
           ) : null}
           {!canRenderDiffCard && hasChangedPaths ? (
-            <div className="tool-call-paths" data-testid="tool-call-changed-paths">
-              changed: {changedPaths.join(' · ')}
-            </div>
+            <ToolPathLinkList
+              paths={changedPaths}
+              projectPath={props.projectPath}
+              onOpenFile={props.onOpenFile}
+              testId="tool-call-changed-paths"
+              prefix="changed: "
+            />
           ) : null}
           {tool.presentation?.error ? (
             <div className="tool-call-error" data-testid="tool-call-error" role="status">

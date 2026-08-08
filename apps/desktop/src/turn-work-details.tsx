@@ -10,12 +10,16 @@ import {
   type TurnPresentation,
 } from './run-presentation';
 import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
+import type { SkillActivityView } from './chat-reducer';
 import { TurnToolGroup } from './turn-tool-group';
 import { IconChevronRight, IconBrain } from './shell-icons';
-import { RunActivitySplash } from './RunActivitySplash.js';
+import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 import { turnPresentationToActivityInput } from './run-activity-mappers.js';
 import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
 import type { DiffCardRequest } from './diff-card';
+import type { AgentLocatorAnimation } from './ui-preferences.js';
+import { runtimeStatusText } from './run-activity-strings.js';
+import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type TurnWorkDetailsProps = {
   message: ChatMessageUi;
@@ -35,6 +39,10 @@ export type TurnWorkDetailsProps = {
   onOpenFile?: (absolutePath: string, relativePath?: string) => void;
   /** Collapse historical tool cards into a summary on session hydrate. */
   historyCollapsed?: boolean;
+  /** Explicit slash Skill currently being applied to this run. */
+  activeSkill?: SkillActivityView | null;
+  /** Compact live locator animation selected in Settings. */
+  agentLocatorAnimation?: AgentLocatorAnimation;
 };
 
 function thinkingSummaryLabel(input: {
@@ -45,7 +53,7 @@ function thinkingSummaryLabel(input: {
 }): string {
   const isChinese = input.locale === 'zh-CN';
   if (input.isActive && !input.answerStarted) {
-    return isChinese ? '思考中' : 'Thinking';
+    return runtimeStatusText('thinking', input.locale);
   }
   if (input.thoughtSeconds !== undefined) {
     return isChinese ? `已思考 ${input.thoughtSeconds} 秒` : `Thought for ${input.thoughtSeconds}s`;
@@ -88,13 +96,15 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
   const permissionItem = presentation.workItems.find((item) => item.kind === 'permission');
   const hasThinking = props.showThinking !== false && Boolean(thinkingItem);
   const thinkingIsStreaming = presentation.isActive && !presentation.answerStarted && hasThinking;
+  const thinkingLabelClass = behaviorTextClass('thinking', thinkingIsStreaming);
 
   const hasVisibleWork =
     hasThinking ||
     tools.length > 0 ||
     presentation.isWaitingForModel ||
     presentation.outcome !== undefined ||
-    Boolean(presentation.terminalMessage);
+    Boolean(presentation.terminalMessage) ||
+    Boolean(props.activeSkill && presentation.isActive);
 
   if (!hasVisibleWork) {
     return null;
@@ -127,6 +137,9 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
           <button
             type="button"
             className="turn-work-details-summary"
+            data-activity-id="thinking"
+            data-activity-animation={getBehaviorActivitySpec('thinking').animation}
+            data-tool-status={thinkingIsStreaming ? 'running' : 'done'}
             aria-label={locale === 'zh-CN' ? '思考过程' : 'Thoughts'}
             aria-expanded={thinkingOpen}
             data-testid="turn-work-details-summary"
@@ -137,7 +150,7 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
             ) : (
               <IconBrain className="turn-summary-brain-icon" />
             )}
-            <span className="turn-work-details-label">
+            <span className={`turn-work-details-label ${thinkingLabelClass}`}>
               {thinkingSummaryLabel({
                 isActive: presentation.isActive,
                 answerStarted: presentation.answerStarted,
@@ -170,15 +183,40 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
 
       {presentation.isWaitingForModel && tools.length === 0 && !hasThinking ? (
         <div className="turn-waiting-line" data-testid="turn-waiting-line">
-          <RunActivitySplash
-            input={turnPresentationToActivityInput(presentation, props.message, locale)}
+          <div className="agent-locator-stack">
+            {props.activeSkill ? (
+              <SkillActivityChip skill={props.activeSkill} loading locale={locale} />
+            ) : null}
+            <AgentLocator
+              input={turnPresentationToActivityInput(presentation, props.message, locale)}
+              {...(props.agentLocatorAnimation
+                ? { animation: props.agentLocatorAnimation }
+                : {})}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {props.activeSkill && presentation.isActive && tools.length > 0 ? (
+        <div className="turn-skill-activity-line" data-testid="turn-skill-activity-line">
+          <SkillActivityChip
+            skill={props.activeSkill}
+            loading={presentation.isWaitingForModel}
+            locale={locale}
           />
         </div>
       ) : null}
 
       {permissionItem && permissionItem.kind === 'permission' ? (
-        <div className="turn-permission-wait" data-testid="turn-permission-wait" role="status">
-          <strong>{locale === 'zh-CN' ? '等待权限' : 'Waiting for permission'}</strong>
+        <div
+          className="turn-permission-wait behavior-gate-surface"
+          data-testid="turn-permission-wait"
+          data-activity-id="permission"
+          data-activity-animation={getBehaviorActivitySpec('permission').animation}
+          data-tool-status="running"
+          role="status"
+        >
+          <strong>{runtimeStatusText('asking', locale)}</strong>
           <div>{permissionItem.action}</div>
           {permissionItem.detail ? <div className="muted">{permissionItem.detail}</div> : null}
         </div>

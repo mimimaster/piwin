@@ -3,6 +3,8 @@ import {
   buildBasePhrases,
   buildTakingTooLongPhrases,
   buildActivityPhrases,
+  RUNTIME_STATUS_COPY,
+  runtimeStatusText,
 } from './run-activity-strings.js';
 import type { RunActivityInput } from './run-activity-types.js';
 
@@ -13,18 +15,17 @@ const en = (overrides: Partial<RunActivityInput> = {}): RunActivityInput => ({
 });
 
 describe('buildBasePhrases', () => {
-  it('returns "Planning next moves" for waiting-first-token en', () => {
+  it('uses the reference copy for waiting-first-token en', () => {
     const phrases = buildBasePhrases(en());
-    expect(phrases[0]).toBe('Planning next moves');
-    expect(phrases.length).toBeGreaterThanOrEqual(3);
+    expect(phrases).toEqual(['Thinking…']);
   });
 
-  it('includes tool name for working with activeToolName', () => {
+  it('keeps the runtime working status stable when a tool is active', () => {
     const phrases = buildBasePhrases(en({ kind: 'working', activeToolName: 'bash' }));
-    expect(phrases[0]).toContain('bash');
+    expect(phrases).toEqual(['Working…']);
   });
 
-  it('prefers presentation detail + actionVerb for the primary work line', () => {
+  it('keeps runtime status separate from the detailed tool timeline', () => {
     const phrases = buildBasePhrases(
       en({
         kind: 'working',
@@ -33,7 +34,7 @@ describe('buildBasePhrases', () => {
         detail: 'apps/desktop/src/App.tsx',
       }),
     );
-    expect(phrases[0]).toBe('Read apps/desktop/src/App.tsx');
+    expect(phrases).toEqual(['Working…']);
   });
 
   it('localizes actionVerb for zh-CN work lines', () => {
@@ -44,35 +45,50 @@ describe('buildBasePhrases', () => {
       actionVerb: 'Read',
       detail: 'packages/pet/src/index.ts',
     });
-    expect(phrases[0]).toBe('读取 packages/pet/src/index.ts');
+    expect(phrases[0]).toBe('正在处理…');
   });
 
-  it('includes plan step for planning', () => {
+  it('uses the reference planning status instead of the internal plan step', () => {
     const phrases = buildBasePhrases(en({ kind: 'planning', planStep: 'Add auth' }));
-    expect(phrases[0]).toBe('Planning: Add auth');
+    expect(phrases).toEqual(['Planning']);
   });
 
   it('localizes to zh-CN', () => {
     const phrases = buildBasePhrases({ kind: 'waiting-first-token', locale: 'zh-CN' });
-    expect(phrases[0]).toBe('规划下一步');
+    expect(phrases[0]).toBe('正在思考…');
+  });
+
+  it('keeps every txt status key available as an exact bilingual pair', () => {
+    expect(RUNTIME_STATUS_COPY).toEqual({
+      preparing: { zh: '准备上下文…', en: 'Preparing context…' },
+      'connecting-model': { zh: '连接模型…', en: 'Connecting to model…' },
+      'waiting-first-token': { zh: '正在思考…', en: 'Thinking…' },
+      working: { zh: '正在处理…', en: 'Working…' },
+      stopping: { zh: '正在停止…', en: 'Stopping…' },
+      thinking: { zh: '思考中', en: 'Thinking' },
+      planning: { zh: '制定计划中', en: 'Planning' },
+      asking: { zh: '等待你的回答', en: 'Waiting for your answer' },
+    });
+    expect(runtimeStatusText('asking', 'zh-CN')).toBe('等待你的回答');
+    expect(runtimeStatusText('asking', 'en')).toBe('Waiting for your answer');
   });
 });
 
 describe('buildTakingTooLongPhrases', () => {
-  it('mentions the tool name', () => {
+  it('keeps the exact runtime status when a run takes longer', () => {
     const phrases = buildTakingTooLongPhrases(en({ kind: 'working', activeToolName: 'bash' }));
-    expect(phrases[0]).toContain('bash');
+    expect(phrases).toEqual(['Working…']);
   });
 
-  it('falls back to generic taking-too-long for waiting-first-token', () => {
+  it('keeps the reference thinking copy for waiting-first-token', () => {
     const phrases = buildTakingTooLongPhrases(en());
-    expect(phrases[0]).toBe('Taking longer than expected…');
+    expect(phrases).toEqual(['Thinking…']);
   });
 });
 
 describe('buildActivityPhrases', () => {
-  it('switches to taking-too-long when elapsed > 15s', () => {
+  it('does not replace the reference status after the timeout threshold', () => {
     const phrases = buildActivityPhrases(en({ elapsedMs: 20_000 }));
-    expect(phrases[0]).toBe('Taking longer than expected…');
+    expect(phrases).toEqual(['Thinking…']);
   });
 });

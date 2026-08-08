@@ -17,6 +17,7 @@ import {
 } from './activity-timeline';
 import { FileTypeIcon } from './file-type-icon';
 import { IconChevronDown, IconSearch } from './shell-icons';
+import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type TurnToolGroupProps = {
   tools: ToolCardUi[];
@@ -49,9 +50,26 @@ function SearchToolItemRow(props: {
   const isZh = props.locale === 'zh-CN';
   const info = extractSearchInfo(props.tool, props.projectPath);
   const [expanded, setExpanded] = useState(false);
+  const isActive = props.tool.status === 'running';
+  const actionLabel = info.isError
+    ? isZh
+      ? '搜索失败'
+      : 'Search failed'
+    : isActive
+      ? isZh
+        ? '正在搜索'
+        : 'Searching'
+      : isZh
+        ? '已搜索'
+        : 'Searched';
 
   return (
-    <div className={`search-tool-item${info.isError ? ' has-error' : ''}`}>
+    <div
+      className={`search-tool-item${info.isError ? ' has-error' : ''}${isActive ? ' is-active' : ''}`}
+      data-activity-id="search"
+      data-activity-animation={getBehaviorActivitySpec('search').animation}
+      data-tool-status={props.tool.status}
+    >
       <button
         type="button"
         className="search-tool-item-summary"
@@ -63,12 +81,14 @@ function SearchToolItemRow(props: {
           width={12}
           height={12}
         />
-        <span>Searched </span>
+        <span className={`search-tool-action ${behaviorTextClass('search', isActive)}`}>
+          {actionLabel}{' '}
+        </span>
         <span className="search-query-chip">{info.query}</span>
         {info.dir ? <span> in {info.dir}</span> : null}
         {info.pattern ? <span> ({info.pattern})</span> : null}
         {info.isError ? (
-          <span className="search-error-label"> ({isZh ? 'search失败' : 'Search failed'})</span>
+          <span className="search-error-label"> ({actionLabel})</span>
         ) : (
           <span> ({info.count})</span>
         )}
@@ -133,6 +153,7 @@ function ExploreGroupBlock(props: {
 
   const cardProps = {
     density: props.density,
+    locale: props.locale,
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
     ...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {}),
@@ -143,6 +164,13 @@ function ExploreGroupBlock(props: {
       ? extractSearchInfo(searchTools[0], props.projectPath)
       : null;
   const hasError = props.tools.some((t) => t.status === 'error');
+  const activityId = hasSearchTools ? 'search' : 'explore';
+  const activityStatus = isActive ? 'running' : hasError ? 'error' : 'done';
+  const activityAnimation = getBehaviorActivitySpec(activityId).animation;
+  const summaryTextClass =
+    activityStatus === 'error'
+      ? 'behavior-error'
+      : behaviorTextClass(activityId, isActive);
 
   return (
     <div
@@ -150,6 +178,9 @@ function ExploreGroupBlock(props: {
         expanded ? ' is-expanded' : ' is-collapsed'
       }`}
       data-testid="activity-explore-group"
+      data-activity-id={activityId}
+      data-activity-animation={activityAnimation}
+      data-tool-status={activityStatus}
       data-file-count={props.fileCount}
     >
       <button
@@ -168,8 +199,16 @@ function ExploreGroupBlock(props: {
           height={12}
         />
         {hasSearchTools && firstSearchInfo ? (
-          <span className="activity-explore-label">
-            <span>Searched </span>
+          <span className={`activity-explore-label ${summaryTextClass}`}>
+            <span className={`search-tool-action ${behaviorTextClass('search', isActive)}`}>
+              {isActive
+                ? isZh
+                  ? '正在搜索 '
+                  : 'Searching '
+                : isZh
+                  ? '已搜索 '
+                  : 'Searched '}
+            </span>
             <span className="search-query-chip">{firstSearchInfo.query}</span>
             {searchTools.length > 1 ? (
               <span>
@@ -185,8 +224,7 @@ function ExploreGroupBlock(props: {
                 {firstSearchInfo.pattern ? <span> ({firstSearchInfo.pattern})</span> : null}
                 {firstSearchInfo.isError ? (
                   <span className="search-error-label">
-                    {' '}
-                    ({isZh ? 'search失败' : 'Search failed'})
+                    {' '}({isZh ? '搜索失败' : 'Search failed'})
                   </span>
                 ) : (
                   <span> ({firstSearchInfo.count})</span>
@@ -200,7 +238,7 @@ function ExploreGroupBlock(props: {
         ) : (
           <>
             <IconSearch className="activity-explore-icon" width={13} height={13} />
-            <span className="activity-explore-label">
+            <span className={`activity-explore-label ${summaryTextClass}`}>
               {exploreGroupLabel({
                 fileCount: props.fileCount,
                 locale: props.locale,
@@ -235,6 +273,7 @@ function renderSegment(
   segment: TimelineSegment,
   cardProps: {
     density: ToolCallDensity;
+    locale: 'zh-CN' | 'en';
     projectPath?: string | null | undefined;
     request?: DiffCardRequest | undefined;
     onOpenFile?: ((absolutePath: string, relativePath?: string) => void) | undefined;
@@ -295,6 +334,7 @@ function HistoryToolsCollapsed(props: {
 
   const cardProps = {
     density: props.density,
+    locale: props.locale,
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
     ...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {}),
@@ -372,6 +412,7 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
 
   const cardProps = {
     density,
+    locale,
     ...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {}),
     ...(props.request !== undefined ? { request: props.request } : {}),
     ...(props.onOpenFile !== undefined ? { onOpenFile: props.onOpenFile } : {}),
@@ -398,4 +439,3 @@ export function TurnToolGroup(props: TurnToolGroupProps): ReactElement | null {
     </div>
   );
 }
-

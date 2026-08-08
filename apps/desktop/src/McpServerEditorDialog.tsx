@@ -18,6 +18,7 @@ import {
 import type { McpConfigDocument, McpServerConfig, McpToolSummary } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
 import { IconPin } from './shell-icons';
+import { getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type McpServerEditorDialogProps = {
   open: boolean;
@@ -32,8 +33,6 @@ export type McpServerEditorDialogProps = {
   prefillDraft?: McpServerConfig | null;
   /** Pre-filled id from marketplace install. */
   prefillId?: string;
-  /** Open the dialog and immediately probe tools for an existing server. */
-  autoProbe?: boolean;
   isChinese: boolean;
   onSave: (id: string, config: McpServerConfig, originalId: string) => Promise<boolean>;
   onValidateRaw: (document: unknown) => Promise<{
@@ -115,37 +114,24 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     setTab('form');
     setTogglingPinSelector(null);
 
-    let initialDraft: ServerFormDraft;
     if (props.prefillDraft) {
       const id = props.prefillId ?? '';
-      initialDraft = {
+      setDraft({
         id,
         command: props.prefillDraft.command,
         argsText: (props.prefillDraft.args ?? []).join(' '),
         envText: Object.entries(props.prefillDraft.env ?? {})
           .map(([key, value]) => `${key}=${value}`)
           .join('\n'),
-      };
+      });
     } else if (props.serverId && props.server) {
-      initialDraft = serverToDraft(props.serverId, props.server);
+      setDraft(serverToDraft(props.serverId, props.server));
     } else {
-      initialDraft = emptyDraft();
+      setDraft(emptyDraft());
     }
-    setDraft(initialDraft);
     setRawJson(`${JSON.stringify(props.document, null, 2)}\n`);
-
-    if (props.autoProbe && props.serverId) {
-      void previewForDraft(initialDraft);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- document is intentionally omitted; pin saves must not reset the form
-  }, [
-    props.open,
-    props.serverId,
-    props.server,
-    props.prefillDraft,
-    props.prefillId,
-    props.autoProbe,
-  ]);
+  }, [props.open, props.serverId, props.server, props.prefillDraft, props.prefillId]);
 
   // Keep raw JSON tab in sync when pins change while the dialog is open.
   useEffect(() => {
@@ -215,15 +201,15 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
     }
   }
 
-  async function previewForDraft(targetDraft: ServerFormDraft): Promise<void> {
-    const id = targetDraft.id.trim();
+  async function handlePreviewTools(): Promise<void> {
+    const id = draft.id.trim();
     if (!id) {
       setError(isChinese ? '请先填写服务器 ID。' : 'Enter a server ID first.');
       return;
     }
     setLoadingTools(true);
     setError(null);
-    const result = await props.onPreviewTools(id, draftToServer(targetDraft));
+    const result = await props.onPreviewTools(id, draftToServer(draft));
     setLoadingTools(false);
     setTools(result);
     setInfo(
@@ -235,10 +221,6 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
           ? `已从 ${id} 加载 ${result.length} 个工具`
           : `Loaded ${result.length} tool(s) from ${id}`,
     );
-  }
-
-  async function handlePreviewTools(): Promise<void> {
-    await previewForDraft(draft);
   }
 
   async function handleTogglePinned(selector: string, nextPinned: boolean): Promise<void> {
@@ -380,6 +362,9 @@ export function McpServerEditorDialog(props: McpServerEditorDialogProps): ReactE
                   disabled={loadingTools || !draft.id.trim()}
                   onClick={() => void handlePreviewTools()}
                   data-testid="mcp-editor-tools"
+                  data-activity-id="mcp.discovery"
+                  data-activity-animation={getBehaviorActivitySpec('mcp.discovery').animation}
+                  data-tool-status={loadingTools ? 'running' : 'done'}
                 >
                   {loadingTools
                     ? isChinese

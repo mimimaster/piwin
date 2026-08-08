@@ -237,7 +237,7 @@ function resolveActionFamily(toolName: string): ToolActionFamily {
   const n = toolName.trim().toLowerCase();
   if (!n) return 'other';
 
-  if (n.startsWith('mcp__') || n.startsWith('mcp:')) return 'mcp';
+  if (n === 'mcp_gateway' || n.startsWith('mcp__') || n.startsWith('mcp:')) return 'mcp';
 
   if (
     n === 'bash' ||
@@ -330,6 +330,9 @@ function resolveActionFamily(toolName: string): ToolActionFamily {
 
 function humanizeToolTitle(toolName: string, kind: ToolKind): string {
   if (kind === 'mcp') {
+    if (toolName.trim().toLowerCase() === 'mcp_gateway') {
+      return 'MCP gateway';
+    }
     return toolName.replace(/^mcp__?/, '').replace(/__/g, ' / ') || toolName;
   }
   return toolName;
@@ -585,6 +588,33 @@ function extractActionDetails(input: {
       break;
     }
     case 'mcp': {
+      if (toolName.trim().toLowerCase() === 'mcp_gateway') {
+        const operation = readString(record.action)?.trim().toLowerCase();
+        switch (operation) {
+          case 'search':
+            actionVerb = 'MCP discovery';
+            if (searchQuery) summary = clipSummary(searchQuery);
+            else if (readString(record.serverId)) summary = `Server ${readString(record.serverId)}`;
+            else summary = 'MCP tools';
+            break;
+          case 'describe':
+            actionVerb = 'MCP discovery';
+            summary = readString(record.selector) ?? 'Tool schema';
+            break;
+          case 'status':
+            actionVerb = 'MCP status';
+            summary = readString(record.serverId) ?? 'Servers';
+            break;
+          case 'call':
+            actionVerb = 'MCP call';
+            summary = readString(record.selector) ?? 'MCP tool';
+            break;
+          default:
+            actionVerb = 'MCP gateway';
+            break;
+        }
+        break;
+      }
       const parts = toolName.replace(/^mcp__?/, '').split('__');
       const server = parts[0];
       // Only the segments after the server are the tool name; do not fall back to

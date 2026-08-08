@@ -12,6 +12,7 @@
 import { useState, type ReactElement } from 'react';
 import type { PlanExecutionMode, PlanStepStatus, SessionPlan } from '@piwin/contracts';
 import { Collapse } from '@piwin/ui-kit';
+import { behaviorTextClass, getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type PlanStepVisual = 'done' | 'run' | 'pending' | 'skipped';
 
@@ -137,7 +138,13 @@ export function PlanCard({
   }
 
   return (
-    <div className={`plan-card${open ? '' : ' closed'}`} data-testid="plan-card">
+    <div
+      className={`plan-card${open ? '' : ' closed'}`}
+      data-testid="plan-card"
+      data-activity-id="plan"
+      data-activity-animation={getBehaviorActivitySpec('plan').animation}
+      data-tool-status={isTerminal ? 'done' : isRunning ? 'running' : 'idle'}
+    >
       <button
         type="button"
         className="plan-head"
@@ -147,9 +154,18 @@ export function PlanCard({
         <svg className="chev ic" viewBox="0 0 24 24">
           <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span className="plan-title">
+        <span className={`plan-title ${behaviorTextClass('plan', isRunning)}`}>
           {doneCount} / {totalCount} tasks done{plan.title ? ` · ${plan.title}` : ''}
         </span>
+        {plan.source === 'skill' && plan.skillId ? (
+          <span
+            className="skill-activity-chip plan-skill-chip"
+            data-activity-id="skill.use"
+            data-activity-animation={getBehaviorActivitySpec('skill.use').animation}
+          >
+            Using skill: <strong>{plan.skillId}</strong>
+          </span>
+        ) : null}
         {onOpenDocument ? (
           <span className="plan-doc-link" title="在右侧面板中打开增强文档" onClick={handleOpenDoc}>
             📄 Implementation Plan

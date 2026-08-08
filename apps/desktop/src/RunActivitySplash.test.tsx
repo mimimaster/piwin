@@ -48,25 +48,25 @@ describe('RunActivitySplash', () => {
     act(() => root.render(<TestHarness input={{ kind: 'waiting-first-token', locale: 'en' }} />));
     const status = container.querySelector('[role="status"]');
     expect(status).not.toBeNull();
-    expect(status?.getAttribute('aria-label')).toBe('Planning next moves');
-    expect(container.textContent).toContain('Planning next moves');
+    expect(status?.getAttribute('aria-label')).toBe('Thinking…');
+    expect(container.textContent).toContain('Thinking…');
   });
 
-  it('mentions the tool when working', () => {
+  it('keeps the runtime working copy independent from the active tool', () => {
     act(() =>
       root.render(
         <TestHarness input={{ kind: 'working', activeToolName: 'bash', locale: 'en' }} />,
       ),
     );
-    expect(container.textContent).toContain('bash');
+    expect(container.textContent).toContain('Working…');
   });
 
-  it('shows taking-too-long when elapsed > 15s', () => {
+  it('keeps the reference status when elapsed > 15s', () => {
     act(() =>
       root.render(
         <TestHarness input={{ kind: 'waiting-first-token', locale: 'en', elapsedMs: 20000 }} />,
       ),
     );
-    expect(container.textContent).toContain('Taking longer than expected…');
+    expect(container.textContent).toContain('Thinking…');
   });
 });

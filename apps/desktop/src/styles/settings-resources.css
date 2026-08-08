@@ -3691,6 +3691,31 @@
   line-height: 1.4;
 }
 
+.animation-locator-config {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.animation-locator-config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.animation-locator-preview {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-control);
+  background: color-mix(in srgb, var(--panel) 82%, var(--text));
+}
+
 .animations-sizes-row {
   display: flex;
   align-items: center;

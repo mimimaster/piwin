@@ -9,6 +9,11 @@ import type { ChatMessageUi, SubagentStreamState, SubagentStreamTool } from './c
 import { MarkdownView } from './MarkdownView';
 import { Button } from '@piwin/ui-kit';
 import { IconChevronDown } from './shell-icons';
+import {
+  behaviorTextClass,
+  getBehaviorActivitySpec,
+  resolveToolBehaviorId,
+} from './behavior-activity.js';
 
 export type SubagentSessionTranscriptProps = {
   historicalMessages: ChatMessageUi[];
@@ -24,14 +29,29 @@ export type SubagentSessionTranscriptProps = {
 const SCROLL_FOLLOW_THRESHOLD_PX = 80;
 
 function SubagentToolRow({ tool }: { tool: SubagentStreamTool }): ReactElement {
+  const behaviorId = resolveToolBehaviorId({ kind: 'unknown', toolName: tool.toolName });
+  const behaviorSpec = getBehaviorActivitySpec(behaviorId);
+  const isRunning = tool.status === 'running';
   return (
-    <div className="subagent-inspector-tool" data-status={tool.status}>
+    <div
+      className="subagent-inspector-tool"
+      data-status={tool.status}
+      data-activity-id={behaviorId}
+      data-activity-animation={behaviorSpec.animation}
+      data-tool-status={isRunning ? 'running' : tool.status}
+    >
       <span className="subagent-inspector-tool-header">
         <span
           className={`subagent-inspector-tool-status status-${tool.status}`}
           aria-hidden="true"
         />
-        <code className="subagent-inspector-tool-name">{tool.toolName}</code>
+        <code
+          className={`subagent-inspector-tool-name ${
+            tool.status === 'error' ? 'behavior-error' : behaviorTextClass(behaviorId, isRunning)
+          }`}
+        >
+          {tool.toolName}
+        </code>
       </span>
       {tool.output.length > 0 ? (
         <pre className="subagent-inspector-tool-output">{tool.output.slice(-2048)}</pre>
@@ -191,7 +211,13 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
             return null;
           }
           return (
-            <div className="subagent-inspector-live" data-live={isLive}>
+            <div
+              className="subagent-inspector-live"
+              data-live={isLive}
+              data-activity-id="subagent.inspector.live"
+              data-activity-animation={getBehaviorActivitySpec('subagent.inspector.live').animation}
+              data-tool-status={isLive ? 'running' : 'done'}
+            >
               {showThinking && stream.thinking.length > 0 ? (
                 <details className="subagent-inspector-thinking" open>
                   <summary>{isChinese ? '思考过程' : 'Thinking'}</summary>

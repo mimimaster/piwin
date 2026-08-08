@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 import { StatusBadge, Surface } from '@piwin/ui-kit';
+import type { BehaviorActivityAnimation, BehaviorActivityId } from './behavior-activity.js';
 
 export type AgentInterruptionTone = 'question' | 'warning' | 'danger';
 
@@ -10,6 +11,10 @@ export type AgentInterruptionFrameProps = {
   description?: string | undefined;
   children: ReactNode;
   testId: string;
+  /** Optional call-chain identity used to bind the shared behavior motion. */
+  activityId?: BehaviorActivityId;
+  activityAnimation?: BehaviorActivityAnimation;
+  activityStatus?: 'running' | 'done' | 'error' | 'idle';
 };
 
 /**
@@ -25,6 +30,11 @@ export function AgentInterruptionFrame(props: AgentInterruptionFrameProps): Reac
       tone="raised"
       className={`agent-interruption agent-interruption--${props.tone}`}
       data-testid={props.testId}
+      {...(props.activityId !== undefined ? { 'data-activity-id': props.activityId } : {})}
+      {...(props.activityAnimation !== undefined
+        ? { 'data-activity-animation': props.activityAnimation }
+        : {})}
+      {...(props.activityStatus !== undefined ? { 'data-tool-status': props.activityStatus } : {})}
       aria-label={props.statusLabel}
     >
       <header className="agent-interruption-header">

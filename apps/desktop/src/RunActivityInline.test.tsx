@@ -62,7 +62,7 @@ describe('RunActivityInline', () => {
     expect(container.textContent).toBe('');
   });
 
-  it('renders the first phrase for working', () => {
+  it('renders the reference working status', () => {
     act(() =>
       root.render(
         <TestHarness
@@ -77,7 +77,7 @@ describe('RunActivityInline', () => {
         />,
       ),
     );
-    expect(container.textContent).toContain('Writing your code');
+    expect(container.textContent).toContain('Working…');
   });
 
   it('can transition from idle to working without a Hooks-order error', () => {
@@ -98,6 +98,6 @@ describe('RunActivityInline', () => {
     };
     act(() => root.render(<TestHarness runState={idle} />));
     act(() => root.render(<TestHarness runState={working} />));
-    expect(container.textContent).toContain('Writing your code');
+    expect(container.textContent).toContain('Working…');
   });
 });

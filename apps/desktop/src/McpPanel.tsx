@@ -31,6 +31,7 @@ import type {
 import { PageTitle } from './settings/page-title';
 import { McpServerEditorDialog } from './McpServerEditorDialog';
 import { IconPin } from './shell-icons';
+import { getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type McpPanelProps = {
   request: (command: {
@@ -69,11 +70,13 @@ export function McpPanel(props: McpPanelProps) {
   const documentRef = useRef(document);
   const saveQueueRef = useRef<Promise<boolean>>(Promise.resolve(true));
   const [healthById, setHealthById] = useState<Record<string, McpServerHealth>>({});
+  const [pinningServerId, setPinningServerId] = useState<string | null>(null);
+  const [startingServerId, setStartingServerId] = useState<string | null>(null);
+  const [stoppingServerId, setStoppingServerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Editor dialog state
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editorAutoProbe, setEditorAutoProbe] = useState(false);
   const [editServerId, setEditServerId] = useState('');
   const [editServer, setEditServer] = useState<McpServerConfig | undefined>(undefined);
   const [prefillDraft, setPrefillDraft] = useState<McpServerConfig | null>(null);
@@ -190,12 +193,83 @@ export function McpPanel(props: McpPanelProps) {
     return saveDocument(nextDocument);
   }
 
+  async function handleToggleServerPinned(serverId: string): Promise<void> {
+    const currentDocument = documentRef.current;
+    const server = currentDocument.mcpServers[serverId];
+    if (!server) return;
+
+    const currentPins = currentDocument.pinnedSelectors ?? [];
+    const serverPinPrefix = `${serverId}.`;
+    const serverPins = currentPins.filter((selector) => selector.startsWith(serverPinPrefix));
+    setPinningServerId(serverId);
+    setError(null);
+
+    try {
+      if (serverPins.length > 0) {
+        const nextPins = currentPins.filter((selector) => !selector.startsWith(serverPinPrefix));
+        const saved = await saveDocument({
+          mcpServers: currentDocument.mcpServers,
+          pinnedSelectors: nextPins,
+        });
+        if (saved) {
+          showUiNotification({
+            tone: 'success',
+            message: isChinese ? `已取消固定 ${serverId}` : `Unpinned ${serverId}`,
+            autoClose: 3000,
+          });
+        }
+        return;
+      }
+
+      const response = await props.request({ type: 'mcp/list_tools', serverId });
+      if (!response.success) {
+        setError(response.error);
+        showUiNotification({
+          tone: 'error',
+          title: isChinese ? '固定 MCP 工具失败' : 'Failed to pin MCP tools',
+          message: response.error,
+          autoClose: 5000,
+        });
+        return;
+      }
+
+      const data = response.data as McpListToolsData;
+      const selectors = (data.tools ?? []).map((tool) => `${serverId}.${tool.name}`);
+      if (selectors.length === 0) {
+        showUiNotification({
+          tone: 'warning',
+          message: isChinese
+            ? `${serverId} 当前没有可固定的工具`
+            : `${serverId} has no tools available to pin`,
+          autoClose: 4000,
+        });
+        return;
+      }
+
+      const nextPins = [...new Set([...currentPins, ...selectors])];
+      const saved = await saveDocument({
+        mcpServers: currentDocument.mcpServers,
+        pinnedSelectors: nextPins,
+      });
+      if (saved) {
+        showUiNotification({
+          tone: 'success',
+          message: isChinese
+            ? `已固定 ${serverId} 的 ${selectors.length} 个工具`
+            : `Pinned ${selectors.length} tool(s) from ${serverId}`,
+          autoClose: 3000,
+        });
+      }
+    } finally {
+      setPinningServerId(null);
+    }
+  }
+
   function openAddEditor(): void {
     setEditServerId('');
     setEditServer(undefined);
     setPrefillDraft(null);
     setPrefillId('');
-    setEditorAutoProbe(false);
     setEditorOpen(true);
   }
 
@@ -204,16 +278,6 @@ export function McpPanel(props: McpPanelProps) {
     setEditServer(document.mcpServers[serverId]);
     setPrefillDraft(null);
     setPrefillId('');
-    setEditorAutoProbe(false);
-    setEditorOpen(true);
-  }
-
-  function openPinEditor(serverId: string): void {
-    setEditServerId(serverId);
-    setEditServer(document.mcpServers[serverId]);
-    setPrefillDraft(null);
-    setPrefillId('');
-    setEditorAutoProbe(true);
     setEditorOpen(true);
   }
 
@@ -294,39 +358,49 @@ export function McpPanel(props: McpPanelProps) {
     if (!server) return;
     setError(null);
     if (enable) {
-      const nextServers = { ...document.mcpServers, [serverId]: { ...server, disabled: false } };
-      if (!(await saveDocument({ mcpServers: nextServers }))) return;
-      const response = await props.request({ type: 'mcp/start', serverId });
-      if (!response.success) {
-        showUiNotification({
-          tone: 'error',
-          title: isChinese ? '启动 MCP 服务器失败' : 'Failed to start MCP server',
-          message: response.error,
-          autoClose: 5000,
-        });
-        return;
-      }
-      const data = response.data as { health: McpServerHealth };
-      setHealthById((current) => ({ ...current, [data.health.serverId]: data.health }));
-      showUiNotification({
-        tone: 'success',
-        message: isChinese ? `已启动 ${serverId}` : `Started ${serverId}`,
-        autoClose: 3000,
-      });
-    } else {
-      const stopResponse = await props.request({ type: 'mcp/stop', serverId });
-      if (stopResponse.success) {
-        const data = stopResponse.data as { health: McpServerHealth };
+      setStartingServerId(serverId);
+      try {
+        const nextServers = { ...document.mcpServers, [serverId]: { ...server, disabled: false } };
+        if (!(await saveDocument({ mcpServers: nextServers }))) return;
+        const response = await props.request({ type: 'mcp/start', serverId });
+        if (!response.success) {
+          showUiNotification({
+            tone: 'error',
+            title: isChinese ? '启动 MCP 服务器失败' : 'Failed to start MCP server',
+            message: response.error,
+            autoClose: 5000,
+          });
+          return;
+        }
+        const data = response.data as { health: McpServerHealth };
         setHealthById((current) => ({ ...current, [data.health.serverId]: data.health }));
-      }
-      const nextServers = { ...document.mcpServers, [serverId]: { ...server, disabled: true } };
-      const saved = await saveDocument({ mcpServers: nextServers });
-      if (saved) {
         showUiNotification({
           tone: 'success',
-          message: isChinese ? `已禁用 ${serverId}` : `Disabled ${serverId}`,
+          message: isChinese ? `已启动 ${serverId}` : `Started ${serverId}`,
           autoClose: 3000,
         });
+      } finally {
+        setStartingServerId(null);
+      }
+    } else {
+      setStoppingServerId(serverId);
+      try {
+        const stopResponse = await props.request({ type: 'mcp/stop', serverId });
+        if (stopResponse.success) {
+          const data = stopResponse.data as { health: McpServerHealth };
+          setHealthById((current) => ({ ...current, [data.health.serverId]: data.health }));
+        }
+        const nextServers = { ...document.mcpServers, [serverId]: { ...server, disabled: true } };
+        const saved = await saveDocument({ mcpServers: nextServers });
+        if (saved) {
+          showUiNotification({
+            tone: 'success',
+            message: isChinese ? `已禁用 ${serverId}` : `Disabled ${serverId}`,
+            autoClose: 3000,
+          });
+        }
+      } finally {
+        setStoppingServerId(null);
       }
     }
   }
@@ -467,6 +541,18 @@ export function McpPanel(props: McpPanelProps) {
             </div>
 
             <TabsContent value="configured" className="mcp-tab-content">
+              <div className="ui-feedback-host" style={{ marginBottom: 16 }}>
+                <Notice
+                  tone="info"
+                  title={isChinese ? 'Pin MCP 工具会发生什么？' : 'What does pinning MCP tools do?'}
+                  testId="mcp-pin-tip"
+                >
+                  {isChinese
+                    ? 'Pin 后，该服务器当前发现的工具会直接暴露给 Agent，可直接调用；未 Pin 的工具仍通过 mcp_gateway 按需搜索和调用。首次点击 Pin 会探测工具列表，取消 Pin 后恢复为 gateway 调用。'
+                    : 'Pinning directly exposes the server’s discovered tools to the Agent for direct calls. Unpinned tools remain available through mcp_gateway on demand. The first pin probes the tool list; unpinning restores gateway-only access.'}
+                </Notice>
+              </div>
+
               {error && serverIds.length === 0 ? (
                 <div className="ui-feedback-host" aria-live="polite" style={{ marginBottom: 16 }}>
                   <Notice tone="error" title={isChinese ? 'MCP 加载失败' : 'MCP load failed'}>
@@ -512,12 +598,35 @@ export function McpPanel(props: McpPanelProps) {
                     const pinnedCount = (document.pinnedSelectors ?? []).filter((selector) =>
                       selector.startsWith(pinPrefix),
                     ).length;
+                    const serverActivityId =
+                      stoppingServerId === serverId
+                        ? 'mcp.server.stop'
+                        : startingServerId === serverId
+                          ? 'mcp.server.connect'
+                          : pinningServerId === serverId
+                            ? 'mcp.discovery'
+                            : runtimeStatus === 'starting'
+                              ? 'mcp.server.connect'
+                              : 'mcp.server.status';
+                    const serverActivitySpec = getBehaviorActivitySpec(serverActivityId);
+                    const serverActivityStatus =
+                      stoppingServerId === serverId ||
+                      startingServerId === serverId ||
+                      pinningServerId === serverId ||
+                      runtimeStatus === 'starting'
+                        ? 'running'
+                        : runtimeStatus === 'error'
+                          ? 'error'
+                          : 'done';
 
                     return (
                       <li
                         key={serverId}
                         className="ext-list-item mcp-server-card"
                         data-testid={`mcp-server-${serverId}`}
+                        data-activity-id={serverActivityId}
+                        data-activity-animation={serverActivitySpec.animation}
+                        data-tool-status={serverActivityStatus}
                       >
                         <div
                           className="mcp-server-card-body"
@@ -591,26 +700,35 @@ export function McpPanel(props: McpPanelProps) {
                           />
                           <IconButton
                             label={
-                              isChinese
-                                ? `管理 ${serverId} 的固定工具`
-                                : `Manage pinned tools for ${serverId}`
+                              pinnedCount > 0
+                                ? isChinese
+                                  ? `取消固定 ${serverId} 的全部工具`
+                                  : `Unpin all tools from ${serverId}`
+                                : isChinese
+                                  ? `固定 ${serverId} 的全部工具`
+                                  : `Pin all tools from ${serverId}`
                             }
                             title={
                               pinnedCount > 0
                                 ? isChinese
-                                  ? `${pinnedCount} 个工具已固定`
-                                  : `${pinnedCount} tool(s) pinned`
+                                  ? `${pinnedCount} 个工具已固定，点击取消固定`
+                                  : `${pinnedCount} tool(s) pinned; click to unpin`
                                 : isChinese
-                                  ? '打开并探测工具以固定'
-                                  : 'Open and probe tools to pin'
+                                  ? '点击直接固定该服务器的全部工具'
+                                  : 'Click to directly pin all tools from this server'
                             }
                             className={
                               pinnedCount > 0
                                 ? 'mcp-server-pin-btn mcp-server-pin-btn--active'
                                 : 'mcp-server-pin-btn'
                             }
+                            aria-pressed={pinnedCount > 0}
+                            disabled={pinningServerId === serverId}
                             data-testid={`mcp-server-pin-trigger-${serverId}`}
-                            onClick={() => openPinEditor(serverId)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void handleToggleServerPinned(serverId);
+                            }}
                           >
                             <IconPin
                               className={
@@ -736,7 +854,6 @@ export function McpPanel(props: McpPanelProps) {
         document={document}
         prefillDraft={prefillDraft}
         prefillId={prefillId}
-        autoProbe={editorAutoProbe}
         isChinese={isChinese}
         onSave={handleSaveFromEditor}
         onValidateRaw={handleValidateRawFromEditor}
