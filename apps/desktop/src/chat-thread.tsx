@@ -5,7 +5,13 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactElement } from 'r
 
 import type { SessionPlan, ThemeManifest, WalkthroughArtifact } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
-import type { ChatMessageUi, PermissionPromptUi, RunRecordUi, ToolCardUi } from './chat-reducer';
+import type {
+  ChatMessageUi,
+  PermissionPromptUi,
+  RunRecordUi,
+  SkillActivityView,
+  ToolCardUi,
+} from './chat-reducer';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type {
   PermissionDecision,
@@ -24,7 +30,11 @@ import { WalkthroughAction, isWalkthroughEligible } from './walkthrough-action';
 import { FilesChangedBar, type FilesChangedBarRequest } from './files-changed-bar';
 import { ImageGenerationProgress } from './image-generation-progress';
 import { VideoGenerationProgress } from './video-generation-progress';
-import type { ToolCallDensity, WorkDetailsExpanded } from './ui-preferences';
+import type {
+  AgentLocatorAnimation,
+  ToolCallDensity,
+  WorkDetailsExpanded,
+} from './ui-preferences';
 import { ComposerCard, type ComposerDockProps } from './composer-dock';
 import type { DiffCardRequest } from './diff-card';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
@@ -183,11 +193,15 @@ export type ChatThreadProps = {
   editingMessageId: string | null;
   lastUserMessageId: string | null;
   activeTheme: ThemeManifest | null;
-  artifactThemeKey: number;
+  artifactThemeKey: string | number;
   /** Session-level plan rendered once at the top of the thread (not per-message). */
   plan?: SessionPlan | null;
   runRecordsById?: Record<string, RunRecordUi>;
   activeRunId?: string | null;
+  /** Explicit slash Skill currently associated with the foreground prompt. */
+  activeSkill?: SkillActivityView | null;
+  /** Animation used by the compact live agent locator. */
+  agentLocatorAnimation?: AgentLocatorAnimation;
   permissionPrompt?: PermissionPromptUi | null;
   /** Project path used to gate "always allow" (project remember) availability. */
   projectPath?: string | null;
@@ -345,6 +359,10 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               artifactThemeKey={props.artifactThemeKey}
               runRecordsById={props.runRecordsById ?? {}}
               activeRunId={props.activeRunId ?? null}
+              activeSkill={props.activeSkill ?? null}
+              {...(props.agentLocatorAnimation
+                ? { agentLocatorAnimation: props.agentLocatorAnimation }
+                : {})}
               permissionPrompt={props.permissionPrompt ?? null}
               workDetailsExpanded={props.workDetailsExpanded ?? 'auto'}
               toolDensity={props.toolDensity ?? 'comfortable'}
@@ -425,6 +443,8 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           runRecordsById={props.runRecordsById ?? {}}
           {...(activeToolName ? { activeToolName } : {})}
           {...(props.locale ? { locale: props.locale } : {})}
+          {...(props.agentLocatorAnimation ? { animation: props.agentLocatorAnimation } : {})}
+          {...(props.activeSkill ? { skill: props.activeSkill } : {})}
         />
       ) : null}
     </div>
@@ -440,9 +460,11 @@ type ChatMessageRowProps = {
   editingMessageId: string | null;
   lastUserMessageId: string | null;
   activeTheme: ThemeManifest | null;
-  artifactThemeKey: number;
+  artifactThemeKey: string | number;
   runRecordsById: Record<string, RunRecordUi>;
   activeRunId: string | null;
+  activeSkill: SkillActivityView | null;
+  agentLocatorAnimation?: AgentLocatorAnimation;
   permissionPrompt: PermissionPromptUi | null;
   workDetailsExpanded: WorkDetailsExpanded;
   toolDensity: ToolCallDensity;
@@ -720,6 +742,10 @@ const ChatMessageRow = memo(
             message={message}
             runRecordsById={props.runRecordsById}
             activeRunId={props.activeRunId}
+            activeSkill={props.activeSkill}
+            {...(props.agentLocatorAnimation
+              ? { agentLocatorAnimation: props.agentLocatorAnimation }
+              : {})}
             permissionPrompt={props.permissionPrompt}
             workDetailsExpanded={props.workDetailsExpanded}
             toolDensity={props.toolDensity}
@@ -864,6 +890,8 @@ const ChatMessageRow = memo(
       previous.artifactThemeKey === next.artifactThemeKey &&
       previous.runRecordsById === next.runRecordsById &&
       previous.activeRunId === next.activeRunId &&
+      previous.activeSkill === next.activeSkill &&
+      previous.agentLocatorAnimation === next.agentLocatorAnimation &&
       previous.permissionPrompt === next.permissionPrompt &&
       previous.workDetailsExpanded === next.workDetailsExpanded &&
       previous.toolDensity === next.toolDensity &&

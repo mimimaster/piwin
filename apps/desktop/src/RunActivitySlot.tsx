@@ -1,8 +1,9 @@
 import { type ReactElement } from 'react';
-import { RunActivitySplash } from './RunActivitySplash.js';
+import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 import { sessionRunPhaseToActivityKind } from './run-activity-mappers.js';
-import type { RunRecordUi } from './chat-reducer.js';
+import type { RunRecordUi, SkillActivityView } from './chat-reducer.js';
 import type { RunActivityInput } from './run-activity-types.js';
+import type { AgentLocatorAnimation } from './ui-preferences.js';
 
 export type RunActivitySlotProps = {
   activeRunId: string | null;
@@ -10,6 +11,8 @@ export type RunActivitySlotProps = {
   activeToolName?: string;
   planStep?: string;
   locale?: 'zh-CN' | 'en';
+  animation?: AgentLocatorAnimation;
+  skill?: SkillActivityView | null;
 };
 
 export function RunActivitySlot(props: RunActivitySlotProps): ReactElement | null {
@@ -37,7 +40,10 @@ export function RunActivitySlot(props: RunActivitySlotProps): ReactElement | nul
       data-testid="run-activity-slot"
       {...(props.activeRunId ? { 'data-run-id': props.activeRunId } : {})}
     >
-      <RunActivitySplash input={input} />
+      <div className="agent-locator-stack">
+        {props.skill ? <SkillActivityChip skill={props.skill} loading locale={input.locale} /> : null}
+        <AgentLocator input={input} {...(props.animation ? { animation: props.animation } : {})} />
+      </div>
     </div>
   );
 }

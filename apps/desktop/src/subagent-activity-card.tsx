@@ -12,6 +12,12 @@ import type { ActiveSubagentStatus, SubagentInspectorSelection } from './subagen
 import { subagentStatusToRunKind } from './subagent-activity-model';
 import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
 import { IconChevronRight } from './shell-icons.js';
+import { useDesktopLocale } from './desktop-locale-context';
+import {
+  behaviorTextClass,
+  getBehaviorActivitySpec,
+  resolveSubagentBatchBehaviorId,
+} from './behavior-activity.js';
 
 export type SubagentActivityCardProps = {
   activity: SubagentActivityView;
@@ -48,7 +54,13 @@ function toInspectorSelection(activity: SubagentActivityView): SubagentInspector
 
 export function SubagentActivityCard(props: SubagentActivityCardProps): ReactElement {
   const { activity, onInspect } = props;
-  const statusKind = subagentStatusToRunKind(ACTIVITY_STATUS_MAP[activity.state]);
+  const { locale } = useDesktopLocale();
+  const isChinese = locale === 'zh-CN';
+  const activityStatus = ACTIVITY_STATUS_MAP[activity.state];
+  const statusKind = subagentStatusToRunKind(activityStatus);
+  const activityId = resolveSubagentBatchBehaviorId(activity.state);
+  const activitySpec = getBehaviorActivitySpec(activityId);
+  const isRunning = activityStatus === 'running';
 
   return (
     <button
@@ -56,6 +68,9 @@ export function SubagentActivityCard(props: SubagentActivityCardProps): ReactEle
       className="subagent-activity-card"
       data-testid="subagent-activity-card"
       data-state={activity.state}
+      data-activity-id={activityId}
+      data-activity-animation={activitySpec.animation}
+      data-tool-status={isRunning ? 'running' : 'done'}
       data-child-session-id={activity.childSessionId}
       onClick={() => onInspect?.(toInspectorSelection(activity))}
       disabled={onInspect === undefined}
@@ -64,17 +79,28 @@ export function SubagentActivityCard(props: SubagentActivityCardProps): ReactEle
       <span className="subagent-activity-header">
         <span className="subagent-activity-title">
           <ActivitySvgIcon kind={statusKind} className="subagent-status-icon" />
-          <strong className="subagent-activity-name">{activity.displayName}</strong>
+          <strong className={`subagent-activity-name ${behaviorTextClass(activityId, isRunning)}`}>
+            {activity.displayName}
+          </strong>
         </span>
         <span className={`subagent-activity-state state-${activity.state}`}>
-          {STATE_LABEL[activity.state]}
+          {isChinese
+            ? {
+                started: '已启动',
+                running: '工作中',
+                completed: '已完成',
+                failed: '失败',
+                cancelled: '已取消',
+                merged: '已合并',
+              }[activity.state]
+            : STATE_LABEL[activity.state]}
         </span>
       </span>
       <span className="subagent-activity-body">
         <span className="subagent-activity-task">{activity.taskSummary}</span>
         {activity.worktreePath ? (
           <span className="subagent-activity-worktree" title={activity.worktreePath}>
-            Worktree: <code>{activity.worktreePath}</code>
+            {isChinese ? '工作树：' : 'Worktree: '} <code>{activity.worktreePath}</code>
           </span>
         ) : null}
       </span>

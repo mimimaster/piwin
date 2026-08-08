@@ -55,11 +55,14 @@ import { TerminalDock, type PtyOutputLine } from './terminal-dock';
 import { type AgentModeId } from './agent-mode';
 import { groupSessionsByRecency } from './session-groups';
 import {
+  DEFAULT_DARK_THEME_SETTINGS,
+  DEFAULT_LIGHT_THEME_SETTINGS,
   loadDesktopPreferences,
   resolveConversationWidth,
   saveDesktopPreferences,
   type DesktopPreferences,
 } from './ui-preferences';
+import { buildAppearanceTheme } from './appearance-tokens';
 import {
   getDesktopCopy,
   loadDesktopLocale,
@@ -485,10 +488,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, [state.activeRunStartedAt]);
 
   useEffect(() => {
+    // Wait for the host bridge. Early `project/list` against a cold sidecar
+    // fails silently and left the sidebar permanently empty (count 0) because
+    // the effect never re-ran after hostReady flipped true.
+    if (!state.hostReady) {
+      return;
+    }
     let cancelled = false;
     async function loadRecentProjects(): Promise<void> {
       const response = await hostClient.request({ type: 'project/list' });
-      if (!response.success || cancelled) {
+      if (cancelled) {
+        return;
+      }
+      if (!response.success) {
+        console.warn('project/list failed; sidebar projects stay empty', response.error);
         return;
       }
       const data = response.data as { projects?: ProjectRecord[] };
@@ -510,7 +523,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     return () => {
       cancelled = true;
     };
-  }, [hostClient, state.projectPath]);
+  }, [hostClient, state.hostReady, state.projectPath]);
 
   const {
     jobs,
@@ -673,12 +686,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     return items;
   }, [sessionPlan, state.messages, activeDocument, state.walkthroughsByMessageId]);
 
-  // Remount artifact iframes when the active theme changes so sandboxed
-  // documents pick up new artifact variables (root owns the manifest itself).
-  const [artifactThemeKey, setArtifactThemeKey] = useState(0);
-  useEffect(() => {
-    setArtifactThemeKey((previous) => previous + 1);
-  }, [activeTheme]);
+  // Remount artifact iframes only when mode/id changes. Sandboxed srcdoc bakes
+  // theme vars at build time; full remount is still required for mode flips, but
+  // avoid remounting on every parent re-render of the same theme identity.
+  const artifactThemeKey = `${activeTheme.mode}:${activeTheme.id}`;
 
   const modelOptions = useMemo(() => buildEnabledModelOptions(config?.providers ?? []), [config]);
 
@@ -865,6 +876,29 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       sessionComposerProfileRestoredRef.current(profile);
     },
   });
+
+  // Settings is a separate presentation surface. Keep the callback handed to
+  // it stable while the active session streams; the latest session action is
+  // read through the ref when the user explicitly opens a child session.
+  const handleResumeSessionRef = useRef(handleResumeSession);
+  handleResumeSessionRef.current = handleResumeSession;
+  const handleSettingsOpenSubagentSession = useCallback((sessionId: string): void => {
+    void handleResumeSessionRef.current(sessionId);
+  }, []);
+  const handleSettingsPreferencesChange = useCallback((next: DesktopPreferences): void => {
+    setPreferences(next);
+    saveDesktopPreferences(next);
+  }, []);
+  const handleSettingsSaved = useCallback(
+    (next: PiwinConfig): void => {
+      setConfig(next);
+      if (next.defaultProviderId && next.defaultModelId) {
+        setSelectedModelKey(`${next.defaultProviderId}::${next.defaultModelId}`);
+      }
+    },
+    [setConfig],
+  );
+
   /**
    * Ensure a chat session, resume it, then send a prompt for doc-card generation.
    * Used by DocCardsPanel to trigger flashcard generation via session/prompt.
@@ -1419,22 +1453,21 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     await handleAbort();
   }
 
-  async function handleToggleAppearance(): Promise<void> {
-    // Quick toggle: dark ↔ light (black / white). Full theme list stays in Settings.
-    const nextId = activeTheme.mode === 'light' ? 'piwin-dark' : 'piwin-light';
-    const response = await hostClient.request({ type: 'theme/set-active', themeId: nextId });
-    if (!response.success) {
-      dispatch({ type: 'error', message: response.error });
-      return;
-    }
-    const theme = (response.data as { theme: ThemeManifest }).theme;
+  function handleToggleAppearance(): void {
+    // Instant local flip: same Appearance prefs path as Settings (no host IPC wait).
+    // Host theme packages remain managed in Settings → Themes / ThemePanel.
+    const nextMode = activeTheme.mode === 'light' ? 'dark' : 'light';
+    const nextThemeSettings =
+      nextMode === 'light'
+        ? (preferences.lightTheme ?? DEFAULT_LIGHT_THEME_SETTINGS)
+        : (preferences.darkTheme ?? DEFAULT_DARK_THEME_SETTINGS);
     const nextPreferences: DesktopPreferences = {
       ...preferences,
-      appearanceMode: theme.mode,
+      appearanceMode: nextMode,
     };
     setPreferences(nextPreferences);
     saveDesktopPreferences(nextPreferences);
-    onThemeApplied(theme);
+    onThemeApplied(buildAppearanceTheme(nextMode, nextThemeSettings));
   }
 
   const refreshComposerMenus = useCallback(async (): Promise<void> => {
@@ -2081,13 +2114,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     document.documentElement.lang = desktopLocale;
   }, [desktopLocale]);
 
+  const handleLocaleChange = useCallback((locale: DesktopLocale): void => {
+    setDesktopLocale(locale);
+    saveDesktopLocale(locale);
+  }, []);
+
   return (
     <DesktopLocaleProvider
       locale={desktopLocale}
-      onLocaleChange={(locale) => {
-        setDesktopLocale(locale);
-        saveDesktopLocale(locale);
-      }}
+      onLocaleChange={handleLocaleChange}
     >
       <div
         className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
@@ -2104,6 +2139,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         />
 
         <WorkspaceShell
+          workspaceClassName={settingsOpen ? 'settings-workspace-suspended' : undefined}
           sidebar={
             <ProjectSessionSidebar
               projectPath={state.projectPath}
@@ -2254,7 +2290,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               }}
               onOpenSkills={() => openSettingsSection('skills')}
               onOpenMcp={() => openSettingsSection('tools')}
-              onToggleAppearance={() => void handleToggleAppearance()}
+              onToggleAppearance={handleToggleAppearance}
               onOpenSettings={() => openSettingsSection('general')}
               workPanelOpen={rightPanelOpen}
               onToggleWorkPanel={() => shell.toggleInspector(rightPanelTab)}
@@ -2343,6 +2379,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       artifactThemeKey={artifactThemeKey}
                       runRecordsById={state.runRecordsById}
                       activeRunId={state.activeRunId}
+                      activeSkill={state.activeSkill}
+                      {...(preferences.agentLocatorAnimation
+                        ? { agentLocatorAnimation: preferences.agentLocatorAnimation }
+                        : {})}
                       permissionPrompt={state.permissionPrompt}
                       projectPath={state.projectPath}
                       toolDiffRequest={requestGit as never}
@@ -2522,7 +2562,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 onViewChange={setRightPanelView}
                 locale={desktopLocale}
                 appearanceMode={activeTheme.mode === 'light' ? 'light' : 'dark'}
-                onToggleAppearance={() => void handleToggleAppearance()}
+                onToggleAppearance={handleToggleAppearance}
                 onOpenSkills={() => openSettingsSection('skills')}
                 onOpenMcp={() => openSettingsSection('tools')}
                 onOpenSettings={() => openSettingsSection('general')}
@@ -2775,47 +2815,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           </Dialog>
         ) : null}
 
-        {settingsOpen ? (
-          <SettingsPanel
-            hostStatus={hostStatus}
-            hostClient={hostClient}
-            request={requestConfig}
-            preferences={preferences}
-            activeTheme={activeTheme}
-            onPreferencesChange={(next) => {
-              setPreferences(next);
-              saveDesktopPreferences(next);
-            }}
-            initialSection={settingsSection}
-            onSectionChange={shell.setSettingsSection}
-            projectPath={state.projectPath}
-            projectTrusted={state.projectTrusted}
-            requestSkills={requestSkills}
-            requestMcp={requestMcp}
-            requestExtensions={requestExtensions}
-            requestPlugins={requestPlugins}
-            requestPrompts={requestPrompts}
-            requestTheme={requestTheme}
-            requestPet={requestPet}
-            requestAutomation={requestAutomation}
-            requestSubAgent={requestSubAgent as never}
-            subagentChildren={state.subagentChildren}
-            subagentBatches={state.subagentBatches}
-            activeSessionId={state.activeSessionId}
-            onOpenSubagentSession={(sessionId) => {
-              void handleResumeSession(sessionId);
-            }}
-            onThemeApplied={onThemeApplied}
-            onPetActiveChanged={setActivePet}
-            onClose={shell.closeSettings}
-            onSaved={(next) => {
-              setConfig(next);
-              if (next.defaultProviderId && next.defaultModelId) {
-                setSelectedModelKey(`${next.defaultProviderId}::${next.defaultModelId}`);
-              }
-            }}
-          />
-        ) : null}
         <SubagentSessionDialog
           open={inspector.selection !== null}
           selection={inspector.selection}
@@ -2834,6 +2833,37 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           onRetry={inspector.retryLoad}
         />
       </div>
+      {settingsOpen ? (
+        <SettingsPanel
+          hostStatus={hostStatus}
+          hostClient={hostClient}
+          request={requestConfig}
+          preferences={preferences}
+          activeTheme={activeTheme}
+          onPreferencesChange={handleSettingsPreferencesChange}
+          initialSection={settingsSection}
+          onSectionChange={shell.setSettingsSection}
+          projectPath={state.projectPath}
+          projectTrusted={state.projectTrusted}
+          requestSkills={requestSkills}
+          requestMcp={requestMcp}
+          requestExtensions={requestExtensions}
+          requestPlugins={requestPlugins}
+          requestPrompts={requestPrompts}
+          requestTheme={requestTheme}
+          requestPet={requestPet}
+          requestAutomation={requestAutomation}
+          requestSubAgent={requestSubAgent as never}
+          subagentChildren={state.subagentChildren}
+          subagentBatches={state.subagentBatches}
+          activeSessionId={state.activeSessionId}
+          onOpenSubagentSession={handleSettingsOpenSubagentSession}
+          onThemeApplied={onThemeApplied}
+          onPetActiveChanged={setActivePet}
+          onClose={shell.closeSettings}
+          onSaved={handleSettingsSaved}
+        />
+      ) : null}
     </DesktopLocaleProvider>
   );
 }

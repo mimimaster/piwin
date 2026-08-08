@@ -9,6 +9,11 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import type { ActiveSubagentView } from './subagent-activity-model';
 import { subagentStatusToRunKind, toInspectorSelection } from './subagent-activity-model';
 import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
+import {
+  behaviorTextClass,
+  getBehaviorActivitySpec,
+  resolveSubagentTaskBehaviorId,
+} from './behavior-activity.js';
 
 const CYCLE_INTERVAL_MS = 2200;
 
@@ -53,11 +58,18 @@ export function SubagentActivityTicker(props: SubagentActivityTickerProps): Reac
     return null;
   }
 
+  const activityId = resolveSubagentTaskBehaviorId(item.status);
+  const activitySpec = getBehaviorActivitySpec(activityId);
+  const isRunning = item.status === 'running';
+
   return (
     <button
       type="button"
       className="subagent-activity-ticker"
       data-testid="subagent-activity-ticker"
+      data-activity-id={activityId}
+      data-activity-animation={activitySpec.animation}
+      data-tool-status={isRunning ? 'running' : 'done'}
       onClick={() => props.onInspect(toInspectorSelection(item))}
       aria-label={`${item.displayName}: ${item.latestActivity}`}
       onMouseEnter={() => setPaused(true)}
@@ -81,7 +93,9 @@ export function SubagentActivityTicker(props: SubagentActivityTickerProps): Reac
             transition={reduced ? { duration: 0 } : { duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
           >
             <span className="subagent-ticker-name">{item.displayName}</span>
-            <span className="subagent-ticker-detail">{item.latestActivity}</span>
+            <span className={`subagent-ticker-detail ${behaviorTextClass(activityId, isRunning)}`}>
+              {item.latestActivity}
+            </span>
           </motion.span>
         </AnimatePresence>
       </span>

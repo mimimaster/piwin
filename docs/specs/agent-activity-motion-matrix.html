@@ -1,0 +1,1275 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>piwin Agent 调用链动效矩阵</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #111214;
+        --panel: #181a1e;
+        --panel-strong: #1e2025;
+        --line: rgba(255, 255, 255, 0.1);
+        --line-soft: rgba(255, 255, 255, 0.06);
+        --text: #e7e9ed;
+        --muted: #a1a6b0;
+        --faint: #737985;
+        --blue: #78a9ff;
+        --cyan: #62d9dc;
+        --green: #65d49a;
+        --yellow: #f4bd67;
+        --red: #ff7878;
+        --purple: #c69cff;
+        --bloom: 3s;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 1120px;
+        margin: 0;
+        padding: 34px;
+        background:
+          radial-gradient(circle at 12% 0%, rgba(95, 135, 255, 0.12), transparent 34rem), var(--bg);
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+        font-size: 14px;
+      }
+
+      main {
+        max-width: 1680px;
+        margin: 0 auto;
+      }
+
+      .eyebrow {
+        color: var(--blue);
+        font:
+          600 11px/1.2 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 9px 0 8px;
+        font-size: clamp(25px, 3vw, 38px);
+        letter-spacing: -0.04em;
+      }
+
+      .intro {
+        max-width: 820px;
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 18px;
+      }
+
+      .legend span,
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 24px;
+        padding: 3px 9px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .legend .running {
+        color: var(--blue);
+        border-color: rgba(120, 169, 255, 0.3);
+      }
+      .legend .done {
+        color: var(--green);
+        border-color: rgba(101, 212, 154, 0.3);
+      }
+      .legend .error {
+        color: var(--red);
+        border-color: rgba(255, 120, 120, 0.3);
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin: 28px 0 12px;
+        color: var(--muted);
+      }
+
+      button {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 7px 11px;
+        background: var(--panel-strong);
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      button:hover {
+        border-color: rgba(120, 169, 255, 0.55);
+      }
+      label {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        cursor: pointer;
+      }
+      input {
+        accent-color: var(--blue);
+      }
+      #row-count {
+        margin-left: auto;
+        color: var(--faint);
+        font:
+          12px ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+
+      .table-shell {
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(24, 26, 30, 0.86);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(30, 32, 37, 0.96);
+        color: var(--faint);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      td {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line-soft);
+        vertical-align: middle;
+      }
+      tr:last-child td {
+        border-bottom: 0;
+      }
+      tbody tr {
+        transition: background 140ms ease;
+      }
+      tbody tr:hover {
+        background: rgba(120, 169, 255, 0.055);
+      }
+      tbody tr.is-hidden {
+        display: none;
+      }
+
+      .group-cell {
+        width: 128px;
+        color: var(--faint);
+        font-size: 12px;
+      }
+      .unit-cell {
+        width: 150px;
+      }
+      .unit-cell code,
+      .motion-name,
+      .copy-en {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      .unit-cell code {
+        color: var(--cyan);
+        font-size: 12px;
+      }
+      .behavior-name {
+        margin-top: 5px;
+        color: var(--text);
+        font-weight: 550;
+      }
+      .copy-zh {
+        color: var(--text);
+        line-height: 1.4;
+      }
+      .copy-en {
+        margin-top: 4px;
+        color: var(--faint);
+        font-size: 11px;
+        line-height: 1.4;
+      }
+      .surface {
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .surface code {
+        color: var(--purple);
+        font-size: 11px;
+      }
+      .effect {
+        min-width: 230px;
+      }
+      .motion-name {
+        margin-top: 7px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .terminal {
+        color: var(--muted);
+        line-height: 1.45;
+      }
+      .terminal.error-copy {
+        color: var(--red);
+      }
+
+      .status.done {
+        color: var(--green);
+        border-color: rgba(101, 212, 154, 0.26);
+      }
+      .status.error {
+        color: var(--red);
+        border-color: rgba(255, 120, 120, 0.26);
+      }
+      .status.neutral {
+        color: var(--faint);
+      }
+
+      /* The animation preview cells below deliberately mirror the product
+       * behavior names, but remain standalone so this file opens directly. */
+      .motion-demo {
+        display: inline-flex;
+        position: relative;
+        width: 68px;
+        height: 34px;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        border: 1px solid var(--line-soft);
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.025);
+        color: var(--blue);
+        vertical-align: middle;
+      }
+
+      .motion-radial {
+        position: relative;
+        width: 27px;
+        height: 27px;
+      }
+      .motion-radial i {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 4px;
+        height: 13px;
+        margin: -6.5px 0 0 -2px;
+        border-radius: 999px;
+        background: currentColor;
+        transform: rotate(var(--angle)) translateY(-8px);
+        transform-origin: 50% 50%;
+        animation: radial 2.8s ease-in-out infinite;
+      }
+
+      .motion-asterisk {
+        position: relative;
+        width: 26px;
+        height: 26px;
+      }
+      .motion-asterisk i {
+        position: absolute;
+        left: 11px;
+        top: 2px;
+        width: 4px;
+        height: 22px;
+        border-radius: 999px;
+        background: currentColor;
+        transform: rotate(var(--angle));
+        transform-origin: 50% 50%;
+        animation: asterisk 2.8s ease-in-out infinite;
+      }
+      .motion-asterisk b {
+        position: absolute;
+        inset: 10px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: dot 2.8s ease-in-out infinite;
+      }
+
+      .motion-dot i {
+        display: block;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: dot 2s ease-in-out infinite;
+      }
+
+      .motion-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 6px);
+        gap: 3px;
+      }
+      .motion-grid i {
+        width: 6px;
+        height: 6px;
+        border-radius: 2px;
+        background: currentColor;
+        animation: cell 2.2s ease-in-out infinite;
+        animation-delay: var(--delay);
+      }
+
+      .motion-bars {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        height: 22px;
+      }
+      .motion-bars i {
+        width: 4px;
+        height: 17px;
+        border-radius: 3px;
+        background: currentColor;
+        animation: bar 1.5s ease-in-out infinite;
+        animation-delay: var(--delay);
+      }
+
+      .motion-cascade {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        width: 38px;
+      }
+      .motion-cascade i {
+        display: block;
+        flex: 1;
+        height: 4px;
+        border-radius: 3px;
+        background: currentColor;
+        animation: cascade 1.7s ease-in-out infinite;
+        animation-delay: var(--delay);
+      }
+
+      .motion-text {
+        color: transparent;
+        background: linear-gradient(
+          135deg,
+          #5d6066 15%,
+          #858990 34%,
+          #e2e4e8 50%,
+          #858990 66%,
+          #5d6066 85%
+        );
+        background-size: 280% 280%;
+        background-position: 130% 130%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        font-size: 12px;
+        animation: text-bloom var(--bloom) ease-in-out infinite;
+      }
+
+      .motion-diff {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--green);
+        font:
+          600 17px ui-monospace,
+          monospace;
+        animation: diff 1.8s ease-in-out infinite;
+      }
+      .motion-diff i {
+        display: block;
+        width: 12px;
+        height: 17px;
+        border-left: 2px solid currentColor;
+        border-right: 2px solid currentColor;
+        opacity: 0.6;
+      }
+      .motion-artifact {
+        position: relative;
+        width: 34px;
+        height: 22px;
+        overflow: hidden;
+        border: 1px solid var(--purple);
+        border-radius: 4px;
+      }
+      .motion-artifact::before {
+        position: absolute;
+        inset: -40%;
+        content: '';
+        background: linear-gradient(
+          115deg,
+          transparent 35%,
+          rgba(255, 255, 255, 0.8) 50%,
+          transparent 65%
+        );
+        animation: sheen 1.8s linear infinite;
+      }
+      .motion-artifact b {
+        position: absolute;
+        inset: 5px;
+        border: 1px solid currentColor;
+        border-radius: 2px;
+        opacity: 0.7;
+      }
+      .motion-gate {
+        display: grid;
+        width: 22px;
+        height: 22px;
+        place-items: center;
+        border: 2px solid currentColor;
+        border-radius: 50%;
+        color: var(--yellow);
+        font-weight: 700;
+        animation: gate 1.8s ease-in-out infinite;
+      }
+      .motion-none {
+        color: var(--faint);
+        font-size: 20px;
+      }
+
+      @keyframes radial {
+        0%,
+        100% {
+          opacity: 0.42;
+          transform: rotate(var(--angle)) translateY(-8px) scaleY(0.78);
+        }
+        50% {
+          opacity: 1;
+          transform: rotate(var(--angle)) translateY(-8px) scaleY(1.15);
+        }
+      }
+      @keyframes asterisk {
+        0%,
+        100% {
+          opacity: 0.45;
+          transform: rotate(var(--angle)) scale(0.82);
+        }
+        50% {
+          opacity: 1;
+          transform: rotate(var(--angle)) scale(1.08);
+        }
+      }
+      @keyframes dot {
+        0%,
+        100% {
+          opacity: 0.45;
+          transform: scale(0.82);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.18);
+        }
+      }
+      @keyframes cell {
+        0%,
+        100% {
+          opacity: 0.22;
+          transform: scale(0.7);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      @keyframes bar {
+        0%,
+        100% {
+          opacity: 0.4;
+          transform: scaleY(0.55);
+        }
+        50% {
+          opacity: 1;
+          transform: scaleY(1);
+        }
+      }
+      @keyframes cascade {
+        0%,
+        100% {
+          opacity: 0.35;
+          transform: translateX(-2px);
+        }
+        50% {
+          opacity: 1;
+          transform: translateX(2px);
+        }
+      }
+      @keyframes text-bloom {
+        0%,
+        12% {
+          background-position: 130% 130%;
+        }
+        88%,
+        100% {
+          background-position: -130% -130%;
+        }
+      }
+      @keyframes diff {
+        0%,
+        100% {
+          opacity: 0.55;
+          transform: translateY(1px);
+        }
+        50% {
+          opacity: 1;
+          transform: translateY(-1px);
+        }
+      }
+      @keyframes sheen {
+        from {
+          transform: translateX(-38%);
+        }
+        to {
+          transform: translateX(38%);
+        }
+      }
+      @keyframes gate {
+        0%,
+        100% {
+          opacity: 0.58;
+          box-shadow: 0 0 0 0 rgba(244, 189, 103, 0);
+        }
+        50% {
+          opacity: 1;
+          box-shadow: 0 0 0 5px rgba(244, 189, 103, 0.12);
+        }
+      }
+
+      html.motion-paused *,
+      html.motion-paused *::before,
+      html.motion-paused *::after {
+        animation-play-state: paused !important;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.001ms !important;
+          animation-iteration-count: 1 !important;
+        }
+      }
+
+      @media (max-width: 1180px) {
+        body {
+          min-width: 0;
+          padding: 18px;
+        }
+        .table-shell {
+          border-radius: 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow">PIWIN / AGENT ACTIVITY</div>
+      <h1>调用链行为 · UI 动效矩阵</h1>
+      <p class="intro">
+        每个行为单元都绑定稳定的 behavior ID、文字、UI
+        表面和运行中动效。下面的动效预览是可运行的独立 CSS；完成后统一静态，失败后统一红色。
+      </p>
+      <div class="legend" aria-label="状态图例">
+        <span class="running">● 运行中：循环动效</span>
+        <span class="done">● 完成：静态结果</span>
+        <span class="error">● 失败：红色静态提示</span>
+      </div>
+
+      <div class="toolbar">
+        <button id="toggle-motion" type="button">暂停动效</button>
+        <label><input id="only-animated" type="checkbox" /> 仅显示有循环动效的单元</label>
+        <span id="row-count"></span>
+      </div>
+
+      <div class="table-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>分类</th>
+              <th>调用链单元</th>
+              <th>行为文案</th>
+              <th>UI 表面</th>
+              <th>动效渲染</th>
+              <th>完成状态</th>
+              <th>失败 / 备注</th>
+            </tr>
+          </thead>
+          <tbody id="matrix-body"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <script>
+      const rows = [
+        [
+          '运行生命周期',
+          'run.prepare',
+          '准备上下文…',
+          'Preparing context…',
+          '定位器',
+          'radial-bellow',
+          '辐射风箱 / Radial bellow',
+          '隐藏',
+          '隐藏',
+        ],
+        [
+          '运行生命周期',
+          'run.connect',
+          '连接模型…',
+          'Connecting to model…',
+          '定位器',
+          'radial-bellow',
+          '辐射风箱 / Radial bellow',
+          '隐藏',
+          '隐藏',
+        ],
+        [
+          '运行生命周期',
+          'run.wait-token',
+          '正在思考…',
+          'Thinking…',
+          '定位器',
+          'radial-bellow',
+          '辐射风箱 / Radial bellow',
+          '隐藏',
+          '隐藏',
+        ],
+        [
+          '运行生命周期',
+          'run.running',
+          '正在处理…',
+          'Working…',
+          '定位器',
+          'radial-bellow',
+          '辐射风箱 / Radial bellow',
+          '隐藏',
+          '隐藏',
+        ],
+        [
+          '运行生命周期',
+          'run.stop',
+          '正在停止…',
+          'Stopping…',
+          '结果',
+          'none',
+          '无循环动效 / Static',
+          '静态停止',
+          '静态停止',
+        ],
+        [
+          '运行生命周期',
+          'run.complete',
+          '已完成',
+          'Complete',
+          '结果',
+          'none',
+          '无循环动效 / Static',
+          '绿色完成',
+          '—',
+        ],
+        [
+          '运行生命周期',
+          'run.fail',
+          '执行失败',
+          'Failed',
+          '结果',
+          'none',
+          '无循环动效 / Static',
+          '—',
+          '红色错误',
+        ],
+        [
+          '运行生命周期',
+          'run.compacting',
+          '正在整理上下文…',
+          'Compacting context…',
+          '时间线行',
+          'breath-matrix',
+          '呼吸矩阵 / Breath matrix',
+          '整理完成',
+          '上下文整理失败',
+        ],
+        [
+          '工具兜底',
+          'tool.other',
+          '正在执行工具…',
+          'Running tool…',
+          '时间线行',
+          'breath-dot',
+          '圆点呼吸 / Breath dot',
+          '灰色静态 + 绿色点',
+          '红色错误',
+        ],
+        [
+          '思考与编排',
+          'thinking',
+          '思考中',
+          'Thinking',
+          '分组',
+          'asterisk-breath',
+          '星芒呼吸 / Asterisk breath',
+          '思考记录',
+          '—',
+        ],
+        [
+          '思考与编排',
+          'plan',
+          '制定计划中',
+          'Planning',
+          '分组',
+          'asterisk-breath',
+          '星芒呼吸 + 步骤脉冲',
+          '步骤勾选',
+          '计划失败',
+        ],
+        [
+          '代码工作',
+          'explore',
+          '正在探索文件…',
+          'Exploring files…',
+          '分组',
+          'text-shimmer',
+          '文字 shimmer / Text bloom',
+          '已探索',
+          '红色错误',
+        ],
+        [
+          '代码工作',
+          'search',
+          '正在搜索…',
+          'Searching…',
+          '时间线行',
+          'text-shimmer',
+          '文字 shimmer / Text bloom',
+          '已搜索',
+          '红色错误',
+        ],
+        [
+          '代码工作',
+          'read',
+          '正在读取…',
+          'Reading…',
+          '时间线行',
+          'breath-dot',
+          '圆点呼吸 / Breath dot',
+          '静态读取结果',
+          '红色错误',
+        ],
+        [
+          '代码工作',
+          'edit',
+          '正在修改…',
+          'Editing…',
+          '时间线行',
+          'diff-in',
+          'Diff 微动效 / Diff in',
+          '静态 + Diff',
+          '红色错误',
+        ],
+        [
+          '代码工作',
+          'shell',
+          '正在运行命令…',
+          'Running command…',
+          '时间线行',
+          'cascade-ripple',
+          '级联涟漪 / Cascade ripple',
+          '退出码结果',
+          '红色错误',
+        ],
+        [
+          '代码工作',
+          'test',
+          '正在运行测试…',
+          'Running tests…',
+          '时间线行',
+          'solid-bars',
+          '条形呼吸 / Solid bars',
+          '测试结果',
+          '红色错误',
+        ],
+        [
+          '代码工作',
+          'build',
+          '正在构建…',
+          'Building…',
+          '时间线行',
+          'cascade-ripple',
+          '级联涟漪 / Cascade ripple',
+          '构建结果',
+          '红色错误',
+        ],
+        [
+          '代码工作',
+          'process',
+          '进程运行中…',
+          'Process running…',
+          '时间线行',
+          'solid-bars',
+          '条形呼吸 / Solid bars',
+          '退出 / 终止状态',
+          '红色错误',
+        ],
+        [
+          '代码工作',
+          'git',
+          '正在执行 Git…',
+          'Running Git…',
+          '时间线行',
+          'breath-dot',
+          '圆点呼吸 / Breath dot',
+          'Git 结果',
+          '红色错误',
+        ],
+        [
+          '外部能力',
+          'mcp.server.connect',
+          '正在连接 MCP 服务器…',
+          'Connecting to MCP server…',
+          '上下文芯片',
+          'breath-dot',
+          '服务器呼吸点 / Server breath dot',
+          '连接完成',
+          '连接失败 / 红色',
+        ],
+        [
+          '外部能力',
+          'mcp.server.status',
+          'MCP 服务器状态',
+          'MCP server status',
+          '上下文芯片',
+          'none',
+          '静态服务器状态 / Static health',
+          '运行中 / 已停止',
+          '红色错误',
+        ],
+        [
+          '外部能力',
+          'mcp.server.stop',
+          'MCP 服务器已停止',
+          'MCP server stopped',
+          '结果',
+          'none',
+          '静态停止 / Static stop',
+          '已停止',
+          '—',
+        ],
+        [
+          '外部能力',
+          'mcp.discovery',
+          '正在发现 MCP 工具…',
+          'Discovering MCP tools…',
+          '时间线行',
+          'breath-matrix',
+          '呼吸矩阵 / Breath matrix',
+          '工具列表已发现',
+          '红色错误',
+        ],
+        [
+          '外部能力',
+          'mcp.call',
+          '调用 github/search · 查询 AgentEvent ›',
+          'Calling github/search · "AgentEvent" ›',
+          '时间线行',
+          'breath-dot',
+          'MCP 专属呼吸点 / MCP breath dot',
+          '调用结果静态',
+          '红色错误',
+        ],
+        [
+          '外部能力',
+          'mcp.call.done',
+          '已调用 github/search · 返回 12 条',
+          'Called github/search · 12 results',
+          '结果',
+          'none',
+          '静态 MCP 结果 / Static MCP result',
+          '灰色静态 + 结果',
+          '—',
+        ],
+        [
+          '外部能力',
+          'mcp.call.error',
+          'MCP github/search 失败 · 请求超时',
+          'MCP github/search failed · timeout',
+          '结果',
+          'none',
+          '红色静态 / Static error',
+          '—',
+          '红色错误',
+        ],
+        [
+          '外部能力',
+          'web.search',
+          '正在搜索网页…',
+          'Searching the web…',
+          '时间线行',
+          'text-shimmer',
+          '文字 shimmer / Text bloom',
+          '搜索结果',
+          '红色错误',
+        ],
+        [
+          '外部能力',
+          'web.fetch',
+          '正在读取网页…',
+          'Fetching page…',
+          '时间线行',
+          'breath-dot',
+          '圆点呼吸 / Breath dot',
+          'URL / 摘要',
+          '红色错误',
+        ],
+        [
+          '外部能力',
+          'browser',
+          '正在打开页面…',
+          'Opening page…',
+          '时间线行',
+          'breath-dot',
+          '圆点呼吸 / Breath dot',
+          '页面结果',
+          '红色错误',
+        ],
+        [
+          'Skill / Extension',
+          'skill.load',
+          '加载技能…',
+          'Loading skill…',
+          '上下文芯片',
+          'breath-matrix',
+          '呼吸矩阵 / Breath matrix',
+          '已加载',
+          '红色错误',
+        ],
+        [
+          'Skill / Extension',
+          'skill.use',
+          '使用技能',
+          'Using skill',
+          '上下文芯片',
+          'none',
+          '静态来源胶囊 / Static provenance',
+          '保留标签',
+          '—',
+        ],
+        [
+          'Skill / Extension',
+          'skill.fail',
+          '技能加载失败',
+          'Skill failed to load',
+          '结果',
+          'none',
+          '无循环动效 / Static',
+          '—',
+          '红色错误',
+        ],
+        [
+          'Skill / Extension',
+          'extension.load',
+          '加载扩展…',
+          'Loading extension…',
+          '上下文芯片',
+          'breath-matrix',
+          '呼吸矩阵 / Breath matrix',
+          '已加载',
+          '红色错误',
+        ],
+        [
+          '子代理',
+          'subagent.batch.prepare',
+          '准备子代理批次…',
+          'Preparing subagent batch…',
+          '分组',
+          'pulse-block',
+          '方块脉冲 / Pulse block',
+          '进入运行中',
+          '失败 / 取消',
+        ],
+        [
+          '子代理',
+          'subagent.batch.running',
+          '正在委派 Explorer · 3 个子 Agent ›',
+          'Delegating to Explorer · 3 children ›',
+          '分组',
+          'pulse-block',
+          '并行方块脉冲 / Parallel pulse block',
+          '聚合完成',
+          '聚合失败',
+        ],
+        [
+          '子代理',
+          'subagent.batch.complete',
+          '3 个子 Agent · 2 个完成 · 1 个合并',
+          '3 children · 2 completed · 1 merged',
+          '结果',
+          'none',
+          '静态聚合结果 / Static aggregate',
+          '完成 / 合并',
+          '—',
+        ],
+        [
+          '子代理',
+          'subagent.batch.fail',
+          '子代理批次失败',
+          'Subagent batch failed',
+          '结果',
+          'none',
+          '红色静态 / Static error',
+          '—',
+          '红色错误',
+        ],
+        [
+          '子代理',
+          'subagent.task.queued',
+          'Reviewer · 排队中',
+          'Reviewer · Queued',
+          '时间线行',
+          'none',
+          '低透明度静态 / Low-opacity static',
+          '进入运行中',
+          '—',
+        ],
+        [
+          '子代理',
+          'subagent.task.running',
+          'Explorer · 正在搜索 src/',
+          'Explorer · Searching src/',
+          '时间线行',
+          'breath-dot',
+          '子任务呼吸点 / Task breath dot',
+          '已完成',
+          '红色错误',
+        ],
+        [
+          '子代理',
+          'subagent.task.complete',
+          'Explorer · 已完成',
+          'Explorer · Completed',
+          '结果',
+          'none',
+          '静态完成 / Static complete',
+          '完成',
+          '—',
+        ],
+        [
+          '子代理',
+          'subagent.task.fail',
+          'Explorer · 失败',
+          'Explorer · Failed',
+          '结果',
+          'none',
+          '红色静态 / Static error',
+          '—',
+          '红色错误',
+        ],
+        [
+          '子代理',
+          'subagent.task.cancelled',
+          'Explorer · 已取消',
+          'Explorer · Cancelled',
+          '结果',
+          'none',
+          '黄色静态 / Static cancelled',
+          '已取消',
+          '—',
+        ],
+        [
+          '子代理',
+          'subagent.inspector.live',
+          '子代理输出中…',
+          'Subagent output streaming…',
+          'Inspector',
+          'text-shimmer',
+          '子会话文字 shimmer / Inspector text bloom',
+          '静态 transcript',
+          '红色错误',
+        ],
+        [
+          '兼容兜底',
+          'subagent',
+          '委派给子代理…（兼容 ID）',
+          'Delegating to subagent… (legacy id)',
+          '分组',
+          'pulse-block',
+          '兼容展示 / Compatibility',
+          '完成 / 合并',
+          '失败 / 取消',
+        ],
+        [
+          '子代理',
+          'subagent.batch.cancelled',
+          '子代理批次已取消',
+          'Subagent batch cancelled',
+          '结果',
+          'none',
+          '黄色静态 / Static cancelled',
+          '已取消',
+          '—',
+        ],
+        [
+          '生成能力',
+          'artifact',
+          '正在生成界面…',
+          'Rendering artifact…',
+          '时间线行',
+          'artifact-sheen',
+          'Artifact sheen',
+          '预览就绪',
+          '阻止 / 红色',
+        ],
+        [
+          '生成能力',
+          'image',
+          '正在生成图片…',
+          'Generating image…',
+          '时间线行',
+          'artifact-sheen',
+          'Sheen + Spark',
+          '图片完成',
+          '红色错误',
+        ],
+        [
+          '生成能力',
+          'video',
+          '正在生成视频…',
+          'Generating video…',
+          '时间线行',
+          'artifact-sheen',
+          'Sheen + Spark',
+          '播放器就绪',
+          '红色错误',
+        ],
+        [
+          '人机阻塞',
+          'permission',
+          '等待你的确认',
+          'Waiting for your approval',
+          '门控',
+          'gate-pulse',
+          '黄色门控脉冲 / Gate pulse',
+          '用户确认后停止',
+          '拒绝 / 红色',
+        ],
+        [
+          '人机阻塞',
+          'ask',
+          '等待你的回答',
+          'Waiting for your answer',
+          '门控',
+          'gate-pulse',
+          '蓝色门控脉冲 / Gate pulse',
+          '用户回答后停止',
+          '取消 / 红色',
+        ],
+      ];
+
+      const $ = (selector) => document.querySelector(selector);
+
+      function cells(count, className, delayStep) {
+        return Array.from(
+          { length: count },
+          (_, index) => `<i style="--delay:${index * delayStep}s"></i>`,
+        ).join('');
+      }
+
+      function radial() {
+        return `<span class="motion-radial">${Array.from({ length: 6 }, (_, index) => `<i style="--angle:${index * 60}deg"></i>`).join('')}</span>`;
+      }
+
+      function asterisk() {
+        return `<span class="motion-asterisk"><i style="--angle:0deg"></i><i style="--angle:60deg"></i><i style="--angle:120deg"></i><b></b></span>`;
+      }
+
+      function motionMarkup(name) {
+        switch (name) {
+          case 'radial-bellow':
+            return radial();
+          case 'asterisk-breath':
+            return asterisk();
+          case 'breath-dot':
+            return '<span class="motion-dot"><i></i></span>';
+          case 'pulse-block':
+            return `<span class="motion-grid">${cells(9, 'motion-grid', 0.12)}</span>`;
+          case 'solid-bars':
+            return `<span class="motion-bars">${cells(5, 'motion-bars', 0.12)}</span>`;
+          case 'breath-matrix':
+            return `<span class="motion-grid">${cells(9, 'motion-grid', 0.18)}</span>`;
+          case 'cascade-ripple':
+            return `<span class="motion-cascade">${cells(5, 'motion-cascade', 0.12)}</span>`;
+          case 'text-shimmer':
+            return '<span class="motion-text">Working…</span>';
+          case 'diff-in':
+            return '<span class="motion-diff"><i></i><b>+</b></span>';
+          case 'artifact-sheen':
+            return '<span class="motion-artifact"><b></b></span>';
+          case 'gate-pulse':
+            return '<span class="motion-gate">!</span>';
+          default:
+            return '<span class="motion-none">—</span>';
+        }
+      }
+
+      function renderRows() {
+        const body = $('#matrix-body');
+        body.innerHTML = rows
+          .map((row) => {
+            const [group, id, zh, en, surface, animation, effect, done, error] = row;
+            const animated = animation !== 'none';
+            return `<tr data-animated="${animated}">
+            <td class="group-cell">${group}</td>
+            <td class="unit-cell"><code>${id}</code><div class="behavior-name">${id === 'tool.other' ? '未知工具兜底' : '行为单元'}</div></td>
+            <td><div class="copy-zh">${zh}</div><div class="copy-en">${en}</div></td>
+            <td class="surface"><code>${surface}</code></td>
+            <td class="effect"><span class="motion-demo" aria-label="${effect}">${motionMarkup(animation)}</span><div class="motion-name">${animation}</div></td>
+            <td><span class="status ${done === '—' ? 'neutral' : 'done'}">${done}</span></td>
+            <td><span class="terminal ${error.includes('红色') || error.includes('失败') || error.includes('拒绝') || error.includes('取消') || error.includes('阻止') ? 'error-copy' : ''}">${error}</span></td>
+          </tr>`;
+          })
+          .join('');
+        updateCount();
+      }
+
+      function updateCount() {
+        const visible = [...document.querySelectorAll('#matrix-body tr')].filter(
+          (row) => !row.classList.contains('is-hidden'),
+        ).length;
+        $('#row-count').textContent = `${visible} / ${rows.length} 个调用链单元`;
+      }
+
+      $('#toggle-motion').addEventListener('click', (event) => {
+        const paused = document.documentElement.classList.toggle('motion-paused');
+        event.currentTarget.textContent = paused ? '继续动效' : '暂停动效';
+      });
+
+      $('#only-animated').addEventListener('change', (event) => {
+        const onlyAnimated = event.currentTarget.checked;
+        document.querySelectorAll('#matrix-body tr').forEach((row) => {
+          row.classList.toggle('is-hidden', onlyAnimated && row.dataset.animated !== 'true');
+        });
+        updateCount();
+      });
+
+      renderRows();
+    </script>
+  </body>
+</html>

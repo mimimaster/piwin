@@ -17,8 +17,12 @@ import {
   AsteriskBreath,
   type AnimationSize,
 } from '@piwin/ui-kit';
+import { SegmentedControl } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { PageTitle } from '../page-title';
+import { useSettings } from '../settings-context';
+import { AgentLocator } from '../../agent-locator.js';
+import type { AgentLocatorAnimation } from '../../ui-preferences.js';
 
 const SIZE_VARIANT_GROUPS: ReadonlyArray<{
   label: string;
@@ -38,7 +42,9 @@ const SIZES: readonly AnimationSize[] = ['sm', 'md', 'lg'] as const;
 
 export function AnimationsPage(): ReactElement {
   const { locale } = useDesktopLocale();
+  const { preferences, onPreferencesChange } = useSettings();
   const isChinese = locale === 'zh-CN';
+  const locatorAnimation = preferences.agentLocatorAnimation ?? 'radial-bellow';
 
   return (
     <div className="settings-card" data-testid="settings-animations">
@@ -68,6 +74,50 @@ export function AnimationsPage(): ReactElement {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="settings-section-card animation-locator-config">
+          <PageTitle
+            title={isChinese ? 'Agent 定位动效' : 'Agent locator animation'}
+            description={
+              isChinese
+                ? '运行中只显示一个轻量定位标记和动态文字；它会出现在对话区域底部或当前工作行。'
+                : 'While a run is active, show one lightweight marker and changing text in the transcript locator.'
+            }
+          />
+          <div className="animation-locator-config-row">
+            <SegmentedControl
+              value={locatorAnimation}
+              onChange={(value) => {
+                if (
+                  value === 'radial-bellow' ||
+                  value === 'asterisk-breath' ||
+                  value === 'breath-dot' ||
+                  value === 'none'
+                ) {
+                  const nextAnimation: AgentLocatorAnimation = value;
+                  onPreferencesChange({
+                    ...preferences,
+                    agentLocatorAnimation: nextAnimation,
+                  });
+                }
+              }}
+              aria-label={isChinese ? 'Agent 定位动效' : 'Agent locator animation'}
+              data={[
+                { value: 'radial-bellow', label: isChinese ? '辐射风箱' : 'Radial bellow' },
+                { value: 'asterisk-breath', label: isChinese ? '星芒呼吸' : 'Asterisk' },
+                { value: 'breath-dot', label: isChinese ? '圆点呼吸' : 'Breath dot' },
+                { value: 'none', label: isChinese ? '仅文字' : 'Text only' },
+              ]}
+              testId="agent-locator-animation-control"
+            />
+            <div className="animation-locator-preview" data-testid="agent-locator-preview">
+              <AgentLocator
+                input={{ kind: 'waiting-first-token', locale }}
+                animation={locatorAnimation}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Size variants preview */}

@@ -14,6 +14,7 @@ import { Button } from '@piwin/ui-kit';
 import { AgentInterruptionFrame } from './agent-interruption-frame';
 import type { ExtensionUiRequestState } from './hooks/use-host-bootstrap';
 import { useDesktopLocale } from './desktop-locale-context';
+import { getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type ExtensionUiResolvePayload = {
   confirmed?: boolean;
@@ -54,6 +55,9 @@ function ExtensionUiPromptInner({
       title={request.title}
       {...(description !== undefined ? { description } : {})}
       testId="extension-ui-prompt"
+      activityId="ask"
+      activityAnimation={getBehaviorActivitySpec('ask').animation}
+      activityStatus="running"
     >
       {request.kind === 'select' ? (
         <div

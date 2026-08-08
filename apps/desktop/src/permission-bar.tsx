@@ -17,6 +17,7 @@ import { PermissionFacts, canRememberPermissionForProject } from './permission-r
 import { AgentInterruptionFrame, type AgentInterruptionTone } from './agent-interruption-frame';
 import { useDesktopLocale } from './desktop-locale-context';
 import { IconChevronDown } from './shell-icons';
+import { getBehaviorActivitySpec } from './behavior-activity.js';
 
 export type PermissionBarProps = {
   prompt: PermissionPromptUi;
@@ -68,6 +69,9 @@ export function PermissionBar(props: PermissionBarProps): ReactElement {
       statusLabel={copy.approvalRequired}
       title={subject}
       testId="permission-bar"
+      activityId="permission"
+      activityAnimation={getBehaviorActivitySpec('permission').animation}
+      activityStatus="running"
     >
       <button
         type="button"

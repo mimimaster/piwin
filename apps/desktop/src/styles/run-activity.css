@@ -5,9 +5,7 @@
 .context-bar-status,
 .run-activity-inline,
 .run-activity-splash,
-.chat-run-activity-line,
-[data-testid="run-status-strip"],
-[data-testid="run-activity-slot"] {
+[data-testid="run-status-strip"] {
   display: none !important;
 }
 
@@ -793,4 +791,3 @@
   border-radius: 1px;
   animation: cursor-pulse 0.85s ease-in-out infinite;
 }
-

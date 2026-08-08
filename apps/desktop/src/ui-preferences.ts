@@ -10,6 +10,8 @@ export type CodeTextSize = 'small' | 'default' | 'large';
 export type WorkDetailsExpanded = 'auto' | 'always' | 'collapsed';
 export type ConversationWidth = 'default' | 'narrow' | 'wide';
 export type AppearanceMode = 'system' | 'light' | 'dark';
+/** Compact visual used by the live agent locator beside the transcript. */
+export type AgentLocatorAnimation = 'radial-bellow' | 'asterisk-breath' | 'breath-dot' | 'none';
 
 const CONVERSATION_WIDTH_VALUES: Record<ConversationWidth, string> = {
   narrow: '620px',
@@ -73,6 +75,8 @@ export type DesktopPreferences = {
   terminalRecentDirs?: string[];
   /** When true, revert checkpoint confirmation modal is bypassed. */
   dontAskRevertConfirm?: boolean;
+  /** Animation selected for the compact live agent locator. */
+  agentLocatorAnimation?: AgentLocatorAnimation;
 };
 
 const TOOL_DENSITY_KEY = 'piwin.desktop.toolCallDensity';
@@ -90,6 +94,7 @@ const DARK_THEME_KEY = 'piwin.desktop.darkTheme';
 const TERMINAL_LAST_CWD_KEY = 'piwin.desktop.terminalLastCwd';
 const TERMINAL_RECENT_DIRS_KEY = 'piwin.desktop.terminalRecentDirs';
 const DONT_ASK_REVERT_CONFIRM_KEY = 'piwin.desktop.dontAskRevertConfirm';
+const AGENT_LOCATOR_ANIMATION_KEY = 'piwin.desktop.agentLocatorAnimation';
 
 function readString(key: string): string | null {
   try {
@@ -143,6 +148,18 @@ function parseAppearanceMode(raw: string | null): AppearanceMode {
     return raw;
   }
   return 'system';
+}
+
+function parseAgentLocatorAnimation(raw: string | null): AgentLocatorAnimation {
+  if (
+    raw === 'radial-bellow' ||
+    raw === 'asterisk-breath' ||
+    raw === 'breath-dot' ||
+    raw === 'none'
+  ) {
+    return raw;
+  }
+  return 'radial-bellow';
 }
 
 function parseBoolean(raw: string | null, fallback: boolean): boolean {
@@ -203,6 +220,7 @@ function parseAppearanceTheme(
 export function loadDesktopPreferences(): DesktopPreferences {
   const lastCwd = readString(TERMINAL_LAST_CWD_KEY);
   const recentDirsRaw = readString(TERMINAL_RECENT_DIRS_KEY);
+  const locatorAnimationRaw = readString(AGENT_LOCATOR_ANIMATION_KEY);
   return {
     assistantTextSize: parseSizeOption(readString(ASSISTANT_TEXT_SIZE_KEY), 'default'),
     codeTextSize: parseSizeOption(readString(CODE_TEXT_SIZE_KEY), 'default'),
@@ -217,6 +235,9 @@ export function loadDesktopPreferences(): DesktopPreferences {
     lightTheme: parseAppearanceTheme(readString(LIGHT_THEME_KEY), DEFAULT_LIGHT_THEME_SETTINGS),
     darkTheme: parseAppearanceTheme(readString(DARK_THEME_KEY), DEFAULT_DARK_THEME_SETTINGS),
     dontAskRevertConfirm: parseBoolean(readString(DONT_ASK_REVERT_CONFIRM_KEY), false),
+    ...(locatorAnimationRaw
+      ? { agentLocatorAnimation: parseAgentLocatorAnimation(locatorAnimationRaw) }
+      : {}),
     ...(lastCwd ? { terminalLastCwd: lastCwd } : {}),
     ...(recentDirsRaw ? { terminalRecentDirs: parseStringArray(recentDirsRaw) ?? [] } : {}),
   };
@@ -236,6 +257,9 @@ export function saveDesktopPreferences(prefs: DesktopPreferences): void {
   writeString(LIGHT_THEME_KEY, JSON.stringify(prefs.lightTheme));
   writeString(DARK_THEME_KEY, JSON.stringify(prefs.darkTheme));
   writeString(DONT_ASK_REVERT_CONFIRM_KEY, String(prefs.dontAskRevertConfirm ?? false));
+  if (prefs.agentLocatorAnimation) {
+    writeString(AGENT_LOCATOR_ANIMATION_KEY, prefs.agentLocatorAnimation);
+  }
   if (prefs.terminalLastCwd) {
     writeString(TERMINAL_LAST_CWD_KEY, prefs.terminalLastCwd);
   }

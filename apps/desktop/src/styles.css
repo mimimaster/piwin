@@ -10,6 +10,7 @@
    scope-refine later. */
 @import '@piwin/ui-kit/styles.css';
 @import './styles/ui-foundations.css';
+@import './styles/behavior-activity.css';
 @import './styles/region-shell.css';
 @import './styles/region-status-bar.css';
 @import './styles/region-sidebar.css';

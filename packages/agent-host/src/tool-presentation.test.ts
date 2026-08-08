@@ -218,6 +218,25 @@ describe('buildToolPresentation', () => {
     expect(presentation.inputPreview).toContain('prefs');
   });
 
+  it('presents MCP gateway discovery separately from an MCP tool call', () => {
+    const discovery = buildToolPresentation({
+      toolName: 'mcp_gateway',
+      args: { action: 'search', query: 'AgentEvent' },
+    });
+    const call = buildToolPresentation({
+      toolName: 'mcp_gateway',
+      args: { action: 'call', selector: 'github.search', arguments: { query: 'AgentEvent' } },
+    });
+
+    expect(discovery.kind).toBe('mcp');
+    expect(discovery.actionVerb).toBe('MCP discovery');
+    expect(discovery.summary).toBe('AgentEvent');
+    expect(call.kind).toBe('mcp');
+    expect(call.actionVerb).toBe('MCP call');
+    expect(call.summary).toBe('github.search');
+    expect(call.inputPreview).toContain('github.search');
+  });
+
   it('does not dump raw MCP JSON args into the header summary', () => {
     const withTool = buildToolPresentation({
       toolName: 'mcp__agent-memory__agent_memory_get_context',

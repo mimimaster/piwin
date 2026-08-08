@@ -1,0 +1,506 @@
+/* Behavior motion for concrete call-chain units.
+ * The live run locator remains the only run chrome; timeline, group, gate,
+ * context, result, and generation surfaces bind here through behavior data. */
+
+:root {
+  /* The reference status copy uses a 2.4s control value and a 1.25x bloom
+   * pass. Keep the product value explicit so animation timing is tunable in
+   * one place and does not get mixed with row entrance transitions. */
+  --behavior-bloom-duration: 3s;
+  --behavior-icon-breathe-duration: 2s;
+  --behavior-icon-wave-duration: 1.5s;
+  --behavior-status-duration: 1.8s;
+}
+
+.behavior-text-bloom {
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    #5d6066 15%,
+    #858990 34%,
+    #e2e4e8 50%,
+    #858990 66%,
+    #5d6066 85%
+  );
+  background-size: 280% 280%;
+  background-position: 130% 130%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: behavior-text-bloom var(--behavior-bloom-duration) ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(218, 222, 234, 0.08));
+}
+
+.behavior-explore-active,
+.behavior-search-active,
+.behavior-read-active,
+.behavior-edit-active,
+.behavior-command-active,
+.behavior-test-active,
+.behavior-build-active,
+.behavior-web-active,
+.behavior-subagent-active,
+.behavior-subagent-inspector-active,
+.behavior-mcp-active,
+.behavior-mcp-discovery-active,
+.behavior-git-active,
+.behavior-process-active,
+.behavior-artifact-active,
+.behavior-generic-active {
+  color: transparent;
+  background: linear-gradient(
+    135deg,
+    #5d6066 15%,
+    #858990 34%,
+    #e2e4e8 50%,
+    #858990 66%,
+    #5d6066 85%
+  );
+  background-size: 280% 280%;
+  background-position: 130% 130%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: behavior-text-bloom var(--behavior-bloom-duration) ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(218, 222, 234, 0.08));
+}
+
+/* Group/extension labels use a slower opacity breath so they remain legible
+ * while still showing that the parent behavior is live. */
+.behavior-thinking-active,
+.behavior-context-active {
+  color: color-mix(in srgb, var(--text) 82%, transparent);
+  animation: behavior-label-breathe 2.8s ease-in-out infinite;
+}
+
+/* Human gates are attention cues, not tool work: use the gate color and a
+ * restrained pulse instead of the neutral text shimmer. */
+.behavior-gate-active {
+  color: var(--behavior-gate-color, var(--state-warning, #f59e0b));
+  animation: behavior-gate-text-pulse 1.8s ease-in-out infinite;
+}
+
+/* The transcript theme gives tool verbs a more specific muted color. Keep
+ * active behavior rows able to reveal the moving text gradient. */
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-text-bloom,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-explore-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-search-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-read-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-edit-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-command-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-test-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-build-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-web-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-subagent-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-subagent-inspector-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-mcp-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-mcp-discovery-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-git-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-process-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-artifact-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-generic-active {
+  color: transparent;
+}
+
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-thinking-active,
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-context-active {
+  color: color-mix(in srgb, var(--text) 82%, transparent);
+}
+
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-gate-active {
+  color: var(--behavior-gate-color, var(--state-warning, #f59e0b));
+}
+
+.turn-work-details .tool-call-card .tool-call-action-verb.behavior-error {
+  color: #ef4444;
+}
+
+.behavior-error {
+  color: #ef4444;
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  animation: none;
+  filter: none;
+}
+
+.behavior-done {
+  color: color-mix(in srgb, var(--text) 58%, transparent);
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  animation: none;
+  filter: none;
+}
+
+.behavior-gate-surface {
+  --behavior-gate-color: var(--state-warning, #f59e0b);
+  border-left: 2px solid color-mix(in srgb, var(--behavior-gate-color) 70%, transparent);
+}
+
+[data-activity-id='ask'] {
+  --behavior-gate-color: var(--accent, #60a5fa);
+}
+
+[data-activity-id='permission'] {
+  --behavior-gate-color: var(--state-warning, #f59e0b);
+}
+
+/* Compact live locator. It intentionally has no container card or glass
+ * treatment: the marker is a position cue and the phrase carries the meaning. */
+.agent-locator {
+  --agent-locator-icon-size: clamp(18px, 1.55em, 24px);
+  --agent-locator-icon-scale: clamp(0.75, calc(var(--agent-locator-icon-size) / 24px), 1);
+  --agent-locator-motion-duration: 3.6s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: calc(var(--agent-locator-icon-size) + 4px);
+  color: color-mix(in srgb, var(--text) 58%, transparent);
+  font-size: 1em;
+  line-height: 1.35;
+  user-select: none;
+}
+
+.agent-locator-visual {
+  display: inline-flex;
+  width: var(--agent-locator-icon-size);
+  height: var(--agent-locator-icon-size);
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--agent-locator-icon-size);
+  color: color-mix(in srgb, var(--text) 58%, transparent);
+}
+
+/* ui-kit's sm frame is intentionally 24px. Scale that public animation
+ * frame from the locator's em-sized slot so the marker stays proportional
+ * when transcript text is resized. */
+.agent-locator-visual > .ui-anim--sm {
+  transform: scale(var(--agent-locator-icon-scale));
+  transform-origin: center;
+}
+
+.agent-locator-visual .ui-anim-radial-bellow__vane,
+.agent-locator-visual .ui-anim-breath-dot__core,
+.agent-locator-visual .ui-anim-asterisk__arm,
+.agent-locator-visual .ui-anim-asterisk__core {
+  animation-duration: var(--agent-locator-motion-duration);
+}
+
+.agent-locator-copy {
+  white-space: nowrap;
+}
+
+.agent-locator-stack {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+.skill-activity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  color: color-mix(in srgb, var(--text) 58%, transparent);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.skill-activity-chip strong {
+  color: color-mix(in srgb, var(--text) 78%, transparent);
+  font-weight: 500;
+}
+
+.skill-activity-chip-visual {
+  display: inline-flex;
+  width: 1.25em;
+  height: 1.25em;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.skill-activity-chip-visual .ui-anim-breath-matrix {
+  transform: scale(0.625);
+  transform-origin: center;
+}
+
+/* Bind small, behavior-specific motion to existing timeline markers. The
+ * registry selects the animation data; these rules select the concrete CSS
+ * effect. This keeps new tool kinds from needing another component branch. */
+[data-activity-animation='breath-dot'][data-tool-status='running'] .tool-call-kind-icon,
+[data-activity-animation='breath-matrix'][data-tool-status='running'] .tool-call-kind-icon {
+  animation: behavior-icon-breathe var(--behavior-icon-breathe-duration) ease-in-out infinite;
+}
+
+[data-activity-animation='solid-bars'][data-tool-status='running'] .tool-call-kind-icon,
+[data-activity-animation='cascade-ripple'][data-tool-status='running'] .tool-call-kind-icon {
+  animation: behavior-icon-wave var(--behavior-icon-wave-duration) ease-in-out infinite;
+}
+
+[data-activity-animation='pulse-block'][data-tool-status='running'] .tool-call-kind-icon,
+[data-activity-animation='diff-in'][data-tool-status='running'] .tool-call-kind-icon {
+  animation: behavior-icon-pulse var(--behavior-icon-breathe-duration) ease-in-out infinite;
+}
+
+[data-activity-animation='artifact-sheen'][data-tool-status='running'] .tool-call-kind-icon {
+  animation: behavior-icon-sheen var(--behavior-icon-wave-duration) linear infinite;
+}
+
+[data-activity-animation='gate-pulse'][data-tool-status='running'] {
+  animation: behavior-gate-surface-pulse var(--behavior-status-duration) ease-in-out infinite;
+}
+
+[data-activity-animation='pulse-block'][data-tool-status='running'] .tool-status-dot,
+[data-activity-animation='gate-pulse'][data-tool-status='running'] .tool-status-dot {
+  animation: behavior-status-pulse var(--behavior-status-duration) ease-in-out infinite;
+}
+
+[data-activity-id='subagent'][data-tool-status='running'] .subagent-status-icon {
+  animation: behavior-icon-pulse var(--behavior-icon-breathe-duration) ease-in-out infinite;
+}
+
+[data-activity-id^='subagent.batch'][data-tool-status='running'] .subagent-status-icon,
+[data-activity-id='subagent.task.running'][data-tool-status='running'] .subagent-status-icon {
+  animation: behavior-icon-pulse var(--behavior-icon-breathe-duration) ease-in-out infinite;
+}
+
+[data-activity-id^='subagent.batch'][data-tool-status='running'] .subagent-working-dot,
+[data-activity-id='subagent.task.running'][data-tool-status='running'] .subagent-working-dot {
+  animation: behavior-status-pulse var(--behavior-status-duration) ease-in-out infinite;
+}
+
+[data-activity-id^='subagent.'][data-tool-status='running'] .subagent-ticker-detail,
+[data-activity-id^='subagent.'][data-tool-status='running'] .subagent-working-row-task {
+  animation: behavior-label-breathe 2.8s ease-in-out infinite;
+}
+
+[data-activity-id='subagent.inspector.live'][data-tool-status='running']
+  .subagent-inspector-tool-status.status-running {
+  animation: behavior-status-pulse var(--behavior-status-duration) ease-in-out infinite;
+}
+
+[data-activity-id^='mcp.server.'][data-tool-status='running'] .mcp-status-dot-inline,
+[data-activity-id='mcp.discovery'][data-tool-status='running'] .mcp-status-dot-inline,
+[data-activity-id='mcp.discovery'][data-tool-status='running'] .ui-button,
+[data-testid='mcp-editor-tools'][data-tool-status='running'] {
+  animation: behavior-icon-breathe var(--behavior-icon-breathe-duration) ease-in-out infinite;
+}
+
+[data-activity-id='mcp.discovery'][data-tool-status='running'] .mcp-status-dot-inline,
+[data-activity-id='mcp.discovery'][data-tool-status='running'] .ui-button,
+[data-testid='mcp-editor-tools'][data-tool-status='running'] {
+  animation-name: behavior-mcp-discovery;
+}
+
+[data-activity-id='mcp.server.status'][data-tool-status='error'] .mcp-status-dot-inline {
+  background: #ef4444;
+  box-shadow: none;
+}
+
+[data-activity-id='thinking'][data-tool-status='running'] .turn-work-details-label,
+[data-activity-id='plan'][data-tool-status='running'] .plan-title {
+  animation: behavior-label-breathe 2.8s ease-in-out infinite;
+}
+
+[data-activity-id='skill.use'] {
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-style: solid;
+  border-width: 1px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
+@keyframes behavior-icon-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes behavior-icon-wave {
+  0%,
+  100% {
+    transform: translateY(1px);
+    opacity: 0.68;
+  }
+  50% {
+    transform: translateY(-1px);
+    opacity: 1;
+  }
+}
+
+@keyframes behavior-icon-pulse {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes behavior-icon-sheen {
+  0%,
+  100% {
+    opacity: 0.62;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 34%, transparent));
+  }
+}
+
+@keyframes behavior-mcp-discovery {
+  0%,
+  100% {
+    opacity: 0.52;
+    transform: rotate(-2deg) scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: rotate(2deg) scale(1.08);
+  }
+}
+
+@keyframes behavior-status-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 18%, transparent);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+}
+
+@keyframes behavior-label-breathe {
+  0%,
+  100% {
+    opacity: 0.68;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes behavior-gate-text-pulse {
+  0%,
+  100% {
+    opacity: 0.78;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes behavior-gate-surface-pulse {
+  0%,
+  100% {
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--behavior-gate-color) 45%, transparent);
+  }
+  50% {
+    box-shadow: inset 2px 0 0 color-mix(in srgb, var(--behavior-gate-color) 90%, transparent);
+  }
+}
+
+@keyframes behavior-text-bloom {
+  0%,
+  12% {
+    background-position: 130% 130%;
+  }
+  88%,
+  100% {
+    background-position: -130% -130%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .behavior-text-bloom,
+  .behavior-explore-active,
+  .behavior-search-active,
+  .behavior-read-active,
+  .behavior-edit-active,
+  .behavior-command-active,
+  .behavior-test-active,
+  .behavior-build-active,
+  .behavior-web-active,
+  .behavior-subagent-active,
+  .behavior-subagent-inspector-active,
+  .behavior-mcp-active,
+  .behavior-mcp-discovery-active,
+  .behavior-git-active,
+  .behavior-process-active,
+  .behavior-artifact-active,
+  .behavior-generic-active,
+  .behavior-thinking-active,
+  .behavior-context-active,
+  .behavior-gate-active,
+  .behavior-gate-surface {
+    animation: none;
+    color: color-mix(in srgb, var(--text) 72%, transparent);
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    filter: none;
+  }
+
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-text-bloom,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-explore-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-search-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-read-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-edit-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-command-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-test-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-build-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-web-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-subagent-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-mcp-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-git-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-process-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-artifact-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-generic-active {
+    color: color-mix(in srgb, var(--text) 72%, transparent);
+  }
+
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-thinking-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-context-active,
+  .turn-work-details .tool-call-card .tool-call-action-verb.behavior-gate-active {
+    color: color-mix(in srgb, var(--text) 72%, transparent);
+  }
+
+  [data-activity-animation='breath-dot'][data-tool-status='running'] .tool-call-kind-icon,
+  [data-activity-animation='breath-matrix'][data-tool-status='running'] .tool-call-kind-icon,
+  [data-activity-animation='solid-bars'][data-tool-status='running'] .tool-call-kind-icon,
+  [data-activity-animation='cascade-ripple'][data-tool-status='running'] .tool-call-kind-icon,
+  [data-activity-animation='pulse-block'][data-tool-status='running'] .tool-call-kind-icon,
+  [data-activity-animation='diff-in'][data-tool-status='running'] .tool-call-kind-icon,
+  [data-activity-animation='artifact-sheen'][data-tool-status='running'] .tool-call-kind-icon,
+  [data-activity-animation='gate-pulse'][data-tool-status='running'],
+  [data-activity-animation='pulse-block'][data-tool-status='running'] .tool-status-dot,
+  [data-activity-animation='gate-pulse'][data-tool-status='running'] .tool-status-dot,
+  [data-activity-id='subagent'][data-tool-status='running'] .subagent-status-icon,
+  [data-activity-id^='subagent.'][data-tool-status='running'] .subagent-status-icon,
+  [data-activity-id^='subagent.'][data-tool-status='running'] .subagent-ticker-detail,
+  [data-activity-id^='subagent.'][data-tool-status='running'] .subagent-working-row-task,
+  [data-activity-id='subagent.inspector.live'][data-tool-status='running']
+    .subagent-inspector-tool-status.status-running,
+  [data-activity-id^='mcp.server.'][data-tool-status='running'] .mcp-status-dot-inline,
+  [data-activity-id='mcp.discovery'][data-tool-status='running'] .mcp-status-dot-inline,
+  [data-activity-id='mcp.discovery'][data-tool-status='running'] .ui-button,
+  [data-testid='mcp-editor-tools'][data-tool-status='running'],
+  [data-activity-id='thinking'][data-tool-status='running'] .turn-work-details-label,
+  [data-activity-id='plan'][data-tool-status='running'] .plan-title {
+    animation: none;
+  }
+}
