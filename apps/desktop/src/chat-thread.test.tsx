@@ -842,7 +842,7 @@ describe('ChatThread render isolation (E1)', () => {
     expect(collapsibleBody?.classList.contains('is-expanded')).toBe(true);
   });
 
-  it('shows a generating image placeholder until image_gen succeeds or fails', () => {
+  it('shows image generation running, completed, and failed states', () => {
     const generatedAttachment = {
       id: 'generated-image-1',
       kind: 'media' as const,
@@ -910,14 +910,35 @@ describe('ChatThread render isolation (E1)', () => {
     }
 
     renderMessage(runningMessage);
-    expect(container.querySelector('[data-testid="image-generation-progress"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).toMatchObject({
+      textContent: expect.stringContaining('Generating image'),
+    });
+    expect(
+      container
+        .querySelector('[data-testid="image-generation-progress"]')
+        ?.getAttribute('data-tool-status'),
+    ).toBe('running');
 
     renderMessage(completedMessage);
-    expect(container.querySelector('[data-testid="image-generation-progress"]')).toBeNull();
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).toMatchObject({
+      textContent: expect.stringContaining('Image generated'),
+    });
+    expect(
+      container
+        .querySelector('[data-testid="image-generation-progress"]')
+        ?.getAttribute('data-tool-status'),
+    ).toBe('done');
     expect(container.querySelector('.message-attachments')).not.toBeNull();
 
     renderMessage(failedMessage);
-    expect(container.querySelector('[data-testid="image-generation-progress"]')).toBeNull();
+    expect(container.querySelector('[data-testid="image-generation-progress"]')).toMatchObject({
+      textContent: expect.stringContaining('Image generation failed'),
+    });
+    expect(
+      container
+        .querySelector('[data-testid="image-generation-progress"]')
+        ?.getAttribute('data-tool-status'),
+    ).toBe('error');
     expect(container.querySelector('[data-testid="tool-call-err"]')).not.toBeNull();
 
     renderMessage({

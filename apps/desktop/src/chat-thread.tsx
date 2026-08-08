@@ -5,7 +5,7 @@ import { memo, useEffect, useMemo, useRef, useState, type ReactElement } from 'r
 
 import type { SessionPlan, ThemeManifest, WalkthroughArtifact } from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
-import type { ChatMessageUi, PermissionPromptUi, RunRecordUi } from './chat-reducer';
+import type { ChatMessageUi, PermissionPromptUi, RunRecordUi, ToolCardUi } from './chat-reducer';
 import type { SubagentInspectorSelection } from './subagent-activity-model';
 import type {
   PermissionDecision,
@@ -535,16 +535,23 @@ function MessageAttachments(props: {
   );
 }
 
-function hasRunningImageGeneration(message: ChatMessageUi): boolean {
-  return message.tools.some(
-    (tool) => tool.status === 'running' && tool.toolName.trim().toLowerCase() === 'image_gen',
+function getGenerationStatus(
+  message: ChatMessageUi,
+  toolName: 'image_gen' | 'video_gen',
+): ToolCardUi['status'] | null {
+  const generationTools = message.tools.filter(
+    (tool) => tool.toolName.trim().toLowerCase() === toolName,
   );
-}
-
-function hasRunningVideoGeneration(message: ChatMessageUi): boolean {
-  return message.tools.some(
-    (tool) => tool.status === 'running' && tool.toolName.trim().toLowerCase() === 'video_gen',
-  );
+  if (generationTools.length === 0) {
+    return null;
+  }
+  if (generationTools.some((tool) => tool.status === 'running')) {
+    return 'running';
+  }
+  if (generationTools.some((tool) => tool.status === 'error')) {
+    return 'error';
+  }
+  return 'done';
 }
 
 function UserMessageContent(props: {
@@ -663,6 +670,10 @@ function UserMessageContent(props: {
 const ChatMessageRow = memo(
   function ChatMessageRow(props: ChatMessageRowProps): ReactElement {
     const { message } = props;
+    const imageGenerationStatus =
+      message.role === 'assistant' ? getGenerationStatus(message, 'image_gen') : null;
+    const videoGenerationStatus =
+      message.role === 'assistant' ? getGenerationStatus(message, 'video_gen') : null;
     if (message.subagentActivity) {
       return (
         <div id={`msg-${message.id}`} className="chat-subagent-slot">
@@ -723,11 +734,17 @@ const ChatMessageRow = memo(
               : {})}
           />
         ) : null}
-        {message.role === 'assistant' && hasRunningImageGeneration(message) ? (
-          <ImageGenerationProgress locale={props.locale ?? 'zh-CN'} />
+        {imageGenerationStatus ? (
+          <ImageGenerationProgress
+            locale={props.locale ?? 'zh-CN'}
+            status={imageGenerationStatus}
+          />
         ) : null}
-        {message.role === 'assistant' && hasRunningVideoGeneration(message) ? (
-          <VideoGenerationProgress locale={props.locale ?? 'zh-CN'} />
+        {videoGenerationStatus ? (
+          <VideoGenerationProgress
+            locale={props.locale ?? 'zh-CN'}
+            status={videoGenerationStatus}
+          />
         ) : null}
         {message.role === 'assistant' || isEditingThis ? (
           <MessageAttachments attachments={message.attachments} />

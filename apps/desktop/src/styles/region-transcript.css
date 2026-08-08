@@ -1205,7 +1205,7 @@
   }
 }
 
-/* Image generation placeholder — replaced by the final attachment on success. */
+/* Image generation status card — stays visible through completion/failure. */
 .image-generation-progress {
   display: flex;
   align-items: center;
@@ -1217,6 +1217,16 @@
   border-radius: 12px;
   background: color-mix(in srgb, var(--accent) 7%, var(--card));
   overflow: hidden;
+}
+
+.image-generation-progress.status-done {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
+  background: color-mix(in srgb, var(--ok) 7%, var(--card));
+}
+
+.image-generation-progress.status-error {
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--line));
+  background: color-mix(in srgb, var(--danger) 7%, var(--card));
 }
 
 .image-generation-progress-art {
@@ -1231,6 +1241,14 @@
   background:
     radial-gradient(circle at 28% 25%, rgba(255, 255, 255, 0.42), transparent 24%),
     linear-gradient(135deg, color-mix(in srgb, var(--accent) 62%, var(--card)), var(--card));
+}
+
+.image-generation-progress.status-done .image-generation-progress-art {
+  background: color-mix(in srgb, var(--ok) 18%, var(--card));
+}
+
+.image-generation-progress.status-error .image-generation-progress-art {
+  background: color-mix(in srgb, var(--danger) 18%, var(--card));
 }
 
 .image-generation-progress-art::before {
@@ -1264,6 +1282,38 @@
   color: var(--text);
   filter: drop-shadow(0 2px 7px color-mix(in srgb, var(--accent) 65%, transparent));
   animation: image-generation-spark 1.4s ease-in-out infinite;
+}
+
+.image-generation-progress-status-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+}
+
+.image-generation-progress-status-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.image-generation-progress.status-done .image-generation-progress-status-icon {
+  color: var(--ok);
+}
+
+.image-generation-progress.status-error .image-generation-progress-status-icon {
+  color: var(--danger);
+}
+
+.image-generation-progress.status-done .image-generation-progress-art::before,
+.image-generation-progress.status-done .image-generation-progress-art::after,
+.image-generation-progress.status-error .image-generation-progress-art::before,
+.image-generation-progress.status-error .image-generation-progress-art::after {
+  animation: none;
+  opacity: 0;
 }
 
 .image-generation-progress-copy {
