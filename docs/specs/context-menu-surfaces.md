@@ -752,12 +752,12 @@ export function dispatchContextMenuAction(
 
 ### Phase 3 — Polish
 
-| ID | Work |
-|----|------|
-| CM-16 | More... submenu for review/tests |
-| CM-17 | `@` mention also writes pending refs (recommended P0.1/P1) |
-| CM-18 | CLI note / optional ref flags parity |
-| CM-19 | `todo-deferred.md` + product-status updates |
+| ID | Work | Status |
+|----|------|--------|
+| CM-16 | More... submenu for review/tests | ⏳ queued |
+| CM-17 | `@` mention also writes pending refs (recommended P0.1/P1) | ⏳ queued |
+| CM-18 | CLI note / optional ref flags parity | ⏳ queued |
+| CM-19 | `todo-deferred.md` + product-status updates | ✅ 2026-08-10 |
 
 ---
 
