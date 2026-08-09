@@ -1,5 +1,6 @@
+import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { getFinderBundle, injectFinder, pickElementAt } from './pick.js';
+import { getFinderBundle, injectFinder, pickElementAt, resolveFinderEntryPath } from './pick.js';
 import type { InitScriptTarget, PickPage } from './pick.js';
 import type { WebElementPickResult } from '@piwin/contracts';
 
@@ -124,6 +125,13 @@ describe('pickElementAt', () => {
     await injectFinder(target);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toBe(bundle);
+  });
+
+  it('resolves the finder entry from the browser package instead of process.cwd()', () => {
+    const entryPath = resolveFinderEntryPath();
+    expect(entryPath).toContain('@medv');
+    expect(entryPath).toContain('finder');
+    expect(existsSync(entryPath)).toBe(true);
   });
 });
 

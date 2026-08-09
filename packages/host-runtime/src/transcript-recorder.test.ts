@@ -307,4 +307,33 @@ describe('TranscriptRecorder', () => {
     expect(messages[0]?.id.startsWith('user-')).toBe(true);
   });
 
+  it('reports deltas targeting an unknown message via onDiagnostic', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-transcript-recorder-'));
+    const transcriptPath = join(rootDir, 'transcript.json');
+    const diagnostics: string[] = [];
+    const recorder = createTranscriptRecorder({
+      transcriptPath,
+      sessionId: 'session-1',
+      projectPath: '/tmp/project',
+      onDiagnostic: (message) => diagnostics.push(message),
+    });
+
+    // A text delta arrives before its message/start (or for a message the
+    // recorder never saw) — this is the "model output generated but never
+    // persisted" case. It must be surfaced, not silently dropped.
+    await recorder.recordEvent({
+      type: 'message/text_delta',
+      messageId: 'assistant-missing',
+      delta: 'the model answered but it never landed',
+    });
+    await recorder.flush();
+
+    expect(diagnostics.length).toBeGreaterThan(0);
+    expect(diagnostics[0]).toContain('text_delta');
+    expect(diagnostics[0]).toContain('assistant-missing');
+
+    const messages = await listTranscriptMessages(transcriptPath);
+    expect(messages).toHaveLength(0);
+  });
+
 });

@@ -64,7 +64,7 @@ describe('config-store', () => {
     expect(loaded.compaction?.autoEnabledDefault).toBe(false);
   });
 
-  it('round-trips visionDelegation, imageGeneration, and videoGeneration', async () => {
+  it('round-trips visionDelegation, imageGeneration, videoGeneration, and speech', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-vision-'));
     const config = createDefaultPiwinConfig();
     config.visionDelegation = {
@@ -92,6 +92,24 @@ describe('config-store', () => {
         modelId: 'gen4.5',
       },
     };
+    config.speech = {
+      asr: {
+        defaultModel: {
+          protocol: 'openai-compatible',
+          providerId: 'custom-openai',
+          modelId: 'whisper-1',
+        },
+        language: ' zh ',
+      },
+      tts: {
+        defaultModel: {
+          protocol: 'openai-compatible',
+          providerId: 'custom-openai',
+          modelId: 'tts-1',
+        },
+        voice: 'alloy',
+      },
+    };
 
     await savePiwinConfig(config, rootDir);
     const loaded = await loadPiwinConfig(rootDir);
@@ -99,6 +117,13 @@ describe('config-store', () => {
     expect(loaded.visionDelegation).toEqual(config.visionDelegation);
     expect(loaded.imageGeneration).toEqual(config.imageGeneration);
     expect(loaded.videoGeneration).toEqual(config.videoGeneration);
+    expect(loaded.speech).toEqual({
+      asr: {
+        defaultModel: config.speech.asr?.defaultModel,
+        language: 'zh',
+      },
+      tts: config.speech.tts,
+    });
   });
 
   it('preserves visionDelegation.enabled=false when model is set', async () => {

@@ -208,6 +208,26 @@ describe('mapPiSessionEvent', () => {
     expect(mapPiSessionEvent({ type: 'nope' })).toEqual([]);
     expect(mapPiSessionEvent(null)).toEqual([]);
   });
+
+  it('maps assistant cache usage from agent_end messages', () => {
+    const raw = JSON.parse(
+      readFileSync(join(fixtureDir, 'agent-end-with-cache.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    const events = mapPiSessionEvent(raw);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      type: 'usage/update',
+      usage: {
+        modelId: 'gpt-4o',
+        promptTokens: 700,
+        completionTokens: 200,
+        cacheReadTokens: 100,
+        cacheWriteTokens: 50,
+        totalTokens: 1050,
+        source: 'assistant-usage',
+      },
+    });
+  });
 });
 
 describe('mapCompactionEndEvent fixtures', () => {

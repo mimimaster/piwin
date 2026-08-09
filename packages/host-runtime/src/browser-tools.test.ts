@@ -20,6 +20,8 @@ function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSess
   const calls: { method: string; args: unknown[] }[] = [];
   const queue = createExclusiveQueue();
   const base: BrowserSession = {
+    start: async () => ({ url: 'http://localhost:3000', title: 'Test' }),
+    stop: async () => {},
     navigate: async (url, options) => {
       calls.push({ method: 'navigate', args: [url, options] });
     },

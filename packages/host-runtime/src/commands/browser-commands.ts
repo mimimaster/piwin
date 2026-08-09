@@ -44,9 +44,9 @@ export async function handleBrowserCommand(
 
   switch (command.type) {
     case 'browser/start': {
-      // Ensure the session is reachable; currentState triggers lazy launch on
-      // first real use. The session object already exists, so just return state.
-      const state = await session.runExclusive(async () => session.currentState());
+      // Opening the panel acquires the mirror lease: launch Chromium if needed
+      // and begin the bounded frame stream.
+      const state = await session.start(command.leaseId);
       return ok(requestId, 'browser/start', { state });
     }
 
@@ -76,7 +76,10 @@ export async function handleBrowserCommand(
     }
 
     case 'browser/stop': {
-      await session.close();
+      // Closing the panel releases the Chromium process but keeps the service
+      // object reusable by already-registered agent tools. Permanent close is
+      // reserved for HostRuntime disposal.
+      await session.stop(command.leaseId);
       return ok(requestId, 'browser/stop', { stopped: true });
     }
 

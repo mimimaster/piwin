@@ -24,10 +24,12 @@ export function mapUsageSnapshot(
     asRecord(record.tokenUsage) ??
     record;
 
+  const modelId = readString(record.modelId) ?? readString(record.model);
   const tokensUsed =
     readNumber(nested.tokensUsed) ??
     readNumber(nested.used) ??
     readNumber(nested.contextTokens) ??
+    readNumber(nested.tokens) ??
     readNumber(nested.inputTokens);
   const tokensLimit =
     readNumber(nested.tokensLimit) ??
@@ -37,16 +39,37 @@ export function mapUsageSnapshot(
   const promptTokens =
     readNumber(nested.promptTokens) ??
     readNumber(nested.input_tokens) ??
-    readNumber(nested.inputTokens);
+    readNumber(nested.inputTokens) ??
+    readNumber(nested.input);
   const completionTokens =
     readNumber(nested.completionTokens) ??
     readNumber(nested.output_tokens) ??
-    readNumber(nested.outputTokens);
+    readNumber(nested.outputTokens) ??
+    readNumber(nested.output);
+  const promptTokenDetails = asRecord(nested.prompt_tokens_details);
+  const cacheReadTokens =
+    readNumber(nested.cacheReadTokens) ??
+    readNumber(nested.cacheRead) ??
+    readNumber(nested.cache_read) ??
+    readNumber(nested.cache_read_tokens) ??
+    readNumber(nested.cache_read_input_tokens) ??
+    readNumber(nested.cached_tokens) ??
+    readNumber(promptTokenDetails?.cached_tokens);
+  const cacheWriteTokens =
+    readNumber(nested.cacheWriteTokens) ??
+    readNumber(nested.cacheWrite) ??
+    readNumber(nested.cache_write) ??
+    readNumber(nested.cache_write_tokens) ??
+    readNumber(nested.cache_creation_input_tokens) ??
+    readNumber(promptTokenDetails?.cache_write_tokens);
   const totalTokens =
     readNumber(nested.totalTokens) ??
     readNumber(nested.total) ??
     (promptTokens !== undefined && completionTokens !== undefined
-      ? promptTokens + completionTokens
+      ? promptTokens +
+        completionTokens +
+        (cacheReadTokens ?? 0) +
+        (cacheWriteTokens ?? 0)
       : undefined);
 
   const hasAny =
@@ -54,6 +77,8 @@ export function mapUsageSnapshot(
     tokensLimit !== undefined ||
     promptTokens !== undefined ||
     completionTokens !== undefined ||
+    cacheReadTokens !== undefined ||
+    cacheWriteTokens !== undefined ||
     totalTokens !== undefined;
   if (!hasAny) {
     return null;
@@ -64,10 +89,13 @@ export function mapUsageSnapshot(
     updatedAt: new Date().toISOString(),
     source,
   };
+  if (modelId !== undefined) snapshot.modelId = modelId;
   if (tokensUsed !== undefined) snapshot.tokensUsed = tokensUsed;
   if (tokensLimit !== undefined) snapshot.tokensLimit = tokensLimit;
   if (promptTokens !== undefined) snapshot.promptTokens = promptTokens;
   if (completionTokens !== undefined) snapshot.completionTokens = completionTokens;
+  if (cacheReadTokens !== undefined) snapshot.cacheReadTokens = cacheReadTokens;
+  if (cacheWriteTokens !== undefined) snapshot.cacheWriteTokens = cacheWriteTokens;
   if (totalTokens !== undefined) snapshot.totalTokens = totalTokens;
 
   const usedForRatio = tokensUsed ?? totalTokens;
@@ -77,6 +105,12 @@ export function mapUsageSnapshot(
     tokensLimit > 0
   ) {
     snapshot.contextRatio = Math.min(1, Math.max(0, usedForRatio / tokensLimit));
+  } else {
+    const reportedPercent = readNumber(nested.percent);
+    if (reportedPercent !== undefined) {
+      const ratio = reportedPercent > 1 ? reportedPercent / 100 : reportedPercent;
+      snapshot.contextRatio = Math.min(1, Math.max(0, ratio));
+    }
   }
 
   const mappedBreakdown = mapBreakdown(
@@ -227,6 +261,10 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     return null;
   }
   return value as Record<string, unknown>;
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function readNumber(value: unknown): number | undefined {

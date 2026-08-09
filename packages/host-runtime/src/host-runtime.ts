@@ -397,6 +397,8 @@ export class HostRuntime {
   /** Spec §12: per-session runtime generation/staleness registry. */
   private readonly runtimeController: SessionRuntimeController;
   private readonly runtimeReplacementEngine: SessionRuntimeReplacementEngine;
+  /** Per-run denial counters for run-admission diagnostics (CE run admission). */
+  private readonly runAdmissionDenials = new Map<string, number>();
   private readonly options: HostRuntimeOptions;
   /**
    * Parent-owned Host tool execution port for non-mock ProductAgentHost.
@@ -585,11 +587,44 @@ export class HostRuntime {
           this.runtimeController.getStatus(sessionId).generationId,
         isRunAdmitted: (runId, sessionId, runtimeGenerationId) => {
           const run = this.runRegistry.get(runId);
-          return (
+          const admitted =
             run?.status === 'running' &&
             run.sessionId === sessionId &&
-            run.runtimeGenerationId === runtimeGenerationId
-          );
+            run.runtimeGenerationId === runtimeGenerationId;
+          if (!admitted) {
+            // CE run-admission diagnostics: log WHY a tool frame was rejected.
+            // The model sees only "run is not admitted for tool execution", so
+            // the exact failure reason must be captured host-side.
+            const denialKey = `${sessionId}\u0000${runId}`;
+            const count = (this.runAdmissionDenials.get(denialKey) ?? 0) + 1;
+            this.runAdmissionDenials.set(denialKey, count);
+            const foreground = this.runRegistry.getForegroundRun(sessionId);
+            const activeGeneration = this.runtimeController.getStatus(sessionId).generationId;
+            let why: string;
+            if (!run) {
+              why = 'run-missing';
+            } else if (run.status !== 'running') {
+              why = `status=${run.status}`;
+            } else if (run.sessionId !== sessionId) {
+              why = `session-mismatch run=${run.sessionId} frame=${sessionId}`;
+            } else {
+              why = `generation-mismatch run=${run.runtimeGenerationId} frame=${runtimeGenerationId}`;
+            }
+            // First denial per (runId, sessionId) logs in full; repeats are
+            // sampled at 1/10 to avoid flooding the host log during loops.
+            if (count === 1 || count % 10 === 0) {
+              this.push({
+                type: 'host/log',
+                level: 'warn',
+                message:
+                  `run admission denied (x${count}): runId=${runId} sessionId=${sessionId} ` +
+                  `why=${why} frameGen=${runtimeGenerationId} ` +
+                  `activeGen=${activeGeneration} foregroundRun=${foreground?.runId ?? '-'} ` +
+                  `foregroundStatus=${foreground?.status ?? '-'}`,
+              });
+            }
+          }
+          return admitted;
         },
         // Repair spec WP2: the live safety predicate reads the controller's
         // pending tightening domains on every tool call, so a settings
@@ -2577,9 +2612,11 @@ export class HostRuntime {
 
   /**
    * Lazily create the host-owned BrowserSession (ADR 0020). The session object
-   * is cheap — Chromium launches on first actual operation. Frame/state events
-   * are forwarded to `this.push` so the desktop panel mirrors the agent's page.
-   * Called before the first Pi session creation so `browser_*` tools register.
+   * and its push subscription are passive — Chromium launches only when the
+   * desktop acquires its mirror lease or an agent performs a browser operation.
+   * Frame/state events are forwarded to `this.push` so the desktop panel
+   * mirrors the agent's page. Called before the first Pi session creation so
+   * `browser_*` tools register without making Chromium resident.
    */
   async ensureBrowserSession(): Promise<import('@piwin/browser').BrowserSession> {
     if (this.browserSession) return this.browserSession;
@@ -2947,6 +2984,7 @@ export class HostRuntime {
         disposeLiveSession: (sessionId) => this.disposeLiveSession(sessionId),
         bindSession: (session, projectPath, sessionName, lineage) =>
           this.bindSession(session, projectPath, sessionName, lineage),
+        push: (message) => this.push(message),
         pushStatus: () => this.pushStatus(),
       },
     };
@@ -3311,6 +3349,8 @@ export class HostRuntime {
         sessionId,
         projectPath,
         resolveModel: () => this.sessionModels.get(sessionId),
+        onDiagnostic: (message) =>
+          this.push({ type: 'host/log', level: 'warn', message: `[transcript] ${message}` }),
       }),
     );
   }
@@ -3507,12 +3547,16 @@ export class HostRuntime {
     const ledgerPath = getPiwinUsageLedgerPath(rootDir);
     const projectPath = this.sessionProjects.get(sessionId) ?? '';
     const modelRef = this.sessionModels.get(sessionId);
+    const modelId = usage.modelId ?? modelRef?.modelId;
     const record: UsageRecord = {
       sessionId,
       projectPath: projectPath.trim().length > 0 ? projectPath : null,
-      ...(modelRef?.modelId ? { modelId: modelRef.modelId } : {}),
+      ...(modelRef?.providerId ? { providerId: modelRef.providerId } : {}),
+      ...(modelId ? { modelId } : {}),
       ...(usage.promptTokens !== undefined ? { promptTokens: usage.promptTokens } : {}),
       ...(usage.completionTokens !== undefined ? { completionTokens: usage.completionTokens } : {}),
+      ...(usage.cacheReadTokens !== undefined ? { cacheReadTokens: usage.cacheReadTokens } : {}),
+      ...(usage.cacheWriteTokens !== undefined ? { cacheWriteTokens: usage.cacheWriteTokens } : {}),
       totalTokens,
       source: usage.source === 'host-estimate' ? 'host-estimate' : 'assistant-usage',
       recordedAt: new Date().toISOString(),
@@ -3658,11 +3702,11 @@ export class HostRuntime {
           toolOutputChunkBytes: 64 * 1024,
         });
       case undefined: {
-        // Mock hosts expose no `browser_*` tools, so eager-launching Chromium
-        // (ADR 0020) here would only spawn a process nobody uses. Real hosts
-        // need the browser session registered before the Pi session so the
-        // tools appear. Best-effort: a launch failure must not block session
-        // creation — the tools simply won't appear.
+        // Mock hosts expose no `browser_*` tools. Real hosts need the passive
+        // BrowserSession service registered before the Pi session so the tools
+        // appear; creating/subscribing it does not launch Chromium (ADR 0020).
+        // Best-effort: service initialization failure must not block session
+        // creation — the tools simply will not appear.
         if (this.options.mock !== true) {
           try {
             await this.ensureBrowserSession();

@@ -294,8 +294,28 @@ export function mapPiSessionEvent(raw: unknown, activeMessageId?: string | null)
       return [{ type: 'usage/update', sessionId, usage: snapshot }];
     }
     case 'agent_end': {
-      // Prefer nested usage when Pi includes it on agent_end.
+      // Pi 0.80 puts normalized assistant usage on agent_end.messages[].
+      // Keep one usage event per assistant message so retries/tool turns do not
+      // collapse cache reads and writes into one lossy snapshot.
       const sessionId = readString(event.sessionId) ?? 'unknown';
+      const assistantUsageEvents: AgentEvent[] = [];
+      if (Array.isArray(event.messages)) {
+        for (const message of event.messages) {
+          const assistantMessage = asRecord(message);
+          if (assistantMessage?.role !== 'assistant') {
+            continue;
+          }
+          const snapshot = mapUsageSnapshot(sessionId, assistantMessage, 'assistant-usage');
+          if (snapshot) {
+            assistantUsageEvents.push({ type: 'usage/update', sessionId, usage: snapshot });
+          }
+        }
+      }
+      if (assistantUsageEvents.length > 0) {
+        return assistantUsageEvents;
+      }
+      // Preserve compatibility with Pi adapters that expose a direct usage
+      // object on agent_end instead of the messages array.
       const snapshot =
         mapUsageSnapshot(sessionId, event, 'assistant-usage') ??
         mapUsageSnapshot(sessionId, asRecord(event.usage) ?? {}, 'assistant-usage');

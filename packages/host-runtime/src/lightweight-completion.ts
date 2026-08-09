@@ -15,6 +15,9 @@ const MAX_TITLE_WORDS = 12;
  */
 const MAX_TITLE_TOKENS = 512;
 
+/** Naming is best-effort and must never leave an unbounded provider request. */
+const TITLE_REQUEST_TIMEOUT_MS = 15_000;
+
 const TITLE_SYSTEM_PROMPT =
   'Generate a concise, descriptive title (3-7 words) for this coding session from the user message and optional assistant reply. Return ONLY the title text, no quotes, no markdown, no trailing punctuation.';
 
@@ -48,12 +51,28 @@ export async function generateTitleViaProvider(input: {
 }): Promise<string | null> {
   const { provider, modelId, apiKey, userPrompt, signal } = input;
   const systemPrompt = input.systemPrompt ?? TITLE_SYSTEM_PROMPT;
+  const timeoutSignal = AbortSignal.timeout(TITLE_REQUEST_TIMEOUT_MS);
+  const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
   try {
     if (provider.protocol === 'openai-compatible') {
-      return await fetchOpenAiCompatible(provider, modelId, apiKey, systemPrompt, userPrompt, signal);
+      return await fetchOpenAiCompatible(
+        provider,
+        modelId,
+        apiKey,
+        systemPrompt,
+        userPrompt,
+        requestSignal,
+      );
     }
     if (provider.protocol === 'anthropic-compatible') {
-      return await fetchAnthropicCompatible(provider, modelId, apiKey, systemPrompt, userPrompt, signal);
+      return await fetchAnthropicCompatible(
+        provider,
+        modelId,
+        apiKey,
+        systemPrompt,
+        userPrompt,
+        requestSignal,
+      );
     }
     return null;
   } catch {

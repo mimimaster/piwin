@@ -49,8 +49,10 @@ function installWorkingBrowser() {
   const page = buildPage();
   const context = {
     addInitScript: vi.fn().mockResolvedValue(undefined),
+    pages: vi.fn().mockReturnValue([page]),
     newPage: vi.fn().mockResolvedValue(page),
     on: vi.fn(),
+    close: vi.fn().mockResolvedValue(undefined),
   };
   const browser = {
     close: vi.fn().mockResolvedValue(undefined),
@@ -103,29 +105,71 @@ describe('lazy launch', () => {
     await session.click('button.submit'); // css selector -> raw locator
 
     expect(launchMock).toHaveBeenCalledTimes(1);
-    expect(launchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headless: true }));
+    expect(launchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ headless: true }),
+    );
     expect(page.locator).toHaveBeenNthCalledWith(1, 'aria-ref=e5');
     expect(page.locator).toHaveBeenNthCalledWith(2, 'button.submit');
+  });
+
+  it('reuses the persistent context initial page instead of creating a second renderer', async () => {
+    const { context } = installWorkingBrowser();
+    const session = createBrowserSession();
+
+    await session.start('panel');
+
+    expect(context.pages).toHaveBeenCalledTimes(1);
+    expect(context.newPage).not.toHaveBeenCalled();
+    await session.stop('panel');
+  });
+
+  it('creates one page only when the persistent context exposes no initial page', async () => {
+    const { context } = installWorkingBrowser();
+    context.pages.mockReturnValue([]);
+    const session = createBrowserSession();
+
+    await session.start('panel');
+
+    expect(context.newPage).toHaveBeenCalledTimes(1);
+    await session.stop('panel');
   });
 
   it('launches headed when configured', async () => {
     installWorkingBrowser();
     const session = createBrowserSession({ headless: false });
     await session.snapshot();
-    expect(launchMock).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ headless: false }));
+    expect(launchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ headless: false }),
+    );
   });
 
-  it('close() waits for an in-flight launch so the Chromium child is always closed', async () => {
-    const { browser } = installWorkingBrowser();
+  it('does not launch Chromium merely because HostRuntime subscribes for pushes', async () => {
+    installWorkingBrowser();
     const session = createBrowserSession();
 
-    // subscribe() triggers a fire-and-forget launch (pushInitialState) that is
-    // still pending when close() lands — the exact race that previously leaked
-    // the spawned browser process and kept the event loop alive.
-    session.subscribe(() => undefined);
-    await session.close();
+    const unsubscribe = session.subscribe(() => undefined);
+    await Promise.resolve();
 
-    expect(browser.close).toHaveBeenCalledTimes(1);
+    expect(launchMock).not.toHaveBeenCalled();
+    unsubscribe();
+    await session.close();
+  });
+
+  it('immediately releases Chromium and permits retry when initialization fails', async () => {
+    const { context } = installWorkingBrowser();
+    context.addInitScript.mockRejectedValueOnce(new Error('finder injection failed'));
+    const session = createBrowserSession();
+
+    await expect(session.start('panel')).rejects.toThrow('finder injection failed');
+    expect(context.close).toHaveBeenCalledTimes(1);
+
+    const retry = installWorkingBrowser();
+    await session.start('panel');
+    expect(launchMock).toHaveBeenCalledTimes(2);
+    await session.stop('panel');
+    expect(retry.context.close).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -161,6 +205,7 @@ describe('subscribe / frames', () => {
     const session = createBrowserSession();
     const events: unknown[] = [];
     const unsubscribe = session.subscribe((event) => events.push(event));
+    await session.start();
 
     await vi.waitFor(() => {
       expect(events.some((e) => (e as { type: string }).type === 'browser/state')).toBe(true);
@@ -187,6 +232,7 @@ describe('subscribe / frames', () => {
 
     unsubscribe();
     expect(page.screenshot).toHaveBeenCalled();
+    await session.stop();
   });
 });
 
@@ -246,12 +292,51 @@ describe('session operations', () => {
     expect(page.screenshot).toHaveBeenCalledWith({ type: 'jpeg', quality: 70 });
   });
 
-  it('closes the browser', async () => {
-    const { browser } = installWorkingBrowser();
+  it('closes the persistent context that owns Chromium', async () => {
+    const { context, browser } = installWorkingBrowser();
     const session = createBrowserSession();
     await session.navigate('https://example.com');
     await session.close();
-    expect(browser.close).toHaveBeenCalled();
+    expect(context.close).toHaveBeenCalledTimes(1);
+    expect(browser.close).not.toHaveBeenCalled();
+  });
+
+  it('stop releases Chromium and later agent operations relaunch it', async () => {
+    const { context } = installWorkingBrowser();
+    const session = createBrowserSession();
+
+    await session.start();
+    await session.stop();
+    expect(context.close).toHaveBeenCalledTimes(1);
+
+    await session.navigate('https://example.com/after-panel-close');
+    expect(launchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps Chromium until every named mirror lease is released', async () => {
+    const { context } = installWorkingBrowser();
+    const session = createBrowserSession();
+
+    await session.start('panel-a');
+    await session.start('panel-b');
+    await session.stop('panel-a');
+    expect(context.close).not.toHaveBeenCalled();
+
+    await session.stop('panel-b');
+    expect(context.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not resurrect a released one-shot lease when start arrives late', async () => {
+    installWorkingBrowser();
+    const session = createBrowserSession();
+
+    await session.stop('stale-panel');
+    await session.start('stale-panel');
+    expect(launchMock).not.toHaveBeenCalled();
+
+    await session.start('current-panel');
+    expect(launchMock).toHaveBeenCalledTimes(1);
+    await session.stop('current-panel');
   });
 
   it('throws on operations after close instead of relaunching', async () => {
@@ -303,7 +388,9 @@ describe('console and network capture', () => {
     // page.on is called for framenavigated and load, but not 'console' or 'pageerror'
     const consoleCalls = page.on.mock.calls.filter((c: unknown[]) => c[0] === 'console');
     const errorCalls = page.on.mock.calls.filter((c: unknown[]) => c[0] === 'pageerror');
-    const networkCalls = context.on.mock.calls.filter((c: unknown[]) => c[0] === 'request' || c[0] === 'response');
+    const networkCalls = context.on.mock.calls.filter(
+      (c: unknown[]) => c[0] === 'request' || c[0] === 'response',
+    );
     expect(consoleCalls).toHaveLength(0);
     expect(errorCalls).toHaveLength(0);
     expect(networkCalls).toHaveLength(0);

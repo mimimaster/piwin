@@ -68,6 +68,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('element.offsetHeight');
     expect(srcdoc).toContain('element.scrollHeight');
     expect(srcdoc).toContain('overflowY');
+    expect(srcdoc).toContain('overflow-y: auto !important');
   });
 
   it('keeps visible overflow content measurable and ignores clipped descendants', () => {
@@ -151,6 +152,37 @@ describe('buildHtmlArtifactSrcdoc', () => {
         documentElement: clippedDocument,
       }),
     ).toBe(48);
+  });
+
+  it('does not treat the document scrollport as clipped content', () => {
+    const scrollableBody = createFakeElement({
+      top: 0,
+      height: 40,
+      scrollHeight: 240,
+      overflowY: 'auto',
+    });
+    const scrollableDocument = createFakeElement({
+      top: 0,
+      height: 40,
+      scrollHeight: 240,
+      overflowY: 'auto',
+    });
+    const scrollableRoot = createFakeElement({
+      top: 0,
+      height: 240,
+      scrollHeight: 240,
+      overflowY: 'visible',
+      parentElement: scrollableBody,
+    });
+    scrollableBody.parentElement = scrollableDocument;
+
+    expect(
+      runBridgeMeasurement({
+        root: scrollableRoot,
+        body: scrollableBody,
+        documentElement: scrollableDocument,
+      }),
+    ).toBe(240);
   });
 });
 

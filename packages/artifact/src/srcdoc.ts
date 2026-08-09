@@ -59,7 +59,10 @@ html {
   min-height: auto !important;
   height: auto !important;
   background: transparent !important;
-  overflow: hidden;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--piwin-artifact-border) transparent;
 }
 *, *::before, *::after { box-sizing: inherit; }
 body {
@@ -73,7 +76,10 @@ body {
   background: transparent !important;
   color: var(--piwin-artifact-text);
   font-family: var(--piwin-artifact-font);
-  overflow: hidden;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  scrollbar-width: thin;
+  scrollbar-color: var(--piwin-artifact-border) transparent;
   overflow-wrap: break-word;
 }
 body > *, body > div {
@@ -191,7 +197,13 @@ export function buildArtifactBridgeBootstrapScript(channelId: string): string {
     var ancestor = element.parentElement;
     while (ancestor) {
       var style = window.getComputedStyle(ancestor);
-      if (style.overflowY !== 'visible') {
+      // html/body are the document's own scroll containers. Their viewport
+      // bottom must not clip the content-height measurement; the parent
+      // iframe height policy provides the visible frame limit, while the
+      // document root keeps the remaining content reachable by scrolling.
+      var isDocumentScrollContainer =
+        ancestor === document.body || ancestor === document.documentElement;
+      if (!isDocumentScrollContainer && style.overflowY !== 'visible') {
         var rect = ancestor.getBoundingClientRect();
         if (Number.isFinite(rect.bottom)) {
           bottom = Math.min(bottom, rect.bottom + window.scrollY);

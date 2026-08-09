@@ -7,6 +7,8 @@ import type { HostCommandContext } from './host-command-context.js';
 function createMockSession(overrides: Partial<BrowserSession> = {}): BrowserSession {
   const queue = createExclusiveQueue();
   return {
+    start: async () => ({ url: 'http://localhost:3000', title: 'Test' }),
+    stop: async () => {},
     navigate: async (url) => {},
     snapshot: async () => [],
     click: async () => {},
@@ -114,10 +116,14 @@ describe('handleBrowserCommand', () => {
     expect(result).toMatchObject({ type: 'response', success: false });
   });
 
-  it('browser/start returns current state', async () => {
-    const session = createMockSession();
+  it('browser/start acquires the mirror lease and returns its state', async () => {
+    const start = vi.fn().mockResolvedValue({
+      url: 'http://localhost:3000',
+      title: 'Test',
+    });
+    const session = createMockSession({ start });
     const result = await handleBrowserCommand(
-      { type: 'browser/start' },
+      { type: 'browser/start', leaseId: 'panel-1' },
       'req-1',
       createContext(session),
     );
@@ -127,6 +133,7 @@ describe('handleBrowserCommand', () => {
       success: true,
       data: { state: { url: 'http://localhost:3000', title: 'Test' } },
     });
+    expect(start).toHaveBeenCalledWith('panel-1');
   });
 
   it('browser/navigate delegates to session.navigate (no permission prompt)', async () => {
@@ -172,15 +179,17 @@ describe('handleBrowserCommand', () => {
     });
   });
 
-  it('browser/stop closes the session', async () => {
+  it('browser/stop releases Chromium without permanently closing the session', async () => {
+    const stop = vi.fn().mockResolvedValue(undefined);
     const close = vi.fn().mockResolvedValue(undefined);
-    const session = createMockSession({ close });
+    const session = createMockSession({ stop, close });
     const result = await handleBrowserCommand(
-      { type: 'browser/stop' },
+      { type: 'browser/stop', leaseId: 'panel-1' },
       'req-1',
       createContext(session),
     );
-    expect(close).toHaveBeenCalled();
+    expect(stop).toHaveBeenCalledWith('panel-1');
+    expect(close).not.toHaveBeenCalled();
     expect(result).toMatchObject({ type: 'response', command: 'browser/stop', success: true });
   });
 

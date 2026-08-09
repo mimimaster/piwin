@@ -144,7 +144,7 @@ export function buildToolPresentation(input: BuildToolPresentationInput): ToolPr
     title,
   };
 
-  const argsPreview = formatArgsPreview(input.args);
+  const argsPreview = formatArgsPreview(input.args, family);
   if (argsPreview) {
     presentation.inputPreview = argsPreview;
   }
@@ -338,14 +338,58 @@ function humanizeToolTitle(toolName: string, kind: ToolKind): string {
   return toolName;
 }
 
-function formatArgsPreview(args: unknown): string | undefined {
+/**
+ * Build inputPreview for tool cards.
+ *
+ * Default stays short (head-row / expanded args dump). Write/edit tools are
+ * special: Desktop reopens failed/denied writes from `inputPreview.content`,
+ * so we keep a much larger redacted JSON body (still bounded) instead of the
+ * 96-char summary clip that produced half-cut document panels.
+ */
+const MAX_WRITE_ARGS_PREVIEW_CHARS = 200_000;
+
+function formatArgsPreview(args: unknown, family?: ToolActionFamily): string | undefined {
   if (args === undefined || args === null) {
     return undefined;
   }
   if (typeof args === 'string') {
-    return clipSummary(redactToolText(args).text);
+    const redacted = redactToolText(args).text;
+    if (family === 'edit') {
+      return clipSummary(redacted, MAX_WRITE_ARGS_PREVIEW_CHARS);
+    }
+    return clipSummary(redacted);
   }
   try {
+    // For write/edit: serialize path + content (and common edit fields) without
+    // collapsing whitespace inside the document body.
+    if (family === 'edit' && args && typeof args === 'object') {
+      const record = args as Record<string, unknown>;
+      const previewRecord: Record<string, unknown> = {};
+      for (const key of [
+        'path',
+        'file',
+        'file_path',
+        'filename',
+        'target',
+        'target_file',
+        'targetFile',
+        'content',
+        'new_string',
+        'newString',
+        'old_string',
+        'oldString',
+        'contents',
+      ]) {
+        if (key in record) {
+          previewRecord[key] = record[key];
+        }
+      }
+      // If nothing recognized, fall back to full args (still bounded).
+      const payload = Object.keys(previewRecord).length > 0 ? previewRecord : record;
+      const raw = JSON.stringify(payload);
+      const redacted = redactToolText(raw).text;
+      return clipSummary(redacted, MAX_WRITE_ARGS_PREVIEW_CHARS);
+    }
     return clipSummary(redactToolText(JSON.stringify(args)).text);
   } catch {
     return undefined;

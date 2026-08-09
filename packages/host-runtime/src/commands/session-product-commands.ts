@@ -8,8 +8,10 @@ import type {
   AgentHost,
   CreateSessionInput,
   HostCommand,
+  HostPush,
   HostResponse,
   SessionHandle,
+  SessionIndexRecord,
   SessionTranscriptMessage,
 } from '@piwin/contracts';
 import {
@@ -19,6 +21,8 @@ import {
   duplicateProductSession,
   getSessionRecord,
   listSessionsForProject,
+  createSessionIndexPage,
+  SessionIndexCursorError,
   pinSessionRecord,
   renameSessionRecord,
   searchSessions,
@@ -47,6 +51,8 @@ import {
   getPiwinSessionTranscriptPath,
 } from '../paths.js';
 import { resolveListFilter } from '../session-scope.js';
+import { repairLegacySessionNames } from '../session-name-repair.js';
+import { createSessionMessageResponse } from '../session-message-response.js';
 
 export type SessionProductCommandContext = {
   piwinRoot?: string;
@@ -67,11 +73,14 @@ export type SessionProductCommandContext = {
     sessionName?: string,
     lineage?: { kind?: 'main' | 'subagent' | 'side-chat'; depth?: number },
   ) => Promise<void>;
+  /** Publish one-time legacy name repairs to every attached client. */
+  push?: (message: HostPush) => void;
   pushStatus: () => void;
 };
 
 const PRODUCT_COMMAND_TYPES = new Set<HostCommand['type']>([
   'session/list',
+  'session/list-page',
   'session/pin',
   'session/unpin',
   'session/rename',
@@ -100,6 +109,25 @@ export async function handleSessionProductCommand(
 
   const rootDir = getPiwinRoot(context.piwinRoot);
   const indexPath = getPiwinSessionIndexPath(rootDir);
+  const repairIndexedNames = (records: readonly SessionIndexRecord[]) =>
+    repairLegacySessionNames({
+      indexPath,
+      records,
+      loadTranscriptMessages: context.loadTranscriptMessages,
+      onRepaired: (record) => {
+        if (record.name) {
+          context.push?.({
+            type: 'session/name-updated',
+            sessionId: record.id,
+            name: record.name,
+            nameSource: 'text',
+          });
+        }
+      },
+      onWarning: (message) => {
+        context.push?.({ type: 'host/log', level: 'warn', message });
+      },
+    });
 
   switch (command.type) {
     case 'session/list': {
@@ -110,9 +138,32 @@ export async function handleSessionProductCommand(
       const indexed = await listSessionsForProject(indexPath, filter, {
         includeArchived: command.includeArchived === true,
       });
+      const repaired = await repairIndexedNames(indexed);
       // Sidebar policy: never list sessions that still lack a real display name.
-      const sessions = filterListableSessions(indexed).map((item) => indexRecordToSummary(item));
+      const sessions = filterListableSessions(repaired).map((item) => indexRecordToSummary(item));
       return ok(requestId, 'session/list', { sessions });
+    }
+    case 'session/list-page': {
+      const indexed = await listSessionsForProject(indexPath, command.query.scope, {
+        includeArchived: true,
+      });
+      const repaired = await repairIndexedNames(indexed);
+      try {
+        const result = createSessionIndexPage(repaired, command.query);
+        if (result.status === 'stale-cursor') {
+          return ok(requestId, 'session/list-page', result);
+        }
+        return ok(requestId, 'session/list-page', {
+          status: 'page',
+          sessions: result.sessions.map((item) => indexRecordToSummary(item)),
+          page: result.page,
+        });
+      } catch (error) {
+        if (error instanceof SessionIndexCursorError || error instanceof RangeError) {
+          return fail(requestId, 'session/list-page', error.message);
+        }
+        throw error;
+      }
     }
     case 'session/pin': {
       const record = await pinSessionRecord(indexPath, command.sessionId);
@@ -162,12 +213,7 @@ export async function handleSessionProductCommand(
       if (!fallbackName) {
         return fail(requestId, 'session/auto-name', 'No derivable name from first message');
       }
-      const record = await setSessionAutoName(
-        indexPath,
-        command.sessionId,
-        fallbackName,
-        'text',
-      );
+      const record = await setSessionAutoName(indexPath, command.sessionId, fallbackName, 'text');
       if (!record) {
         return fail(requestId, 'session/auto-name', 'Session name is user-set or empty');
       }
@@ -311,7 +357,11 @@ export async function handleSessionProductCommand(
         sessionId: created.id,
         sourceSessionId: command.sessionId,
         session: indexRecordToSummary(finalRecord),
-        messages: duplicated.transcript.messages as SessionTranscriptMessage[],
+        ...createSessionMessageResponse(
+          created.id,
+          duplicated.transcript.messages as SessionTranscriptMessage[],
+          command.messageProjection,
+        ),
       });
     }
     case 'session/fork': {
@@ -347,6 +397,7 @@ export async function handleSessionProductCommand(
             sourceSessionId: command.sessionId,
             messageId: command.messageId,
             ...(typeof command.name === 'string' ? { name: command.name } : {}),
+            existingForkNames,
             newSessionId: created.id,
             workspaceStrategy: command.workspaceStrategy,
             cloneMedia: async (transcript) => {
@@ -365,7 +416,7 @@ export async function handleSessionProductCommand(
           kind: 'main',
           depth: 0,
         });
-       const rebound = await getSessionRecord(indexPath, created.id);
+        const rebound = await getSessionRecord(indexPath, created.id);
         if (rebound) {
           rebound.messageCount = forked.record.messageCount;
           if (forked.record.lastPreview) {
@@ -382,7 +433,11 @@ export async function handleSessionProductCommand(
           sessionId: created.id,
           sourceSessionId: command.sessionId,
           session: indexRecordToSummary(finalRecord),
-          messages: forked.transcript.messages as SessionTranscriptMessage[],
+          ...createSessionMessageResponse(
+            created.id,
+            forked.transcript.messages as SessionTranscriptMessage[],
+            command.messageProjection,
+          ),
           origin: forked.origin,
         });
       } catch (error) {
