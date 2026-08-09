@@ -15,6 +15,12 @@ import type { ExtensionUiKind } from './extension-ui.js';
 import type { WebElementPickResult } from './browser.js';
 import type { ModelProviderConfig, PiwinConfig } from './config.js';
 import type { SavedMediaAsset, SaveMediaInput } from './media.js';
+import type { SpeechTranscribeInput } from './speech.js';
+import type { SessionListPageQuery } from './session-list-page.js';
+import type {
+  SessionMessageProjection,
+  SessionTranscriptPageQuery,
+} from './session-transcript-page.js';
 import type { SkillSummary } from './skills.js';
 import type { ExtensionSummary } from './extensions.js';
 import type { PromptTemplateSummary } from './prompts.js';
@@ -78,6 +84,7 @@ import type {
 } from './job.js';
 import type { RunHostPush } from './run.js';
 import type { SessionRuntimeStatus } from './session-runtime.js';
+import type { HostHydrationFrame } from './remote-protocol.js';
 
 /**
  * Bytes are base64 only while crossing the desktop-to-host transport.
@@ -111,6 +118,7 @@ export type HostCommand =
     }
   | { id?: string; type: 'project/list' }
   | { id?: string; type: 'project/open'; path: string }
+  | { id?: string; type: 'project/remove'; path: string }
   | { id?: string; type: 'project/trust'; path: string }
   | {
       id?: string;
@@ -151,6 +159,11 @@ export type HostCommand =
       /** When true, include archived sessions (default: active only). */
       includeArchived?: boolean;
     }
+  | {
+      id?: string;
+      type: 'session/list-page';
+      query: SessionListPageQuery;
+    }
   | { id?: string; type: 'session/create'; input: CreateSessionInput }
   | {
       id?: string;
@@ -169,6 +182,7 @@ export type HostCommand =
   | { id?: string; type: 'subagent/batch-status'; runId: string }
   | { id?: string; type: 'subagent/batch-cancel'; runId: string }
   | { id?: string; type: 'session/resume'; sessionId: string }
+  | { id?: string; type: 'session/transcript-page'; query: SessionTranscriptPageQuery }
   | { id?: string; type: 'session/runtime-status'; sessionId: string }
   | {
       id?: string;
@@ -226,6 +240,11 @@ export type HostCommand =
       refs?: import('./side-chat.js').SideChatContextRef[];
     }
   | { id?: string; type: 'media/save'; input: MediaSaveCommandInput }
+  /**
+   * Transient Desktop audio. Unlike media/save, Host must not write this input
+   * to ~/.piwin/media, transcript, prompt attachments, or logs.
+   */
+  | { id?: string; type: 'speech/transcribe'; input: SpeechTranscribeInput }
   | { id?: string; type: 'skills/list'; projectPath?: string }
   | { id?: string; type: 'skills/set_enabled'; skillId: string; enabled: boolean }
   | {
@@ -443,6 +462,8 @@ export type HostCommand =
       sessionId: string;
       /** Optional override; default "Copy of <name>". */
       name?: string;
+      /** Defaults to `full` for older shells. New shells should request `none`. */
+      messageProjection?: SessionMessageProjection;
     }
   /** SF-02: fork from a completed assistant response into a linked product session. */
   | {
@@ -455,6 +476,8 @@ export type HostCommand =
       name?: string;
       /** V1 shared workspace; worktree is a follow-up slice. */
       workspaceStrategy: 'shared' | 'worktree';
+      /** Defaults to `full` for older shells. New shells should request `none`. */
+      messageProjection?: SessionMessageProjection;
     }
   /** SF-04: query the product lineage (branch family) for a session. */
   | {
@@ -468,6 +491,8 @@ export type HostCommand =
       type: 'session/truncate-from';
       sessionId: string;
       messageId: string;
+      /** Defaults to `full`; Desktop requests a bounded `tail`. */
+      messageProjection?: SessionMessageProjection;
     }
   /** CE-SHARE-01: local transcript export (MD/HTML). */
   | {
@@ -521,11 +546,11 @@ export type HostCommand =
       value?: string;
       cancelled?: boolean;
     }
-  | { id?: string; type: 'browser/start' }
+  | { id?: string; type: 'browser/start'; leaseId?: string }
   | { id?: string; type: 'browser/navigate'; url: string }
   | { id?: string; type: 'browser/pick-at'; x: number; y: number }
   | { id?: string; type: 'browser/screenshot'; path?: string }
-  | { id?: string; type: 'browser/stop' }
+  | { id?: string; type: 'browser/stop'; leaseId?: string }
   | {
       id?: string;
       type: 'walkthrough/list';
@@ -700,7 +725,26 @@ export type HostPushVariant =
 /** ADR 0027: HostPush is the variant union plus optional transport sequencing. */
 export type HostPush = HostPushVariant & HostPushSequencing;
 
-export type HostServerMessage = HostResponse | HostPush;
+/** One canonical sequenced push inside a cursor batch. */
+export type HostSequencedPush = {
+  seq: number;
+  eventId: string;
+  push: HostPush;
+};
+
+/** Additive bounded batch framing for local and remote Host transports. */
+export type HostPushBatchFrame = {
+  type: 'push/batch';
+  hostInstanceId: string;
+  /** Cursor the receiver must hold before applying this frame. */
+  afterSeq: number;
+  /** Highest canonical sequence examined for this client. */
+  throughSeq: number;
+  /** Ordered subset in (afterSeq, throughSeq]. */
+  items: HostSequencedPush[];
+};
+
+export type HostServerMessage = HostResponse | HostPush | HostPushBatchFrame | HostHydrationFrame;
 
 export type HostStatusData = {
   mode: HostMode;

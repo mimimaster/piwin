@@ -16,6 +16,11 @@
       "import": "./src/derive-default-name.ts",
       "default": "./src/derive-default-name.ts"
     },
+    "./fork-session-name": {
+      "types": "./src/fork-session-name.ts",
+      "import": "./src/fork-session-name.ts",
+      "default": "./src/fork-session-name.ts"
+    },
     "./session-display-name": {
       "types": "./src/session-display-name.ts",
       "import": "./src/session-display-name.ts",

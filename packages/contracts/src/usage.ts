@@ -25,12 +25,18 @@ export type ContextUsageBreakdown = {
 /** Snapshot of context window and last-turn token accounting. */
 export type ContextUsageSnapshot = {
   sessionId: string;
+  /** Model id reported by Pi for this usage sample when available. */
+  modelId?: string;
   /** Tokens currently occupying the model context when known. */
   tokensUsed?: number;
   /** Model context window size when known. */
   tokensLimit?: number;
   promptTokens?: number;
   completionTokens?: number;
+  /** Input tokens served from the provider prompt cache. */
+  cacheReadTokens?: number;
+  /** Input tokens written to the provider prompt cache. */
+  cacheWriteTokens?: number;
   totalTokens?: number;
   /** 0–1 fraction of context used when computable. */
   contextRatio?: number;
@@ -49,10 +55,21 @@ export type UsageRecord = {
   sessionId: string;
   /** Project path when the session is project-scoped; null for general sessions. */
   projectPath: string | null;
+  /**
+   * Provider configuration used for the turn. A provider configuration owns
+   * one credential source, so this is the safe, non-secret Key dimension for
+   * usage attribution. The API key value is never stored in the ledger.
+   */
+  providerId?: string;
   /** Model used for the turn when known. */
   modelId?: string;
   promptTokens?: number;
   completionTokens?: number;
+  /** Input tokens served from the provider prompt cache. */
+  cacheReadTokens?: number;
+  /** Input tokens written to the provider prompt cache. */
+  cacheWriteTokens?: number;
+  /** Provider-reported total; includes cache tokens when the provider reports them. */
   totalTokens: number;
   source: 'assistant-usage' | 'host-estimate';
   /** ISO timestamp of the turn. */
@@ -69,6 +86,8 @@ export type UsageRecord = {
 export type UsageBucket = {
   promptTokens: number;
   completionTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
   totalTokens: number;
   entryCount: number;
   durationMs?: number;
@@ -83,17 +102,50 @@ export type UsageSessionTotal = UsageBucket & {
   lastAt: string;
 };
 
+/**
+ * Model + Key usage row. `providerId` identifies the provider configuration
+ * (and therefore its credential source) without exposing the credential.
+ * `null` represents legacy ledger entries written before provider attribution.
+ */
+export type UsageModelKeyTotal = UsageBucket & {
+  providerId: string | null;
+  modelId: string;
+};
+
+/**
+ * Prompt-cache hit rate using Pi's normalized token semantics:
+ * cache reads / (uncached input + cache reads + cache writes).
+ * Output tokens are deliberately excluded. Returns null when no input tokens
+ * were reported, so clients can render an honest unknown state.
+ */
+export function computePromptCacheHitRate(
+  usage: Pick<UsageBucket, 'promptTokens' | 'cacheReadTokens' | 'cacheWriteTokens'>,
+): number | null {
+  const promptTokens = Math.max(0, usage.promptTokens);
+  const cacheReadTokens = Math.max(0, usage.cacheReadTokens);
+  const cacheWriteTokens = Math.max(0, usage.cacheWriteTokens);
+  const cacheableInputTokens = promptTokens + cacheReadTokens + cacheWriteTokens;
+  if (cacheableInputTokens === 0) {
+    return null;
+  }
+  return cacheReadTokens / cacheableInputTokens;
+}
+
 /** Aggregated token statistics returned by `usage/get-rollup`. */
 export type UsageRollup = {
   scope: SessionScope | { kind: 'global' };
   promptTokens: number;
   completionTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
   totalTokens: number;
   entryCount: number;
   sessionCount: number;
   firstAt: string | null;
   lastAt: string | null;
   byModel: Record<string, UsageBucket>;
+  /** Provider-config (Key) + model rows, sorted by total tokens descending. */
+  byModelKey: UsageModelKeyTotal[];
   byDay: Record<string, UsageBucket>;
   bySession: UsageSessionTotal[];
 };

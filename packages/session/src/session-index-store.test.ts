@@ -11,6 +11,7 @@ import {
   loadSessionIndex,
   pinSessionRecord,
   renameSessionRecord,
+  repairLegacyTextSessionName,
   saveSessionIndex,
   setSessionAutoName,
   unarchiveSessionRecord,
@@ -592,6 +593,69 @@ describe('session-index-store', () => {
       // Archived duplicate is ignored; active duplicate forces " - 2".
       expect(updated?.name).toBe('Fix login bug - 2');
       expect(updated?.nameSource).toBe('llm');
+    });
+  });
+
+  describe('repairLegacyTextSessionName', () => {
+    it('repairs only a known polluted text title and keeps list order metadata stable', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-name-repair-'));
+      const indexPath = join(dir, 'index.json');
+      const updatedAt = '2026-08-07T10:15:25.552Z';
+      await saveSessionIndex(indexPath, {
+        version: 2,
+        sessions: [
+          {
+            id: 's1',
+            projectPath: '/p',
+            scope: { kind: 'project', projectPath: '/p' },
+            createdAt: updatedAt,
+            updatedAt,
+            messageCount: 2,
+            name: '[piwin-mode:agent] [piwin-… - 4',
+            nameSource: 'text',
+          },
+        ],
+      });
+
+      const repaired = await repairLegacyTextSessionName(
+        indexPath,
+        's1',
+        '排查 piwin 工具定义上下文占用',
+      );
+
+      expect(repaired?.name).toBe('排查 piwin 工具定义上下文占用');
+      expect(repaired?.nameSource).toBe('text');
+      expect(repaired?.updatedAt).toBe(updatedAt);
+    });
+
+    it('never rewrites clean text, llm, or user titles', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'piwin-name-repair-guard-'));
+      const indexPath = join(dir, 'index.json');
+      const base = {
+        projectPath: '/p',
+        scope: { kind: 'project' as const, projectPath: '/p' },
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        messageCount: 1,
+      };
+      await saveSessionIndex(indexPath, {
+        version: 2,
+        sessions: [
+          { ...base, id: 'text', name: 'Clean text title', nameSource: 'text' },
+          { ...base, id: 'llm', name: '[piwin-mode:agent] title', nameSource: 'llm' },
+          { ...base, id: 'user', name: '[piwin-mode:agent] title', nameSource: 'user' },
+        ],
+      });
+
+      await expect(
+        repairLegacyTextSessionName(indexPath, 'text', 'Replacement'),
+      ).resolves.toBeUndefined();
+      await expect(
+        repairLegacyTextSessionName(indexPath, 'llm', 'Replacement'),
+      ).resolves.toBeUndefined();
+      await expect(
+        repairLegacyTextSessionName(indexPath, 'user', 'Replacement'),
+      ).resolves.toBeUndefined();
     });
   });
 

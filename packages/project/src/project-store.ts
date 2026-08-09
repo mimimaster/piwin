@@ -117,6 +117,22 @@ export async function listProjects(filePath: string): Promise<ProjectRecord[]> {
   );
 }
 
+/** Remove a remembered project from the sidebar without touching its files or sessions. */
+export async function removeProject(
+  filePath: string,
+  projectPath: string,
+): Promise<ProjectRecord | undefined> {
+  const absolutePath = resolve(projectPath);
+  const document = await loadProjectStore(filePath);
+  const index = document.projects.findIndex((item) => item.path === absolutePath);
+  if (index === -1) {
+    return undefined;
+  }
+  const [removed] = document.projects.splice(index, 1);
+  await saveProjectStore(filePath, document);
+  return removed;
+}
+
 function isNotFound(error: unknown): boolean {
   return Boolean(
     error &&

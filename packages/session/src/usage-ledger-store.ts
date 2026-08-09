@@ -5,7 +5,13 @@
  */
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { SessionScope, UsageBucket, UsageRecord, UsageRollup } from '@piwin/contracts';
+import type {
+  SessionScope,
+  UsageBucket,
+  UsageModelKeyTotal,
+  UsageRecord,
+  UsageRollup,
+} from '@piwin/contracts';
 
 export type UsageRollupOptions = {
   scope?: SessionScope;
@@ -91,6 +97,7 @@ export function computeUsageRollup(
 
   const totals = accumulateBucket();
   const byModel: Record<string, UsageBucket> = {};
+  const byModelKey = new Map<string, UsageModelKeyTotal>();
   const byDay: Record<string, UsageBucket> = {};
   const bySession = new Map<string, UsageBucket & { firstAt: string; lastAt: string }>();
 
@@ -103,6 +110,19 @@ export function computeUsageRollup(
         byModel[record.modelId] = modelBucket;
       }
       addToBucket(modelBucket, record);
+
+      const providerId = normalizeProviderId(record.providerId);
+      const modelKey = JSON.stringify([providerId, record.modelId]);
+      let modelKeyBucket = byModelKey.get(modelKey);
+      if (!modelKeyBucket) {
+        modelKeyBucket = {
+          providerId,
+          modelId: record.modelId,
+          ...createBucket(),
+        };
+        byModelKey.set(modelKey, modelKeyBucket);
+      }
+      addToBucket(modelKeyBucket, record);
     }
     const day = record.recordedAt.slice(0, 10);
     if (/^\d{4}-\d{2}-\d{2}$/.test(day)) {
@@ -116,6 +136,8 @@ export function computeUsageRollup(
     const sessionTotal = bySession.get(record.sessionId) ?? {
       promptTokens: 0,
       completionTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
       totalTokens: 0,
       entryCount: 0,
       firstAt: record.recordedAt,
@@ -123,6 +145,8 @@ export function computeUsageRollup(
     };
     sessionTotal.promptTokens += record.promptTokens ?? 0;
     sessionTotal.completionTokens += record.completionTokens ?? 0;
+    sessionTotal.cacheReadTokens += record.cacheReadTokens ?? 0;
+    sessionTotal.cacheWriteTokens += record.cacheWriteTokens ?? 0;
     sessionTotal.totalTokens += record.totalTokens;
     sessionTotal.entryCount += 1;
     if (record.recordedAt < sessionTotal.firstAt) sessionTotal.firstAt = record.recordedAt;
@@ -134,20 +158,31 @@ export function computeUsageRollup(
     .map(([sessionId, meta]) => ({ sessionId, ...meta }))
     .sort((left, right) => right.totalTokens - left.totalTokens)
     .slice(0, topSessions);
+  const byModelKeyTotals = [...byModelKey.values()].sort(
+    (left, right) => right.totalTokens - left.totalTokens,
+  );
 
   return {
     scope: resolveScope(scope, projectPath),
     promptTokens: totals.promptTokens,
     completionTokens: totals.completionTokens,
+    cacheReadTokens: totals.cacheReadTokens,
+    cacheWriteTokens: totals.cacheWriteTokens,
     totalTokens: totals.totalTokens,
     entryCount: totals.entryCount,
     sessionCount: bySession.size,
     firstAt: filtered.length > 0 ? firstOf(filtered).recordedAt : null,
     lastAt: filtered.length > 0 ? lastOf(filtered).recordedAt : null,
     byModel,
+    byModelKey: byModelKeyTotals,
     byDay,
     bySession: bySessionTotals,
   };
+}
+
+function normalizeProviderId(providerId: string | undefined): string | null {
+  const normalized = providerId?.trim();
+  return normalized ? normalized : null;
 }
 
 function resolveScope(
@@ -162,7 +197,14 @@ function resolveScope(
 }
 
 function createBucket(): UsageBucket {
-  return { promptTokens: 0, completionTokens: 0, totalTokens: 0, entryCount: 0 };
+  return {
+    promptTokens: 0,
+    completionTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    totalTokens: 0,
+    entryCount: 0,
+  };
 }
 
 function accumulateBucket(): UsageBucket {
@@ -172,6 +214,8 @@ function accumulateBucket(): UsageBucket {
 function addToBucket(bucket: UsageBucket, record: UsageRecord): void {
   bucket.promptTokens += record.promptTokens ?? 0;
   bucket.completionTokens += record.completionTokens ?? 0;
+  bucket.cacheReadTokens += record.cacheReadTokens ?? 0;
+  bucket.cacheWriteTokens += record.cacheWriteTokens ?? 0;
   bucket.totalTokens += record.totalTokens;
   bucket.entryCount += 1;
   if (typeof record.durationMs === 'number' && Number.isFinite(record.durationMs)) {

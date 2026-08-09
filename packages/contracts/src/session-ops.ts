@@ -2,6 +2,7 @@
  * Session product operations for CE-CHAT (pin / search / truncate-resend).
  * Index projection lives under `~/.piwin/sessions-index/`.
  */
+import type { SessionListLifecycle } from './session-list-page.js';
 
 /** FTS / projection search over product session index. */
 export type SessionSearchQuery = {
@@ -9,6 +10,8 @@ export type SessionSearchQuery = {
   /** @deprecated Use scope-based filtering. */
   projectPath?: string;
   scope?: import('./host.js').SessionScope;
+  /** Match the same explicit lifecycle projection used by paged navigation. */
+  lifecycle?: SessionListLifecycle;
   limit?: number;
   /** When true, only pinned sessions (if pin index is available). */
   pinnedOnly?: boolean;

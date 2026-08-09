@@ -75,7 +75,10 @@ export type SessionResumeData = {
   sessionId: string;
   /** True when a live host handle is bound and can accept prompts. */
   live: boolean;
+  /** Bounded newest transcript page; never the complete durable transcript. */
   messages: SessionTranscriptMessage[];
+  /** Present for page-aware Hosts; absent on legacy resume responses. */
+  transcriptPage?: import('./session-transcript-page.js').SessionTranscriptPageInfo;
   scope?: import('./host.js').SessionScope;
   workingDirectory?: string;
   projectPath?: string;

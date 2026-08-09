@@ -9,6 +9,7 @@ export {
   pinSessionRecord,
   unpinSessionRecord,
   renameSessionRecord,
+  repairLegacyTextSessionName,
   setSessionAutoName,
   archiveSessionRecord,
   unarchiveSessionRecord,
@@ -21,22 +22,28 @@ export type {
   ListSessionsForProjectOptions,
   SessionAutoNameSource,
 } from './session-index-store.js';
+export { createSessionIndexPage, SessionIndexCursorError } from './session-index-page.js';
+export {
+  createSessionTranscriptPage,
+  SessionTranscriptCursorError,
+} from './session-transcript-page.js';
 export { createSubagentRunStore } from './subagent-run-store.js';
-export type { SubagentRunStore, SubagentRunManifest, SubagentRunStoreOptions } from './subagent-run-store.js';
+export type {
+  SubagentRunStore,
+  SubagentRunManifest,
+  SubagentRunStoreOptions,
+} from './subagent-run-store.js';
 export { deriveDefaultNameFromMessage, extractUserFacingBody } from './derive-default-name.js';
 export {
   filterListableSessions,
+  isLegacyInternalSessionName,
   isPlaceholderSessionName,
   sessionHasListName,
 } from './session-display-name.js';
 export type { SessionNameFields, SessionNameSource } from './session-display-name.js';
-export {
-  exportCompactionMarkdown,
-  suggestCompactionExportBasename,
-} from './export-compaction.js';
+export { exportCompactionMarkdown, suggestCompactionExportBasename } from './export-compaction.js';
 export type { ExportCompactionMarkdownOptions } from './export-compaction.js';
 export { buildCompactionSeedMessages } from './build-compaction-seed.js';
-
 
 export {
   buildDuplicateSessionName,
@@ -54,27 +61,13 @@ export {
   rewriteAttachmentPaths,
   collectAttachmentPaths,
 } from './clone-session-transcript.js';
-export type {
-  CloneTranscriptOptions,
-  CloneTranscriptResult,
-} from './clone-session-transcript.js';
+export type { CloneTranscriptOptions, CloneTranscriptResult } from './clone-session-transcript.js';
 
-export {
-  forkProductSession,
-  buildForkSessionName,
-  ForkValidationError,
-} from './fork-session.js';
-export type {
-  ForkSessionPaths,
-  ForkSessionInput,
-  ForkSessionResult,
-} from './fork-session.js';
+export { forkProductSession, ForkValidationError } from './fork-session.js';
+export { buildForkSessionName } from './fork-session-name.js';
+export type { ForkSessionPaths, ForkSessionInput, ForkSessionResult } from './fork-session.js';
 
-export {
-  getSessionLineage,
-  countDirectForks,
-  getDirectForkNames,
-} from './session-lineage.js';
+export { getSessionLineage, countDirectForks, getDirectForkNames } from './session-lineage.js';
 export type { SessionLineagePaths } from './session-lineage.js';
 
 export {
@@ -130,10 +123,7 @@ export {
   updateSideChatContext,
   markSideChatSourceState,
 } from './side-chat-store.js';
-export type {
-  SideChatCreateInput,
-  ListSideChatSessionsOptions,
-} from './side-chat-store.js';
+export type { SideChatCreateInput, ListSideChatSessionsOptions } from './side-chat-store.js';
 
 export { buildSessionOutline } from './session-outline.js';
 

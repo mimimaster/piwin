@@ -18,7 +18,8 @@ import type { OrchestrationSchemeSettings } from './orchestration-scheme.js';
 import type { RemoteConfig } from './remote.js';
 
 /** Model capability tags. Drives tool routing and settings UI grouping. */
-export type ModelCapability = 'chat' | 'image-generation' | 'video-generation';
+export type ModelCapability =
+  'chat' | 'image-generation' | 'video-generation' | 'speech-to-text' | 'text-to-speech';
 
 /**
  * Provider wire formats used by the asynchronous video-generation adapters.
@@ -163,6 +164,18 @@ export function isModelEnabled(model: { enabled?: boolean }): boolean {
   return model.enabled !== false;
 }
 
+/** Resolve one model's product capability with the legacy chat default. */
+export function modelSupportsCapability(
+  model: Pick<ModelConfigEntry, 'capabilities'>,
+  capability: ModelCapability,
+): boolean {
+  const capabilities = model.capabilities;
+  if (capability === 'chat') {
+    return capabilities === undefined || capabilities.length === 0 || capabilities.includes('chat');
+  }
+  return capabilities?.includes(capability) ?? false;
+}
+
 /** Normalized model identity returned from a provider's discovery endpoint. */
 export type DiscoveredModel = {
   id: string;
@@ -303,6 +316,20 @@ export type VideoGenerationConfig = {
   defaultModel?: ModelRef;
 };
 
+/** Product-level speech model defaults. Audio is transient and never persisted here. */
+export type SpeechConfig = {
+  /** Desktop voice-input model selection. */
+  asr?: {
+    defaultModel?: ModelRef;
+    language?: string;
+  };
+  /** Reserved for a future text-to-speech playback surface. */
+  tts?: {
+    defaultModel?: ModelRef;
+    voice?: string;
+  };
+};
+
 /**
  * Text-only primary model: describe composer images via a vision model
  * before the main turn (Spec vision-delegation D1). Default off.
@@ -357,6 +384,8 @@ export type PiwinConfig = {
   imageGeneration?: ImageGenerationConfig;
   /** Video generation config (default model, future options). */
   videoGeneration?: VideoGenerationConfig;
+  /** Speech model defaults; ASR is used by Desktop voice input. */
+  speech?: SpeechConfig;
   /** Text-only vision delegation (composer images). */
   visionDelegation?: VisionDelegationConfig;
   /** Permission policy mode and rule sets (ADR 0019). */

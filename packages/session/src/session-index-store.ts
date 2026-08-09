@@ -11,7 +11,10 @@ import type {
   ThinkingLevel,
   ModelRef,
 } from '@piwin/contracts';
-import { isPlaceholderSessionName } from './session-display-name.js';
+import {
+  isLegacyInternalSessionName,
+  isPlaceholderSessionName,
+} from './session-display-name.js';
 
 /** Serializes read-modify-write cycles per index file (single-writer). */
 const indexWriteQueues = new Map<string, Promise<unknown>>();
@@ -462,6 +465,46 @@ export async function setSessionAutoName(
     record.name = options?.dedupe === false ? normalized : uniqueAutoName(document.sessions, sessionId, normalized);
     record.nameSource = source;
     // Auto-name is metadata-only; do not bump updatedAt so sort order stays stable.
+    await saveSessionIndex(filePath, document);
+    return record;
+  });
+}
+
+/**
+ * One-release repair seam for titles written by the pre-2026-08-08 Desktop,
+ * which sent model-facing `[piwin-*]` wrappers as if they were user text.
+ *
+ * The write is intentionally stricter than normal auto-naming:
+ * - only a `text` name with a known internal prefix is eligible;
+ * - `user` and `llm` names are therefore unreachable and remain immutable;
+ * - the replacement must itself be a real, non-internal display name.
+ */
+export async function repairLegacyTextSessionName(
+  filePath: string,
+  sessionId: string,
+  name: string,
+): Promise<SessionIndexRecord | undefined> {
+  const normalized = normalizeSessionName(name);
+  if (
+    normalized.length === 0 ||
+    isPlaceholderSessionName(normalized) ||
+    isLegacyInternalSessionName(normalized)
+  ) {
+    return undefined;
+  }
+
+  return withIndexWriteLock(filePath, async () => {
+    const document = await loadSessionIndex(filePath);
+    const record = document.sessions.find((item) => item.id === sessionId);
+    if (
+      !record ||
+      record.nameSource !== 'text' ||
+      !isLegacyInternalSessionName(record.name)
+    ) {
+      return undefined;
+    }
+    record.name = uniqueAutoName(document.sessions, sessionId, normalized);
+    // Metadata repair must not reorder the conversation list.
     await saveSessionIndex(filePath, document);
     return record;
   });

@@ -12,6 +12,7 @@ import type {
 } from '@piwin/contracts';
 import { listAllSessionRecords } from './session-index-store.js';
 import { listTranscriptMessages } from './message-store.js';
+import { filterListableSessions } from './session-display-name.js';
 
 export type SessionSearchOptions = {
   indexPath: string;
@@ -28,15 +29,22 @@ export async function searchSessions(
   const rawQuery = query.query.trim();
   const normalizedQuery = rawQuery.toLowerCase();
   const limit = clampLimit(query.limit);
-  const scopeFilter: string | SessionScope | undefined =
-    query.scope ?? query.projectPath;
+  const scopeFilter: string | SessionScope | undefined = query.scope ?? query.projectPath;
   const records = await listAllSessionRecords(options.indexPath, scopeFilter);
   // SIDE-D9: side chats are reachable through side-chat/list, never through
   // the main session search surface.
-  const mainSessions = records.filter((record) => record.kind !== 'side-chat');
+  const mainSessions = filterListableSessions(
+    records.filter((record) => record.kind !== 'side-chat'),
+  );
+  const lifecycleSessions =
+    query.lifecycle === undefined
+      ? mainSessions
+      : mainSessions.filter((record) =>
+          query.lifecycle === 'archived' ? record.isArchived === true : record.isArchived !== true,
+        );
   const candidates = query.pinnedOnly
-    ? mainSessions.filter((record) => record.isPinned === true)
-    : mainSessions;
+    ? lifecycleSessions.filter((record) => record.isPinned === true)
+    : lifecycleSessions;
 
   if (!normalizedQuery) {
     return {
@@ -62,9 +70,7 @@ export async function searchSessions(
 
     transcriptScans += 1;
     try {
-      const messages = await listTranscriptMessages(
-        options.resolveTranscriptPath(record.id),
-      );
+      const messages = await listTranscriptMessages(options.resolveTranscriptPath(record.id));
       const bodyHit = scoreTranscriptMessages(record, messages, normalizedQuery);
       if (bodyHit) {
         hits.push(bodyHit);

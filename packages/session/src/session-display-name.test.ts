@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   filterListableSessions,
+  isLegacyInternalSessionName,
   isPlaceholderSessionName,
   sessionHasListName,
 } from './session-display-name.js';
@@ -18,6 +19,21 @@ describe('isPlaceholderSessionName', () => {
   it('rejects real titles', () => {
     expect(isPlaceholderSessionName('iCloud隐藏邮箱转发设置')).toBe(false);
     expect(isPlaceholderSessionName('Fix login')).toBe(false);
+  });
+});
+
+describe('isLegacyInternalSessionName', () => {
+  it('recognizes titles leaked from old model-facing prompt wrappers', () => {
+    expect(isLegacyInternalSessionName('[piwin-mode:agent] [piwin-… - 4')).toBe(true);
+    expect(isLegacyInternalSessionName('[piwin-prompt-meta kind="mode:agent"]')).toBe(true);
+    expect(isLegacyInternalSessionName('[piwin-skill:create-skill] generate docs')).toBe(true);
+    expect(isLegacyInternalSessionName('Operating contract for this turn: Success')).toBe(true);
+  });
+
+  it('does not classify ordinary user titles as internal', () => {
+    expect(isLegacyInternalSessionName('排查 piwin 会话命名')).toBe(false);
+    expect(isLegacyInternalSessionName('Fix [piwin-mode] parser support')).toBe(false);
+    expect(isLegacyInternalSessionName(undefined)).toBe(false);
   });
 });
 

@@ -9,7 +9,12 @@ import type { NotesConfig } from './notes.js';
 import type { PermissionConfig } from './permission.js';
 import type { PromptsConfig } from './prompts.js';
 import type { RemoteConfig } from './remote.js';
-import type { SessionConfig, SubagentConfig, VisionDelegationConfig } from './config.js';
+import type {
+  SessionConfig,
+  SpeechConfig,
+  SubagentConfig,
+  VisionDelegationConfig,
+} from './config.js';
 import type { SkillsConfig } from './skills.js';
 import type { WalkthroughConfig } from './walkthrough.js';
 import type { WebConfig } from './web.js';
@@ -40,6 +45,7 @@ export type SettingsDomain =
   | 'automation'
   | 'marketplace'
   | 'imageGeneration'
+  | 'speech'
   | 'visionDelegation'
   | 'permissions'
   | 'walkthrough'
@@ -70,6 +76,7 @@ export type SettingsDomainValueMap = {
   automation: AutomationConfig | undefined;
   marketplace: MarketplaceConfig | undefined;
   imageGeneration: ImageGenerationConfig | undefined;
+  speech: SpeechConfig | undefined;
   visionDelegation: VisionDelegationConfig | undefined;
   permissions: PermissionConfig | undefined;
   walkthrough: WalkthroughConfig | undefined;
@@ -174,6 +181,7 @@ const settingsDomainValueMap: Record<SettingsDomain, true> = {
   automation: true,
   marketplace: true,
   imageGeneration: true,
+  speech: true,
   visionDelegation: true,
   permissions: true,
   walkthrough: true,
