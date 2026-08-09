@@ -114,4 +114,31 @@ describe('deriveRunStatus', () => {
     expect(status.kind).toBe('planning');
     expect(status.planStep).toBe('Add login');
   });
+
+  it('maps waiting-resource to a subtle restoring-runtime status', () => {
+    const chat = {
+      ...createInitialChatUiState(),
+      activeRunId: 'run-1',
+      activeRunPhase: 'waiting-resource' as const,
+      activeRunStartedAt: Date.now() - 500,
+      runPhase: 'streaming' as const,
+      streaming: true,
+    };
+    const status = deriveRunStatus({ chat, tools: [], plan: null, jobs: [] });
+    expect(status.kind).toBe('waiting-resource');
+    expect(status.label).toBe('Restoring runtime');
+    expect(status.summary).toMatch(/Restoring the session runtime/);
+    expect(status.canStop).toBe(true);
+
+    const zh = deriveRunStatus({
+      chat,
+      tools: [],
+      plan: null,
+      jobs: [],
+      locale: 'zh-CN',
+    });
+    expect(zh.label).toBe('正在恢复运行时');
+    expect(zh.summary).toContain('恢复会话运行时');
+  });
+
 });

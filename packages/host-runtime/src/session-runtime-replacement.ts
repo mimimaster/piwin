@@ -69,7 +69,6 @@ export class SessionRuntimeReplacementEngine {
       }
       return pending.promise;
     }
-
     const activeGenerationId = this.options.getActiveGenerationId(request.sessionId);
     const plan = this.options.controller.planReload(
       request.sessionId,
@@ -110,6 +109,14 @@ export class SessionRuntimeReplacementEngine {
       () => undefined,
       () => undefined,
     );
+  }
+
+  /**
+   * Whether a replacement transaction is in flight for the session.
+   * ADR 0040 §5: a replacing runtime is never an eviction candidate.
+   */
+  hasPending(sessionId: string): boolean {
+    return this.pendingBySession.has(sessionId);
   }
 
   /** Cancel every in-flight replacement during Host shutdown. */

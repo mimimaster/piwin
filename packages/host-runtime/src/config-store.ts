@@ -47,6 +47,7 @@ import {
   createDefaultWebConfig,
   modeToPreset,
   normalizeWalkthroughConfig,
+  normalizeSessionRuntimeRetentionConfig,
   resolvePreset,
   SUBAGENT_CAPABILITIES,
   isValidOrchestrationSchemeId,
@@ -284,6 +285,23 @@ function normalizeSessionConfig(value: unknown, defaults: SessionConfig): Sessio
     config.autoName = record.autoName;
   } else if (typeof defaults.autoName === 'boolean') {
     config.autoName = defaults.autoName;
+  }
+  const retention = asRecord(record.runtimeRetention);
+  if (retention) {
+    config.runtimeRetention = normalizeSessionRuntimeRetentionConfig({
+      ...(typeof retention.idleTtlSeconds === 'number'
+        ? { idleTtlSeconds: retention.idleTtlSeconds }
+        : {}),
+      ...(typeof retention.maxIdleRuntimes === 'number'
+        ? { maxIdleRuntimes: retention.maxIdleRuntimes }
+        : {}),
+      ...(typeof retention.maxResidentRuntimes === 'number'
+        ? { maxResidentRuntimes: retention.maxResidentRuntimes }
+        : {}),
+      ...(typeof retention.memoryHighWaterMiB === 'number'
+        ? { memoryHighWaterMiB: retention.memoryHighWaterMiB }
+        : {}),
+    });
   }
   return config;
 }

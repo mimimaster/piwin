@@ -8,8 +8,8 @@
  * messages without rewriting the side chat's own transcript.
  */
 
+import { rm } from 'node:fs/promises';
 import type {
-  AgentHost,
   CreateSessionInput,
   HostCommand,
   HostResponse,
@@ -25,6 +25,7 @@ import { formatError } from '@piwin/contracts';
 import {
   buildSideChatContextSnapshot,
   createSideChatSessionRecord,
+  deleteSessionRecord,
   getSessionRecord,
   getSideChatSessionRecord,
   listSideChatSessions,
@@ -32,14 +33,12 @@ import {
 } from '@piwin/session';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
-import {
-  getPiwinRoot,
-  getPiwinSessionIndexPath,
-} from '../paths.js';
+import { getPiwinRoot, getPiwinSessionDir, getPiwinSessionIndexPath } from '../paths.js';
 
 export type SideChatCommandContext = {
   piwinRoot?: string;
-  host: AgentHost;
+  createSession: (input: CreateSessionInput) => Promise<SessionHandle>;
+  disposeLiveSession: (sessionId: string) => Promise<void>;
   bindSession: (
     session: SessionHandle,
     projectPath?: string,
@@ -140,7 +139,7 @@ export async function handleSideChatCommand(
 
       let session: SessionHandle;
       try {
-        session = await context.host.createSession(createInput);
+        session = await context.createSession(createInput);
       } catch (error) {
         const message = formatError(error);
         return fail(requestId, 'side-chat/open', `side session create failed: ${message}`);
@@ -172,12 +171,12 @@ export async function handleSideChatCommand(
         });
       } catch (error) {
         const message = formatError(error);
-        await context.host.dropSession(session.id).catch(() => undefined);
-        return fail(
-          requestId,
-          'side-chat/open',
-          `side chat index write failed: ${message}`,
+        await context.disposeLiveSession(session.id).catch(() => undefined);
+        await deleteSessionRecord(indexPath, session.id).catch(() => undefined);
+        await rm(getPiwinSessionDir(rootDir, session.id), { recursive: true, force: true }).catch(
+          () => undefined,
         );
+        return fail(requestId, 'side-chat/open', `side chat index write failed: ${message}`);
       }
       context.pushStatus();
       return ok(requestId, 'side-chat/open', {
@@ -214,11 +213,7 @@ export async function handleSideChatCommand(
         );
       }
       if (sideRecord.sideChatRelation.sourceState !== 'active') {
-        return fail(
-          requestId,
-          'side-chat/sync',
-          'Source session is not active; sync is disabled',
-        );
+        return fail(requestId, 'side-chat/sync', 'Source session is not active; sync is disabled');
       }
 
       const sourceMessages = await context.loadTranscriptMessages(
@@ -230,9 +225,7 @@ export async function handleSideChatCommand(
       // are chronological), never string comparison of ids.
       let newMessages = sourceMessages;
       if (previousThrough) {
-        const boundaryIndex = sourceMessages.findIndex(
-          (message) => message.id === previousThrough,
-        );
+        const boundaryIndex = sourceMessages.findIndex((message) => message.id === previousThrough);
         if (boundaryIndex === -1) {
           // SIDE §7.5(7): the boundary message was truncated/removed — keep
           // the old snapshot and surface an explainable stale error instead
@@ -249,11 +242,7 @@ export async function handleSideChatCommand(
       if (newMessages.length === 0) {
         // No new messages — return the existing snapshot unchanged.
         if (!sideRecord.sideChatContext) {
-          return fail(
-            requestId,
-            'side-chat/sync',
-            'Side chat has no context snapshot to sync',
-          );
+          return fail(requestId, 'side-chat/sync', 'Side chat has no context snapshot to sync');
         }
         return ok(requestId, 'side-chat/sync', {
           sideChatSessionId: command.sideChatSessionId,
@@ -263,8 +252,7 @@ export async function handleSideChatCommand(
       }
 
       const nextVersion = (sideRecord.sideChatRelation.contextVersion ?? 0) + 1;
-      const throughMessageId =
-        lastPersistedMessageId(sourceMessages) ?? previousThrough;
+      const throughMessageId = lastPersistedMessageId(sourceMessages) ?? previousThrough;
       const nextSnapshot = buildSideChatContextSnapshot({
         version: nextVersion,
         sourceSessionId: sideRecord.sideChatRelation.sourceSessionId,
@@ -278,7 +266,11 @@ export async function handleSideChatCommand(
         messages: sourceMessages,
       });
 
-      const updated = await updateSideChatContext(indexPath, command.sideChatSessionId, nextSnapshot);
+      const updated = await updateSideChatContext(
+        indexPath,
+        command.sideChatSessionId,
+        nextSnapshot,
+      );
       if (!updated?.sideChatRelation) {
         return fail(
           requestId,

@@ -32,4 +32,19 @@ describe('capability-matrix', () => {
     expect(lines.some((line) => line.includes('Interactive terminal'))).toBe(true);
     expect(lines.some((line) => /no —/.test(line) || line.includes(': no'))).toBe(true);
   });
+
+  it('surfaces ADR 0040 residency capability markers', () => {
+    const rows = buildCapabilityMatrix(baseCaps, { mode: 'sdk', mock: true });
+    const residency = rows.find((row) => row.id === 'runtimeResidency');
+    expect(residency?.available).toBe(false);
+    const outline = rows.find((row) => row.id === 'sessionOutlinePage');
+    expect(outline?.available).toBe(false);
+
+    const enabled = buildCapabilityMatrix(
+      { ...baseCaps, runtimeResidency: true, sessionOutlinePage: true },
+      { mode: 'sdk', mock: true },
+    );
+    expect(enabled.find((row) => row.id === 'runtimeResidency')?.available).toBe(true);
+    expect(enabled.find((row) => row.id === 'sessionOutlinePage')?.available).toBe(true);
+  });
 });

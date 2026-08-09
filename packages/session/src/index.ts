@@ -58,6 +58,7 @@ export type {
 
 export {
   cloneTranscript,
+  cloneTranscriptMessage,
   rewriteAttachmentPaths,
   collectAttachmentPaths,
 } from './clone-session-transcript.js';
@@ -94,6 +95,7 @@ export type { UsageRollupOptions } from './usage-ledger-store.js';
 
 export {
   exportTranscript,
+  streamTranscriptExport,
   suggestSessionExportBasename,
   TOOL_OUTPUT_REDACTED_PLACEHOLDER,
 } from './export-transcript.js';
@@ -125,7 +127,27 @@ export {
 } from './side-chat-store.js';
 export type { SideChatCreateInput, ListSideChatSessionsOptions } from './side-chat-store.js';
 
-export { buildSessionOutline } from './session-outline.js';
+export {
+  buildSessionOutline,
+  buildSessionOutlineWindow,
+  buildSessionOutlinePage,
+} from './session-outline.js';
+
+export {
+  openSessionTranscriptStore,
+  computeLegacyTranscriptDigest,
+  TranscriptIterationStaleError,
+  LEGACY_IMPORT_GENERATION,
+  USER_AUTHORED_GENERATION,
+} from './transcript-store.js';
+export type {
+  SessionTranscriptStore,
+  TranscriptStoreAppendResult,
+  TranscriptStoreMessageInput,
+  TranscriptStoreMessagePatch,
+  TranscriptStoreTruncateResult,
+  TranscriptStoreOptions,
+} from './transcript-store.js';
 
 export { validateSessionPlan } from './validate-plan.js';
 export type { PlanValidationIssue, PlanValidationResult } from './validate-plan.js';

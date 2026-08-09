@@ -6,6 +6,7 @@ const LUCIDE_NAME: Record<RunStatusKind, string> = {
   preparing: 'Settings',
   'connecting-model': 'Wifi',
   'waiting-first-token': 'Sparkles',
+  'waiting-resource': 'RefreshCw',
   planning: 'Map',
   working: 'Code',
   'waiting-permission': 'ShieldQuestion',

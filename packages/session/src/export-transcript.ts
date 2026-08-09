@@ -51,6 +51,39 @@ export function exportTranscript(
 }
 
 /**
+ * Stream an export without retaining the complete transcript or rendered
+ * document. Chunks share the same render primitives as the array API.
+ */
+export async function* streamTranscriptExport(
+  messages: AsyncIterable<SessionTranscriptMessage>,
+  options: ExportTranscriptOptions,
+): AsyncIterable<string> {
+  const redactTools = options.redactTools === true;
+  const format = options.format === 'html' ? 'html' : 'md';
+  let count = 0;
+  if (format === 'html') {
+    yield `${renderHtmlHeader(options, redactTools).join('\n')}\n`;
+    for await (const message of messages) {
+      count += 1;
+      yield `${renderHtmlMessage(message, redactTools).join('\n')}\n`;
+    }
+    if (count === 0) {
+      yield '<p><em>(empty transcript)</em></p>\n';
+    }
+    yield renderHtmlFooter().join('\n');
+    return;
+  }
+  yield renderMarkdownHeader(options, redactTools).join('\n');
+  for await (const message of messages) {
+    count += 1;
+    yield `\n${renderMarkdownMessage(message, redactTools).join('\n')}`;
+  }
+  if (count === 0) {
+    yield '\n_(empty transcript)_\n';
+  }
+}
+
+/**
  * Suggested export file basename (no directory).
  * Example: `piwin-export-a1b2c3d4.md`
  */
@@ -68,28 +101,7 @@ function renderTranscriptMarkdown(
   options: ExportTranscriptOptions,
   redactTools: boolean,
 ): string {
-  const lines: string[] = [];
-  const title = options.title?.trim() || buildDefaultTitle(options.sessionId);
-  const exportedAt = options.exportedAt ?? new Date().toISOString();
-
-  lines.push(`# ${title}`);
-  lines.push('');
-  lines.push('## Metadata');
-  lines.push('');
-  if (options.sessionId) {
-    lines.push(`- **Session:** \`${options.sessionId}\``);
-  }
-  if (options.projectPath) {
-    lines.push(`- **Project:** \`${options.projectPath}\``);
-  }
-  lines.push(`- **Exported:** ${exportedAt}`);
-  lines.push(`- **Format:** Markdown`);
-  if (redactTools) {
-    lines.push(`- **Tool output:** redacted`);
-  }
-  lines.push('');
-  lines.push('## Transcript');
-  lines.push('');
+  const lines = renderMarkdownHeader(options, redactTools);
 
   if (messages.length === 0) {
     lines.push('_(empty transcript)_');
@@ -98,59 +110,46 @@ function renderTranscriptMarkdown(
   }
 
   for (const message of messages) {
-    const roleHeading = roleHeadingMarkdown(message.role);
-    lines.push(`### ${roleHeading}`);
-    lines.push('');
-
-    const body = (message.text ?? '').trimEnd();
-    if (body.length > 0) {
-      lines.push(body);
-      lines.push('');
-    } else {
-      lines.push('_(empty)_');
-      lines.push('');
-    }
-
-    if (message.status === 'error') {
-      lines.push('> Status: error');
-      lines.push('');
-    } else if (message.status === 'streaming') {
-      lines.push('> Status: streaming');
-      lines.push('');
-    }
-
-    const thinking = message.thinking?.trim();
-    if (thinking) {
-      lines.push('#### Thinking');
-      lines.push('');
-      lines.push(thinking);
-      lines.push('');
-    }
-
-    if (message.attachments && message.attachments.length > 0) {
-      lines.push('#### Attachments');
-      lines.push('');
-      for (const attachment of message.attachments) {
-        lines.push(
-          `- \`${attachment.path}\` (${attachment.mimeType}, ${attachment.byteSize} bytes)`,
-        );
-      }
-      lines.push('');
-    }
-
-    if (message.tools && message.tools.length > 0) {
-      lines.push('#### Tools');
-      lines.push('');
-      for (const tool of message.tools) {
-        lines.push(...renderToolMarkdown(tool, redactTools));
-      }
-    }
-
-    lines.push('---');
-    lines.push('');
+    lines.push(...renderMarkdownMessage(message, redactTools));
   }
 
   return lines.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+function renderMarkdownHeader(options: ExportTranscriptOptions, redactTools: boolean): string[] {
+  const title = options.title?.trim() || buildDefaultTitle(options.sessionId);
+  const exportedAt = options.exportedAt ?? new Date().toISOString();
+  const lines = [`# ${title}`, '', '## Metadata', ''];
+  if (options.sessionId) lines.push(`- **Session:** \`${options.sessionId}\``);
+  if (options.projectPath) lines.push(`- **Project:** \`${options.projectPath}\``);
+  lines.push(`- **Exported:** ${exportedAt}`, '- **Format:** Markdown');
+  if (redactTools) lines.push('- **Tool output:** redacted');
+  lines.push('', '## Transcript', '');
+  return lines;
+}
+
+function renderMarkdownMessage(message: SessionTranscriptMessage, redactTools: boolean): string[] {
+  const lines = [`### ${roleHeadingMarkdown(message.role)}`, ''];
+  const body = message.text.trimEnd();
+  lines.push(body.length > 0 ? body : '_(empty)_', '');
+  if (message.status === 'error' || message.status === 'streaming') {
+    lines.push(`> Status: ${message.status}`, '');
+  }
+  const thinking = message.thinking?.trim();
+  if (thinking) lines.push('#### Thinking', '', thinking, '');
+  if (message.attachments && message.attachments.length > 0) {
+    lines.push('#### Attachments', '');
+    for (const attachment of message.attachments) {
+      lines.push(`- \`${attachment.path}\` (${attachment.mimeType}, ${attachment.byteSize} bytes)`);
+    }
+    lines.push('');
+  }
+  if (message.tools && message.tools.length > 0) {
+    lines.push('#### Tools', '');
+    for (const tool of message.tools) lines.push(...renderToolMarkdown(tool, redactTools));
+  }
+  lines.push('---', '');
+  return lines;
 }
 
 function renderToolMarkdown(tool: SessionToolCardView, redactTools: boolean): string[] {
@@ -159,7 +158,7 @@ function renderToolMarkdown(tool: SessionToolCardView, redactTools: boolean): st
   lines.push('');
   lines.push(`- call id: \`${tool.toolCallId}\``);
   lines.push('');
-  const output = redactTools ? TOOL_OUTPUT_REDACTED_PLACEHOLDER : tool.output ?? '';
+  const output = redactTools ? TOOL_OUTPUT_REDACTED_PLACEHOLDER : (tool.output ?? '');
   lines.push('```');
   lines.push(output);
   lines.push('```');
@@ -172,88 +171,90 @@ function renderTranscriptHtml(
   options: ExportTranscriptOptions,
   redactTools: boolean,
 ): string {
-  const title = escapeHtml(options.title?.trim() || buildDefaultTitle(options.sessionId));
-  const exportedAt = escapeHtml(options.exportedAt ?? new Date().toISOString());
-  const sessionId = options.sessionId ? escapeHtml(options.sessionId) : '';
-  const projectPath = options.projectPath ? escapeHtml(options.projectPath) : '';
-
-  const parts: string[] = [];
-  parts.push('<!DOCTYPE html>');
-  parts.push('<html lang="en">');
-  parts.push('<head>');
-  parts.push('<meta charset="utf-8" />');
-  parts.push(`<title>${title}</title>`);
-  parts.push(
-    '<style>body{font-family:system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#111}pre{white-space:pre-wrap;background:#f4f4f5;padding:.75rem;border-radius:6px;overflow:auto}article{border-top:1px solid #e4e4e7;padding:1rem 0}.meta{color:#52525b;font-size:.9rem}.role{font-weight:600;text-transform:capitalize}.tool{margin:.5rem 0;padding:.5rem;border:1px solid #e4e4e7;border-radius:6px}.thinking{color:#52525b;font-style:italic}</style>',
-  );
-  parts.push('</head>');
-  parts.push('<body>');
-  parts.push(`<h1>${title}</h1>`);
-  parts.push('<section class="meta">');
-  parts.push('<h2>Metadata</h2>');
-  parts.push('<ul>');
-  if (sessionId) parts.push(`<li><strong>Session:</strong> <code>${sessionId}</code></li>`);
-  if (projectPath) parts.push(`<li><strong>Project:</strong> <code>${projectPath}</code></li>`);
-  parts.push(`<li><strong>Exported:</strong> ${exportedAt}</li>`);
-  parts.push('<li><strong>Format:</strong> HTML</li>');
-  if (redactTools) parts.push('<li><strong>Tool output:</strong> redacted</li>');
-  parts.push('</ul>');
-  parts.push('</section>');
-  parts.push('<section>');
-  parts.push('<h2>Transcript</h2>');
+  const parts = renderHtmlHeader(options, redactTools);
 
   if (messages.length === 0) {
     parts.push('<p><em>(empty transcript)</em></p>');
   }
 
   for (const message of messages) {
-    parts.push('<article>');
-    parts.push(`<div class="role">${escapeHtml(message.role)}</div>`);
-    const body = message.text ?? '';
-    if (body.trim().length > 0) {
-      parts.push(`<pre>${escapeHtml(body)}</pre>`);
-    } else {
-      parts.push('<p><em>(empty)</em></p>');
-    }
-    if (message.status === 'error' || message.status === 'streaming') {
-      parts.push(`<p class="meta">Status: ${escapeHtml(message.status)}</p>`);
-    }
-    const thinking = message.thinking?.trim();
-    if (thinking) {
-      parts.push('<h3>Thinking</h3>');
-      parts.push(`<pre class="thinking">${escapeHtml(thinking)}</pre>`);
-    }
-    if (message.attachments && message.attachments.length > 0) {
-      parts.push('<h3>Attachments</h3>');
-      parts.push('<ul>');
-      for (const attachment of message.attachments) {
-        parts.push(
-          `<li><code>${escapeHtml(attachment.path)}</code> (${escapeHtml(attachment.mimeType)}, ${attachment.byteSize} bytes)</li>`,
-        );
-      }
-      parts.push('</ul>');
-    }
-    if (message.tools && message.tools.length > 0) {
-      parts.push('<h3>Tools</h3>');
-      for (const tool of message.tools) {
-        const output = redactTools ? TOOL_OUTPUT_REDACTED_PLACEHOLDER : tool.output ?? '';
-        parts.push('<div class="tool">');
-        parts.push(
-          `<div><code>${escapeHtml(tool.toolName)}</code> (${escapeHtml(tool.status)})</div>`,
-        );
-        parts.push(`<div class="meta">call id: <code>${escapeHtml(tool.toolCallId)}</code></div>`);
-        parts.push(`<pre>${escapeHtml(output)}</pre>`);
-        parts.push('</div>');
-      }
-    }
-    parts.push('</article>');
+    parts.push(...renderHtmlMessage(message, redactTools));
   }
-
-  parts.push('</section>');
-  parts.push('</body>');
-  parts.push('</html>');
-  parts.push('');
+  parts.push(...renderHtmlFooter());
   return parts.join('\n');
+}
+
+function renderHtmlHeader(options: ExportTranscriptOptions, redactTools: boolean): string[] {
+  const title = escapeHtml(options.title?.trim() || buildDefaultTitle(options.sessionId));
+  const exportedAt = escapeHtml(options.exportedAt ?? new Date().toISOString());
+  const sessionId = options.sessionId ? escapeHtml(options.sessionId) : '';
+  const projectPath = options.projectPath ? escapeHtml(options.projectPath) : '';
+  const parts = [
+    '<!DOCTYPE html>',
+    '<html lang="en">',
+    '<head>',
+    '<meta charset="utf-8" />',
+    `<title>${title}</title>`,
+    '<style>body{font-family:system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#111}pre{white-space:pre-wrap;background:#f4f4f5;padding:.75rem;border-radius:6px;overflow:auto}article{border-top:1px solid #e4e4e7;padding:1rem 0}.meta{color:#52525b;font-size:.9rem}.role{font-weight:600;text-transform:capitalize}.tool{margin:.5rem 0;padding:.5rem;border:1px solid #e4e4e7;border-radius:6px}.thinking{color:#52525b;font-style:italic}</style>',
+    '</head>',
+    '<body>',
+    `<h1>${title}</h1>`,
+    '<section class="meta">',
+    '<h2>Metadata</h2>',
+    '<ul>',
+  ];
+  if (sessionId) parts.push(`<li><strong>Session:</strong> <code>${sessionId}</code></li>`);
+  if (projectPath) parts.push(`<li><strong>Project:</strong> <code>${projectPath}</code></li>`);
+  parts.push(
+    `<li><strong>Exported:</strong> ${exportedAt}</li>`,
+    '<li><strong>Format:</strong> HTML</li>',
+  );
+  if (redactTools) parts.push('<li><strong>Tool output:</strong> redacted</li>');
+  parts.push('</ul>', '</section>', '<section>', '<h2>Transcript</h2>');
+  return parts;
+}
+
+function renderHtmlMessage(message: SessionTranscriptMessage, redactTools: boolean): string[] {
+  const parts = ['<article>', `<div class="role">${escapeHtml(message.role)}</div>`];
+  parts.push(
+    message.text.trim().length > 0
+      ? `<pre>${escapeHtml(message.text)}</pre>`
+      : '<p><em>(empty)</em></p>',
+  );
+  if (message.status === 'error' || message.status === 'streaming') {
+    parts.push(`<p class="meta">Status: ${escapeHtml(message.status)}</p>`);
+  }
+  const thinking = message.thinking?.trim();
+  if (thinking)
+    parts.push('<h3>Thinking</h3>', `<pre class="thinking">${escapeHtml(thinking)}</pre>`);
+  if (message.attachments && message.attachments.length > 0) {
+    parts.push('<h3>Attachments</h3>', '<ul>');
+    for (const attachment of message.attachments) {
+      parts.push(
+        `<li><code>${escapeHtml(attachment.path)}</code> (${escapeHtml(attachment.mimeType)}, ${attachment.byteSize} bytes)</li>`,
+      );
+    }
+    parts.push('</ul>');
+  }
+  if (message.tools && message.tools.length > 0) {
+    parts.push('<h3>Tools</h3>');
+    for (const tool of message.tools) {
+      const output = redactTools ? TOOL_OUTPUT_REDACTED_PLACEHOLDER : tool.output;
+      parts.push(
+        '<div class="tool">',
+        `<div><code>${escapeHtml(tool.toolName)}</code> (${escapeHtml(tool.status)})</div>`,
+        `<div class="meta">call id: <code>${escapeHtml(tool.toolCallId)}</code></div>`,
+        `<pre>${escapeHtml(output)}</pre>`,
+        '</div>',
+      );
+    }
+  }
+  parts.push('</article>');
+  return parts;
+}
+
+function renderHtmlFooter(): string[] {
+  return ['</section>', '</body>', '</html>', ''];
 }
 
 function roleHeadingMarkdown(role: string): string {

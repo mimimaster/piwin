@@ -419,6 +419,40 @@ export class RunRegistry {
     return { ...node.record };
   }
 
+  /**
+   * Attach a runtime generation to one non-terminal Run exactly once.
+   *
+   * ADR 0040 §7: cold activation binds the stable product session id and a
+   * fresh `runtimeGenerationId` to the already-accepted Run before tool
+   * execution is admitted. A Run must never be rebound to a different
+   * generation — a second generation is a correlation error.
+   */
+  attachRuntimeGeneration(
+    runId: string,
+    runtimeGenerationId: string,
+  ):
+    | { ok: true; run: ExecutionRunRecord }
+    | { ok: false; reason: 'not-found' | 'terminal' | 'already-attached' } {
+    const node = this.nodes.get(runId);
+    if (!node) {
+      return { ok: false, reason: 'not-found' };
+    }
+    if (isRunTerminal(node.record.status)) {
+      return { ok: false, reason: 'terminal' };
+    }
+    const existing = node.record.runtimeGenerationId;
+    if (existing !== undefined) {
+      // Same generation re-attach is idempotent; a different generation is a
+      // correlation error and must never be silently accepted.
+      if (existing === runtimeGenerationId) {
+        return { ok: true, run: { ...node.record } };
+      }
+      return { ok: false, reason: 'already-attached' };
+    }
+    node.record.runtimeGenerationId = runtimeGenerationId;
+    return { ok: true, run: this.publishUpdated(node) };
+  }
+
   /** Publish one authoritative Run mutation with exactly one revision bump. */
   private publishUpdated(node: RunNode): ExecutionRunRecord {
     node.record.revision = (node.record.revision ?? 0) + 1;

@@ -108,6 +108,16 @@ export function getPiwinSessionTranscriptPath(rootDir: string, sessionId: string
   return join(getPiwinSessionDir(rootDir, sessionId), 'transcript.json');
 }
 
+/** ADR 0040 product-authoritative bounded transcript database. */
+export function getPiwinSessionTranscriptDatabasePath(rootDir: string, sessionId: string): string {
+  return join(getPiwinSessionDir(rootDir, sessionId), 'transcript.sqlite3');
+}
+
+/** Retained lossless v1 source used by doctor/recovery after migration. */
+export function getPiwinSessionTranscriptBackupPath(rootDir: string, sessionId: string): string {
+  return join(getPiwinSessionDir(rootDir, sessionId), 'transcript.json.v1.bak');
+}
+
 export function getPiwinSessionPlanPath(rootDir: string, sessionId: string): string {
   return join(getPiwinSessionDir(rootDir, sessionId), 'plan.json');
 }

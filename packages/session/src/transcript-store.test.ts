@@ -1,0 +1,598 @@
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import type { SessionTranscriptDocument, SessionTranscriptMessage } from '@piwin/contracts';
+import {
+  LEGACY_IMPORT_GENERATION,
+  TranscriptIterationStaleError,
+  USER_AUTHORED_GENERATION,
+  openSessionTranscriptStore,
+} from './transcript-store.js';
+
+async function openStore(label: string): Promise<{
+  store: import('./transcript-store.js').SessionTranscriptStore;
+  dbPath: string;
+}> {
+  const rootDir = await mkdtemp(join(tmpdir(), `piwin-store-${label}-`));
+  const dbPath = join(rootDir, 'transcript.sqlite3');
+  const store = await openSessionTranscriptStore({
+    dbPath,
+    sessionId: `session-${label}`,
+    projectPath: '/tmp/project',
+  });
+  return { store, dbPath };
+}
+
+function makeLegacyDocument(
+  count: number,
+  sessionId = 'session-legacy',
+): SessionTranscriptDocument {
+  return {
+    version: 1,
+    sessionId,
+    projectPath: '/tmp/project',
+    messages: Array.from({ length: count }, (_, index) => ({
+      id: `pi-message-${index}`,
+      role: (index % 2 === 0 ? 'user' : 'assistant') as SessionTranscriptMessage['role'],
+      text: `legacy turn ${index}`,
+      createdAt: new Date(2026, 0, 1, 0, 0, index).toISOString(),
+      status: 'done' as const,
+    })),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function messageInput(overrides: {
+  id: string;
+  runtimeGenerationId: string;
+  backendMessageId: string;
+  role?: SessionTranscriptMessage['role'];
+  text?: string;
+}) {
+  return {
+    id: overrides.id,
+    runtimeGenerationId: overrides.runtimeGenerationId,
+    backendMessageId: overrides.backendMessageId,
+    role: overrides.role ?? ('assistant' as const),
+    text: overrides.text ?? 'hello',
+    status: 'done' as const,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+describe('SessionTranscriptStore', () => {
+  it('appends rows with provenance and treats same-generation replay as idempotent', async () => {
+    const { store } = await openStore('replay');
+    const first = await store.appendMessage(
+      messageInput({
+        id: 'piw-m-a1',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'pi-message-2',
+      }),
+    );
+    expect(first).toEqual({ ok: true });
+    // Same generation + same backend id: idempotent replay, one row.
+    const replay = await store.appendMessage(
+      messageInput({
+        id: 'piw-m-a1',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'pi-message-2',
+      }),
+    );
+    expect(replay).toEqual({ ok: true, replayed: true });
+    expect(await store.count()).toBe(1);
+    const tail = await store.listTail(10);
+    expect(tail).toHaveLength(1);
+    expect(tail[0]).toMatchObject({
+      id: 'piw-m-a1',
+      runtimeGenerationId: 'gen-a',
+      text: 'hello',
+    });
+    store.close();
+  });
+
+  it('persists two rows when different generations reuse the same backend id', async () => {
+    const { store } = await openStore('twogens');
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-a1',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'pi-message-2',
+        text: 'gen-a answer',
+      }),
+    );
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-b1',
+        runtimeGenerationId: 'gen-b',
+        backendMessageId: 'pi-message-2',
+        text: 'gen-b answer',
+      }),
+    );
+    expect(await store.count()).toBe(2);
+    const tail = await store.listTail(10);
+    expect(tail.map((message) => message.text)).toEqual(['gen-a answer', 'gen-b answer']);
+    store.close();
+  });
+
+  it('rejects a normalized id collision with different provenance', async () => {
+    const { store } = await openStore('collision');
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-x',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'backend-1',
+      }),
+    );
+    const collision = await store.appendMessage(
+      messageInput({
+        id: 'piw-m-x',
+        runtimeGenerationId: 'gen-b',
+        backendMessageId: 'backend-2',
+      }),
+    );
+    expect(collision).toEqual({ ok: false, reason: 'provenance-collision' });
+    expect(await store.count()).toBe(1);
+    store.close();
+  });
+
+  it('rejects a provenance replay carrying a different normalized id', async () => {
+    const { store } = await openStore('replay-id-mismatch');
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-original',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'backend-1',
+      }),
+    );
+    await expect(
+      store.appendMessage(
+        messageInput({
+          id: 'piw-m-different',
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: 'backend-1',
+        }),
+      ),
+    ).resolves.toEqual({ ok: false, reason: 'provenance-collision' });
+    expect(await store.count()).toBe(1);
+    store.close();
+  });
+
+  it('updates only the affected row and never unrelated rows', async () => {
+    const { store } = await openStore('update');
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-a1',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'b1',
+        text: 'before',
+      }),
+    );
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-b1',
+        runtimeGenerationId: 'gen-b',
+        backendMessageId: 'b2',
+        text: 'untouched',
+      }),
+    );
+    expect(await store.updateMessage('piw-m-a1', { text: 'after', status: 'done' })).toBe(true);
+    expect(await store.updateMessage('piw-m-missing', { text: 'nope' })).toBe(false);
+
+    const tail = await store.listTail(10);
+    expect(tail.find((message) => message.id === 'piw-m-a1')?.text).toBe('after');
+    expect(tail.find((message) => message.id === 'piw-m-b1')?.text).toBe('untouched');
+    expect(await store.count()).toBe(2);
+    store.close();
+  });
+
+  it('keeps cross-generation tool-call cards attached to their own assistant rows', async () => {
+    const { store } = await openStore('tools');
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-a1',
+        runtimeGenerationId: 'gen-a',
+        backendMessageId: 'pi-message-2',
+        role: 'assistant',
+        text: '',
+      }),
+    );
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-b1',
+        runtimeGenerationId: 'gen-b',
+        backendMessageId: 'pi-message-2',
+        role: 'assistant',
+        text: '',
+      }),
+    );
+    await store.updateMessage('piw-m-a1', {
+      tools: [{ toolCallId: 'piw-t-a1', toolName: 'bash', status: 'done', output: 'a' }],
+    });
+    await store.updateMessage('piw-m-b1', {
+      tools: [{ toolCallId: 'piw-t-b1', toolName: 'read', status: 'done', output: 'b' }],
+    });
+
+    const tail = await store.listTail(10);
+    const genA = tail.find((message) => message.id === 'piw-m-a1');
+    const genB = tail.find((message) => message.id === 'piw-m-b1');
+    expect(genA?.tools?.map((tool) => tool.toolCallId)).toEqual(['piw-t-a1']);
+    expect(genB?.tools?.map((tool) => tool.toolCallId)).toEqual(['piw-t-b1']);
+    store.close();
+  });
+
+  it('imports a legacy document transactionally, idempotently, and losslessly', async () => {
+    const { store } = await openStore('legacy');
+    const document = makeLegacyDocument(5);
+    const first = await store.importLegacyDocument(document);
+    expect(first.imported).toBe(5);
+    expect(await store.isMigrated()).toBe(true);
+    expect((await store.verifyLegacyDocument(document)).matches).toBe(true);
+
+    // Idempotent second import.
+    expect((await store.importLegacyDocument(document)).imported).toBe(0);
+    expect(await store.count()).toBe(5);
+
+    // Lossless: every legacy id is addressable under the reserved namespace.
+    const tail = await store.listTail(10);
+    expect(tail.map((message) => message.id)).toEqual([
+      'pi-message-0',
+      'pi-message-1',
+      'pi-message-2',
+      'pi-message-3',
+      'pi-message-4',
+    ]);
+    expect(tail.every((message) => message.runtimeGenerationId === LEGACY_IMPORT_GENERATION)).toBe(
+      true,
+    );
+    store.close();
+  });
+
+  it('does not mix a different legacy document after the first import', async () => {
+    const { store } = await openStore('legacy-mismatch');
+    const original = makeLegacyDocument(3, 'session-legacy-mismatch');
+    await store.importLegacyDocument(original);
+    const different = makeLegacyDocument(3, 'session-legacy-mismatch');
+    different.messages[0]!.text = 'changed';
+    expect((await store.importLegacyDocument(different)).imported).toBe(0);
+    expect(await store.count()).toBe(3);
+    expect((await store.verifyLegacyDocument(original)).matches).toBe(true);
+    store.close();
+  });
+
+  it('detects persisted content corruption instead of trusting the import digest', async () => {
+    const { store } = await openStore('legacy-corruption');
+    const original = makeLegacyDocument(3, 'session-legacy-corruption');
+    await store.importLegacyDocument(original);
+    await store.updateMessage('pi-message-1', { text: 'corrupted after import' });
+    expect((await store.verifyLegacyDocument(original)).matches).toBe(false);
+    await expect(store.importLegacyDocument(original)).rejects.toThrow(/no longer matches/);
+    store.close();
+  });
+
+  it('rolls back an interrupted import so the store stays empty', async () => {
+    const { store } = await openStore('interrupted');
+    // A malformed document (message missing text) fails mid-insert; the
+    // transaction rolls back and no row survives.
+    const broken = makeLegacyDocument(2, 'session-interrupted');
+    (broken.messages[1] as { text?: string }).text = undefined as unknown as string;
+    await expect(store.importLegacyDocument(broken)).rejects.toThrow();
+    expect(await store.count()).toBe(0);
+    expect(await store.isMigrated()).toBe(false);
+    store.close();
+  });
+
+  it('keeps legacy ids and a post-migration generation distinct', async () => {
+    const { store } = await openStore('legacy-live');
+    const document = makeLegacyDocument(2, 'session-legacy-live');
+    await store.importLegacyDocument(document);
+    // A live generation normalizes its ids; legacy naked ids never collide.
+    const live = await store.appendMessage(
+      messageInput({
+        id: 'piw-m-live-1',
+        runtimeGenerationId: 'gen-live',
+        backendMessageId: 'pi-message-0',
+        text: 'live answer',
+      }),
+    );
+    expect(live).toEqual({ ok: true });
+    expect(await store.count()).toBe(3);
+    const tail = await store.listTail(10);
+    expect(tail.some((message) => message.id === 'piw-m-live-1')).toBe(true);
+    expect(tail.some((message) => message.id === 'pi-message-0')).toBe(true);
+    store.close();
+  });
+
+  it('publishes bounded tail windows with sequence cursors', async () => {
+    const { store } = await openStore('tail');
+    for (let index = 0; index < 30; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `piw-m-${index}`,
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: `b-${index}`,
+          role: index % 2 === 0 ? 'user' : 'assistant',
+          text: `turn ${index}`,
+        }),
+      );
+    }
+    const newest = await store.listTail(10);
+    expect(newest).toHaveLength(10);
+    expect(newest.at(-1)?.id).toBe('piw-m-29');
+    // sequence 21 → rows 1..20 → newest 10 = sequence 11..20 = piw-m-10..19.
+    const older = await store.listTail(10, 21);
+    expect(older.map((message) => message.id)).toEqual([
+      'piw-m-10',
+      'piw-m-11',
+      'piw-m-12',
+      'piw-m-13',
+      'piw-m-14',
+      'piw-m-15',
+      'piw-m-16',
+      'piw-m-17',
+      'piw-m-18',
+      'piw-m-19',
+    ]);
+    store.close();
+  });
+
+  it('publishes revision-bound transcript pages with byte clipping', async () => {
+    const { store } = await openStore('transcript-page');
+    for (let index = 0; index < 30; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `piw-m-${index}`,
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: `b-${index}`,
+          text: index === 29 ? 'x'.repeat(100_000) : `turn ${index}`,
+        }),
+      );
+    }
+    const newest = await store.transcriptPage({
+      sessionId: 'session-transcript-page',
+      limit: 10,
+      maximumBytes: 16 * 1024,
+    });
+    expect(newest.status).toBe('page');
+    if (newest.status !== 'page') throw new Error('expected page');
+    expect(newest.page.totalCount).toBe(30);
+    expect(newest.page.messageBytes).toBeLessThanOrEqual(16 * 1024);
+    expect(newest.page.truncatedMessageIds).toEqual(['piw-m-29']);
+    expect(newest.page.olderCursor).toBeDefined();
+
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-new',
+        runtimeGenerationId: 'gen-b',
+        backendMessageId: 'b-new',
+      }),
+    );
+    const stale = await store.transcriptPage({
+      sessionId: 'session-transcript-page',
+      limit: 10,
+      maximumBytes: 16 * 1024,
+      ...(newest.page.olderCursor !== undefined ? { beforeCursor: newest.page.olderCursor } : {}),
+    });
+    expect(stale.status).toBe('stale-cursor');
+    store.close();
+  });
+
+  it('rejects limits that would disable bounded reads', async () => {
+    const { store } = await openStore('invalid-bounds');
+    await expect(store.listTail(-1)).rejects.toThrow(/between 1 and/);
+    await expect(store.listTail(101)).rejects.toThrow(/between 1 and/);
+    await expect(store.buildHistoryWindow({ maxMessages: -1 })).rejects.toThrow(/between 1 and/);
+    const iterate = store.iterateAll(-1);
+    await expect(iterate[Symbol.asyncIterator]().next()).rejects.toThrow(/between 1 and/);
+    store.close();
+  });
+
+  it('marks a fresh v2 store authoritative without a legacy import', async () => {
+    const { store } = await openStore('fresh-authority');
+    expect(await store.isMigrated()).toBe(false);
+    await store.markAuthoritative();
+    expect(await store.isMigrated()).toBe(true);
+    store.close();
+  });
+
+  it('returns bounded history windows and the newest model snapshot', async () => {
+    const { store } = await openStore('history');
+    for (let index = 0; index < 60; index += 1) {
+      await store.appendMessage({
+        ...messageInput({
+          id: `piw-m-${index}`,
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: `b-${index}`,
+          role: index % 2 === 0 ? 'user' : 'assistant',
+          text: `turn ${index} `.repeat(20),
+        }),
+        ...(index % 2 === 1
+          ? {
+              model: {
+                protocol: 'openai-compatible' as const,
+                providerId: 'p',
+                modelId: `model-${index}`,
+              },
+            }
+          : {}),
+      });
+    }
+    const history = await store.buildHistoryWindow({ maxMessages: 10, maxChars: 2000 });
+    expect(history.length).toBeLessThanOrEqual(10);
+    expect(history.every((item) => item.text.length <= 2000)).toBe(true);
+    expect(history.some((item) => item.role === 'assistant')).toBe(true);
+
+    const model = await store.recentModel();
+    expect(model?.modelId).toBe('model-59');
+    store.close();
+  });
+
+  it('pages the outline without loading message bodies and rejects stale cursors', async () => {
+    const { store } = await openStore('outline');
+    for (let index = 0; index < 25; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `piw-m-${index}`,
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: `b-${index}`,
+          role: index % 2 === 0 ? 'user' : 'assistant',
+          text: `turn ${index}`,
+        }),
+      );
+    }
+    const newest = await store.outlinePage({ sessionId: 'session-outline', limit: 10 });
+    expect(newest.recent).toBe(true);
+    expect(newest.hasOlder).toBe(true);
+    expect(newest.nodes.map((node) => node.id)).toEqual([
+      'piw-m-15',
+      'piw-m-16',
+      'piw-m-17',
+      'piw-m-18',
+      'piw-m-19',
+      'piw-m-20',
+      'piw-m-21',
+      'piw-m-22',
+      'piw-m-23',
+      'piw-m-24',
+    ]);
+    if (newest.olderCursor === undefined) throw new Error('expected older cursor');
+
+    const older = await store.outlinePage({
+      sessionId: 'session-outline',
+      limit: 10,
+      beforeCursor: newest.olderCursor,
+    });
+    expect(older.recent).toBe(false);
+    expect(older.nodes.map((node) => node.id)).toEqual([
+      'piw-m-5',
+      'piw-m-6',
+      'piw-m-7',
+      'piw-m-8',
+      'piw-m-9',
+      'piw-m-10',
+      'piw-m-11',
+      'piw-m-12',
+      'piw-m-13',
+      'piw-m-14',
+    ]);
+
+    // Mutations invalidate the cursor: an appended row changes the revision.
+    await store.appendMessage(
+      messageInput({
+        id: 'piw-m-new',
+        runtimeGenerationId: 'gen-b',
+        backendMessageId: 'b-new',
+        text: 'newest turn',
+      }),
+    );
+    const stale = await store.outlinePage({
+      sessionId: 'session-outline',
+      limit: 10,
+      beforeCursor: newest.olderCursor,
+    });
+    expect(stale.nodes).toEqual([]);
+    expect(stale.hasOlder).toBe(false);
+    store.close();
+  });
+
+  it('truncates from a message id exactly', async () => {
+    const { store } = await openStore('truncate');
+    for (let index = 0; index < 8; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `piw-m-${index}`,
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: `b-${index}`,
+          text: `turn ${index}`,
+        }),
+      );
+    }
+    const result = await store.truncateFrom('piw-m-3');
+    expect(result).toEqual({ found: true, removedCount: 5, remainingCount: 3 });
+    expect((await store.listTail(10)).map((message) => message.id)).toEqual([
+      'piw-m-0',
+      'piw-m-1',
+      'piw-m-2',
+    ]);
+    expect((await store.truncateFrom('piw-m-missing')).found).toBe(false);
+    store.close();
+  });
+
+  it('iterates the full transcript in bounded batches for export', async () => {
+    const { store } = await openStore('iterate');
+    for (let index = 0; index < 12; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `piw-m-${index}`,
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: `b-${index}`,
+          text: `turn ${index}`,
+        }),
+      );
+    }
+    const collected: string[] = [];
+    for await (const message of store.iterateAll(5)) {
+      collected.push(message.id);
+    }
+    expect(collected).toHaveLength(12);
+    expect(collected[0]).toBe('piw-m-0');
+    expect(collected[11]).toBe('piw-m-11');
+    store.close();
+  });
+
+  it('fails a streamed full iteration when the source revision changes', async () => {
+    const { store } = await openStore('iterate-stale');
+    for (let index = 0; index < 2; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `piw-m-${index}`,
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: `b-${index}`,
+          text: `turn ${index}`,
+        }),
+      );
+    }
+    const iterator = store.iterateAll(1)[Symbol.asyncIterator]();
+    expect((await iterator.next()).value?.id).toBe('piw-m-0');
+    await store.updateMessage('piw-m-0', { text: 'changed during copy' });
+    await expect(iterator.next()).rejects.toBeInstanceOf(TranscriptIterationStaleError);
+    store.close();
+  });
+
+  it('keeps tail/history/outline bounded with 10,000 rows', async () => {
+    const { store } = await openStore('scale');
+    for (let index = 0; index < 10_000; index += 1) {
+      await store.appendMessage(
+        messageInput({
+          id: `piw-m-${index}`,
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: `b-${index}`,
+          role: index % 2 === 0 ? 'user' : 'assistant',
+          text: `turn ${index}`,
+        }),
+      );
+    }
+    expect(await store.count()).toBe(10_000);
+    expect(await store.listTail(50)).toHaveLength(50);
+    expect((await store.buildHistoryWindow({ maxMessages: 40 })).length).toBeLessThanOrEqual(40);
+    const outline = await store.outlinePage({ sessionId: 'session-scale', limit: 100 });
+    expect(outline.nodes.length).toBeLessThanOrEqual(100);
+    store.close();
+  });
+
+  it('rejects operations after close', async () => {
+    const { store } = await openStore('closed');
+    store.close();
+    await expect(
+      store.appendMessage(
+        messageInput({
+          id: 'piw-m-x',
+          runtimeGenerationId: 'gen-a',
+          backendMessageId: 'b-1',
+        }),
+      ),
+    ).rejects.toThrow(/closed/);
+    await expect(store.count()).rejects.toThrow(/closed/);
+  });
+});

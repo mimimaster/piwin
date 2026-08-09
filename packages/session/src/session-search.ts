@@ -18,6 +18,11 @@ export type SessionSearchOptions = {
   indexPath: string;
   /** Resolve transcript.json path for a session id. When omitted, only index fields are searched. */
   resolveTranscriptPath?: (sessionId: string) => string;
+  /** Bounded Store-backed body lookup; preferred over legacy JSON scanning. */
+  searchTranscript?: (
+    sessionId: string,
+    normalizedQuery: string,
+  ) => Promise<SessionTranscriptMessage | undefined>;
   /** Max transcripts to open when scanning body text. Default 40. */
   maxTranscriptScans?: number;
 };
@@ -64,13 +69,18 @@ export async function searchSessions(
       continue;
     }
 
-    if (!options.resolveTranscriptPath || transcriptScans >= maxScans) {
+    if (
+      (!options.searchTranscript && !options.resolveTranscriptPath) ||
+      transcriptScans >= maxScans
+    ) {
       continue;
     }
 
     transcriptScans += 1;
     try {
-      const messages = await listTranscriptMessages(options.resolveTranscriptPath(record.id));
+      const messages = options.searchTranscript
+        ? compactOptionalMessage(await options.searchTranscript(record.id, normalizedQuery))
+        : await listTranscriptMessages(options.resolveTranscriptPath?.(record.id) ?? '');
       const bodyHit = scoreTranscriptMessages(record, messages, normalizedQuery);
       if (bodyHit) {
         hits.push(bodyHit);
@@ -85,6 +95,12 @@ export async function searchSessions(
     query: rawQuery,
     hits: hits.slice(0, limit),
   };
+}
+
+function compactOptionalMessage(
+  message: SessionTranscriptMessage | undefined,
+): SessionTranscriptMessage[] {
+  return message === undefined ? [] : [message];
 }
 
 function clampLimit(limit: number | undefined): number {

@@ -1844,8 +1844,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         tools: sessionTools,
         plan: sessionPlan,
         jobs,
+        locale: desktopLocale,
       }),
-    [state, sessionTools, sessionPlan, jobs, runClock],
+    [state, sessionTools, sessionPlan, jobs, runClock, desktopLocale],
   );
 
   // Artifact height signal: bumped whenever an ArtifactFrame's iframe grows

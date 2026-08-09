@@ -2,10 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Proposed |
+| Status | Accepted |
 | Date | 2026-08-09 |
 | Related | ADR 0003, ADR 0009, ADR 0012, ADR 0015, ADR 0036, ADR 0038, ADR 0039 |
 | Execution plan | [`2026-08-09-session-runtime-memory-control.md`](../plans/2026-08-09-session-runtime-memory-control.md) |
+| Native evidence | [`2026-08-10-session-runtime-rss-soak.md`](../evidence/2026-08-10-session-runtime-rss-soak.md) |
 
 ## Context
 

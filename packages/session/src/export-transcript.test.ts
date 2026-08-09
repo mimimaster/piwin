@@ -3,12 +3,10 @@ import type { SessionTranscriptMessage } from '@piwin/contracts';
 import {
   TOOL_OUTPUT_REDACTED_PLACEHOLDER,
   exportTranscript,
+  streamTranscriptExport,
   suggestSessionExportBasename,
 } from './export-transcript.js';
-import {
-  exportCompactionMarkdown,
-  suggestCompactionExportBasename,
-} from './export-compaction.js';
+import { exportCompactionMarkdown, suggestCompactionExportBasename } from './export-compaction.js';
 
 function sampleMessages(): SessionTranscriptMessage[] {
   return [
@@ -39,6 +37,27 @@ function sampleMessages(): SessionTranscriptMessage[] {
 }
 
 describe('exportTranscript', () => {
+  it.each(['md', 'html'] as const)(
+    'streams %s with exact array-renderer parity',
+    async (format) => {
+      const messages = sampleMessages();
+      const options = {
+        format,
+        sessionId: 'stream-parity',
+        projectPath: '/tmp/demo',
+        exportedAt: '2026-07-21T12:00:00.000Z',
+      };
+      const chunks: string[] = [];
+      async function* source(): AsyncIterable<SessionTranscriptMessage> {
+        for (const message of messages) yield message;
+      }
+      for await (const chunk of streamTranscriptExport(source(), options)) {
+        chunks.push(chunk);
+      }
+      expect(chunks.join('')).toBe(exportTranscript(messages, options).content);
+    },
+  );
+
   it('exports Markdown matching user/assistant transcript text', () => {
     const result = exportTranscript(sampleMessages(), {
       format: 'md',
@@ -135,9 +154,7 @@ describe('exportTranscript', () => {
   });
 
   it('suggests stable export basenames', () => {
-    expect(suggestSessionExportBasename('abcdef01-rest', 'md')).toBe(
-      'piwin-export-abcdef01.md',
-    );
+    expect(suggestSessionExportBasename('abcdef01-rest', 'md')).toBe('piwin-export-abcdef01.md');
     expect(suggestSessionExportBasename('abcdef01-rest', 'html')).toBe(
       'piwin-export-abcdef01.html',
     );

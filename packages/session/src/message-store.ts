@@ -201,8 +201,9 @@ export function createUserTranscriptMessage(input: {
 
 export function createAssistantTranscriptMessage(input: {
   id: string;
+  runtimeGenerationId?: string;
 }): SessionTranscriptMessage {
-  return {
+  const message: SessionTranscriptMessage = {
     id: input.id,
     role: 'assistant',
     text: '',
@@ -211,6 +212,10 @@ export function createAssistantTranscriptMessage(input: {
     thinking: '',
     tools: [],
   };
+  if (input.runtimeGenerationId !== undefined) {
+    message.runtimeGenerationId = input.runtimeGenerationId;
+  }
+  return message;
 }
 
 export function appendToolCard(

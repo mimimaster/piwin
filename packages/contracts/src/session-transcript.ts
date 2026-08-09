@@ -9,6 +9,19 @@ import type {
   ToolPresentation,
 } from './host.js';
 
+/**
+ * Reserved generation namespace for legacy transcript rows (ADR 0040 §9).
+ * Legacy `transcript.json` imports keep their existing ids addressable
+ * without colliding with events from a later live runtime generation.
+ */
+export const LEGACY_IMPORT_GENERATION = 'legacy-import-v1';
+
+/**
+ * Reserved generation namespace for user-authored transcript rows
+ * (clientMessageId provenance).
+ */
+export const USER_AUTHORED_GENERATION = 'user-authored';
+
 export type SessionToolCardView = {
   toolCallId: string;
   toolName: string;
@@ -53,6 +66,13 @@ export type SessionTranscriptMessage = {
    * Only set for Assistant messages; legacy transcripts may omit it.
    */
   model?: ModelRef;
+  /**
+   * Runtime generation that created this row (ADR 0040 §7). Present on
+   * Assistant rows persisted after cold activation. Replay idempotency
+   * requires a matching normalized product id AND this provenance; a naked
+   * id collision from a different generation must never mutate the older row.
+   */
+  runtimeGenerationId?: string;
 };
 
 export type SessionTranscriptDocument = {
@@ -97,4 +117,31 @@ export type SessionOutlineNode = {
   role: AgentMessageRole;
   preview: string;
   createdAt: string;
+};
+
+/**
+ * Bounded outline page query (ADR 0040 §9).
+ *
+ * `session/resume` stops returning a complete outline; older outline data is
+ * available through this additive command. `beforeCursor` is the opaque
+ * cursor from a previous response (or omitted for the newest page).
+ */
+export type SessionOutlinePageQuery = {
+  sessionId: string;
+  /** Opaque cursor returned by the previous page; omit for the newest page. */
+  beforeCursor?: string;
+  /** Maximum outline nodes to return. Host clamps to a policy ceiling. */
+  limit: number;
+};
+
+/** Bounded outline page response (ADR 0040 §9). */
+export type SessionOutlinePageData = {
+  sessionId: string;
+  nodes: SessionOutlineNode[];
+  /** Cursor to pass as `beforeCursor` for the older page, when present. */
+  olderCursor?: string;
+  /** True when an older page exists beyond this response. */
+  hasOlder: boolean;
+  /** Bounded recent outline window for the newest page. */
+  recent: boolean;
 };
