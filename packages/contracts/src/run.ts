@@ -90,6 +90,7 @@ export const RUN_TERMINAL_CODES = {
   modelTurnTimeout: 'model-turn-timeout',
   mcpTimeout: 'mcp-timeout',
   hostShutdown: 'host-shutdown',
+  runtimeMemoryPressure: 'runtime-memory-pressure',
 } as const;
 
 export type RunTerminalCode = (typeof RUN_TERMINAL_CODES)[keyof typeof RUN_TERMINAL_CODES];

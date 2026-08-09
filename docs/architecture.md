@@ -86,6 +86,25 @@ The canonical target and implementation phases are recorded in
 [`specs/host-server-multi-client.md`](./specs/host-server-multi-client.md) and
 ADR 0036.
 
+
+## 2.2 Session runtime residency (ADR 0040)
+
+Durable chat records and live Agent runtimes are separate authorities.
+
+- Opening history is a bounded product-transcript read (`live: false`); it does
+  not allocate a Pi session, Host handle, recorder, or worker.
+- The first prompt (or an explicit reload) activates a stable product session id
+  with a new `runtimeGenerationId`. Host tools admit against the stable session
+  Run; Agent event ids are generation-scoped.
+- Idle runtimes are Host-evicted by TTL, max-idle LRU, max-resident, and optional
+  RSS high-water pressure. Busy Runs, pending permissions/UI, compaction, and
+  replacement transactions are never eviction candidates.
+- Clients (Desktop/CLI) observe `session/runtime-status.residency` and
+  `host/runtime-resources`; they never own timers, LRU, or memory thresholds.
+- Long-session transcript retention is bounded by the SQLite session transcript
+  store (WP6), with legacy JSON fallback and doctor-detectable migration.
+
+
 ## 3. Dual-mode Agent Host
 
 ### 3.1 Why both

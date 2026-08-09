@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   parseWorkerFrame,
   serializeWorkerRequest,
+  serializeWorkerResourceRequest,
   type WorkerFrameContext,
   type WorkerRequest,
   type WorkerToolCallFrame,
@@ -346,4 +347,43 @@ describe('RpcSdkWorkerClient startup and framing', () => {
       await client.close();
     }
   }, 10_000);
+});
+
+describe('worker resource frames (ADR 0040 §8)', () => {
+  it('parses a valid resource-response frame', () => {
+    const line = JSON.stringify({
+      type: 'resource-response',
+      id: 'res-1',
+      memory: { rssBytes: 123, heapUsedBytes: 45, heapTotalBytes: 100, externalBytes: 5 },
+      sampledAtMs: 12345,
+    });
+    const frame = parseWorkerFrame(line);
+    expect(frame?.type).toBe('resource-response');
+    if (frame?.type === 'resource-response') {
+      expect(frame.id).toBe('res-1');
+      expect(frame.memory.rssBytes).toBe(123);
+      expect(frame.memory.heapTotalBytes).toBe(100);
+    }
+  });
+
+  it('rejects malformed resource-response frames', () => {
+    expect(
+      parseWorkerFrame(
+        JSON.stringify({
+          type: 'resource-response',
+          id: 'x',
+          memory: { rssBytes: 1 },
+          sampledAtMs: 0,
+        }),
+      ),
+    ).toBeUndefined();
+    expect(
+      parseWorkerFrame(JSON.stringify({ type: 'resource-response', id: 'x' })),
+    ).toBeUndefined();
+  });
+
+  it('serializes an internal resource request', () => {
+    const line = serializeWorkerResourceRequest({ type: 'resource-request', id: 'res-2' });
+    expect(JSON.parse(line)).toEqual({ type: 'resource-request', id: 'res-2' });
+  });
 });

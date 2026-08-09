@@ -1,55 +1,116 @@
 import { describe, expect, it } from 'vitest';
 import type { SessionTranscriptMessage } from '@piwin/contracts';
-import { buildSessionOutline } from './session-outline.js';
+import {
+  buildSessionOutline,
+  buildSessionOutlineWindow,
+  buildSessionOutlinePage,
+  DEFAULT_OUTLINE_RECENT_WINDOW,
+} from './session-outline.js';
 
-describe('buildSessionOutline', () => {
-  it('maps messages to outline nodes with truncated preview', () => {
-    const longText = 'word '.repeat(40).trim();
-    const messages: SessionTranscriptMessage[] = [
-      {
-        id: 'm1',
-        role: 'user',
-        text: longText,
-        createdAt: '2026-07-20T00:00:00.000Z',
-        status: 'done',
-      },
-      {
-        id: 'm2',
-        role: 'assistant',
-        text: '  short reply  ',
-        createdAt: '2026-07-20T00:00:01.000Z',
-        status: 'done',
-      },
-    ];
-    const outline = buildSessionOutline(messages);
-    expect(outline).toHaveLength(2);
-    expect(outline[0]?.id).toBe('m1');
-    expect(outline[0]?.preview.endsWith('…')).toBe(true);
-    expect(outline[0]?.preview.length).toBeLessThanOrEqual(120);
-    expect(outline[1]?.preview).toBe('short reply');
+function makeMessage(id: string, role: 'user' | 'assistant', text: string): SessionTranscriptMessage {
+  return {
+    id,
+    role,
+    text,
+    createdAt: new Date().toISOString(),
+    status: 'done',
+  };
+}
+
+describe('session outline', () => {
+  it('returns the complete outline for small transcripts', () => {
+    const messages = [makeMessage('m1', 'user', 'hello'), makeMessage('m2', 'assistant', 'hi')];
+    expect(buildSessionOutlineWindow(messages)).toEqual(buildSessionOutline(messages));
   });
 
-  it('returns empty outline for empty transcript', () => {
-    expect(buildSessionOutline([])).toEqual([]);
+  it('returns only the bounded recent window for large transcripts (ADR 0040 §9)', () => {
+    const messages = Array.from({ length: DEFAULT_OUTLINE_RECENT_WINDOW + 25 }, (_, index) =>
+      makeMessage(`m${index}`, index % 2 === 0 ? 'user' : 'assistant', `turn ${index}`),
+    );
+    const window = buildSessionOutlineWindow(messages);
+    expect(window).toHaveLength(DEFAULT_OUTLINE_RECENT_WINDOW);
+    expect(window[0]?.id).toBe(`m${messages.length - DEFAULT_OUTLINE_RECENT_WINDOW}`);
+    expect(window.at(-1)?.id).toBe(`m${messages.length - 1}`);
   });
 
-  it('strips agent-mode wrappers from user previews', () => {
-    const outline = buildSessionOutline([
-      {
-        id: 'm1',
-        role: 'user',
-        text: [
-          '[piwin-mode:agent]',
-          '[piwin-prompt-meta kind="mode:agent" version="2" applies="every-turn"]',
-          'Operating contract for this turn:',
-          '---',
-          'User:',
-          'Fix the login bug',
-        ].join('\n'),
-        createdAt: '2026-07-20T00:00:00.000Z',
-        status: 'done',
-      },
+  it('pages the newest outline page and walks older pages with cursors', () => {
+    const messages = Array.from({ length: 30 }, (_, index) =>
+      makeMessage(`m${index}`, index % 2 === 0 ? 'user' : 'assistant', `turn ${index}`),
+    );
+
+    const newest = buildSessionOutlinePage(messages, { sessionId: 's1', limit: 10 });
+    expect(newest.recent).toBe(true);
+    expect(newest.hasOlder).toBe(true);
+    expect(newest.nodes.map((node) => node.id)).toEqual([
+      'm20',
+      'm21',
+      'm22',
+      'm23',
+      'm24',
+      'm25',
+      'm26',
+      'm27',
+      'm28',
+      'm29',
     ]);
-    expect(outline[0]?.preview).toBe('Fix the login bug');
+    if (newest.olderCursor === undefined) {
+      throw new Error('expected an older cursor for the newest page');
+    }
+
+    const older = buildSessionOutlinePage(messages, {
+      sessionId: 's1',
+      limit: 10,
+      beforeCursor: newest.olderCursor,
+    });
+    expect(older.recent).toBe(false);
+    expect(older.nodes.map((node) => node.id)).toEqual([
+      'm10',
+      'm11',
+      'm12',
+      'm13',
+      'm14',
+      'm15',
+      'm16',
+      'm17',
+      'm18',
+      'm19',
+    ]);
+    if (older.olderCursor === undefined) {
+      throw new Error('expected an older cursor for the middle page');
+    }
+
+    const oldest = buildSessionOutlinePage(messages, {
+      sessionId: 's1',
+      limit: 10,
+      beforeCursor: older.olderCursor,
+    });
+    expect(oldest.nodes.map((node) => node.id)).toEqual(['m0', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9']);
+    expect(oldest.hasOlder).toBe(false);
+  });
+
+  it('rejects a stale cursor with an empty page instead of mixing windows', () => {
+    const messagesA = [makeMessage('m1', 'user', 'a'), makeMessage('m2', 'assistant', 'b')];
+    const messagesB = [makeMessage('m1', 'user', 'a'), makeMessage('m2', 'assistant', 'b'), makeMessage('m3', 'user', 'c')];
+
+    const page = buildSessionOutlinePage(messagesA, { sessionId: 's1', limit: 1 });
+    if (page.olderCursor === undefined) {
+      throw new Error('expected an older cursor');
+    }
+    const stale = buildSessionOutlinePage(messagesB, {
+      sessionId: 's1',
+      limit: 1,
+      beforeCursor: page.olderCursor,
+    });
+    expect(stale.nodes).toEqual([]);
+    expect(stale.hasOlder).toBe(false);
+  });
+
+  it('clamps invalid page limits', () => {
+    expect(() =>
+      buildSessionOutlinePage([], { sessionId: 's1', limit: 0 }),
+    ).toThrow(RangeError);
+    expect(() =>
+      buildSessionOutlinePage([], { sessionId: 's1', limit: 1000 }),
+    ).toThrow(RangeError);
   });
 });

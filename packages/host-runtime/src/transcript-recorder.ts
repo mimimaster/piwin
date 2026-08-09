@@ -33,10 +33,22 @@ const DEFAULT_FLUSH_INTERVAL_MS = 250;
 const DEFAULT_MAX_TOOL_OUTPUT_BYTES = 256 * 1024;
 const TOOL_OUTPUT_TRUNCATION_MARKER = '\n[output truncated: retention limit reached]';
 
+/**
+ * @deprecated Legacy JSON regression fixture only. Production HostRuntime uses
+ * `createStoreTranscriptRecorder`; do not introduce new callers.
+ */
 export function createTranscriptRecorder(options: {
   transcriptPath: string;
   sessionId: string;
   projectPath: string;
+  /**
+   * ADR 0040 §7: the runtime generation this recorder persists for. Assistant
+   * rows record it as provenance; `message/start` replay is accepted only
+   * when the normalized product id AND this provenance match. A naked id
+   * collision from a different generation emits a bounded diagnostic and
+   * never mutates the older row.
+   */
+  runtimeGenerationId?: string;
   flushIntervalMs?: number;
   maxToolOutputBytes?: number;
   onError?: (error: unknown) => void;
@@ -55,6 +67,8 @@ export function createTranscriptRecorder(options: {
 }): TranscriptRecorder {
   let lastAssistantId: string | null = null;
   const assistantIdsByRunId = new Map<string, string>();
+  const quarantinedMessageIds = new Set<string>();
+  const quarantinedRunIds = new Set<string>();
   let writeQueue: Promise<void> = Promise.resolve();
   let document: SessionTranscriptDocument | null = null;
   let flushTimer: ReturnType<typeof setTimeout> | undefined;
@@ -204,11 +218,14 @@ export function createTranscriptRecorder(options: {
         switch (event.type) {
           case 'message/start': {
             if (event.role === 'assistant') {
-              lastAssistantId = event.messageId;
-              const message = createAssistantTranscriptMessage({ id: event.messageId });
+              const message = createAssistantTranscriptMessage({
+                id: event.messageId,
+                ...(options.runtimeGenerationId !== undefined
+                  ? { runtimeGenerationId: options.runtimeGenerationId }
+                  : {}),
+              });
               if (event.runId) {
                 message.runId = event.runId;
-                assistantIdsByRunId.set(event.runId, event.messageId);
               }
               // Spec §7.3: snapshot the model used for this run onto the
               // assistant transcript message so default-mode walkthrough
@@ -223,15 +240,62 @@ export function createTranscriptRecorder(options: {
               }
               // Lifecycle events can be replayed across SDK subscription
               // recovery. One message id must map to exactly one transcript row.
-              if (!currentDocument.messages.some((item) => item.id === event.messageId)) {
+              const existingRow = currentDocument.messages.find(
+                (item) => item.id === event.messageId,
+              );
+              if (!existingRow) {
                 currentDocument.messages.push(message);
                 documentRevision += 1;
+                lastAssistantId = event.messageId;
+                if (event.runId) {
+                  assistantIdsByRunId.set(event.runId, event.messageId);
+                }
+              } else {
+                // ADR 0040 §7: replay is accepted only when the normalized
+                // product id AND generation provenance both match. A naked id
+                // collision with different (or missing) provenance is a
+                // bounded diagnostic and never mutates the older row.
+                const recorderGeneration = options.runtimeGenerationId;
+                const storedGeneration = existingRow.runtimeGenerationId;
+                if (
+                  recorderGeneration !== undefined &&
+                  storedGeneration !== undefined &&
+                  storedGeneration !== recorderGeneration
+                ) {
+                  quarantinedMessageIds.add(event.messageId);
+                  lastAssistantId = null;
+                  if (event.runId) {
+                    assistantIdsByRunId.delete(event.runId);
+                    quarantinedRunIds.add(event.runId);
+                  }
+                  options.onDiagnostic?.(
+                    `message/start collision: messageId=${event.messageId} ` +
+                      `storedGeneration=${storedGeneration} currentGeneration=${recorderGeneration}`,
+                  );
+                } else if (recorderGeneration !== undefined && storedGeneration === undefined) {
+                  quarantinedMessageIds.add(event.messageId);
+                  lastAssistantId = null;
+                  if (event.runId) {
+                    assistantIdsByRunId.delete(event.runId);
+                    quarantinedRunIds.add(event.runId);
+                  }
+                  options.onDiagnostic?.(
+                    `message/start collision with legacy row: messageId=${event.messageId} ` +
+                      `currentGeneration=${recorderGeneration}`,
+                  );
+                } else {
+                  lastAssistantId = event.messageId;
+                  if (event.runId) {
+                    assistantIdsByRunId.set(event.runId, event.messageId);
+                  }
+                }
               }
               await persistDocument();
             }
             break;
           }
           case 'message/text_delta': {
+            if (quarantinedMessageIds.has(event.messageId)) break;
             updateMessage(
               event.messageId,
               (message) => ({
@@ -245,6 +309,7 @@ export function createTranscriptRecorder(options: {
             break;
           }
           case 'message/thinking_delta': {
+            if (quarantinedMessageIds.has(event.messageId)) break;
             updateMessage(
               event.messageId,
               (message) => ({
@@ -257,6 +322,7 @@ export function createTranscriptRecorder(options: {
             break;
           }
           case 'message/end': {
+            if (quarantinedMessageIds.has(event.messageId)) break;
             updateMessage(
               event.messageId,
               (message) => ({ ...message, status: 'done' }),
@@ -284,6 +350,7 @@ export function createTranscriptRecorder(options: {
             break;
           }
           case 'tool/start': {
+            if (event.runId && quarantinedRunIds.has(event.runId)) break;
             const assistantId = event.runId
               ? assistantIdsByRunId.get(event.runId)
               : lastAssistantId;
@@ -309,6 +376,7 @@ export function createTranscriptRecorder(options: {
             break;
           }
           case 'tool/update': {
+            if (event.runId && quarantinedRunIds.has(event.runId)) break;
             const assistantId = event.runId
               ? assistantIdsByRunId.get(event.runId)
               : lastAssistantId;
@@ -341,6 +409,7 @@ export function createTranscriptRecorder(options: {
             break;
           }
           case 'tool/end': {
+            if (event.runId && quarantinedRunIds.has(event.runId)) break;
             const assistantId = event.runId
               ? assistantIdsByRunId.get(event.runId)
               : lastAssistantId;

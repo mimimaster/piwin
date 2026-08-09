@@ -995,3 +995,66 @@ describe('RunRegistry edge cases', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// 15. attachRuntimeGeneration() — ADR 0040 §7
+// ---------------------------------------------------------------------------
+
+describe('RunRegistry.attachRuntimeGeneration()', () => {
+  it('attaches a generation to a non-terminal Run exactly once', () => {
+    const reg = makeRegistry();
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
+    reg.start(run.runId);
+
+    const attached = reg.attachRuntimeGeneration(run.runId, 'gen-1');
+    expect(attached.ok).toBe(true);
+    if (attached.ok) {
+      expect(attached.run.runtimeGenerationId).toBe('gen-1');
+    }
+    expect(reg.get(run.runId)?.runtimeGenerationId).toBe('gen-1');
+  });
+
+  it('is idempotent when re-attaching the same generation', () => {
+    const reg = makeRegistry();
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
+    reg.start(run.runId);
+
+    expect(reg.attachRuntimeGeneration(run.runId, 'gen-1').ok).toBe(true);
+    const reattached = reg.attachRuntimeGeneration(run.runId, 'gen-1');
+    expect(reattached.ok).toBe(true);
+    if (reattached.ok) {
+      expect(reattached.run.runtimeGenerationId).toBe('gen-1');
+    }
+  });
+
+  it('rejects a different generation as a correlation error', () => {
+    const reg = makeRegistry();
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
+    reg.start(run.runId);
+
+    expect(reg.attachRuntimeGeneration(run.runId, 'gen-1').ok).toBe(true);
+    const rebound = reg.attachRuntimeGeneration(run.runId, 'gen-2');
+    expect(rebound).toEqual({ ok: false, reason: 'already-attached' });
+    expect(reg.get(run.runId)?.runtimeGenerationId).toBe('gen-1');
+  });
+
+  it('cannot attach to a terminal Run', () => {
+    const reg = makeRegistry();
+    const run = reg.create({ kind: 'session-turn', sessionId: 'sess-1' });
+    reg.start(run.runId);
+    reg.terminate(run.runId, 'completed', 'completed');
+
+    expect(reg.attachRuntimeGeneration(run.runId, 'gen-1')).toEqual({
+      ok: false,
+      reason: 'terminal',
+    });
+  });
+
+  it('cannot attach to a missing Run', () => {
+    const reg = makeRegistry();
+    expect(reg.attachRuntimeGeneration('missing', 'gen-1')).toEqual({
+      ok: false,
+      reason: 'not-found',
+    });
+  });
+});

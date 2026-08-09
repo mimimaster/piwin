@@ -73,7 +73,7 @@ describe('HostRuntime session/export', () => {
       redactTools: true,
       outputPath: outPath,
     });
-    expect(response.success).toBe(true);
+    expect(response.success, JSON.stringify(response)).toBe(true);
     if (!response.success) throw new Error(response.error);
     const data = response.data as {
       path: string;
@@ -106,25 +106,30 @@ describe('HostRuntime session/export', () => {
     if (!created.success) throw new Error(created.error);
     const sessionId = (created.data as { sessionId: string }).sessionId;
     const indexPath = getPiwinSessionIndexPath(rootDir);
-    const transcriptPath = getPiwinSessionTranscriptPath(rootDir, sessionId);
-    await mkdir(join(rootDir, 'sessions', sessionId), { recursive: true });
-    const originalTranscript: SessionTranscriptDocument = {
-      version: 1,
+    // Seed through the Host prompt path so the SQLite transcript store (v2
+    // authority) sees the user turn. Writing legacy JSON after create is too
+    // late: create already opens an empty authoritative store.
+    const seeded = await runtime.handleCommand({
+      type: 'session/prompt',
       sessionId,
-      projectPath: '/tmp/compact-export-project',
-      updatedAt: '2026-07-21T10:00:00.000Z',
-      messages: [
-        {
-          id: 'u1',
-          role: 'user',
-          text: 'Keep this context for the next task.',
-          createdAt: '2026-07-21T10:00:00.000Z',
-          status: 'done',
-        },
-      ],
-    };
-    await writeFile(transcriptPath, `${JSON.stringify(originalTranscript, null, 2)}\n`, 'utf8');
-    const originalTranscriptOnDisk = await readFile(transcriptPath, 'utf8');
+      input: { text: 'Keep this context for the next task.' },
+    });
+    expect(seeded.success).toBe(true);
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const messages = await runtime.handleCommand({
+        type: 'session/messages',
+        sessionId,
+      });
+      if (
+        messages.success &&
+        (messages.data as { messages: Array<{ role: string }> }).messages.some(
+          (row) => row.role === 'user',
+        )
+      ) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
     const outputPath = join(rootDir, 'out', 'compact.md');
 
     const response = await runtime.handleCommand({
@@ -147,7 +152,18 @@ describe('HostRuntime session/export', () => {
 
     const content = await readFile(outputPath, 'utf8');
     expect(content).toBe('Mock summary of prior turns for UI testing.\n');
-    expect(await readFile(transcriptPath, 'utf8')).toBe(originalTranscriptOnDisk);
+    // Compact-export must not mutate the live product transcript.
+    const liveMessages = await runtime.handleCommand({
+      type: 'session/messages',
+      sessionId,
+    });
+    expect(liveMessages.success).toBe(true);
+    if (!liveMessages.success) throw new Error(liveMessages.error);
+    expect(
+      (liveMessages.data as { messages: Array<{ text: string }> }).messages.some((row) =>
+        row.text.includes('Keep this context for the next task.'),
+      ),
+    ).toBe(true);
     const indexAfter = JSON.parse(await readFile(indexPath, 'utf8')) as SessionIndexDocument;
     expect(indexAfter.sessions).toHaveLength(1);
 

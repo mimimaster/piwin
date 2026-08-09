@@ -196,6 +196,32 @@ describe('session live control commands', () => {
     await session.promptSettled;
   });
 
+  it('passes the foreground Run signal into cold runtime admission', async () => {
+    const session = createDelayedSessionHandle();
+    const { context } = createPromptContext(session);
+    let activation: { runId: string | undefined; signal: AbortSignal | undefined } | undefined;
+    context.activateSessionRuntime = async (_sessionId, runId, signal) => {
+      activation = { runId, signal };
+      return session;
+    };
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/prompt',
+        sessionId: session.id,
+        input: { text: 'signal propagation' },
+      },
+      undefined,
+      context,
+    );
+    expect(response).toMatchObject({ success: true });
+    await vi.waitFor(() => expect(activation).toBeDefined());
+    if (!activation?.runId || !activation.signal) {
+      throw new Error('runtime activation did not receive Run identity and signal');
+    }
+    expect(activation.signal).toBe(context.getRunSignal(activation.runId));
+  });
+
   it('cancels preparation and emits one terminal event', async () => {
     const session = createDelayedSessionHandle();
     const promptContext = createPromptContext(session);
@@ -634,6 +660,12 @@ function createControlContext(
     bindSession: async (): Promise<void> => undefined,
     loadTranscriptMessages: async () => [],
     loadSessionUsage: async () => null,
+    getTranscriptStore: async () => {
+      throw new Error('transcript store is not configured for this control-only test');
+    },
+    withTranscriptStore: async () => {
+      throw new Error('transcript store is not configured for this control-only test');
+    },
     loadSideChatSnapshot: async () => undefined,
     sideChatSnapshotInjectedVersions: new Map(),
     stopProcessesForSession: async (): Promise<void> => {
@@ -645,6 +677,10 @@ function createControlContext(
     touchSession: async (): Promise<void> => undefined,
     needsProductHistoryInjection: (): boolean => false,
     ensureLiveSession: async () => session,
+    activateSessionRuntime: async () => session,
+    markProductHistoryInjected: (): void => undefined,
+    protectRuntime: (): boolean => true,
+    releaseRuntimeProtection: (): void => undefined,
     resolveAutoCompaction: async () => ({ enabled: true, source: 'test', globalDefault: true }),
     buildModelPromptInput: async (input) => input,
     validatePromptAttachments: () => undefined,
@@ -670,16 +706,12 @@ function createControlContext(
       isRunInFlight: (sessionId) => registry.getForegroundRun(sessionId) !== undefined,
     }),
     cancelRuntimeReplacement: async () => undefined,
+    disposeLiveSession: async () => undefined,
     reloadRuntime: async () => ({ generationId: 'generation-2', settingsRevision: 'rev-2' }),
     loadConfig: async () => ({}) as any,
     setRunOrchestrationScheme: (_runId, _scheme): void => undefined,
     getRunOrchestrationScheme: (_runId): ResolvedOrchestrationScheme | undefined => undefined,
-    listKnownSubagentProfileIds: async () => [
-      'explorer',
-      'reviewer',
-      'implementer',
-      'tester',
-    ],
+    listKnownSubagentProfileIds: async () => ['explorer', 'reviewer', 'implementer', 'tester'],
   };
   return { context, registry, activeRun };
 }

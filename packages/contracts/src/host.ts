@@ -306,7 +306,8 @@ export type SessionRunPhase =
   | 'streaming'
   | 'tool-running'
   | 'waiting-permission'
-  | 'cancelling';
+  | 'cancelling'
+  | 'waiting-resource';
 
 /** ADR 0015: stable terminal codes for run outcomes. */
 export type SessionRunTerminalCode =
@@ -316,7 +317,8 @@ export type SessionRunTerminalCode =
   | 'model-first-token-timeout'
   | 'model-turn-timeout'
   | 'mcp-timeout'
-  | 'host-shutdown';
+  | 'host-shutdown'
+  | 'runtime-memory-pressure';
 
 /** ADR 0015: immediate acknowledgement returned by session/prompt. */
 export type SessionRunAcceptedData = {
@@ -380,7 +382,15 @@ export type AgentEvent =
   | { type: 'session/ended'; sessionId: string }
   /** User-requested cancellation; partial assistant text is retained when messageId is set. */
   | { type: 'session/aborted'; sessionId: string; messageId?: string; runId?: string }
-  | { type: 'message/start'; messageId: string; role: AgentMessageRole; runId?: string }
+  | {
+      type: 'message/start';
+      /** Opaque product-normalized message id exposed to clients. */
+      messageId: string;
+      /** Original backend id retained only as persistence provenance. */
+      backendMessageId?: string;
+      role: AgentMessageRole;
+      runId?: string;
+    }
   | { type: 'message/text_delta'; messageId: string; delta: string; runId?: string }
   /** C1: complete snapshot emitted when host detects cumulative text (replaces, does not append). */
   | { type: 'message/text_snapshot'; messageId: string; text: string; runId?: string }

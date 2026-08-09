@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Proposed; ready for review |
+| Status | Implemented; native SDK/RPC RSS gate passed, manual cross-feature rollout check remains |
 | Date | 2026-08-09 |
 | Decision | [ADR 0040](../adr/0040-host-session-runtime-residency.md) |
 | Primary owner | `@piwin/host-runtime` |
@@ -44,15 +44,15 @@ SQLite; it must not be used as a substitute for fixing them.
 
 ### WP0 — Baseline and test fixtures
 
-- [ ] Add an injected clock and memory sampler fixture for residency tests.
-- [ ] Add fake SDK/RPC backends that count create, drop-generation, drop-session,
+- [x] Add an injected clock and memory sampler fixture for residency tests.
+- [x] Add fake SDK/RPC backends that count create, drop-generation, drop-session,
       subscribe, unsubscribe, and worker-memory-query calls.
-- [ ] Capture baseline behavior for cold resume, first prompt reconstruction,
+- [x] Capture baseline behavior for cold resume, first prompt reconstruction,
       active Run correlation, pending permission, compaction, and runtime reload.
-- [ ] Add a cold-resume fixture in which two backend generations both emit
+- [x] Add a cold-resume fixture in which two backend generations both emit
       `pi-message-2` and `call_00`; reproduce the current old-row merge and
       Host-tool `session-mismatch` denial before applying the fix.
-- [ ] Add a deterministic 100-session navigation fixture proving the current
+- [x] Add a deterministic 100-session navigation fixture proving the current
       live-handle/recorder count can grow.
 
 Exit gate: the regression is reproduced without real waiting or flaky RSS
@@ -60,15 +60,15 @@ assertions.
 
 ### WP1 — Contracts and normalized Settings
 
-- [ ] Add `SessionRuntimeRetentionConfig` under `SessionConfig` with the ADR
+- [x] Add `SessionRuntimeRetentionConfig` under `SessionConfig` with the ADR
       defaults and strict normalization/clamps.
-- [ ] Add residency details to `SessionRuntimeStatus` without removing the
+- [x] Add residency details to `SessionRuntimeStatus` without removing the
       existing compatibility state.
-- [ ] Add `waiting-resource` to `SessionRunPhase` and
+- [x] Add `waiting-resource` to `SessionRunPhase` and
       `runtime-memory-pressure` to stable terminal codes.
-- [ ] Add `host/runtime-resources` query/response contracts.
-- [ ] Add a bounded `session/outline-page` contract and capability marker.
-- [ ] Update every switch/exhaustive mapper in Host, Desktop, CLI, and tests.
+- [x] Add `host/runtime-resources` query/response contracts.
+- [x] Add a bounded `session/outline-page` contract and capability marker.
+- [x] Update every switch/exhaustive mapper in Host, Desktop, CLI, and tests.
 
 Exit gate: `@piwin/contracts` typecheck is green and old clients can ignore the
 additive status fields.
@@ -78,18 +78,18 @@ additive status fields.
 Create
 `packages/host-runtime/src/sessions/session-runtime-residency-controller.ts`.
 
-- [ ] Track state, generation id, last-used time, idle deadline, transition
+- [x] Track state, generation id, last-used time, idle deadline, transition
       promise, protection count, and last eviction reason per resident session.
-- [ ] Implement `touch`, `beginActivation`, `commitActivation`,
+- [x] Implement `touch`, `beginActivation`, `commitActivation`,
       `abortActivation`, `markBusy`, `markIdle`, `protect`, `releaseProtection`,
       and `suspend` transitions.
-- [ ] Implement deterministic victim selection: expired first, then idle LRU;
+- [x] Implement deterministic victim selection: expired first, then idle LRU;
       never choose a protected runtime.
-- [ ] Implement admission against max resident/max idle counts and high/low RSS
+- [x] Implement admission against max resident/max idle counts and high/low RSS
       hysteresis.
-- [ ] Queue capacity waiters FIFO with AbortSignal cancellation.
-- [ ] Use one unref'ed 30-second sweep timer only while resident entries exist.
-- [ ] Keep metrics counters bounded and aggregate; never retain an eviction log
+- [x] Queue capacity waiters FIFO with AbortSignal cancellation.
+- [x] Use one unref'ed 30-second sweep timer only while resident entries exist.
+- [x] Keep metrics counters bounded and aggregate; never retain an eviction log
       per session indefinitely.
 
 Required tests:
@@ -109,36 +109,36 @@ imported by the controller.
 
 ### WP3 — Cold resume, stable activation, and event identity
 
-- [ ] Change `session/resume` into a durable bounded read. Do not bind a shell
+- [x] Change `session/resume` into a durable bounded read. Do not bind a shell
       or create a backend when the session is cold; return `live: false`.
-- [ ] Remove complete `seedMessages` retention from `ProductShellSession`, or
+- [x] Remove complete `seedMessages` retention from `ProductShellSession`, or
       retire the shell from the normal resume path.
-- [ ] Add a Host-owned `activateSessionRuntime(sessionId, signal)` path using
+- [x] Add a Host-owned `activateSessionRuntime(sessionId, signal)` path using
       `ProductAgentHost.prepareSession`/commit with the stable product session
       id and a fresh generation id.
-- [ ] Deduplicate concurrent activation by session id.
-- [ ] Make `session/prompt` validate the durable record instead of requiring an
+- [x] Deduplicate concurrent activation by session id.
+- [x] Make `session/prompt` validate the durable record instead of requiring an
       already-bound handle before acceptance.
-- [ ] Preserve the current prompt-persistence ordering, then activate in the
+- [x] Preserve the current prompt-persistence ordering, then activate in the
       detached Run before provider execution.
-- [ ] Add `RunRegistry.attachRuntimeGeneration(runId, generationId)` with
+- [x] Add `RunRegistry.attachRuntimeGeneration(runId, generationId)` with
       exact-once validation before Host tool admission.
-- [ ] At the `@piwin/agent-host` adapter boundary, normalize Pi-native and
+- [x] At the `@piwin/agent-host` adapter boundary, normalize Pi-native and
       synthesized message, tool-call, and permission ids with the stable
       product session id plus runtime generation id before emitting
       `AgentEvent`. Keep the resulting ids opaque to clients.
-- [ ] Make identity mapping deterministic within one generation so replayed
+- [x] Make identity mapping deterministic within one generation so replayed
       events remain idempotent, while identical backend ids from different
       generations always produce different product ids.
-- [ ] Update the current JSON `TranscriptRecorder` immediately: only matching
+- [x] Update the current JSON `TranscriptRecorder` immediately: only matching
       normalized id plus generation provenance counts as replay. A collision
       with different provenance emits a bounded `host/log` diagnostic and
       cannot update the older row.
-- [ ] Inject bounded product history once when the accepted Run started cold;
+- [x] Inject bounded product history once when the accepted Run started cold;
       do not infer this from a full in-memory seed array.
-- [ ] Set `SessionResumeData.live` from actual residency, not from product
+- [x] Set `SessionResumeData.live` from actual residency, not from product
       session existence.
-- [ ] Replace the complete resume outline with the bounded recent window.
+- [x] Replace the complete resume outline with the bounded recent window.
 
 Required tests:
 
@@ -163,22 +163,22 @@ without mutating prior-generation transcript rows.
 
 ### WP4 — Safe suspension transaction
 
-- [ ] Implement `suspendSessionRuntime` separately from session delete/dispose.
-- [ ] Build the eviction blocker from RunRegistry, pending permission/UI maps,
+- [x] Implement `suspendSessionRuntime` separately from session delete/dispose.
+- [x] Build the eviction blocker from RunRegistry, pending permission/UI maps,
       compaction protection, replacement state, and transition state.
-- [ ] Add explicit protection leases around compaction and any backend
+- [x] Add explicit protection leases around compaction and any backend
       operation not represented in RunRegistry.
-- [ ] Flush recorder before detaching. Treat flush failure as an eviction
+- [x] Flush recorder before detaching. Treat flush failure as an eviction
       failure, keep the runtime resident, and surface a bounded diagnostic.
-- [ ] Mark generation non-admitting before backend abort/drop so late tool
+- [x] Mark generation non-admitting before backend abort/drop so late tool
       frames fail closed.
-- [ ] Unsubscribe, clear event correlation, release Host tool/MCP generation
+- [x] Unsubscribe, clear event correlation, release Host tool/MCP generation
       snapshots, and call ProductAgentHost/backend drop exactly once.
-- [ ] Dispose the recorder and remove resident-only maps.
-- [ ] Revoke session-only permission grants and overrides on cold suspension.
-- [ ] Do not stop independent Jobs, archive/delete the session, or abort
+- [x] Dispose the recorder and remove resident-only maps.
+- [x] Revoke session-only permission grants and overrides on cold suspension.
+- [x] Do not stop independent Jobs, archive/delete the session, or abort
       walkthrough generation.
-- [ ] Touch/mark idle on terminal Run and wake queued activation requests.
+- [x] Touch/mark idle on terminal Run and wake queued activation requests.
 
 Required tests:
 
@@ -195,20 +195,20 @@ Exit gate: SDK and RPC pass the same residency conformance suite.
 
 ### WP5 — Worker and Host memory pressure
 
-- [ ] Add an internal worker resource request/response carrying current
+- [x] Add an internal worker resource request/response carrying current
       `process.memoryUsage()` values with a strict frame size and timeout.
-- [ ] Aggregate Host RSS plus current worker RSS in AgentWorkerSupervisor/
+- [x] Aggregate Host RSS plus current worker RSS in AgentWorkerSupervisor/
       HostRuntime without exposing per-process secrets or PIDs remotely.
-- [ ] Cache worker samples briefly; mark aggregate completeness explicitly.
-- [ ] Run admission eviction before worker acquisition.
-- [ ] When idle victims exist, capacity exhaustion must evict/retry rather than
+- [x] Cache worker samples briefly; mark aggregate completeness explicitly.
+- [x] Run admission eviction before worker acquisition.
+- [x] When idle victims exist, capacity exhaustion must evict/retry rather than
       return `worker capacity exhausted`.
-- [ ] When every runtime is busy, publish `waiting-resource` and queue
+- [x] When every runtime is busy, publish `waiting-resource` and queue
       cancellably.
-- [ ] When memory remains above high water after all idle victims are gone,
+- [x] When memory remains above high water after all idle victims are gone,
       terminalize the new activation with `runtime-memory-pressure` and an
       actionable message.
-- [ ] Add query-only aggregate metrics and doctor output:
+- [x] Add query-only aggregate metrics and doctor output:
       resident/idle/busy/activating counts, waiter count, Host RSS, worker RSS,
       budget, sample completeness, and eviction/failure counters by reason.
 
@@ -258,24 +258,24 @@ compound key. User-authored transcript rows use a reserved Host generation
 and their client message id as provenance. Legacy imports use the reserved
 `legacy-import-v1` generation namespace.
 
-- [ ] Define the store interface before changing callers.
-- [ ] Implement transactionally append/upsert/update/finalize operations for
+- [x] Define the store interface before changing callers.
+- [x] Implement transactionally append/upsert/update/finalize operations for
       only the affected message row.
-- [ ] Require append/upsert callers to provide normalized id and generation
+- [x] Require append/upsert callers to provide normalized id and generation
       provenance. Never update a row solely because its backend message id
       matches.
-- [ ] Replace recorder whole-document snapshots with current-row updates and a
+- [x] Replace recorder whole-document snapshots with current-row updates and a
       bounded write queue.
-- [ ] Implement tail/page cursors from transcript revision + sequence.
-- [ ] Implement bounded history-context and recent-model queries.
-- [ ] Implement outline pages without loading full message bodies.
-- [ ] Implement truncate/fork/duplicate/export as streamed or transactional
+- [x] Implement tail/page cursors from transcript revision + sequence.
+- [x] Implement bounded history-context and recent-model queries.
+- [x] Implement outline pages without loading full message bodies.
+- [x] Implement truncate/fork/duplicate/export as streamed or transactional
       store operations.
-- [ ] Import legacy `transcript.json` transactionally and verify message count,
+- [x] Import legacy `transcript.json` transactionally and verify message count,
       ids, and a content digest before selecting v2 as authority.
-- [ ] Keep the original JSON backup; provide doctor detection/repair for an
+- [x] Keep the original JSON backup; provide doctor detection/repair for an
       interrupted migration.
-- [ ] Close SQLite handles when a session becomes cold and during Host dispose.
+- [x] Close SQLite handles when a session becomes cold and during Host dispose.
 
 Required tests:
 
@@ -298,34 +298,34 @@ duplicate may iterate the full transcript but remain streaming/bounded.
 
 ### WP7 — Desktop and CLI visibility
 
-- [ ] Reuse the existing Session Runtime settings page and `@piwin/ui-kit`
+- [x] Reuse the existing Session Runtime settings page and `@piwin/ui-kit`
       controls for idle TTL, idle count, optional resident cap, and optional
       memory high water.
-- [ ] Show `Cold`, `Starting`, `Ready`, `Busy`, and `Suspending` truthfully in
+- [x] Show `Cold`, `Starting`, `Ready`, `Busy`, and `Suspending` truthfully in
       diagnostics; ordinary chat UX only needs a subtle “restoring runtime”
       phase on cold prompt.
-- [ ] Keep history usable when `live: false`; do not label a cold session as
+- [x] Keep history usable when `live: false`; do not label a cold session as
       disconnected or damaged.
-- [ ] Add aggregate resource status to CLI doctor/status.
-- [ ] Do not implement any Desktop-owned timer, LRU, or memory threshold.
+- [x] Add aggregate resource status to CLI doctor/status.
+- [x] Do not implement any Desktop-owned timer, LRU, or memory threshold.
 
 Exit gate: Desktop and CLI observe the same Host policy and status.
 
 ### WP8 — Verification and rollout
 
-- [ ] Run touched-package typechecks and tests after every work package.
-- [ ] Add one SDK and one RPC integration scenario that prompts 50 distinct
+- [x] Run touched-package typechecks and tests after every work package.
+- [x] Add one SDK and one RPC integration scenario that prompts 50 distinct
       sessions, advances the injected clock, and verifies resident/worker/
       recorder counts return to policy bounds.
-- [ ] Add a multi-client scenario where two clients view different cold
+- [x] Add a multi-client scenario where two clients view different cold
       histories while one third session runs; viewing does not allocate a
       runtime and the running session is not evicted.
-- [ ] Add a cancellation scenario while waiting for runtime capacity.
-- [ ] Record Host and worker RSS during a native 30-minute switch/prompt soak;
+- [x] Add a cancellation scenario while waiting for runtime capacity.
+- [x] Record Host and worker RSS during a native 30-minute switch/prompt soak;
       include resident counts and eviction counters with every sample.
 - [ ] Verify session history, fork, duplicate, truncate, export, compact,
       permissions, MCP, and subagent flows after cold reactivation.
-- [ ] Update architecture, dev plan, product status, doctor docs, and remove
+- [x] Update architecture, dev plan, product status, doctor docs, and remove
       the Runtime Refactor “automatic idle eviction” deferred item only after
       both release gates pass.
 
@@ -355,7 +355,101 @@ No phase may silently fall back to unbounded residency. If a new policy path is
 unavailable, the Host keeps deterministic count limits and reports capability
 truthfully.
 
-## 5. Estimated effort
+## 5. WP0–WP5 implementation review remediation (2026-08-09)
+
+The first implementation review found cross-layer wiring and suspension-order
+gaps that unit-level helpers did not expose. The implementation now enforces:
+
+- SDK and RPC Worker adapter exits apply generation-scoped normalization before
+  publishing message, tool-call, or permission identities.
+- A residency victim remains `suspending` and continues consuming capacity
+  until recorder flush, backend/worker drop, and Host resident-map cleanup have
+  completed. A failed flush restores `resident-idle` and does not increment an
+  eviction counter or wake a capacity waiter.
+- A prompt arriving during suspension waits for the shared suspension
+  transaction instead of receiving the retiring handle.
+- Foreground Run cancellation uses the same `AbortSignal` for capacity waits;
+  `runtime-memory-pressure` survives as the terminal Run code.
+- Persisted `session.runtimeRetention` is normalized by the config store,
+  loaded before the first Host command, updated after `settings/apply`, and
+  reflected by `host/runtime-resources`.
+- `runtimeResidency` and `sessionOutlinePage` capabilities are advertised only
+  by the Host implementation that serves those commands.
+- A generation-attachment conflict rolls back the newly allocated backend
+  rather than continuing with a Run that cannot admit Host tool frames.
+- Transcript collision quarantine covers the complete message/tool lifecycle,
+  so a diagnostic collision cannot mutate an older-generation row.
+
+Verification after remediation:
+
+- repository-wide TypeScript project typecheck: passed (29 workspace projects);
+- `@piwin/contracts`: 202 tests passed;
+- `@piwin/agent-host`: 164 tests passed;
+- `@piwin/session`: 189 tests passed;
+- `@piwin/host-runtime`: 1010 tests passed;
+- package-boundary architecture check and `git diff --check`: passed.
+
+This evidence closes the review defects, but does not by itself complete the
+WP8 native RPC/SDK soak, 50-session integration, or long-running RSS evidence.
+WP0–WP5 must not be marked release-complete until those remaining gates pass.
+
+## 5.1 Native SDK/RPC soak closure (2026-08-10)
+
+The native residency gate now passes in both backend modes. Each mode ran for
+30 minutes with six rotating sessions, one real prompt per minute, five-second
+Host/worker RSS samples, a 45-second idle TTL, one idle slot, and two resident
+slots. Both runs completed 30 cycles with complete samples and no admission,
+prompt, or memory-pressure failure.
+
+SDK recorded 359 samples with aggregate RSS p95 224 MiB. RPC recorded 359
+samples with aggregate RSS p95 382 MiB, replaced its worker process on cold
+reactivation, and left zero of 31 observed worker PIDs alive after Host
+disposal. Both full-run RSS slopes were negative; the per-cycle peak plateau
+also remained stable over the final ten cycles.
+
+Full data, commands, interpretation, and the final regression matrix are in
+[`2026-08-10-session-runtime-rss-soak.md`](../evidence/2026-08-10-session-runtime-rss-soak.md).
+The only remaining WP8 rollout item is the manual provider-driven cross-feature
+matrix for permissions, MCP, and subagent behavior after cold reactivation.
+
+## 6. WP6 implementation closure (2026-08-09)
+
+WP6 now uses a per-session `transcript.sqlite3` as the Host transcript
+authority. The production recorder writes only the current row through a
+bounded queue; ordinary resume, page, naming, history injection, compaction,
+search, and walkthrough validation use bounded Store queries. Truncate is
+transactional, while fork, duplicate, and export iterate in bounded batches.
+
+The first open migrates a legacy `transcript.json` transactionally, verifies
+count, ids, and a canonical content digest against independently streamed
+database rows, and retains `transcript.json.v1.bak`. `piwin doctor` reports an
+interrupted migration; `piwin doctor --repair-transcripts` rebuilds and
+verifies a side database before swapping it in, while retaining the prior
+database for recovery.
+
+Cold-session command reads use reference-counted Store leases. Concurrent
+clients may safely share one handle, and the last reader closes it unless the
+session became resident meanwhile. Suspension, disposal, and Host shutdown
+also close their handles explicitly.
+
+Verification evidence:
+
+- repository-wide `pnpm typecheck`: passed (29 workspace projects);
+- `@piwin/contracts`: 202 tests passed;
+- `@piwin/agent-host`: 164 tests passed;
+- `@piwin/session`: 189 tests passed, including the 10,000-row bounded-query
+  case;
+- `@piwin/host-runtime`: 1010 tests passed, including SDK/RPC 50-session
+  residency, migration/repair, concurrent leases, row recorder, and derived
+  transcript operations;
+- `pnpm test:architecture` and `git diff --check`: passed.
+
+The repository-wide `pnpm test` aggregate remains red in four Desktop
+`resolve-document-content.test.ts` cases from an unrelated concurrent document
+content change. All packages and tests directly touched by WP6 are green; the
+unrelated Desktop failures were not modified as part of this work.
+
+## 7. Estimated effort
 
 | Slice | Estimate |
 |-------|----------|

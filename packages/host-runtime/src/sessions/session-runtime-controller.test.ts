@@ -104,7 +104,35 @@ describe('SessionRuntimeController', () => {
     expect(controller.getStatus('s1')).toEqual({
       sessionId: 's1',
       state: 'lazy-shell',
+      residency: 'cold',
       staleDomains: [],
     });
+  });
+
+  it('projects cold residency by default and retains last eviction reason', () => {
+    const controller = createController();
+    expect(controller.getStatus('s1').residency).toBe('cold');
+
+    controller.attachGeneration('s1', 'gen-1', 'rev-1');
+    controller.setResidency('s1', 'resident-idle');
+    expect(controller.getStatus('s1').residency).toBe('resident-idle');
+    expect(controller.getStatus('s1').lastEvictionReason).toBeUndefined();
+
+    controller.setResidency('s1', 'suspending', { lastEvictionReason: 'idle-ttl' });
+    expect(controller.getStatus('s1')).toMatchObject({
+      residency: 'suspending',
+      lastEvictionReason: 'idle-ttl',
+    });
+
+    controller.markCold('s1', 'idle-ttl');
+    expect(controller.getStatus('s1')).toMatchObject({
+      residency: 'cold',
+      lastEvictionReason: 'idle-ttl',
+    });
+
+    // Reactivation clears the eviction explanation.
+    controller.setResidency('s1', 'resident-busy');
+    expect(controller.getStatus('s1').residency).toBe('resident-busy');
+    expect(controller.getStatus('s1').lastEvictionReason).toBeUndefined();
   });
 });

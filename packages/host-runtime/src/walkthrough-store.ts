@@ -154,6 +154,8 @@ export type ListWalkthroughsOptions = {
    * transcript.json solely to filter orphan walkthrough files.
    */
   validMessageIds?: ReadonlySet<string> | readonly string[];
+  /** Store-backed orphan check used after transcript.json migration. */
+  messageExists?: (messageId: string) => Promise<boolean>;
 };
 
 export async function listWalkthroughs(
@@ -165,8 +167,10 @@ export async function listWalkthroughs(
     ? options.validMessageIds instanceof Set
       ? options.validMessageIds
       : new Set(options.validMessageIds)
-    : await loadTranscriptMessageIds(rootDir, sessionId);
-  if (validMessageIds.size === 0) {
+    : options?.messageExists
+      ? null
+      : await loadTranscriptMessageIds(rootDir, sessionId);
+  if (validMessageIds !== null && validMessageIds.size === 0) {
     return [];
   }
   const dir = getPiwinSessionWalkthroughDir(rootDir, sessionId);
@@ -204,7 +208,10 @@ export async function listWalkthroughs(
       continue;
     }
     // Skip orphans: the bound message was truncated from the transcript.
-    if (!validMessageIds.has(parsed.messageId)) {
+    const messageExists = validMessageIds !== null
+      ? validMessageIds.has(parsed.messageId)
+      : await options?.messageExists?.(parsed.messageId);
+    if (messageExists !== true) {
       continue;
     }
     artifacts.push(parsed);

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "mode": "rpc",
+  "nativeBackend": true,
+  "startedAt": "2026-08-09T16:13:05.106Z",
+  "soakStartedAt": "2026-08-09T16:13:07.017Z",
+  "endedAt": "2026-08-09T16:13:38.928Z",
+  "elapsedMinutes": 0.564,
+  "soakElapsedMinutes": 0.532,
+  "cycles": 2,
+  "sampleCount": 17,
+  "policy": {
+    "idleTtlSeconds": 45,
+    "maxIdleRuntimes": 1,
+    "maxResidentRuntimes": 2
+  },
+  "rssMiB": {
+    "firstAggregate": 152,
+    "lastAggregate": 490,
+    "minimumAggregate": 152,
+    "maximumAggregate": 642,
+    "p95Aggregate": 642,
+    "linearSlopeMiBPerHour": 5584.623250151623
+  },
+  "residency": {
+    "maximumResident": 2,
+    "maximumIdle": 1,
+    "maximumBusy": 1,
+    "maximumWaiters": 0,
+    "maxResidentOverBudget": false,
+    "maxIdleOverBudget": false,
+    "finalCounters": {
+      "evictedIdleTtl": 0,
+      "evictedMaxIdle": 4,
+      "evictedMaxResident": 0,
+      "evictedMemory": 0,
+      "memoryPressureFailures": 0
+    }
+  },
+  "sampling": {
+    "expectedCompleteness": "complete",
+    "completenessExpected": true
+  },
+  "processLifecycle": {
+    "observedWorkerPids": [
+      9518,
+      9523,
+      9729
+    ],
+    "aliveWorkerPidsAfterDispose": []
+  },
+  "failures": [],
+  "verdict": "pass"
+}

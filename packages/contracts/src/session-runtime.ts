@@ -6,9 +6,37 @@ import type { SettingsDomain } from './settings.js';
 export type SessionRuntimeState =
   'none' | 'lazy-shell' | 'live' | 'stale' | 'rebuilding' | 'failed';
 
+/**
+ * Host-owned residency state for one product session (ADR 0040 §2).
+ *
+ * Residency is orthogonal to Settings staleness: `state` continues to
+ * describe the lazy-shell/live/stale/rebuilding compatibility projection,
+ * while `residency` describes whether a runtime is materialized and how it
+ * is being used. Clients must not infer residency from Settings staleness.
+ */
+export type SessionRuntimeResidency =
+  | 'cold'
+  | 'activating'
+  | 'resident-idle'
+  | 'resident-busy'
+  | 'suspending';
+
+/** Stable reasons a runtime was suspended (ADR 0040 §2/§4). */
+export type SessionRuntimeEvictionReason =
+  | 'idle-ttl'
+  | 'max-idle'
+  | 'max-resident'
+  | 'memory-pressure'
+  | 'manual'
+  | 'host-dispose';
+
 export type SessionRuntimeStatus = {
   sessionId: string;
   state: SessionRuntimeState;
+  /** ADR 0040: optional residency projection. Absent for legacy hosts. */
+  residency?: SessionRuntimeResidency;
+  /** ADR 0040: last eviction reason when the runtime became cold. */
+  lastEvictionReason?: SessionRuntimeEvictionReason;
   generationId?: string;
   settingsRevision?: string;
   capabilitySnapshotId?: string;

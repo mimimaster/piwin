@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import {
   parseWorkerFrame,
   serializeWorkerRequest,
+  serializeWorkerResourceRequest,
   type WorkerExtensionUiRequestFrame,
   type WorkerExtensionUiResponseFrame,
   type WorkerFrame,
@@ -22,6 +23,7 @@ import {
   type WorkerHelloFrame,
   type WorkerRequest,
   type WorkerRequestPayload,
+  type WorkerResourceResponseFrame,
   type WorkerResponse,
   type WorkerToolCallFrame,
   type WorkerToolResultFrame,
@@ -109,9 +111,16 @@ type PendingRequest = {
   reject: (error: Error) => void;
 };
 
+/** Pending internal resource queries (ADR 0040 §8), correlated by frame id. */
+type PendingResourceQuery = {
+  resolve: (frame: WorkerResourceResponseFrame) => void;
+  reject: (error: Error) => void;
+};
+
 export class RpcSdkWorkerClient extends EventEmitter {
   private child: ChildProcess | null = null;
   private readonly pending = new Map<string, PendingRequest>();
+  private readonly pendingResource = new Map<string, PendingResourceQuery>();
   private readonly options: WorkerClientOptions;
   private exited = false;
   private exitCode: number | null = null;
@@ -287,6 +296,44 @@ export class RpcSdkWorkerClient extends EventEmitter {
       } catch (error) {
         this.pending.delete(id);
         if (timer) clearTimeout(timer);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  /**
+   * Query the worker's current memory usage (ADR 0040 §8). Strict bounded
+   * frame with a short timeout; used for aggregate Host/worker RSS pressure.
+   */
+  async requestResourceSnapshot(timeoutMs = 1000): Promise<WorkerResourceResponseFrame> {
+    if (!this.child || this.exited) {
+      throw new Error('worker not running');
+    }
+    if (!this.helloReceived) {
+      throw new Error('worker hello not received — call start() first');
+    }
+    const id = randomUUID();
+    const child = this.child;
+    return new Promise<WorkerResourceResponseFrame>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingResource.delete(id);
+        reject(new Error(`worker resource query timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.pendingResource.set(id, {
+        resolve: (frame) => {
+          clearTimeout(timer);
+          resolve(frame);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
+      try {
+        child.stdin?.write(serializeWorkerResourceRequest({ type: 'resource-request', id }) + '\n');
+      } catch (error) {
+        this.pendingResource.delete(id);
+        clearTimeout(timer);
         reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
@@ -497,6 +544,12 @@ export class RpcSdkWorkerClient extends EventEmitter {
         const message = formatError(error);
         this.emit('log', `[worker-client] extension-ui error: ${message}`);
       });
+    } else if (frame.type === 'resource-response') {
+      const pending = this.pendingResource.get(frame.id);
+      if (pending) {
+        this.pendingResource.delete(frame.id);
+        pending.resolve(frame);
+      }
     }
   }
 
@@ -627,6 +680,10 @@ export class RpcSdkWorkerClient extends EventEmitter {
   private rejectAllPending(reason: string): void {
     for (const [id, pending] of this.pending) {
       this.pending.delete(id);
+      pending.reject(new Error(reason));
+    }
+    for (const [id, pending] of this.pendingResource) {
+      this.pendingResource.delete(id);
       pending.reject(new Error(reason));
     }
   }

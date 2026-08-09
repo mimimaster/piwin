@@ -27,6 +27,7 @@ import {
 } from '../seeded-pi-session.js';
 import { mapPiCompactionResult, type PiCompactionResult } from '../pi-compaction-result.js';
 import { buildPiSessionToolAllowlist } from '../pi-session-tool-allowlist.js';
+import { normalizeAgentEventIds } from '../generation-identity.js';
 
 /** Options for backend-only SDK session creation. */
 export type PiSdkBackendOptions = {
@@ -275,7 +276,12 @@ function wrapBackendPiSession(
     subscribe(listener) {
       return piSession.subscribe((rawEvent) => {
         for (const mappedEvent of eventMapper.map(rawEvent)) {
-          listener(mappedEvent.event);
+          listener(
+            normalizeAgentEventIds(mappedEvent.event, {
+              sessionId: input.blueprint.sessionId,
+              runtimeGenerationId: input.blueprint.runtimeGenerationId,
+            }),
+          );
         }
       });
     },

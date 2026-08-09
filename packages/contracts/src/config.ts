@@ -300,10 +300,126 @@ export type DesktopRestoreConfig = {
 export type SessionConfig = {
   /** When true (default), host auto-names sessions after first exchange. */
   autoName?: boolean;
+  /**
+   * Session runtime residency retention policy (ADR 0040). Omitted fields
+   * select the adaptive defaults; settings may only tighten the budgets.
+   * There is no persisted "unbounded" mode.
+   */
+  runtimeRetention?: SessionRuntimeRetentionConfig;
 };
 
 export function createDefaultSessionConfig(): SessionConfig {
   return { autoName: true };
+}
+
+/**
+ * Normalized session runtime retention policy (ADR 0040 §3).
+ *
+ * Durable session records and live Agent runtimes are separate authorities.
+ * This shape bounds how many runtimes stay resident, how long they may stay
+ * idle, and the memory budget before the Host evicts idle runtimes.
+ */
+export type SessionRuntimeRetentionConfig = {
+  /** Default 600. Zero means do not retain an idle runtime. */
+  idleTtlSeconds: number;
+  /** Default 2. Idle runtimes above this count are LRU candidates immediately. */
+  maxIdleRuntimes: number;
+  /** Omitted means derived from effective execution concurrency and backend capacity. */
+  maxResidentRuntimes?: number;
+  /** Omitted means an adaptive Host + worker RSS budget. */
+  memoryHighWaterMiB?: number;
+};
+
+/** Default idle retention window (10 minutes, ADR 0040 §3). */
+export const DEFAULT_IDLE_TTL_SECONDS = 600;
+
+/** Default maximum idle runtimes kept resident (ADR 0040 §3). */
+export const DEFAULT_MAX_IDLE_RUNTIMES = 2;
+
+/** Absolute ceiling on resident runtimes (ADR 0040 §3). */
+export const ABSOLUTE_MAX_RESIDENT_RUNTIMES = 8;
+
+/** Adaptive RSS high water: 25% of system memory. */
+export const MEMORY_HIGH_WATER_RATIO = 0.25;
+
+/** Adaptive RSS high water clamp lower bound (MiB). */
+export const MIN_MEMORY_HIGH_WATER_MIB = 512;
+
+/** Adaptive RSS high water clamp upper bound (MiB). */
+export const MAX_MEMORY_HIGH_WATER_MIB = 2048;
+
+/** Internal low-water target is 80% of the high water (MiB). */
+export const MEMORY_LOW_WATER_RATIO = 0.8;
+
+/** Idle sweep interval while at least one runtime is resident (30s). */
+export const RESIDENCY_SWEEP_INTERVAL_MS = 30_000;
+
+/** Strict normalization/clamping for a user-provided retention config. */
+export function normalizeSessionRuntimeRetentionConfig(
+  input: Partial<SessionRuntimeRetentionConfig> | undefined,
+): SessionRuntimeRetentionConfig {
+  const idleTtlSeconds = clampNonNegativeInt(
+    input?.idleTtlSeconds,
+    DEFAULT_IDLE_TTL_SECONDS,
+  );
+  const maxIdleRuntimes = clampNonNegativeInt(
+    input?.maxIdleRuntimes,
+    DEFAULT_MAX_IDLE_RUNTIMES,
+  );
+  const result: SessionRuntimeRetentionConfig = {
+    idleTtlSeconds,
+    maxIdleRuntimes,
+  };
+  if (input?.maxResidentRuntimes !== undefined) {
+    result.maxResidentRuntimes = clampPositiveInt(
+      input.maxResidentRuntimes,
+      ABSOLUTE_MAX_RESIDENT_RUNTIMES,
+    );
+  }
+  if (input?.memoryHighWaterMiB !== undefined) {
+    result.memoryHighWaterMiB = clampMemoryMiB(input.memoryHighWaterMiB);
+  }
+  return result;
+}
+
+/**
+ * Derive the adaptive memory high water from system memory.
+ * 25% of system memory clamped to 512–2048 MiB.
+ */
+export function deriveMemoryHighWaterMiB(systemMemoryMiB: number): number {
+  return clampMemoryMiB(Math.round(systemMemoryMiB * MEMORY_HIGH_WATER_RATIO));
+}
+
+/** Derive the internal low-water target from the high water (80%). */
+export function deriveMemoryLowWaterMiB(highWaterMiB: number): number {
+  return Math.round(highWaterMiB * MEMORY_LOW_WATER_RATIO);
+}
+
+function clampNonNegativeInt(
+  value: number | undefined,
+  fallback: number,
+): number {
+  if (value === undefined || !Number.isFinite(value)) {
+    return fallback;
+  }
+  return Math.max(0, Math.floor(value));
+}
+
+function clampPositiveInt(value: number, ceiling: number): number {
+  if (!Number.isFinite(value)) {
+    return ceiling;
+  }
+  return Math.max(1, Math.min(ceiling, Math.floor(value)));
+}
+
+function clampMemoryMiB(value: number): number {
+  if (!Number.isFinite(value)) {
+    return MAX_MEMORY_HIGH_WATER_MIB;
+  }
+  return Math.max(
+    MIN_MEMORY_HIGH_WATER_MIB,
+    Math.min(MAX_MEMORY_HIGH_WATER_MIB, Math.floor(value)),
+  );
 }
 
 export type ImageGenerationConfig = {

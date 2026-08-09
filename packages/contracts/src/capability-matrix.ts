@@ -71,6 +71,16 @@ export function buildCapabilityMatrix(
     ),
     row('extensions', 'Pi Extensions', capabilities.extensions === true),
     row('rpcIsolation', 'RPC process isolation', isolationAvailable, isolationNote),
+    row(
+      'runtimeResidency',
+      'Session runtime residency (TTL/LRU/memory budgets)',
+      capabilities.runtimeResidency === true,
+    ),
+    row(
+      'sessionOutlinePage',
+      'Bounded session outline paging',
+      capabilities.sessionOutlinePage === true,
+    ),
   ];
 }
 

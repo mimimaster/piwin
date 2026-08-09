@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "mode": "rpc",
+  "nativeBackend": true,
+  "startedAt": "2026-08-09T16:44:42.416Z",
+  "soakStartedAt": "2026-08-09T16:44:45.267Z",
+  "endedAt": "2026-08-09T17:14:47.318Z",
+  "elapsedMinutes": 30.082,
+  "soakElapsedMinutes": 30.034,
+  "cycles": 30,
+  "sampleCount": 359,
+  "policy": {
+    "idleTtlSeconds": 45,
+    "maxIdleRuntimes": 1,
+    "maxResidentRuntimes": 2
+  },
+  "rssMiB": {
+    "firstAggregate": 138,
+    "lastAggregate": 180,
+    "minimumAggregate": 87,
+    "maximumAggregate": 622,
+    "p95Aggregate": 382,
+    "linearSlopeMiBPerHour": -168.50156374913112
+  },
+  "residency": {
+    "maximumResident": 2,
+    "maximumIdle": 1,
+    "maximumBusy": 1,
+    "maximumWaiters": 0,
+    "maxResidentOverBudget": false,
+    "maxIdleOverBudget": false,
+    "finalCounters": {
+      "evictedIdleTtl": 29,
+      "evictedMaxIdle": 6,
+      "evictedMaxResident": 0,
+      "evictedMemory": 0,
+      "memoryPressureFailures": 0
+    }
+  },
+  "sampling": {
+    "expectedCompleteness": "complete",
+    "completenessExpected": true
+  },
+  "processLifecycle": {
+    "observedWorkerPids": [
+      29753,
+      29755,
+      30358,
+      30978,
+      31577,
+      32202,
+      32834,
+      33441,
+      34056,
+      34671,
+      35285,
+      35908,
+      36530,
+      37139,
+      37758,
+      38372,
+      38996,
+      39597,
+      40192,
+      40806,
+      41501,
+      42158,
+      42968,
+      43585,
+      44184,
+      44632,
+      45051,
+      45483,
+      45924,
+      46325,
+      46748
+    ],
+    "aliveWorkerPidsAfterDispose": []
+  },
+  "failures": [],
+  "verdict": "pass"
+}

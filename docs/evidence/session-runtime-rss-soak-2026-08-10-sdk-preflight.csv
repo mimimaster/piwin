@@ -1,0 +1,12 @@
+timestamp,elapsedSeconds,phase,cycle,hostRssMiB,workerRssMiB,aggregateRssMiB,sampleCompleteness,resident,idle,busy,activating,suspending,waiters,maxResident,maxIdle,highWaterMiB,evictedIdleTtl,evictedMaxIdle,evictedMaxResident,evictedMemory,memoryPressureFailures,descendantCount,descendantRssMiB,workerPids
+2026-08-09T16:13:46.670Z,0.235,setup,0,133,0,133,complete,0,0,0,0,0,0,2,1,2048,0,0,0,0,0,1,1.73,
+2026-08-09T16:13:48.711Z,2.276,soak,1,395,0,395,complete,2,1,1,0,0,0,2,1,2048,0,2,0,0,0,1,1.73,
+2026-08-09T16:13:50.751Z,4.316,soak,1,395,0,395,complete,2,1,1,0,0,0,2,1,2048,0,2,0,0,0,1,1.73,
+2026-08-09T16:13:52.788Z,6.353,soak,1,396,0,396,complete,2,1,1,0,0,0,2,1,2048,0,2,0,0,0,1,1.73,
+2026-08-09T16:13:54.827Z,8.392,soak,1,397,0,397,complete,2,1,1,0,0,0,2,1,2048,0,2,0,0,0,1,1.73,
+2026-08-09T16:13:56.866Z,10.431,soak,1,423,0,423,complete,1,1,0,0,0,0,2,1,2048,0,3,0,0,0,1,1.75,
+2026-08-09T16:13:58.901Z,12.465,soak,2,424,0,424,complete,2,1,1,0,0,0,2,1,2048,0,3,0,0,0,1,1.73,
+2026-08-09T16:14:00.936Z,14.501,soak,2,424,0,424,complete,2,1,1,0,0,0,2,1,2048,0,3,0,0,0,1,1.73,
+2026-08-09T16:14:02.974Z,16.539,soak,2,425,0,425,complete,2,1,1,0,0,0,2,1,2048,0,3,0,0,0,1,1.73,
+2026-08-09T16:14:05.012Z,18.577,soak,2,284,0,284,complete,2,1,1,0,0,0,2,1,2048,0,3,0,0,0,1,1.73,
+2026-08-09T16:14:05.906Z,19.471,pre-dispose,2,288,0,288,complete,2,1,0,0,1,0,2,1,2048,0,3,0,0,0,1,1.73,

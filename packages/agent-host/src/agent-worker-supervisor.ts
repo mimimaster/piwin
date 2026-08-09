@@ -96,6 +96,16 @@ export type WorkerSupervisorStatus = {
   processIsolation: boolean;
 };
 
+/** Aggregate worker RSS sample (ADR 0040 §8). */
+export type WorkerRssSample = {
+  /** Sum of sampled worker RSS in MiB. */
+  rssMiB: number;
+  sampledWorkers: number;
+  totalWorkers: number;
+  /** 'complete' when every worker answered; 'partial'/'missing' otherwise. */
+  sampleCompleteness: 'complete' | 'partial' | 'missing';
+};
+
 /**
  * AgentWorkerSupervisor: manages isolated Pi worker processes.
  *
@@ -298,6 +308,47 @@ export class AgentWorkerSupervisor {
     if (!workerId) return undefined;
     const managed = this.workers.get(workerId);
     return managed?.client;
+  }
+
+  /**
+   * Aggregate current worker RSS (ADR 0040 §8). Each worker answers a strict,
+   * bounded resource query with its `process.memoryUsage()` snapshot. The
+   * aggregate never exposes per-process PIDs or secrets. Missing/stale
+   * answers mark the sample incomplete so no false low-memory claim is made.
+   */
+  async sampleAggregateWorkerRssMiB(timeoutMs = 750): Promise<WorkerRssSample> {
+    const workers = [...this.workers.values()];
+    if (workers.length === 0) {
+      return {
+        rssMiB: 0,
+        sampledWorkers: 0,
+        totalWorkers: 0,
+        sampleCompleteness: 'complete',
+      };
+    }
+    const results = await Promise.allSettled(
+      workers.map((worker) => worker.client.requestResourceSnapshot(timeoutMs)),
+    );
+    let rssBytes = 0;
+    let sampledWorkers = 0;
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        rssBytes += result.value.memory.rssBytes;
+        sampledWorkers += 1;
+      }
+    }
+    const sampleCompleteness: WorkerRssSample['sampleCompleteness'] =
+      sampledWorkers === workers.length
+        ? 'complete'
+        : sampledWorkers > 0
+          ? 'partial'
+          : 'missing';
+    return {
+      rssMiB: Math.round(rssBytes / 1024 / 1024),
+      sampledWorkers,
+      totalWorkers: workers.length,
+      sampleCompleteness,
+    };
   }
 
   /**

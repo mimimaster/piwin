@@ -10,17 +10,13 @@ import type {
   SessionTranscriptMessage,
   SessionTranscriptDocument,
 } from '@piwin/contracts';
-import {
-  createSessionRecord,
-  getSessionRecord,
-  upsertSessionRecord,
-} from '@piwin/session';
+import { createSessionRecord, getSessionRecord, upsertSessionRecord } from '@piwin/session';
 import { handleSideChatCommand, type SideChatCommandContext } from './side-chat-commands.js';
-import { handleSessionProductCommand, type SessionProductCommandContext } from './session-product-commands.js';
 import {
-  getPiwinSessionIndexPath,
-  getPiwinSessionTranscriptPath,
-} from '../paths.js';
+  handleSessionProductCommand,
+  type SessionProductCommandContext,
+} from './session-product-commands.js';
+import { getPiwinSessionIndexPath, getPiwinSessionTranscriptPath } from '../paths.js';
 
 /* ------------------------------------------------------------------ */
 /* Fixtures                                                            */
@@ -48,11 +44,24 @@ function makeAssistantMessage(id: string, text: string): SessionTranscriptMessag
   };
 }
 
-function makeTranscript(sessionId: string, messages: SessionTranscriptMessage[]): SessionTranscriptDocument {
-  return { version: 1, sessionId, projectPath: '/proj', messages, updatedAt: '2026-08-01T00:00:00.000Z' };
+function makeTranscript(
+  sessionId: string,
+  messages: SessionTranscriptMessage[],
+): SessionTranscriptDocument {
+  return {
+    version: 1,
+    sessionId,
+    projectPath: '/proj',
+    messages,
+    updatedAt: '2026-08-01T00:00:00.000Z',
+  };
 }
 
-async function writeTranscript(rootDir: string, sessionId: string, doc: SessionTranscriptDocument): Promise<void> {
+async function writeTranscript(
+  rootDir: string,
+  sessionId: string,
+  doc: SessionTranscriptDocument,
+): Promise<void> {
   const transcriptPath = getPiwinSessionTranscriptPath(rootDir, sessionId);
   await mkdir(join(rootDir, 'sessions', sessionId), { recursive: true });
   await writeFile(transcriptPath, JSON.stringify(doc), 'utf8');
@@ -65,9 +74,15 @@ function createMockSessionHandle(sessionId: string): SessionHandle {
     async steer(): Promise<void> {},
     async followUp(): Promise<void> {},
     async abort(): Promise<void> {},
-    async getMessages(): Promise<[]> { return []; },
-    async getTree(): Promise<{ root: null; activeLeafId: null }> { return { root: null, activeLeafId: null }; },
-    subscribe(): () => void { return () => {}; },
+    async getMessages(): Promise<[]> {
+      return [];
+    },
+    async getTree(): Promise<{ root: null; activeLeafId: null }> {
+      return { root: null, activeLeafId: null };
+    },
+    subscribe(): () => void {
+      return () => {};
+    },
   };
 }
 
@@ -101,21 +116,36 @@ async function createRootWithMainSession(
   return { rootDir, indexPath };
 }
 
-function createSideChatContext(rootDir: string, transcriptMap: Map<string, SessionTranscriptMessage[]>): SideChatCommandContext {
+function createSideChatContext(
+  rootDir: string,
+  transcriptMap: Map<string, SessionTranscriptMessage[]>,
+): SideChatCommandContext {
+  const host = createMockHost(randomUUID());
   return {
     piwinRoot: rootDir,
-    host: createMockHost(randomUUID()),
+    createSession: (input) => host.createSession(input),
+    disposeLiveSession: vi.fn(async () => undefined),
     bindSession: vi.fn(async () => undefined),
     pushStatus: vi.fn(),
     loadTranscriptMessages: async (sessionId: string) => transcriptMap.get(sessionId) ?? [],
   };
 }
 
-function createProductContext(rootDir: string, transcriptMap: Map<string, SessionTranscriptMessage[]>): SessionProductCommandContext {
+function createProductContext(
+  rootDir: string,
+  transcriptMap: Map<string, SessionTranscriptMessage[]>,
+): SessionProductCommandContext {
+  const host = createMockHost(randomUUID());
   return {
     piwinRoot: rootDir,
-    host: createMockHost(randomUUID()),
+    createSession: (input) => host.createSession(input),
     loadTranscriptMessages: async (sessionId: string) => transcriptMap.get(sessionId) ?? [],
+    getTranscriptStore: async () => {
+      throw new Error('transcript store is not configured for this product-context unit test');
+    },
+    withTranscriptStore: async () => {
+      throw new Error('transcript store is not configured for this product-context unit test');
+    },
     abortLiveSession: vi.fn(async () => undefined),
     disposeLiveSession: vi.fn(async () => undefined),
     bindSession: vi.fn(async () => undefined),
@@ -205,8 +235,16 @@ describe('side-chat commands', () => {
     const transcriptMap = new Map([[mainId, messages]]);
     const context = createSideChatContext(rootDir, transcriptMap);
 
-    const r1 = await handleSideChatCommand({ type: 'side-chat/open', sourceSessionId: mainId, name: 'First' }, undefined, context);
-    const r2 = await handleSideChatCommand({ type: 'side-chat/open', sourceSessionId: mainId, name: 'Second' }, undefined, context);
+    const r1 = await handleSideChatCommand(
+      { type: 'side-chat/open', sourceSessionId: mainId, name: 'First' },
+      undefined,
+      context,
+    );
+    const r2 = await handleSideChatCommand(
+      { type: 'side-chat/open', sourceSessionId: mainId, name: 'Second' },
+      undefined,
+      context,
+    );
     const id1 = (successData(r1!) as { sideChatSessionId: string }).sideChatSessionId;
     const id2 = (successData(r2!) as { sideChatSessionId: string }).sideChatSessionId;
 
@@ -228,12 +266,21 @@ describe('side-chat commands', () => {
     const transcriptMap = new Map([[mainId, initialMessages]]);
     const context = createSideChatContext(rootDir, transcriptMap);
 
-    const openResponse = await handleSideChatCommand({ type: 'side-chat/open', sourceSessionId: mainId }, undefined, context);
+    const openResponse = await handleSideChatCommand(
+      { type: 'side-chat/open', sourceSessionId: mainId },
+      undefined,
+      context,
+    );
     const sideId = (successData(openResponse!) as { sideChatSessionId: string }).sideChatSessionId;
-    const initialVersion = (successData(openResponse!) as { relation: { contextVersion: number } }).relation.contextVersion;
+    const initialVersion = (successData(openResponse!) as { relation: { contextVersion: number } })
+      .relation.contextVersion;
     expect(initialVersion).toBe(1);
 
-    const updatedMessages = [...initialMessages, makeUserMessage('m3', 'New question'), makeAssistantMessage('m4', 'New answer')];
+    const updatedMessages = [
+      ...initialMessages,
+      makeUserMessage('m3', 'New question'),
+      makeAssistantMessage('m4', 'New answer'),
+    ];
     transcriptMap.set(mainId, updatedMessages);
 
     const syncResponse = await handleSideChatCommand(
@@ -241,7 +288,10 @@ describe('side-chat commands', () => {
       undefined,
       context,
     );
-    const syncData = successData(syncResponse!) as { relation: { contextVersion: number }; context: { version: number } };
+    const syncData = successData(syncResponse!) as {
+      relation: { contextVersion: number };
+      context: { version: number };
+    };
     expect(syncData.relation.contextVersion).toBe(2);
     expect(syncData.context.version).toBe(2);
 
@@ -257,7 +307,11 @@ describe('side-chat commands', () => {
     const transcriptMap = new Map([[mainId, messages]]);
     const context = createSideChatContext(rootDir, transcriptMap);
 
-    const openResponse = await handleSideChatCommand({ type: 'side-chat/open', sourceSessionId: mainId }, undefined, context);
+    const openResponse = await handleSideChatCommand(
+      { type: 'side-chat/open', sourceSessionId: mainId },
+      undefined,
+      context,
+    );
     const sideId = (successData(openResponse!) as { sideChatSessionId: string }).sideChatSessionId;
 
     const syncResponse = await handleSideChatCommand(
@@ -291,7 +345,11 @@ describe('side-chat commands', () => {
     const sideChatCtx = createSideChatContext(rootDir, transcriptMap);
     const productCtx = createProductContext(rootDir, transcriptMap);
 
-    const openResponse = await handleSideChatCommand({ type: 'side-chat/open', sourceSessionId: mainId }, undefined, sideChatCtx);
+    const openResponse = await handleSideChatCommand(
+      { type: 'side-chat/open', sourceSessionId: mainId },
+      undefined,
+      sideChatCtx,
+    );
     const sideId = (successData(openResponse!) as { sideChatSessionId: string }).sideChatSessionId;
 
     await handleSessionProductCommand(
@@ -312,11 +370,23 @@ describe('side-chat commands', () => {
     const sideChatCtx = createSideChatContext(rootDir, transcriptMap);
     const productCtx = createProductContext(rootDir, transcriptMap);
 
-    const openResponse = await handleSideChatCommand({ type: 'side-chat/open', sourceSessionId: mainId }, undefined, sideChatCtx);
+    const openResponse = await handleSideChatCommand(
+      { type: 'side-chat/open', sourceSessionId: mainId },
+      undefined,
+      sideChatCtx,
+    );
     const sideId = (successData(openResponse!) as { sideChatSessionId: string }).sideChatSessionId;
 
-    await handleSessionProductCommand({ type: 'session/archive', sessionId: mainId }, undefined, productCtx);
-    await handleSessionProductCommand({ type: 'session/delete', sessionId: mainId }, undefined, productCtx);
+    await handleSessionProductCommand(
+      { type: 'session/archive', sessionId: mainId },
+      undefined,
+      productCtx,
+    );
+    await handleSessionProductCommand(
+      { type: 'session/delete', sessionId: mainId },
+      undefined,
+      productCtx,
+    );
 
     const sideRecord = await getSessionRecord(indexPath, sideId);
     expect(sideRecord?.sideChatRelation?.sourceState).toBe('missing');
@@ -330,10 +400,18 @@ describe('side-chat commands', () => {
     const sideChatCtx = createSideChatContext(rootDir, transcriptMap);
     const productCtx = createProductContext(rootDir, transcriptMap);
 
-    const openResponse = await handleSideChatCommand({ type: 'side-chat/open', sourceSessionId: mainId }, undefined, sideChatCtx);
+    const openResponse = await handleSideChatCommand(
+      { type: 'side-chat/open', sourceSessionId: mainId },
+      undefined,
+      sideChatCtx,
+    );
     const sideId = (successData(openResponse!) as { sideChatSessionId: string }).sideChatSessionId;
 
-    await handleSessionProductCommand({ type: 'session/archive', sessionId: mainId }, undefined, productCtx);
+    await handleSessionProductCommand(
+      { type: 'session/archive', sessionId: mainId },
+      undefined,
+      productCtx,
+    );
 
     const syncResponse = await handleSideChatCommand(
       { type: 'side-chat/sync', sideChatSessionId: sideId },
@@ -386,7 +464,12 @@ describe('side-chat tool policy (buildSideChatToolPolicy)', () => {
           agentMock: false,
           providers: [],
           media: { maxPasteBytes: 1024, allowedMimeTypes: [] },
-          artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 1024 },
+          artifact: {
+            enabled: true,
+            triggerMode: 'automatic',
+            decisionPrompt: { mode: 'default', customPrompt: '' },
+            maxBytes: 1024,
+          },
         },
         discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
         trustResolver: async () => true,

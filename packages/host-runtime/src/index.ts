@@ -67,6 +67,13 @@ export {
   getPiwinSessionWalkthroughMdPath,
 } from './paths.js';
 export {
+  listInterruptedTranscriptMigrations,
+  repairInterruptedTranscriptMigration,
+} from './session-transcript-store-registry.js';
+export type {
+  InterruptedTranscriptMigration,
+} from './session-transcript-store-registry.js';
+export {
   listWalkthroughs,
   loadWalkthrough,
   saveWalkthrough,

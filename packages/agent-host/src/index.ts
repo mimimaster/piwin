@@ -13,6 +13,15 @@ export {
 } from './event-map.js';
 export type { WrappedAgentEvent } from './event-map.js';
 export {
+  normalizeGenerationMessageId,
+  normalizeGenerationToolCallId,
+  normalizeGenerationPermissionRequestId,
+  normalizeAgentEventIds,
+  LEGACY_IMPORT_GENERATION,
+  USER_AUTHORED_GENERATION,
+} from './generation-identity.js';
+export type { GenerationIdentityContext } from './generation-identity.js';
+export {
   buildToolPresentation,
   classifyToolKind,
   boundToolOutput,
