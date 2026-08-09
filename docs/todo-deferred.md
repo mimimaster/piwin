@@ -114,9 +114,9 @@
 | D-GIT-03 | Auto-inject git status into agent prompt context | needs product policy | later |
 | D-GIT-04 | force-push / hard reset / clean -fdx | explicitly out of v1 write slice | never silent; P6 if ever |
 | D-GIT-05 | Session **workspace/space** switch chip (project root or registered worktree cwd) | Branch chip shipped first; multi-cwd is a separate product surface | after D-GIT-01b polish |
-| D-CTX-01 | Composer **runtime target** chip pair: **本机 (Local / This Mac)** + **云端 (Cloud)** | Cursor-style execution-location affordance; real Cloud needs personal gateway (CE-GW / W4). **Ship UI first without fake connectivity.** | UI polish then W4 |
-| D-CTX-01a | ~~Runtime chip **v0 (honest stub)**~~ | **Done 2026-08-06** — Desktop `RuntimeTargetChip`: **本机** active; **云端** grey/disabled; tooltip **「未连接到远程服务器」** / “Not connected to a remote server”. No fake Cloud path. | done (stub) |
-| D-CTX-01b | Runtime chip **v1 (connected)** | When personal remote gateway is connected, enable Cloud (or rename to gateway host label); switching target must rebind tool/bash cwd/runtime — not a cosmetic toggle | after CE-GW |
+| D-CTX-01 | Composer **runtime target** chip pair: **本机 (Local / This Mac)** + **远程 Host (Remote Host)** | Host-first execution-location affordance; real remote target needs Host Server multi-client transport. **Ship UI first without fake connectivity.** | UI polish then M8 |
+| D-CTX-01a | ~~Runtime chip **v0 (honest stub)**~~ | **Done 2026-08-06** — Desktop `RuntimeTargetChip`: **本机** active; **远程 Host** grey/disabled; tooltip **「未连接到远程服务器」** / “Not connected to a remote server”. No fake remote path. | done (stub) |
+| D-CTX-01b | Runtime chip **v1 (connected)** | When a remote Host is connected, enable Remote Host; switching target must rebind session/runtime/tool/project fall-through — not a cosmetic toggle | after Host Server M8.6 |
 
 ### 2.5 Session / Host / Engineering
 
@@ -207,11 +207,11 @@
 | CE-HOOK-01..02 | Lifecycle hooks runner | W3 | same | **Partial 2026-07-21** — Settings hooks UI + store; host arm on events residual |
 | CE-TODO-01 | Session todo tool + Execution panel | W3 | same | **Partial 2026-07-21** — todo/get|set IPC + store; tool+panel deferred. **Note 2026-08-03:** PlanCard live progress uses SessionPlan + ADR 0025 (`onPlanUpdated`); do not merge Todo into PlanCard. |
 | CE-SHARE-01 | Local session export MD/HTML | W4 | [`w4-remote-gateway.md`](./specs/w4-remote-gateway.md) | Queued |
-| CE-GW-01..04 | Personal gateway + WebUI + reconnect | W4 | same | Future (ADR first) |
-| CE-TUN-01 | Tunnel manager | W4 | same | Future |
+| CE-GW-01..04 | Optional Gateway relay + WebUI + reconnect | W4 | [`host-server-multi-client.md`](./specs/host-server-multi-client.md) | After Host Server; ADR 0036 |
+| CE-TUN-01 | Optional tunnel manager | W4 | same | After private Host transport |
 
-**Start order:** CE-MEM + CE-PROC + CE-OBS → CE-CHAT → CE-SUB/CE-COMP → CE-PTY/CE-MD → W3 → W4.  
-**New packages:** `@piwin/memory`, `@piwin/process`, `@piwin/automation` (+ optional `apps/gateway`).
+**Start order:** CE-MEM + CE-PROC + CE-OBS → CE-CHAT → CE-SUB/CE-COMP → CE-PTY/CE-MD → W3 → Host Server M8 → optional W4 Gateway/tunnel/mobile.
+**New packages:** `@piwin/memory`, `@piwin/process`, `@piwin/automation` (+ planned `@piwin/host-client`, `@piwin/host-transport`, `@piwin/host-server`, optional `apps/gateway`).
 
 
 ### 2.10 Product Depth (PD-*) — Active after polish priority
@@ -306,7 +306,7 @@
 
 ---
 
-### 2.14 Product-level Session Fork (SF-*) — ready for implementation 2026-08-04
+### 2.14 Product-level Session Fork (SF-*) — active implementation 2026-08-09
 
 > Spec: [`docs/specs/session-fork-product-adaptation.md`](specs/session-fork-product-adaptation.md)
 > Product lock: Duplicate is an independent complete copy; Fork is a linked
@@ -316,11 +316,11 @@
 
 | ID | Item | Status |
 |----|------|--------|
-| SF-00 | Contracts + decision alignment (`ProductSessionOrigin`, lineage, Fork IPC) | **Active** — executable spec + ADR 0009 alignment done 2026-08-04; contracts pending |
+| SF-00 | Contracts + decision alignment (`ProductSessionOrigin`, lineage, Fork IPC) | **Done 2026-08-09** — product origin, lineage, and Fork IPC contracts are in place |
 | SF-01 | Derived-session core + harden Duplicate media ownership | **Queued** — existing Duplicate shares source attachment paths and must be fixed before response entry ships |
-| SF-02 | Shared-workspace `session/fork` + `session/lineage` Host path | **Queued** |
-| SF-03 | Assistant response footer: inline SVG Duplicate + Fork icons | **Queued** — latest completed response shows both; historical completed responses show Fork only |
-| SF-04 | Source badge, direct-fork count, lightweight sidebar lineage navigation | **Queued** |
+| SF-02 | Shared-workspace `session/fork` + `session/lineage` Host path | **Active** — shared Host path and deterministic Desktop mock are wired; CLI parity remains queued |
+| SF-03 | Assistant response footer: inline SVG Duplicate + Fork icons | **Active** — response actions are mounted and functional; visibility matrix remains under test |
+| SF-04 | Source badge, direct-fork count, lightweight sidebar lineage navigation | **Active** — response-level session-tree popover and branch resume shipped 2026-08-09; sidebar grouping/deep breadcrumb remain queued |
 | SF-05 | CLI parity for duplicate/fork/lineage | **Queued** — same Host semantics, no separate CLI implementation |
 | SF-06 | Optional isolated session-fork worktree | **Future** — separate from subagent fields; no historical checkpoint claim |
 | SF-07 | Pi native JSONL tree/active-leaf spike | **Future / spike-first** — may optimize Host later; does not block SF-00..06 |

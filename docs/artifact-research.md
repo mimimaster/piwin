@@ -115,7 +115,10 @@ apps/desktop UI adapter (React/WebView)
 1. Zero Svelte imports in `@piwin/artifact`
 2. Bring unit tests (`*.test.ts`) with policy cases
 3. Rename CSS vars from `--owi-*` to `--piwin-artifact-*` but keep semantics
-4. Markdown remains default message renderer; artifact only for detected HTML UI fences
+4. Markdown remains the default for short prose and ordinary source; dense reference
+   content may proactively use an Artifact when visual grouping, search, filtering,
+   copying, comparison, or reuse materially improves the result. Rendering still
+   requires a detected HTML UI fence.
 
 ---
 

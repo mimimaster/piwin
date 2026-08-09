@@ -31,12 +31,16 @@
 
 ## 2. Product vision
 
-> piwin is a private coding-agent **shell** (Desktop + CLI) on Pi: clear layering, dual-mode host, pluggable Skills/MCP/Theme/Pet/Artifact/Media — engineered to grow without becoming a garbage pile.
+> piwin is a private coding-agent **shell** on Pi: clear layering, a deployable
+> Host, multi-client contracts, and pluggable Skills/MCP/Theme/Pet/Artifact/Media
+> — engineered to grow without becoming a garbage pile.
 
 ### Goals
 
 - Ship a usable Agent Window with project layering + history
 - Ship CLI that shares host, config, and sessions with Desktop
+- Keep the Host deployable independently so future Desktop, Windows, mobile,
+  and Web shells can connect to one Host
 - Treat Skills / MCP / Theme / Pet / Artifact / Media as first-class packages
 - Prefer adapters over forking Pi
 
@@ -48,22 +52,26 @@
 | Cloud multi-tenant | Local single-user first |
 | Cursor-style tab completion | Out of agent mainline |
 | Built-in model inference service | BYOK / local OpenAI-compatible servers |
-| Mobile | Desktop + CLI only |
+| Mobile | No mobile shell in v1; the Host-first protocol must leave room for it |
 
 ---
 
 ## 3. Architecture summary (see architecture.md)
 
 ```text
-Presentation:  apps/desktop (Tauri) | apps/cli
+Client shells: Desktop (Tauri) | CLI | future Windows/mobile/Web shells
+Host Server:   transport | auth | client admission | push/replay | health
+Product Host:  @piwin/host-runtime composition root
 Application:   session / project / marketplace / git / theme / pet / artifact / media services
 Agent Host:    dual adapter (SDK | RPC) + permission + event bus
 Capabilities:  tools | skills | mcp | web | models
 Kernel:        Pi (pi-ai / pi-agent-core / pi-coding-agent)
-Platform:      FS / Git / Process / Net / Keychain
+Platform:      FS / Git / Process / Net / Keychain (Host-owned)
 ```
 
-**Hard rule**: UI never imports Pi package internals. Only `@piwin/agent-host` + `@piwin/contracts`.
+**Hard rule**: Client shells never import Pi package internals. They use the
+public HostClient/contracts surface; only the Host composition reaches
+`@piwin/agent-host`.
 
 ---
 
@@ -272,6 +280,7 @@ piwin skill install <id>
 piwin mcp add --json ...
 piwin doctor
 piwin rpc             # host RPC endpoint for external clients
+piwin host listen     # planned standalone Host Server entry point
 ```
 
 ---
@@ -280,15 +289,15 @@ piwin rpc             # host RPC endpoint for external clients
 
 ```text
 ~/.piwin/
-  config.json
-  credentials/          # keychain-backed where possible
+  config.json            # Host-owned product config
+  credentials/           # Host-owned; keychain-backed where possible
   sessions-index/       # projection over Pi sessions
   skills/               # or links into mapped Pi skills
   mcp.json
   themes/
   pets/                 # also can read ~/.codex/pets
   media/                # pasted / generated images
-  logs/
+  logs/                 # Host logs
 
 ~/.pi/agent/            # Pi native (do not break upstream)
   sessions/
@@ -307,6 +316,24 @@ piwin does not hardcode vendors. v1 protocol adapters:
 2. **Anthropic-compatible** (`baseUrl`, `apiKey`, `models[]`)
 
 UI: provider form + advanced JSON. Pi's multi-provider stack is used underneath via host adapter.
+
+## 7.1 Host deployment target
+
+The Host is the source of truth for Agent execution and product state. It may
+run locally beside a Desktop/CLI shell or independently on a Mac, Windows/Linux
+machine, NAS, or server. Other shells connect to that Host over local IPC,
+Tailscale/Headscale, WireGuard, a private LAN, or an explicitly configured
+tunnel.
+
+The Host owns `~/.piwin`, `~/.pi/agent`, provider secrets, project roots,
+sessions, MCP, process/browser capabilities, and runtime state. Clients receive
+state through `HostCommand` / `HostPush`; they do not replicate the config or
+session directories.
+
+The detailed target and implementation gate are in
+[`docs/specs/host-server-multi-client.md`](./specs/host-server-multi-client.md)
+and [ADR 0036](./adr/0036-host-server-multi-client-deployment.md). The earlier
+personal Gateway remains an optional relay/NAT pattern, not a required backend.
 
 ---
 

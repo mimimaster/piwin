@@ -142,7 +142,7 @@ Bundled Pi extensions (seeded to `~/.piwin/extensions`):
 | **W1** | Memory + ManagedProcess + Chat recoverability + Usage | [`w1-memory-process-chat.md`](./w1-memory-process-chat.md) | P0 |
 | **W2** | Sub-agent worktree + Compaction fileOps + PTY + Rich MD + modes | [`w2-subagent-compaction-pty.md`](./w2-subagent-compaction-pty.md) | P0/P1 |
 | **W3** | Skills Hub + MCP Registry + Cron + Hooks + Todo | [`w3-marketplace-automation.md`](./w3-marketplace-automation.md) | P1 |
-| **W4** | Personal remote Gateway + Tunnel + export/share | [`w4-remote-gateway.md`](./w4-remote-gateway.md) | P2 |
+| **W4** | Host Server + multi-client + optional Gateway/Tunnel + export/share | [`host-server-multi-client.md`](./host-server-multi-client.md), [`w4-remote-gateway.md`](./w4-remote-gateway.md) | P2 |
 
 **Execution rule:** W1 → W2 core → W3 → W4. Rendering (KaTeX/Mermaid) and provider presets can parallelize with W1/W2.
 
@@ -241,7 +241,8 @@ piwin session export
 | [`w1-memory-process-chat.md`](./w1-memory-process-chat.md) | Memory, process, pin/search/resend, usage |
 | [`w2-subagent-compaction-pty.md`](./w2-subagent-compaction-pty.md) | Worktree sub-agent, fileOps, PTY, modes, KaTeX/Mermaid |
 | [`w3-marketplace-automation.md`](./w3-marketplace-automation.md) | Hubs, cron, hooks, todo |
-| [`w4-remote-gateway.md`](./w4-remote-gateway.md) | Gateway, tunnel, export/share |
+| [`host-server-multi-client.md`](./host-server-multi-client.md) | Host authority, local/remote deployment, multi-client protocol |
+| [`w4-remote-gateway.md`](./w4-remote-gateway.md) | Optional Gateway/tunnel, mobile/Web access, export/share |
 
 Executable plans under `docs/plans/` when a wave starts.
 
@@ -266,6 +267,7 @@ Executable plans under `docs/plans/` when a wave starts.
 | CE-CRON-01..03 | W3 | Cron |
 | CE-HOOK-01..02 | W3 | Hooks |
 | CE-TODO-01 | W3 | Session todo |
-| CE-GW-01..04 | W4 | Gateway |
-| CE-TUN-01 | W4 | Tunnel |
+| CE-HOST-01..08 | W4 | Host Server, multi-client, private transport, auth, replay |
+| CE-GW-01..04 | W4 | Optional Gateway relay / WebUI |
+| CE-TUN-01 | W4 | Optional tunnel |
 | CE-SHARE-01 | W4 | Export/share |

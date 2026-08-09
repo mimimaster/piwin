@@ -7,8 +7,9 @@
 
 piwin is a **private** coding-agent **shell** on Pi:
 
-- Desktop: Tauri 2
-- CLI: same host/config as desktop
+- Client shells: Desktop (Tauri 2) and CLI today; Windows/mobile/Web later
+- Host: deployable Node service, local sidecar or private remote machine
+- CLI: same Host/config/session authority as Desktop when attached to one Host
 - Kernel: Pi (`SDK` + `RPC` dual mode)
 - Config root: `~/.piwin` (maps/overlays Pi resources; does not own Pi upgrades)
 
@@ -36,6 +37,8 @@ Read first:
 9. **No circular package deps**. Dependency direction is one-way downward (see §2).
 10. **No "temporary" cross-layer hacks** that become permanent. Prefer a small contract over a clever shortcut.
 11. **One product composition root**: `@piwin/host-runtime` composes application services and `@piwin/agent-host`; `agent-host` stays a Pi-only backend boundary.
+12. **Host-first deployment**: a Host Server may run as a local sidecar or independently on another machine; multiple shells connect to one Host authority through `HostCommand` / `HostPush`.
+13. **Gateway is transport-only**: optional Gateway/tunnel processes must not import Pi, execute Host tools, own sessions, or store provider secrets.
 
 ---
 
@@ -52,6 +55,15 @@ packages/agent-host ─────→ packages/contracts
 packages/contracts           ← no runtime deps on other @piwin/*
     ↓
 Node/OS/Pi (host only)
+```
+
+Target multi-client deployment adds these boundaries without changing the
+authority direction:
+
+```text
+client apps → @piwin/host-client / @piwin/host-transport → @piwin/contracts
+apps/host   → @piwin/host-server → @piwin/host-runtime
+apps/gateway (optional) → host-transport + contracts only
 ```
 
 ### Allowed
@@ -187,6 +199,8 @@ Do not merge "logic changes" with zero tests when the package already has a test
 ---
 
 ## 4. Feature playbook (how to add anything)
+
+> **Everything lands on disk**: every plan, design document, and spec produced during work must be saved as a file (`docs/plans/`, `docs/specs/`, `docs/adr/`, …). Nothing exists only in chat — if a decision, plan, or design is worth making, it is worth archiving as a file.
 
 1. **Spec**: does PRD/dev-plan cover it? If architectural, write/update ADR.
 2. **Contracts**: add/change types in `@piwin/contracts` if cross-boundary.
