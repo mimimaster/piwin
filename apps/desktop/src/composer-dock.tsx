@@ -24,6 +24,7 @@ import {
   type ComposerPlusSubmenu,
   type ComposerSkillOption,
 } from './composer-plus-menu';
+import type { PendingContextRefItem } from './hooks/use-composer-context-refs';
 import { getAgentMode, type AgentModeId } from './agent-mode';
 import { MediaPreview } from './MediaPreview';
 import { WebElementChip } from './WebElementChip';
@@ -45,6 +46,7 @@ import {
   IconSend,
   IconStop,
 } from './shell-icons';
+import { ContextRefChip } from './context-ref-chip';
 import {
   buildSlashCatalog,
   detectActiveSlashToken,
@@ -105,6 +107,9 @@ export type ComposerDockProps = {
   onRemoveAttachment: (localId: string) => void;
   /** One-tap retry after a failed media/save. */
   onRetryAttachment?: (localId: string) => void;
+  /** CM: structured context ref chips (file/selection/folder/…). */
+  pendingContextRefs?: PendingContextRefItem[];
+  onRemoveContextRef?: (key: string) => void;
   docCommentsAttachment?: { docTitle: string; commentCount: number } | null | undefined;
   onRemoveDocComments?: (() => void) | undefined;
   dropActive: boolean;
@@ -204,7 +209,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     ? isExtensionUiInput
       ? extensionUiInput.trim().length > 0
       : props.composer.trim().length > 0
-    : props.composer.trim().length > 0 || props.pendingAttachments.length > 0;
+    : props.composer.trim().length > 0 ||
+      props.pendingAttachments.length > 0 ||
+      (props.pendingContextRefs?.length ?? 0) > 0;
   const hasFailedAttachment = props.pendingAttachments.some(
     (item) => item.attachment.kind === 'media' && item.uploadStatus === 'error',
   );
@@ -681,7 +688,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       ) : null}
 
       {/* Attachments row */}
-      {props.docCommentsAttachment || props.pendingAttachments.length > 0 ? (
+      {props.docCommentsAttachment ||
+      props.pendingAttachments.length > 0 ||
+      (props.pendingContextRefs && props.pendingContextRefs.length > 0) ? (
         <div className="composer-v2-attachments">
           {showTextOnlyImageWarning ? (
             <div
@@ -733,6 +742,15 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               ) : null}
             </div>
           ) : null}
+          {(props.pendingContextRefs ?? []).map((item) => (
+            <ContextRefChip
+              key={item.key}
+              item={item}
+              {...(props.onRemoveContextRef
+                ? { onRemove: props.onRemoveContextRef }
+                : {})}
+            />
+          ))}
           {props.pendingAttachments.map((item) => (
             <div
               key={item.localId}

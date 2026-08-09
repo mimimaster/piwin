@@ -25,6 +25,7 @@ import type {
   ProjectDirEntry,
   ProjectListDirData,
   ProjectReadFileData,
+  PromptContextRef,
 } from '@piwin/contracts';
 import { Button, EmptyState, IconButton, Notice, Spinner } from '@piwin/ui-kit';
 import { IconChevronDown, IconChevronRight, IconClose, IconRefresh } from './shell-icons';
@@ -49,6 +50,7 @@ import {
 } from './file-tree-model';
 import { loadExpandedPaths, saveExpandedPaths } from './file-tree-expand-memory';
 import type { DesktopLocale } from './desktop-locale';
+import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
 
 export type FileTreeRequest =
   | {
@@ -72,6 +74,8 @@ export type FileTreePanelProps = {
   request: (command: FileTreeRequest) => Promise<HostResponse>;
   /** Insert absolute/relative path into composer (text models). */
   onInsertPath?: (absolutePath: string, relativePath: string) => void;
+  /** CM: add structured file/folder context ref to composer. */
+  onAddContextRef?: (ref: PromptContextRef) => void;
   /**
    * Optional external open hook (e.g. DocPreview). Primary UX is the inline
    * split preview inside this panel — content stays in the right column.
@@ -412,6 +416,44 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
     return `${base}/${relativePath}`;
   }
 
+  const contextMenuDispatchers: ContextMenuDispatchers = {
+    addToChat: (ref) => {
+      props.onAddContextRef?.(ref);
+    },
+    focusComposer: () => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        '[data-testid="composer-input"]',
+      );
+      textarea?.focus();
+    },
+    sendPreset: () => {
+      // File-tree P0 menus do not auto-send presets.
+    },
+    openPath: (absolutePath, relativePath) => {
+      void openFilePreview(relativePath);
+      props.onOpenFile?.(absolutePath, relativePath);
+    },
+    revealPath: (_absolutePath) => {
+      // Tauri reveal lands with CM-05 polish; copy path remains available.
+    },
+    copyText: (value) => {
+      void navigator.clipboard.writeText(value).catch(() => undefined);
+    },
+    quoteInComposer: () => undefined,
+    retryMessage: () => undefined,
+    forkMessage: () => undefined,
+    openSideChat: () => undefined,
+    notify: () => undefined,
+  };
+
+  const contextMenuCaps = {
+    hasProject: Boolean(props.projectPath),
+    canReveal: false,
+    sideChatAvailable: false,
+    applyAvailable: false,
+    locale,
+  } as const;
+
   /** Load file content into the left pane of the right-panel split. */
   async function openFilePreview(relativePath: string): Promise<void> {
     if (!props.projectPath) return;
@@ -705,11 +747,16 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                   depth={0}
                   selectedPath={selectedPath}
                   gitStatusMap={gitStatusMap}
+                  projectPath={props.projectPath}
                   onSelectFile={(relativePath) => {
                     void openFilePreview(relativePath);
                   }}
                   onToggle={(path) => void handleToggle(path)}
                   onDragStart={handleDragStart}
+                  absoluteFor={absoluteFor}
+                  contextMenuCaps={contextMenuCaps}
+                  contextMenuDispatchers={contextMenuDispatchers}
+                  enableContextMenu={Boolean(props.onAddContextRef && props.projectPath)}
                 />
               ))
             )}
@@ -736,14 +783,91 @@ function FileTreeNodeView(props: {
   depth: number;
   selectedPath: string | null;
   gitStatusMap: Map<string, GitFileStatusCode>;
+  projectPath: string | null;
   onSelectFile: (path: string) => void;
   onToggle: (path: string) => void;
   onDragStart: (event: DragEvent, relativePath: string) => void;
+  absoluteFor: (relativePath: string) => string;
+  contextMenuCaps: {
+    hasProject: boolean;
+    canReveal: boolean;
+    sideChatAvailable: boolean;
+    applyAvailable: boolean;
+    locale: DesktopLocale;
+  };
+  contextMenuDispatchers: ContextMenuDispatchers;
+  enableContextMenu: boolean;
 }): ReactElement {
   const { node, depth } = props;
   const isDir = node.entry.kind === 'directory';
   const selected = props.selectedPath === node.entry.relativePath;
   const status = gitStatusForPath(props.gitStatusMap, node.entry.relativePath, node.entry.kind);
+  const absolutePath = props.absoluteFor(node.entry.relativePath);
+  const rowButton = (
+    <button
+      type="button"
+      className="file-tree-row"
+      style={{ paddingLeft: 8 + depth * 14 }}
+      draggable={!isDir}
+      onDragStart={(event) => {
+        if (!isDir) props.onDragStart(event, node.entry.relativePath);
+      }}
+      onClick={() => {
+        if (isDir) {
+          props.onToggle(node.entry.relativePath);
+        } else {
+          props.onSelectFile(node.entry.relativePath);
+        }
+      }}
+      title={node.entry.relativePath}
+    >
+      <span className="file-tree-twist" aria-hidden>
+        {isDir ? (
+          node.expanded ? (
+            <IconChevronDown width={12} height={12} />
+          ) : (
+            <IconChevronRight width={12} height={12} />
+          )
+        ) : null}
+      </span>
+      {/* Folders are pure-text expand buttons — no folder glyph. Files keep type icons. */}
+      {!isDir ? (
+        <span className="file-tree-icon" aria-hidden>
+          <FileTypeIcon filePathOrExt={node.entry.name} />
+        </span>
+      ) : null}
+      <span className="file-tree-name">{node.entry.name}</span>
+      {status ? (
+        <span
+          className={`file-tree-git file-tree-git--${status}`}
+          data-testid={`file-tree-git-${node.entry.relativePath}`}
+          title={status}
+        >
+          {GIT_STATUS_LETTER[status]}
+        </span>
+      ) : null}
+    </button>
+  );
+
+  const row =
+    props.enableContextMenu && props.projectPath ? (
+      <ContextMenuFromCatalog
+        testId={`file-tree-context-${node.entry.relativePath}`}
+        target={{
+          surface: isDir ? 'file-tree-folder' : 'file-tree-file',
+          projectPath: props.projectPath,
+          relativePath: node.entry.relativePath,
+          absolutePath,
+          label: node.entry.name,
+        }}
+        caps={props.contextMenuCaps}
+        dispatchers={props.contextMenuDispatchers}
+      >
+        {rowButton}
+      </ContextMenuFromCatalog>
+    ) : (
+      rowButton
+    );
 
   return (
     <li
@@ -751,49 +875,7 @@ function FileTreeNodeView(props: {
       aria-expanded={isDir ? node.expanded : undefined}
       className={`file-tree-node${selected ? ' selected' : ''}`}
     >
-      <button
-        type="button"
-        className="file-tree-row"
-        style={{ paddingLeft: 8 + depth * 14 }}
-        draggable={!isDir}
-        onDragStart={(event) => {
-          if (!isDir) props.onDragStart(event, node.entry.relativePath);
-        }}
-        onClick={() => {
-          if (isDir) {
-            props.onToggle(node.entry.relativePath);
-          } else {
-            props.onSelectFile(node.entry.relativePath);
-          }
-        }}
-        title={node.entry.relativePath}
-      >
-        <span className="file-tree-twist" aria-hidden>
-          {isDir ? (
-            node.expanded ? (
-              <IconChevronDown width={12} height={12} />
-            ) : (
-              <IconChevronRight width={12} height={12} />
-            )
-          ) : null}
-        </span>
-        {/* Folders are pure-text expand buttons — no folder glyph. Files keep type icons. */}
-        {!isDir ? (
-          <span className="file-tree-icon" aria-hidden>
-            <FileTypeIcon filePathOrExt={node.entry.name} />
-          </span>
-        ) : null}
-        <span className="file-tree-name">{node.entry.name}</span>
-        {status ? (
-          <span
-            className={`file-tree-git file-tree-git--${status}`}
-            data-testid={`file-tree-git-${node.entry.relativePath}`}
-            title={status}
-          >
-            {GIT_STATUS_LETTER[status]}
-          </span>
-        ) : null}
-      </button>
+      {row}
       {node.loading ? (
         <div className="file-tree-nested muted" style={{ paddingLeft: 24 + depth * 14 }}>
           Loading…
@@ -813,9 +895,14 @@ function FileTreeNodeView(props: {
               depth={depth + 1}
               selectedPath={props.selectedPath}
               gitStatusMap={props.gitStatusMap}
+              projectPath={props.projectPath}
               onSelectFile={props.onSelectFile}
               onToggle={props.onToggle}
               onDragStart={props.onDragStart}
+              absoluteFor={props.absoluteFor}
+              contextMenuCaps={props.contextMenuCaps}
+              contextMenuDispatchers={props.contextMenuDispatchers}
+              enableContextMenu={props.enableContextMenu}
             />
           ))}
         </ul>
