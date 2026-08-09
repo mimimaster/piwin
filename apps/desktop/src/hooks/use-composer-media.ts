@@ -12,18 +12,21 @@ import {
 } from 'react';
 import type {
   MediaSaveData,
+  PromptContextRef,
   PromptAttachment,
   WebElementAttachmentRef,
   WebElementPickResult,
 } from '@piwin/contracts';
-import { formatError, toMediaAttachmentRef } from '@piwin/contracts';
+import { ATTACHMENT_FILE_ACCEPT, formatError, toMediaAttachmentRef } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
 import type { ChatUiAction, ChatUiState, SkillActivityView } from '../chat-reducer';
 import {
   fileToBase64,
+  prepareComposerAttachmentForSave,
   isPendingAttachmentReady,
-  prepareComposerImageForSave,
-  resolveImageMimeType,
+  isAllowedAttachmentFile,
+  resolveAttachmentContentKind,
+  resolveAttachmentMimeType,
   type PendingComposerAttachment,
 } from '../media-utils.js';
 import { type AgentModeId } from '../agent-mode';
@@ -38,6 +41,13 @@ import { isPlaceholderSessionName } from '../title-display';
 import { canUseThinkingLevel } from '../model-thinking-policy';
 import { decideDraftTransition } from '../draft-transition';
 import { sortDraftSessions, type DraftSessionItemUi } from '../draft-session';
+import {
+  appendSteerQueueMessage,
+  editSteerQueueMessage,
+  removeSteerQueueMessage,
+  type SteerQueueMessage,
+  type SteerQueuesBySession,
+} from '../steer-queue-model';
 
 export type UseComposerMediaArgs = {
   hostClient: HostClient;
@@ -105,6 +115,13 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   /** Latest pending list for waiters that must not close over a stale render. */
   const pendingAttachmentsRef = useRef<PendingComposerAttachment[]>([]);
   pendingAttachmentsRef.current = pendingAttachments;
+  /** Structured refs for trusted workspace-tree drops; never inject absolute paths. */
+  const pendingContextRefsRef = useRef<PromptContextRef[]>([]);
+  const [steerQueuesBySession, setSteerQueuesBySession] = useState<SteerQueuesBySession>({});
+  const steerQueuesBySessionRef = useRef<SteerQueuesBySession>({});
+  const queueDrainInProgressRef = useRef(false);
+  const queueDrainBlockedMessageIdRef = useRef<string | null>(null);
+  const steerQueueSendNowInProgressRef = useRef(new Set<string>());
   /**
    * Terminal media results keyed by localId. Send reads this after awaits so it
    * does not depend on React re-render timing.
@@ -307,6 +324,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   }, []);
 
   const clearPendingAttachments = useCallback((): void => {
+    pendingContextRefsRef.current = [];
     setPendingAttachments((current) => {
       for (const item of current) {
         cancelledAttachmentIdsRef.current.add(item.localId);
@@ -347,8 +365,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   }, [args]);
 
   /**
-   * Attach an image with an immediate local preview, then save to the media
-   * store in the background. Paste/drop must not wait on base64 + IPC.
+   * Attach a supported file with an immediate local preview, then save to the
+   * media store in the background. Paste/drop must not wait on IPC.
    */
   const runMediaSave = useCallback(
     async (
@@ -393,12 +411,15 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       } catch {
         headerBytes = undefined;
       }
-      const mimeType = resolveImageMimeType(file, headerBytes);
-      if (!mimeType) {
+      const mimeType = resolveAttachmentMimeType(file, headerBytes);
+      const contentKind = mimeType
+        ? resolveAttachmentContentKind(file, mimeType, headerBytes)
+        : null;
+      if (!mimeType || !contentKind) {
         removeLocalChip();
         args.dispatch({
           type: 'error',
-          message: `Unsupported image type: ${file.type || file.name}`,
+          message: `Unsupported attachment type: ${file.type || file.name}`,
         });
         return;
       }
@@ -417,6 +438,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
                   ...item.attachment,
                   mimeType,
                   byteSize: file.size,
+                  name: file.name,
+                  contentKind,
                 },
                 uploadStatus: 'saving' as const,
               }
@@ -441,9 +464,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           return;
         }
 
-        const prepared = await prepareComposerImageForSave(file, mimeType);
+        const prepared = await prepareComposerAttachmentForSave(file, mimeType, contentKind);
         if (cancelledAttachmentIdsRef.current.has(localId)) {
           return;
+        }
+        if (mimeType === 'image/gif' && prepared.mimeType === 'image/gif') {
+          throw new Error('GIF first-frame conversion is unavailable in this runtime');
         }
 
         if (prepared.compressed || prepared.mimeType !== mimeType) {
@@ -456,6 +482,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
                       ...item.attachment,
                       mimeType: prepared.mimeType,
                       byteSize: prepared.byteSize,
+                      contentKind: prepared.contentKind,
                       ...(prepared.width !== undefined ? { width: prepared.width } : {}),
                       ...(prepared.height !== undefined ? { height: prepared.height } : {}),
                     },
@@ -475,6 +502,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           input: {
             sessionId,
             mimeType: prepared.mimeType,
+            name: file.name,
+            contentKind: prepared.contentKind,
             source,
             base64Data,
           },
@@ -512,7 +541,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     [args, resolveSessionIdForComposer],
   );
 
-  const enqueueImageFile = useCallback(
+  const enqueueAttachmentFile = useCallback(
     (file: File, source: 'paste' | 'drop' | 'file-picker', existingLocalId?: string): void => {
       const localId = existingLocalId ?? crypto.randomUUID();
       cancelledAttachmentIdsRef.current.delete(localId);
@@ -523,16 +552,16 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         const previewUrl = URL.createObjectURL(file);
         // Optimistic MIME from File metadata; macOS clipboard pastes often
         // have an empty type and are refined from magic bytes in runMediaSave.
-        const optimisticMime =
-          resolveImageMimeType(file) ??
-          (file.type.trim().toLowerCase().startsWith('image/')
-            ? file.type.trim().toLowerCase()
-            : 'image/png');
+        const optimisticMime = resolveAttachmentMimeType(file) ?? 'application/octet-stream';
+        const optimisticContentKind =
+          resolveAttachmentContentKind(file, optimisticMime) ?? 'document';
         const placeholderAttachment: PromptAttachment = {
           id: localId,
           kind: 'media',
           path: `pending://${localId}`,
           mimeType: optimisticMime === 'image/jpg' ? 'image/jpeg' : optimisticMime,
+          name: file.name,
+          contentKind: optimisticContentKind,
           byteSize: file.size,
           source,
         };
@@ -578,18 +607,18 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       if (!source) {
         args.dispatch({
           type: 'error',
-          message: 'Cannot retry this image — remove it and paste again.',
+          message: 'Cannot retry this attachment — remove it and attach it again.',
         });
         return;
       }
-      enqueueImageFile(source.file, source.source, localId);
+      enqueueAttachmentFile(source.file, source.source, localId);
     },
-    [args, enqueueImageFile],
+    [args, enqueueAttachmentFile],
   );
 
   /**
-   * Wait until every media chip is ready (or failed/removed).
-   * Used by Send so the user can press Enter immediately after paste.
+   * Wait until every attachment chip is ready (or failed/removed).
+   * Used by Send so the user can press Enter immediately after paste/drop.
    */
   const waitForPendingMediaSaves = useCallback(async (): Promise<{
     ready: PendingComposerAttachment[];
@@ -643,26 +672,26 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       if (!items) {
         return;
       }
-      const imageFiles: File[] = [];
+      const files: File[] = [];
       for (const item of items) {
-        // Some pastes expose image/*; others only give a file with empty type.
-        if (item.kind === 'file' && (item.type.startsWith('image/') || item.type === '')) {
+        // Some pastes expose a MIME type; others only give a file with empty type.
+        if (item.kind === 'file') {
           const file = item.getAsFile();
-          if (file) {
-            imageFiles.push(file);
+          if (file && (isAllowedAttachmentFile(file) || file.type.trim() === '')) {
+            files.push(file);
           }
         }
       }
-      if (imageFiles.length === 0) {
+      if (files.length === 0) {
         return;
       }
       event.preventDefault();
       // Fire-and-forget: each file paints a chip immediately, then saves async.
-      for (const file of imageFiles) {
-        enqueueImageFile(file, 'paste');
+      for (const file of files) {
+        enqueueAttachmentFile(file, 'paste');
       }
     },
-    [enqueueImageFile],
+    [enqueueAttachmentFile],
   );
 
   const handleComposerDrop = useCallback(
@@ -679,11 +708,25 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
             relativePath?: string;
           };
           const absolutePath = parsed.absolutePath?.trim();
-          if (absolutePath) {
+          const relativePath = parsed.relativePath?.trim();
+          const projectPath = args.state.projectPath?.trim();
+          if (absolutePath && relativePath && projectPath) {
+            const contextRef: PromptContextRef = {
+              kind: 'file',
+              projectPath,
+              relativePath,
+              label: relativePath,
+            };
+            pendingContextRefsRef.current = [
+              ...pendingContextRefsRef.current.filter(
+                (ref) => ref.kind !== 'file' || ref.relativePath !== relativePath,
+              ),
+              contextRef,
+            ];
             setComposer((current) =>
               current.trim().length > 0
-                ? `${current.replace(/\s+$/, '')}\n${absolutePath}`
-                : absolutePath,
+                ? `${current.replace(/\s+$/, '')}\n${relativePath}`
+                : relativePath,
             );
             return;
           }
@@ -713,34 +756,52 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         }
       }
       const files = droppedFiles.filter(
-        (file) => resolveImageMimeType(file) !== null || file.type.startsWith('image/'),
+        (file) => isAllowedAttachmentFile(file) || file.type.trim() === '',
       );
       for (const file of files) {
-        enqueueImageFile(file, 'drop');
+        enqueueAttachmentFile(file, 'drop');
       }
     },
-    [enqueueImageFile],
+    [enqueueAttachmentFile],
   );
 
-  const handlePickImageFiles = useCallback((): void => {
-    // Session is created lazily inside enqueueImageFile when needed.
+  const canAttachFiles = useCallback((): boolean => {
     const isGeneral = args.state.activeScope.kind === 'general' || !args.state.projectPath;
     if (!isGeneral && !args.state.projectTrusted && !args.state.activeSessionId) {
       args.dispatch({ type: 'project/trust-dialog', open: true });
-      return;
+      return false;
     }
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/png,image/jpeg,image/jpg,image/webp,image/gif';
-    input.multiple = true;
-    input.onchange = () => {
-      const files = [...(input.files ?? [])];
-      for (const file of files) {
-        enqueueImageFile(file, 'file-picker');
+    return true;
+  }, [args]);
+
+  const openAttachmentPicker = useCallback(
+    (accept: string): void => {
+      if (!canAttachFiles()) {
+        return;
       }
-    };
-    input.click();
-  }, [args, enqueueImageFile]);
+      // Session is created lazily inside enqueueAttachmentFile when needed.
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = accept;
+      input.multiple = true;
+      input.onchange = () => {
+        const files = [...(input.files ?? [])];
+        for (const file of files) {
+          enqueueAttachmentFile(file, 'file-picker');
+        }
+      };
+      input.click();
+    },
+    [canAttachFiles, enqueueAttachmentFile],
+  );
+
+  const handlePickFiles = useCallback((): void => {
+    openAttachmentPicker(ATTACHMENT_FILE_ACCEPT);
+  }, [openAttachmentPicker]);
+
+  const handlePickImageFiles = useCallback((): void => {
+    openAttachmentPicker('image/png,image/jpeg,image/jpg,image/webp,image/gif');
+  }, [openAttachmentPicker]);
 
   /**
    * Add a picked web element (ADR 0020 §6) as a pending composer attachment.
@@ -784,11 +845,13 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     (params: {
       text: string;
       attachments?: PromptAttachment[];
+      contextRefs?: PromptContextRef[];
       agentMode: AgentModeId;
       clientMessageId?: string;
     }): {
       text: string;
       attachments?: PromptAttachment[];
+      contextRefs?: PromptContextRef[];
       model?: import('@piwin/contracts').ModelRef;
       thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
       agentMode?: import('@piwin/contracts').AgentModeId;
@@ -798,6 +861,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       const input: {
         text: string;
         attachments?: PromptAttachment[];
+        contextRefs?: PromptContextRef[];
         model?: import('@piwin/contracts').ModelRef;
         thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
         agentMode?: import('@piwin/contracts').AgentModeId;
@@ -816,6 +880,9 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       }
       if (params.attachments && params.attachments.length > 0) {
         input.attachments = params.attachments;
+      }
+      if (params.contextRefs && params.contextRefs.length > 0) {
+        input.contextRefs = params.contextRefs;
       }
       const model = resolveTurnModel();
       if (model) {
@@ -912,8 +979,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
             type: 'error',
             message:
               waitedFailed.length === 1
-                ? 'One image failed to save — tap Retry on the chip, or remove it.'
-                : `${waitedFailed.length} images failed to save — tap Retry or remove them.`,
+                ? 'One attachment failed to save — tap Retry on the chip, or remove it.'
+                : `${waitedFailed.length} attachments failed to save — tap Retry or remove them.`,
           });
           return;
         }
@@ -930,8 +997,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       // message arrives (session/prompt interrupt). Users no longer need to
       // press Stop first.
 
-      const hasMedia = attachments.some((item) => item.kind === 'media');
-      if (hasMedia) {
+      const hasImage = attachments.some(isImagePromptAttachment);
+      if (hasImage) {
         const selected = args.modelOptions?.find(
           (option) => `${option.providerId}::${option.modelId}` === args.selectedModelKey,
         );
@@ -1037,9 +1104,10 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       let hostPromptText = text;
       let promptAgentMode: AgentModeId = args.agentMode;
       let promptAttachments: PromptAttachment[] = attachments;
+      const promptContextRefs = [...pendingContextRefsRef.current];
       let skillActivity: SkillActivityView | undefined;
 
-      if (text.startsWith('/') && attachments.length === 0) {
+      if (text.startsWith('/') && attachments.length === 0 && promptContextRefs.length === 0) {
         const skills = (args.menuSkills ?? []).map((skill) => ({
           id: skill.id,
           name: skill.name,
@@ -1067,6 +1135,9 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         attachments: promptAttachments,
         ...(skillActivity ? { skill: skillActivity } : {}),
       });
+      // paintOptimisticUserSend clears attachment chips; workspace refs belong
+      // to this same prompt and must survive until the Host request is built.
+      pendingContextRefsRef.current = promptContextRefs;
 
       promptSubmissionInProgress.current = true;
       try {
@@ -1082,6 +1153,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         const input = buildPromptRequestInput({
           text: hostPromptText,
           attachments: promptAttachments,
+          contextRefs: promptContextRefs,
           agentMode: promptAgentMode,
           clientMessageId,
         });
@@ -1095,6 +1167,8 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           args.dispatch({ type: 'error', message: response.error });
           return;
         }
+
+        pendingContextRefsRef.current = [];
 
         applyAcceptedRun(response.data);
 
@@ -1139,60 +1213,201 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     ],
   );
 
-  const handleSteer = useCallback(async (): Promise<void> => {
-    const text = composer.trim();
+  const updateSteerQueues = useCallback(
+    (update: (current: SteerQueuesBySession) => SteerQueuesBySession): void => {
+      setSteerQueuesBySession((current) => {
+        const next = update(current);
+        steerQueuesBySessionRef.current = next;
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleSteer = useCallback(async (overrideText?: string): Promise<boolean> => {
+    const text = (overrideText ?? composer).trim();
     if (!text || !args.state.activeSessionId || !args.state.streaming) {
-      return;
+      return false;
     }
-    // Paint-first local echo so Enter does not wait on host ACK.
-    const clientMessageId = paintOptimisticUserSend({
+    const clientMessageId = crypto.randomUUID();
+    // A steer belongs to the active run, so it must not reset run ownership as
+    // a new `user/send` would. It is still a normal user row in the transcript.
+    args.dispatch({
+      type: 'user/steer',
       text,
-      displayText: `[Steer] ${text}`,
-      attachments: [],
+      clientMessageId,
     });
+    if (overrideText === undefined) {
+      setComposer('');
+    }
     try {
       const response = await args.hostClient.request({
         type: 'session/steer',
         sessionId: args.state.activeSessionId,
         message: text,
+        clientMessageId,
         ...(args.state.activeRunId ? { runId: args.state.activeRunId } : {}),
       });
       if (!response.success) {
-        rollbackOptimisticUserSend(clientMessageId, text);
+        args.dispatch({ type: 'user/send-rollback', clientMessageId });
+        if (overrideText === undefined) {
+          setComposer(text);
+        }
         args.dispatch({ type: 'error', message: response.error });
+        return false;
       }
+      return true;
     } catch (error) {
-      rollbackOptimisticUserSend(clientMessageId, text);
+      args.dispatch({ type: 'user/send-rollback', clientMessageId });
+      if (overrideText === undefined) {
+        setComposer(text);
+      }
       args.dispatch({ type: 'error', message: formatError(error) });
+      return false;
     }
-  }, [args, composer, paintOptimisticUserSend, rollbackOptimisticUserSend]);
+  }, [args, composer]);
 
-  const handleFollowUp = useCallback(async (): Promise<void> => {
+  const handleFollowUp = useCallback((): void => {
     const text = composer.trim();
-    if (!text || !args.state.activeSessionId || !args.state.streaming) {
+    const sessionId = args.state.activeSessionId;
+    if (
+      !text ||
+      !sessionId ||
+      !args.state.streaming ||
+      pendingAttachmentsRef.current.length > 0
+    ) {
       return;
     }
-    const clientMessageId = paintOptimisticUserSend({
+    const message: SteerQueueMessage = {
+      id: crypto.randomUUID(),
       text,
-      displayText: `[Follow-up] ${text}`,
-      attachments: [],
-    });
-    try {
-      const response = await args.hostClient.request({
-        type: 'session/follow_up',
-        sessionId: args.state.activeSessionId,
-        message: text,
-        ...(args.state.activeRunId ? { runId: args.state.activeRunId } : {}),
-      });
-      if (!response.success) {
-        rollbackOptimisticUserSend(clientMessageId, text);
-        args.dispatch({ type: 'error', message: response.error });
+      createdAt: new Date().toISOString(),
+    };
+    updateSteerQueues((current) => appendSteerQueueMessage(current, sessionId, message));
+    setComposer('');
+  }, [args.state.activeSessionId, args.state.streaming, composer, updateSteerQueues]);
+
+  const handleSteerQueueEdit = useCallback(
+    (messageId: string, text: string): void => {
+      const sessionId = args.state.activeSessionId;
+      if (!sessionId) return;
+      queueDrainBlockedMessageIdRef.current = null;
+      updateSteerQueues((current) =>
+        editSteerQueueMessage(current, sessionId, messageId, text),
+      );
+    },
+    [args.state.activeSessionId, updateSteerQueues],
+  );
+
+  const handleSteerQueueRemove = useCallback(
+    (messageId: string): void => {
+      const sessionId = args.state.activeSessionId;
+      if (!sessionId) return;
+      if (queueDrainBlockedMessageIdRef.current === messageId) {
+        queueDrainBlockedMessageIdRef.current = null;
       }
-    } catch (error) {
-      rollbackOptimisticUserSend(clientMessageId, text);
-      args.dispatch({ type: 'error', message: formatError(error) });
+      updateSteerQueues((current) => removeSteerQueueMessage(current, sessionId, messageId));
+    },
+    [args.state.activeSessionId, updateSteerQueues],
+  );
+
+  const handleSteerQueueSendNow = useCallback(
+    async (messageId: string): Promise<void> => {
+      const sessionId = args.state.activeSessionId;
+      if (!sessionId || !args.state.streaming) return;
+      const message = (steerQueuesBySessionRef.current[sessionId] ?? []).find(
+        (item) => item.id === messageId,
+      );
+      if (!message || steerQueueSendNowInProgressRef.current.has(messageId)) return;
+      steerQueueSendNowInProgressRef.current.add(messageId);
+      try {
+        const accepted = await handleSteer(message.text);
+        if (accepted) {
+          if (queueDrainBlockedMessageIdRef.current === messageId) {
+            queueDrainBlockedMessageIdRef.current = null;
+          }
+          updateSteerQueues((current) =>
+            removeSteerQueueMessage(current, sessionId, messageId),
+          );
+        }
+      } finally {
+        steerQueueSendNowInProgressRef.current.delete(messageId);
+      }
+    },
+    [args.state.activeSessionId, args.state.streaming, handleSteer, updateSteerQueues],
+  );
+
+  const submitQueuedPrompt = useCallback(
+    async (sessionId: string, message: SteerQueueMessage): Promise<boolean> => {
+      const clientMessageId = crypto.randomUUID();
+      args.dispatch({ type: 'user/send', text: message.text, clientMessageId });
+      try {
+        const response = await args.hostClient.request({
+          type: 'session/prompt',
+          sessionId,
+          input: buildPromptRequestInput({
+            text: message.text,
+            attachments: [],
+            contextRefs: [],
+            agentMode: args.agentMode,
+            clientMessageId,
+          }),
+        });
+        if (!response.success) {
+          args.dispatch({ type: 'user/send-rollback', clientMessageId });
+          args.dispatch({ type: 'error', message: response.error });
+          return false;
+        }
+        applyAcceptedRun(response.data);
+        return true;
+      } catch (error) {
+        args.dispatch({ type: 'user/send-rollback', clientMessageId });
+        args.dispatch({ type: 'error', message: formatError(error) });
+        return false;
+      }
+    },
+    [applyAcceptedRun, args, buildPromptRequestInput],
+  );
+
+  useEffect(() => {
+    const sessionId = args.state.activeSessionId;
+    if (
+      !sessionId ||
+      args.state.streaming ||
+      args.state.runPhase !== 'idle' ||
+      args.state.workingSessionIds[sessionId] === true ||
+      queueDrainInProgressRef.current
+    ) {
+      return;
     }
-  }, [args, composer, paintOptimisticUserSend, rollbackOptimisticUserSend]);
+    const nextMessage = steerQueuesBySessionRef.current[sessionId]?.[0];
+    if (!nextMessage || queueDrainBlockedMessageIdRef.current === nextMessage.id) {
+      return;
+    }
+    queueDrainInProgressRef.current = true;
+    void submitQueuedPrompt(sessionId, nextMessage).then((accepted) => {
+      if (accepted) {
+        updateSteerQueues((current) =>
+          removeSteerQueueMessage(current, sessionId, nextMessage.id),
+        );
+      } else {
+        queueDrainBlockedMessageIdRef.current = nextMessage.id;
+      }
+      queueDrainInProgressRef.current = false;
+    });
+  }, [
+    args.state.activeSessionId,
+    args.state.runPhase,
+    args.state.streaming,
+    args.state.workingSessionIds,
+    steerQueuesBySession,
+    submitQueuedPrompt,
+    updateSteerQueues,
+  ]);
+
+  const steerQueueMessages = args.state.activeSessionId
+    ? (steerQueuesBySession[args.state.activeSessionId] ?? [])
+    : [];
 
   return {
     composer,
@@ -1208,12 +1423,17 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     clearPendingAttachments,
     handleComposerPaste,
     handleComposerDrop,
+    handlePickFiles,
     handlePickImageFiles,
     addWebElement,
     handleSend,
     retryPendingAttachment,
     handleSteer,
     handleFollowUp,
+    steerQueueMessages,
+    handleSteerQueueSendNow,
+    handleSteerQueueEdit,
+    handleSteerQueueRemove,
   };
 }
 
@@ -1222,4 +1442,13 @@ function looksLikeFilesystemPath(value: string): boolean {
   if (value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value)) return true;
   if (value.startsWith('./') || value.startsWith('../')) return true;
   return value.includes('/') && !value.includes(' ');
+}
+
+function isImagePromptAttachment(attachment: PromptAttachment): boolean {
+  return (
+    attachment.kind === 'media' &&
+    (attachment.contentKind === 'image' ||
+      (attachment.contentKind === undefined &&
+        attachment.mimeType.trim().toLowerCase().startsWith('image/')))
+  );
 }

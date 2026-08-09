@@ -17,8 +17,17 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 vi.mock('./components/PetSprite', () => ({
-  PetSprite: (props: { pet: PetRuntimeSnapshot }) => (
-    <div data-testid="pet-sprite" data-state={props.pet.state} />
+  PetSprite: (props: { pet: PetRuntimeSnapshot; onHide?: () => void }) => (
+    <div className="pet-sprite-root" data-testid="pet-sprite" data-state={props.pet.state}>
+      <button
+        type="button"
+        data-pet-overlay-control="hide"
+        data-testid="hide-pet"
+        onClick={props.onHide}
+      >
+        hide
+      </button>
+    </div>
   ),
 }));
 
@@ -57,6 +66,7 @@ describe('PetOverlayApp', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
     invokeMock.mockReset();
     listenMock.mockReset();
+    localStorage.clear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -69,6 +79,8 @@ describe('PetOverlayApp', () => {
     });
     container.remove();
     vi.useRealTimers();
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
+    localStorage.clear();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -115,5 +127,60 @@ describe('PetOverlayApp', () => {
 
     expect(invokeMock).toHaveBeenCalledTimes(2);
     expect(container.querySelector('[data-testid="pet-sprite"]')).not.toBeNull();
+  });
+
+  it('cancels the Canvas drag default before WebKit can paint a selection highlight', async () => {
+    invokeMock.mockResolvedValue({ success: true, data: { pet: createPet() } });
+
+    act(() => {
+      root.render(<PetOverlayApp />);
+    });
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    const sprite = container.querySelector<HTMLElement>('[data-testid="pet-sprite"]');
+    if (!sprite) throw new Error('pet sprite not rendered');
+    const mouseDown = new MouseEvent('mousedown', {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+    });
+    sprite.dispatchEvent(mouseDown);
+
+    expect(mouseDown.defaultPrevented).toBe(true);
+  });
+
+  it('persists and applies hide from the pet hover control', async () => {
+    Object.defineProperty(window, '__TAURI_INTERNALS__', {
+      configurable: true,
+      value: {},
+    });
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'host_request') {
+        return { success: true, data: { pet: createPet() } };
+      }
+      return undefined;
+    });
+
+    act(() => {
+      root.render(<PetOverlayApp />);
+    });
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    const hideButton = container.querySelector<HTMLButtonElement>('[data-testid="hide-pet"]');
+    if (!hideButton) throw new Error('hide pet control not rendered');
+    act(() => {
+      hideButton.click();
+    });
+    await act(async () => {
+      await flushMicrotasks();
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith('pet_overlay_show');
+    expect(invokeMock).toHaveBeenCalledWith('pet_overlay_hide');
+    expect(localStorage.getItem('piwin.desktop.petOverlayVisible')).toBe('false');
   });
 });

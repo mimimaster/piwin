@@ -343,4 +343,35 @@ describe('PetSprite animation loop', () => {
     expect(newDraw?.[1]).toBe(0);
     expect(newDraw?.[2]).toBe(pet.stateRows['waving'] * pet.cellHeight);
   });
+
+  it('keeps the overlay hide control separate from the pet click action', async () => {
+    const onHide = vi.fn();
+    const onOpenSettings = vi.fn();
+    act(() => {
+      root.render(
+        <PetSprite
+          pet={createPet()}
+          overlay
+          onHide={onHide}
+          onOpenSettings={onOpenSettings}
+        />,
+      );
+    });
+    await act(async () => {
+      await flushImageLoad();
+    });
+
+    const hideButton = container.querySelector<HTMLButtonElement>(
+      '[data-pet-overlay-control="hide"]',
+    );
+    if (!hideButton) throw new Error('pet hide button not rendered');
+
+    act(() => {
+      hideButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+
+    expect(hideButton.getAttribute('aria-label')).toBe('隐藏宠物');
+    expect(onHide).toHaveBeenCalledTimes(1);
+    expect(onOpenSettings).not.toHaveBeenCalled();
+  });
 });

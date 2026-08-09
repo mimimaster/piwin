@@ -7,7 +7,7 @@ import {
   type ModelProviderConfig,
   type PiwinConfig,
 } from '@piwin/contracts';
-import { Button, Dialog, Field, Notice, Select, TextInput } from '@piwin/ui-kit';
+import { Button, Dialog, Field, Notice, Select, StatusBadge, TextInput } from '@piwin/ui-kit';
 import { useDesktopLocale } from '../desktop-locale-context.js';
 import { PageTitle } from './page-title.js';
 
@@ -159,80 +159,131 @@ export function AsrModelSettings(props: AsrModelSettingsProps): ReactElement {
   }
 
   return (
-    <div
-      className="settings-section settings-section-card settings-asr-card"
-      data-testid="settings-asr-card"
-    >
+    <section className="settings-section speech-defaults" data-testid="settings-speech-defaults">
       <PageTitle
-        title={isChinese ? '语音输入（ASR）' : 'Voice input (ASR)'}
+        title={isChinese ? '能力默认值' : 'Capability defaults'}
         description={
           isChinese
-            ? '桌面端录音只在内存中转换为文本，不保存音频。选择一个已标记为 ASR 的模型即可启用输入框麦克风。'
-            : 'Desktop recordings are transcribed in memory and never saved. Choose a model tagged for ASR to enable the composer microphone.'
-        }
-        trailing={
-          configuredOption ? (
-            <span className="pill" data-testid="settings-asr-ready">
-              {isChinese ? '已配置' : 'Configured'}
-            </span>
-          ) : null
+            ? '为桌面语音输入设置默认模型；TTS 先保留能力标记，播放链路接入后再启用。'
+            : 'Set the default model for desktop voice input. TTS stays capability-only until playback is wired.'
         }
       />
 
-      {configuredOption ? (
-        <div className="settings-section-row" data-testid="settings-asr-configured">
-          <div>
-            <strong>{configuredOption.model.label ?? configuredOption.model.id}</strong>
-            <p className="muted">
-              {configuredOption.provider.name} · {configuredOption.model.id}
-              {props.config.speech?.asr?.language ? ` · ${props.config.speech.asr.language}` : ''}
-            </p>
+      <div className="speech-defaults-grid">
+        <article className="speech-default-card" data-testid="settings-asr-card">
+          <div className="speech-default-card-heading">
+            <span className="speech-default-icon speech-default-icon--input" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="9" y="2.5" width="6" height="12" rx="3" />
+                <path d="M5.5 10.5v1.5a6.5 6.5 0 0 0 13 0v-1.5M12 18.5V22M8.5 22h7" />
+              </svg>
+            </span>
+            <div className="speech-default-card-heading-copy">
+              <span className="speech-default-card-kicker">ASR</span>
+              <h3>{isChinese ? '语音输入' : 'Voice input'}</h3>
+              <p>
+                {isChinese
+                  ? '录音只在本次请求中使用，不会保存音频。'
+                  : 'Recordings are used for this request only and are never saved.'}
+              </p>
+            </div>
+            {configuredOption ? (
+              <StatusBadge
+                tone="success"
+                label={isChinese ? '已就绪' : 'Ready'}
+                testId="settings-asr-ready"
+              />
+            ) : null}
           </div>
-          <div className="settings-section-actions">
-            <Button size="compact" onClick={openDialog} disabled={props.saving}>
-              {isChinese ? '更换模型' : 'Change model'}
-            </Button>
-            <Button
-              size="compact"
-              variant="ghost"
-              onClick={() => void clearAsr()}
-              disabled={props.saving}
-              data-testid="settings-asr-clear"
-            >
-              {isChinese ? '停用' : 'Disable'}
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <Notice
-          tone={hasInvalidConfiguredModel ? 'warning' : 'info'}
-          testId="settings-asr-unconfigured"
-          action={
-            <Button size="compact" variant="primary" onClick={openDialog} disabled={props.saving}>
-              {isChinese ? '配置 ASR' : 'Configure ASR'}
-            </Button>
-          }
-        >
-          {hasInvalidConfiguredModel
-            ? isChinese
-              ? '当前 ASR 模型不可用，请重新选择已启用且带 ASR 能力标记的模型。'
-              : 'The configured ASR model is unavailable. Choose an enabled model tagged for ASR.'
-            : isChinese
-              ? '尚未配置桌面语音输入。'
-              : 'Desktop voice input is not configured yet.'}
-        </Notice>
-      )}
 
-      <div className="settings-section-row" data-testid="settings-tts-reserved">
-        <div>
-          <strong>{isChinese ? '语音合成（TTS）' : 'Speech synthesis (TTS)'}</strong>
-          <p className="muted">
-            {isChinese
-              ? '模型能力标签已经支持；播放与默认语音配置留待后续阶段。'
-              : 'Model capability tagging is ready; playback and voice defaults are reserved for a later phase.'}
-          </p>
-        </div>
-        <span className="pill">{isChinese ? '后续' : 'Later'}</span>
+          <div className="speech-default-card-body">
+            {configuredOption ? (
+              <div className="speech-default-configured" data-testid="settings-asr-configured">
+                <div className="speech-default-model">
+                  <strong>{configuredOption.model.label ?? configuredOption.model.id}</strong>
+                  <span>
+                    {configuredOption.provider.name} · {configuredOption.model.id}
+                    {props.config.speech?.asr?.language
+                      ? ` · ${props.config.speech.asr.language}`
+                      : ''}
+                  </span>
+                </div>
+                <div className="settings-section-actions">
+                  <Button size="compact" onClick={openDialog} disabled={props.saving}>
+                    {isChinese ? '更换' : 'Change'}
+                  </Button>
+                  <Button
+                    size="compact"
+                    variant="ghost"
+                    onClick={() => void clearAsr()}
+                    disabled={props.saving}
+                    data-testid="settings-asr-clear"
+                  >
+                    {isChinese ? '停用' : 'Disable'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <Notice
+                tone={hasInvalidConfiguredModel ? 'warning' : 'info'}
+                testId="settings-asr-unconfigured"
+                action={
+                  <Button
+                    size="compact"
+                    variant="primary"
+                    onClick={openDialog}
+                    disabled={props.saving}
+                  >
+                    {isChinese ? '配置 ASR' : 'Configure ASR'}
+                  </Button>
+                }
+              >
+                {hasInvalidConfiguredModel
+                  ? isChinese
+                    ? '当前模型不可用，请选择已启用且带 ASR 能力标记的模型。'
+                    : 'The current model is unavailable. Choose an enabled model tagged for ASR.'
+                  : isChinese
+                    ? '尚未配置桌面语音输入。'
+                    : 'Desktop voice input is not configured yet.'}
+              </Notice>
+            )}
+          </div>
+        </article>
+
+        <article
+          className="speech-default-card speech-default-card--reserved"
+          data-testid="settings-tts-reserved"
+        >
+          <div className="speech-default-card-heading">
+            <span className="speech-default-icon speech-default-icon--output" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M4 9.5v5h3.5l4 3.5v-12l-4 3.5H4Z" />
+                <path d="M15.5 9a4.5 4.5 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11" />
+              </svg>
+            </span>
+            <div className="speech-default-card-heading-copy">
+              <span className="speech-default-card-kicker">TTS</span>
+              <h3>{isChinese ? '语音输出' : 'Voice output'}</h3>
+              <p>
+                {isChinese
+                  ? '模型能力标签已支持，播放和音色配置将在后续接入。'
+                  : 'Model capability tagging is ready; playback and voice settings come later.'}
+              </p>
+            </div>
+            <StatusBadge
+              tone="neutral"
+              label={isChinese ? '预留' : 'Reserved'}
+              testId="settings-tts-status"
+            />
+          </div>
+          <div className="speech-default-card-body speech-default-card-body--reserved">
+            <span className="speech-default-reserved-label">
+              {isChinese
+                ? '当前只需在模型编辑器中开启 TTS 能力。'
+                : 'For now, enable TTS on a model in the model editor.'}
+            </span>
+          </div>
+        </article>
       </div>
 
       <AsrConfigDialog
@@ -245,7 +296,7 @@ export function AsrModelSettings(props: AsrModelSettingsProps): ReactElement {
         onDraftChange={setDraft}
         onSave={() => void saveAsr()}
       />
-    </div>
+    </section>
   );
 }
 
@@ -305,8 +356,8 @@ function AsrConfigDialog(props: AsrConfigDialogProps): ReactElement {
       ) : (
         <Notice tone="warning" testId="settings-asr-no-models">
           {props.isChinese
-            ? '暂无 ASR 模型。请先在下方模型目录中编辑一个模型并勾选“语音识别（ASR）”。'
-            : 'No ASR models are available. Edit a model in the directory below and enable speech recognition (ASR).'}
+            ? '暂无 ASR 模型。请先在上方模型目录中编辑一个模型并勾选“语音识别（ASR）”。'
+            : 'No ASR models are available. Edit a model in the directory above and enable speech recognition (ASR).'}
         </Notice>
       )}
       <div className="settings-form-grid">

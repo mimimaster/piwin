@@ -6,6 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { createDefaultArtifactTheme } from '@piwin/artifact';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { MarkdownView } from './MarkdownView';
@@ -17,6 +18,8 @@ declare global {
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 const ARTIFACT_HTML_FENCE = '```artifact-html\n<div><h1>Hi</h1></div>\n```';
+const CANVAS_ARTIFACT_FENCE =
+  '```artifact-html title="Wide workspace" surface="canvas"\n<div>Wide</div>\n```';
 const PLAIN_HTML_FENCE = '```html\n<div class="card"><p>Hello</p></div>\n```';
 const FLASHCARD_FENCE =
   '```html\n<div class="piwin-flashcard" data-card-id="card-abc12345-xyz"></div>\n```';
@@ -81,6 +84,50 @@ describe('MarkdownView artifact preview policy', () => {
     ).toBe(true);
   });
 
+  it('routes an explicit Canvas fence to a launcher with stable message origin', () => {
+    const onOpenArtifactCanvas = vi.fn();
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={CANVAS_ARTIFACT_FENCE}
+        renderingPhase="completed"
+        artifactOrigin={{ sessionId: 'session-1', messageId: 'message-2' }}
+        onOpenArtifactCanvas={onOpenArtifactCanvas}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-canvas-launcher-title')?.textContent).toContain(
+      'Wide workspace',
+    );
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[data-testid="artifact-canvas-open"]')?.click();
+    });
+    expect(onOpenArtifactCanvas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        messageId: 'message-2',
+        surface: 'canvas',
+        title: 'Wide workspace',
+      }),
+    );
+  });
+
+  it('keeps Canvas fences source-only while the response is streaming', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={CANVAS_ARTIFACT_FENCE}
+        renderingPhase="streaming"
+        artifactOrigin={{ sessionId: 'session-1', messageId: 'message-2' }}
+        onOpenArtifactCanvas={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="artifact-canvas-launcher"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
+  });
+
   it('code-first mode (artifactCodeFirst=true): artifact-html fence shows Preview button first', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactCodeFirst />,
@@ -89,11 +136,52 @@ describe('MarkdownView artifact preview policy', () => {
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
   });
 
-  it('streaming mode (artifactCodeFirst=false): renders live ArtifactFrame in stream-preview', () => {
+  it('streaming mode materializes Artifact UI without exposing source beside it', () => {
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" />,
     );
     expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
+    expect(container.querySelector('.artifact-frame-header')).toBeNull();
+  });
+
+  it('keeps the same Artifact frame across real Markdown streaming deltas', () => {
+    const onOpenArtifactCanvas = vi.fn();
+    const firstText = [
+      '```artifact-html',
+      '<style>.card { padding: 12px; }</style><div class="card"><p>Hel',
+    ].join('\n');
+    const nextText = [
+      '```artifact-html',
+      '<style>.card { padding: 12px; }</style><div class="card"><p>Hello world</p><section>Next',
+    ].join('\n');
+    const { container, root } = renderMarkdown(
+      <MarkdownView
+        text={firstText}
+        renderingPhase="streaming"
+        artifactTheme={createDefaultArtifactTheme('dark')}
+        artifactOrigin={{ sessionId: 'session-stream', messageId: 'message-stream' }}
+        onOpenArtifactCanvas={onOpenArtifactCanvas}
+      />,
+    );
+    const firstFrame = container.querySelector<HTMLElement>('.artifact-frame');
+    expect(firstFrame).not.toBeNull();
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <MarkdownView
+            text={nextText}
+            renderingPhase="streaming"
+            artifactTheme={createDefaultArtifactTheme('dark')}
+            artifactOrigin={{ sessionId: 'session-stream', messageId: 'message-stream' }}
+            onOpenArtifactCanvas={onOpenArtifactCanvas}
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector<HTMLElement>('.artifact-frame')).toBe(firstFrame);
   });
 
   it('capability off + flashcard source: shows Preview card affordance', () => {
@@ -145,11 +233,20 @@ describe('MarkdownView artifact preview policy', () => {
     expect(toggle?.textContent).toContain('Preview SVG');
   });
 
-  it('streaming mode (artifactCodeFirst=true): svg fence shows source code first', () => {
+  it('streaming mode materializes SVG through the stable Artifact frame', () => {
     const { container } = renderMarkdown(
-      <MarkdownView text={SVG_FENCE} renderingPhase="streaming" artifactCodeFirst />,
+      <MarkdownView text={SVG_FENCE} renderingPhase="streaming" />,
     );
-    expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).not.toBeNull();
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).toBeNull();
+  });
+
+  it('streaming mode keeps the explicit code-first preference source-only', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="streaming" artifactCodeFirst />,
+    );
+    expect(container.querySelector('[data-testid="code-fence-streaming"]')).not.toBeNull();
+    expect(container.querySelector('.artifact-frame')).toBeNull();
   });
 
   it('byte-stability: artifact-html language label identical in both modes', () => {
@@ -186,12 +283,18 @@ describe('MarkdownView artifact preview policy', () => {
   });
 
   it('in-place toggle (artifactCodeFirst=true): clicking Preview replaces source with ArtifactFrame', () => {
+    const scrollHeight = vi
+      .spyOn(HTMLElement.prototype, 'scrollHeight', 'get')
+      .mockReturnValue(500);
     const { container } = renderMarkdown(
       <MarkdownView text={ARTIFACT_HTML_FENCE} renderingPhase="completed" artifactCodeFirst />,
     );
     // Closed: source visible, no artifact frame.
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
+    expect(container.querySelector('.md-code-collapsible')?.classList.contains('is-collapsed')).toBe(
+      true,
+    );
     expect(
       container
         .querySelector('.artifact-with-source')
@@ -213,7 +316,7 @@ describe('MarkdownView artifact preview policy', () => {
         .querySelector('.artifact-with-source')
         ?.classList.contains('artifact-with-source--full-bleed'),
     ).toBe(true);
-    // The "Show code" affordance lives inside the frame header.
+    // The "Show code" affordance lives in the frame's floating action layer.
     const showCode = container.querySelector<HTMLButtonElement>(
       '[data-testid="artifact-preview-toggle"]',
     );
@@ -224,11 +327,15 @@ describe('MarkdownView artifact preview policy', () => {
     });
     expect(container.querySelector('[data-testid="code-fence-source"]')).not.toBeNull();
     expect(container.querySelector('.artifact-frame')).toBeNull();
+    expect(container.querySelector('.md-code-collapsible')?.classList.contains('is-expanded')).toBe(
+      true,
+    );
     expect(
       container
         .querySelector('.artifact-with-source')
         ?.classList.contains('artifact-with-source--full-bleed'),
     ).toBe(false);
+    scrollHeight.mockRestore();
   });
 
   it('in-place toggle: SVG preview replaces source with ArtifactFrame', () => {
@@ -402,6 +509,37 @@ describe('MarkdownView file references', () => {
     const rendererStyle = container.querySelector('.markdown')?.getAttribute('style') ?? '';
     expect(rendererStyle).toContain('--streamdown-caret');
     expect(container.querySelector('.markdown > .streaming-cursor-pulse')).toBeNull();
+  });
+
+  it('does not render a caret for empty or non-owner streaming content', () => {
+    const empty = renderMarkdown(<MarkdownView text="" renderingPhase="streaming" />);
+    expect(empty.container.querySelector('.markdown')?.getAttribute('style') ?? '').not.toContain(
+      '--streamdown-caret',
+    );
+    act(() => empty.root.unmount());
+    empty.container.remove();
+
+    const notOwner = renderMarkdown(
+      <MarkdownView
+        text="This is not the live text owner"
+        renderingPhase="streaming"
+        showStreamingCaret={false}
+      />,
+    );
+    expect(
+      notOwner.container.querySelector('.markdown')?.getAttribute('style') ?? '',
+    ).not.toContain('--streamdown-caret');
+    act(() => notOwner.root.unmount());
+    notOwner.container.remove();
+  });
+
+  it('keeps the live caret attached to text instead of a trailing blank line', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView text={'紧密衔接\n\n'} renderingPhase="streaming" />,
+    );
+    const markdown = container.querySelector('.markdown');
+    expect(markdown?.getAttribute('style') ?? '').toContain('--streamdown-caret');
+    expect(markdown?.textContent).toBe('紧密衔接');
   });
 
   it('defers code-fence syntax highlighting until streaming completes', () => {

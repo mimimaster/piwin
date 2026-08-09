@@ -59,6 +59,7 @@ const composerCard: ComposerDockProps = {
   onRefreshComposerMenus: noop,
   onOpenSkillsPanel: noop,
   onOpenMcpPanel: noop,
+  onAttachFile: noop,
   onAttachImage: noop,
   onPaste: noop,
   onDrop: noop,
@@ -268,6 +269,7 @@ function ChatThreadRenderHarness(props: ChatThreadRenderHarnessProps): ReactElem
           onRefreshComposerMenus: noop,
           onOpenSkillsPanel: noop,
           onOpenMcpPanel: noop,
+          onAttachFile: noop,
           onAttachImage: noop,
           onPaste: noop,
           onDrop: noop,
@@ -610,6 +612,60 @@ describe('ChatThread render isolation (E1)', () => {
     });
 
     expect(container.querySelector('[data-testid="run-activity-slot"]')).toBeNull();
+  });
+
+  it('renders one inline caret for a run with multiple assistant lifecycles', () => {
+    const userMessage = createUserMessage('u-caret', 'Check the update');
+    const answerMessage: ChatMessageUi = {
+      id: 'a-caret-text',
+      role: 'assistant',
+      text: '已找到更新地址。',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'done',
+      runId: 'run-caret',
+    };
+    const emptyLifecycleMessage: ChatMessageUi = {
+      id: 'a-caret-empty',
+      role: 'assistant',
+      text: '',
+      thinking: '',
+      tools: [],
+      attachments: [],
+      status: 'streaming',
+      runId: 'run-caret',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[userMessage, answerMessage, emptyLifecycleMessage]}
+            streaming={true}
+            editingMessageId={null}
+            lastUserMessageId={userMessage.id}
+            activeTheme={null}
+            artifactThemeKey={0}
+            activeRunId="run-caret"
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="en"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelectorAll('[data-testid="message-bubble"] .markdown')).toHaveLength(1);
+    expect(
+      container.querySelectorAll(
+        '[data-testid="message-bubble"] .markdown[style*="--streamdown-caret"]',
+      ),
+    ).toHaveLength(1);
   });
 
   it('removes run-activity slot when permissionPrompt is present or streaming is false', () => {

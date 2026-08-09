@@ -1,5 +1,12 @@
 # Artifact Surface Routing + Canvas Shell Implementation Plan
 
+> **2026-08-09 policy update:** the 900/2200px Inline scrollport and
+> Expand/Collapse assumptions in this historical plan are superseded by ADR
+> 0029. Inline now follows measured content height with transcript-owned
+> vertical scrolling; layouts that fundamentally need horizontal scrolling
+> declare `surface="canvas"`. Runtime dimensions still never auto-promote or
+> auto-open Canvas.
+
 > **For agentic workers:** implement with `subagent-driven-development` or
 > `executing-plans`. Use test-driven development for parser, bridge, policy,
 > and rendering changes. Do not begin implementation until this plan is
@@ -819,4 +826,3 @@ The slice is complete when:
    green.
 9. ADR, prompt guide, research notes, and canonical backlog agree with shipped
    behavior.
-

@@ -19,9 +19,16 @@ export const DEFAULT_MAX_ARTIFACT_BYTES = 100 * 1024;
 
 export const MIN_ARTIFACT_IFRAME_HEIGHT = 40;
 export const INITIAL_ARTIFACT_IFRAME_HEIGHT = 80;
+/** @deprecated Legacy scrollport cap; Inline now uses MAX_ARTIFACT_INLINE_FLOW_HEIGHT. */
 export const MAX_ARTIFACT_IFRAME_HEIGHT = 900;
-/** User-expanded max height for tall dashboards (D-ART-06). */
+/** @deprecated Legacy expanded scrollport cap retained for API compatibility. */
 export const MAX_ARTIFACT_EXPANDED_HEIGHT = 2200;
+/**
+ * Defensive ceiling for an Inline Artifact that flows with the transcript.
+ * Inline no longer owns a 900px scrollport, but model HTML is untrusted and
+ * must not be able to request an effectively unbounded iframe height.
+ */
+export const MAX_ARTIFACT_INLINE_FLOW_HEIGHT = 16_384;
 export const ARTIFACT_READY_TIMEOUT_MS = 5000;
 
 /** Max concurrent historical artifact iframe inits (srcdoc assignment). */
@@ -43,6 +50,8 @@ export const ARTIFACT_HEIGHT_MEASURE_LADDER_MS = [0, 80, 180, 360, 720, 1200] as
 /** postMessage types from sandboxed artifact iframe → parent. */
 export const ARTIFACT_BRIDGE_READY_TYPE = 'piwin-artifact:ready' as const;
 export const ARTIFACT_BRIDGE_RESIZE_TYPE = 'piwin-artifact:resize' as const;
+/** Sanitized body snapshots from parent → a streaming Artifact iframe. */
+export const ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE = 'piwin-artifact:stream-update' as const;
 /** User-intent actions from artifact UI → product (strict whitelist). */
 export const ARTIFACT_BRIDGE_ACTION_TYPE = 'piwin-artifact:action' as const;
 

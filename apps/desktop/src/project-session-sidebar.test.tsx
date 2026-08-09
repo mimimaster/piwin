@@ -419,6 +419,35 @@ it('renders the three-dot service indicator in preference to the working spinner
   expect(container.querySelector('.session-row-actions')).not.toBeNull();
 });
 
+it('exposes the selected session as an explicit active row', () => {
+  const sessions = createMockSessions(2);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    activeSessionId: 'session-1',
+  });
+
+  const selected = container.querySelector<HTMLButtonElement>('[data-session-id="session-1"]');
+  const other = container.querySelector<HTMLButtonElement>('[data-session-id="session-2"]');
+  expect(selected?.className).toContain('active');
+  expect(selected?.getAttribute('aria-current')).toBe('page');
+  expect(selected?.getAttribute('data-completed')).toBe('false');
+  expect(other?.className).not.toContain('active');
+  expect(other?.getAttribute('aria-current')).toBeNull();
+});
+
+it('shows a completion marker and replaces the session timestamp', () => {
+  const sessions = createMockSessions(1);
+  const { container } = renderSidebar({
+    filteredSessions: sessions,
+    completedAttentionSessionIds: { 'session-1': true },
+  });
+
+  const item = container.querySelector<HTMLButtonElement>('[data-session-id="session-1"]');
+  expect(item?.getAttribute('data-completed')).toBe('true');
+  expect(container.querySelector('[data-testid="session-completed-indicator"]')).not.toBeNull();
+  expect(container.querySelector('.session-item-time')).toBeNull();
+});
+
 it('archived row shows pin, unarchive, and delete actions', () => {
   const sessions: SessionListItemUi[] = [
     {

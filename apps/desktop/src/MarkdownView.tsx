@@ -2,6 +2,7 @@ import {
   cloneElement,
   isValidElement,
   useMemo,
+  useRef,
   useState,
   type ComponentProps,
   type JSX,
@@ -22,6 +23,11 @@ import { Streamdown, type Components, type ExtraProps } from 'streamdown';
 import { useHighlight, TokenSpans, normalizeLanguage, type TokenLine } from './syntax-highlight';
 import { fileNameFromPath, PathChip } from './path-chip';
 import { ArtifactFrame } from './ArtifactFrame';
+import { ArtifactCanvasLauncher } from './artifact-canvas-launcher';
+import {
+  createArtifactCanvasTarget,
+  type ArtifactCanvasTarget,
+} from './artifact-canvas-model';
 import { isFlashcardArtifactSource } from './flashcard-artifact';
 import { MermaidBlock } from './MermaidBlock';
 import {
@@ -63,10 +69,19 @@ type MarkdownViewProps = {
   artifactThemeKey?: string;
   /** Forwarded to ArtifactFrame for whitelisted artifact actions (flashcards). */
   onArtifactAction?: (action: ArtifactActionMessage) => void;
+  /** Owning message identity used to create a stable Canvas target. */
+  artifactOrigin?: { sessionId: string; messageId: string };
+  /** Opens an explicitly declared Canvas artifact in the workspace panel. */
+  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   /**
    * When true (default), HTML Artifact capability is enabled.
    */
   artifactPreviewEnabled?: boolean;
+  /**
+   * Shows the inline caret only for the message that owns the live text tail.
+   * Empty streaming lifecycle messages never render a caret.
+   */
+  showStreamingCaret?: boolean;
   /**
    * When true, artifact blocks display source code first with a preview toggle.
    * When false (default), artifact blocks immediately render dynamic UI.
@@ -100,6 +115,41 @@ const STREAMDOWN_PLUGINS = {
 const MARKDOWN_LINK_SAFETY = { enabled: false };
 const MARKDOWN_FILE_PATH_PATTERN =
   /(?:file:\/\/|\/|[A-Za-z]:[\\/]|(?:\.\.?\/))+[\w\u4e00-\u9fa5_.\/-]+\.md\b/g;
+const ARTIFACT_THEME_VARIABLES = [
+  '--piwin-artifact-theme',
+  '--piwin-artifact-bg',
+  '--piwin-artifact-surface',
+  '--piwin-artifact-text',
+  '--piwin-artifact-muted',
+  '--piwin-artifact-accent',
+  '--piwin-artifact-border',
+  '--piwin-artifact-radius',
+  '--piwin-artifact-font',
+] as const satisfies readonly (keyof ArtifactThemeVariables)[];
+
+function areArtifactThemesEqual(
+  current: ArtifactThemeVariables | undefined,
+  next: ArtifactThemeVariables | undefined,
+): boolean {
+  if (current === next) return true;
+  if (!current || !next) return false;
+  return ARTIFACT_THEME_VARIABLES.every((variable) => current[variable] === next[variable]);
+}
+
+/**
+ * Chat maps the active manifest to a fresh object on every text delta. Keep a
+ * value-equivalent theme reference stable so Streamdown's component registry
+ * does not change type and remount the Artifact iframe for every token.
+ */
+function useStableArtifactTheme(
+  theme: ArtifactThemeVariables | undefined,
+): ArtifactThemeVariables | undefined {
+  const stableThemeRef = useRef<ArtifactThemeVariables | undefined>(theme);
+  if (!areArtifactThemesEqual(stableThemeRef.current, theme)) {
+    stableThemeRef.current = theme;
+  }
+  return stableThemeRef.current;
+}
 
 type MarkdownDocumentReference = {
   title: string;
@@ -114,6 +164,8 @@ type StreamdownRendererOptions = {
   initPriorityBase: number;
   artifactThemeKey: string;
   onArtifactAction: ((action: ArtifactActionMessage) => void) | undefined;
+  artifactOrigin: { sessionId: string; messageId: string } | undefined;
+  onOpenArtifactCanvas: ((target: ArtifactCanvasTarget) => void) | undefined;
   artifactPreviewEnabled: boolean;
   artifactCodeFirst: boolean;
   artifactMaxBytes: number | undefined;
@@ -301,9 +353,13 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
     const source = plainTextFromReactNode(children).replace(/\n$/, '');
     const languageMatch = /(?:^|\s)language-([A-Za-z0-9_-]+)/.exec(className ?? '');
     const language = languageMatch?.[1] ?? '';
-    const fenceIndex = node?.position?.start.line ?? stableFenceIndex(language, source);
+    const rawMetadata = node?.properties?.['metastring'];
+    const metadata = typeof rawMetadata === 'string' ? rawMetadata.trim() : '';
+    const fenceInfo = metadata ? `${language} ${metadata}` : language;
+    const fenceIndex = node?.position?.start.line ?? stableFenceIndex(fenceInfo, source);
     const fenceProps: Parameters<typeof CodeFenceView>[0] = {
       language,
+      fenceInfo,
       source,
       htmlUiModeEnabled: options.htmlUiModeEnabled,
       fenceIndex,
@@ -315,6 +371,10 @@ function createStreamdownComponents(options: StreamdownRendererOptions): Compone
     };
     if (options.artifactTheme) fenceProps.artifactTheme = options.artifactTheme;
     if (options.onArtifactAction) fenceProps.onArtifactAction = options.onArtifactAction;
+    if (options.artifactOrigin) fenceProps.artifactOrigin = options.artifactOrigin;
+    if (options.onOpenArtifactCanvas) {
+      fenceProps.onOpenArtifactCanvas = options.onOpenArtifactCanvas;
+    }
     if (options.artifactMaxBytes !== undefined) {
       fenceProps.artifactMaxBytes = options.artifactMaxBytes;
     }
@@ -518,14 +578,12 @@ function CodeBodyWithLineNumbers({
   source,
   language,
   defaultCollapsed = true,
-  renderCursor = false,
   highlightEnabled = true,
 }: {
   source: string;
   language: string;
   /** When false (e.g. streaming), keep expanded so new lines stay visible. */
   defaultCollapsed?: boolean;
-  renderCursor?: boolean;
   /** Streaming blocks stay plain until completion to avoid retaining token trees per delta. */
   highlightEnabled?: boolean;
 }): ReactElement {
@@ -546,7 +604,6 @@ function CodeBodyWithLineNumbers({
         data-syntax-highlight={highlightEnabled ? 'enabled' : 'deferred'}
       >
         {lines.map((line, index) => {
-          const isLastLine = index === lines.length - 1;
           const tokens: TokenLine | null = tokenLines?.[index] ?? null;
           let lineClass = 'md-code-line';
           if (isDiff) {
@@ -582,9 +639,6 @@ function CodeBodyWithLineNumbers({
               {gutter}
               <span className="md-code-line-text">
                 {tokens ? <TokenSpans tokens={tokens} /> : line}
-                {renderCursor && isLastLine ? (
-                  <span className="streaming-cursor-pulse" aria-hidden="true" />
-                ) : null}
               </span>
             </div>
           );
@@ -618,7 +672,10 @@ export function MarkdownView({
   initPriorityBase = 0,
   artifactThemeKey = 'default',
   onArtifactAction,
+  artifactOrigin,
+  onOpenArtifactCanvas,
   artifactPreviewEnabled = true,
+  showStreamingCaret = true,
   artifactCodeFirst = false,
   artifactMaxBytes,
   onOpenDocument,
@@ -631,20 +688,38 @@ export function MarkdownView({
   // the surrounding product renderers (ArtifactFrame, shell disclosure,
   // Mermaid and path chips) behind its custom component boundary.
   const streamdownHtmlUiMode = htmlUiModeEnabled ?? artifactPreviewEnabled;
+  const stableArtifactTheme = useStableArtifactTheme(artifactTheme);
+  const stableArtifactOrigin = useMemo(
+    () =>
+      artifactOrigin
+        ? { sessionId: artifactOrigin.sessionId, messageId: artifactOrigin.messageId }
+        : undefined,
+    [artifactOrigin?.sessionId, artifactOrigin?.messageId],
+  );
   const streamdownText = normalizeStreamingArtifactFences(
     text,
     streamdownHtmlUiMode,
     !streamMode,
   );
+  const shouldShowStreamingCaret = streamMode && showStreamingCaret && text.trim().length > 0;
+  // Streamdown treats a trailing blank line as a separate streaming block.
+  // That would put the caret on an otherwise empty line, so remove only the
+  // transient trailing line break from the live render. The stored message is
+  // unchanged and the next real token will restore the intended Markdown.
+  const streamdownTextForRender = shouldShowStreamingCaret
+    ? streamdownText.replace(/(?:\r?\n)+$/u, '')
+    : streamdownText;
   const streamdownComponents = useMemo<Components>(
     () =>
       createStreamdownComponents({
         phase,
         htmlUiModeEnabled: streamdownHtmlUiMode,
-        artifactTheme,
+        artifactTheme: stableArtifactTheme,
         initPriorityBase,
         artifactThemeKey,
         onArtifactAction,
+        artifactOrigin: stableArtifactOrigin,
+        onOpenArtifactCanvas,
         artifactPreviewEnabled,
         artifactCodeFirst,
         artifactMaxBytes,
@@ -653,10 +728,12 @@ export function MarkdownView({
     [
       phase,
       streamdownHtmlUiMode,
-      artifactTheme,
+      stableArtifactTheme,
       initPriorityBase,
       artifactThemeKey,
       onArtifactAction,
+      stableArtifactOrigin,
+      onOpenArtifactCanvas,
       artifactPreviewEnabled,
       artifactCodeFirst,
       artifactMaxBytes,
@@ -671,7 +748,7 @@ export function MarkdownView({
       parseIncompleteMarkdown={streamMode}
       isAnimating={streamMode}
       animated={false}
-      caret="block"
+      {...(shouldShowStreamingCaret ? { caret: 'block' as const } : {})}
       plugins={STREAMDOWN_PLUGINS}
       components={streamdownComponents}
       controls={false}
@@ -679,7 +756,7 @@ export function MarkdownView({
       skipHtml
       linkSafety={MARKDOWN_LINK_SAFETY}
     >
-      {streamdownText}
+      {streamdownTextForRender}
     </Streamdown>
   );
 
@@ -687,6 +764,8 @@ export function MarkdownView({
 
 function CodeFenceView(props: {
   language: string;
+  /** Full fence info string including title/surface metadata. */
+  fenceInfo: string;
   source: string;
   htmlUiModeEnabled: boolean;
   fenceIndex: number;
@@ -695,16 +774,22 @@ function CodeFenceView(props: {
   initPriority: number;
   artifactThemeKey?: string;
   onArtifactAction?: (action: ArtifactActionMessage) => void;
+  artifactOrigin?: { sessionId: string; messageId: string };
+  onOpenArtifactCanvas?: (target: ArtifactCanvasTarget) => void;
   artifactPreviewEnabled: boolean;
   artifactCodeFirst?: boolean;
   artifactMaxBytes?: number;
-  renderCursor?: boolean;
 }): ReactElement {
   const streamMode = props.renderingPhase === 'streaming';
   const artifactCodeFirst = props.artifactCodeFirst ?? false;
   const [artifactPreviewOpen, setArtifactPreviewOpen] = useState(
     props.renderingPhase === 'explicit-artifact-review' || !artifactCodeFirst,
   );
+  const [artifactSourceExpanded, setArtifactSourceExpanded] = useState(false);
+  const showArtifactSource = (): void => {
+    setArtifactSourceExpanded(true);
+    setArtifactPreviewOpen(false);
+  };
 
   if (isMermaidFenceLanguage(props.language)) {
     // While streaming an incomplete fence, show source instead of partial mermaid.
@@ -712,9 +797,6 @@ function CodeFenceView(props: {
       return (
         <pre className="md-code" data-testid="mermaid-stream-source">
           <code data-language="mermaid">{props.source}</code>
-          {props.renderCursor ? (
-            <span className="streaming-cursor-pulse" aria-hidden="true" />
-          ) : null}
         </pre>
       );
     }
@@ -726,7 +808,7 @@ function CodeFenceView(props: {
   }
 
   const evaluateOptions: Parameters<typeof evaluateCodeFence>[0] = {
-    language: props.language,
+    language: props.fenceInfo,
     source: props.source,
     id: `fence-${props.fenceIndex}`,
     htmlUiModeEnabled: props.htmlUiModeEnabled,
@@ -741,10 +823,41 @@ function CodeFenceView(props: {
 
   const decision: ArtifactPreviewDecision = evaluateCodeFence(evaluateOptions);
   const isFlashcard = isFlashcardArtifactSource(props.source);
+  const isCanvasArtifact =
+    decision.kind !== 'code' && decision.descriptor.surface === 'canvas';
   const decisionLanguage = decision.kind === 'code' ? decision.language : undefined;
   const isShell = isShellLanguage(props.language || decisionLanguage);
 
-  if (streamMode && decision.kind === 'code') {
+  if (streamMode) {
+    if (
+      props.artifactPreviewEnabled &&
+      artifactPreviewOpen &&
+      !artifactCodeFirst &&
+      !isCanvasArtifact &&
+      (decision.kind === 'render' || decision.kind === 'preparing' || decision.kind === 'blocked')
+    ) {
+      return (
+        <div className="artifact-with-source artifact-with-source--full-bleed">
+          <ArtifactFrame
+            key={`${props.artifactThemeKey ?? 'default'}:${decision.descriptor.id}:${decision.kind === 'render' ? decision.mode : decision.kind}`}
+            decision={decision}
+            initPriority={props.initPriority}
+            extraHeaderAction={
+              <Button
+                size="compact"
+                data-testid="artifact-preview-toggle"
+                aria-expanded
+                onClick={showArtifactSource}
+              >
+                Show code
+              </Button>
+            }
+            {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
+          />
+        </div>
+      );
+    }
+
     return (
       <div
         className="md-code-block"
@@ -768,7 +881,6 @@ function CodeFenceView(props: {
           language={props.language}
           defaultCollapsed={false}
           highlightEnabled={false}
-          {...(props.renderCursor !== undefined ? { renderCursor: props.renderCursor } : {})}
         />
       </div>
     );
@@ -840,6 +952,27 @@ function CodeFenceView(props: {
         </div>
       );
     }
+
+    if (
+      decision.kind === 'render' &&
+      decision.descriptor.surface === 'canvas' &&
+      props.artifactOrigin &&
+      props.onOpenArtifactCanvas
+    ) {
+      const target = createArtifactCanvasTarget({
+        ...props.artifactOrigin,
+        fenceIndex: props.fenceIndex,
+        descriptor: decision.descriptor,
+      });
+      return (
+        <ArtifactCanvasLauncher
+          title={decision.descriptor.title}
+          source={decision.descriptor.source}
+          rawLanguage={decision.descriptor.rawLanguage}
+          onOpenCanvas={() => props.onOpenArtifactCanvas?.(target)}
+        />
+      );
+    }
     const previewLabel = decision.descriptor.type === 'svg' ? 'Preview SVG' : 'Preview';
 
     // Blocked: no render to show — display source + blocked strip, no toggle.
@@ -878,8 +1011,8 @@ function CodeFenceView(props: {
 
     // render | preparing: in-place toggle. Closed → source code with Preview
     // affordance; open → rendered ArtifactFrame replaces the source in place
-    // (no stacked second code block). The "Show code" action lives inside the
-    // ArtifactFrame header via `extraHeaderAction`.
+    // (no stacked second code block). The "Show code" action floats over the
+    // ArtifactFrame on hover/focus via `extraHeaderAction`.
     return (
       <div
         className={
@@ -898,7 +1031,7 @@ function CodeFenceView(props: {
                 size="compact"
                 data-testid="artifact-preview-toggle"
                 aria-expanded
-                onClick={() => setArtifactPreviewOpen(false)}
+                onClick={showArtifactSource}
               >
                 Show code
               </Button>
@@ -935,6 +1068,7 @@ function CodeFenceView(props: {
             <CodeBodyWithLineNumbers
               source={props.source}
               language={props.language}
+              defaultCollapsed={!artifactSourceExpanded}
               highlightEnabled={!streamMode}
             />
           </div>
@@ -987,6 +1121,7 @@ function FlashcardPreviewCard(props: {
   onArtifactAction?: (action: ArtifactActionMessage) => void;
 }): ReactElement {
   const [open, setOpen] = useState(false);
+  const [sourceExpanded, setSourceExpanded] = useState(false);
   if (!open) {
     return (
       <div className="md-code-block" data-testid="code-fence-source">
@@ -1003,7 +1138,11 @@ function FlashcardPreviewCard(props: {
             </Button>
           </div>
         </div>
-        <CodeBodyWithLineNumbers source={props.source} language={props.language} />
+        <CodeBodyWithLineNumbers
+          source={props.source}
+          language={props.language}
+          defaultCollapsed={!sourceExpanded}
+        />
       </div>
     );
   }
@@ -1033,7 +1172,10 @@ function FlashcardPreviewCard(props: {
               size="compact"
               data-testid="flashcard-preview-card"
               aria-expanded
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setSourceExpanded(true);
+                setOpen(false);
+              }}
             >
               Show code
             </Button>

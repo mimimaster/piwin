@@ -224,6 +224,11 @@ export type ProjectSessionSidebarProps = {
    * over the regular working indicator and show a wave of three dots instead.
    */
   backendServiceSessionIds?: Record<string, true> | undefined;
+  /**
+   * Session IDs whose latest turn finished while the sidebar stayed mounted.
+   * The marker is cleared by the reducer when the session is opened or used.
+   */
+  completedAttentionSessionIds?: Record<string, true> | undefined;
 };
 
 function SessionActivityIndicator(props: {
@@ -268,6 +273,7 @@ function SessionRowItem({
   onOpenSessionMenu,
   workingSessionIds,
   backendServiceSessionIds,
+  completedAttentionSessionIds,
   onTogglePin,
   onArchiveSession,
   onUnarchiveSession,
@@ -289,6 +295,7 @@ function SessionRowItem({
   copy: DesktopCopy['sidebar'];
   workingSessionIds?: Record<string, true> | undefined;
   backendServiceSessionIds?: Record<string, true> | undefined;
+  completedAttentionSessionIds?: Record<string, true> | undefined;
 }): ReactElement {
   const isDraft = 'isDraft' in session && session.isDraft === true;
   const isPinned = 'isPinned' in session && session.isPinned === true;
@@ -298,6 +305,8 @@ function SessionRowItem({
   const hasActiveBackendService =
     !isDraft && backendServiceSessionIds != null && session.id in backendServiceSessionIds;
   const hasActiveSessionWork = isWorking || hasActiveBackendService;
+  const hasCompletedAttention =
+    !isDraft && completedAttentionSessionIds != null && session.id in completedAttentionSessionIds;
 
   return (
     <li
@@ -305,6 +314,7 @@ function SessionRowItem({
       className={[
         'session-row',
         ...(hasActiveSessionWork ? ['session-row--working'] : []),
+        ...(hasCompletedAttention ? ['session-row--completed'] : []),
         ...(isDraft ? ['session-row--draft'] : []),
       ].join(' ')}
     >
@@ -315,6 +325,8 @@ function SessionRowItem({
         data-pinned={isPinned ? 'true' : 'false'}
         data-archived={isArchived ? 'true' : 'false'}
         data-draft={isDraft ? 'true' : 'false'}
+        data-completed={hasCompletedAttention ? 'true' : 'false'}
+        aria-current={isActive ? 'page' : undefined}
         className={
           isActive
             ? isWorking
@@ -353,7 +365,18 @@ function SessionRowItem({
           workingLabel={copy.working}
           backendServiceLabel={copy.backendServiceActive}
         />
-        {session.updatedAt && !isWorking && !hasActiveBackendService ? (
+        {hasCompletedAttention && !hasActiveSessionWork ? (
+          <span
+            className="session-item-completed-mark"
+            data-testid="session-completed-indicator"
+            aria-label={copy.completed}
+            role="status"
+            title={copy.completed}
+          >
+            <IconCheck width={12} height={12} />
+          </span>
+        ) : null}
+        {session.updatedAt && !isWorking && !hasActiveBackendService && !hasCompletedAttention ? (
           <span className="session-item-time" aria-label={session.updatedAt}>
             {formatRelativeTime(session.updatedAt)}
           </span>
@@ -1093,6 +1116,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onOpenSessionMenu={props.onOpenSessionMenu}
                         workingSessionIds={props.workingSessionIds}
                         backendServiceSessionIds={props.backendServiceSessionIds}
+                        completedAttentionSessionIds={props.completedAttentionSessionIds}
                         onTogglePin={props.onTogglePin}
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
@@ -1230,6 +1254,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onResumeSession={props.onResumeSession}
                         onOpenSessionMenu={props.onOpenSessionMenu}
                         workingSessionIds={props.workingSessionIds}
+                        completedAttentionSessionIds={props.completedAttentionSessionIds}
                         onTogglePin={props.onTogglePin}
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}

@@ -8,11 +8,16 @@ import {
   ARTIFACT_BRIDGE_ACTION_TYPE,
   ARTIFACT_BRIDGE_READY_TYPE,
   ARTIFACT_BRIDGE_RESIZE_TYPE,
+  ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_HEIGHT_MEASURE_LADDER_MS,
 } from './constants.js';
 import { buildArtifactFrameSrcCsp, createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import { createDefaultArtifactTheme } from './theme.js';
-import type { ArtifactIframePolicy, ArtifactThemeVariables } from './types.js';
+import type {
+  ArtifactIframePolicy,
+  ArtifactSurface,
+  ArtifactThemeVariables,
+} from './types.js';
 
 export function buildStrictArtifactCsp(policy: ArtifactIframePolicy): string {
   return [
@@ -42,11 +47,49 @@ function escapeCssValue(value: string): string {
   return value.replace(/[;{}]/g, '').trim();
 }
 
-function buildResponsiveCss(theme: ArtifactThemeVariables): string {
+function buildResponsiveCss(
+  theme: ArtifactThemeVariables,
+  surface: ArtifactSurface,
+): string {
   const variables = Object.entries(theme)
     .map(([name, value]) => `  ${name}: ${escapeCssValue(value)};`)
     .join('\n');
   const colorScheme = theme['--piwin-artifact-theme'] === 'dark' ? 'dark' : 'light';
+  const pageOverflow = surface === 'canvas' ? 'auto' : 'hidden';
+  const inlineFlowCss =
+    surface === 'inline'
+      ? `
+.piwin-artifact-root {
+  container-type: inline-size;
+  overflow: visible !important;
+}
+.piwin-artifact-root > *,
+.piwin-artifact-root img,
+.piwin-artifact-root svg,
+.piwin-artifact-root canvas,
+.piwin-artifact-root video,
+.piwin-artifact-root iframe,
+.piwin-artifact-root table,
+.piwin-artifact-root pre {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+.piwin-artifact-root pre,
+.piwin-artifact-root code {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.piwin-artifact-root table {
+  width: 100% !important;
+  table-layout: fixed;
+}
+.piwin-artifact-root th,
+.piwin-artifact-root td {
+  overflow-wrap: anywhere;
+}
+`
+      : '';
   return `
 :root {
 ${variables}
@@ -59,10 +102,8 @@ html {
   min-height: auto !important;
   height: auto !important;
   background: transparent !important;
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  scrollbar-width: thin;
-  scrollbar-color: var(--piwin-artifact-border) transparent;
+  overflow-x: ${pageOverflow} !important;
+  overflow-y: ${pageOverflow} !important;
 }
 *, *::before, *::after { box-sizing: inherit; }
 body {
@@ -76,10 +117,8 @@ body {
   background: transparent !important;
   color: var(--piwin-artifact-text);
   font-family: var(--piwin-artifact-font);
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  scrollbar-width: thin;
-  scrollbar-color: var(--piwin-artifact-border) transparent;
+  overflow-x: ${pageOverflow} !important;
+  overflow-y: ${pageOverflow} !important;
   overflow-wrap: break-word;
 }
 body > *, body > div {
@@ -132,6 +171,49 @@ button, input, select, textarea { font: inherit; }
   max-height: 480px;
   min-height: 240px;
 }
+${inlineFlowCss}
+`;
+}
+
+function buildArtifactMotionPolicyCss(): string {
+  return `
+.piwin-artifact-root,
+.piwin-artifact-root *,
+.piwin-artifact-root *::before,
+.piwin-artifact-root *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+.piwin-artifact-root animate,
+.piwin-artifact-root animateMotion,
+.piwin-artifact-root animateTransform,
+.piwin-artifact-root set {
+  display: none !important;
+}
+`;
+}
+
+function buildArtifactSurfacePolicyCss(surface: ArtifactSurface): string {
+  const pageOverflow = surface === 'canvas' ? 'auto' : 'hidden';
+  return `
+html,
+body {
+  overflow-x: ${pageOverflow} !important;
+  overflow-y: ${pageOverflow} !important;
+}
+${
+  surface === 'inline'
+    ? `.piwin-artifact-root {
+  overflow: visible !important;
+}
+.piwin-artifact-root,
+.piwin-artifact-root * {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}`
+    : ''
+}
 `;
 }
 
@@ -139,11 +221,85 @@ button, input, select, textarea { font: inherit; }
  * Bootstrap script inside the sandboxed document.
  * Posts ready/resize with channelId; parent validates source + channel.
  */
-export function buildArtifactBridgeBootstrapScript(channelId: string): string {
+export function buildArtifactBridgeBootstrapScript(
+  channelId: string,
+  enableStreamUpdates = false,
+): string {
   const serializedChannelId = JSON.stringify(channelId);
   const readyType = JSON.stringify(ARTIFACT_BRIDGE_READY_TYPE);
   const resizeType = JSON.stringify(ARTIFACT_BRIDGE_RESIZE_TYPE);
   const ladder = JSON.stringify([...ARTIFACT_HEIGHT_MEASURE_LADDER_MS]);
+  const streamUpdateBootstrap = enableStreamUpdates
+    ? `
+  // Streaming previews receive sanitized snapshots from the parent. Reconcile
+  // nodes in place so text grows and complete UI blocks appear without
+  // reloading the iframe or replacing the whole Artifact tree.
+  var streamUpdateType = ${JSON.stringify(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE)};
+  var syncAttributes = function (current, next) {
+    Array.prototype.slice.call(current.attributes).forEach(function (attribute) {
+      if (!next.hasAttribute(attribute.name)) current.removeAttribute(attribute.name);
+    });
+    Array.prototype.slice.call(next.attributes).forEach(function (attribute) {
+      if (current.getAttribute(attribute.name) !== attribute.value) {
+        current.setAttribute(attribute.name, attribute.value);
+      }
+    });
+  };
+  var syncNode = function (current, next) {
+    if (
+      current.nodeType !== next.nodeType ||
+      (current.nodeType === 1 && current.nodeName !== next.nodeName)
+    ) {
+      current.replaceWith(next.cloneNode(true));
+      return;
+    }
+    if (current.nodeType === 3 || current.nodeType === 8) {
+      if (current.nodeValue !== next.nodeValue) current.nodeValue = next.nodeValue;
+      return;
+    }
+    if (current.nodeType === 1) syncAttributes(current, next);
+    syncChildren(current, next);
+  };
+  var syncChildren = function (currentParent, nextParent) {
+    var currentChild = currentParent.firstChild;
+    var nextChild = nextParent.firstChild;
+    while (nextChild) {
+      var followingCurrentChild = currentChild ? currentChild.nextSibling : null;
+      var followingNextChild = nextChild.nextSibling;
+      if (currentChild) {
+        syncNode(currentChild, nextChild);
+      } else {
+        currentParent.appendChild(nextChild.cloneNode(true));
+      }
+      currentChild = followingCurrentChild;
+      nextChild = followingNextChild;
+    }
+    while (currentChild) {
+      var removableChild = currentChild;
+      currentChild = currentChild.nextSibling;
+      removableChild.remove();
+    }
+  };
+  var applyStreamSnapshot = function (source) {
+    var root = document.querySelector('.piwin-artifact-root');
+    if (!root) return;
+    var template = document.createElement('template');
+    template.innerHTML = source;
+    syncChildren(root, template.content);
+    scheduleMeasure();
+  };
+  window.addEventListener('message', function (event) {
+    var data = event.data;
+    if (
+      event.source !== parent ||
+      !data ||
+      data.type !== streamUpdateType ||
+      data.channelId !== channelId ||
+      typeof data.source !== 'string'
+    ) return;
+    applyStreamSnapshot(data.source);
+  });`
+    : '';
 
   return `
 <script data-piwin-artifact-bridge-bootstrap>
@@ -170,6 +326,7 @@ export function buildArtifactBridgeBootstrapScript(channelId: string): string {
       return true;
     }
   };
+${streamUpdateBootstrap}
   var readHeight = function (height) {
     return Math.max(0, Math.ceil(height || 0));
   };
@@ -309,8 +466,12 @@ export type BuildHtmlArtifactSrcdocInput = {
   channelId: string;
   theme?: ArtifactThemeVariables;
   iframePolicy?: ArtifactIframePolicy;
+  /** Inline flows with the transcript; Canvas owns an internal scrollport. */
+  surface?: ArtifactSurface;
   /** When false, omit height bridge (stream-preview can still include it). Default true. */
   includeBridge?: boolean;
+  /** Accept sanitized parent snapshots without replacing srcdoc. Default false. */
+  enableStreamUpdates?: boolean;
 };
 
 /**
@@ -323,25 +484,31 @@ export function buildHtmlArtifactSrcdoc(input: BuildHtmlArtifactSrcdocInput): {
 } {
   const theme = input.theme ?? createDefaultArtifactTheme('dark');
   const iframePolicy = input.iframePolicy ?? createDefaultArtifactIframePolicy('allowlist');
+  const surface = input.surface ?? 'inline';
   const includeBridge = input.includeBridge !== false;
   const csp = buildStrictArtifactCsp(iframePolicy);
-  const css = buildResponsiveCss(theme);
+  const css = buildResponsiveCss(theme, surface);
+  const surfacePolicyCss = buildArtifactSurfacePolicyCss(surface);
+  const motionPolicyCss = buildArtifactMotionPolicyCss();
   const channelId = input.channelId;
   const channelAttr = escapeHtmlAttribute(channelId);
-  const bridge = includeBridge ? buildArtifactBridgeBootstrapScript(channelId) : '';
+  const bridge = includeBridge
+    ? buildArtifactBridgeBootstrapScript(channelId, input.enableStreamUpdates === true)
+    : '';
 
   const srcdoc = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}" />
   <meta name="piwin-artifact-channel" content="${channelAttr}" />
   <style data-piwin-artifact-theme>${css}</style>
 </head>
 <body>
-  <div class="piwin-artifact-root">
-${input.source}
-  </div>
+  <div class="piwin-artifact-root">${input.source}</div>
+  <style data-piwin-artifact-surface-policy>${surfacePolicyCss}</style>
+  <style data-piwin-artifact-motion-policy>${motionPolicyCss}</style>
 ${bridge}
 </body>
 </html>`;

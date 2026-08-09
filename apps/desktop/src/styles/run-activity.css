@@ -774,20 +774,3 @@
     animation: none !important;
   }
 }
-
-/* Streaming Live Cursor Pulse */
-@keyframes cursor-pulse {
-  0%, 100% { opacity: 1; transform: scaleY(1); }
-  50% { opacity: 0.2; transform: scaleY(0.85); }
-}
-
-.streaming-cursor-pulse {
-  display: inline-block;
-  width: 2px;
-  height: 1.1em;
-  vertical-align: -0.15em;
-  margin-left: 4px;
-  background-color: var(--accent, #3b82f6);
-  border-radius: 1px;
-  animation: cursor-pulse 0.85s ease-in-out infinite;
-}

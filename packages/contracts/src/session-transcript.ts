@@ -87,6 +87,8 @@ export type SessionResumeData = {
   model?: ModelRef;
   /** Last composer thinking level for this session when known. */
   thinkingLevel?: import('./host.js').ThinkingLevel;
+  /** Last authoritative context usage restored by the Host. */
+  contextUsage?: import('./usage.js').ContextUsageSnapshot;
   /** Linear message outline for jump-scroll UI (not a multi-branch Pi tree). */
   outline?: SessionOutlineNode[];
 };

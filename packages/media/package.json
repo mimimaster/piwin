@@ -19,11 +19,12 @@
     "lint": "echo \"lint ok (media)\""
   },
   "dependencies": {
-    "@piwin/contracts": "workspace:*"
+    "@piwin/contracts": "workspace:*",
+    "pdfjs-dist": "4.10.38"
   },
   "devDependencies": {
+    "@types/node": "^22.10.5",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.5",
-    "@types/node": "^22.10.5"
+    "vitest": "^3.0.5"
   }
 }

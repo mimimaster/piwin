@@ -92,13 +92,9 @@ function SubagentInspectorAssistant({
       <MarkdownView
         text={message.text}
         renderingPhase={streaming ? 'streaming' : 'completed'}
+        showStreamingCaret={streaming && message.text.trim().length > 0}
         artifactPreviewEnabled={false}
       />
-      {streaming ? (
-        <span className="subagent-stream-cursor" aria-hidden="true">
-          ▋
-        </span>
-      ) : null}
     </div>
   );
 }
@@ -235,13 +231,9 @@ export function SubagentSessionTranscript(props: SubagentSessionTranscriptProps)
                 <MarkdownView
                   text={stream.text}
                   renderingPhase={isLive ? 'streaming' : 'completed'}
+                  showStreamingCaret={isLive}
                   artifactPreviewEnabled={false}
                 />
-              ) : null}
-              {isLive ? (
-                <span className="subagent-stream-cursor" aria-hidden="true">
-                  ▋
-                </span>
               ) : null}
             </div>
           );

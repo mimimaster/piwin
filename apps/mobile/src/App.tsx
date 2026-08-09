@@ -318,6 +318,8 @@ export function App(): ReactElement {
           path: `remote-asset:${asset.id}`,
           mimeType: asset.mimeType,
           byteSize: asset.byteSize,
+          ...(asset.name === undefined ? {} : { name: asset.name }),
+          ...(asset.contentKind === undefined ? {} : { contentKind: asset.contentKind }),
           source: 'file-picker',
           ...(asset.width === undefined ? {} : { width: asset.width }),
           ...(asset.height === undefined ? {} : { height: asset.height }),
@@ -731,6 +733,16 @@ function readRemoteMediaAsset(value: unknown): RemoteMediaAsset | undefined {
     mimeType: asset.mimeType,
     byteSize: asset.byteSize,
   };
+  if (typeof asset.name === 'string' && asset.name.length > 0) {
+    projected.name = asset.name;
+  }
+  if (
+    asset.contentKind === 'image' ||
+    asset.contentKind === 'text' ||
+    asset.contentKind === 'document'
+  ) {
+    projected.contentKind = asset.contentKind;
+  }
   if (typeof asset.width === 'number' && asset.width >= 0) {
     projected.width = asset.width;
   }

@@ -3,26 +3,26 @@ import { IconButton } from '@piwin/ui-kit';
 import {
   IconArrowUp,
   IconCheck,
-  IconChevronDown,
   IconClose,
   IconEdit,
   IconTrash,
 } from './shell-icons';
+import { getDesktopCopy } from './desktop-locale';
+import { useDesktopLocale } from './desktop-locale-context';
+import type { SteerQueueMessage } from './steer-queue-model';
 
-export type SteerQueueMessage = {
-  id: string;
-  text: string;
-};
+export type { SteerQueueMessage } from './steer-queue-model';
 
 export type SteerQueueProps = {
   messages: readonly SteerQueueMessage[];
   onSendNow: (messageId: string) => void | Promise<void>;
   onEdit: (messageId: string, text: string) => void;
   onRemove: (messageId: string) => void;
-  onToggleMultitasking?: (() => void) | undefined;
 };
 
 export function SteerQueue(props: SteerQueueProps): ReactElement | null {
+  const { locale } = useDesktopLocale();
+  const copy = getDesktopCopy(locale).composer;
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
 
@@ -72,42 +72,33 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
   }
 
   return (
-    <section className="steer-queue-dock" data-testid="steer-queue" aria-label="Queued messages">
+    <section
+      className="steer-queue-dock"
+      data-testid="steer-queue"
+      aria-label={copy.queuedMessagesLabel}
+    >
       <div className="steer-queue-header">
         <div className="steer-queue-heading">
-          <span
-            className="steer-queue-count"
-            aria-label={`${props.messages.length} queued messages`}
-          >
+          <span className="steer-queue-title">{copy.queuedTitle}</span>
+          <span className="steer-queue-count" aria-label={copy.queuedCount(props.messages.length)}>
             {props.messages.length}
           </span>
-          <span className="steer-queue-title">Queued</span>
-          <span className="steer-queue-subtitle">
-            <span className="steer-queue-shortcut-key" aria-hidden>
-              ↩
-            </span>{' '}
-            to Send
-          </span>
         </div>
-        <button
-          type="button"
-          className="steer-queue-multitask-btn"
-          onClick={props.onToggleMultitasking}
-        >
-          <span>Start Multitasking</span>
-          <IconChevronDown className="steer-queue-multitask-icon" />
-        </button>
+        <span className="steer-queue-subtitle">{copy.queuedHint}</span>
       </div>
 
-      <div className="steer-queue-list">
-        {props.messages.map((message) => {
+      <ol className="steer-queue-list">
+        {props.messages.map((message, index) => {
           const isEditing = editingMessageId === message.id;
           return (
-            <div
+            <li
               key={message.id}
               className="steer-queue-item"
               data-testid={`steer-queue-item-${message.id}`}
             >
+              <span className="steer-queue-position" aria-hidden>
+                {index + 1}
+              </span>
               <div className="steer-queue-item-content">
                 {isEditing ? (
                   <textarea
@@ -118,7 +109,7 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                     onKeyDown={(event) => handleEditingKeyDown(event, message.id)}
                     rows={1}
                     autoFocus
-                    aria-label="Edit queued message"
+                    aria-label={copy.editQueuedMessage}
                   />
                 ) : (
                   <span className="steer-queue-item-text">{message.text}</span>
@@ -130,8 +121,8 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                     <IconButton
                       className="steer-queue-action is-confirm"
                       data-testid={`steer-queue-save-${message.id}`}
-                      label="Save queued message"
-                      title="Save"
+                      label={copy.saveQueuedMessage}
+                      title={copy.saveQueuedMessage}
                       onClick={() => saveEditing(message.id)}
                     >
                       <IconCheck />
@@ -139,8 +130,8 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                     <IconButton
                       className="steer-queue-action"
                       data-testid={`steer-queue-cancel-${message.id}`}
-                      label="Cancel editing queued message"
-                      title="Cancel"
+                      label={copy.cancelQueuedEdit}
+                      title={copy.cancelQueuedEdit}
                       onClick={cancelEditing}
                     >
                       <IconClose />
@@ -151,8 +142,8 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                     <IconButton
                       className="steer-queue-action"
                       data-testid={`steer-queue-edit-button-${message.id}`}
-                      label="Edit queued message"
-                      title="Edit"
+                      label={copy.editQueuedMessage}
+                      title={copy.editQueuedMessage}
                       onClick={() => startEditing(message)}
                     >
                       <IconEdit />
@@ -160,8 +151,8 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                     <IconButton
                       className="steer-queue-action is-send-now"
                       data-testid={`steer-queue-send-${message.id}`}
-                      label="Send queued message now"
-                      title="Send now"
+                      label={copy.steerQueuedMessage}
+                      title={copy.steerQueuedMessage}
                       onClick={() => void props.onSendNow(message.id)}
                     >
                       <IconArrowUp />
@@ -169,8 +160,8 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                     <IconButton
                       className="steer-queue-action is-remove"
                       data-testid={`steer-queue-remove-${message.id}`}
-                      label="Remove queued message"
-                      title="Remove"
+                      label={copy.removeQueuedMessage}
+                      title={copy.removeQueuedMessage}
                       onClick={() => props.onRemove(message.id)}
                     >
                       <IconTrash />
@@ -178,11 +169,10 @@ export function SteerQueue(props: SteerQueueProps): ReactElement | null {
                   </>
                 )}
               </div>
-            </div>
+            </li>
           );
         })}
-      </div>
+      </ol>
     </section>
   );
 }
-

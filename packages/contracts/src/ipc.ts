@@ -93,6 +93,8 @@ import type { HostHydrationFrame } from './remote-protocol.js';
 export type MediaSaveCommandInput = {
   sessionId: string;
   mimeType: string;
+  name?: string;
+  contentKind?: import('./attachment.js').AttachmentContentKind;
   source: SaveMediaInput['source'];
   base64Data: string;
 };
@@ -194,7 +196,15 @@ export type HostCommand =
   | { id?: string; type: 'session/messages'; sessionId: string }
   | { id?: string; type: 'session/prompt'; sessionId: string; input: PromptInput }
   | { id?: string; type: 'session/abort'; sessionId: string; runId?: string }
-  | { id?: string; type: 'session/steer'; sessionId: string; message: string; runId?: string }
+  | {
+      id?: string;
+      type: 'session/steer';
+      sessionId: string;
+      message: string;
+      runId?: string;
+      /** Matches an optimistic client row to the persisted Host transcript row. */
+      clientMessageId?: string;
+    }
   | { id?: string; type: 'session/follow_up'; sessionId: string; message: string; runId?: string }
   | {
       id?: string;
@@ -851,6 +861,12 @@ export function toMediaAttachmentRef(
     byteSize: asset.byteSize,
     source,
   };
+  if (asset.name !== undefined) {
+    attachment.name = asset.name;
+  }
+  if (asset.contentKind !== undefined) {
+    attachment.contentKind = asset.contentKind;
+  }
   if (asset.width !== undefined) {
     attachment.width = asset.width;
   }

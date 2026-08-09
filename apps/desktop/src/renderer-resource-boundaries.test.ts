@@ -46,6 +46,7 @@ describe('Desktop renderer resource boundaries', () => {
     for (const settingsSheet of [
       'region-settings-shell.css',
       'region-settings-models.css',
+      'region-settings-speech.css',
       'region-settings-vision.css',
       'settings-resources.css',
     ]) {

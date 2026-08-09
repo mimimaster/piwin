@@ -6,12 +6,14 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type {
+  ContextUsageSnapshot,
   SessionScope,
   UsageBucket,
   UsageModelKeyTotal,
   UsageRecord,
   UsageRollup,
 } from '@piwin/contracts';
+import { shouldAcceptContextUsage } from '@piwin/contracts';
 
 export type UsageRollupOptions = {
   scope?: SessionScope;
@@ -55,6 +57,34 @@ export async function loadUsageRecords(filePath: string): Promise<UsageRecord[]>
     }
   }
   return records;
+}
+
+/**
+ * Restore the latest context snapshot for one session from the append-only
+ * ledger. Provider/Pi measurements outrank later Host fallback estimates.
+ */
+export async function readLatestSessionContextUsage(
+  filePath: string,
+  sessionId: string,
+): Promise<ContextUsageSnapshot | null> {
+  return selectLatestSessionContextUsage(await loadUsageRecords(filePath), sessionId);
+}
+
+export function selectLatestSessionContextUsage(
+  records: readonly UsageRecord[],
+  sessionId: string,
+): ContextUsageSnapshot | null {
+  let latest: ContextUsageSnapshot | null = null;
+  for (const record of records) {
+    if (record.sessionId !== sessionId) {
+      continue;
+    }
+    const candidate = usageRecordToContextSnapshot(record);
+    if (shouldAcceptContextUsage(latest, candidate)) {
+      latest = candidate;
+    }
+  }
+  return latest;
 }
 
 export async function readUsageRollup(
@@ -229,6 +259,20 @@ function addToBucket(bucket: UsageBucket, record: UsageRecord): void {
   if (record.success !== false) {
     bucket.successCount = (bucket.successCount ?? 0) + 1;
   }
+}
+
+function usageRecordToContextSnapshot(record: UsageRecord): ContextUsageSnapshot {
+  return {
+    sessionId: record.sessionId,
+    ...(record.modelId !== undefined ? { modelId: record.modelId } : {}),
+    ...(record.promptTokens !== undefined ? { promptTokens: record.promptTokens } : {}),
+    ...(record.completionTokens !== undefined ? { completionTokens: record.completionTokens } : {}),
+    ...(record.cacheReadTokens !== undefined ? { cacheReadTokens: record.cacheReadTokens } : {}),
+    ...(record.cacheWriteTokens !== undefined ? { cacheWriteTokens: record.cacheWriteTokens } : {}),
+    totalTokens: record.totalTokens,
+    updatedAt: record.recordedAt,
+    source: record.source,
+  };
 }
 
 function firstOf(records: UsageRecord[]): UsageRecord {

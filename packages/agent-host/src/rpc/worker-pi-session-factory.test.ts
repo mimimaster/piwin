@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { SerializableBlueprint, SerializableProviderRuntime } from './serializable-blueprint.js';
+import type {
+  SerializableBlueprint,
+  SerializableProviderRuntime,
+} from './serializable-blueprint.js';
 import {
   buildWorkerProviderRegistration,
   createBlueprintResourceLoader,
@@ -41,17 +44,21 @@ function createMockPiModule(options: {
       session,
       passedOptions: opts,
     })),
-    DefaultResourceLoader: vi.fn(function (this: { reload: () => Promise<void>; options: unknown }) {
+    DefaultResourceLoader: vi.fn(function (this: {
+      reload: () => Promise<void>;
+      options: unknown;
+    }) {
       this.options = arguments[0];
       this.reload = vi.fn(async () => undefined);
     }),
     ModelRuntime: {
-      create: vi.fn(async () =>
-        options.modelRuntime ?? {
-          registerProvider: vi.fn(),
-          getModel: vi.fn(() => undefined),
-          refresh: vi.fn(async () => undefined),
-        },
+      create: vi.fn(
+        async () =>
+          options.modelRuntime ?? {
+            registerProvider: vi.fn(),
+            getModel: vi.fn(() => undefined),
+            refresh: vi.fn(async () => undefined),
+          },
       ),
     },
   };
@@ -99,7 +106,13 @@ describe('buildWorkerProviderRegistration', () => {
       protocol: 'openai-compatible',
       baseUrl: 'https://api.example.com/v1',
       models: [
-        { id: 'gpt-4', label: 'GPT-4', input: ['text', 'image'], reasoning: false },
+        {
+          id: 'gpt-4',
+          label: 'GPT-4',
+          input: ['text', 'image'],
+          reasoning: true,
+          thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+        },
       ],
       auth: { kind: 'env', envName: 'OPENAI_API_KEY' },
     };
@@ -117,7 +130,16 @@ describe('buildWorkerProviderRegistration', () => {
       name: 'GPT-4',
       api: 'openai-completions',
       input: ['text', 'image'],
-      reasoning: false,
+      reasoning: true,
+      thinkingLevelMap: {
+        off: null,
+        minimal: null,
+        low: 'low',
+        medium: 'medium',
+        high: 'high',
+        xhigh: 'xhigh',
+        max: 'max',
+      },
     });
   });
 
@@ -236,8 +258,7 @@ describe('createWorkerPiSessionFactory', () => {
       expect.objectContaining({ mode: 'rpc', uiContext: expect.any(Object) }),
     );
     const confirm = boundUiContext?.confirm as
-      | ((title: string, message: string) => Promise<boolean>)
-      | undefined;
+      ((title: string, message: string) => Promise<boolean>) | undefined;
     await expect(confirm?.('Approve action', 'Continue?')).resolves.toBe(true);
     expect(extensionUiRequest).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -344,14 +365,7 @@ describe('createWorkerPiSessionFactory', () => {
       mock: { calls: unknown[][] };
     };
     const opts = createAgentSession.mock.calls[0]?.[0] as Record<string, unknown>;
-    expect(opts.tools).toEqual([
-      'read',
-      'grep',
-      'ls',
-      'bash',
-      'web_search',
-      'mcp_gateway',
-    ]);
+    expect(opts.tools).toEqual(['read', 'grep', 'ls', 'bash', 'web_search', 'mcp_gateway']);
     expect(opts.customTools).toHaveLength(1);
   });
 });

@@ -174,8 +174,8 @@ export function createTranscriptRecorder(options: {
         text: input.text,
       };
       if (input.attachments && input.attachments.length > 0) {
-        // The transcript schema is still media-only; web-element attachments
-        // land here once the browser session ships (Task 2/3) and widen it.
+        // Transcript persistence keeps the path-backed media-compatible
+        // attachment union; web-element refs are model-facing only for now.
         const mediaAttachments = input.attachments.filter(
           (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
         );

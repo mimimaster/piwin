@@ -288,6 +288,8 @@ ASR 卡片只表达三件事：当前选中的 Provider/model、是否可用、�
   MIME、大小、超时、相对路由和安全错误处理。
 - 已完成 Models 页能力默认值区域、ASR 配置 Dialog，以及新增/编辑模型的
   ASR/TTS 能力开关；TTS 仍只保留能力标记。
+- Models 页能力默认值区域已收敛为 ASR/TTS 双卡片，并与下方 Provider/模型管理
+  分组；仍不新增第四个语音 Tab，保持语音能力复用现有 Provider/模型目录。
 - 已完成 Desktop 点击录音、停止转写、按光标插入 Composer 的链路；录音
   Blob 只留在内存，未调用 `media/save`。
 - 未配置有效 ASR 时，Composer 静默隐藏语音入口；不会显示一个不可用按钮或

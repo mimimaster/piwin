@@ -10,6 +10,7 @@ import type {
 } from './subagent-lifecycle.js';
 import type { CompactionFileOps } from './compaction-fileops.js';
 import type { PromptAttachment } from './browser.js';
+import type { AttachmentContentKind } from './attachment.js';
 import type { AgentModeId } from './permission.js';
 import type { CreateSessionOptions } from './session-seed.js';
 
@@ -111,6 +112,10 @@ export type MediaAttachmentRef = {
   kind: 'media';
   path: string;
   mimeType: string;
+  /** Original display name; paths are Host-owned and may be redacted remotely. */
+  name?: string;
+  /** Image, extracted text, or extracted document. */
+  contentKind?: AttachmentContentKind;
   byteSize: number;
   width?: number;
   height?: number;
@@ -479,10 +484,7 @@ export interface SessionHandle {
 
 export interface AgentHost {
   readonly mode: HostMode;
-  createSession(
-    input: CreateSessionInput,
-    options?: CreateSessionOptions,
-  ): Promise<SessionHandle>;
+  createSession(input: CreateSessionInput, options?: CreateSessionOptions): Promise<SessionHandle>;
   resumeSession(sessionId: string): Promise<SessionHandle>;
   /**
    * List sessions by scope or legacy project path.

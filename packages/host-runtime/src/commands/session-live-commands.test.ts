@@ -16,6 +16,32 @@ import type { SessionLiveContext } from './session-live-commands.js';
 import { handleSessionLiveCommand } from './session-live-commands.js';
 
 describe('session live control commands', () => {
+  it('persists an accepted steer with the client message id', async () => {
+    const session = createDelayedSessionHandle();
+    const { context, activeRun } = createControlContext(session);
+    const recordedPrompts: PromptInput[] = [];
+    context.recordUserPrompt = async (_sessionId, input): Promise<void> => {
+      recordedPrompts.push(input);
+    };
+
+    const response = await handleSessionLiveCommand(
+      {
+        type: 'session/steer',
+        sessionId: session.id,
+        message: 'Use the smaller fix',
+        runId: activeRun.runId,
+        clientMessageId: 'client-steer-1',
+      },
+      undefined,
+      context,
+    );
+
+    expect(response).toMatchObject({ success: true, command: 'session/steer' });
+    expect(recordedPrompts).toEqual([
+      { text: 'Use the smaller fix', clientMessageId: 'client-steer-1' },
+    ]);
+  });
+
   it('rejects stale steer and follow-up requests without calling the session', async () => {
     const session = createDelayedSessionHandle();
     let steerCalls = 0;
@@ -607,6 +633,7 @@ function createControlContext(
     requireSession: (): SessionHandle => session,
     bindSession: async (): Promise<void> => undefined,
     loadTranscriptMessages: async () => [],
+    loadSessionUsage: async () => null,
     loadSideChatSnapshot: async () => undefined,
     sideChatSnapshotInjectedVersions: new Map(),
     stopProcessesForSession: async (): Promise<void> => {

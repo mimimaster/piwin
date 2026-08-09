@@ -1,8 +1,12 @@
+import type { AttachmentContentKind } from './attachment.js';
+
 export type SavedMediaAsset = {
   id: string;
   sessionId: string;
   absolutePath: string;
   mimeType: string;
+  name?: string;
+  contentKind?: AttachmentContentKind;
   byteSize: number;
   width?: number;
   height?: number;
@@ -13,6 +17,8 @@ export type SaveMediaInput = {
   sessionId: string;
   bytes: Uint8Array;
   mimeType: string;
+  name?: string;
+  contentKind?: AttachmentContentKind;
   source: 'paste' | 'drop' | 'file-picker' | 'generated';
 };
 
@@ -25,9 +31,7 @@ export type TextModelImageInjection = {
   height?: number;
 };
 
-export function formatTextModelImageInjection(
-  attachment: TextModelImageInjection
-): string {
+export function formatTextModelImageInjection(attachment: TextModelImageInjection): string {
   const dimensionPart =
     attachment.width && attachment.height
       ? `\ndimensions: ${attachment.width}x${attachment.height}`

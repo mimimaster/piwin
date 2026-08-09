@@ -409,7 +409,6 @@
   background: transparent;
   border-radius: 0;
   padding: 0;
-  animation: msg-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 @keyframes msg-in {
@@ -453,8 +452,7 @@
   text-transform: uppercase;
 }
 
-/* Streaming caret: blinking accent bar (proto .stream-caret).
-   App keeps the .stream-dot class name; behavior matches the proto caret. */
+/* Streaming caret: static accent bar. Model output must not blink. */
 .stream-dot {
   display: inline-block;
   width: 7px;
@@ -463,13 +461,6 @@
   vertical-align: -2px;
   border-radius: 1px;
   background: var(--accent);
-  animation: caret 1s steps(2, jump-none) infinite;
-}
-
-@keyframes caret {
-  50% {
-    opacity: 0;
-  }
 }
 
 /* User turns: right-aligned Paper bubble (proto .msg-user). */
@@ -2613,6 +2604,15 @@ html[data-theme-mode='dark'] .bubble.role-user {
   animation: msg-in 0.32s var(--motion-ease, cubic-bezier(0.22, 1, 0.36, 1)) both;
 }
 
+/* Model output must never fade or slide while it materializes. Artifact
+   streaming owns its own stable incremental reveal and assistant prose stays
+   in normal document flow. */
+.bubble.role-assistant,
+.bubble.role-assistant.is-new,
+.bubble.role-assistant.is-streaming {
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .bubble.is-new,
   .tool-call-card,
@@ -2650,8 +2650,13 @@ html[data-theme-mode='dark'] .bubble.role-user {
   display: inline-block;
   margin-left: 2px;
   color: var(--accent);
-  content: var(--streamdown-caret);
-  animation: caret 1s steps(2, jump-none) infinite;
+  width: 0.42em;
+  height: 1em;
+  border-radius: 1px;
+  background: var(--accent);
+  content: '';
+  vertical-align: -0.12em;
+  white-space: nowrap;
 }
 
 .md-p {
@@ -3289,7 +3294,7 @@ html[data-theme-mode='light'] .permission-detail {
 
 .artifact-with-source {
   position: relative;
-  margin: 0.2em 0 0.4em;
+  margin: 0;
 }
 
 /* Visual previews are intentionally wider than transcript prose. Only the
@@ -3314,31 +3319,30 @@ html[data-theme-mode='light'] .permission-detail {
   border-radius: 8px;
 }
 
-.artifact-frame-header {
-  position: relative;
+.artifact-frame-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
-  min-width: 0;
-  padding: 6px 9px;
+  padding: 5px;
   background: color-mix(in srgb, var(--surface-inset, var(--surface)) 88%, transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--line-soft, var(--border));
-  border-radius: 10px 10px 0 0;
-  font-size: 11px;
+  border-radius: 9px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
 }
 
-.artifact-frame-header strong {
-  min-width: 0;
-  max-width: min(46ch, 100%);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text);
+.artifact-frame:hover > .artifact-frame-actions,
+.artifact-frame:focus-within > .artifact-frame-actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .artifact-frame .muted {
@@ -3351,7 +3355,35 @@ html[data-theme-mode='light'] .permission-detail {
   border: 0 !important;
   background: transparent !important;
   display: block;
-  border-radius: 0 0 10px 10px;
+  border-radius: 0;
+}
+
+.artifact-canvas-launcher {
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft, var(--border));
+  border-radius: 10px;
+  background: var(--surface-inset, var(--surface));
+}
+
+.artifact-canvas-launcher-head,
+.artifact-canvas-launcher-title,
+.artifact-canvas-launcher-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.artifact-canvas-launcher-head {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.artifact-canvas-launcher-intent {
+  margin: 4px 0 0;
+}
+
+.artifact-canvas-launcher-source {
+  margin-top: 8px;
 }
 
 /* ── Citation cards (CitationCards.tsx) ───────────────────────────── */

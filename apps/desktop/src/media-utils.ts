@@ -1,4 +1,9 @@
-import type { PromptAttachment } from '@piwin/contracts';
+import {
+  attachmentContentKindForFile,
+  inferAttachmentMimeType,
+  type AttachmentContentKind,
+  type PromptAttachment,
+} from '@piwin/contracts';
 
 /**
  * Composer image UX targets (experience-first):
@@ -13,14 +18,6 @@ export const COMPOSER_IMAGE_MAX_EDGE_PX = 2048;
 /** Soft size budget before we re-encode for transport + model cost. */
 export const COMPOSER_IMAGE_TARGET_MAX_BYTES = 1_200_000;
 export const COMPOSER_IMAGE_JPEG_QUALITY = 0.82;
-
-const ALLOWED_IMAGE_MIME = new Set([
-  'image/png',
-  'image/jpeg',
-  'image/jpg',
-  'image/webp',
-  'image/gif',
-]);
 
 /** Local composer chip lifecycle for media attachments. */
 export type PendingAttachmentUploadStatus = 'ready' | 'saving' | 'error';
@@ -56,60 +53,30 @@ export function isPendingAttachmentReady(item: PendingComposerAttachment): boole
  * and magic bytes so we still accept the image.
  */
 export function resolveImageMimeType(file: File, headerBytes?: Uint8Array): string | null {
-  const declared = file.type.trim().toLowerCase();
-  if (ALLOWED_IMAGE_MIME.has(declared)) {
-    return declared === 'image/jpg' ? 'image/jpeg' : declared;
-  }
+  const mimeType = inferAttachmentMimeType(file.name, file.type, headerBytes);
+  return mimeType && attachmentContentKindForFile(file.name, mimeType) === 'image'
+    ? mimeType
+    : null;
+}
 
-  const name = file.name.trim().toLowerCase();
-  if (name.endsWith('.png')) return 'image/png';
-  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
-  if (name.endsWith('.webp')) return 'image/webp';
-  if (name.endsWith('.gif')) return 'image/gif';
+export function resolveAttachmentMimeType(file: File, headerBytes?: Uint8Array): string | null {
+  return inferAttachmentMimeType(file.name, file.type, headerBytes);
+}
 
-  if (headerBytes && headerBytes.byteLength >= 12) {
-    // PNG: 89 50 4E 47
-    if (
-      headerBytes[0] === 0x89 &&
-      headerBytes[1] === 0x50 &&
-      headerBytes[2] === 0x4e &&
-      headerBytes[3] === 0x47
-    ) {
-      return 'image/png';
-    }
-    // JPEG: FF D8 FF
-    if (headerBytes[0] === 0xff && headerBytes[1] === 0xd8 && headerBytes[2] === 0xff) {
-      return 'image/jpeg';
-    }
-    // GIF: GIF8
-    if (
-      headerBytes[0] === 0x47 &&
-      headerBytes[1] === 0x49 &&
-      headerBytes[2] === 0x46 &&
-      headerBytes[3] === 0x38
-    ) {
-      return 'image/gif';
-    }
-    // WEBP: RIFF....WEBP
-    if (
-      headerBytes[0] === 0x52 &&
-      headerBytes[1] === 0x49 &&
-      headerBytes[2] === 0x46 &&
-      headerBytes[3] === 0x46 &&
-      headerBytes[8] === 0x57 &&
-      headerBytes[9] === 0x45 &&
-      headerBytes[10] === 0x42 &&
-      headerBytes[11] === 0x50
-    ) {
-      return 'image/webp';
-    }
-  }
-
-  return null;
+export function resolveAttachmentContentKind(
+  file: File,
+  mimeType?: string,
+  headerBytes?: Uint8Array,
+): AttachmentContentKind | null {
+  return attachmentContentKindForFile(file.name, mimeType ?? file.type, headerBytes);
 }
 
 export function isAllowedImageFile(file: File): boolean {
   return resolveImageMimeType(file) !== null;
+}
+
+export function isAllowedAttachmentFile(file: File): boolean {
+  return resolveAttachmentMimeType(file) !== null;
 }
 
 export type PreparedComposerImage = {
@@ -121,9 +88,33 @@ export type PreparedComposerImage = {
   height?: number;
 };
 
+export type PreparedComposerAttachment = PreparedComposerImage & {
+  contentKind: AttachmentContentKind;
+};
+
+export async function prepareComposerAttachmentForSave(
+  file: File,
+  mimeType: string,
+  contentKind: AttachmentContentKind,
+): Promise<PreparedComposerAttachment> {
+  if (contentKind !== 'image') {
+    return {
+      blob: file,
+      mimeType,
+      byteSize: file.size,
+      compressed: false,
+      contentKind,
+    };
+  }
+  const prepared = await prepareComposerImageForSave(file, mimeType);
+  return { ...prepared, contentKind };
+}
+
 /**
  * Quietly shrink large paste/drop images before media/save.
- * GIF stays untouched (animation). Small images pass through.
+ * GIFs are rasterized to their first frame for model input; the caller keeps
+ * the original File object URL for the composer chip so the UI remains animated.
+ * Small non-GIF images pass through.
  * Failures fall back to the original file so attach never hard-fails here.
  */
 export async function prepareComposerImageForSave(
@@ -131,12 +122,17 @@ export async function prepareComposerImageForSave(
   mimeType: string,
 ): Promise<PreparedComposerImage> {
   if (mimeType === 'image/gif') {
-    return {
-      blob: file,
-      mimeType,
-      byteSize: file.size,
-      compressed: false,
-    };
+    try {
+      const firstFrame =
+        (await compressImageBlob(file, mimeType)) ?? (await rasterizeGifWithImageElement(file));
+      if (firstFrame) {
+        return firstFrame;
+      }
+    } catch {
+      // Keep the original GIF as a compatibility fallback when the runtime
+      // cannot decode animated images. The Host still stores it safely.
+    }
+    return { blob: file, mimeType, byteSize: file.size, compressed: false };
   }
 
   if (file.size <= COMPOSER_IMAGE_TARGET_MAX_BYTES) {
@@ -180,9 +176,7 @@ export async function prepareComposerImageForSave(
   }
 }
 
-async function probeImageDimensions(
-  file: File,
-): Promise<{ width: number; height: number } | null> {
+async function probeImageDimensions(file: File): Promise<{ width: number; height: number } | null> {
   if (typeof createImageBitmap === 'function') {
     try {
       const bitmap = await createImageBitmap(file);
@@ -224,10 +218,7 @@ async function compressImageBlob(
 
     // Screenshots with UI chrome compress well as JPEG; keep PNG only when source
     // was PNG *and* stayed under budget after resize (rare). Prefer JPEG for speed.
-    const outputMime =
-      sourceMimeType === 'image/png' || sourceMimeType === 'image/webp' || sourceMimeType === 'image/jpeg'
-        ? 'image/jpeg'
-        : 'image/jpeg';
+    const outputMime = sourceMimeType === 'image/gif' ? 'image/png' : 'image/jpeg';
 
     const blob = await new Promise<Blob | null>((resolve) => {
       canvas.toBlob((result) => resolve(result), outputMime, COMPOSER_IMAGE_JPEG_QUALITY);
@@ -246,6 +237,52 @@ async function compressImageBlob(
     };
   } finally {
     bitmap.close();
+  }
+}
+
+/** Safari/WKWebView fallback when createImageBitmap cannot decode GIF. */
+async function rasterizeGifWithImageElement(file: File): Promise<PreparedComposerImage | null> {
+  if (typeof document === 'undefined' || typeof Image === 'undefined') {
+    return null;
+  }
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error('failed to decode GIF'));
+      element.src = objectUrl;
+    });
+    const scale = Math.min(
+      1,
+      COMPOSER_IMAGE_MAX_EDGE_PX / Math.max(image.naturalWidth, image.naturalHeight, 1),
+    );
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return null;
+    }
+    context.drawImage(image, 0, 0, width, height);
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((result) => resolve(result), 'image/png');
+    });
+    if (!blob) {
+      return null;
+    }
+    return {
+      blob,
+      mimeType: 'image/png',
+      byteSize: blob.size,
+      compressed: true,
+      width,
+      height,
+    };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
   }
 }
 

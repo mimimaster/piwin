@@ -71,7 +71,9 @@ describe('AsrModelSettings', () => {
       );
     });
 
+    expect(container.querySelector('[data-testid="settings-speech-defaults"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="settings-asr-unconfigured"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="settings-tts-reserved"]')).not.toBeNull();
     act(() => {
       container
         ?.querySelector<HTMLButtonElement>('[data-testid="settings-asr-unconfigured"] button')

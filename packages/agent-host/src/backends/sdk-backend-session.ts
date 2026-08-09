@@ -18,7 +18,7 @@ import {
 } from '../rpc/worker-pi-session-factory.js';
 import { createPiSessionEventMapper } from '../event-map.js';
 import { bindExtensionUiToPiSession, createExtensionUiContext } from '../extension-ui-bridge.js';
-import { mapThinkingLevelToApi } from '../map-thinking-level.js';
+import { mapThinkingLevelToPi } from '../map-thinking-level.js';
 import { toPiBackendCustomTools } from './pi-backend-tool-adapter.js';
 import type { PiModelRuntime } from '../pi-model-runtime.js';
 import {
@@ -114,7 +114,7 @@ export async function createBackendSdkSession(
     sessionOptions.model = selectedModel;
   }
   if (input.blueprint.thinkingLevel) {
-    sessionOptions.thinkingLevel = mapThinkingLevelToApi(
+    sessionOptions.thinkingLevel = mapThinkingLevelToPi(
       input.blueprint.thinkingLevel,
       input.blueprint.model?.protocol,
     );
@@ -132,8 +132,7 @@ export async function createBackendSdkSession(
     const bridgedContext = createExtensionUiContext(
       input.blueprint.sessionId,
       {
-        request: (request) =>
-          extensionUiPort.request(request, new AbortController().signal),
+        request: (request) => extensionUiPort.request(request, new AbortController().signal),
       },
       createRequestId,
     );
@@ -172,9 +171,7 @@ async function createBackendModelRuntime(
   return modelRuntime;
 }
 
-function resolveBackendProviderApiKey(
-  provider: SerializableProviderRuntime,
-): string | undefined {
+function resolveBackendProviderApiKey(provider: SerializableProviderRuntime): string | undefined {
   switch (provider.auth.kind) {
     case 'env':
       return process.env[provider.auth.envName];
@@ -210,7 +207,7 @@ function wrapBackendPiSession(
       }
       if (preparedPrompt.thinkingLevel && piSession.setThinkingLevel) {
         await piSession.setThinkingLevel(
-          mapThinkingLevelToApi(preparedPrompt.thinkingLevel, preparedPrompt.model?.protocol),
+          mapThinkingLevelToPi(preparedPrompt.thinkingLevel, preparedPrompt.model?.protocol),
         );
       }
       const promptOptions: {
@@ -265,14 +262,15 @@ function wrapBackendPiSession(
           },
         }
       : {}),
-    ...(piSession.abortCompaction
-      ? { abortCompaction: () => piSession.abortCompaction?.() }
-      : {}),
+    ...(piSession.abortCompaction ? { abortCompaction: () => piSession.abortCompaction?.() } : {}),
     ...(piSession.getAutoCompactionEnabled
       ? { getAutoCompactionEnabled: () => piSession.getAutoCompactionEnabled?.() ?? true }
       : {}),
     ...(piSession.setAutoCompactionEnabled
-      ? { setAutoCompactionEnabled: (enabled: boolean) => piSession.setAutoCompactionEnabled?.(enabled) }
+      ? {
+          setAutoCompactionEnabled: (enabled: boolean) =>
+            piSession.setAutoCompactionEnabled?.(enabled),
+        }
       : {}),
     subscribe(listener) {
       return piSession.subscribe((rawEvent) => {
@@ -287,7 +285,10 @@ function wrapBackendPiSession(
 type PiLikeSession = {
   prompt: (
     text: string,
-    options?: { images?: Array<{ data: string; mimeType: string }>; streamingBehavior?: 'steer' | 'followUp' },
+    options?: {
+      images?: Array<{ data: string; mimeType: string }>;
+      streamingBehavior?: 'steer' | 'followUp';
+    },
   ) => Promise<void>;
   steer?: (message: string) => Promise<void>;
   followUp?: (message: string) => Promise<void>;

@@ -178,6 +178,10 @@ export async function handleCatalogCommand(
         sessionId: command.input.sessionId,
         bytes,
         mimeType: command.input.mimeType,
+        ...(command.input.name !== undefined ? { name: command.input.name } : {}),
+        ...(command.input.contentKind !== undefined
+          ? { contentKind: command.input.contentKind }
+          : {}),
         source: command.input.source,
       });
       const data: MediaSaveData = { asset };

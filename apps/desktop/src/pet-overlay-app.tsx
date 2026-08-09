@@ -3,7 +3,7 @@
  * subscribes to pet/state pushes from the host, supports dragging, and
  * resizes the OS window tightly around the sprite (+ bubble band when active).
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PetRuntimeSnapshot } from '@piwin/contracts';
 import type { Window as TauriWindow } from '@tauri-apps/api/window';
 import { PetSprite } from './components/PetSprite';
@@ -13,10 +13,30 @@ import {
 } from './components/pet-display-size.js';
 import { loadDesktopLocale, type DesktopLocale } from './desktop-locale.js';
 import { petToActivityInput } from './pet-activity-mapper.js';
+import {
+  applyPetOverlayVisibility,
+  loadPetOverlayVisibility,
+  updatePetOverlayVisibility,
+} from './pet-overlay-visibility.js';
 
 export function PetOverlayApp() {
   const [pet, setPet] = useState<PetRuntimeSnapshot | null>(null);
   const [locale, setLocale] = useState<DesktopLocale>(() => loadDesktopLocale());
+
+  // Rust creates this lightweight WebContent window hidden. Apply the saved
+  // UI preference only after its transparent CSS/React entry is ready, which
+  // avoids both a startup background flash and re-showing a dismissed pet.
+  useEffect(() => {
+    void applyPetOverlayVisibility(loadPetOverlayVisibility()).catch((error: unknown) => {
+      console.error('Failed to restore pet overlay visibility', error);
+    });
+  }, []);
+
+  const hidePet = useCallback((): void => {
+    void updatePetOverlayVisibility(false).catch((error: unknown) => {
+      console.error('Failed to hide pet overlay', error);
+    });
+  }, []);
 
   useEffect(() => {
     let disposed = false;
@@ -111,6 +131,10 @@ export function PetOverlayApp() {
       return (target as HTMLElement | null)?.closest?.('.pet-sprite-root') != null;
     }
 
+    function isOverlayControl(target: EventTarget | null): boolean {
+      return (target as HTMLElement | null)?.closest?.('[data-pet-overlay-control]') != null;
+    }
+
     async function raiseMainWindow(): Promise<void> {
       try {
         const { invoke } = await import('@tauri-apps/api/core');
@@ -122,10 +146,17 @@ export function PetOverlayApp() {
 
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
+      if (isOverlayControl(e.target)) {
+        dragSession.current = null;
+        return;
+      }
       if (!isOnSprite(e.target)) {
         dragSession.current = null;
         return;
       }
+      // WKWebView otherwise paints its blue selection overlay across the
+      // transparent Canvas cell while a desktop-window drag begins.
+      e.preventDefault();
       dragSession.current = {
         startX: e.clientX,
         startY: e.clientY,
@@ -149,6 +180,7 @@ export function PetOverlayApp() {
     const onMouseUp = (e: MouseEvent) => {
       const session = dragSession.current;
       dragSession.current = null;
+      if (isOverlayControl(e.target)) return;
       if (!session || session.dragging) return;
       if (!session.onSprite && !isOnSprite(e.target)) return;
       // Pure click (no drag) → bring main window to front.
@@ -265,7 +297,7 @@ export function PetOverlayApp() {
       data-window-w={windowSize?.width}
       data-window-h={windowSize?.height}
     >
-      {pet ? <PetSprite pet={pet} overlay locale={locale} /> : null}
+      {pet ? <PetSprite pet={pet} overlay locale={locale} onHide={hidePet} /> : null}
     </div>
   );
 }

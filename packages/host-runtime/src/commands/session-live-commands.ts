@@ -70,10 +70,7 @@ import {
   truncateTranscriptFrom,
   upsertSessionRecord,
 } from '@piwin/session';
-import {
-  formatSideChatContextBlock,
-  mergeSideChatContextIntoPrompt,
-} from '@piwin/session';
+import { formatSideChatContextBlock, mergeSideChatContextIntoPrompt } from '@piwin/session';
 import { extractFileOpsFromUnknown, formatFilesTouchedBlock } from '../compaction-file-ops.js';
 import { formatPlanForModelContext } from '../format-plan-context.js';
 import { createProductShellSession } from '../product-shell-session.js';
@@ -120,6 +117,9 @@ export type SessionLiveContext = {
   sessionFilesTouched: Map<string, string>;
   sessionLastPromptText: Map<string, string>;
   sessionModels: Map<string, ModelRef>;
+  loadSessionUsage: (
+    sessionId: string,
+  ) => Promise<import('@piwin/contracts').ContextUsageSnapshot | null>;
   sessionAutoCompactionOverrides: Map<string, boolean>;
   unsubscribers: Map<string, () => void>;
   transcriptRecorders: Map<string, ReturnType<typeof createTranscriptRecorder>>;
@@ -271,9 +271,7 @@ async function compactSessionHandle(
 ): Promise<SessionCompactResult> {
   const compact = session.compact;
   if (!compact) {
-    throw new Error(
-      'compaction is not supported on this session (RPC or inactive product shell)',
-    );
+    throw new Error('compaction is not supported on this session (RPC or inactive product shell)');
   }
 
   const startedAt = Date.now();
@@ -448,10 +446,16 @@ async function preparePromptInput(
   }
   throwIfPromptPreparationAborted(context, run.runId);
 
-  const hasMedia = command.input.attachments?.some((item) => item.kind === 'media') === true;
-  if (hasMedia) {
-    // Surface "Describing image…" while D1 may run inside buildModelPromptInput.
-    context.updateRunPhase(run.runId, 'preparing', 'Describing image…');
+  const hasImage =
+    command.input.attachments?.some(
+      (item) =>
+        item.kind === 'media' &&
+        (item.contentKind === 'image' ||
+          (item.contentKind === undefined && item.mimeType.toLowerCase().startsWith('image/'))),
+    ) === true;
+  if (hasImage) {
+    // Surface image preparation while vision delegation may run inside buildModelPromptInput.
+    context.updateRunPhase(run.runId, 'preparing', 'Preparing image…');
   }
 
   // Always clone before model-facing rewrites. buildModelPromptInput may return
@@ -464,9 +468,7 @@ async function preparePromptInput(
   const promptInput: PromptInput = {
     ...preparedFromHost,
     text: preparedFromHost.text,
-    ...(preparedFromHost.attachments
-      ? { attachments: [...preparedFromHost.attachments] }
-      : {}),
+    ...(preparedFromHost.attachments ? { attachments: [...preparedFromHost.attachments] } : {}),
   };
   throwIfPromptPreparationAborted(context, run.runId);
 
@@ -531,10 +533,7 @@ async function preparePromptInput(
   // mutating the recorded user transcript.
   if (command.input.contextRefs && command.input.contextRefs.length > 0) {
     try {
-      const resolvedContext = await resolvePromptContextRefs(
-        context,
-        command.input.contextRefs,
-      );
+      const resolvedContext = await resolvePromptContextRefs(context, command.input.contextRefs);
       if (resolvedContext) {
         promptInput.text = `${resolvedContext}\n\n${promptInput.text}`;
       }
@@ -656,16 +655,19 @@ async function resolvePromptContextRefs(
         const messages = await context.loadTranscriptMessages(ref.sourceSessionId);
         const message = messages.find((item) => item.id === ref.messageId);
         if (message) {
-          blocks.push(`[main-message-reference: ${ref.label}]\n${message.text.trim().slice(0, 8000)}`);
+          blocks.push(
+            `[main-message-reference: ${ref.label}]\n${message.text.trim().slice(0, 8000)}`,
+          );
         }
         break;
       }
       case 'file': {
         const content = await readBoundedFileForRef(ref.projectPath, ref.relativePath);
         if (content !== undefined) {
-          const range = ref.lineStart !== undefined
-            ? `:${ref.lineStart}${ref.lineEnd !== undefined ? `-${ref.lineEnd}` : ''}`
-            : '';
+          const range =
+            ref.lineStart !== undefined
+              ? `:${ref.lineStart}${ref.lineEnd !== undefined ? `-${ref.lineEnd}` : ''}`
+              : '';
           blocks.push(`[file-reference: ${ref.relativePath}${range}]\n${content}`);
         }
         break;
@@ -674,7 +676,9 @@ async function resolvePromptContextRefs(
         blocks.push(`[diff-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`);
         break;
       case 'terminal-output':
-        blocks.push(`[terminal-output-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`);
+        blocks.push(
+          `[terminal-output-reference: ${ref.label}]\n${ref.snapshotText.slice(0, 8000)}`,
+        );
         break;
       case 'error':
         blocks.push(`[error-reference: ${ref.title}]\n${ref.detail.slice(0, 8000)}`);
@@ -702,10 +706,7 @@ async function readBoundedFileForRef(
   let realCandidate: string;
   let realRoot: string;
   try {
-    [realCandidate, realRoot] = await Promise.all([
-      realpath(candidate),
-      realpath(rootAbsolute),
-    ]);
+    [realCandidate, realRoot] = await Promise.all([realpath(candidate), realpath(rootAbsolute)]);
   } catch {
     return undefined;
   }
@@ -933,11 +934,7 @@ export async function handleSessionLiveCommand(
         sessionId: command.sessionId,
         removedCount: truncated.removedCount,
         remainingCount: truncated.remainingCount,
-        ...createSessionMessageResponse(
-          command.sessionId,
-          remaining,
-          command.messageProjection,
-        ),
+        ...createSessionMessageResponse(command.sessionId, remaining, command.messageProjection),
         session: indexRecordToSummary(record),
       });
     }
@@ -1007,11 +1004,11 @@ export async function handleSessionLiveCommand(
       // Restore the last composer model into the in-memory map so subsequent
       // host features (walkthrough, naming, transcript snapshot) see it even
       // before the next prompt. Prefer index, then last assistant message.
-      const restoredModel =
-        existing.model ?? recoverModelFromTranscript(messages) ?? undefined;
+      const restoredModel = existing.model ?? recoverModelFromTranscript(messages) ?? undefined;
       if (restoredModel) {
         context.sessionModels.set(command.sessionId, restoredModel);
       }
+      const restoredUsage = await context.loadSessionUsage(command.sessionId);
       const data: SessionResumeData = {
         sessionId: session.id,
         live,
@@ -1034,6 +1031,9 @@ export async function handleSessionLiveCommand(
       }
       if (existing.thinkingLevel) {
         data.thinkingLevel = existing.thinkingLevel;
+      }
+      if (restoredUsage) {
+        data.contextUsage = restoredUsage;
       }
       return ok(requestId, 'session/resume', data);
     }
@@ -1160,9 +1160,7 @@ export async function handleSessionLiveCommand(
           );
         } catch (error) {
           const message =
-            error instanceof OrchestrationSchemeError
-              ? error.message
-              : formatError(error);
+            error instanceof OrchestrationSchemeError ? error.message : formatError(error);
           return fail(requestId, 'session/prompt', message);
         }
       }
@@ -1339,6 +1337,10 @@ export async function handleSessionLiveCommand(
         );
       }
       await context.requireSession(command.sessionId).steer(command.message);
+      await context.recordUserPrompt(command.sessionId, {
+        text: command.message,
+        ...(command.clientMessageId ? { clientMessageId: command.clientMessageId } : {}),
+      });
       return ok(requestId, 'session/steer', {
         sessionId: command.sessionId,
         runId: active.runId,
@@ -1385,11 +1387,7 @@ export async function handleSessionLiveCommand(
         return fail(requestId, 'session/compact-export', `Unknown session: ${command.sessionId}`);
       }
 
-      const result = await compactTranscriptSnapshot(
-        context,
-        record,
-        command.customInstructions,
-      );
+      const result = await compactTranscriptSnapshot(context, record, command.customInstructions);
       if (!result.ok) {
         return fail(
           requestId,
@@ -1413,9 +1411,7 @@ export async function handleSessionLiveCommand(
         path: outputPath,
         byteLength: Buffer.byteLength(content, 'utf8'),
         ...(result.summary ? { summary: result.summary } : {}),
-        ...(typeof result.tokensBefore === 'number'
-          ? { tokensBefore: result.tokensBefore }
-          : {}),
+        ...(typeof result.tokensBefore === 'number' ? { tokensBefore: result.tokensBefore } : {}),
         ...(typeof result.tokensAfter === 'number' ? { tokensAfter: result.tokensAfter } : {}),
         ...(typeof result.durationMs === 'number' ? { durationMs: result.durationMs } : {}),
       };

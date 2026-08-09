@@ -543,6 +543,12 @@ artifact, transcript, and shell graph merely to branch on the Tauri window
 label at runtime. Shared leaf modules are allowed; the overlay remains a
 separate cosmetic WebContent page with no Host/session authority.
 
+The native shell creates that cosmetic window hidden. Once the dedicated page
+and transparent stylesheet are ready, the page applies the Desktop-local saved
+visibility preference through the existing native show/hide commands. The
+hover close control and Settings → Pets switch share that preference; neither
+changes pet selection or Host-owned pet state.
+
 Local Tauri development and Vite use the explicit `127.0.0.1:1420` origin.
 Using one address family makes strict-port enforcement authoritative and avoids
 split asset/HMR routing between simultaneous IPv4 and IPv6 `localhost`

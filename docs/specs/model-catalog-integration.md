@@ -538,3 +538,9 @@ The send / edit / retry paths in `use-composer-media` and `use-session-actions`
 gate `PromptInput.thinkingLevel` through `canUseThinkingLevel` against the
 selected model's explicit `thinkingLevels`, so a stale effort value from a
 previous model selection is never transmitted.
+
+At the Pi boundary, the Host also projects the configured list into Pi's
+model-level `thinkingLevelMap`. Configured levels are sent as canonical Pi
+values, omitted levels are marked `null`, and `xhigh` / `max` therefore remain
+available to Pi when the model configuration enables them. Pi receives the
+canonical level and performs the final Provider-specific request mapping.

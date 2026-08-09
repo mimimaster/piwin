@@ -38,6 +38,13 @@ import { MainErrorBanner } from './main-error-banner';
 import { ProjectSessionSidebar } from './project-session-sidebar';
 import { projectDisplayName } from './project-display-name';
 import { ChatThread } from './chat-thread';
+import { ArtifactCanvasPanel } from './artifact-canvas-panel';
+import {
+  appendComposerProposal,
+  type ArtifactCanvasTarget,
+} from './artifact-canvas-model';
+import { useArtifactCanvas } from './hooks/use-artifact-canvas';
+import { mapThemeToArtifactVariables } from './artifact-theme-map';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import { PermissionBar } from './permission-bar';
 import { ExtensionUiPrompt } from './extension-ui-prompt';
@@ -112,7 +119,6 @@ import {
 } from './artifact-height-signal';
 import {
   DeferredBrowserSessionPanel,
-  DeferredCanvasPanel,
   DeferredChangesPanel,
   DeferredDocPreviewPanel,
   DeferredFileTreePanel,
@@ -134,6 +140,8 @@ export type AppProps = {
   /** Root callback that resolves, applies document tokens, and stores a manifest. */
   onThemeApplied: (theme: ThemeManifest) => void;
 };
+
+const ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX = 560;
 
 /** Merge two session lists, deduplicating by id (first occurrence wins). */
 function mergeSessionsForLookup(
@@ -181,6 +189,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   } = useHostRequestAdapters(hostClient);
 
   const [state, dispatch] = useReducer(chatUiReducer, undefined, createInitialChatUiState);
+  const artifactCanvas = useArtifactCanvas(state.activeSessionId);
   const sessionLineage = useSessionLineage(hostClient, state.activeSessionId);
   const forkCountsByMessageId = useMemo(
     () => getDirectForkCountsByMessageId(sessionLineage),
@@ -1490,12 +1499,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     revokePending,
     handleComposerPaste,
     handleComposerDrop,
+    handlePickFiles,
     handlePickImageFiles,
     addWebElement,
     handleSend,
     retryPendingAttachment,
     handleSteer,
     handleFollowUp,
+    steerQueueMessages,
+    handleSteerQueueSendNow,
+    handleSteerQueueEdit,
+    handleSteerQueueRemove,
   } = useComposerMedia({
     hostClient,
     state,
@@ -1519,6 +1533,26 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
   });
   composerSetterRef.current = setComposer;
+
+  const handleOpenArtifactCanvas = useCallback(
+    (target: ArtifactCanvasTarget): void => {
+      artifactCanvas.openTarget(target);
+      if (
+        layoutMode !== 'compact' &&
+        rightPanelResize.widthPx < ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX
+      ) {
+        rightPanelResize.setWidthPx(ARTIFACT_CANVAS_MIN_PANEL_WIDTH_PX);
+      }
+      shell.openInspector('canvas');
+    },
+    [
+      artifactCanvas.openTarget,
+      layoutMode,
+      rightPanelResize.setWidthPx,
+      rightPanelResize.widthPx,
+      shell.openInspector,
+    ],
+  );
 
   const handleStartNewSession = useCallback(
     async (options?: {
@@ -2023,6 +2057,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const handleComposerAttachImage = useCallback((): void => {
     void handlePickImageFiles();
   }, [handlePickImageFiles]);
+  const handleComposerAttachFile = useCallback((): void => {
+    void handlePickFiles();
+  }, [handlePickFiles]);
   const handleComposerPasteEvent = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>): void => {
       void handleComposerPaste(event);
@@ -2110,12 +2147,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onRefreshComposerMenus: handleRefreshComposerMenus,
       onOpenSkillsPanel: handleOpenSkillsPanel,
       onOpenMcpPanel: handleOpenMcpPanel,
+      onAttachFile: handleComposerAttachFile,
       onAttachImage: handleComposerAttachImage,
       onPaste: handleComposerPasteEvent,
       onDrop: handleComposerDropEvent,
       onSend: handleComposerSend,
       onSteer: handleComposerSteer,
       onFollowUp: handleComposerFollowUp,
+      steerQueueMessages,
+      onSteerQueueSendNow: handleSteerQueueSendNow,
+      onSteerQueueEdit: handleSteerQueueEdit,
+      onSteerQueueRemove: handleSteerQueueRemove,
       extensionUiRequest,
       extensionUiInput,
       onExtensionUiInputChange: setExtensionUiInput,
@@ -2169,6 +2211,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       extensionUiRequest,
       handleComposerAbort,
       handleComposerAttachImage,
+      handleComposerAttachFile,
       handleComposerCompact,
       handleComposerDropEvent,
       handleComposerExtensionUiAbort,
@@ -2177,12 +2220,16 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       handleComposerPasteEvent,
       handleComposerSend,
       handleComposerSteer,
+      handleSteerQueueEdit,
+      handleSteerQueueRemove,
+      handleSteerQueueSendNow,
       handleOpenHostSettings,
       handleOpenMcpPanel,
       handleOpenModelSettings,
       handleOpenPermissionsSettings,
       handleOpenProject,
       handleOpenSkillsPanel,
+      handlePickFiles,
       handleRefreshComposerMenus,
       handleRemoveDocComments,
       handleRunModeChange,
@@ -2212,6 +2259,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       setPlusSubmenu,
       speechConfigured,
       speechRequest,
+      steerQueueMessages,
       state.activeSessionId,
       state.compacting,
       state.contextUsage,
@@ -2462,6 +2510,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onResizeReset={() => sidebarResize.setWidthPx(SIDEBAR_DEFAULT_WIDTH_PX)}
               workingSessionIds={state.workingSessionIds}
               backendServiceSessionIds={backendServiceSessionIds}
+              completedAttentionSessionIds={state.completedAttentionSessionIds}
               sessionsExpanded={navDrawerOpen}
               onToggleSessions={() => {
                 shell.toggleSessions();
@@ -2635,6 +2684,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   {state.messages.length > 0 ? (
                     <ChatThread
                       messages={state.messages}
+                      {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
                       streaming={state.streaming}
                       editingMessageId={editingMessageId}
                       lastUserMessageId={lastUserMessageId}
@@ -2671,6 +2721,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       onRetry={handleRetryMessage}
                       onFeedback={handleMessageFeedback}
                       onArtifactAction={handleArtifactAction}
+                      onOpenArtifactCanvas={handleOpenArtifactCanvas}
                       onOpenFile={(absolutePath, relativePath) => {
                         handleOpenDocument(
                           {
@@ -2850,7 +2901,19 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     locale={desktopLocale}
                   />
                 }
-                canvasContent={<DeferredCanvasPanel />}
+                canvasContent={
+                  <ArtifactCanvasPanel
+                    activeTarget={artifactCanvas.activeTarget}
+                    artifactTheme={mapThemeToArtifactVariables(activeTheme)}
+                    artifactThemeKey={artifactThemeKey}
+                    {...(config?.artifact?.maxBytes !== undefined
+                      ? { artifactMaxBytes: config.artifact.maxBytes }
+                      : {})}
+                    onInsertProposal={(proposal) =>
+                      setComposer((current) => appendComposerProposal(current, proposal.text))
+                    }
+                  />
+                }
                 browserContent={
                   <DeferredBrowserSessionPanel
                     hostClient={hostClient}
