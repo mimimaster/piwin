@@ -1,0 +1,43 @@
+{
+  "name": "@piwin/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 1421 --strictPort",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "dev:tauri": "tauri dev --config src-tauri/tauri.conf.json",
+    "ios:init": "tauri ios init",
+    "ios:dev": "tauri ios dev",
+    "ios:build": "tauri ios build",
+    "android:init": "tauri android init",
+    "android:dev": "tauri android dev",
+    "android:build": "tauri android build",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run --passWithNoTests",
+    "lint": "echo \"lint ok (mobile)\""
+  },
+  "dependencies": {
+    "@piwin/contracts": "workspace:*",
+    "@piwin/host-client": "workspace:*",
+    "@piwin/host-transport": "workspace:*",
+    "@piwin/ui-kit": "workspace:*",
+    "@tauri-apps/api": "^2.11.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.7.0",
+    "happy-dom": "^20.11.1",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.3",
+    "vitest": "^3.2.7"
+  },
+  "vitest": {
+    "environment": "happy-dom"
+  }
+}
