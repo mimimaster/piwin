@@ -26,7 +26,16 @@ import type {
   ProjectListDirData,
   ProjectReadFileData,
 } from '@piwin/contracts';
-import { Button, EmptyState, IconButton, Notice, Spinner } from '@piwin/ui-kit';
+import {
+  Button,
+  ContextMenu,
+  ContextMenuItem,
+  EmptyState,
+  IconButton,
+  Notice,
+  Spinner,
+  showUiNotification,
+} from '@piwin/ui-kit';
 import { IconChevronDown, IconChevronRight, IconClose, IconRefresh } from './shell-icons';
 import { FileTypeIcon } from './file-type-icon';
 import { CodePreviewView } from './code-preview-view';
@@ -49,6 +58,8 @@ import {
 } from './file-tree-model';
 import { loadExpandedPaths, saveExpandedPaths } from './file-tree-expand-memory';
 import type { DesktopLocale } from './desktop-locale';
+import { writeTextToSystemClipboard } from './desktop-clipboard';
+import { resolveProjectEntryAbsolutePath } from './file-tree-path';
 import { PIWIN_PATH_MIME } from './workspace-path-drag';
 
 export type FileTreeRequest =
@@ -407,8 +418,29 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
 
   function absoluteFor(relativePath: string): string {
     if (!props.projectPath) return relativePath;
-    const base = props.projectPath.replace(/\/+$/, '');
-    return `${base}/${relativePath}`;
+    return resolveProjectEntryAbsolutePath(props.projectPath, relativePath);
+  }
+
+  async function copyAbsolutePath(relativePath: string): Promise<void> {
+    const absolutePath = absoluteFor(relativePath);
+    try {
+      await writeTextToSystemClipboard(absolutePath);
+      showUiNotification({
+        tone: 'success',
+        message: locale === 'zh-CN' ? '已复制绝对路径' : 'Absolute path copied',
+        autoClose: 2500,
+      });
+    } catch (copyError) {
+      showUiNotification({
+        tone: 'error',
+        title: locale === 'zh-CN' ? '复制失败' : 'Copy failed',
+        message:
+          locale === 'zh-CN'
+            ? `无法复制绝对路径：${formatError(copyError)}`
+            : `Could not copy absolute path: ${formatError(copyError)}`,
+        autoClose: 5000,
+      });
+    }
   }
 
   /** Load file content into the left pane of the right-panel split. */
@@ -707,8 +739,13 @@ export function FileTreePanel(props: FileTreePanelProps): ReactElement {
                   onSelectFile={(relativePath) => {
                     void openFilePreview(relativePath);
                   }}
+                  onSelectPath={setSelectedPath}
                   onToggle={(path) => void handleToggle(path)}
                   onDragStart={handleDragStart}
+                  onCopyAbsolutePath={(relativePath) => {
+                    void copyAbsolutePath(relativePath);
+                  }}
+                  copyAbsolutePathLabel={locale === 'zh-CN' ? '复制绝对路径' : 'Copy absolute path'}
                 />
               ))
             )}
@@ -736,13 +773,65 @@ function FileTreeNodeView(props: {
   selectedPath: string | null;
   gitStatusMap: Map<string, GitFileStatusCode>;
   onSelectFile: (path: string) => void;
+  onSelectPath: (path: string) => void;
   onToggle: (path: string) => void;
   onDragStart: (event: DragEvent, relativePath: string) => void;
+  onCopyAbsolutePath: (path: string) => void;
+  copyAbsolutePathLabel: string;
 }): ReactElement {
   const { node, depth } = props;
   const isDir = node.entry.kind === 'directory';
   const selected = props.selectedPath === node.entry.relativePath;
   const status = gitStatusForPath(props.gitStatusMap, node.entry.relativePath, node.entry.kind);
+
+  const row = (
+    <button
+      type="button"
+      className="file-tree-row"
+      style={{ paddingLeft: 8 + depth * 14 }}
+      draggable={!isDir}
+      onDragStart={(event) => {
+        if (!isDir) props.onDragStart(event, node.entry.relativePath);
+      }}
+      onContextMenu={() => {
+        if (!isDir) props.onSelectPath(node.entry.relativePath);
+      }}
+      onClick={() => {
+        if (isDir) {
+          props.onToggle(node.entry.relativePath);
+        } else {
+          props.onSelectFile(node.entry.relativePath);
+        }
+      }}
+      title={node.entry.relativePath}
+    >
+      <span className="file-tree-twist" aria-hidden>
+        {isDir ? (
+          node.expanded ? (
+            <IconChevronDown width={12} height={12} />
+          ) : (
+            <IconChevronRight width={12} height={12} />
+          )
+        ) : null}
+      </span>
+      {/* Folders are pure-text expand buttons — no folder glyph. Files keep type icons. */}
+      {!isDir ? (
+        <span className="file-tree-icon" aria-hidden>
+          <FileTypeIcon filePathOrExt={node.entry.name} />
+        </span>
+      ) : null}
+      <span className="file-tree-name">{node.entry.name}</span>
+      {status ? (
+        <span
+          className={`file-tree-git file-tree-git--${status}`}
+          data-testid={`file-tree-git-${node.entry.relativePath}`}
+          title={status}
+        >
+          {GIT_STATUS_LETTER[status]}
+        </span>
+      ) : null}
+    </button>
+  );
 
   return (
     <li
@@ -750,49 +839,22 @@ function FileTreeNodeView(props: {
       aria-expanded={isDir ? node.expanded : undefined}
       className={`file-tree-node${selected ? ' selected' : ''}`}
     >
-      <button
-        type="button"
-        className="file-tree-row"
-        style={{ paddingLeft: 8 + depth * 14 }}
-        draggable={!isDir}
-        onDragStart={(event) => {
-          if (!isDir) props.onDragStart(event, node.entry.relativePath);
-        }}
-        onClick={() => {
-          if (isDir) {
-            props.onToggle(node.entry.relativePath);
-          } else {
-            props.onSelectFile(node.entry.relativePath);
+      {isDir ? row : (
+        <ContextMenu
+          label={props.copyAbsolutePathLabel}
+          testId={`file-tree-context-menu-${node.entry.relativePath}`}
+          content={
+            <ContextMenuItem
+              testId={`file-tree-copy-path-${node.entry.relativePath}`}
+              onSelect={() => props.onCopyAbsolutePath(node.entry.relativePath)}
+            >
+              {props.copyAbsolutePathLabel}
+            </ContextMenuItem>
           }
-        }}
-        title={node.entry.relativePath}
-      >
-        <span className="file-tree-twist" aria-hidden>
-          {isDir ? (
-            node.expanded ? (
-              <IconChevronDown width={12} height={12} />
-            ) : (
-              <IconChevronRight width={12} height={12} />
-            )
-          ) : null}
-        </span>
-        {/* Folders are pure-text expand buttons — no folder glyph. Files keep type icons. */}
-        {!isDir ? (
-          <span className="file-tree-icon" aria-hidden>
-            <FileTypeIcon filePathOrExt={node.entry.name} />
-          </span>
-        ) : null}
-        <span className="file-tree-name">{node.entry.name}</span>
-        {status ? (
-          <span
-            className={`file-tree-git file-tree-git--${status}`}
-            data-testid={`file-tree-git-${node.entry.relativePath}`}
-            title={status}
-          >
-            {GIT_STATUS_LETTER[status]}
-          </span>
-        ) : null}
-      </button>
+        >
+          {row}
+        </ContextMenu>
+      )}
       {node.loading ? (
         <div className="file-tree-nested muted" style={{ paddingLeft: 24 + depth * 14 }}>
           Loading…
@@ -813,8 +875,11 @@ function FileTreeNodeView(props: {
               selectedPath={props.selectedPath}
               gitStatusMap={props.gitStatusMap}
               onSelectFile={props.onSelectFile}
+              onSelectPath={props.onSelectPath}
               onToggle={props.onToggle}
               onDragStart={props.onDragStart}
+              onCopyAbsolutePath={props.onCopyAbsolutePath}
+              copyAbsolutePathLabel={props.copyAbsolutePathLabel}
             />
           ))}
         </ul>
