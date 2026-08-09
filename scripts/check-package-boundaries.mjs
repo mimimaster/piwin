@@ -23,6 +23,7 @@ const applicationPackageNames = new Set([
   '@piwin/process',
   '@piwin/project',
   '@piwin/session',
+  '@piwin/speech',
   '@piwin/skills',
   '@piwin/theme',
   '@piwin/tools-web',
@@ -105,17 +106,24 @@ function checkProductionImports() {
           violations.push(`${formatPath(filePath)} imports Pi package ${moduleSpecifier}`);
         }
         if (packageName !== '@piwin/host-runtime' && isApplicationPackage(packageName)) {
-          if (moduleSpecifier === '@piwin/agent-host' || moduleSpecifier === '@piwin/host-runtime') {
+          if (
+            moduleSpecifier === '@piwin/agent-host' ||
+            moduleSpecifier === '@piwin/host-runtime'
+          ) {
             violations.push(
               `${formatPath(filePath)} imports composition/backend package ${moduleSpecifier}`,
             );
           }
         }
         if (packageName === '@piwin/contracts' && moduleSpecifier.startsWith('@piwin/')) {
-          violations.push(`${formatPath(filePath)} imports another piwin package ${moduleSpecifier}`);
+          violations.push(
+            `${formatPath(filePath)} imports another piwin package ${moduleSpecifier}`,
+          );
         }
         if (isDeepSourceImport(moduleSpecifier)) {
-          violations.push(`${formatPath(filePath)} uses deep package source import ${moduleSpecifier}`);
+          violations.push(
+            `${formatPath(filePath)} uses deep package source import ${moduleSpecifier}`,
+          );
         }
       }
     }
@@ -159,10 +167,18 @@ function checkAgentHostLegacyExports() {
   }
   for (const filePath of listProductionSourceFiles(join(agentHostRecord.directory, 'src'))) {
     const sourceText = readFileSync(filePath, 'utf8');
-    if (/\bexport\s+(?:default\s+)?(?:class|function|const|let|var|type|interface)\s+HostRuntime\b/.test(sourceText)) {
+    if (
+      /\bexport\s+(?:default\s+)?(?:class|function|const|let|var|type|interface)\s+HostRuntime\b/.test(
+        sourceText,
+      )
+    ) {
       violations.push(`${formatPath(filePath)} exports HostRuntime from agent-host`);
     }
-    if (/export\s+(?:\*|\{[^}]*\bHostRuntime\b[^}]*\})\s+from\s+['"][^'"]*host-runtime/.test(sourceText)) {
+    if (
+      /export\s+(?:\*|\{[^}]*\bHostRuntime\b[^}]*\})\s+from\s+['"][^'"]*host-runtime/.test(
+        sourceText,
+      )
+    ) {
       violations.push(`${formatPath(filePath)} re-exports HostRuntime from agent-host`);
     }
     if (/\bcreateAgentHost\b/.test(sourceText) && /export\s/.test(sourceText)) {
@@ -212,13 +228,19 @@ function checkArchitectureDeletionGates() {
         violations.push(`${formatPath(filePath)} contains removed architecture path ${pattern}`);
       }
     }
-    if (/new\s+RpcSdkWorkerClient\s*\(/.test(sourceText) && !filePath.endsWith('agent-worker-supervisor.ts')) {
+    if (
+      /new\s+RpcSdkWorkerClient\s*\(/.test(sourceText) &&
+      !filePath.endsWith('agent-worker-supervisor.ts')
+    ) {
       violations.push(`${formatPath(filePath)} creates workers outside AgentWorkerSupervisor`);
     }
   }
 
   const orchestratorCreations = [...productionFiles]
-    .map((filePath) => readFileSync(filePath, 'utf8').match(/new\s+SubagentOrchestrator\s*\(/g)?.length ?? 0)
+    .map(
+      (filePath) =>
+        readFileSync(filePath, 'utf8').match(/new\s+SubagentOrchestrator\s*\(/g)?.length ?? 0,
+    )
     .reduce((total, count) => total + count, 0);
   if (orchestratorCreations !== 1) {
     violations.push(
@@ -234,7 +256,7 @@ function listApplicationSourceRoots() {
       roots.push(join(record.directory, 'src'));
     }
   }
-  for (const applicationName of ['cli', 'desktop']) {
+  for (const applicationName of ['cli', 'desktop', 'host', 'mobile']) {
     const applicationDirectory = join(repositoryRoot, 'apps', applicationName);
     if (existsSync(applicationDirectory)) {
       roots.push(join(applicationDirectory, 'src'));
@@ -277,9 +299,16 @@ function isProductionSourceFile(filePath) {
 }
 
 function isExcludedDirectory(directoryName) {
-  return new Set(['dist', 'dist-host', 'build', 'generated', 'fixtures', '__tests__', 'target', 'node_modules']).has(
-    directoryName,
-  );
+  return new Set([
+    'dist',
+    'dist-host',
+    'build',
+    'generated',
+    'fixtures',
+    '__tests__',
+    'target',
+    'node_modules',
+  ]).has(directoryName);
 }
 
 function extractModuleSpecifiers(sourceText) {
@@ -303,10 +332,15 @@ function isApplicationImport(moduleSpecifier) {
 }
 
 function isApplicationPackage(packageName) {
-  return packageName.startsWith('@piwin/') &&
+  return (
+    packageName.startsWith('@piwin/') &&
     packageName !== '@piwin/contracts' &&
     packageName !== '@piwin/agent-host' &&
-    packageName !== '@piwin/host-runtime';
+    packageName !== '@piwin/host-runtime' &&
+    // The standalone Host Server is a transport/composition adapter. Its
+    // dependency on host-runtime is intentional in the multi-client graph.
+    packageName !== '@piwin/host-server'
+  );
 }
 
 function isApplicationPackageName(packageName) {
@@ -314,7 +348,10 @@ function isApplicationPackageName(packageName) {
 }
 
 function isDeepSourceImport(moduleSpecifier) {
-  return /@piwin\/[^/]+\/src(?:\/|$)/.test(moduleSpecifier) || /packages\/[^/]+\/src(?:\/|$)/.test(moduleSpecifier);
+  return (
+    /@piwin\/[^/]+\/src(?:\/|$)/.test(moduleSpecifier) ||
+    /packages\/[^/]+\/src(?:\/|$)/.test(moduleSpecifier)
+  );
 }
 
 function formatPath(filePath) {

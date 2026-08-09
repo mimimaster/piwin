@@ -18,10 +18,15 @@
     { "path": "packages/pet" },
     { "path": "packages/artifact" },
     { "path": "packages/media" },
+    { "path": "packages/speech" },
     { "path": "packages/marketplace" },
     { "path": "packages/ui-kit" },
     { "path": "packages/browser" },
     { "path": "packages/host-runtime" },
-    { "path": "apps/cli" }
+    { "path": "packages/host-transport" },
+    { "path": "packages/host-client" },
+    { "path": "packages/host-server" },
+    { "path": "apps/cli" },
+    { "path": "apps/host" }
   ]
 }
