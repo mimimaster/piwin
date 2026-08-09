@@ -41,10 +41,12 @@ describe('FileTreePanel', () => {
   let container: HTMLDivElement;
   let root: Root;
   let previousActEnvironment: boolean | undefined;
+  let previousClipboard: Clipboard | undefined;
 
   beforeEach(() => {
     previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    previousClipboard = navigator.clipboard;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -57,6 +59,10 @@ describe('FileTreePanel', () => {
     if (container.parentNode) {
       container.parentNode.removeChild(container);
     }
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: previousClipboard,
+    });
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
@@ -339,5 +345,57 @@ describe('FileTreePanel', () => {
 
     // No badge should render when git status is unavailable.
     expect(queryByTestId('file-tree-git-a.ts')).toBeNull();
+  });
+
+  it('selects a file and copies its absolute path from the context menu', async () => {
+    const writeText = vi.fn(async (_text: string): Promise<void> => undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const request = vi.fn(async (cmd: FileTreeRequest): Promise<HostResponse> => {
+      if (cmd.type === 'project/list-dir') {
+        return okList([{ name: 'README.md', relativePath: 'README.md', kind: 'file' }]);
+      }
+      return {
+        id: '0',
+        type: 'response',
+        command: cmd.type,
+        success: false,
+        error: 'unexpected command',
+      };
+    });
+
+    renderPanel({ request });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const readmeRow = Array.from(document.querySelectorAll<HTMLElement>('.file-tree-row')).find(
+      (row) => row.textContent?.includes('README.md'),
+    );
+    expect(readmeRow).toBeTruthy();
+
+    act(() => {
+      readmeRow?.dispatchEvent(
+        new MouseEvent('contextmenu', { bubbles: true, button: 2, clientX: 20, clientY: 20 }),
+      );
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(readmeRow?.closest('.file-tree-node')?.className).toContain('selected');
+    const copyItem = queryByTestId('file-tree-copy-path-README.md');
+    expect(copyItem).toBeTruthy();
+
+    await act(async () => {
+      copyItem?.click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(writeText).toHaveBeenCalledWith('/proj/README.md');
   });
 });
