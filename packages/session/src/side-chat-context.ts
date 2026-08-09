@@ -130,6 +130,20 @@ function formatContextRefLine(ref: SideChatContextRef): string {
       const text = ref.detail.slice(0, 2000);
       return `- error: ${ref.label} (${ref.title})\n${text}`;
     }
+    case 'selection': {
+      const text = ref.snapshotText.slice(0, 2000);
+      const loc =
+        ref.relativePath != null
+          ? `${ref.relativePath}${
+              ref.lineStart != null
+                ? `:${ref.lineStart}${ref.lineEnd != null ? `-${ref.lineEnd}` : ''}`
+                : ''
+            }`
+          : ref.label;
+      return `- selection: ${loc}\n${text}`;
+    }
+    case 'folder':
+      return `- folder: ${ref.label} (${ref.relativePath === '' ? '.' : ref.relativePath})`;
   }
 }
 
