@@ -3,7 +3,7 @@
 | Field | Value |
 |-------|-------|
 | Status | Living execution backlog |
-| Updated | 2026-08-06 |
+| Updated | 2026-08-10 |
 | Roadmap | [`v1-completion-roadmap.md`](./specs/v1-completion-roadmap.md) |
 | Rule | This is the **only** task backlog. Specs explain design and acceptance; this file tracks execution state. |
 
@@ -327,6 +327,32 @@
 
 **Execution order:** SF-00 → SF-01 → SF-02 → SF-03 → SF-04 → SF-05;
 SF-06 follows core adoption, and SF-07 remains independently spike-gated.
+
+### 2.15 Context Menu Surfaces (CM-*) — P0 shipped 2026-08-10, P1 queued
+
+> Spec: [`docs/specs/context-menu-surfaces.md`](specs/context-menu-surfaces.md)  
+> P0 slice (right-click → Agent entry): `selection`/`folder` contracts + Host resolve,
+> composer context-ref chips + `PromptInput.contextRefs`, catalog/dispatch, file-tree +
+> path-chip + code-preview selection menus, drag-to-ref. P1 (message / code-block / diff /
+> tool-card / terminal / error surfaces) intentionally deferred per L8 vertical slice.
+
+| ID | Item | Status |
+|----|------|--------|
+| CM-01 | contracts `selection` + `folder`; Host resolve + tests | **Done 2026-08-10** |
+| CM-02 | composer pending refs + chips + send `contextRefs` | **Done 2026-08-10** (host test proves refs on prompt) |
+| CM-03 | `catalog.ts` + P0 surface tests | **Done 2026-08-10** |
+| CM-04 | `ContextMenuFromCatalog` + `dispatch.ts` | **Done 2026-08-10** |
+| CM-05 | File tree file/folder context menu | **Done 2026-08-10** (unit) |
+| CM-06 | PathChip menu upgrade | **Done 2026-08-10** (unit) |
+| CM-07 | Code preview selection + Explain/Fix presets | **Done 2026-08-10** (typecheck + unit; manual smoke TBD) |
+| CM-08 | Drag path → context ref | **Done 2026-08-10** (chip; text fallback kept) |
+| CM-09 | en/zh labels | **Done 2026-08-10** (catalog-local tables; desktop-locale merge optional) |
+| CM-10 | Message context menu (share catalog with hover) | Queued (P1) |
+| CM-11 | Code block menu + Apply P1a | Queued (P1) |
+| CM-12 | Diff row menu | Queued (P1) |
+| CM-13 | Tool card / terminal / error menus + fix-error | Queued (P1) |
+| CM-14 | Apply P1b write confirm | Queued (P1, optional) |
+| CM-15 | open-changed-files / rerun-tool | Queued (P1) |
 
 ---
 
