@@ -26,7 +26,11 @@ import type {
   PermissionMode,
   UsageRollup,
 } from '@piwin/contracts';
-import { formatCapabilityMatrixLines, formatError } from '@piwin/contracts';
+import {
+  computePromptCacheHitRate,
+  formatCapabilityMatrixLines,
+  formatError,
+} from '@piwin/contracts';
 import type { PromptAttachment } from '@piwin/contracts';
 import { ensureBundledSkillsInstalled, scanSkills } from '@piwin/skills';
 import { loadMcpConfig, saveMcpConfig, tryValidateMcpConfig, listEnabledServers } from '@piwin/mcp';
@@ -40,9 +44,9 @@ import {
 } from '@piwin/marketplace';
 import { pluginSecretRef, type PluginInstallSource } from '@piwin/contracts';
 import { createMediaService } from '@piwin/media';
+import { HostEgressHub } from '@piwin/host-server';
 import { createHostServeDispatcher } from './host-serve-dispatcher.js';
 import { createCliExtensionUiRequestHandler } from './extension-ui-cli.js';
-import { createHostServeStreamBatcher } from './host-serve-stream-batcher.js';
 import { createJsonlStdioTransport } from './host-serve-transport.js';
 import { parsePermissionModeOverride } from './permission-mode-override.js';
 import {
@@ -1956,15 +1960,15 @@ async function commandHostServe(argv: string[]): Promise<void> {
   const testFixture = parseHostServeTestFixture(argv);
   const permissionModeOverride = resolvePermissionModeOverride(argv);
   const transport = createJsonlStdioTransport();
-  const streamBatcher = createHostServeStreamBatcher({
-    write: (message) => transport.send(message),
+  const egressHub = new HostEgressHub({
+    hostInstanceId: `cli-${process.pid}`,
+    maxClientQueueItems: 4_096,
+    maxClientQueueBytes: 8 * 1024 * 1024,
+    onError: (error) => console.error(`[piwin host serve] egress error: ${error.message}`),
   });
   const runtimeOptions: ConstructorParameters<typeof HostRuntime>[0] = {
     mode,
     mock,
-    onPush: (message) => {
-      streamBatcher.push(message);
-    },
   };
   if (testFixture !== undefined) {
     runtimeOptions.testFixture = testFixture;
@@ -1973,8 +1977,26 @@ async function commandHostServe(argv: string[]): Promise<void> {
     runtimeOptions.permissionModeOverride = permissionModeOverride;
   }
   const runtime = new HostRuntime(runtimeOptions);
+  const detachEgress = runtime.attachPushSink(egressHub.createPushSink('local-jsonl'));
+  const egressChannel = egressHub.addClient({
+    id: 'local-jsonl',
+    initialSeq: 0,
+    supportsBatch: true,
+    canSend: () => true,
+    send: (message) => {
+      const localMessage = message.type === 'push/batch' ? message : message.push;
+      void transport.send(localMessage).catch((error: unknown) => {
+        console.error(
+          `[piwin host serve] egress write failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+        );
+      });
+    },
+    onSlowConsumer: (reason) => {
+      console.error(`[piwin host serve] local egress closed: ${reason}`);
+    },
+  });
 
-  await transport.send({
+  egressHub.ingest({
     type: 'host/status',
     mode: runtime.getMode(),
     ready: true,
@@ -2001,7 +2023,10 @@ async function commandHostServe(argv: string[]): Promise<void> {
       // the existing command and stream work is being drained.
       await transport.stop();
       await dispatcher.drain();
-      await streamBatcher.flush();
+      egressHub.flush();
+      egressChannel.flushNow();
+      detachEgress();
+      egressHub.dispose();
       await runtime.dispose();
     })();
     return shutdownPromise;
@@ -2103,20 +2128,24 @@ async function commandUsage(argv: string[]): Promise<void> {
       `total tokens: ${formatUsageNumber(rollup.totalTokens)}  ` +
         `input: ${formatUsageNumber(rollup.promptTokens)}  ` +
         `output: ${formatUsageNumber(rollup.completionTokens)}  ` +
+        `cache read: ${formatUsageNumber(rollup.cacheReadTokens ?? 0)}  ` +
+        `cache write: ${formatUsageNumber(rollup.cacheWriteTokens ?? 0)}  ` +
+        `cache hit: ${formatUsageRate(computePromptCacheHitRate(rollup))}  ` +
         `sessions: ${rollup.sessionCount}  turns: ${rollup.entryCount}`,
     );
     if (rollup.firstAt) {
       console.log(`range: ${rollup.firstAt.slice(0, 10)} → ${rollup.lastAt?.slice(0, 10) ?? ''}`);
     }
-    const models = Object.entries(rollup.byModel).sort(
-      ([, a], [, b]) => b.totalTokens - a.totalTokens,
-    );
-    if (models.length > 0) {
-      console.log('--- by model ---');
-      for (const [modelId, bucket] of models) {
+    if (rollup.byModelKey.length > 0) {
+      console.log('--- by model + key ---');
+      for (const bucket of rollup.byModelKey) {
+        const keyLabel = bucket.providerId ?? 'unknown (legacy)';
         console.log(
-          `${modelId}\t${formatUsageNumber(bucket.totalTokens)} total\t` +
-            `${formatUsageNumber(bucket.promptTokens)} in\t${formatUsageNumber(bucket.completionTokens)} out`,
+          `${bucket.modelId}\tkey=${keyLabel}\t${formatUsageNumber(bucket.totalTokens)} total\t` +
+            `${formatUsageNumber(bucket.promptTokens)} in\t${formatUsageNumber(bucket.completionTokens)} out\t` +
+            `${formatUsageNumber(bucket.cacheReadTokens ?? 0)} cache-read\t` +
+            `${formatUsageNumber(bucket.cacheWriteTokens ?? 0)} cache-write\t` +
+            `${formatUsageRate(computePromptCacheHitRate(bucket))} cache-hit`,
         );
       }
     }
@@ -2138,6 +2167,10 @@ function formatUsageNumber(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
   return String(value);
+}
+
+function formatUsageRate(value: number | null): string {
+  return value === null ? 'unknown' : `${Math.round(value * 100)}%`;
 }
 
 async function commandWalkthrough(argv: string[]): Promise<void> {

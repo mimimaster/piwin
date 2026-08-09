@@ -34,6 +34,7 @@ const SERIALIZED_COMMAND_TYPES = new Set<HostCommand['type']>([
   'pet/set-active',
   'pet/install-local',
   'pet/install-registry',
+  'project/remove',
   'session/rename',
   'session/archive',
   'session/unarchive',
