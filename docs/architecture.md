@@ -12,13 +12,18 @@
 - Dual host modes (SDK + RPC) behind one contract from day one
 - Packages are independently testable and replaceable
 - Desktop (Tauri) and CLI share host + config root `~/.piwin`
+- The Host is independently deployable; multiple shells can connect to one
+  authoritative Host instance
 
 ## 2. Layered system
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ Presentation                                                 │
-│  apps/desktop (Tauri + web UI)   apps/cli (TTY)              │
+│ Presentation / client shells                                  │
+│  apps/desktop · apps/cli · apps/mobile · future Web client    │
+├─────────────────────────────────────────────────────────────┤
+│ Host Server / transport boundary                             │
+│  local sidecar · private WebSocket · auth · replay · health   │
 ├─────────────────────────────────────────────────────────────┤
 │ Product Host Runtime (composition root)                       │
 │  Settings · commands/pushes · Runs · Jobs · scheduling       │
@@ -43,15 +48,43 @@
 ### Dependency rule
 
 ```text
-apps/*  →  packages/host-runtime + public application/UI packages
+apps/desktop, apps/cli, apps/mobile, future client apps
+         → public host-client/transport packages + contracts
+apps/host → host-server → host-runtime
 packages/host-runtime  →  application packages + agent-host + contracts
 application packages  →  contracts
 packages/agent-host  →  contracts + Pi packages (only place allowed)
 packages/agent-host  ↛  application packages
 apps/*  ↛  Pi packages
+apps/gateway (optional) → host-transport + contracts only
 ```
 
 Violations are architecture bugs.
+
+### 2.1 Host-first deployment model
+
+`@piwin/host-runtime` is the execution authority. `@piwin/host-server` wraps it
+with the first loopback/private WebSocket transport, token authentication,
+client admission, replay, health, and lifecycle management. The same server may
+run as a local Tauri sidecar or as a standalone process on a Mac,
+Windows/Linux machine, NAS, or server.
+
+```text
+Local:
+  Desktop/CLI shell → local Host Server → HostRuntime → agent-host → Pi
+
+Remote:
+  Desktop/Windows/Mobile/CLI shell
+      → private network or optional Gateway/tunnel
+      → Host Server → HostRuntime → agent-host → Pi
+```
+
+One Host process owns one configured `~/.piwin` data root. Multiple clients
+observe and control that Host through `HostCommand` / `HostPush`; they do not
+create independent Agent loops or synchronize independent session databases.
+The canonical target and implementation phases are recorded in
+[`specs/host-server-multi-client.md`](./specs/host-server-multi-client.md) and
+ADR 0036.
 
 ## 3. Dual-mode Agent Host
 
@@ -64,10 +97,11 @@ Violations are architecture bugs.
 
 Both adapters remain behind one backend contract. SDK is an in-process Pi
 backend. RPC uses a piwin-owned child process supervised by the Product Host,
-with one worker keyed by exactly `(sessionId, runtimeGenerationId)`. Desktop
-has one Tauri-supervised Product Host; CLI constructs the same composition root
-locally. The worker is an execution boundary only: Settings, permissions,
-Host tools, Jobs, Runs, and prompt preparation remain parent-owned.
+with one worker keyed by exactly `(sessionId, runtimeGenerationId)`. A local
+Desktop may supervise the Host as a sidecar; a standalone Host Server may run
+the same composition root on another machine. The worker is an execution
+boundary only: Settings, permissions, Host tools, Jobs, Runs, and prompt
+preparation remain Host-owned.
 
 ### 3.2 Core contracts (packages/contracts)
 
@@ -322,6 +356,9 @@ retry or conflict resolution is performed.
 | `@piwin/contracts` | Types, events, config schemas (runtime-light) |
 | `@piwin/host-runtime` | Product composition root: Settings compilation, command/push routing, runtime generations, Runs, Jobs, permissions, tools, prompt preparation |
 | `@piwin/agent-host` | Pi-only boundary: SDK backend, isolated worker backend, Pi event/tool adapters, worker protocol |
+| `@piwin/host-client` | Transport-neutral client facade for Desktop, CLI, Windows, mobile, and Web shells |
+| `@piwin/host-transport` | JSON framing and browser/Tauri WebSocket transport with connection state and cursor replay requests |
+| `@piwin/host-server` | Deployable Host wrapper: loopback/private listener, token auth, safe command admission, replay, health, lifecycle |
 | `@piwin/session` | History index, tree projection, naming |
 | `@piwin/project` | Workspace/project trust, cwd binding |
 | `@piwin/skills` | Discovery, install, defaults, find/create helpers |
@@ -398,6 +435,55 @@ Paste image
   → text-only path: vision delegation; explicit path fallback only when needed
 ```
 
+### 7.1 Desktop renderer retention invariants
+
+The durable transcript remains Host/session state; mounted React/WebKit nodes
+are only a bounded projection of that state. Desktop groups messages into
+stable turn units and keeps the simple full-render path through 40 turns. Above
+that threshold one dynamic-height virtualizer mounts only the visible range
+plus four-turn overscan. TranscriptViewport, follow-tail, History Ticks, and the
+virtualizer share one scroll-element port. Scroll offsets and measured turn
+heights are bounded presentation caches per session and are cleared when that
+session is deleted.
+
+Heavy content has independent retention bounds:
+
+- collapsed thinking and completed historical tool bodies are unmounted;
+- canonical tool output and `ToolPresentation.output.text` share one redacted,
+  exact UTF-8 256 KiB projection rather than retaining duplicate uncapped
+  strings;
+- streaming code fences stay plain while their source is changing; Shiki
+  highlighting starts only for terminal/static Markdown;
+- `ResizeObserver` remeasures mounted turns after expansion, media/artifact
+  load, editing, or font/theme-driven layout changes.
+
+Optional renderer surfaces follow the same ownership rule:
+
+- session navigation initially exposes a six-row preview. `See all` enters
+  invisible cursor lazy loading over a three-page, 128-KiB sliding window per
+  hydrated project or General scope, while `Show less` refreshes the first Host
+  page; selecting an old active session anchors its Host page and never expands
+  the complete Host index. Infinite scroll must not mean “append forever”. Desktop uses additive
+  `session/list-page`: lifecycle and global order are Host-owned, cursors are
+  opaque and revision-bound, stale cursors restart once at page zero, and a
+  cursorless active-session anchor locates an old session directly. The
+  legacy complete `session/list` remains only for older shells;
+- only the active non-terminal right-panel body is mounted; an open terminal
+  is the explicit temporary exception while `TerminalDock` owns PTY lifetime;
+- settings, terminal, browser, file-tree, knowledge, document, and other
+  route-like surfaces load through feature JS/CSS boundaries;
+- development React User Timing history has a hard renderer-owned budget,
+  installed before React render and enforced synchronously at the
+  `performance.measure()` write boundary, so a starved interval cannot let
+  WebKit retain an unbounded diagnostics timeline;
+- the workspace is the sole full-stage backdrop-filter owner; nested stage
+  regions do not allocate redundant full-size blur surfaces;
+- syntax highlighting imports Shiki only when a completed/static code block
+  first requests tokens.
+
+These are renderer safety invariants, not transcript truncation. History and
+recovery continue to use the Host-owned canonical state.
+
 ## 8. Browser Session
 
 A host-owned, Playwright-driven browser session (`@piwin/browser`, ADR 0020) that
@@ -445,23 +531,55 @@ the user sees == what the agent controls".
 
 ```text
 apps/desktop/
-  src/                 # React (or chosen web UI)
+  index.html           # Main Desktop composition root
+  pet-overlay.html     # Cosmetic overlay composition root
+  src/                 # React UI and separate main/overlay entries
   src-tauri/           # Rust shell: windowing, FS bridges, OS integrations
 ```
 
-Tauri main process / commands call into Node host **or** a long-lived host sidecar.
+The pet overlay uses its own Vite HTML/React entry and minimal stylesheet. It
+must not import the main Desktop composition root or its Markdown, settings,
+artifact, transcript, and shell graph merely to branch on the Tauri window
+label at runtime. Shared leaf modules are allowed; the overlay remains a
+separate cosmetic WebContent page with no Host/session authority.
 
-**v1 recommendation**: Node host sidecar process owned by Tauri; UI talks over local IPC (JSON events). Same host binary used by CLI.
+Local Tauri development and Vite use the explicit `127.0.0.1:1420` origin.
+Using one address family makes strict-port enforcement authoritative and avoids
+split asset/HMR routing between simultaneous IPv4 and IPv6 `localhost`
+listeners. `TAURI_DEV_HOST` remains the explicit remote-development override.
 
-Alternative (simpler smoke): CLI embeds host in-process; Desktop spawns `piwin host --mode sdk|rpc`.
+Tauri main process / commands call into a Node Host Server, either as a local
+sidecar or as a configured remote Host through the public HostClient.
+
+**Local recommendation**: Node Host Server sidecar process owned by Tauri; UI
+talks over local IPC/JSON events. The same Host Server entry point can later be
+run independently and reached by other shells.
+
+Alternative (simpler CLI smoke): CLI embeds HostRuntime in-process. The
+multi-client target is a single long-lived Host Server per data root, with CLI
+connecting to it when one already exists.
+
+## 9.1. Tauri mobile shape
+
+    apps/mobile/
+      src/                 # React mobile shell and Host-client views
+      src-tauri/           # Minimal Rust shell; no Node sidecar or PTY
+
+The mobile shell connects to a remote or private-network Host through the
+public HostClient/HostTransport surface. Its local capabilities are limited to
+mobile OS integration such as secure credential storage, camera/file pickers,
+and notifications. It never imports Pi packages or receives Host absolute
+paths.
 
 ## 10. CLI shape
 
 ```text
-apps/cli → @piwin/host-runtime
+apps/cli → @piwin/host-client / @piwin/host-transport → Host Server
 ```
 
-Commands mirror host capabilities; no separate business logic.
+Commands mirror Host capabilities; no separate business logic. A CLI may use an
+in-process HostRuntime for a one-shot/local smoke path, but the multi-client
+target is to attach to the same long-lived Host Server as Desktop and mobile.
 
 ## 11. Testing strategy
 
@@ -488,7 +606,9 @@ Commands mirror host capabilities; no separate business logic.
 | Desktop UI kit | React + Vite inside Tauri |
 | Session index DB | SQLite |
 | Default host mode | SDK |
-| Sidecar vs in-process for Tauri | Sidecar host process |
+| Local Host deployment | Tauri-owned Host Server sidecar |
+| Remote Host deployment | Standalone Host Server over private transport |
+| Optional network relay | Gateway/tunnel only; never the Agent authority |
 
 ## 14. Capability honesty (2026-07-24)
 

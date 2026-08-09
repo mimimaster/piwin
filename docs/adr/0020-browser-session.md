@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed (2026-07-31) · supersedes the iframe-based `BrowserPanel` preview
+Accepted (2026-07-31) · lifecycle amendment accepted 2026-08-09 · supersedes
+the iframe-based `BrowserPanel` preview
 
 ## Context
 
@@ -86,13 +87,58 @@ navigations). It is an application package below the host boundary, exactly like
 `tools-web`. It does **not** import Pi, DOM host APIs, or `agent-host`. There is
 **no `yaml` dependency** — the snapshot is parsed with a dedicated line parser.
 
-### 3. Tool wiring in `@piwin/agent-host`
+#### 2.1 Service lifetime and Chromium lease
 
-`agent-host` depends on application packages and registers their tool factories
-with Pi (existing pattern: `createWebToolDefinitions`, `gated-bash-tool.ts`). A
-new `browser-tools.ts` in `agent-host` wraps the `@piwin/browser` session into
-`HostToolDefinition[]`. The browser session is shared app-wide; both the agent
-tools and the desktop panel operate on the same instance.
+The Host-owned `BrowserSession` object and the Playwright/Chromium runtime have
+different lifetimes:
+
+- creating the service and subscribing Host push forwarding are passive; they
+  do not launch Chromium;
+- every mounted browser surface generates a one-shot lease ID;
+  `browser/start(leaseId)` acquires only that surface's lease, launches the
+  persistent context if needed, and enables the bounded frame loop;
+- `browser/stop(leaseId)` releases only the matching surface lease. The final
+  release stops frames and awaits `BrowserContext.close()`. Closing a persistent
+  context is the authoritative Playwright path that waits for its Chromium
+  child to exit;
+- an asynchronous screenshot rechecks lease ownership before emitting, so a
+  frame already in flight at final release is dropped instead of forwarding a
+  base64 payload to a surface that no longer exists;
+- released one-shot IDs are retained in a bounded tombstone set so React
+  StrictMode and delayed transport delivery cannot let a late `start` resurrect
+  an already-unmounted panel. Independent Desktop/mobile clients cannot release
+  one another's active lease;
+- the service object remains reusable after `stop`. A later panel open or
+  `browser_*` agent operation lazily creates a new context against the same
+  persistent profile;
+- only HostRuntime disposal calls permanent `close()`, after which operations
+  fail fast and cannot relaunch.
+
+This distinction is required because frozen Host tool registrations retain the
+shared service object. Treating panel close as permanent service disposal both
+breaks later tool calls and leaves HostRuntime pointing at a dead resource.
+Conversely, launching from `subscribe()` makes Chromium resident merely because
+a Pi session was composed, even when no browser surface or tool is used.
+
+The `@medv/finder` bundle entry is resolved relative to `@piwin/browser` via
+`import.meta.url`, never relative to the Host process working directory. This
+keeps post-launch initialization deterministic for repository-root, sidecar,
+and packaged Host entry points.
+
+Persistent Chromium already supplies one initial `about:blank` page. The
+service reuses it instead of calling `newPage()` unconditionally and retaining
+a redundant renderer. Runtime initialization is transactional: if Finder
+injection or page setup fails after launch, the context is closed immediately,
+the failed promise is cleared, and a later operation may retry.
+
+### 3. Tool wiring in `@piwin/host-runtime`
+
+`@piwin/host-runtime`, the product composition root, owns the BrowserSession and
+wraps it into parent-owned `HostToolRegistration[]`. `@piwin/agent-host` remains
+the Pi-only backend boundary and receives those registrations through the Host
+tool port; it does not depend on `@piwin/browser`. The browser service is shared
+app-wide, so agent tools and the Desktop mirror operate on the same reusable
+session object.
 
 ### 4. Contracts first (`@piwin/contracts/src/browser.ts`)
 
@@ -196,8 +242,12 @@ The visual panel is desktop-only; CLI degradation is intentional and documented
   data-URL over Tauri IPC (~400 KB/s at 4 fps) is fine for the MVP; a later
   iteration can serve frames from a local HTTP endpoint in `@piwin/browser` and
   have the panel `<img>` pull directly, bypassing the Rust bridge.
-- **Single shared instance**: one Chromium per app run. If it crashes, browser
-  tools fail fast with an actionable error and the panel shows a restart affordance.
+- **Single shared service, leased process**: at most one Chromium runtime is
+  active per Host. Mirror surfaces hold independent one-shot leases; releasing
+  the final surface lease awaits process release, and later tools may relaunch.
+  A tool-started runtime is shared for the browser workflow and is permanently
+  released when HostRuntime disposes (a future run-scoped idle policy may retire
+  tool-only runtimes earlier without changing this boundary).
 - **`ref` lifetime**: snapshot `ref`s are valid until the next page change
   (same contract as `@playwright/mcp`). Pick results therefore carry both a
   `selector` (durable) and a `ref` (instant), so the agent can re-locate an

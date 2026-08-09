@@ -2,8 +2,8 @@
 
 | Field | Value |
 |-------|-------|
-| Status | Active — M2 done; see todo-deferred |
-| Date | 2026-08-04 |
+| Status | Active — M2 done; Host Server/multi-client target added; see todo-deferred |
+| Date | 2026-08-09 |
 | Based on | `docs/prd.md` v0.2, locked product decisions |
 | Repo | `~/Projects/piwin` |
 
@@ -14,7 +14,7 @@
 1. **Architecture before features**: dual-mode host + contracts stay real.
 2. **Vertical slices**: each milestone ships a usable path, not only folders.
 3. **Research-hard parts first enough**: artifact/media security from `openwebui_m`.
-4. **Private, local-first**: no cloud multi-tenant work.
+4. **Private, local-first**: one Host authority, many clients; no cloud multi-tenant work.
 5. **Anti-shitpile**: follow `AGENTS.md`; contracts-first; no UI→Pi imports.
 
 ---
@@ -36,6 +36,18 @@ Unified Job Control → Phase 2 Structured Concurrency → Phase 3 Agent Worker
 Isolation 推进。三阶段现已完成：旧的 Job/Run/process/worker 权威路径已删除，
 公共 runtime replacement 也已接入；后续改动必须通过架构门禁。
 原 Phase 7 worker plan 只保留为历史分析，不再是执行权威。
+
+### 1.2 Host Server / multi-client architecture program
+
+The Host-first deployment target is defined by:
+
+- [`docs/adr/0036-host-server-multi-client-deployment.md`](./adr/0036-host-server-multi-client-deployment.md)
+- [`docs/specs/host-server-multi-client.md`](./specs/host-server-multi-client.md)
+
+The order is fixed: make the contracts and replay/auth seams truthful, extract
+the reusable HostClient/transport surface, ship a standalone local Host Server,
+then validate private multi-client connectivity. Gateway/tunnel and mobile/Web
+shells follow the Host protocol; they are not parallel execution paths.
 
 ---
 
@@ -180,8 +192,24 @@ Spec: [`docs/specs/m1-host-cli.md`](./specs/m1-host-cli.md) · M2 design: [`docs
 | M7.1 | doctor command full checks | providers, paths, pi binary |
 | M7.2 | logging + redaction | no secrets in logs |
 | M7.3 | Runtime Refactor Phases 1-3 | done — Job/Run ownership unified; RPC worker isolated; SDK/worker conformance green |
-| M7.4 | performance: session list, artifact init | acceptable on large history |
+| M7.4 | performance: session list, artifact init, renderer egress/transcript bounds | bounded mounted turns and acceptable native memory slope on large history |
 | M7.5 | security review pass | permissions + CSP + path rules |
+
+### M8 — Host Server + multi-client deployment (next architecture slice)
+
+**Goal**: run one Host locally or on another private machine and connect more
+than one shell to the same sessions, Runs, Jobs, MCP supervisor, and data root.
+
+| # | Task | Exit criteria | Status |
+|---|------|---------------|--------|
+| M8.1 | Host target/config contracts | protocol/client hello and safe Host capability status are normalized; persistent target config remains | partial |
+| M8.2 | Sequenced push/replay truth | Host instance identity, seq cursor, replay-too-old, snapshot frame, and reconnect replay have conformance tests | partial |
+| M8.3 | Host-side client identity/policy | client identity, token auth, safe command allowlist, and path redaction are active; pairing/revocation remains | partial |
+| M8.4 | Extract HostClient/transport packages | public HostClient/transport packages serve mobile and fake-server tests; Desktop/CLI migration remains | partial |
+| M8.5 | Standalone Host Server | `apps/host` runs without Tauri and serves loopback/private WebSocket through HostRuntime | done — initial slice |
+| M8.6 | Private multi-client smoke | fake/runtime-port smoke covers two clients, safe reads, push and reconnect replay; real two-shell prompt smoke remains | partial |
+| M8.7 | Optional Gateway/tunnel | relay is transport-only, redacts secrets, and is not required for Tailscale/private LAN | planned |
+| M8.8 | Mobile/Web shell spike | client shell consumes Host protocol after M8.6; no independent Agent loop | in progress — real status/list/chat slice |
 
 ---
 
@@ -198,6 +226,22 @@ Parallelizable after M1:
 
 - media package (M3) while desktop UI builds
 - artifact pure TS port (M5.1) without waiting for full UI polish
+
+### 4.1 Next architecture slice
+
+Before starting a mobile/Web UI, complete the M8.1–M8.6 vertical slice:
+
+1. Contract and status truth (`HostInstanceId`, protocol version, Host target,
+   caller/device context).
+2. HostRuntime sequencing, bounded replay, snapshot hydration, and idempotent
+   request/run handling.
+3. Public HostClient/transport package with local JSONL and loopback WebSocket.
+4. Standalone Host Server entry point using the existing HostRuntime composition
+   root.
+5. Two-client integration test against one Host data root.
+
+Only after that slice is green should Gateway/tunnel or a mobile shell be
+implemented.
 
 ---
 
@@ -220,6 +264,9 @@ Parallelizable after M1:
 | Artifact XSS | security incident | port openwebui security tests first |
 | Scope creep (pets/themes early) | delay MVP | keep M6 after M2–M5 |
 | Rust not installed | blocks Tauri | install when starting M2; CLI path independent |
+| Multiple Host instances share one data root | divergent Runs/sessions/MCP state | one Host authority per root; clients attach through Host Server |
+| Remote reconnect loses or duplicates work | unsafe prompt retry / stale UI | Host instance identity, idempotent commands, replay-or-snapshot contract |
+| Private tunnel mistaken for authorization | remote overreach / secret exposure | Host-side device identity and command policy; Gateway transport-only |
 
 ---
 

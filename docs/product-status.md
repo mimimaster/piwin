@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Updated | 2026-08-06 |
+| Updated | 2026-08-09 |
 | Backlog | [`todo-deferred.md`](./todo-deferred.md) |
 | Depth program | [`specs/product-depth-competitive-alignment.md`](./specs/product-depth-competitive-alignment.md) |
 | Optimization program | [`specs/product-optimization-program.md`](./specs/product-optimization-program.md) **Active** |
@@ -16,6 +16,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 |---------|--------|-------|
 | Open workspace + trust | green | Tauri picker + path dialog |
 | Chat stream (mock/SDK) | green | Product transcript resume |
+| Desktop renderer bounds | green (automated) / native evidence pending | Bounded Host batches, 256 KiB visible tool output, 500-turn virtualization, and a separate pet overlay entry; 30-minute Gate A remains open |
 | Session rename/archive/delete/duplicate | green | PD-SESS archive-first |
 | Pin + search | green | Pinned group in sidebar |
 | Project rail density | green | Project section folds; recent projects are capped in the rail with a searchable all-project picker |
@@ -28,11 +29,12 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | Composer branch chip | green | Local branches list + checkout confirm; project sessions only |
 | Memory / process tools | green | Feature-flagged config |
 | Shell dock | yellow→green on Tauri | **Tauri PTY + xterm** when running desktop; Node shell preview is removed by Runtime Refactor Phase 1 |
-| Runtime target chip (Local / Cloud) | yellow | **Stub shipped:** 本机 active; 云端 grey + tooltip「未连接到远程服务器」; real switch after CE-GW (D-CTX-01b) |
+| Runtime target chip (Local / Remote Host) | yellow | **Stub shipped:** 本机 active; 远程 Host grey + tooltip「未连接到远程服务器」; real switch after Host Server multi-client slice (D-CTX-01b) |
 | RPC isolation | yellow | SDK fallback is transitional; Runtime Refactor Phase 3 requires one isolated worker per runtime generation |
 | Hooks / cron | yellow | Thin post-event; cron needs host up |
 | Interactive PTY (xterm) | green (Tauri) | portable-pty + xterm; no second Node shell-preview architecture in the target state |
-| Personal gateway | red | W4 future; ADR 0027 seams landed (contracts seq/replay, HostRuntime multi-sink, transport abstraction) |
+| Host Server / multi-client | red | Target defined by ADR 0036; Host Server, private transport, auth, replay, and second-client connection are not shipped |
+| Personal Gateway / tunnel | red | Optional W4 transport layer after Host Server; ADR 0027 protocol seams retained |
 
 ## Architecture health
 
@@ -42,6 +44,7 @@ Legend: **green** usable · **yellow** partial / honest degrade · **red** not s
 | App shell modularity | green | App ~800 lines orchestration + hooks/components |
 | host-client mock isolation | green | `host-client-mock.ts` |
 | HostRuntime modularity | transition | target extraction to `@piwin/host-runtime`; `@piwin/agent-host` narrows to the Pi boundary |
+| Host deployment | red | Local sidecar exists; standalone Host Server and multi-client transport are planned by ADR 0036 |
 | ui-kit primitives | green | Menu/Popover/Confirm/Notice/Status/Tabs/Field + Button/Dialog |
 | Desktop UI modernization | green | Shell IA + run strip + palette + confirms + CSS split + viewport e2e + visual baselines (darwin) |
 

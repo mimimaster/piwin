@@ -2,7 +2,7 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Ready for implementation — product direction approved; code pending** |
+| Status | **Active — core contracts, Host path, response actions, and response-level lineage tree are implemented incrementally** |
 | Date | 2026-08-04 |
 | Trigger | Users need a safe way to leave a wrong conversational route without destroying the original session |
 | Related | [ADR 0009](../adr/0009-session-resume-product-shell.md), [Product Depth](./product-depth-competitive-alignment.md), [Desktop UI modernization](./desktop-ui-modernization.md), [Canonical backlog](../todo-deferred.md) |

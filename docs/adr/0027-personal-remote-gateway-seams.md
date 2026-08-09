@@ -2,17 +2,18 @@
 
 | Field | Value |
 |-------|-------|
-| Status | **Accepted** (seams only; gateway implementation remains W4 future) |
+| Status | **Accepted — protocol seams retained; topology superseded by ADR 0036** |
 | Date | 2026-08-03 |
-| Related | [`specs/w4-remote-gateway.md`](../specs/w4-remote-gateway.md), ADR 0006 (sidecar transport), ADR 0015 (async turn transport), [`ipc-transport-discipline.md`](../ipc-transport-discipline.md) |
+| Related | [`specs/w4-remote-gateway.md`](../specs/w4-remote-gateway.md), [`specs/host-server-multi-client.md`](../specs/host-server-multi-client.md), ADR 0036, ADR 0006 (sidecar transport), ADR 0015 (async turn transport), [`ipc-transport-discipline.md`](../ipc-transport-discipline.md) |
 
 ## Context
 
-[`specs/w4-remote-gateway.md`](../specs/w4-remote-gateway.md) sketches a
-personal remote gateway: a browser WebUI (and, by extension, a mobile client)
-controls the **same local agent** through a relay, reusing `HostCommand` /
-`HostPush` over WebSocket. The spec is explicit that "ADR required before code",
-and `product-status.md` lists Personal gateway as **red / W4 future**.
+[`specs/w4-remote-gateway.md`](../specs/w4-remote-gateway.md) originally
+sketched a personal remote gateway: a browser WebUI (and, by extension, a
+mobile client) controls the **same local agent** through a relay, reusing
+`HostCommand` / `HostPush` over WebSocket. ADR 0036 expands that target: the
+Host itself is now a deployable service, while a Gateway is only an optional
+relay/tunnel for reaching it.
 
 A separate, already-shipped open-source project (Cindy / `makecindy/cindy`)
 demonstrates the same product shape today: a desktop agent plus a mobile client
@@ -48,18 +49,16 @@ E2EE, a relay, device-pairing UI, or a sync server. Those remain W4.
 
 ## Decision
 
-### 1. Topology: desktop dial-out to a self-hosted gateway
+### 1. Topology: Host Server first, Gateway optional
 
-The canonical remote topology is **desktop → outbound dial → user-operated
-gateway → WS to mobile/browser**. The desktop initiates the connection to the
-gateway; the gateway never needs to reach the desktop. This matches the W4 spec
-("Recommended NAT: Desktop outbound dials user gateway with token") and is
-NAT-friendly without requiring inbound ports or a cloud relay.
+The canonical topology is **client shell → Host Server → HostRuntime → Pi**.
+The Host Server may run as a local sidecar or independently on a Mac,
+Windows/Linux machine, NAS, or server. Clients may reach it over a private LAN,
+Tailscale/Headscale, WireGuard, SSH forwarding, or another protected tunnel.
 
-A direct LAN / tunnel mode (mobile → desktop WS) is **not forbidden** by this
-ADR, but the seams target the dial-out topology because it is the harder one to
-retrofit. A direct mode can reuse the same transport interface without the
-gateway hop.
+The earlier **desktop → outbound dial → Gateway → mobile/browser** topology is
+retained as an optional NAT-friendly relay mode. It is not required for private
+LAN/VPN deployments and the Gateway never becomes the execution authority.
 
 ### 2. Protocol: reuse `HostCommand` / `HostPush`, add sequencing to all pushes
 
@@ -111,8 +110,9 @@ session?").
 
 ### 5. What this ADR does NOT do
 
-- No gateway process, no WebUI, no mobile app, no E2EE implementation, no relay,
-  no device-pairing UI, no sync server, no cloud session history store.
+- No Host Server implementation, no gateway process, no WebUI, no mobile app,
+  no E2EE implementation, no relay, no device-pairing UI, no sync server, no
+  cloud session history store.
 - No change to the local-only default: `remote.enabled` defaults to `false`,
   the desktop opens no ports, and the host starts no extra listeners when no
   remote sink is attached.
@@ -125,9 +125,9 @@ session?").
 
 ## Consequences
 
-- The future W4 implementation is purely additive: write a gateway process +
-  transport + pairing UI. `@piwin/contracts`, `HostRuntime`, and the serve
-  dispatcher do not need to change again.
+- The future implementation follows ADR 0036: first make the Host Server,
+  client transport, auth, replay, and snapshot seams real; add a Gateway only
+  when private direct connectivity is insufficient.
 - Every `HostPush` variant carries two optional fields (`seq`, `eventId`).
   Existing tests and consumers are unaffected; the ipc shape test gains cases
   for the new fields and the `host/replay` command.
@@ -140,9 +140,8 @@ session?").
 - `PiwinConfig` gains an optional section. Config loaders that ignore unknown
   keys are unaffected; the doctor/validate path will treat `remote` as a
   recognized key with defaults.
-- A future ADR will be required to **implement** the gateway (topology
-  confirmation, E2EE choice, device-pairing UX, sync server). This ADR only
-  keeps the door open.
+- ADR 0036 is now the implementation decision for Host deployment and
+  multi-client behavior. This ADR remains the historical protocol-seam record.
 
 ## Reference notes (Cindy, for the future implementer)
 
@@ -172,9 +171,9 @@ future implementer does not have to re-derive them.
   (`product-status.md`), and the spec itself says ADR-before-code. Building it
   now would block on PTY/process/permission maturity that is still settling.
   The seams are cheap and unblock later.
-- **P2P / direct LAN only, no gateway.** Rejected as the *canonical* topology
-  because it pushes NAT traversal onto every user. Kept as a permissible
-  secondary mode reusing the same transport interface.
+- **Gateway as the mandatory execution path.** Rejected by ADR 0036 because it
+  adds an unnecessary service to private LAN/VPN deployments and risks making
+  the relay a second authority. Gateway remains an optional transport layer.
 - **A second wire protocol for remote.** Rejected: violates
   ipc-transport-discipline R8 (no Pi shapes on the wire) spirit and throws away
   the transport-agnostic discipline already enforced. One protocol, many

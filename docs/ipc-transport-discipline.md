@@ -2,10 +2,11 @@
 
 > Status: Binding. Applies to `packages/contracts/src/ipc.ts` (`HostCommand`,
 > `HostResponse`, `HostPush`, `HostServerMessage`) and every producer/consumer
-> of these types (CLI `host serve`, desktop `HostClient`, Tauri bridge).
+> of these types (CLI `host serve`, desktop `HostClient`, Tauri bridge, future
+> Host Server/client transports).
 >
 > Related: ADR 0006 (JSONL sidecar), ADR 0015 (async turn transport),
-> ADR 0017 (host sidecar bundling).
+> ADR 0017 (host sidecar bundling), ADR 0036 (Host Server multi-client).
 
 ## Why this document exists
 
