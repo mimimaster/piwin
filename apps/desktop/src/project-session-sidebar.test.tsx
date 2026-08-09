@@ -7,6 +7,7 @@ import type { ProjectRecord } from '@piwin/contracts';
 import { ProjectSessionSidebar, type ProjectSessionSidebarProps } from './project-session-sidebar';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import type { SessionListItemUi } from './chat-reducer';
+import type { DraftSessionItemUi } from './draft-session';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
@@ -321,6 +322,58 @@ it('renders archived session rows with archived mark and data attribute', () => 
   expect(item).not.toBeNull();
   expect(item?.getAttribute('data-archived')).toBe('true');
   expect(container.querySelector('.session-archived-mark')).not.toBeNull();
+});
+
+it('renders local drafts first with a hollow mark and restores the selected draft', () => {
+  const onResumeDraft = vi.fn();
+  const drafts: DraftSessionItemUi[] = [
+    {
+      id: 'draft-old',
+      name: 'Older draft',
+      text: 'Older draft',
+      createdAt: '2026-08-09T08:00:00.000Z',
+      updatedAt: '2026-08-09T08:00:00.000Z',
+      scope: { kind: 'project', projectPath: '/Users/test/project-a' },
+      isDraft: true,
+    },
+    {
+      id: 'draft-new',
+      name: 'Newer draft',
+      text: 'Newer draft',
+      createdAt: '2026-08-09T09:00:00.000Z',
+      updatedAt: '2026-08-09T09:00:00.000Z',
+      scope: { kind: 'project', projectPath: '/Users/test/project-a' },
+      isDraft: true,
+    },
+  ];
+  const { container } = renderSidebar({
+    filteredSessions: [
+      {
+        id: 'real-session',
+        name: 'Durable session',
+        updatedAt: '2026-08-09T10:00:00.000Z',
+      },
+    ],
+    draftSessions: drafts,
+    activeDraftId: 'draft-new',
+    onResumeDraft,
+  });
+
+  const sessionItems = Array.from(
+    container.querySelectorAll<HTMLElement>('[data-testid="session-item"]'),
+  );
+  expect(sessionItems.map((item) => item.dataset.sessionId)).toEqual([
+    'draft-new',
+    'draft-old',
+    'real-session',
+  ]);
+  expect(container.querySelectorAll('[data-draft="true"]')).toHaveLength(2);
+  expect(container.querySelectorAll('.session-draft-mark')).toHaveLength(2);
+  expect(container.querySelector('[data-session-id="draft-new"]')?.className).toContain('active');
+  expect(container.querySelector('.session-row--draft .session-row-actions--draft')).not.toBeNull();
+
+  (sessionItems[0] as HTMLButtonElement).click();
+  expect(onResumeDraft).toHaveBeenCalledWith('draft-new');
 });
 
 it('renders a circular indicator for a working session instead of its timestamp', () => {

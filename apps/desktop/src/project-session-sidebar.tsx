@@ -12,6 +12,11 @@ import type {
 import type { SessionListItemUi } from './chat-reducer';
 import type { SessionTimeGroup } from './session-groups';
 import {
+  draftSessionMatchesQuery,
+  sortDraftSessions,
+  type DraftSessionItemUi,
+} from './draft-session';
+import {
   Button,
   ContextMenu,
   ContextMenuItem,
@@ -106,6 +111,37 @@ function sortByPinnedThenUpdated(list: SessionListItemUi[]): SessionListItemUi[]
   return sorted;
 }
 
+type SidebarSessionItem = SessionListItemUi | DraftSessionItemUi;
+
+/** Drafts are always shown first; normal sessions keep the selected ordering. */
+function mergeDraftsIntoSessionList(
+  drafts: readonly DraftSessionItemUi[],
+  sessions: readonly SessionListItemUi[],
+  sortBy: SessionListOrder,
+): SidebarSessionItem[] {
+  const sortedSessions =
+    sortBy === 'alphabetical'
+      ? [...sessions].sort((left, right) => left.name.localeCompare(right.name))
+      : sortByPinnedThenUpdated([...sessions]);
+  return [...sortDraftSessions(drafts), ...sortedSessions];
+}
+
+function selectDraftsForScope(
+  drafts: readonly DraftSessionItemUi[],
+  scope: SessionScope,
+  query: string,
+): DraftSessionItemUi[] {
+  return sortDraftSessions(
+    drafts.filter((draft) => {
+      const sameScope =
+        draft.scope.kind === scope.kind &&
+        (draft.scope.kind === 'general' ||
+          (scope.kind === 'project' && draft.scope.projectPath === scope.projectPath));
+      return sameScope && draftSessionMatchesQuery(draft, query);
+    }),
+  );
+}
+
 export type ProjectSessionSidebarProps = {
   projectPath: string | null;
   projectTrusted: boolean;
@@ -121,6 +157,10 @@ export type ProjectSessionSidebarProps = {
   filteredSessions: SessionListItemUi[];
   /** General-scope sessions for the Conversations section (always visible). */
   generalSessions: SessionListItemUi[];
+  /** Local-only unsent composer drafts, grouped by their captured scope. */
+  draftSessions?: DraftSessionItemUi[];
+  activeDraftId?: string | null | undefined;
+  onResumeDraft?: (draftId: string) => void;
   /** Per-project session lists for the folder tree, keyed by project path.
    *  Independent from `filteredSessions` (the active scope's list) so any
    *  number of project folders can stay open with their own conversations. */
@@ -232,9 +272,11 @@ function SessionRowItem({
   onArchiveSession,
   onUnarchiveSession,
   onDeleteSession,
+  onResumeDraft,
+  activeDraftId,
   copy,
 }: {
-  session: SessionListItemUi;
+  session: SessionListItemUi | DraftSessionItemUi;
   activeSessionId: string | null;
   onResumeSession: (sessionId: string) => void;
   onOpenSessionMenu: (sessionId: string, x: number, y: number) => void;
@@ -242,22 +284,29 @@ function SessionRowItem({
   onArchiveSession?: ((sessionId: string) => void) | undefined;
   onUnarchiveSession?: ((sessionId: string) => void) | undefined;
   onDeleteSession?: ((sessionId: string) => void) | undefined;
+  onResumeDraft?: ((draftId: string) => void) | undefined;
+  activeDraftId?: string | null | undefined;
   copy: DesktopCopy['sidebar'];
   workingSessionIds?: Record<string, true> | undefined;
   backendServiceSessionIds?: Record<string, true> | undefined;
 }): ReactElement {
-  const isPinned = session.isPinned === true;
-  const isArchived = session.isArchived === true;
-  const isActive = session.id === activeSessionId;
-  const isWorking = workingSessionIds != null && session.id in workingSessionIds;
+  const isDraft = 'isDraft' in session && session.isDraft === true;
+  const isPinned = 'isPinned' in session && session.isPinned === true;
+  const isArchived = 'isArchived' in session && session.isArchived === true;
+  const isActive = isDraft ? session.id === activeDraftId : session.id === activeSessionId;
+  const isWorking = !isDraft && workingSessionIds != null && session.id in workingSessionIds;
   const hasActiveBackendService =
-    backendServiceSessionIds != null && session.id in backendServiceSessionIds;
+    !isDraft && backendServiceSessionIds != null && session.id in backendServiceSessionIds;
   const hasActiveSessionWork = isWorking || hasActiveBackendService;
 
   return (
     <li
       key={session.id}
-      className={hasActiveSessionWork ? 'session-row session-row--working' : 'session-row'}
+      className={[
+        'session-row',
+        ...(hasActiveSessionWork ? ['session-row--working'] : []),
+        ...(isDraft ? ['session-row--draft'] : []),
+      ].join(' ')}
     >
       <button
         type="button"
@@ -265,6 +314,7 @@ function SessionRowItem({
         data-session-id={session.id}
         data-pinned={isPinned ? 'true' : 'false'}
         data-archived={isArchived ? 'true' : 'false'}
+        data-draft={isDraft ? 'true' : 'false'}
         className={
           isActive
             ? isWorking
@@ -274,14 +324,16 @@ function SessionRowItem({
               ? 'session-item working'
               : 'session-item'
         }
-        onClick={() => onResumeSession(session.id)}
+        onClick={() => (isDraft ? onResumeDraft?.(session.id) : onResumeSession(session.id))}
         onContextMenu={(event) => {
+          if (isDraft) return;
           event.preventDefault();
           onOpenSessionMenu(session.id, event.clientX, event.clientY);
         }}
       >
         <span className="session-item-body">
           <span className="session-item-name">
+            {isDraft ? <span className="session-draft-mark" aria-hidden /> : null}
             {isArchived ? (
               <span className="session-archived-mark" aria-hidden title={copy.archived}>
                 <IconDocument width={13} height={13} />
@@ -309,7 +361,11 @@ function SessionRowItem({
       </button>
       <div
         className={
-          isArchived ? 'session-row-actions session-row-actions--archived' : 'session-row-actions'
+          isDraft
+            ? 'session-row-actions session-row-actions--draft'
+            : isArchived
+              ? 'session-row-actions session-row-actions--archived'
+              : 'session-row-actions'
         }
       >
         {isArchived ? (
@@ -892,18 +948,28 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             // Each folder shows its own sessions from the per-project map.
             // The active project falls back to the filtered active list so
             // search/archive filters still apply to the open project.
-            const projectSessions =
+            const projectDrafts = selectDraftsForScope(
+              props.draftSessions ?? [],
+              projectScope,
+              props.sessionSearch,
+            );
+            const projectHostSessions =
               (isActiveProject
                 ? hostProjectWindow === null
                   ? sortedFilteredSessions
                   : props.filteredSessions
                 : props.projectSessionsByPath?.[project.path]) ?? [];
+            const projectSessions = mergeDraftsIntoSessionList(
+              projectDrafts,
+              projectHostSessions,
+              sortBy,
+            );
 
             const isProjectCollapsed = collapsedProjects[project.path] ?? false;
             const isProjectSessionListExpanded =
               hasActiveSessionSearch || (expandedProjectSessionLists[project.path] ?? false);
             const projectSessionTotalCount =
-              hostProjectBounds?.totalCount ?? projectSessions.length;
+              (hostProjectBounds?.totalCount ?? projectHostSessions.length) + projectDrafts.length;
             const hasProjectSessionDisclosure =
               !hasActiveSessionSearch && projectSessionTotalCount > SESSION_LIST_PREVIEW_SIZE;
             const visibleProjectSessions = isProjectSessionListExpanded
@@ -1031,6 +1097,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
                         onDeleteSession={props.onDeleteSession}
+                        onResumeDraft={props.onResumeDraft}
+                        activeDraftId={props.activeDraftId}
                         copy={sidebarCopy}
                       />
                     ))}
@@ -1089,10 +1157,21 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
             hostGeneralWindow === null ? null : getSessionListWindowBounds(hostGeneralWindow);
           const generalPreviousCursor = hostGeneralBounds?.previousCursor;
           const generalNextCursor = hostGeneralBounds?.nextCursor;
-          const generalSessions =
+          const generalDrafts = selectDraftsForScope(
+            props.draftSessions ?? [],
+            generalScope,
+            props.sessionSearch,
+          );
+          const generalHostSessions =
             hostGeneralWindow === null ? sortedGeneralSessions : props.generalSessions;
+          const generalSessions = mergeDraftsIntoSessionList(
+            generalDrafts,
+            generalHostSessions,
+            sortBy,
+          );
           const isGeneralSessionListExpanded = hasActiveSessionSearch || generalSessionListExpanded;
-          const generalSessionTotalCount = hostGeneralBounds?.totalCount ?? generalSessions.length;
+          const generalSessionTotalCount =
+            (hostGeneralBounds?.totalCount ?? generalHostSessions.length) + generalDrafts.length;
           const hasGeneralSessionDisclosure =
             !hasActiveSessionSearch && generalSessionTotalCount > SESSION_LIST_PREVIEW_SIZE;
           const visibleGeneralSessions = isGeneralSessionListExpanded
@@ -1155,6 +1234,8 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         onArchiveSession={props.onArchiveSession}
                         onUnarchiveSession={props.onUnarchiveSession}
                         onDeleteSession={props.onDeleteSession}
+                        onResumeDraft={props.onResumeDraft}
+                        activeDraftId={props.activeDraftId}
                         copy={sidebarCopy}
                       />
                     ))}

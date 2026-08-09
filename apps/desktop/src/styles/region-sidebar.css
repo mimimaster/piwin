@@ -785,6 +785,33 @@
   transition: color 140ms ease;
 }
 
+/* Unsent composer drafts remain visible, but intentionally read lighter than
+   durable sessions. The hollow mark mirrors the draft state without adding a
+   new action or pretending the row is a Host-backed conversation. */
+.session-item[data-draft='true'] .session-item-name {
+  color: var(--faint);
+  font-weight: 450;
+}
+
+.session-item[data-draft='true'].active .session-item-name {
+  color: color-mix(in srgb, var(--text) 66%, var(--faint));
+  font-weight: 500;
+}
+
+.session-draft-mark {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.75;
+}
+
+.session-item[data-draft='true'] .session-item-time {
+  color: var(--faint);
+  opacity: 0.65;
+}
+
 .session-item-title-text {
   min-width: 0;
   overflow: hidden;
@@ -962,6 +989,10 @@
   transition:
     opacity 120ms ease,
     visibility 120ms ease;
+}
+
+.session-row--draft .session-row-actions--draft {
+  display: none;
 }
 
 .session-row:hover .session-row-actions,

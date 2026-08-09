@@ -1480,6 +1480,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   const {
     composer,
     setComposer,
+    draftSessions,
+    activeDraftId,
+    startNewDraft,
+    resumeDraft,
     pendingAttachments,
     dropActive,
     setDropActive,
@@ -1515,6 +1519,47 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     },
   });
   composerSetterRef.current = setComposer;
+
+  const handleStartNewSession = useCallback(
+    async (options?: {
+      scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
+    }): Promise<void> => {
+      startNewDraft();
+      await handleNewSession(options);
+    },
+    [handleNewSession, startNewDraft],
+  );
+
+  const handleResumeDraft = useCallback(
+    async (draftId: string): Promise<void> => {
+      const draft = draftSessions.find((item) => item.id === draftId);
+      if (!draft) return;
+
+      const isSameScope =
+        state.activeScope.kind === draft.scope.kind &&
+        (draft.scope.kind === 'general' ||
+          (state.activeScope.kind === 'project' &&
+            state.activeScope.projectPath === draft.scope.projectPath));
+      if (!isSameScope) {
+        if (draft.scope.kind === 'general') {
+          dispatch({ type: 'project/clear' });
+          await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+        } else {
+          await handleOpenProject(draft.scope.projectPath);
+        }
+      }
+      resumeDraft(draftId);
+    },
+    [
+      dispatch,
+      draftSessions,
+      handleOpenProject,
+      hydrateSessions,
+      resumeDraft,
+      showArchivedSessions,
+      state.activeScope,
+    ],
+  );
 
   const handleCommentLine = useCallback((_lineContent: string) => {
     // Chip is the attachment; do not inject quote text into the textarea.
@@ -1693,7 +1738,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   function runDesktopCommand(commandId: DesktopCommandId): void {
     switch (commandId) {
       case 'new-session':
-        void handleNewSession();
+        void handleStartNewSession();
         break;
       case 'search-sessions':
         shell.openSessions();
@@ -2361,7 +2406,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onOpenWorkspace={() => void handleOpenWorkspaceClick()}
               onOpenProject={(path) => void handleOpenProject(path)}
               onRemoveProject={(path) => void handleRemoveProjectFromSidebar(path)}
-              onNewSession={() => void handleNewSession()}
+              onNewSession={() => void handleStartNewSession()}
               onNewGeneralSession={() => {
                 void (async () => {
                   // Sequence: switch scope → hydrate general list → create new
@@ -2373,10 +2418,13 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     { kind: 'general' },
                     { includeArchived: showArchivedSessions },
                   );
-                  await handleNewSession({ scope: { kind: 'general' } });
+                  await handleStartNewSession({ scope: { kind: 'general' } });
                 })();
               }}
               onResumeSession={(sessionId) => void handleResumeSession(sessionId)}
+              onResumeDraft={handleResumeDraft}
+              draftSessions={draftSessions}
+              activeDraftId={activeDraftId}
               onOpenSessionMenu={(sessionId, x, y) => setSessionMenu({ sessionId, x, y })}
               onTogglePin={(sessionId, currentlyPinned) =>
                 void handleSessionMenuAction(sessionId, currentlyPinned ? 'unpin' : 'pin')
@@ -2565,7 +2613,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                         void handleSessionMenuAction(state.activeSessionId, 'unarchive');
                       }
                     }}
-                    onNewAgent={() => void handleNewSession()}
+                    onNewAgent={() => void handleStartNewSession()}
                   />
                 </div>
               ) : null}
