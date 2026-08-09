@@ -38,6 +38,7 @@ const baseProps: ComposerDockProps = {
   onRefreshComposerMenus: vi.fn(),
   onOpenSkillsPanel: vi.fn(),
   onOpenMcpPanel: vi.fn(),
+  onAttachFile: vi.fn(),
   onAttachImage: vi.fn(),
   onPaste: vi.fn(),
   onDrop: vi.fn(),
@@ -91,9 +92,7 @@ describe('ComposerDock host status', () => {
   });
 
   it('hides voice input when ASR is not configured', () => {
-    const rendered = renderDock(
-      <ComposerDock {...baseProps} onOpenModelSettings={vi.fn()} />,
-    );
+    const rendered = renderDock(<ComposerDock {...baseProps} onOpenModelSettings={vi.fn()} />);
     root = rendered.root;
     container = rendered.container;
 
@@ -197,17 +196,17 @@ describe('ComposerDock host status', () => {
     root = rendered.root;
     container = rendered.container;
 
-  const textarea = container.querySelector(
-    '[data-testid="composer-input"]',
-  ) as HTMLTextAreaElement;
-  expect(textarea.value).toBe('Use the existing branch');
-  expect(textarea.readOnly).toBe(false);
-  expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
-  expect(container.querySelector('[data-testid="stop-btn"]')).not.toBeNull();
-  // The question prompt is now rendered in the App-level interruption dock,
-  // not inside the composer card. The composer textarea placeholder still
-  // reflects the input mode.
-  expect(textarea.placeholder).toBe('Type your answer');
+    const textarea = container.querySelector(
+      '[data-testid="composer-input"]',
+    ) as HTMLTextAreaElement;
+    expect(textarea.value).toBe('Use the existing branch');
+    expect(textarea.readOnly).toBe(false);
+    expect(container.querySelector('[data-testid="steer-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="stop-btn"]')).not.toBeNull();
+    // The question prompt is now rendered in the App-level interruption dock,
+    // not inside the composer card. The composer textarea placeholder still
+    // reflects the input mode.
+    expect(textarea.placeholder).toBe('Type your answer');
 
     act(() => {
       rendered.root.render(
@@ -242,8 +241,9 @@ describe('ComposerDock host status', () => {
     expect(handleResolve).toHaveBeenCalledWith({ value: 'Use a new branch' });
   });
 
-  it('renders send button in steer mode when streaming and input is non-empty', () => {
+  it('queues Enter/send while streaming and reserves Command+Enter for immediate steer', () => {
     const handleSteer = vi.fn();
+    const handleFollowUp = vi.fn();
     const handleSend = vi.fn();
     const rendered = renderDock(
       <ComposerDock
@@ -252,6 +252,7 @@ describe('ComposerDock host status', () => {
         runPhase="streaming"
         composer="Next instruction"
         onSteer={handleSteer}
+        onFollowUp={handleFollowUp}
         onSend={handleSend}
       />,
     );
@@ -263,13 +264,50 @@ describe('ComposerDock host status', () => {
 
     const sendBtn = container.querySelector('[data-testid="send-btn"]') as HTMLButtonElement;
     expect(sendBtn).not.toBeNull();
-    expect(sendBtn.classList.contains('is-steer')).toBe(true);
+    expect(sendBtn.classList.contains('is-queue')).toBe(true);
 
     act(() => {
       sendBtn.click();
     });
+    expect(handleFollowUp).toHaveBeenCalledTimes(1);
+    expect(handleSteer).not.toHaveBeenCalled();
+
+    act(() => {
+      const textarea = container?.querySelector<HTMLTextAreaElement>(
+        '[data-testid="composer-input"]',
+      );
+      textarea?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }),
+      );
+    });
     expect(handleSteer).toHaveBeenCalledTimes(1);
     expect(handleSend).not.toHaveBeenCalled();
+  });
+
+  it('attaches stacked queued messages directly above the composer', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        streaming={true}
+        runPhase="streaming"
+        steerQueueMessages={[
+          { id: 'one', text: 'First queued task', createdAt: '2026-08-09T00:00:00.000Z' },
+          { id: 'two', text: 'Second queued task', createdAt: '2026-08-09T00:00:01.000Z' },
+        ]}
+        onSteerQueueSendNow={vi.fn()}
+        onSteerQueueEdit={vi.fn()}
+        onSteerQueueRemove={vi.fn()}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    const dock = container.querySelector('[data-testid="composer-dock"]');
+    expect(dock?.classList.contains('has-steer-queue')).toBe(true);
+    expect(dock?.children[0]?.getAttribute('data-testid')).toBe('steer-queue');
+    expect(dock?.children[1]?.getAttribute('data-testid')).toBe('composer-card');
+    expect(container.textContent).toContain('First queued task');
+    expect(container.textContent).toContain('Second queued task');
   });
 
   it('shows text-only vision warning when media is attached without vision or delegation', () => {

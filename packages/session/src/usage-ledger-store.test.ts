@@ -7,6 +7,7 @@ import {
   appendUsageRecord,
   computeUsageRollup,
   loadUsageRecords,
+  selectLatestSessionContextUsage,
   readUsageRollup,
 } from './usage-ledger-store.js';
 
@@ -182,5 +183,35 @@ describe('usage-ledger-store', () => {
     expect(rollup.totalTokens).toBe(100);
     expect(rollup.cacheReadTokens).toBe(0);
     expect(rollup.cacheWriteTokens).toBe(0);
+  });
+
+  it('restores measured context usage instead of a later Host estimate', () => {
+    const measured = record({
+      sessionId: 'long-session',
+      promptTokens: 420,
+      completionTokens: 1_410,
+      cacheReadTokens: 503_680,
+      totalTokens: 505_510,
+      source: 'assistant-usage',
+      recordedAt: '2026-08-09T11:24:22.004Z',
+    });
+    const laterEstimate = record({
+      sessionId: 'long-session',
+      promptTokens: 2,
+      completionTokens: 173,
+      totalTokens: 175,
+      source: 'host-estimate',
+      recordedAt: '2026-08-09T11:24:22.015Z',
+    });
+
+    expect(
+      selectLatestSessionContextUsage([measured, laterEstimate], 'long-session'),
+    ).toMatchObject({
+      sessionId: 'long-session',
+      totalTokens: 505_510,
+      cacheReadTokens: 503_680,
+      source: 'assistant-usage',
+      updatedAt: '2026-08-09T11:24:22.004Z',
+    });
   });
 });

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { ArtifactPreviewDecision } from '@piwin/artifact';
-import { PiwinUiProvider } from '@piwin/ui-kit';
+import { Button, PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
 import { ArtifactFrame } from './ArtifactFrame.js';
 
@@ -39,9 +39,27 @@ function makeRenderDecision(): Extract<ArtifactPreviewDecision, { kind: 'render'
   };
 }
 
+function makeStreamDecision(
+  source: string,
+  srcdoc: string,
+): Extract<ArtifactPreviewDecision, { kind: 'render' }> {
+  const decision = makeRenderDecision();
+  return {
+    ...decision,
+    mode: 'stream-preview',
+    descriptor: {
+      ...decision.descriptor,
+      source,
+    },
+    srcdoc,
+    streamSource: source,
+  };
+}
+
 function renderFrame(
   decision: ArtifactPreviewDecision = makeRenderDecision(),
   presentation: 'inline' | 'canvas' = 'inline',
+  extraHeaderAction?: ReactElement,
 ): { container: HTMLDivElement; root: Root } {
   const container = document.createElement('div');
   document.body.appendChild(container);
@@ -53,6 +71,7 @@ function renderFrame(
           <ArtifactFrame
             decision={decision as Extract<ArtifactPreviewDecision, { kind: 'render' }>}
             presentation={presentation}
+            {...(extraHeaderAction ? { extraHeaderAction } : {})}
           />
         </PiwinUiProvider>
       ) as ReactElement,
@@ -98,6 +117,101 @@ describe('ArtifactFrame chrome', () => {
     // Source lives behind Show code from MarkdownView; no expand height toggle.
     expect(container.querySelector('[data-testid="artifact-expand-toggle"]')).toBeNull();
     expect(container.querySelector('details')).toBeNull();
+  });
+
+  it('removes the permanent title bar and keeps only a floating action layer', async () => {
+    const { container, root } = renderFrame(
+      makeRenderDecision(),
+      'inline',
+      <Button size="compact">Show code</Button>,
+    );
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector('.artifact-frame-header')).toBeNull();
+    expect(container.querySelector('.artifact-frame-actions')?.textContent).toContain('Show code');
+    expect(container.textContent).not.toContain('piwin architecture (simplified)');
+    expect(container.textContent).not.toContain('42 bytes');
+  });
+
+  it('lets an Inline frame grow past the legacy 900px scrollport', async () => {
+    const decision = makeRenderDecision();
+    const { container, root } = renderFrame(decision);
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: iframe?.contentWindow ?? null,
+          data: {
+            type: 'piwin-artifact:resize',
+            channelId: decision.descriptor.id,
+            height: 1_480,
+            mode: 'normal',
+          },
+        }),
+      );
+    });
+
+    expect(iframe?.style.height).toBe('1480px');
+    expect(iframe?.style.maxHeight).toBe('16384px');
+    expect(
+      container.querySelector('[data-testid="artifact-frame"]')?.hasAttribute(
+        'data-content-overflowing',
+      ),
+    ).toBe(false);
+  });
+
+  it('reuses one stream iframe and posts body snapshots instead of replacing srcdoc', async () => {
+    const initial = makeStreamDecision('<div><p>Hel</p></div>', '<html>initial stream</html>');
+    const { container, root } = renderFrame(initial);
+    instances.push({ container, root });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    const iframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(iframe).not.toBeNull();
+    const contentWindow = iframe?.contentWindow;
+    expect(contentWindow).not.toBeNull();
+    const postMessage = vi.spyOn(contentWindow as Window, 'postMessage');
+    const next = makeStreamDecision(
+      '<div><p>Hello</p><section>Next</section></div>',
+      '<html>replacement must not mount</html>',
+    );
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ArtifactFrame decision={next} />
+        </PiwinUiProvider>,
+      );
+    });
+
+    const updatedIframe = container.querySelector<HTMLIFrameElement>('iframe.artifact-iframe');
+    expect(updatedIframe).toBe(iframe);
+    expect(updatedIframe?.getAttribute('srcdoc')).toBe('<html>initial stream</html>');
+    expect(postMessage).toHaveBeenCalledWith(
+      {
+        type: 'piwin-artifact:stream-update',
+        channelId: 'artifact-test-1-stream',
+        source: next.streamSource,
+      },
+      '*',
+    );
   });
 
   it('applies the canvas presentation class without expand chrome', async () => {

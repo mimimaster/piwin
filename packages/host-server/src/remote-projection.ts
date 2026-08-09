@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import type {
   HostCommand,
+  ContextUsageSnapshot,
   HostMode,
   HostPush,
   HostResponse,
@@ -158,6 +159,16 @@ function projectRemoteMediaSaveData(data: unknown): RemoteMediaSaveData {
   if (typeof asset?.height === 'number' && asset.height >= 0) {
     projected.asset.height = asset.height;
   }
+  if (typeof asset?.name === 'string' && asset.name.length > 0) {
+    projected.asset.name = asset.name;
+  }
+  if (
+    asset?.contentKind === 'image' ||
+    asset?.contentKind === 'text' ||
+    asset?.contentKind === 'document'
+  ) {
+    projected.asset.contentKind = asset.contentKind;
+  }
   return projected;
 }
 
@@ -279,6 +290,10 @@ function projectSessionResume(data: unknown): RemoteSessionResumeData {
   }
   copyBoundedString(record ?? {}, 'name', resume, 'name', 512);
   copyBoundedString(record ?? {}, 'thinkingLevel', resume, 'thinkingLevel', 64);
+  const contextUsage = projectContextUsage(record?.contextUsage, sessionId);
+  if (contextUsage !== undefined) {
+    resume.contextUsage = contextUsage;
+  }
   const model = asRecord(record?.model);
   if (
     model !== undefined &&
@@ -317,13 +332,67 @@ function projectSessionResume(data: unknown): RemoteSessionResumeData {
   return resume;
 }
 
+function projectContextUsage(
+  value: unknown,
+  fallbackSessionId: string,
+): ContextUsageSnapshot | undefined {
+  const record = asRecord(value);
+  if (record === undefined || typeof record.updatedAt !== 'string') {
+    return undefined;
+  }
+  const usage: ContextUsageSnapshot = {
+    sessionId: typeof record.sessionId === 'string' ? record.sessionId : fallbackSessionId,
+    updatedAt: boundedString(record.updatedAt, 128),
+  };
+  copyUsageNumber(record, usage, 'tokensUsed');
+  copyUsageNumber(record, usage, 'tokensLimit');
+  copyUsageNumber(record, usage, 'promptTokens');
+  copyUsageNumber(record, usage, 'completionTokens');
+  copyUsageNumber(record, usage, 'cacheReadTokens');
+  copyUsageNumber(record, usage, 'cacheWriteTokens');
+  copyUsageNumber(record, usage, 'totalTokens');
+  copyUsageNumber(record, usage, 'contextRatio');
+  if (typeof record.modelId === 'string') {
+    usage.modelId = boundedString(record.modelId, 512);
+  }
+  if (
+    record.source === 'pi-contextUsage' ||
+    record.source === 'assistant-usage' ||
+    record.source === 'host-estimate'
+  ) {
+    usage.source = record.source;
+  }
+  return usage;
+}
+
+function copyUsageNumber(
+  source: Record<string, unknown>,
+  target: ContextUsageSnapshot,
+  key:
+    | 'tokensUsed'
+    | 'tokensLimit'
+    | 'promptTokens'
+    | 'completionTokens'
+    | 'cacheReadTokens'
+    | 'cacheWriteTokens'
+    | 'totalTokens'
+    | 'contextRatio',
+): void {
+  const value = source[key];
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    target[key] = value;
+  }
+}
+
 function projectSessionTranscriptPage(data: unknown): RemoteSessionTranscriptPageData {
   const record = asRecord(data);
   if (record?.status === 'stale-cursor') {
     return {
       status: 'stale-cursor',
       currentRevision:
-        typeof record.currentRevision === 'string' ? boundedString(record.currentRevision, 128) : '',
+        typeof record.currentRevision === 'string'
+          ? boundedString(record.currentRevision, 128)
+          : '',
     };
   }
   return {

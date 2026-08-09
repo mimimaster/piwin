@@ -7,11 +7,20 @@
 
 /* ── Text helpers ─────────────────────────────────────────────────── */
 
-.muted { color: var(--muted); }
-.list { padding-left: 18px; }
+.muted {
+  color: var(--muted);
+}
+.list {
+  padding-left: 18px;
+}
 
-.banner-meta { font-size: 11px; margin-top: 2px; }
-.banner-details { margin-top: 4px; }
+.banner-meta {
+  font-size: 11px;
+  margin-top: 2px;
+}
+.banner-details {
+  margin-top: 4px;
+}
 .banner-summary-pre {
   white-space: pre-wrap;
   font-size: 11px;
@@ -260,6 +269,49 @@ textarea {
   padding: 8px;
 }
 
+.media-chip-file,
+.media-preview-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text);
+}
+
+.media-chip-file {
+  max-width: 220px;
+  padding: 6px 8px;
+}
+
+.media-preview-file {
+  max-width: min(420px, 100%);
+  padding: 10px 12px;
+}
+
+.media-file-card-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.media-file-card-name,
+.media-file-card-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-file-card-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.media-file-card-meta {
+  color: var(--muted);
+  font-size: 10px;
+}
+
 /* ── Floating feedback host ───────────────────────────────────────── */
 /* Use for transient Notice after toggles/saves. Absolutely positioned so
    mount/unmount never shifts siblings (systemic "page jitter" root cause). */
@@ -349,22 +401,40 @@ textarea {
   background: var(--faint);
 }
 
-.ui-status-badge.tone-running .ui-status-dot { background: var(--accent); }
-.ui-status-badge.tone-success .ui-status-dot { background: var(--ok); }
-.ui-status-badge.tone-warning .ui-status-dot { background: var(--state-warning); }
-.ui-status-badge.tone-danger .ui-status-dot { background: var(--danger); }
+.ui-status-badge.tone-running .ui-status-dot {
+  background: var(--accent);
+}
+.ui-status-badge.tone-success .ui-status-dot {
+  background: var(--ok);
+}
+.ui-status-badge.tone-warning .ui-status-dot {
+  background: var(--state-warning);
+}
+.ui-status-badge.tone-danger .ui-status-dot {
+  background: var(--danger);
+}
 
 /* ── ui-kit: Field ────────────────────────────────────────────────── */
 
-.ui-field { margin-bottom: 10px; }
+.ui-field {
+  margin-bottom: 10px;
+}
 
 /* Denser field rhythm inside panel bodies. */
 .embedded-body .ui-field,
 .git-panel .ui-field {
   margin-bottom: 12px;
 }
-.ui-field-label { display: block; margin-bottom: 4px; font-size: 12px; }
-.ui-field-error { color: var(--danger); font-size: 12px; margin: 4px 0 0; }
+.ui-field-label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+.ui-field-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
 
 /* Bare native controls only — ui-kit TextInput/Select own their chrome. */
 .ui-field-control > input:not([class*='piwin-']),
@@ -437,7 +507,9 @@ textarea {
 }
 
 @keyframes piwin-spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .panel-loading {
@@ -449,7 +521,11 @@ textarea {
 
 /* ── ui-kit: Tabs ─────────────────────────────────────────────────── */
 
-.ui-tabs-list { display: flex; gap: 6px; margin-bottom: 10px; }
+.ui-tabs-list {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
 
 .ui-tabs-trigger {
   border: 1px solid var(--line-soft);
@@ -471,8 +547,12 @@ textarea {
   border-radius: var(--radius-surface);
   background: var(--panel);
 }
-.piwin-surface--raised { background: var(--surface-raised); }
-.piwin-surface--inset { background: var(--surface-control); }
+.piwin-surface--raised {
+  background: var(--surface-raised);
+}
+.piwin-surface--inset {
+  background: var(--surface-control);
+}
 .piwin-surface--selected {
   border-color: color-mix(in srgb, var(--accent) 50%, var(--line));
   background: var(--surface-selected);
@@ -491,7 +571,10 @@ textarea {
   cursor: pointer;
   font: inherit;
   text-align: left;
-  transition: background var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease;
+  transition:
+    background var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
 }
 .piwin-list-row:hover:not(:disabled) {
   border-color: var(--line-soft);
@@ -501,18 +584,32 @@ textarea {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   background: var(--surface-selected);
 }
-.piwin-list-row.is-compact { min-height: var(--control-height-default); padding-block: 5px; }
-.piwin-list-row:disabled { cursor: not-allowed; opacity: 0.5; }
+.piwin-list-row.is-compact {
+  min-height: var(--control-height-default);
+  padding-block: 5px;
+}
+.piwin-list-row:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 
 .piwin-button {
   min-height: var(--control-height-default);
   font-weight: 550;
   letter-spacing: 0;
 }
-.piwin-button--compact { min-height: var(--control-height-compact); }
-.piwin-button--primary { box-shadow: none; }
-.piwin-button--ghost { color: var(--muted); }
-.piwin-button--danger { color: var(--danger); }
+.piwin-button--compact {
+  min-height: var(--control-height-compact);
+}
+.piwin-button--primary {
+  box-shadow: none;
+}
+.piwin-button--ghost {
+  color: var(--muted);
+}
+.piwin-button--danger {
+  color: var(--danger);
+}
 
 /* ── Mantine bridge ───────────────────────────────────────────────── */
 /* Mantine variables inherit validated piwin theme tokens, never hard-coded
@@ -535,7 +632,9 @@ textarea {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .piwin-list-row { transition: none; }
+  .piwin-list-row {
+    transition: none;
+  }
 }
 .deferred-surface-fallback {
   display: grid;

@@ -1195,17 +1195,27 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .steer-queue-dock {
   width: var(--chat-max);
   max-width: 100%;
-  margin: 0 auto 8px;
+  margin: 0 auto -1px;
   box-sizing: border-box;
-  border-radius: 12px;
+  border-radius: 14px 14px 0 0;
   border: 1px solid color-mix(in srgb, var(--text, #ffffff) 10%, transparent);
-  background: color-mix(in srgb, var(--card, #1c1c21) 92%, #000000);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  padding: 8px 12px 10px;
+  border-bottom-color: color-mix(in srgb, var(--text, #ffffff) 7%, transparent);
+  background: color-mix(in srgb, var(--composer, var(--card, #1c1c21)) 97%, #000000);
+  box-shadow: none;
+  padding: 8px 9px 7px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
+  overflow: hidden;
   animation: steerQueuePopIn 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.composer-dock.has-steer-queue .composer-card-v2 {
+  border-radius: 0 0 14px 14px;
+}
+
+.composer-dock.has-steer-queue .composer-card-v2.is-streaming {
+  border-top-color: color-mix(in srgb, var(--text, #ffffff) 7%, transparent);
 }
 
 @keyframes steerQueuePopIn {
@@ -1223,95 +1233,91 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   user-select: none;
-  padding: 2px 2px;
+  padding: 0 3px;
 }
 
 .steer-queue-heading {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 13px;
+  gap: 7px;
+  font-size: 12px;
   line-height: 1.3;
 }
 
-.steer-queue-count {
-  font-weight: 600;
-  color: var(--text, #f4f4f5);
+.steer-queue-title {
+  font-weight: 650;
+  color: color-mix(in srgb, var(--text, #f4f4f5) 88%, transparent);
 }
 
-.steer-queue-title {
-  font-weight: 500;
-  color: var(--text, #f4f4f5);
+.steer-queue-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  color: color-mix(in srgb, var(--accent) 78%, var(--text, #ffffff));
+  font-size: 10.5px;
+  font-weight: 600;
 }
 
 .steer-queue-subtitle {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  color: color-mix(in srgb, var(--text, #ffffff) 45%, transparent);
-  font-size: 12px;
-  margin-left: 2px;
-}
-
-.steer-queue-shortcut-key {
-  font-size: 12px;
-  opacity: 0.85;
-}
-
-.steer-queue-multitask-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: color-mix(in srgb, var(--text, #ffffff) 65%, transparent);
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 400;
-  cursor: pointer;
-  transition:
-    color 140ms ease,
-    background-color 140ms ease;
-}
-
-.steer-queue-multitask-btn:hover {
-  color: var(--text, #ffffff);
-  background: color-mix(in srgb, var(--text, #ffffff) 8%, transparent);
-}
-
-.steer-queue-multitask-icon {
-  font-size: 11px;
-  opacity: 0.8;
+  min-width: 0;
+  overflow: hidden;
+  color: color-mix(in srgb, var(--text, #ffffff) 43%, transparent);
+  font-size: 10.5px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .steer-queue-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  max-height: min(232px, 34vh);
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: thin;
 }
 
 .steer-queue-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-height: 34px;
-  padding: 4px 10px;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 5px 4px 7px;
   box-sizing: border-box;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--text, #ffffff) 4%, transparent);
-  border: 1px solid color-mix(in srgb, var(--text, #ffffff) 5%, transparent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text, #ffffff) 3.5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text, #ffffff) 5.5%, transparent);
   transition:
     background-color 140ms ease,
     border-color 140ms ease;
 }
 
 .steer-queue-item:hover {
-  background: color-mix(in srgb, var(--text, #ffffff) 7%, transparent);
-  border-color: color-mix(in srgb, var(--text, #ffffff) 10%, transparent);
+  background: color-mix(in srgb, var(--text, #ffffff) 5.5%, transparent);
+  border-color: color-mix(in srgb, var(--text, #ffffff) 9%, transparent);
+}
+
+.steer-queue-position {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text, #ffffff) 6%, transparent);
+  color: color-mix(in srgb, var(--text, #ffffff) 47%, transparent);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 .steer-queue-item-content {
@@ -1322,8 +1328,8 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 }
 
 .steer-queue-item-text {
-  font-size: 13px;
-  color: var(--text, #f4f4f5);
+  font-size: 12.5px;
+  color: color-mix(in srgb, var(--text, #f4f4f5) 90%, transparent);
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1338,8 +1344,8 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   border-radius: 6px;
   color: var(--text, #ffffff);
   font-family: inherit;
-  font-size: 13px;
-  padding: 4px 8px;
+  font-size: 12.5px;
+  padding: 4px 7px;
   outline: none;
   resize: none;
 }
@@ -1347,15 +1353,15 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
 .steer-queue-item-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
 }
 
 .steer-queue-action {
   display: inline-grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 25px;
+  height: 25px;
   padding: 0;
   border: none;
   border-radius: 6px;
@@ -1365,6 +1371,15 @@ html[data-theme-mode='dark'] .composer-card-v2.drop-active {
   transition:
     color 120ms ease,
     background-color 120ms ease;
+}
+
+.steer-queue-action.is-send-now {
+  color: color-mix(in srgb, var(--accent) 82%, var(--text, #ffffff));
+}
+
+.steer-queue-action.is-send-now:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .steer-queue-action:hover {

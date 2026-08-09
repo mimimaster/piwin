@@ -317,6 +317,10 @@ describe('ImageGenerationSettings', () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
 
+    const modelsPage = container!.querySelector('[data-testid="settings-models"]');
+    expect(modelsPage?.children[0]?.getAttribute('data-testid')).toBe('settings-model-management');
+    expect(modelsPage?.children[1]?.getAttribute('data-testid')).toBe('settings-speech-defaults');
+
     // ModelsPage defaults to the text tab; switch to image first.
     expect(container!.querySelector('[data-testid="model-config-tab-image"]')).not.toBeNull();
     expect(container!.querySelector('[data-testid="model-config-tab-video"]')).not.toBeNull();

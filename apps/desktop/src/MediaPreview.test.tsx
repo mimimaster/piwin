@@ -26,7 +26,9 @@ describe('MediaPreview', () => {
     act(() => root.unmount());
     container.remove();
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
-    document.body.querySelectorAll('[data-testid="media-lightbox"]').forEach((node) => node.remove());
+    document.body
+      .querySelectorAll('[data-testid="media-lightbox"]')
+      .forEach((node) => node.remove());
   });
 
   it('renders generated videos as an inline controllable video element', () => {
@@ -63,7 +65,9 @@ describe('MediaPreview', () => {
       root.render(<MediaPreview attachment={attachment} previewUrl="asset://photo.png" />);
     });
 
-    const openButton = container.querySelector<HTMLButtonElement>('[data-testid="media-preview-open"]');
+    const openButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="media-preview-open"]',
+    );
     expect(openButton).not.toBeNull();
     expect(document.querySelector('[data-testid="media-lightbox"]')).toBeNull();
 
@@ -72,10 +76,35 @@ describe('MediaPreview', () => {
     });
 
     const lightbox = document.querySelector<HTMLElement>('[data-testid="media-lightbox"]');
-    const lightboxImage = document.querySelector<HTMLImageElement>('[data-testid="media-lightbox-image"]');
+    const lightboxImage = document.querySelector<HTMLImageElement>(
+      '[data-testid="media-lightbox-image"]',
+    );
     expect(lightbox).not.toBeNull();
     expect(lightboxImage?.src).toContain('asset://photo.png');
     expect(lightboxImage?.alt).toBe('photo.png');
+  });
+
+  it('renders text and document attachments as file cards', () => {
+    const attachment: MediaAttachmentRef = {
+      id: 'code-1',
+      kind: 'media',
+      path: '/tmp/piwin/media/session-1/uuid.ts',
+      name: 'main.ts',
+      mimeType: 'application/typescript',
+      contentKind: 'text',
+      byteSize: 512,
+      source: 'file-picker',
+    };
+
+    act(() => {
+      root.render(<MediaPreview attachment={attachment} />);
+    });
+
+    const card = container.querySelector('[data-testid="media-file-card"]');
+    expect(card).not.toBeNull();
+    expect(card?.textContent).toContain('main.ts');
+    expect(card?.textContent).toContain('application/typescript');
+    expect(container.querySelector('[data-testid="media-preview-open"]')).toBeNull();
   });
 
   it('closes the lightbox on Escape and backdrop click without bubbling to parents', () => {
@@ -102,7 +131,9 @@ describe('MediaPreview', () => {
       );
     });
 
-    const openButton = container.querySelector<HTMLButtonElement>('[data-testid="media-preview-open"]');
+    const openButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="media-preview-open"]',
+    );
     act(() => {
       openButton?.click();
     });

@@ -359,7 +359,11 @@ function computeConfigRevision(config: PiwinConfig): string {
         id: provider.id,
         protocol: provider.protocol,
         baseUrl: provider.baseUrl,
-        models: provider.models?.map((model) => ({ id: model.id })),
+        models: provider.models?.map((model) => ({
+          id: model.id,
+          reasoning: model.reasoning,
+          thinkingLevels: model.thinkingLevels,
+        })),
       })) ?? [],
     permissions: config.permissions,
     web: config.web,
@@ -754,6 +758,7 @@ async function buildSingleProviderRuntime(
           ...(model.label ? { label: model.label } : {}),
           ...(model.input ? { input: [...model.input] } : {}),
           ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+          ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
           ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
           ...(model.maxOutputTokens !== undefined
             ? { maxOutputTokens: model.maxOutputTokens }
@@ -788,6 +793,7 @@ async function buildSingleProviderRuntime(
               ...(model.label ? { label: model.label } : {}),
               ...(model.input ? { input: [...model.input] } : {}),
               ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+              ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
               ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
               ...(model.maxOutputTokens !== undefined
                 ? { maxOutputTokens: model.maxOutputTokens }
@@ -815,6 +821,7 @@ async function buildSingleProviderRuntime(
         ...(model.label ? { label: model.label } : {}),
         ...(model.input ? { input: [...model.input] } : {}),
         ...(model.reasoning !== undefined ? { reasoning: model.reasoning } : {}),
+        ...(model.thinkingLevels ? { thinkingLevels: [...model.thinkingLevels] } : {}),
         ...(model.contextWindow !== undefined ? { contextWindow: model.contextWindow } : {}),
         ...(model.maxOutputTokens !== undefined ? { maxOutputTokens: model.maxOutputTokens } : {}),
       })),

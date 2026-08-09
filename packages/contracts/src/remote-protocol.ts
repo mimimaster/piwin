@@ -1,4 +1,5 @@
 import type { AgentMessageRole, HostMode } from './host.js';
+import type { AttachmentContentKind } from './attachment.js';
 import type { HostCommand, HostPush, HostPushBatchFrame, HostResponse } from './ipc.js';
 import type { SessionListPageResult } from './session-list-page.js';
 
@@ -114,6 +115,8 @@ export type RemoteMediaAsset = {
   id: string;
   mimeType: string;
   byteSize: number;
+  name?: string;
+  contentKind?: AttachmentContentKind;
   width?: number;
   height?: number;
 };
@@ -168,6 +171,7 @@ export type RemoteSessionResumeData = {
     modelId: string;
   };
   thinkingLevel?: string;
+  contextUsage?: import('./usage.js').ContextUsageSnapshot;
   outline?: RemoteSessionOutlineNode[];
 };
 

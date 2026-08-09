@@ -17,7 +17,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { ExtensionUiPort, SessionSeedMessage, ThinkingLevel } from '@piwin/contracts';
 import { bindExtensionUiToPiSession, createExtensionUiContext } from '../extension-ui-bridge.js';
-import { mapThinkingLevelToApi } from '../map-thinking-level.js';
+import { buildThinkingLevelMap, mapThinkingLevelToPi } from '../map-thinking-level.js';
 import {
   buildPiProviderRegistration,
   type PiModelRuntime,
@@ -162,18 +162,25 @@ export function buildWorkerProviderRegistration(
     baseUrl: provider.baseUrl,
     api,
     authHeader: Boolean(apiKey || provider.auth.kind !== 'none'),
-    models: provider.models.map((model) => ({
-      id: model.id,
-      name: model.label?.trim() || model.id,
-      api,
-      baseUrl: provider.baseUrl,
-      reasoning: model.reasoning ?? true,
-      input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: model.contextWindow ?? 128_000,
-      maxTokens: model.maxOutputTokens ?? 8_192,
-      ...(provider.headers ? { headers: provider.headers } : {}),
-    })),
+    models: provider.models.map((model) => {
+      const thinkingLevelMap =
+        model.reasoning === false
+          ? undefined
+          : buildThinkingLevelMap(model.thinkingLevels, provider.protocol);
+      return {
+        id: model.id,
+        name: model.label?.trim() || model.id,
+        api,
+        baseUrl: provider.baseUrl,
+        reasoning: model.reasoning ?? true,
+        ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+        input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: model.contextWindow ?? 128_000,
+        maxTokens: model.maxOutputTokens ?? 8_192,
+        ...(provider.headers ? { headers: provider.headers } : {}),
+      };
+    }),
   };
   if (apiKey) {
     registration.apiKey = apiKey;
@@ -261,7 +268,7 @@ export function createWorkerPiSessionFactory(
       const protocol = blueprint.model
         ? inferProtocolFromProviderId(providers, blueprint.model.providerId)
         : undefined;
-      sessionOptions.thinkingLevel = mapThinkingLevelToApi(
+      sessionOptions.thinkingLevel = mapThinkingLevelToPi(
         blueprint.thinkingLevel as ThinkingLevel,
         protocol,
       );
@@ -355,7 +362,7 @@ function adaptPiSessionForWorker(
           ? inferProtocolFromProviderId(providers, options.model.providerId)
           : undefined;
         await piSession.setThinkingLevel(
-          mapThinkingLevelToApi(options.thinkingLevel as ThinkingLevel, protocol),
+          mapThinkingLevelToPi(options.thinkingLevel as ThinkingLevel, protocol),
         );
       }
       await piSession.prompt(text, options);
@@ -376,14 +383,15 @@ function adaptPiSessionForWorker(
           },
         }
       : {}),
-    ...(piSession.abortCompaction
-      ? { abortCompaction: () => piSession.abortCompaction?.() }
-      : {}),
+    ...(piSession.abortCompaction ? { abortCompaction: () => piSession.abortCompaction?.() } : {}),
     ...(piSession.getAutoCompactionEnabled
       ? { getAutoCompactionEnabled: () => piSession.getAutoCompactionEnabled?.() ?? true }
       : {}),
     ...(piSession.setAutoCompactionEnabled
-      ? { setAutoCompactionEnabled: (enabled: boolean) => piSession.setAutoCompactionEnabled?.(enabled) }
+      ? {
+          setAutoCompactionEnabled: (enabled: boolean) =>
+            piSession.setAutoCompactionEnabled?.(enabled),
+        }
       : {}),
     subscribe: (listener) => piSession.subscribe(listener),
   };

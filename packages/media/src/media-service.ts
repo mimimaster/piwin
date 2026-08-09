@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, realpath, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
+import { contentKindForMimeType } from '@piwin/contracts';
 import type { SaveMediaInput, SavedMediaAsset } from '@piwin/contracts';
+import { assertAttachmentPayloadSafe } from './attachment-policy.js';
 
 export type MediaServiceOptions = {
   mediaRoot: string;
@@ -18,6 +20,7 @@ const MIME_TO_EXT: Record<string, string> = {
   'video/mp4': '.mp4',
   'video/webm': '.webm',
   'video/quicktime': '.mov',
+  'application/pdf': '.pdf',
 };
 
 export function createMediaService(options: MediaServiceOptions) {
@@ -36,7 +39,7 @@ export async function saveMediaAsset(
   input: SaveMediaInput,
 ): Promise<SavedMediaAsset> {
   const mimeType = input.mimeType.toLowerCase();
-  if (!options.allowedMimeTypes.map((item) => item.toLowerCase()).includes(mimeType)) {
+  if (!isAllowedMimeType(options.allowedMimeTypes, mimeType)) {
     throw new Error(`mime type not allowed: ${input.mimeType}`);
   }
   if (input.bytes.byteLength === 0) {
@@ -46,9 +49,11 @@ export async function saveMediaAsset(
     throw new Error(`media too large: ${input.bytes.byteLength} > max ${options.maxPasteBytes}`);
   }
 
+  assertAttachmentPayloadSafe(input);
+
   const sessionId = sanitizeSegment(input.sessionId);
   const id = randomUUID();
-  const extension = MIME_TO_EXT[mimeType] ?? safeExtFromName(mimeType);
+  const extension = MIME_TO_EXT[mimeType] ?? safeExtFromName(input.name, mimeType);
   const directory = join(options.mediaRoot, sessionId);
   await mkdir(directory, { recursive: true });
   // Validate the real session directory before writing — a symlinked
@@ -68,7 +73,25 @@ export async function saveMediaAsset(
     byteSize: input.bytes.byteLength,
     createdAt: new Date().toISOString(),
   };
+  const name = input.name?.trim();
+  const contentKind = input.contentKind ?? contentKindForMimeType(mimeType);
+  if (name) {
+    asset.name = name;
+  }
+  if (contentKind) {
+    asset.contentKind = contentKind;
+  }
   return asset;
+}
+
+function isAllowedMimeType(allowedMimeTypes: readonly string[], mimeType: string): boolean {
+  return allowedMimeTypes.some((allowed) => {
+    const normalized = allowed.trim().toLowerCase();
+    return (
+      normalized === mimeType ||
+      (normalized.endsWith('/*') && mimeType.startsWith(normalized.slice(0, -1)))
+    );
+  });
 }
 
 export function assertInsideMediaRoot(mediaRoot: string, absolutePath: string): string {
@@ -107,7 +130,11 @@ function sanitizeSegment(value: string): string {
   return cleaned;
 }
 
-function safeExtFromName(mimeType: string): string {
+function safeExtFromName(name: string | undefined, mimeType: string): string {
+  const candidate = name ? extname(name).toLowerCase() : '';
+  if (/^\.[a-z0-9]{1,12}$/u.test(candidate)) {
+    return candidate;
+  }
   const slash = mimeType.indexOf('/');
   if (slash === -1) {
     return '.bin';

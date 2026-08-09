@@ -2410,12 +2410,44 @@
 /* ── Canvas, Side Chat panels ───────────────────────────────────────── */
 
 .canvas-panel,
+.artifact-canvas-panel,
 .side-chat-panel {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   height: 100%;
+}
+
+.artifact-canvas-panel > .artifact-frame,
+.artifact-canvas-panel > .artifact-frame > .artifact-iframe {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.artifact-canvas-empty {
+  margin: auto;
+  padding: 24px;
+  text-align: center;
+}
+
+.artifact-canvas-proposal {
+  flex: 0 0 auto;
+  padding: 10px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.artifact-canvas-proposal-text {
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.artifact-canvas-proposal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
 /* Canvas */

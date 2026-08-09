@@ -31,43 +31,20 @@ const UNSAFE_EMBED_PATTERN =
   /<(?:iframe|object|embed)\b[\s\S]*?(?:<\/(?:iframe|object|embed)\s*>|$)/gi;
 const GENERIC_STREAMABLE_STRUCTURE_PATTERN =
   /<(?:section|article|main|table|thead|tbody|tr|ul|ol|form|svg|canvas|div)\b/i;
-
-const STREAMABLE_WRAPPER_CLASS_PATTERNS = new Set([
-  'product-grid',
-  'product-list',
-  'products',
-  'item-grid',
-  'item-list',
-  'items',
-  'card-grid',
-  'card-row',
-  'cards',
-  'feature-grid',
-  'feature-list',
-  'stats-grid',
-  'metric-grid',
-  'dashboard',
-  'shop-grid',
-  'catalog-grid',
-  'artifact-grid',
-  'artifact-cards',
-  'artifact-list',
-  'artifact-flex',
-  'artifact-row',
-  'comparison',
-  'matrix',
-  'columns',
-  'tab-row',
-  'toolbar',
-  'button-group',
-  'chip-group',
-  'team-grid',
-  'pricing-grid',
-  'pricing-cards',
-  'gallery',
-  'gallery-grid',
-  'menu-grid',
-  'menu-items',
+const GENERIC_STREAMABLE_TAGS = new Set([
+  'section',
+  'article',
+  'main',
+  'table',
+  'thead',
+  'tbody',
+  'tr',
+  'ul',
+  'ol',
+  'form',
+  'svg',
+  'canvas',
+  'div',
 ]);
 
 type TagEntry = {
@@ -76,12 +53,6 @@ type TagEntry = {
   isClosing: boolean;
   isSelfClosing: boolean;
   position: number;
-};
-
-type WrapperEntry = {
-  openPosition: number;
-  contentStart: number;
-  tagName: string;
 };
 
 function extractTagName(tagContent: string): string {
@@ -100,13 +71,25 @@ function sanitizeStreamingPreviewSource(source: string): string {
     .replace(JAVASCRIPT_URL_PATTERN, '$1=$2#$2');
 }
 
-function isStreamableWrapperTag(tagContent: string): boolean {
-  const classMatch = tagContent.match(/class\s*=\s*["']([^"']*)["']/i);
-  if (!classMatch) {
-    return false;
+function findTagEnd(source: string, startIndex: number): number {
+  let quote: '"' | "'" | null = null;
+  for (let index = startIndex + 1; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote) {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === '>') {
+      return index;
+    }
   }
-  const classes = (classMatch[1] ?? '').split(/\s+/).filter(Boolean);
-  return classes.some((className) => STREAMABLE_WRAPPER_CLASS_PATTERNS.has(className));
+  return -1;
 }
 
 function* scanTags(source: string): Generator<TagEntry> {
@@ -137,7 +120,7 @@ function* scanTags(source: string): Generator<TagEntry> {
       return;
     }
 
-    const rightAngleIndex = source.indexOf('>', leftAngleIndex + 1);
+    const rightAngleIndex = findTagEnd(source, leftAngleIndex);
     if (rightAngleIndex === -1) {
       return;
     }
@@ -158,91 +141,6 @@ function* scanTags(source: string): Generator<TagEntry> {
       position: leftAngleIndex,
     };
   }
-}
-
-function findFirstStreamableWrapper(source: string): WrapperEntry | null {
-  for (const tag of scanTags(source)) {
-    if (tag.isClosing || tag.isSelfClosing) {
-      continue;
-    }
-    if (!isStreamableWrapperTag(tag.tag)) {
-      continue;
-    }
-    return {
-      openPosition: tag.position,
-      contentStart: tag.position + tag.tag.length,
-      tagName: tag.tagName,
-    };
-  }
-  return null;
-}
-
-function collectCompletedChildren(
-  source: string,
-  wrapper: WrapperEntry,
-): Array<{ start: number; end: number }> {
-  const completedChildren: Array<{ start: number; end: number }> = [];
-  let childStartIndex: number | null = null;
-  let depth = 1;
-
-  for (const tag of scanTags(source)) {
-    if (tag.position < wrapper.contentStart) {
-      continue;
-    }
-
-    if (tag.isSelfClosing) {
-      if (depth === 1) {
-        completedChildren.push({
-          start: tag.position,
-          end: tag.position + tag.tag.length,
-        });
-      }
-      continue;
-    }
-
-    if (tag.isClosing) {
-      depth -= 1;
-      if (depth === 1 && childStartIndex !== null) {
-        completedChildren.push({
-          start: childStartIndex,
-          end: tag.position + tag.tag.length,
-        });
-        childStartIndex = null;
-      }
-      if (depth === 0) {
-        break;
-      }
-      continue;
-    }
-
-    depth += 1;
-    if (depth === 2 && childStartIndex === null) {
-      childStartIndex = tag.position;
-    }
-  }
-
-  return completedChildren;
-}
-
-function isWrapperAlreadyClosed(source: string, wrapper: WrapperEntry): boolean {
-  let depth = 1;
-  for (const tag of scanTags(source)) {
-    if (tag.position <= wrapper.openPosition) {
-      continue;
-    }
-    if (tag.isSelfClosing) {
-      continue;
-    }
-    if (tag.isClosing) {
-      depth -= 1;
-      if (depth === 0) {
-        return true;
-      }
-    } else {
-      depth += 1;
-    }
-  }
-  return false;
 }
 
 function buildSyntheticClosers(openTagStack: string[]): string {
@@ -296,30 +194,18 @@ export function buildStreamableArtifactPreview(source: string): StreamablePrevie
     return { canStream: false, previewSource: sanitizedSource };
   }
 
-  const wrapper = findFirstStreamableWrapper(sanitizedSource);
-  if (wrapper) {
-    if (isWrapperAlreadyClosed(sanitizedSource, wrapper)) {
-      // Fully closed wrapper is still safe to show during stream (scripts already stripped).
-      return { canStream: true, previewSource: sanitizedSource };
-    }
-    const completedChildren = collectCompletedChildren(sanitizedSource, wrapper);
-    if (completedChildren.length > 0) {
-      const lastChild = completedChildren[completedChildren.length - 1];
-      if (lastChild) {
-        return buildPreviewFromSafePrefix(sanitizedSource, lastChild.end);
-      }
-    }
-    // Open wrapper with no complete children yet — still try generic path below.
-  }
-
   if (!GENERIC_STREAMABLE_STRUCTURE_PATTERN.test(sanitizedSource)) {
     return { canStream: false, previewSource: sanitizedSource };
   }
 
   let openTagStack: string[] = [];
   let lastSafeEndIndex = -1;
+  let hasStableStructure = false;
 
   for (const tag of scanTags(sanitizedSource)) {
+    if (!tag.isClosing && GENERIC_STREAMABLE_TAGS.has(tag.tagName)) {
+      hasStableStructure = true;
+    }
     if (tag.isSelfClosing) {
       lastSafeEndIndex = tag.position + tag.tag.length;
       continue;
@@ -340,18 +226,21 @@ export function buildStreamableArtifactPreview(source: string): StreamablePrevie
     }
 
     openTagStack.push(tag.tagName);
+    // A complete opening tag is a stable structural boundary. Its following
+    // plain text may stream, while a later unfinished tag remains hidden.
+    lastSafeEndIndex = tag.position + tag.tag.length;
   }
 
-  // Fully balanced sanitized HTML (no open tags) — safe stream preview.
-  if (openTagStack.length === 0 && lastSafeEndIndex > 0) {
-    return { canStream: true, previewSource: sanitizedSource };
-  }
-
-  if (lastSafeEndIndex <= 0) {
+  if (!hasStableStructure || lastSafeEndIndex <= 0) {
     return { canStream: false, previewSource: sanitizedSource };
   }
 
-  const previewResult = buildPreviewFromSafePrefix(sanitizedSource, lastSafeEndIndex);
+  // Text after the last complete tag is safe to reveal progressively. Stop at
+  // the next '<' because it starts markup whose closing '>' has not arrived.
+  const incompleteMarkupIndex = sanitizedSource.indexOf('<', lastSafeEndIndex);
+  const safeEndIndex =
+    incompleteMarkupIndex === -1 ? sanitizedSource.length : incompleteMarkupIndex;
+  const previewResult = buildPreviewFromSafePrefix(sanitizedSource, safeEndIndex);
   if (!previewResult.canStream) {
     return { canStream: false, previewSource: sanitizedSource };
   }

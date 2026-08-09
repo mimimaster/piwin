@@ -11,6 +11,7 @@ export * from './config.js';
 export * from './model-catalog.js';
 export * from './vision-delegation.js';
 export * from './media.js';
+export * from './attachment.js';
 export * from './artifact.js';
 export * from './ipc.js';
 export * from './project.js';

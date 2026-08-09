@@ -21,7 +21,7 @@ import type {
   WalkthroughArtifact,
 } from '@piwin/contracts';
 import type { SessionOutlineNode } from '@piwin/contracts';
-import { SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS } from '@piwin/contracts';
+import { SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS, shouldAcceptContextUsage } from '@piwin/contracts';
 import { extractUserFacingBody } from '@piwin/session/derive-default-name';
 import {
   appendBoundedText,
@@ -302,6 +302,7 @@ export type ChatUiAction =
       messages: SessionTranscriptMessage[];
       transcriptPage?: SessionTranscriptPageInfo;
       outline?: SessionOutlineNode[];
+      contextUsage?: ContextUsageSnapshot | null;
       /** Whether the host has a live handle; this is not a run-status signal. */
       live?: boolean;
       /** Merge a stale-tail refresh without replacing the active local turn. */
@@ -332,6 +333,12 @@ export type ChatUiAction =
       clientMessageId?: string;
       /** Skill selected by the composer, if this prompt used `/skill`. */
       skill?: SkillActivityView;
+    }
+  | {
+      type: 'user/steer';
+      text: string;
+      /** Client-generated id shared with Host transcript persistence. */
+      clientMessageId: string;
     }
   | { type: 'user/send-rollback'; clientMessageId: string }
   | { type: 'run/aborting' }
@@ -732,6 +739,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastAcceptedSequenceByRun: {},
         runRecordsById: keepPreviousTranscript ? state.runRecordsById : {},
         walkthroughsByMessageId: {},
+        contextUsage: state.activeSessionId === action.sessionId ? state.contextUsage : null,
         // Subagent activity belongs to the previously active parent; the new
         // session hydrates its own children on resume.
         subagentStreams: {},
@@ -789,6 +797,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         outline: action.outline ?? [],
         activeSessionArchived: action.preserveActiveTail ? state.activeSessionArchived : false,
         awaitingTranscript: false,
+        contextUsage: action.contextUsage !== undefined ? action.contextUsage : state.contextUsage,
         runTerminal: action.preserveActiveTail ? state.runTerminal : { kind: 'none' },
         error: null,
         runRecordsById: action.preserveActiveTail
@@ -1250,6 +1259,25 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         completedAttentionSessionIds: state.activeSessionId
           ? removeSessionIdMarker(state.completedAttentionSessionIds, state.activeSessionId)
           : state.completedAttentionSessionIds,
+      });
+    }
+    case 'user/steer': {
+      const userMessage: ChatMessageUi = {
+        id: action.clientMessageId,
+        role: 'user',
+        text: action.text,
+        thinking: '',
+        tools: [],
+        attachments: [],
+        status: 'done',
+        createdAt: new Date().toISOString(),
+      };
+      // A steer is part of the already-active run. Keep run ownership and
+      // phase intact while placing the instruction in the visible chain.
+      return enforceBoundedTranscriptWindow({
+        ...state,
+        messages: [...state.messages, userMessage],
+        error: null,
       });
     }
     case 'user/send-rollback': {
@@ -1904,6 +1932,13 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         activeSkill: null,
         runTerminal: hasRunningTool ? next.runTerminal : { kind: 'complete', at: Date.now() },
         workingSessionIds: removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
+        completedAttentionSessionIds:
+          hasRunningTool || state.activeSessionId === null
+            ? state.completedAttentionSessionIds
+            : {
+                ...state.completedAttentionSessionIds,
+                [state.activeSessionId]: true,
+              },
       });
     }
     case 'session/aborted': {
@@ -2083,6 +2118,9 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       };
     }
     case 'usage/update':
+      if (!shouldAcceptContextUsage(state.contextUsage, event.usage)) {
+        return state;
+      }
       return { ...state, contextUsage: event.usage };
     case 'error':
       if (isStaleOptionalRunEvent(state, event.runId)) {
@@ -2241,6 +2279,13 @@ function applyRunRecord(
           : { kind: 'complete', at: Date.now() },
     runRecordsById: records,
     workingSessionIds: removeWorkingSessionId(state.workingSessionIds, run.sessionId),
+    // Host implementations may publish a terminal-shaped `run/updated`
+    // immediately before `run/terminal`; derive the sidebar cue here so both
+    // delivery forms have identical completion behavior.
+    completedAttentionSessionIds:
+      outcome === 'completed' || outcome === 'failed'
+        ? { ...state.completedAttentionSessionIds, [run.sessionId]: true }
+        : removeSessionIdMarker(state.completedAttentionSessionIds, run.sessionId),
   };
 }
 

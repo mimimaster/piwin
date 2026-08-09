@@ -47,6 +47,22 @@ export type ContextUsageSnapshot = {
 };
 
 /**
+ * Decide whether an incoming usage snapshot may replace the current one.
+ *
+ * Host estimates are only a fallback for adapters that do not report usage.
+ * They must never replace provider/Pi measurements, regardless of event order.
+ */
+export function shouldAcceptContextUsage(
+  current: ContextUsageSnapshot | null | undefined,
+  incoming: ContextUsageSnapshot,
+): boolean {
+  if (!current) {
+    return true;
+  }
+  return current.source === 'host-estimate' || incoming.source !== 'host-estimate';
+}
+
+/**
  * One billable turn recorded in the usage ledger (CE-OBS).
  * Only assistant-usage (agent_end) and host-estimate entries are recorded;
  * `pi-contextUsage` snapshots are cumulative context occupancy and never summable.

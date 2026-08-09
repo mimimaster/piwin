@@ -6,6 +6,11 @@
 
 **Architecture:** Extend the existing heavy Artifact pipeline with an explicit `svg` descriptor type. SVG stays inside the existing sandboxed `ArtifactFrame` (`sandbox="allow-scripts"`, strict CSP, external-resource classifier, height bridge, init queue, and theme contract); it is never injected into the parent chat DOM. The current Markdown-first policy remains unchanged: capability-off and streaming states show source only, while a completed capability-on message offers a per-fence `Preview SVG` action.
 
+> Historical note (2026-08-09): the source-only streaming constraint below was
+> superseded by ADR 0005's stable streaming Artifact amendment. Capability-off
+> SVG remains source-only; enabled SVG preview now uses sanitized snapshots in
+> one stable sandboxed iframe.
+
 **Tech Stack:** TypeScript strict ESM, Vitest, React 19, existing `@piwin/artifact` runtime, existing Desktop `MarkdownView`/`ArtifactFrame`, pnpm workspace.
 
 ## Global Constraints

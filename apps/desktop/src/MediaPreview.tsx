@@ -8,9 +8,9 @@ import {
   type ReactElement,
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { MediaAttachmentRef } from '@piwin/contracts';
+import { contentKindForMimeType, type MediaAttachmentRef } from '@piwin/contracts';
 import { resolveMediaPreviewUrl } from './media-utils';
-import { IconClose } from './shell-icons';
+import { IconClose, IconDocument } from './shell-icons';
 
 function fileNameFromPath(path: string): string {
   return path.split('/').pop() ?? 'attachment';
@@ -123,12 +123,20 @@ export function MediaPreview(props: {
   const [url, setUrl] = useState<string | null>(props.previewUrl ?? null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const fileLabel = fileNameFromPath(props.attachment.path);
-  const canOpenLightbox = Boolean(url) && !loadFailed && isImageMimeType(props.attachment.mimeType);
+  const fileLabel = props.attachment.name?.trim() || fileNameFromPath(props.attachment.path);
+  const contentKind =
+    props.attachment.contentKind ?? contentKindForMimeType(props.attachment.mimeType);
+  const isFileCard = contentKind === 'text' || contentKind === 'document';
+  const canOpenLightbox =
+    Boolean(url) && !loadFailed && !isFileCard && isImageMimeType(props.attachment.mimeType);
 
   useEffect(() => {
     setLoadFailed(false);
     setLightboxOpen(false);
+    if (isFileCard) {
+      setUrl(null);
+      return;
+    }
     if (props.previewUrl) {
       setUrl(props.previewUrl);
       return;
@@ -142,7 +150,7 @@ export function MediaPreview(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.attachment.path, props.previewUrl]);
+  }, [isFileCard, props.attachment.path, props.previewUrl]);
 
   function openLightbox(event: MouseEvent | KeyboardEvent): void {
     if (!canOpenLightbox) {
@@ -157,6 +165,24 @@ export function MediaPreview(props: {
   const closeLightbox = useCallback((): void => {
     setLightboxOpen(false);
   }, []);
+
+  if (isFileCard) {
+    return (
+      <div
+        className={props.compact ? 'media-chip-file' : 'media-preview-file'}
+        data-testid="media-file-card"
+        title={fileLabel}
+      >
+        <IconDocument width={props.compact ? 18 : 22} height={props.compact ? 18 : 22} />
+        <span className="media-file-card-copy">
+          <span className="media-file-card-name">{fileLabel}</span>
+          <span className="media-file-card-meta">
+            {props.attachment.mimeType} · {props.attachment.byteSize}B
+          </span>
+        </span>
+      </div>
+    );
+  }
 
   if (!url || loadFailed) {
     return (

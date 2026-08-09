@@ -4,6 +4,7 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
+import { DesktopLocaleProvider } from './desktop-locale-context';
 import { SteerQueue, type SteerQueueMessage } from './steer-queue';
 
 declare global {
@@ -11,8 +12,16 @@ declare global {
 }
 
 const queueMessages: SteerQueueMessage[] = [
-  { id: 'queued-1', text: 'Check the failing test first' },
-  { id: 'queued-2', text: 'Then summarize the root cause' },
+  {
+    id: 'queued-1',
+    text: 'Check the failing test first',
+    createdAt: '2026-08-09T00:00:00.000Z',
+  },
+  {
+    id: 'queued-2',
+    text: 'Then summarize the root cause',
+    createdAt: '2026-08-09T00:00:01.000Z',
+  },
 ];
 
 function Harness(props: {
@@ -22,9 +31,11 @@ function Harness(props: {
   onRemove: (messageId: string) => void;
 }): ReactElement {
   return (
-    <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
-      <SteerQueue {...props} />
-    </PiwinUiProvider>
+    <DesktopLocaleProvider locale="en" onLocaleChange={() => undefined}>
+      <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+        <SteerQueue {...props} />
+      </PiwinUiProvider>
+    </DesktopLocaleProvider>
   );
 }
 
@@ -58,9 +69,9 @@ describe('SteerQueue', () => {
     );
 
     expect(container.querySelector('[data-testid="steer-queue"]')).not.toBeNull();
-    expect(container.querySelector('.steer-queue-title')?.textContent).toBe('Queued');
+    expect(container.querySelector('.steer-queue-title')?.textContent).toBe('Up next');
     expect(container.querySelector('.steer-queue-count')?.textContent).toBe('2');
-    expect(container.textContent).toContain('to Send');
+    expect(container.textContent).toContain('Sent in order after this response');
     expect(container.textContent).toContain('Check the failing test first');
     expect(container.textContent).toContain('Then summarize the root cause');
   });

@@ -87,6 +87,8 @@ export {
 export {
   appendUsageRecord,
   loadUsageRecords,
+  readLatestSessionContextUsage,
+  selectLatestSessionContextUsage,
   readUsageRollup,
   computeUsageRollup,
 } from './usage-ledger-store.js';

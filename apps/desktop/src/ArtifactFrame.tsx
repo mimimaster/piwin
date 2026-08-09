@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ReactElement, type RefObject } from 'react';
 import type { ArtifactActionMessage, ArtifactPreviewDecision } from '@piwin/artifact';
 import {
+  ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
   ARTIFACT_FINAL_TRIM_SETTLE_MS,
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
   ARTIFACT_READY_TIMEOUT_MS,
   INITIAL_ARTIFACT_IFRAME_HEIGHT,
-  MAX_ARTIFACT_IFRAME_HEIGHT,
+  MAX_ARTIFACT_INLINE_FLOW_HEIGHT,
   MIN_ARTIFACT_IFRAME_HEIGHT,
   cancelArtifactInit,
   clampArtifactHeight,
@@ -44,9 +45,9 @@ export type ArtifactFrameProps = {
    */
   onComposerProposal?: (payload: { text: string; label?: string }) => void;
   /**
-   * Optional extra control rendered at the end of the artifact header row.
+   * Optional control rendered in the Artifact's hover/focus action layer.
    * Used by MarkdownView's in-place code/render toggle ("Show code") so the
-   * affordance lives inside the rendered frame instead of stacking a second
+   * affordance lives over the rendered frame instead of stacking a second
    * code block above it. Source inspection goes through that toggle — render
    * mode no longer duplicates raw source under the iframe.
    */
@@ -56,6 +57,24 @@ export type ArtifactFrameProps = {
 /** User-facing content label for an artifact descriptor type. */
 function getArtifactContentLabel(type: 'html' | 'svg'): string {
   return type === 'svg' ? 'SVG' : 'HTML UI';
+}
+
+function postArtifactStreamUpdate(
+  iframe: HTMLIFrameElement | null,
+  channelId: string,
+  source: string | undefined,
+): void {
+  if (!iframe?.contentWindow || source === undefined) {
+    return;
+  }
+  iframe.contentWindow.postMessage(
+    {
+      type: ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+      channelId,
+      source,
+    },
+    '*',
+  );
 }
 
 /**
@@ -77,23 +96,13 @@ export function ArtifactFrame({
   if (decision.kind === 'blocked') {
     return (
       <div data-testid="artifact-frame" data-activity-id="artifact" data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION} data-tool-status="error" className={`artifact-frame blocked${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
-        <div className="artifact-frame-header">
-          <strong>{decision.descriptor.title}</strong>
-          <span className="pill">blocked</span>
-          {extraHeaderAction ?? null}
-        </div>
+        {extraHeaderAction ? <div className="artifact-frame-actions">{extraHeaderAction}</div> : null}
         <p className="muted">
           Cannot preview this {contentLabel}: <code>{decision.reason}</code>
           {decision.security.externalResources.length > 0
             ? ` (${decision.security.externalResources.length} external resource(s))`
             : ''}
         </p>
-        <details>
-          <summary>Source (raw model {contentLabel})</summary>
-          <pre className="md-code">
-            <code>{decision.descriptor.source}</code>
-          </pre>
-        </details>
       </div>
     );
   }
@@ -101,24 +110,15 @@ export function ArtifactFrame({
   if (decision.kind === 'preparing') {
     return (
       <div data-testid="artifact-frame" data-activity-id="artifact" data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION} data-tool-status="running" className={`artifact-frame preparing${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
-        <div className="artifact-frame-header">
-          <strong>{decision.descriptor.title}</strong>
-          <span className="pill">streaming</span>
-          {extraHeaderAction ?? null}
-        </div>
+        {extraHeaderAction ? <div className="artifact-frame-actions">{extraHeaderAction}</div> : null}
         <p className="muted">{decision.message}</p>
-        <details>
-          <summary>Source (raw model {contentLabel}) so far</summary>
-          <pre className="md-code">
-            <code>{decision.descriptor.source}</code>
-          </pre>
-        </details>
       </div>
     );
   }
 
   return (
     <ArtifactRenderFrame
+      key={`${decision.descriptor.id}:${decision.mode}`}
       decision={decision}
       initPriority={initPriority}
       presentation={presentation}
@@ -143,6 +143,8 @@ function ArtifactRenderFrame(props: {
       ? `${decision.descriptor.id}-stream`
       : decision.descriptor.id;
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const initialSrcdocRef = useRef(decision.srcdoc);
+  const latestStreamSourceRef = useRef(decision.streamSource);
   const [granted, setGranted] = useState(false);
   const [height, setHeight] = useState(INITIAL_ARTIFACT_IFRAME_HEIGHT);
   const [contentOverflowing, setContentOverflowing] = useState(false);
@@ -157,8 +159,10 @@ function ArtifactRenderFrame(props: {
   const shrinkPendingRef = useRef<number | null>(null);
   const slotReleasedRef = useRef(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const maxHeight = MAX_ARTIFACT_IFRAME_HEIGHT;
+  const maxHeight = MAX_ARTIFACT_INLINE_FLOW_HEIGHT;
   const heightSignal = useArtifactHeightSignal();
+  const iframeSrcdoc =
+    decision.mode === 'stream-preview' ? initialSrcdocRef.current : decision.srcdoc;
 
   /**
    * Enter final-trim: allow measured heights to shrink back to the real content
@@ -183,6 +187,13 @@ function ArtifactRenderFrame(props: {
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  useEffect(() => {
+    latestStreamSourceRef.current = decision.streamSource;
+    if (granted && decision.mode === 'stream-preview') {
+      postArtifactStreamUpdate(iframeRef.current, channelId, decision.streamSource);
+    }
+  }, [channelId, decision.mode, decision.streamSource, granted]);
 
   // Init queue: grant before assigning srcdoc
   useEffect(() => {
@@ -337,21 +348,20 @@ function ArtifactRenderFrame(props: {
       window.removeEventListener('message', onMessage);
       window.clearTimeout(readyTimeout);
     };
-  }, [granted, channelId, decision.mode, decision.descriptor.source, maxHeight, onArtifactAction]);
-  // Note: presentation and onComposerProposal are intentionally not in the
-  // deps array above — the message listener is per-grant cycle and reads the
-  // latest values from closure. Adding them would re-bind the listener on
-  // every parent re-render without functional benefit.
+  }, [
+    granted,
+    channelId,
+    decision.mode,
+    maxHeight,
+    onArtifactAction,
+    onComposerProposal,
+    presentation,
+  ]);
 
-  // Reset height state when srcdoc identity changes
+  // Reset height state only when the iframe document changes. Streaming body
+  // snapshots use postMessage, so iframeSrcdoc stays stable for the whole run.
   useEffect(() => {
-    // During stream-preview, the srcdoc changes on every token as
-    // MarkdownView re-evaluates the fence. Resetting height to 80px each
-    // time causes a collapse-regrow cycle and loses the floor. Instead,
-    // preserve the current height as the new floor so the iframe stays
-    // at its measured height and only grows from there.
     if (decision.mode === 'stream-preview') {
-      // Keep the current height as floor; don't collapse.
       floorRef.current = Math.max(floorRef.current, INITIAL_ARTIFACT_IFRAME_HEIGHT);
       setContentOverflowing(false);
       setPhase('protected');
@@ -375,14 +385,7 @@ function ArtifactRenderFrame(props: {
       clearTimeout(settleTimerRef.current);
       settleTimerRef.current = null;
     }
-  }, [decision.srcdoc, decision.mode]);
-
-  const modePill =
-    decision.mode === 'stream-preview'
-      ? 'stream'
-      : statusLabel === 'ready'
-        ? 'preview'
-        : statusLabel;
+  }, [decision.mode, iframeSrcdoc]);
 
   const isCanvas = presentation === 'canvas';
   return (
@@ -394,41 +397,24 @@ function ArtifactRenderFrame(props: {
       data-content-overflowing={contentOverflowing ? 'true' : undefined}
       className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}`}
     >
-      <div className="artifact-frame-header">
-        <strong>{decision.descriptor.title}</strong>
-        <span
-          className={
-            statusLabel === 'ready' || decision.mode === 'stream-preview' ? 'pill ok' : 'pill'
-          }
-        >
-          {modePill}
-        </span>
-        {contentOverflowing ? (
-          <span className="pill" title="Scroll inside the preview to see the rest">
-            scroll
-          </span>
-        ) : null}
-        <span className="muted">{decision.security.byteSize} bytes</span>
-        {decision.themeRepairs.length > 0 ? (
-          <span className="pill" title="Hard-coded light surfaces adjusted for theme">
-            theme adjusted ({decision.themeRepairs.length})
-          </span>
-        ) : null}
-        {decision.layoutRepairs.length > 0 ? (
-          <span className="pill" title="Viewport-unit heights neutralized for inline layout">
-            layout adjusted ({decision.layoutRepairs.length})
-          </span>
-        ) : null}
-        {extraHeaderAction ?? null}
-      </div>
+      {extraHeaderAction ? <div className="artifact-frame-actions">{extraHeaderAction}</div> : null}
       {granted ? (
         <iframe
           ref={iframeRef as RefObject<HTMLIFrameElement>}
           className="artifact-iframe"
           title={decision.descriptor.title}
-          srcDoc={decision.srcdoc}
+          srcDoc={iframeSrcdoc}
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
+          onLoad={() => {
+            if (decision.mode === 'stream-preview') {
+              postArtifactStreamUpdate(
+                iframeRef.current,
+                channelId,
+                latestStreamSourceRef.current,
+              );
+            }
+          }}
           style={
             isCanvas
               ? { minHeight: '100%', height: '100%', maxHeight: '100%', width: '100%', border: 0 }

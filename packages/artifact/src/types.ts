@@ -198,6 +198,8 @@ export type ArtifactPreviewDecision =
       security: ArtifactSecurityResult;
       srcdoc: string;
       csp: string;
+      /** Sanitized/repaired body snapshot used only for in-place stream updates. */
+      streamSource?: string;
       themeRepairs: ArtifactThemeContractRepair[];
       /** Soft layout repairs (e.g. viewport-unit heights) applied for preview. */
       layoutRepairs: ArtifactLayoutContractRepair[];

@@ -8,12 +8,25 @@ export {
 export type { MediaServiceOptions } from './media-service.js';
 export { formatTextModelImageInjection } from '@piwin/contracts';
 export type { SaveMediaInput, SavedMediaAsset } from '@piwin/contracts';
-
 export {
-  cloneSessionMedia,
-  cleanupFailedMediaClone,
-} from './clone-session-media.js';
-export type {
-  CloneSessionMediaOptions,
-  CloneSessionMediaResult,
-} from './clone-session-media.js';
+  ATTACHMENT_DOCUMENT_MIME_TYPES,
+  ATTACHMENT_FILE_ACCEPT,
+  ATTACHMENT_IMAGE_MIME_TYPES,
+  ATTACHMENT_TEXT_MIME_TYPES,
+  DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES,
+  attachmentContentKindForFile,
+  attachmentNameFromPath,
+  contentKindForMimeType,
+  inferAttachmentMimeType,
+  isSupportedAttachmentMimeType,
+} from '@piwin/contracts';
+export { assertAttachmentPayloadSafe, UnsafeAttachmentError } from './attachment-policy.js';
+export type { ExtractedAttachmentText } from './document-extractor.js';
+export {
+  extractAttachmentText,
+  formatAttachmentTextInjection,
+  MAX_ATTACHMENT_TEXT_BYTES,
+} from './document-extractor.js';
+
+export { cloneSessionMedia, cleanupFailedMediaClone } from './clone-session-media.js';
+export type { CloneSessionMediaOptions, CloneSessionMediaResult } from './clone-session-media.js';

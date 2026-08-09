@@ -341,6 +341,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         outline?: import('@piwin/contracts').SessionOutlineNode[];
         model?: ModelRef;
         thinkingLevel?: import('@piwin/contracts').ThinkingLevel;
+        contextUsage?: import('@piwin/contracts').ContextUsageSnapshot;
         scope?: import('@piwin/contracts').SessionScope;
         projectPath?: string;
         name?: string;
@@ -482,6 +483,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
             sessionId,
             messages: listedData.messages,
             outline,
+            contextUsage: data.contextUsage ?? null,
             live: data.live,
           });
           if (!data.live) {
@@ -508,6 +510,7 @@ export function useSessionActions(args: UseSessionActionsArgs) {
         messages,
         ...(data.transcriptPage ? { transcriptPage: data.transcriptPage } : {}),
         outline,
+        contextUsage: data.contextUsage ?? null,
         live: data.live,
       });
       if (!data.live) {

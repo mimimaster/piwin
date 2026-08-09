@@ -325,6 +325,76 @@ describe('HostRuntime', () => {
     await runtime.dispose();
   });
 
+  it('extracts text attachments into the model prompt and keeps paths out of text', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-text-attachment-'));
+    const textDeltas: string[] = [];
+    const runtime = new HostRuntime({
+      mode: 'sdk',
+      mock: true,
+      piwinRoot: rootDir,
+      onPush: (message) => {
+        if (message.type === 'event' && message.event.type === 'message/text_delta') {
+          textDeltas.push(message.event.delta);
+        }
+      },
+    });
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const sourceText = 'const answer = 42;';
+    const saved = await runtime.handleCommand({
+      type: 'media/save',
+      input: {
+        sessionId,
+        mimeType: 'text/typescript',
+        name: 'answer.ts',
+        contentKind: 'text',
+        source: 'file-picker',
+        base64Data: Buffer.from(sourceText).toString('base64'),
+      },
+    });
+    expect(saved.success).toBe(true);
+    if (!saved.success) throw new Error(saved.error);
+    const asset = (saved.data as MediaSaveData).asset;
+
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: {
+        text: 'Review this file',
+        attachments: [
+          {
+            id: asset.id,
+            kind: 'media',
+            path: asset.absolutePath,
+            mimeType: asset.mimeType,
+            ...(asset.name === undefined ? {} : { name: asset.name }),
+            ...(asset.contentKind === undefined ? {} : { contentKind: asset.contentKind }),
+            byteSize: asset.byteSize,
+            source: 'file-picker',
+          },
+        ],
+      },
+    });
+    expect(prompted.success).toBe(true);
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      if (textDeltas.join('').includes(sourceText)) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const joined = textDeltas.join('');
+    expect(joined).toContain('Review this file');
+    expect(joined).toContain('[attached file: answer.ts]');
+    expect(joined).toContain(sourceText);
+    expect(joined).not.toContain(asset.absolutePath);
+
+    await runtime.dispose();
+  });
+
   it('rejects media attachments outside the media root', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-media-deny-'));
     const runtime = new HostRuntime({
@@ -630,11 +700,14 @@ describe('HostRuntime', () => {
       sessionId: string;
       live: boolean;
       messages: Array<{ text: string; role: string }>;
+      contextUsage?: { totalTokens?: number; source?: string };
     };
     expect(data.sessionId).toBe(sessionId);
     expect(data.live).toBe(true);
     expect(data.messages.some((message) => message.role === 'user')).toBe(true);
     expect(data.messages.some((message) => message.text.includes('hello after create'))).toBe(true);
+    expect(data.contextUsage?.totalTokens).toBeGreaterThan(0);
+    expect(data.contextUsage?.source).toBe('host-estimate');
 
     const listed = await runtimeB.handleCommand({
       id: 'msgs',

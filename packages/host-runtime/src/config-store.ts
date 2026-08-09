@@ -44,6 +44,7 @@ import {
   createDefaultSkillsConfig,
   createDefaultSubagentConfig,
   createDefaultWalkthroughConfig,
+  DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES,
   createDefaultWebConfig,
   modeToPreset,
   normalizeWalkthroughConfig,
@@ -61,7 +62,7 @@ export function createDefaultPiwinConfig(): PiwinConfig {
     providers: [],
     media: {
       maxPasteBytes: 10 * 1024 * 1024,
-      allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+      allowedMimeTypes: [...DEFAULT_ATTACHMENT_ALLOWED_MIME_TYPES],
     },
     artifact: {
       ...createDefaultArtifactConfig(),
@@ -156,8 +157,10 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
     media: {
       maxPasteBytes:
         asPositiveNumber(asRecord(record.media)?.maxPasteBytes) ?? defaults.media.maxPasteBytes,
-      allowedMimeTypes:
-        asStringArray(asRecord(record.media)?.allowedMimeTypes) ?? defaults.media.allowedMimeTypes,
+      allowedMimeTypes: normalizeMediaAllowedMimeTypes(
+        asStringArray(asRecord(record.media)?.allowedMimeTypes),
+        defaults.media.allowedMimeTypes,
+      ),
     },
     artifact: {
       ...normalizeArtifactConfig(record.artifact, defaults.artifact),
@@ -238,6 +241,25 @@ export function normalizePiwinConfig(value: unknown): PiwinConfig {
     normalized.visionDelegation = visionDelegation;
   }
   return normalized;
+}
+
+/** Upgrade the pre-file-attachment default without overriding deliberate custom allowlists. */
+function normalizeMediaAllowedMimeTypes(
+  configured: string[] | undefined,
+  defaults: string[],
+): string[] {
+  if (!configured) {
+    return defaults;
+  }
+  const legacyDefault = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+  const normalized = configured.map((mimeType) => mimeType.trim().toLowerCase()).filter(Boolean);
+  if (
+    normalized.length === legacyDefault.size &&
+    normalized.every((mimeType) => legacyDefault.has(mimeType))
+  ) {
+    return defaults;
+  }
+  return configured;
 }
 
 /**

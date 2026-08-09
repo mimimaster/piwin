@@ -871,6 +871,44 @@ export class MockHostBackend {
         };
       }
 
+      case 'session/steer': {
+        const session = this.sessions.get(command.sessionId);
+        const activeRunId = this.mockActiveRunIds.get(command.sessionId);
+        if (!session || !activeRunId) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/steer',
+            success: false,
+            error: `no-active-run: session ${command.sessionId} has no foreground run`,
+          };
+        }
+        if (command.runId !== undefined && command.runId !== activeRunId) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/steer',
+            success: false,
+            error: `run-mismatch: requested ${command.runId}, active ${activeRunId}`,
+          };
+        }
+        const now = new Date().toISOString();
+        session.transcript.push({
+          id: command.clientMessageId?.trim() || crypto.randomUUID(),
+          role: 'user',
+          text: command.message,
+          createdAt: now,
+          status: 'done',
+        });
+        return {
+          id,
+          type: 'response',
+          command: 'session/steer',
+          success: true,
+          data: { sessionId: command.sessionId, runId: activeRunId },
+        };
+      }
+
       case 'session/compact': {
         const session = this.sessions.get(command.sessionId);
         if (!session) {
@@ -1150,13 +1188,18 @@ export class MockHostBackend {
         };
       }
       case 'media/save': {
+        const extension =
+          command.input.name?.match(/\.[a-z0-9]{1,12}$/iu)?.[0].toLowerCase() ??
+          (command.input.mimeType.split('/')[1]?.replace(/[^a-z0-9]/giu, '') || 'bin');
         const asset = {
           id: crypto.randomUUID(),
           sessionId: command.input.sessionId,
-          absolutePath: `/tmp/piwin-mock-media/${command.input.sessionId}/${crypto.randomUUID()}.png`,
+          absolutePath: `/tmp/piwin-mock-media/${command.input.sessionId}/${crypto.randomUUID()}${extension.startsWith('.') ? extension : `.${extension}`}`,
           mimeType: command.input.mimeType,
           byteSize: Math.max(1, Math.floor(command.input.base64Data.length * 0.75)),
           createdAt: new Date().toISOString(),
+          ...(command.input.name ? { name: command.input.name } : {}),
+          ...(command.input.contentKind ? { contentKind: command.input.contentKind } : {}),
         };
         return {
           id,
@@ -2632,11 +2675,7 @@ export class MockHostBackend {
             sessionId: newForkId,
             sourceSessionId: command.sessionId,
             session: forkSummary,
-            ...mockSessionMessageResponse(
-              newForkId,
-              forkTranscript,
-              command.messageProjection,
-            ),
+            ...mockSessionMessageResponse(newForkId, forkTranscript, command.messageProjection),
             origin,
           },
         };
@@ -3514,7 +3553,10 @@ function mockSessionMessageResponse(
   sessionId: string,
   messages: readonly SessionTranscriptMessage[],
   projection: import('@piwin/contracts').SessionMessageProjection | undefined,
-): { messages?: SessionTranscriptMessage[]; transcriptPage?: import('@piwin/contracts').SessionTranscriptPageInfo } {
+): {
+  messages?: SessionTranscriptMessage[];
+  transcriptPage?: import('@piwin/contracts').SessionTranscriptPageInfo;
+} {
   if (projection === 'none') return {};
   if (projection !== 'tail') return { messages: [...messages] };
   const page = createMockSessionTranscriptPage(messages, {

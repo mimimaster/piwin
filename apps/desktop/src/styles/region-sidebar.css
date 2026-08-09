@@ -754,10 +754,13 @@
 }
 
 .session-item.active {
-  /* Keep selection inside the current theme: a quiet black mask over the
-     sidebar surface, with no accent-colored ring or tint. */
-  background: color-mix(in srgb, var(--sidebar, var(--panel)) 92%, #000 8%);
+  /* Keep the selected row quiet: neutral surface, no accent frame or rail. */
+  background: var(--selected);
   box-shadow: none;
+}
+
+.session-item.active:hover {
+  background: var(--selected);
 }
 
 .session-item-body {
@@ -854,7 +857,11 @@
 
 .session-item.active .session-item-name {
   color: var(--text);
-  font-weight: 580;
+  font-weight: 650;
+}
+
+.session-item[data-completed='true'] .session-item-name {
+  font-weight: 600;
 }
 
 /* ── Session activity indicators ───────────────────────────────────
@@ -900,6 +907,29 @@
 
 .session-item-activity--service {
   gap: 2px;
+}
+
+.session-item-completed-mark {
+  position: absolute;
+  top: 50%;
+  right: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  border: 1px solid color-mix(in srgb, var(--state-success, var(--ok)) 58%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--state-success, var(--ok)) 16%, var(--sidebar));
+  color: var(--state-success, var(--ok));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--state-success, var(--ok)) 10%, transparent);
+  pointer-events: none;
+}
+
+.session-item-completed-mark svg {
+  display: block;
+  stroke-width: 2.5;
 }
 
 .session-item-activity-dot {

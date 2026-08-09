@@ -55,6 +55,23 @@ describe('config-store', () => {
     expect(loaded.extensions?.extraPaths).toEqual([]);
   });
 
+  it('upgrades the legacy image-only media default to P0/P1 attachments', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-media-default-migration-'));
+    await writeFile(
+      join(rootDir, 'config.json'),
+      JSON.stringify({
+        media: {
+          maxPasteBytes: 10 * 1024 * 1024,
+          allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
+        },
+      }),
+      'utf8',
+    );
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.media.allowedMimeTypes).toContain('text/*');
+    expect(loaded.media.allowedMimeTypes).toContain('application/pdf');
+  });
+
   it('load/save compaction.autoEnabledDefault', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-compact-'));
     const config = createDefaultPiwinConfig();

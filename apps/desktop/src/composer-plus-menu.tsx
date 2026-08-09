@@ -1,6 +1,6 @@
 /**
- * Composer "+" menu: Skills and MCP only.
- * Modes are always Agent; images attach via paste/drop; orchestration lives on the toolbar.
+ * Composer "+" menu: P0/P1 attachments plus Skills and MCP.
+ * Modes are always Agent; orchestration lives on the toolbar.
  * Built on ui-kit menu primitives (Radix portal, positioning, Escape, arrow nav).
  */
 
@@ -13,7 +13,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@piwin/ui-kit';
-import { IconMcp, IconSkill } from './shell-icons';
+import { IconFile, IconMcp, IconPaperclip, IconSkill } from './shell-icons';
 
 export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp';
 
@@ -40,6 +40,10 @@ export type ComposerPlusMenuProps = {
   onOpenSkillsPanel: () => void;
   mcpServers: ComposerMcpOption[];
   onOpenMcpPanel: () => void;
+  /** Optional for isolated menu consumers that do not expose file uploads. */
+  onAttachFile?: () => void;
+  /** Optional image-only picker for quick access to screenshots. */
+  onAttachImage?: () => void;
 };
 
 export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
@@ -56,9 +60,29 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
       contentClassName="plus-menu"
       trigger={props.trigger}
     >
-      <DropdownMenuLabel className="plus-menu-caption muted">
-        Skills & MCP
-      </DropdownMenuLabel>
+      {props.onAttachFile || props.onAttachImage ? (
+        <DropdownMenuLabel className="plus-menu-caption muted">Attachments</DropdownMenuLabel>
+      ) : null}
+
+      {props.onAttachFile ? (
+        <DropdownMenuItem onSelect={props.onAttachFile} testId="plus-menu-file">
+          <span className="plus-menu-icon">
+            <IconFile width={16} height={16} />
+          </span>
+          <span className="plus-menu-label">Attach file</span>
+        </DropdownMenuItem>
+      ) : null}
+
+      {props.onAttachImage ? (
+        <DropdownMenuItem onSelect={props.onAttachImage} testId="plus-menu-image">
+          <span className="plus-menu-icon">
+            <IconPaperclip width={16} height={16} />
+          </span>
+          <span className="plus-menu-label">Attach image</span>
+        </DropdownMenuItem>
+      ) : null}
+
+      <DropdownMenuLabel className="plus-menu-caption muted">Skills & MCP</DropdownMenuLabel>
 
       <DropdownMenuSub
         open={props.submenu === 'skills'}

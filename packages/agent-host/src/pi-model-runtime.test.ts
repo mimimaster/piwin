@@ -51,6 +51,15 @@ describe('pi-model-runtime', () => {
       }),
     ]);
     expect(registration.models[0]).not.toHaveProperty('thinkingLevels');
+    expect(registration.models[0]?.thinkingLevelMap).toEqual({
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: null,
+      max: null,
+    });
   });
 
   it('defaults omitted maxOutputTokens to the shared product default', () => {
@@ -84,6 +93,33 @@ describe('pi-model-runtime', () => {
       id: 'claude-vision',
       input: ['text', 'image'],
       reasoning: false,
+    });
+  });
+
+  it('registers configured xhigh and max levels in Pi thinkingLevelMap', () => {
+    const provider: ModelProviderConfig = {
+      id: 'reasoning-provider',
+      protocol: 'openai-compatible',
+      name: 'Reasoning provider',
+      baseUrl: 'https://api.example.test/v1',
+      models: [
+        {
+          id: 'reasoning-model',
+          reasoning: true,
+          thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+        },
+      ],
+    };
+
+    const registration = buildPiProviderRegistration(provider);
+    expect(registration.models[0]?.thinkingLevelMap).toEqual({
+      off: null,
+      minimal: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
     });
   });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computePromptCacheHitRate } from './usage.js';
+import { computePromptCacheHitRate, shouldAcceptContextUsage } from './usage.js';
 
 describe('computePromptCacheHitRate', () => {
   it('uses only prompt-side tokens in the cache denominator', () => {
@@ -30,5 +30,32 @@ describe('computePromptCacheHitRate', () => {
         cacheWriteTokens: -5,
       }),
     ).toBe(1);
+  });
+});
+
+describe('shouldAcceptContextUsage', () => {
+  const measuredUsage = {
+    sessionId: 's1',
+    totalTokens: 300_000,
+    updatedAt: '2026-08-09T09:47:07.479Z',
+    source: 'assistant-usage' as const,
+  };
+  const estimatedUsage = {
+    sessionId: 's1',
+    totalTokens: 409,
+    updatedAt: '2026-08-09T09:47:07.485Z',
+    source: 'host-estimate' as const,
+  };
+
+  it('rejects a fallback estimate after measured usage', () => {
+    expect(shouldAcceptContextUsage(measuredUsage, estimatedUsage)).toBe(false);
+  });
+
+  it('accepts measured usage after a fallback estimate', () => {
+    expect(shouldAcceptContextUsage(estimatedUsage, measuredUsage)).toBe(true);
+  });
+
+  it('accepts the first snapshot', () => {
+    expect(shouldAcceptContextUsage(null, estimatedUsage)).toBe(true);
   });
 });

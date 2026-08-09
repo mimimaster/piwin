@@ -18,6 +18,7 @@ import type {
   ArtifactThemeContractRepair,
   ArtifactThemeVariables,
   ArtifactDescriptor,
+  ArtifactSurface,
 } from './types.js';
 
 export type EvaluateCodeFenceOptions = {
@@ -43,6 +44,7 @@ export function evaluateCodeFence(options: EvaluateCodeFenceOptions): ArtifactPr
     source: string;
     id: string;
     htmlUiModeEnabled?: boolean;
+    allowIncompleteSource?: boolean;
   } = {
     language: options.language,
     source: options.source,
@@ -50,6 +52,9 @@ export function evaluateCodeFence(options: EvaluateCodeFenceOptions): ArtifactPr
   };
   if (options.htmlUiModeEnabled !== undefined) {
     parseInput.htmlUiModeEnabled = options.htmlUiModeEnabled;
+  }
+  if (options.mode === 'stream-preview') {
+    parseInput.allowIncompleteSource = true;
   }
 
   const descriptor = tryParseHtmlArtifactFence(parseInput);
@@ -91,7 +96,7 @@ export type EvaluateDescriptorOptions = {
    */
   renderSource?: string;
   /** Surface the artifact will be rendered on (affects CSP/bridge). */
-  renderSurface?: import('./types.js').ArtifactSurface;
+  renderSurface?: ArtifactSurface;
 };
 
 export function evaluateArtifactDescriptor(
@@ -108,6 +113,13 @@ export function evaluateArtifactDescriptor(
 
   if (!security.canRender) {
     const reason = security.blockReason ?? 'blocked-empty';
+    if (mode === 'stream-preview' && reason === 'blocked-empty') {
+      return {
+        kind: 'preparing',
+        descriptor,
+        message: descriptor.type === 'svg' ? 'Generating SVG…' : 'Generating HTML UI…',
+      };
+    }
     return {
       kind: 'blocked',
       descriptor,
@@ -124,7 +136,7 @@ export function evaluateArtifactDescriptor(
       return {
         kind: 'preparing',
         descriptor,
-        message: 'Generating HTML UI…',
+        message: descriptor.type === 'svg' ? 'Generating SVG…' : 'Generating HTML UI…',
       };
     }
     bodySource = preview.previewSource;
@@ -146,13 +158,16 @@ export function evaluateArtifactDescriptor(
   }
 
   const theme = options.theme ?? createDefaultArtifactTheme('dark');
+  const renderSurface = options.renderSurface ?? descriptor.surface;
   const channelId = mode === 'stream-preview' ? `${descriptor.id}-stream` : descriptor.id;
   const { srcdoc, csp } = buildHtmlArtifactSrcdoc({
     source: bodySource,
     channelId,
     theme,
     iframePolicy,
+    surface: renderSurface,
     includeBridge: true,
+    enableStreamUpdates: mode === 'stream-preview',
   });
 
   return {
@@ -162,6 +177,7 @@ export function evaluateArtifactDescriptor(
     security,
     srcdoc,
     csp,
+    ...(mode === 'stream-preview' ? { streamSource: bodySource } : {}),
     themeRepairs,
     layoutRepairs: layout.repairs,
   };

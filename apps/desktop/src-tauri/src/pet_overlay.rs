@@ -11,14 +11,7 @@ fn prepare_pet_overlay_window(window: &tauri::WebviewWindow) -> tauri::Result<()
     window.show()
 }
 
-/// Create (or re-show) the pet overlay window. Called on app startup so the
-/// pet floats on the desktop by default, and by the `pet_overlay_show` command.
-pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
-    // If the window already exists, just show it.
-    if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
-        return prepare_pet_overlay_window(&window);
-    }
-
+fn build_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     let mut builder = WebviewWindowBuilder::new(
         app,
         PET_OVERLAY_LABEL,
@@ -49,7 +42,25 @@ pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
         builder = builder.accept_first_mouse(true);
     }
 
-    let window = builder.build()?;
+    builder.build()
+}
+
+/// Create the WebContent process without showing it. Its page restores the
+/// persisted Desktop visibility preference after transparent CSS is ready.
+pub fn create_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if app.get_webview_window(PET_OVERLAY_LABEL).is_none() {
+        let _window = build_pet_overlay_window(app)?;
+    }
+    Ok(())
+}
+
+/// Create (or re-show) the pet overlay window on an explicit show request.
+pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
+    if let Some(window) = app.get_webview_window(PET_OVERLAY_LABEL) {
+        return prepare_pet_overlay_window(&window);
+    }
+
+    let window = build_pet_overlay_window(app)?;
 
     // Tauri's transparent + always_on_top handles the window level on all
     // platforms. On macOS, transparent + decorations(false) enables

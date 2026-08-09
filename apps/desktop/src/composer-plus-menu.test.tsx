@@ -9,18 +9,13 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
-import {
-  ComposerPlusMenu,
-  type ComposerPlusMenuProps,
-} from './composer-plus-menu.js';
+import { ComposerPlusMenu, type ComposerPlusMenuProps } from './composer-plus-menu.js';
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
 }
 
-function createBaseProps(
-  overrides: Partial<ComposerPlusMenuProps> = {},
-): ComposerPlusMenuProps {
+function createBaseProps(overrides: Partial<ComposerPlusMenuProps> = {}): ComposerPlusMenuProps {
   return {
     trigger: <button type="button">+</button>,
     open: true,
@@ -105,6 +100,17 @@ describe('ComposerPlusMenu', () => {
     expect(document.querySelector('[data-testid="plus-menu-image"]')).toBeNull();
     expect(document.querySelector('[data-testid="plus-menu-orchestration"]')).toBeNull();
     expect(menu?.textContent).toContain('Skills & MCP');
+  });
+
+  it('exposes separate file and image attachment actions when wired', () => {
+    const onAttachFile = vi.fn();
+    const onAttachImage = vi.fn();
+    render(createBaseProps({ onAttachFile, onAttachImage }), root);
+
+    clickItem('plus-menu-file');
+    clickItem('plus-menu-image');
+    expect(onAttachFile).toHaveBeenCalledTimes(1);
+    expect(onAttachImage).toHaveBeenCalledTimes(1);
   });
 
   it('renders skill entries and the manage action when the skills flyout is open', () => {

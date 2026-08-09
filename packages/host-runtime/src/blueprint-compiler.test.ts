@@ -317,6 +317,76 @@ describe('compileBlueprintForWorker', () => {
     expect(result.providers[0]?.models[0]?.id).toBe('gpt-4');
   });
 
+  it('preserves configured thinking levels in the provider envelope', async () => {
+    const result = await compileBlueprintForWorker(
+      { scope: generalScope },
+      {
+        config: createConfig({
+          providers: [
+            {
+              id: 'openai-1',
+              protocol: 'openai-compatible',
+              name: 'OpenAI',
+              baseUrl: 'https://api.openai.com/v1',
+              apiKeyEnv: 'OPENAI_API_KEY',
+              models: [
+                {
+                  id: 'gpt-5',
+                  reasoning: true,
+                  thinkingLevels: ['low', 'medium', 'high', 'xhigh', 'max'],
+                },
+              ],
+            },
+          ],
+        }),
+        discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+      },
+    );
+
+    expect(result.providers[0]?.models[0]?.thinkingLevels).toEqual([
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+    ]);
+  });
+
+  it('changes the settings revision when model thinking levels change', async () => {
+    const baseConfig = createConfig();
+    const configuredConfig = createConfig({
+      providers: [
+        {
+          id: 'openai-1',
+          protocol: 'openai-compatible',
+          name: 'OpenAI',
+          baseUrl: 'https://api.openai.com/v1',
+          apiKeyEnv: 'OPENAI_API_KEY',
+          models: [{ id: 'gpt-4', reasoning: true, thinkingLevels: ['low', 'xhigh', 'max'] }],
+        },
+      ],
+    });
+
+    const [baseResult, configuredResult] = await Promise.all([
+      compileBlueprintForWorker(
+        { scope: generalScope },
+        {
+          config: baseConfig,
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        },
+      ),
+      compileBlueprintForWorker(
+        { scope: generalScope },
+        {
+          config: configuredConfig,
+          discoverResources: async () => ({ skillPaths: [], extensionPaths: [], promptPaths: [] }),
+        },
+      ),
+    ]);
+
+    expect(configuredResult.settingsRevision).not.toBe(baseResult.settingsRevision);
+  });
+
   it('keeps env-ref auth when an apiKeyRef is also configured', async () => {
     const resolveProviderSecret = vi.fn(async () => 'must-not-enter-provider-envelope');
     const result = await compileBlueprintForWorker(

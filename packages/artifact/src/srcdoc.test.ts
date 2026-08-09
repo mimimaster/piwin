@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { ARTIFACT_BRIDGE_READY_TYPE, ARTIFACT_BRIDGE_RESIZE_TYPE } from './constants.js';
+import {
+  ARTIFACT_BRIDGE_READY_TYPE,
+  ARTIFACT_BRIDGE_RESIZE_TYPE,
+  ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE,
+} from './constants.js';
 import { createDefaultArtifactIframePolicy } from './iframe-policy.js';
 import {
   buildArtifactBridgeBootstrapScript,
@@ -50,6 +54,35 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('margin-inline: auto;');
   });
 
+  it('lets Inline content flow without a document scrollport', () => {
+    const modelSource = '<style>body { overflow: auto !important; }</style><section>Flowing content</section>';
+    const { srcdoc } = buildHtmlArtifactSrcdoc({
+      source: modelSource,
+      channelId: 'inline-flow',
+      surface: 'inline',
+    });
+
+    expect(srcdoc).toContain('overflow-y: hidden !important');
+    expect(srcdoc).toContain('overflow-x: hidden !important');
+    expect(srcdoc).toContain('container-type: inline-size');
+    expect(srcdoc).toContain('name="viewport"');
+    expect(srcdoc.indexOf('data-piwin-artifact-surface-policy')).toBeGreaterThan(
+      srcdoc.indexOf(modelSource),
+    );
+  });
+
+  it('keeps document scrolling inside the Canvas surface', () => {
+    const { srcdoc } = buildHtmlArtifactSrcdoc({
+      source: '<section>Wide workspace</section>',
+      channelId: 'canvas-scroll',
+      surface: 'canvas',
+    });
+
+    expect(srcdoc).toContain('overflow-y: auto !important');
+    expect(srcdoc).toContain('overflow-x: auto !important');
+    expect(srcdoc).not.toContain('container-type: inline-size');
+  });
+
   it('can omit bridge when requested', () => {
     const { srcdoc } = buildHtmlArtifactSrcdoc({
       source: '<div>x</div>',
@@ -57,6 +90,41 @@ describe('buildHtmlArtifactSrcdoc', () => {
       includeBridge: false,
     });
     expect(srcdoc).not.toContain('data-piwin-artifact-bridge-bootstrap');
+  });
+
+  it('adds in-place stream reconciliation only when explicitly enabled', () => {
+    const streaming = buildHtmlArtifactSrcdoc({
+      source: '<div>Hi</div>',
+      channelId: 'stream-channel',
+      enableStreamUpdates: true,
+    });
+    const interactive = buildHtmlArtifactSrcdoc({
+      source: '<div>Hi</div>',
+      channelId: 'interactive-channel',
+    });
+    expect(streaming.srcdoc).toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
+    expect(streaming.srcdoc).toContain('syncChildren(root, template.content)');
+    expect(streaming.srcdoc).toContain('event.source !== parent');
+    expect(interactive.srcdoc).not.toContain(ARTIFACT_BRIDGE_STREAM_UPDATE_TYPE);
+    const script = streaming.srcdoc.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1];
+    expect(script).toBeDefined();
+    expect(() => new Function(script ?? '')).not.toThrow();
+  });
+
+  it('places a no-motion policy after model source', () => {
+    const modelSource =
+      '<style>@keyframes blink { from { opacity: 0 } }</style><div class="blink">Hi</div>';
+    const { srcdoc } = buildHtmlArtifactSrcdoc({
+      source: modelSource,
+      channelId: 'no-motion',
+    });
+    const modelSourceIndex = srcdoc.indexOf(modelSource);
+    const motionPolicyIndex = srcdoc.indexOf('data-piwin-artifact-motion-policy');
+    expect(modelSourceIndex).toBeGreaterThan(-1);
+    expect(motionPolicyIndex).toBeGreaterThan(modelSourceIndex);
+    expect(srcdoc).toContain('animation: none !important');
+    expect(srcdoc).toContain('transition: none !important');
+    expect(srcdoc).toContain('.piwin-artifact-root animateTransform');
   });
 
   it('measures visible box height without counting clipped overflow', () => {
@@ -68,7 +136,7 @@ describe('buildHtmlArtifactSrcdoc', () => {
     expect(srcdoc).toContain('element.offsetHeight');
     expect(srcdoc).toContain('element.scrollHeight');
     expect(srcdoc).toContain('overflowY');
-    expect(srcdoc).toContain('overflow-y: auto !important');
+    expect(srcdoc).toContain('overflow-y: hidden !important');
   });
 
   it('keeps visible overflow content measurable and ignores clipped descendants', () => {

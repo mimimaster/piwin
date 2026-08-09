@@ -10,6 +10,23 @@ describe('tryParseHtmlArtifactFence', () => {
     });
     expect(descriptor?.type).toBe('html');
     expect(descriptor?.title).toBe('Demo');
+    expect(descriptor?.surface).toBe('inline');
+  });
+
+  it('parses an explicit Canvas surface and safely defaults unknown values', () => {
+    const canvas = tryParseHtmlArtifactFence({
+      language: 'artifact-html title="Workspace" surface="canvas"',
+      source: '<main>Workspace</main>',
+      id: 'canvas-1',
+    });
+    const unknown = tryParseHtmlArtifactFence({
+      language: 'artifact-html surface="sideways"',
+      source: '<main>Fallback</main>',
+      id: 'canvas-2',
+    });
+
+    expect(canvas?.surface).toBe('canvas');
+    expect(unknown?.surface).toBe('inline');
   });
 
   it('promotes native html when UI-like and mode on', () => {

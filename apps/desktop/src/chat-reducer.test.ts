@@ -126,7 +126,35 @@ describe('chatUiReducer', () => {
     });
 
     expect(state.workingSessionIds).toEqual({});
+    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
     expect(state.streaming).toBe(false);
+  });
+
+  it('marks completion when a terminal-shaped run update precedes the terminal push', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'complete this' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+
+    state = chatUiReducer(state, {
+      type: 'run/updated',
+      run: makeRun('run-1', {
+        status: 'completed',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'completed',
+      }),
+    });
+    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
+
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'completed',
+      }),
+    });
+    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
   });
 
   it('clears a background working marker when its terminal push arrives after a session switch', () => {
@@ -149,6 +177,28 @@ describe('chatUiReducer', () => {
 
     expect(state.workingSessionIds).toEqual({});
     expect(state.activeSessionId).toBe('s2');
+    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
+  });
+
+  it('clears a completion marker when the user opens that session', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'finish this' });
+    state = chatUiReducer(state, { type: 'run/accepted', runId: 'run-1' });
+    state = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        status: 'completed',
+        endedAt: '2026-07-24T00:00:01.000Z',
+        terminalCode: 'completed',
+      }),
+    });
+    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
+
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's2' });
+    expect(state.completedAttentionSessionIds).toEqual({ s1: true });
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    expect(state.completedAttentionSessionIds).toEqual({});
   });
 
   it('does not treat a live session handle as an active run while restoring history', () => {
@@ -969,6 +1019,70 @@ describe('chatUiReducer', () => {
       },
     });
     expect(state.contextUsage?.totalTokens).toBe(42);
+  });
+
+  it('does not let a host estimate replace measured context usage', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'usage/update',
+        sessionId: 's1',
+        usage: {
+          sessionId: 's1',
+          totalTokens: 300_726,
+          cacheReadTokens: 294_656,
+          updatedAt: '2026-08-09T09:47:07.479Z',
+          source: 'assistant-usage',
+        },
+      },
+    });
+    const measuredState = state;
+
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'usage/update',
+        sessionId: 's1',
+        usage: {
+          sessionId: 's1',
+          totalTokens: 409,
+          updatedAt: '2026-08-09T09:47:07.485Z',
+          source: 'host-estimate',
+        },
+      },
+    });
+
+    expect(state).toBe(measuredState);
+    expect(state.contextUsage?.totalTokens).toBe(300_726);
+  });
+
+  it('hydrates context usage with resumed messages and clears it when switching sessions', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 's1',
+      messages: [],
+      contextUsage: {
+        sessionId: 's1',
+        totalTokens: 505_510,
+        cacheReadTokens: 503_680,
+        updatedAt: '2026-08-09T11:24:22.004Z',
+        source: 'assistant-usage',
+      },
+    });
+    expect(state.contextUsage?.totalTokens).toBe(505_510);
+
+    state = chatUiReducer(state, {
+      type: 'session/set',
+      sessionId: 's2',
+      awaitTranscript: true,
+    });
+    expect(state.contextUsage).toBeNull();
   });
 
   it('ignores stream and usage events from an inactive session', () => {
@@ -2190,6 +2304,32 @@ describe('chatUiReducer subagent hydration', () => {
     expect(state.messages).toHaveLength(0);
     expect(state.streaming).toBe(false);
     expect(state.runPhase).toBe('idle');
+  });
+
+  it('places steer text in the chain without replacing the active run', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    state = chatUiReducer(state, { type: 'user/send', text: 'Initial prompt' });
+    state = chatUiReducer(state, {
+      type: 'run/accepted',
+      runId: 'run-1',
+      acceptedAt: '2026-08-09T00:00:00.000Z',
+    });
+
+    state = chatUiReducer(state, {
+      type: 'user/steer',
+      text: 'Use the smaller fix',
+      clientMessageId: 'steer-client-1',
+    });
+
+    expect(state.messages.at(-1)).toMatchObject({
+      id: 'steer-client-1',
+      role: 'user',
+      text: 'Use the smaller fix',
+    });
+    expect(state.activeRunId).toBe('run-1');
+    expect(state.runPhase).toBe('streaming');
+    expect(state.streaming).toBe(true);
   });
 
   it('preserves paint-first optimistic draft bubbles when session/set activates a new session', () => {

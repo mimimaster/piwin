@@ -6,6 +6,9 @@ body,
   margin: 0;
   overflow: hidden;
   background: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 body {

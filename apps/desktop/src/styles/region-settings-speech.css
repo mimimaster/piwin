@@ -1,0 +1,204 @@
+/* Region: settings → models capability defaults (ASR/TTS). */
+
+.speech-defaults {
+  gap: 0;
+  margin-top: var(--space-8, 32px);
+  padding-top: var(--space-8, 32px);
+  border-top: 1px solid var(--line-soft);
+}
+
+.speech-defaults-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3, 12px);
+}
+
+.speech-default-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  padding: var(--space-4, 16px);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-surface, 12px);
+  background: var(--surface-raised, var(--panel));
+}
+
+.speech-default-card--reserved {
+  background: var(--surface-inset);
+}
+
+.speech-default-card-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3, 12px);
+  min-width: 0;
+}
+
+.speech-default-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.speech-default-icon--output {
+  color: var(--content-secondary, var(--muted));
+  background: var(--surface-hover);
+}
+
+.speech-default-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.speech-default-card-heading-copy {
+  min-width: 0;
+}
+
+.speech-default-card-kicker {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--content-muted, var(--muted));
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+}
+
+.speech-default-card-heading h3 {
+  margin: 0;
+  color: var(--content-primary, var(--text));
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.speech-default-card-heading p {
+  margin: 4px 0 0;
+  color: var(--content-secondary, var(--muted));
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.speech-default-card-heading .ui-status-badge {
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.speech-default-card-body {
+  min-width: 0;
+  margin-top: var(--space-4, 16px);
+  padding-top: var(--space-3, 12px);
+  border-top: 1px solid var(--line-soft);
+}
+
+.speech-default-card-body .ui-notice {
+  align-items: center;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-control, 8px);
+}
+
+.speech-default-card-body .ui-notice-message {
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.speech-default-card-body .ui-notice-action {
+  flex: 0 0 auto;
+}
+
+.speech-default-configured {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 12px);
+  min-height: 40px;
+}
+
+.speech-default-model {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.speech-default-model strong,
+.speech-default-model span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.speech-default-model strong {
+  color: var(--content-primary, var(--text));
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.speech-default-model span {
+  color: var(--content-muted, var(--muted));
+  font-family: var(--mono);
+  font-size: 10.5px;
+}
+
+.speech-default-card-body--reserved {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+.speech-default-reserved-label {
+  color: var(--content-secondary, var(--muted));
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.model-management {
+  margin: 0;
+}
+
+.model-management-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.model-management-tab-content {
+  position: relative;
+  padding-top: 4px;
+}
+
+@media (max-width: 760px) {
+  .speech-defaults-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .speech-default-card-heading {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .speech-default-card-heading .ui-status-badge {
+    grid-column: 2;
+    margin-top: 0;
+  }
+
+  .speech-default-configured {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .speech-default-configured .settings-section-actions {
+    justify-content: flex-start;
+  }
+}

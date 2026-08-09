@@ -23,6 +23,8 @@ export type PetSpriteProps = {
   onOpenSettings?: () => void;
   /** Called when the user right-clicks the pet — used to toggle system overlay. */
   onToggleOverlay?: () => void;
+  /** Called by the hover control to hide the system overlay. */
+  onHide?: () => void;
   /** Hide the sprite entirely. */
   hidden?: boolean;
   /** Overlay mode: center in window instead of fixed bottom-right (system overlay). */
@@ -274,6 +276,15 @@ export function PetSprite(props: PetSpriteProps) {
     e.preventDefault();
     props.onToggleOverlay?.();
   }
+  function onHidePointerDown(e: React.PointerEvent<HTMLButtonElement>): void {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  function onHideClick(e: React.MouseEvent<HTMLButtonElement>): void {
+    e.preventDefault();
+    e.stopPropagation();
+    props.onHide?.();
+  }
 
   const displaySize = useMemo(
     () => resolvePetDisplaySize(props.pet.cellWidth, props.pet.cellHeight),
@@ -305,6 +316,21 @@ export function PetSprite(props: PetSpriteProps) {
     >
       <PetBubble pet={props.pet} locale={props.locale ?? 'zh-CN'} />
       <canvas ref={canvasRef} />
+      {props.onHide ? (
+        <button
+          type="button"
+          className="pet-sprite-hide-button"
+          data-pet-overlay-control="hide"
+          aria-label={props.locale === 'en' ? 'Hide pet' : '隐藏宠物'}
+          title={props.locale === 'en' ? 'Hide pet' : '隐藏宠物'}
+          onPointerDown={onHidePointerDown}
+          onClick={onHideClick}
+        >
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 20 20">
+            <path d="M5.5 5.5 14.5 14.5M14.5 5.5 5.5 14.5" />
+          </svg>
+        </button>
+      ) : null}
     </div>
   );
 }

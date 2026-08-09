@@ -9,7 +9,7 @@ import {
   NATIVE_SVG_ARTIFACT_LANGUAGES,
 } from './constants.js';
 import { normalizeHtmlDocumentToArtifactFragment } from './html-document-fragment.js';
-import type { ArtifactDescriptor } from './types.js';
+import type { ArtifactDescriptor, ArtifactSurface } from './types.js';
 
 const ARTIFACT_ALIAS_SET = new Set<string>(ARTIFACT_LANGUAGE_ALIASES);
 const AMBIGUOUS_ALIAS_SET = new Set<string>(AMBIGUOUS_ARTIFACT_LANGUAGE_ALIASES);
@@ -22,6 +22,7 @@ const HTML_LIKE_SOURCE_PATTERN =
   /<\s*(?:style|script|div|section|article|main|aside|header|footer|button|input|select|textarea|form|table|ul|ol|li|details|summary|dialog|canvas|svg)\b|--piwin-artifact-/i;
 const SVG_SOURCE_PATTERN =
   /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg\b[\s\S]*(?:<\/svg\s*>|\/>)\s*$/i;
+const SVG_OPEN_SOURCE_PATTERN = /^\s*(?:<\?xml[\s\S]*?\?>\s*)?<svg\b/i;
 const NATIVE_HTML_UI_SOURCE_PATTERN =
   /(?:<!doctype\s+html\b|<\s*html\b|<\s*body\b|<\s*style\b|<\s*iframe\b|<\s*(?:section|main|article|details|summary|form|button|table)\b|<\s*div\b[^>]*(?:class|id)\s*=)/i;
 const FENCE_ATTRIBUTE_PATTERN =
@@ -82,6 +83,11 @@ function parseTitle(rawLanguage: string): string | null {
   );
 }
 
+function parseSurface(rawLanguage: string): ArtifactSurface {
+  const value = parseFenceAttributes(rawLanguage).get('surface')?.toLowerCase();
+  return value === 'canvas' ? 'canvas' : 'inline';
+}
+
 function isArtifactFenceMarker(rawLanguage: string): boolean {
   const alias = getAlias(rawLanguage);
   const attributes = parseFenceAttributes(rawLanguage);
@@ -126,8 +132,11 @@ function isNativeSvgLanguage(rawLanguage: string): boolean {
   return NATIVE_SVG_SET.has(getAlias(rawLanguage));
 }
 
-function isSvgSource(source: string): boolean {
-  return SVG_SOURCE_PATTERN.test(source);
+function isSvgSource(source: string, allowIncompleteSource: boolean): boolean {
+  return (
+    SVG_SOURCE_PATTERN.test(source) ||
+    (allowIncompleteSource && SVG_OPEN_SOURCE_PATTERN.test(source))
+  );
 }
 
 /**
@@ -139,11 +148,13 @@ export function tryParseArtifactFence(input: {
   source: string;
   id: string;
   htmlUiModeEnabled?: boolean;
+  allowIncompleteSource?: boolean;
 }): ArtifactDescriptor | null {
   const htmlUiModeEnabled = input.htmlUiModeEnabled !== false;
   const rawLanguage = stripFenceInfo(input.language);
   const alias = getAlias(rawLanguage);
   const source = input.source;
+  const surface = parseSurface(rawLanguage);
 
   if (isExplicitArtifactAlias(rawLanguage)) {
     return {
@@ -153,7 +164,7 @@ export function tryParseArtifactFence(input: {
       source,
       rawLanguage,
       alias,
-      surface: 'inline',
+      surface,
     };
   }
 
@@ -168,12 +179,12 @@ export function tryParseArtifactFence(input: {
       source,
       rawLanguage,
       alias,
-      surface: 'inline',
+      surface,
     };
   }
 
   if (isNativeSvgLanguage(rawLanguage)) {
-    if (!htmlUiModeEnabled || !isSvgSource(source)) {
+    if (!htmlUiModeEnabled || !isSvgSource(source, input.allowIncompleteSource === true)) {
       return null;
     }
     return {
@@ -183,7 +194,7 @@ export function tryParseArtifactFence(input: {
       source,
       rawLanguage,
       alias,
-      surface: 'inline',
+      surface,
     };
   }
 
@@ -199,7 +210,7 @@ export function tryParseArtifactFence(input: {
       source: normalizeHtmlDocumentToArtifactFragment(source),
       rawLanguage,
       alias,
-      surface: 'inline',
+      surface,
     };
   }
 
@@ -211,6 +222,7 @@ export function tryParseHtmlArtifactFence(input: {
   source: string;
   id: string;
   htmlUiModeEnabled?: boolean;
+  allowIncompleteSource?: boolean;
 }): ArtifactDescriptor | null {
   return tryParseArtifactFence(input);
 }

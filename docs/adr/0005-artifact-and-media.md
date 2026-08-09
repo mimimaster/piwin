@@ -85,3 +85,28 @@ Need Claude-like artifacts and Codex-like image UX without unsafe ad-hoc iframes
 - SVG preview reuses the existing sandbox iframe, strict CSP, external-resource classifier, theme contract, height bridge, and init queue; it is not inserted into the parent chat document.
 - Capability-off and streaming behavior remain source-only.
 - A separate light/native SVG renderer with pan/zoom is still deferred and must not share the heavy Artifact switch implicitly.
+
+## Amendment (2026-08-09): Stable streaming Artifact materialization
+
+This amendment supersedes the source-only streaming clauses in the 2026-07-25,
+2026-07-30, and 2026-07-31 decisions when Artifact preview is enabled.
+
+- HTML/SVG Artifact generation may mount one sandboxed stream-preview iframe
+  after a safe structural snapshot exists. Ordinary code, Mermaid, and
+  capability-off paths remain source-only while streaming.
+- Stream source is sanitized before rendering: scripts and unsafe embeds are
+  removed, unfinished tags are withheld, and an unfinished `<style>` block is
+  not applied.
+- The iframe `srcdoc` is stable for the whole streaming phase. Later snapshots
+  use a channel-scoped parent-to-iframe message and reconcile existing nodes in
+  place; text nodes may grow token-by-token and complete UI nodes append without
+  reloading the document.
+- Completion replaces the stream iframe once with the normal interactive
+  Artifact document. This restores final permitted scripts/actions under the
+  existing sandbox, CSP, and security classifier.
+- Inline Artifact title/status/byte chrome is not permanently visible. Source
+  inspection remains available from an action overlay shown on hover or
+  keyboard focus; activating `Show code` opens the source fully expanded.
+- Model-authored Artifact motion is disabled by a host-owned style placed after
+  model styles: CSS animations/transitions and SVG declarative motion do not
+  run in either streaming or completed inline previews.

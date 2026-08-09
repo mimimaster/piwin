@@ -254,24 +254,6 @@
   border-top: 1px dashed var(--line-soft);
 }
 
-.subagent-stream-cursor {
-  display: inline-block;
-  animation: subagent-cursor-blink 1s step-end infinite;
-  color: var(--accent-2);
-  margin-left: 1px;
-}
-
-@keyframes subagent-cursor-blink {
-  0%,
-  50% {
-    opacity: 1;
-  }
-  51%,
-  100% {
-    opacity: 0;
-  }
-}
-
 /* ── States + jump-to-latest ────────────────────────────────────────── */
 .subagent-inspector-state {
   display: flex;
@@ -364,8 +346,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .subagent-session-live-dot,
-  .subagent-inspector-tool-status.status-running,
-  .subagent-stream-cursor {
+  .subagent-inspector-tool-status.status-running {
     animation: none !important;
   }
 }

@@ -9,6 +9,7 @@ import type {
   SessionToolPolicy,
   SubagentCapability,
   SubagentIsolationMode,
+  ThinkingLevel,
 } from '@piwin/contracts';
 
 /** Protocol version spoken between parent and worker for blueprint frames. */
@@ -66,6 +67,7 @@ export type SerializableProviderRuntime = {
     label?: string;
     input?: Array<'text' | 'image'>;
     reasoning?: boolean;
+    thinkingLevels?: ThinkingLevel[];
     contextWindow?: number;
     maxOutputTokens?: number;
   }>;
@@ -92,7 +94,11 @@ export function projectBlueprintForWorker(
     workingDirectory: snapshot.workingDirectory,
     scope:
       snapshot.trust.kind === 'project'
-        ? { kind: 'project', projectPath: snapshot.trust.projectPath, trusted: snapshot.trust.trusted }
+        ? {
+            kind: 'project',
+            projectPath: snapshot.trust.projectPath,
+            trusted: snapshot.trust.trusted,
+          }
         : { kind: 'general' },
     resourceManifest: snapshot.resourceManifest,
     contextManifest: snapshot.contextManifest,
@@ -133,9 +139,7 @@ export function projectBackendBlueprintForWorker(
           },
         }
       : {}),
-    ...(backendBlueprint.thinkingLevel
-      ? { thinkingLevel: backendBlueprint.thinkingLevel }
-      : {}),
+    ...(backendBlueprint.thinkingLevel ? { thinkingLevel: backendBlueprint.thinkingLevel } : {}),
     ...(backendBlueprint.appendSystemPrompt
       ? { appendSystemPrompt: backendBlueprint.appendSystemPrompt }
       : {}),

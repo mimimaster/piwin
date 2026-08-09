@@ -2,12 +2,11 @@
 
 ## Status
 
-Accepted (2026-08-03)
+Accepted (2026-08-03; amended 2026-08-09)
 
 ## Context
 
-Inline HTML/SVG Artifacts currently render inside the chat column with an
-Expand/Collapse affordance. Some model-generated UIs are
+Inline HTML/SVG Artifacts render inside the chat column. Some model-generated UIs are
 interaction/workspace-like and either overflow the chat width or need to feed
 results back to the Composer. There is no semantic rule for when content
 belongs in a right-side Canvas, and the model has no authoritative statement
@@ -40,22 +39,23 @@ export type ArtifactSurface = 'inline' | 'canvas';
   Canvas.
 - Canvas fences render a compact launcher in the transcript and do not mount
   an inline iframe.
-- Inline fences do not receive a generic "Open in Canvas" action; Expand is
-  their temporary large-view affordance.
+- Inline fences do not receive a generic "Open in Canvas" action.
 - Canvas does not auto-open while a response is streaming. Streaming remains
   source-only under ADR 0005.
 - Completed Canvas launchers open the right panel only after user action.
   Model output must not unexpectedly rearrange the shell.
 
-### 2. Inline is the default and keeps Expand/Collapse
+### 2. Inline is the default and flows with the transcript
 
-Inline remains the default surface. It keeps the current Expand/Collapse
-behavior inside the chat stage: Expand temporarily uses the full chat-stage
-width but never exceeds the chat region or becomes a separate workspace.
+Inline remains the default surface. Its iframe follows the measured component
+height, while the transcript remains the only vertical scroll owner. Inline
+does not create a nested 900px scrollport or require Expand/Collapse chrome.
 
-Large, tall, or wide content alone is **not** a reason to enter Canvas.
-Dimensions never auto-promote; the declared `surface` is the only routing
-input.
+Tall content alone is **not** a reason to enter Canvas. Width is still a
+semantic generation decision rather than a runtime measurement: content that
+can reflow remains Inline; a layout that fundamentally requires horizontal
+scrolling or a wide workspace must declare Canvas. Dimensions never
+auto-promote; the declared `surface` is the only routing input.
 
 ### 3. Canonical routing policy
 
@@ -74,10 +74,10 @@ The following are **not** Canvas criteria by themselves:
 
 - many words;
 - tall content;
-- a wide chart or table;
+- a chart or table that can responsively reflow without horizontal scrolling;
 - tabs, filtering, hover, animation, or a few buttons;
 - visually rich output;
-- content that becomes readable after Inline Expand.
+- content that remains readable in the supported Inline width range.
 
 ### 4. Interactive-prototype boundary
 
@@ -99,14 +99,13 @@ Shell facts the model must design against:
 - Assistant Markdown is capped by `--chat-max`, currently 760 CSS px.
 - The right-panel viewport clamp preserves a 360 px stage budget; after chat
   side padding, the practical Inline content floor is about **320 CSS px**.
-- Inline Expand uses the wider chat stage, but the model must not assume the
-  user will expand it.
-- Existing frame limits remain **900 px normal / 2200 px expanded**.
+- Inline uses the chat-stage width and grows to measured content height.
+- A **16384 px defensive ceiling** limits forged or runaway iframe resize
+  messages; it is a security/resource guard, not a normal layout scrollport.
 
 Model generation requirements (Inline targets **320–760 CSS px**):
 
-- Must work before Expand; treat Inline as an embedded component, not a
-  full-page application.
+- Treat Inline as an embedded component, not a full-page application.
 - Root layout uses `width: 100%`, `max-width: 100%`, and `min-width: 0`;
   never `100vw`, `100vh`, fixed root widths/heights, or page-level scroll
   locks.
@@ -114,22 +113,21 @@ Model generation requirements (Inline targets **320–760 CSS px**):
   to one column at narrow widths.
 - Prefer container queries or natural wrapping over viewport assumptions.
 - Target an initial readable block around **640 px or less** when practical.
-- Long supporting sections use tabs, details, pagination, or local scrolling
-  rather than assuming an indefinitely tall chat card.
-- Wide tables, code, timelines, and canvases use a local overflow wrapper;
-  they must not widen the document root.
+- Long content may continue vertically; do not create nested vertical scroll
+  regions merely to keep the component short.
+- Wide tables, code, timelines, and canvases must responsively wrap/reflow. If
+  preserving their utility requires horizontal scrolling, route the Artifact
+  to Canvas instead.
 
 Runtime guarantees:
 
 - The Inline root becomes a size container (`container-type: inline-size`).
 - Common direct children, media, form controls, grids, and flex descendants
   are prevented from widening the root where safe.
-- Horizontal overflow falls back to iframe-local scrolling instead of
-  widening the transcript or being silently clipped.
-- Content taller than the parent frame limit remains reachable through
-  iframe-local vertical scrolling.
-- Expand/Collapse remains unchanged and continues to remeasure after width
-  changes.
+- Inline html/body overflow is hidden; measured content height is applied to
+  the iframe so the transcript owns vertical scrolling.
+- Inline has no document-level horizontal scrollbar. Canvas retains its own
+  horizontal and vertical scrollport.
 - Size diagnostics never change the declared surface.
 
 ### 6. Canvas is a routing shell, not an Artifact editor
@@ -183,9 +181,8 @@ Rules:
 
 ## Consequences
 
-- Inline UI is generated space-aware, and runtime containment must be
-  maintained so a badly sized block cannot widen the transcript or disappear
-  through silent clipping.
+- Inline UI is generated space-aware and participates in transcript flow;
+  nested iframe scrolling is no longer the fallback for poor sizing.
 - A new narrow action in the Artifact bridge (`composer/propose-text`); it is
   added deliberately and the whitelist discipline of the iframe action
   protocol is preserved — no generic iframe-to-product command bridge.

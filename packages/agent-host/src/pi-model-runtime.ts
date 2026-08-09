@@ -5,6 +5,7 @@ import {
   isModelEnabled,
   modelSupportsCapability,
 } from '@piwin/contracts';
+import { buildThinkingLevelMap, type PiThinkingLevelMap } from './map-thinking-level.js';
 
 export type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai';
 
@@ -14,6 +15,7 @@ export type PiModelRegistration = {
   api: PiProviderApi;
   baseUrl: string;
   reasoning: boolean;
+  thinkingLevelMap?: PiThinkingLevelMap;
   input: Array<'text' | 'image'>;
   cost: {
     input: number;
@@ -65,25 +67,32 @@ export function buildPiProviderRegistration(
     authHeader: Boolean(apiKey || provider.apiKeyEnv?.trim() || provider.apiKeyRef?.trim()),
     models: provider.models
       .filter((model) => isModelEnabled(model) && modelSupportsCapability(model, 'chat'))
-      .map((model) => ({
-        id: model.id,
-        name: model.label?.trim() || model.id,
-        api,
-        baseUrl: provider.baseUrl,
-        // Omit → true: preserve legacy "all models reasoning-capable" registration.
-        reasoning: model.reasoning ?? true,
-        // Omit → ['text']: safe default; do not claim vision without config.
-        input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
-        cost: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-        },
-        contextWindow: model.contextWindow ?? DEFAULT_MODEL_CONTEXT_WINDOW,
-        maxTokens: model.maxOutputTokens ?? DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
-        ...(provider.headers ? { headers: provider.headers } : {}),
-      })),
+      .map((model) => {
+        const thinkingLevelMap =
+          model.reasoning === false
+            ? undefined
+            : buildThinkingLevelMap(model.thinkingLevels, provider.protocol);
+        return {
+          id: model.id,
+          name: model.label?.trim() || model.id,
+          api,
+          baseUrl: provider.baseUrl,
+          // Omit → true: preserve legacy "all models reasoning-capable" registration.
+          reasoning: model.reasoning ?? true,
+          ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+          // Omit → ['text']: safe default; do not claim vision without config.
+          input: model.input ? [...model.input] : (['text'] as Array<'text' | 'image'>),
+          cost: {
+            input: 0,
+            output: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+          },
+          contextWindow: model.contextWindow ?? DEFAULT_MODEL_CONTEXT_WINDOW,
+          maxTokens: model.maxOutputTokens ?? DEFAULT_MODEL_MAX_OUTPUT_TOKENS,
+          ...(provider.headers ? { headers: provider.headers } : {}),
+        };
+      }),
   };
   if (apiKey) {
     registration.apiKey = apiKey;

@@ -11,7 +11,7 @@ use host_bridge::{
     observe_host_process_blocking, HostBridgeState, HostObservability,
 };
 use pet_overlay::{
-    ensure_pet_overlay_window, pet_overlay_hide, pet_overlay_show, pet_overlay_toggle,
+    create_pet_overlay_window, pet_overlay_hide, pet_overlay_show, pet_overlay_toggle,
     raise_main_window, show_main_window,
 };
 use pty_host::{
@@ -177,10 +177,10 @@ pub fn run() {
             if let Some(main_window) = application.get_webview_window("main") {
                 main_window.set_title("\u{200B}")?;
             }
-            // Open the system-level pet overlay on startup so the pet floats on
-            // the desktop (always-on-top, draggable across all apps/workspaces).
-            // Errors are non-fatal: the overlay is cosmetic, not load-bearing.
-            let _ = ensure_pet_overlay_window(application.handle());
+            // Start the cosmetic WebContent entry hidden. Once its transparent
+            // page is ready it restores the user's saved visibility preference.
+            // Errors are non-fatal: the overlay is not load-bearing.
+            let _ = create_pet_overlay_window(application.handle());
             Ok(())
         })
         .on_window_event(|window, event| {

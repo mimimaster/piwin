@@ -16,7 +16,12 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
-import type { ContextUsageSnapshot, HostStatusData, ProjectRecord } from '@piwin/contracts';
+import type {
+  ContextUsageSnapshot,
+  HostStatusData,
+  ProjectRecord,
+  PromptAttachment,
+} from '@piwin/contracts';
 import { IconButton } from '@piwin/ui-kit';
 import {
   ComposerPlusMenu,
@@ -129,6 +134,7 @@ export type ComposerDockProps = {
   onRefreshComposerMenus: () => void;
   onOpenSkillsPanel: () => void;
   onOpenMcpPanel: () => void;
+  onAttachFile: () => void;
   onAttachImage: () => void;
   onPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onDrop: (event: DragEvent<HTMLElement>) => void;
@@ -186,7 +192,6 @@ export type ComposerDockProps = {
   onSteerQueueSendNow?: (messageId: string) => void | Promise<void>;
   onSteerQueueEdit?: (messageId: string, text: string) => void;
   onSteerQueueRemove?: (messageId: string) => void;
-  onToggleMultitasking?: () => void;
 };
 
 function getAgentPlaceholder(
@@ -222,15 +227,21 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
   // Saving chips do not block send — handleSend awaits in-flight saves.
   // Only hard-failed chips need user action (retry or remove).
   const attachmentsBlockingSend = hasFailedAttachment;
+  const canQueueStreamingText =
+    props.composer.trim().length > 0 && props.pendingAttachments.length === 0;
   const selectedModel = props.modelOptions.find(
     (model) => `${model.providerId}::${model.modelId}` === props.selectedModelKey,
   );
-  const hasMediaAttachment = props.pendingAttachments.some(
-    (item) => item.attachment.kind === 'media',
+  const hasImageAttachment = props.pendingAttachments.some(
+    (item) =>
+      item.attachment.kind === 'media' &&
+      (item.attachment.contentKind === 'image' ||
+        (item.attachment.contentKind === undefined &&
+          item.attachment.mimeType.toLowerCase().startsWith('image/'))),
   );
   const selectedModelSupportsImage = selectedModel?.supportsImage === true;
   const showTextOnlyImageWarning =
-    hasMediaAttachment && !selectedModelSupportsImage && props.visionDelegationEnabled !== true;
+    hasImageAttachment && !selectedModelSupportsImage && props.visionDelegationEnabled !== true;
   const thinkingModels = props.modelOptions.map((model) => ({
     key: `${model.providerId}::${model.modelId}`,
     label: model.label,
@@ -498,6 +509,16 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     props.onSteer?.();
   }
 
+  function triggerFollowUp(): void {
+    const trimmed = props.composer.trim();
+    if (trimmed) {
+      setHistoryStack((prev) => [trimmed, ...prev.filter((item) => item !== trimmed)]);
+    }
+    setHistoryIndex(-1);
+    draftBeforeHistoryRef.current = '';
+    props.onFollowUp?.();
+  }
+
   function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     if (isExtensionUiActive) {
       if (event.key === 'Escape') {
@@ -644,7 +665,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       event.preventDefault();
       if (hasContent && !attachmentsBlockingSend) {
         if (isStreamingRun) {
-          triggerSteer();
+          if (canQueueStreamingText) {
+            triggerSteer();
+          }
         } else {
           triggerSend();
         }
@@ -665,7 +688,9 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       event.preventDefault();
       if (hasContent && !attachmentsBlockingSend) {
         if (isStreamingRun) {
-          triggerSteer();
+          if (canQueueStreamingText) {
+            triggerFollowUp();
+          }
         } else {
           triggerSend();
         }
@@ -796,7 +821,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                       className="composer-v2-attachment-status"
                       data-testid="composer-attachment-saving"
                     >
-                      Preparing…
+                      {isGifAttachment(item.attachment) ? 'Preparing first frame…' : 'Preparing…'}
                     </span>
                   ) : null}
                   {item.uploadStatus === 'error' ? (
@@ -805,7 +830,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                         type="button"
                         className="composer-v2-attachment-status is-error is-action"
                         data-testid="composer-attachment-error"
-                        title={item.uploadError ?? 'Failed to save image — click to retry'}
+                        title={item.uploadError ?? 'Failed to save attachment — click to retry'}
                         onClick={() => props.onRetryAttachment?.(item.localId)}
                       >
                         Retry
@@ -814,7 +839,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                       <span
                         className="composer-v2-attachment-status is-error"
                         data-testid="composer-attachment-error"
-                        title={item.uploadError ?? 'Failed to save image'}
+                        title={item.uploadError ?? 'Failed to save attachment'}
                       >
                         Failed
                       </span>
@@ -923,6 +948,8 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               onOpenSkillsPanel={props.onOpenSkillsPanel}
               mcpServers={props.menuMcp}
               onOpenMcpPanel={props.onOpenMcpPanel}
+              onAttachFile={props.onAttachFile}
+              onAttachImage={props.onAttachImage}
             />
           </div>
 
@@ -939,9 +966,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                       : 'Voice input'
                 }
                 disabled={
-                  isStreamingRun ||
-                  !canComposeText ||
-                  speechInput.status === 'transcribing'
+                  isStreamingRun || !canComposeText || speechInput.status === 'transcribing'
                 }
                 onClick={() => speechInput.toggle()}
               >
@@ -1058,12 +1083,12 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
               ) : hasContent ? (
                 <button
                   type="button"
-                  className="composer-v2-send-btn is-steer"
+                  className="composer-v2-send-btn is-queue"
                   data-testid="send-btn"
-                  disabled={!props.onSteer}
-                  onClick={triggerSteer}
-                  aria-label={copy.sendSteerMessage}
-                  title={copy.sendSteerHint}
+                  disabled={!props.onFollowUp || !canQueueStreamingText}
+                  onClick={triggerFollowUp}
+                  aria-label={copy.queueFollowUp}
+                  title={copy.queueFollowUpHint}
                 >
                   <IconSend />
                 </button>
@@ -1114,9 +1139,10 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
 export function ComposerDock(props: ComposerDockProps): ReactElement {
   const isStreamingRun =
     props.streaming || props.runPhase === 'streaming' || props.runPhase === 'aborting';
+  const hasSteerQueue = (props.steerQueueMessages?.length ?? 0) > 0;
   return (
     <footer
-      className={`composer-dock layout-${props.layoutMode}`}
+      className={`composer-dock layout-${props.layoutMode}${hasSteerQueue ? ' has-steer-queue' : ''}`}
       data-testid="composer-dock"
       data-layout={props.layoutMode}
     >
@@ -1155,10 +1181,17 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
           onSendNow={props.onSteerQueueSendNow || (() => {})}
           onEdit={props.onSteerQueueEdit || (() => {})}
           onRemove={props.onSteerQueueRemove || (() => {})}
-          onToggleMultitasking={props.onToggleMultitasking}
         />
       ) : null}
       <ComposerCard {...props} />
     </footer>
+  );
+}
+
+function isGifAttachment(attachment: PromptAttachment): boolean {
+  return (
+    attachment.kind === 'media' &&
+    (attachment.mimeType.toLowerCase() === 'image/gif' ||
+      attachment.name?.toLowerCase().endsWith('.gif') === true)
   );
 }

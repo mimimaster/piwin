@@ -5,8 +5,14 @@ import type {
   PetStoreQueryResult,
   PetSummary,
 } from '@piwin/contracts';
-import { Button, Notice } from '@piwin/ui-kit';
+import { Button, Notice, Switch } from '@piwin/ui-kit';
 import { useDesktopLocale } from './desktop-locale-context';
+import {
+  loadPetOverlayVisibility,
+  subscribePetOverlayVisibility,
+  updatePetOverlayVisibility,
+} from './pet-overlay-visibility.js';
+import { FieldRow } from './settings/field-row';
 import { PageTitle } from './settings/page-title';
 
 export type PetPanelProps = {
@@ -44,6 +50,10 @@ export function PetPanel(props: PetPanelProps) {
   const [info, setInfo] = useState<string | null>(null);
   const [installPath, setInstallPath] = useState('');
   const [busy, setBusy] = useState(false);
+  const [overlayBusy, setOverlayBusy] = useState(false);
+  const [overlayVisible, setOverlayVisible] = useState(() => loadPetOverlayVisibility());
+
+  useEffect(() => subscribePetOverlayVisibility(setOverlayVisible), []);
 
   const reload = useCallback(async () => {
     setError(null);
@@ -75,6 +85,23 @@ export function PetPanel(props: PetPanelProps) {
     props.onActiveChanged(pet);
     setInfo(isChinese ? `当前伙伴：${pet.displayName}` : `Active companion: ${pet.displayName}`);
     await reload();
+  }
+
+  async function handleOverlayVisibility(visible: boolean): Promise<void> {
+    setOverlayBusy(true);
+    setError(null);
+    try {
+      await updatePetOverlayVisibility(visible);
+    } catch (error) {
+      console.error('Failed to update pet overlay visibility', error);
+      setError(
+        isChinese
+          ? '无法更新桌面宠物显示状态。'
+          : 'Could not update the desktop pet visibility.',
+      );
+    } finally {
+      setOverlayBusy(false);
+    }
   }
 
   async function handleInstall(): Promise<void> {
@@ -221,6 +248,26 @@ export function PetPanel(props: PetPanelProps) {
 
         {error ? <Notice tone="error">{error}</Notice> : null}
         {info ? <Notice tone="info">{info}</Notice> : null}
+
+        <div className="settings-section settings-section-card">
+          <FieldRow
+            label={isChinese ? '显示桌面宠物' : 'Show desktop pet'}
+            description={
+              isChinese
+                ? '关闭后宠物会隐藏；可随时回到这里重新显示。'
+                : 'Hide the pet overlay and restore it here at any time.'
+            }
+            testId="pet-overlay-visibility-row"
+          >
+            <Switch
+              checked={overlayVisible}
+              disabled={overlayBusy}
+              onCheckedChange={(visible) => void handleOverlayVisibility(visible)}
+              aria-label={isChinese ? '显示桌面宠物' : 'Show desktop pet'}
+              testId="pet-overlay-visibility-switch"
+            />
+          </FieldRow>
+        </div>
 
         <ul className="ext-list">
           {pets.map((pet) => (

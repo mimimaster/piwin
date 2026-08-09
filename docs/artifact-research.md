@@ -17,17 +17,21 @@
 The artifact security model remains independent from the chat presentation
 phase. In the coding-agent transcript:
 
-- `streaming` renders Markdown source safely; HTML fences remain source-only,
-  Mermaid is not executed, and no Artifact iframe is mounted.
-- `completed` may render normal Markdown and shows Artifact source first. An
-  Artifact iframe is mounted only after the user explicitly chooses `Preview
-  artifact`.
+- `streaming` keeps ordinary code and Mermaid source-only. When Artifact preview
+  is enabled, HTML/SVG may materialize in one sandboxed iframe from sanitized
+  structural snapshots. The iframe document remains mounted; later snapshots
+  reconcile DOM/text nodes in place rather than replacing `srcdoc`.
+- `completed` may render normal Markdown and the final interactive Artifact
+  according to the Desktop preview preference. Source inspection remains an
+  explicit action and never appears beside the rendered UI.
 - `explicit-artifact-review` is the same source-first policy with an explicit
   review intent; it does not bypass the security classifier or CSP.
 - Thinking, tool output, permission waits, and process activity belong in the
   run timeline/cards rather than becoming HTML artifacts.
 
 Copy actions always copy raw model source, never an iframe `srcdoc` wrapper.
+The stream-update payload is also sanitized preview source, never raw model
+source, and is accepted only from the parent for the matching channel id.
 
 Path: `src/lib/components/chat/Messages/Artifacts/`
 
@@ -54,7 +58,7 @@ From `artifactTypes.ts`:
 - Aliases: `artifact-html`, `artifact_html`, `ui-html`, `ui_html`, `html-artifact`
 - Native languages: `html`, `htm`
 - `MAX_ARTIFACT_BYTES = 100 * 1024`
-- Height: min 160, initial 260, max collapsed 900, max expanded 2200
+- Height: Inline follows measured content and the transcript owns vertical scrolling; a 16384px defensive ceiling rejects runaway iframe height requests. Canvas owns its internal scrollport.
 - `ARTIFACT_READY_TIMEOUT_MS = 5000`
 - `MAX_CONCURRENT_ARTIFACT_INITS = 1` (history)
 

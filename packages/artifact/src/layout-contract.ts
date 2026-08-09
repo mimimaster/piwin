@@ -4,7 +4,7 @@
  * Root cause being addressed: a wrapper with `height: 100vh` (or a min-height
  * viewport unit) creates a positive-feedback loop with the height bridge — the
  * iframe grows, 100vh grows with it, the bridge measures taller, the iframe
- * grows again, until it clamps at MAX_ARTIFACT_IFRAME_HEIGHT. The rendered UI
+ * grows again, until it reaches the defensive Inline flow ceiling. The rendered UI
  * stays small while the iframe is far taller, leaving a large blank area.
  *
  * Unlike the theme contract (which repairs color literals), this repairs the

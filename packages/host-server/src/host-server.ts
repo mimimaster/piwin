@@ -24,6 +24,7 @@ import {
   SESSION_TRANSCRIPT_PAGE_MAX_BYTES,
   SESSION_TRANSCRIPT_PAGE_MAX_ITEMS,
   SESSION_TRANSCRIPT_PAGE_MIN_BYTES,
+  isSupportedAttachmentMimeType,
 } from '@piwin/contracts';
 import type { HostRuntime } from '@piwin/host-runtime';
 import { WebSocket, WebSocketServer } from 'ws';
@@ -726,12 +727,18 @@ function isSafeRemoteCommand(command: HostCommand): boolean {
         command.input.text.length <= 512_000
       );
     case 'session/steer':
+      return (
+        command.message.length <= 512_000 &&
+        (command.clientMessageId === undefined || command.clientMessageId.length <= 256)
+      );
     case 'session/follow_up':
       return command.message.length <= 512_000;
     case 'media/save':
       return (
-        command.input.source === 'file-picker' &&
-        command.input.mimeType.startsWith('image/') &&
+        (command.input.source === 'file-picker' ||
+          command.input.source === 'drop' ||
+          command.input.source === 'paste') &&
+        isSupportedAttachmentMimeType(command.input.mimeType) &&
         command.input.base64Data.length > 0 &&
         command.input.base64Data.length <= MAX_REMOTE_MEDIA_BASE64_CHARS
       );

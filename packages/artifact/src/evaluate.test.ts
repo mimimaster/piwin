@@ -18,6 +18,21 @@ describe('evaluateCodeFence', () => {
     }
   });
 
+  it('builds surface-specific overflow policy for an explicit Canvas fence', () => {
+    const decision = evaluateCodeFence({
+      language: 'artifact-html title="Workspace" surface="canvas"',
+      source: '<main>Wide workspace</main>',
+      id: 'canvas-workspace',
+    });
+
+    expect(decision.kind).toBe('render');
+    if (decision.kind === 'render') {
+      expect(decision.descriptor.surface).toBe('canvas');
+      expect(decision.srcdoc).toContain('overflow-x: auto !important');
+      expect(decision.srcdoc).toContain('overflow-y: auto !important');
+    }
+  });
+
   it('soft-repairs hard-coded light surfaces', () => {
     const decision = evaluateCodeFence({
       language: 'artifact-html',
@@ -45,8 +60,25 @@ describe('evaluateCodeFence', () => {
     if (decision.kind === 'render') {
       expect(decision.mode).toBe('stream-preview');
       expect(decision.srcdoc).not.toContain('<script');
+      expect(decision.streamSource).toBe('<div><p>Hi</p></div>');
+      expect(decision.srcdoc).toContain('piwin-artifact:stream-update');
     } else {
       expect(['preparing', 'blocked', 'code']).toContain(decision.kind);
+    }
+  });
+
+  it('renders an incomplete SVG as a safe stream snapshot', () => {
+    const decision = evaluateCodeFence({
+      language: 'svg',
+      source: '<svg viewBox="0 0 80 20"><text x="2" y="14">Lo',
+      id: 'svg-stream',
+      mode: 'stream-preview',
+      htmlUiModeEnabled: true,
+    });
+    expect(decision.kind).toBe('render');
+    if (decision.kind === 'render') {
+      expect(decision.mode).toBe('stream-preview');
+      expect(decision.streamSource).toContain('Lo</text></svg>');
     }
   });
 

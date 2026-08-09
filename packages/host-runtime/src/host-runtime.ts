@@ -35,9 +35,20 @@ import {
   AgentWorkerSupervisor,
   WorkerTaskRunner,
 } from '@piwin/agent-host';
-import { formatError, isRunTerminal, LEGACY_LOCAL_SINK_ID } from '@piwin/contracts';
+import {
+  contentKindForMimeType,
+  formatError,
+  isRunTerminal,
+  LEGACY_LOCAL_SINK_ID,
+  shouldAcceptContextUsage,
+} from '@piwin/contracts';
 import { formatTextModelWebElementInjection } from '@piwin/contracts';
-import { assertInsideMediaRoot, createMediaService } from '@piwin/media';
+import {
+  assertInsideMediaRoot,
+  createMediaService,
+  extractAttachmentText,
+  formatAttachmentTextInjection,
+} from '@piwin/media';
 import {
   formatVisionDescriptionInjection,
   pathInjectMediaAttachment,
@@ -140,6 +151,7 @@ import {
   exportTranscript,
   suggestSessionExportBasename,
   appendUsageRecord,
+  readLatestSessionContextUsage,
   createSubagentRunStore,
 } from '@piwin/session';
 import type {
@@ -1217,15 +1229,35 @@ export class HostRuntime {
     }
 
     const { media, other } = splitAttachments(safeAttachments);
+    const imageMedia: MediaAttachmentRef[] = [];
+    const extractedTextInjections: string[] = [];
+    for (const mediaAttachment of media) {
+      if (isTextualAttachment(mediaAttachment)) {
+        if (signal?.aborted) {
+          throw new Error('prompt preparation aborted');
+        }
+        const extracted = await extractAttachmentText(
+          mediaAttachment.path,
+          mediaAttachment.mimeType,
+          mediaAttachment.name !== undefined ? { name: mediaAttachment.name } : undefined,
+        );
+        extractedTextInjections.push(formatAttachmentTextInjection(extracted));
+      } else {
+        imageMedia.push(mediaAttachment);
+      }
+    }
     const config = await loadPiwinConfig(this.options.piwinRoot);
     const primaryInput = resolvePrimaryModelInput(input, config);
     const supportsImage = primaryModelSupportsImage(primaryInput);
+    const textInjections = [input.text, ...webInjections, ...extractedTextInjections].filter(
+      Boolean,
+    );
 
-    if (media.length === 0) {
+    if (imageMedia.length === 0) {
       return {
         ...input,
-        text: [input.text, ...webInjections].filter(Boolean).join('\n\n'),
-        attachments: safeAttachments,
+        text: textInjections.join('\n\n'),
+        ...(other.length > 0 ? { attachments: other } : {}),
       };
     }
 
@@ -1236,12 +1268,12 @@ export class HostRuntime {
       this.push({
         type: 'host/log',
         level: 'info',
-        message: `Sending ${media.length} image(s) as native vision content to the primary model`,
+        message: `Sending ${imageMedia.length} image(s) as native vision content to the primary model`,
       });
       return {
         ...input,
-        text: [input.text, ...webInjections].filter(Boolean).join('\n\n'),
-        attachments: safeAttachments,
+        text: textInjections.join('\n\n'),
+        attachments: [...other, ...imageMedia],
       };
     }
 
@@ -1250,7 +1282,7 @@ export class HostRuntime {
     const delegate =
       shouldDelegateVision({
         primaryModelInput: primaryInput,
-        hasMediaAttachments: true,
+        hasMediaAttachments: imageMedia.length > 0,
         config: config.visionDelegation,
       }) && config.visionDelegation?.model
         ? config.visionDelegation
@@ -1280,7 +1312,7 @@ export class HostRuntime {
         if (apiKey) {
           const systemPrompt =
             delegate.systemPrompt?.trim() || DEFAULT_VISION_DELEGATION_SYSTEM_PROMPT;
-          for (const mediaAttachment of media) {
+          for (const mediaAttachment of imageMedia) {
             if (signal?.aborted) {
               throw new Error('prompt preparation aborted');
             }
@@ -1341,7 +1373,7 @@ export class HostRuntime {
           // Strip media so adapter does not load ImageContent for text-only primary.
           return stripMediaAttachments(
             input,
-            [input.text, ...webInjections, ...mediaInjections].filter(Boolean).join('\n\n'),
+            [...textInjections, ...mediaInjections].filter(Boolean).join('\n\n'),
             other,
           );
         }
@@ -1355,12 +1387,12 @@ export class HostRuntime {
       message:
         'Primary model is text-only (or vision input is unset). Images will be path-injected — the model cannot see pixels. Switch to a vision model or enable vision delegation.',
     });
-    for (const mediaAttachment of media) {
+    for (const mediaAttachment of imageMedia) {
       mediaInjections.push(pathInjectMediaAttachment(mediaAttachment));
     }
     return stripMediaAttachments(
       input,
-      [input.text, ...webInjections, ...mediaInjections].filter(Boolean).join('\n\n'),
+      [...textInjections, ...mediaInjections].filter(Boolean).join('\n\n'),
       other,
     );
   }
@@ -2649,6 +2681,7 @@ export class HostRuntime {
       sessionLastPromptText: this.sessionLastPromptText,
       sideChatSnapshotInjectedVersions: this.sideChatSnapshotInjectedVersions,
       sessionModels: this.sessionModels,
+      loadSessionUsage: (sessionId) => this.loadSessionUsage(sessionId),
       sessionAutoCompactionOverrides: this.sessionAutoCompactionOverrides,
       unsubscribers: this.unsubscribers,
       transcriptRecorders: this.transcriptRecorders,
@@ -3220,6 +3253,10 @@ export class HostRuntime {
         });
       }
       if (event.type === 'usage/update') {
+        const currentUsage = this.sessionUsage.get(session.id);
+        if (!shouldAcceptContextUsage(currentUsage, event.usage)) {
+          return;
+        }
         this.sessionUsage.set(session.id, event.usage);
         // CE-OBS: only agent_end (assistant-usage) is a billable per-turn
         // count. pi-contextUsage is cumulative context occupancy — never sum.
@@ -3573,8 +3610,27 @@ export class HostRuntime {
     }
   }
 
+  private async loadSessionUsage(sessionId: string): Promise<ContextUsageSnapshot | null> {
+    const cached = this.sessionUsage.get(sessionId);
+    if (cached) {
+      return cached;
+    }
+    const rootDir = getPiwinRoot(this.options.piwinRoot);
+    const restored = await readLatestSessionContextUsage(
+      getPiwinUsageLedgerPath(rootDir),
+      sessionId,
+    );
+    if (restored) {
+      this.sessionUsage.set(sessionId, restored);
+    }
+    return restored;
+  }
+
   private async maybeEmitUsageOnMessageEnd(sessionId: string, messageId: string): Promise<void> {
     const existing = this.sessionUsage.get(sessionId);
+    if (existing && existing.source !== 'host-estimate') {
+      return;
+    }
     if (existing && existing.updatedAt) {
       const ageMs = Date.now() - Date.parse(existing.updatedAt);
       if (Number.isFinite(ageMs) && ageMs < 2000) {
@@ -3589,6 +3645,10 @@ export class HostRuntime {
       }
       const promptText = this.sessionLastPromptText.get(sessionId) ?? '';
       const usage = estimateMockUsage(sessionId, promptText, message.text);
+      const currentUsage = this.sessionUsage.get(sessionId);
+      if (!shouldAcceptContextUsage(currentUsage, usage)) {
+        return;
+      }
       this.sessionUsage.set(sessionId, usage);
       void this.recordUsageToLedger(sessionId, usage);
       this.push({
@@ -4061,6 +4121,12 @@ function validateMediaAttachment(
     byteSize: attachment.byteSize,
     source: attachment.source,
   };
+  if (attachment.name !== undefined) {
+    safeAttachment.name = attachment.name;
+  }
+  if (attachment.contentKind !== undefined) {
+    safeAttachment.contentKind = attachment.contentKind;
+  }
   if (attachment.width !== undefined) {
     safeAttachment.width = attachment.width;
   }
@@ -4068,6 +4134,11 @@ function validateMediaAttachment(
     safeAttachment.height = attachment.height;
   }
   return safeAttachment;
+}
+
+function isTextualAttachment(attachment: MediaAttachmentRef): boolean {
+  const contentKind = attachment.contentKind ?? contentKindForMimeType(attachment.mimeType);
+  return contentKind === 'text' || contentKind === 'document';
 }
 
 function applySubagentLineage(

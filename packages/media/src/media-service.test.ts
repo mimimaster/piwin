@@ -1,8 +1,10 @@
-import { mkdtemp, readFile, readdir, symlink } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { assertInsideMediaRoot, saveMediaAsset } from './media-service.js';
+import { UnsafeAttachmentError } from './attachment-policy.js';
+import { extractAttachmentText, formatAttachmentTextInjection } from './document-extractor.js';
 
 describe('media-service', () => {
   it('saves png under session dir', async () => {
@@ -77,4 +79,89 @@ describe('media-service', () => {
       ),
     ).rejects.toThrow(/not allowed/);
   });
+
+  it('saves text attachments with their display name and content kind', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-media-text-'));
+    const asset = await saveMediaAsset(
+      {
+        mediaRoot,
+        maxPasteBytes: 1024,
+        allowedMimeTypes: ['text/*'],
+      },
+      {
+        sessionId: 'sess-1',
+        bytes: new TextEncoder().encode('const answer = 42;'),
+        mimeType: 'text/x-typescript',
+        name: 'answer.ts',
+        source: 'file-picker',
+      },
+    );
+    expect(asset.name).toBe('answer.ts');
+    expect(asset.contentKind).toBe('text');
+    expect(asset.absolutePath.endsWith('.ts')).toBe(true);
+  });
+
+  it('blocks obvious credential attachments before writing them', async () => {
+    const mediaRoot = await mkdtemp(join(tmpdir(), 'piwin-media-secret-'));
+    await expect(
+      saveMediaAsset(
+        {
+          mediaRoot,
+          maxPasteBytes: 1024,
+          allowedMimeTypes: ['text/*'],
+        },
+        {
+          sessionId: 'sess-1',
+          bytes: new TextEncoder().encode('AWS_ACCESS_KEY_ID=AKIA1234567890ABCDEF'),
+          mimeType: 'text/plain',
+          name: '.env',
+          source: 'file-picker',
+        },
+      ),
+    ).rejects.toBeInstanceOf(UnsafeAttachmentError);
+  });
+
+  it('extracts bounded text and PDF page text for prompt preparation', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-media-extract-'));
+    try {
+      const textPath = join(rootDir, 'notes.md');
+      await writeFile(textPath, '# Notes\n\nKeep this bounded.', 'utf8');
+      const text = await extractAttachmentText(textPath, 'text/markdown');
+      expect(text.text).toContain('Keep this bounded.');
+      expect(formatAttachmentTextInjection(text)).toContain('[attached file: notes.md]');
+
+      const pdfPath = join(rootDir, 'report.pdf');
+      await writeFile(pdfPath, createSinglePagePdf('Hello PDF'));
+      const pdf = await extractAttachmentText(pdfPath, 'application/pdf');
+      expect(pdf.pageCount).toBe(1);
+      expect(pdf.text).toContain('Hello PDF');
+    } finally {
+      await rm(rootDir, { recursive: true, force: true });
+    }
+  });
 });
+
+function createSinglePagePdf(text: string): Uint8Array {
+  const newline = String.fromCharCode(10);
+  const content = `BT /F1 18 Tf 72 200 Td (${text}) Tj ET`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${Buffer.byteLength(content)} >>${newline}stream${newline}${content}${newline}endstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = `%PDF-1.4${newline}`;
+  const offsets = [0];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(Buffer.byteLength(pdf));
+    pdf += `${index + 1} 0 obj${newline}${objects[index]}${newline}endobj${newline}`;
+  }
+  const xrefOffset = Buffer.byteLength(pdf);
+  pdf += `xref${newline}0 ${objects.length + 1}${newline}0000000000 65535 f ${newline}`;
+  for (let index = 1; index < offsets.length; index += 1) {
+    pdf += `${String(offsets[index]).padStart(10, '0')} 00000 n ${newline}`;
+  }
+  pdf += `trailer${newline}<< /Size ${objects.length + 1} /Root 1 0 R >>${newline}startxref${newline}${xrefOffset}${newline}%%EOF${newline}`;
+  return new TextEncoder().encode(pdf);
+}

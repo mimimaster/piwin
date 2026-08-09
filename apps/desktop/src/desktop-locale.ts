@@ -50,6 +50,7 @@ export type DesktopCopy = {
     archived: string;
     working: string;
     backendServiceActive: string;
+    completed: string;
     pinSession: string;
     unpinSession: string;
     restoreSession: string;
@@ -107,6 +108,17 @@ export type DesktopCopy = {
     sendShortcut: string;
     sendSteerMessage: string;
     sendSteerHint: string;
+    queueFollowUp: string;
+    queueFollowUpHint: string;
+    queuedMessagesLabel: string;
+    queuedTitle: string;
+    queuedCount: (count: number) => string;
+    queuedHint: string;
+    editQueuedMessage: string;
+    saveQueuedMessage: string;
+    cancelQueuedEdit: string;
+    steerQueuedMessage: string;
+    removeQueuedMessage: string;
     stop: string;
     stopping: string;
     hostConnecting: string;
@@ -473,6 +485,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       archived: '已归档',
       working: '会话正在工作',
       backendServiceActive: '后台服务运行中',
+      completed: '会话已完成',
       pinSession: '置顶会话',
       unpinSession: '取消置顶',
       restoreSession: '恢复会话',
@@ -528,8 +541,19 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       model: '模型',
       send: '发送',
       sendShortcut: '发送 (Enter)',
-      sendSteerMessage: '发送 Steer 消息',
-      sendSteerHint: '发送（进入队列 / Steer）',
+      sendSteerMessage: '立即介入当前回复',
+      sendSteerHint: '立即介入当前回复 (⌘↵)',
+      queueFollowUp: '加入后续队列',
+      queueFollowUpHint: '加入后续队列 (Enter) · 立即介入 (⌘↵)',
+      queuedMessagesLabel: '后续消息队列',
+      queuedTitle: '接下来',
+      queuedCount: (count) => `${count} 条等待中`,
+      queuedHint: '当前回复结束后依次发送 · ⌘↵ 立即介入',
+      editQueuedMessage: '编辑后续消息',
+      saveQueuedMessage: '保存修改',
+      cancelQueuedEdit: '取消编辑',
+      steerQueuedMessage: '立即介入当前回复',
+      removeQueuedMessage: '移除后续消息',
       stop: '停止',
       stopping: '正在停止…',
       hostConnecting: 'Host：正在连接…',
@@ -665,6 +689,7 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       archived: 'Archived',
       working: 'Session is working',
       backendServiceActive: 'Backend service is active',
+      completed: 'Session completed',
       pinSession: 'Pin session',
       unpinSession: 'Unpin session',
       restoreSession: 'Restore session',
@@ -721,8 +746,19 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       model: 'Model',
       send: 'Send',
       sendShortcut: 'Send (Enter)',
-      sendSteerMessage: 'Send steer message',
-      sendSteerHint: 'Send (queue / Steer)',
+      sendSteerMessage: 'Steer current response',
+      sendSteerHint: 'Steer current response (⌘↵)',
+      queueFollowUp: 'Queue follow-up',
+      queueFollowUpHint: 'Queue follow-up (Enter) · Steer now (⌘↵)',
+      queuedMessagesLabel: 'Queued follow-up messages',
+      queuedTitle: 'Up next',
+      queuedCount: (count) => `${count} waiting`,
+      queuedHint: 'Sent in order after this response · ⌘↵ to steer now',
+      editQueuedMessage: 'Edit queued message',
+      saveQueuedMessage: 'Save queued message',
+      cancelQueuedEdit: 'Cancel queued message edit',
+      steerQueuedMessage: 'Steer current response now',
+      removeQueuedMessage: 'Remove queued message',
       stop: 'Stop',
       stopping: 'Stopping…',
       hostConnecting: 'Host: Connecting…',
