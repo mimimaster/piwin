@@ -250,9 +250,7 @@ test.describe('visual regression baselines', () => {
     await expect(page).toHaveScreenshot('primitive-portal-light-1280.png', snapshotOptions);
   });
 
-  test('settings appearance light @1280', async ({ page }) => {
-    // Real product wiring: the gallery must not be the only proof of the
-    // Settings -> Appearance -> DesktopThemeRoot path.
+  test('settings appearance has no theme manager @1280', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 840 });
     await page.goto('/');
     await waitForHostReady(page);
@@ -260,19 +258,7 @@ test.describe('visual regression baselines', () => {
     await expect(page.getByTestId('settings-panel')).toBeVisible();
     await page.getByTestId('settings-nav-appearance').click();
 
-    const applyLight = page.getByTestId('theme-apply-piwin-light');
-    await expect(applyLight).toBeEnabled();
-    await applyLight.click();
-
-    await expect(page.locator('html')).toHaveAttribute('data-theme-id', 'piwin-light');
-    await expect(page.locator('html')).toHaveAttribute('data-theme-mode', 'light');
-    // Settle: panel confirms the active theme before capture.
-    await expect(page.getByTestId('settings-panel')).toContainText(/Piwin Light/);
-    await expect(page.getByTestId('theme-apply-piwin-light')).toBeDisabled();
-
-    await expect(page.getByTestId('settings-panel')).toHaveScreenshot(
-      'settings-appearance-light-1280.png',
-      snapshotOptions,
-    );
+    await expect(page.getByTestId('theme-list')).toHaveCount(0);
+    await expect(page.getByTestId('theme-install-section')).toHaveCount(0);
   });
 });

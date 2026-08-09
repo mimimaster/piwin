@@ -1,0 +1,109 @@
+import type { ChatMessageUi } from './chat-reducer';
+
+export const MAX_TRANSCRIPT_CACHE_MESSAGES = 160;
+export const MAX_TRANSCRIPT_CACHE_BYTES = 2 * 1024 * 1024;
+
+export type TranscriptPageCacheMerge = {
+  messages: ChatMessageUi[];
+  retainedBytes: number;
+  acceptedOlderCount: number;
+  cacheLimitReached: boolean;
+};
+
+export type BoundedTranscriptWindow = {
+  messages: ChatMessageUi[];
+  retainedBytes: number;
+  droppedCount: number;
+  cacheLimitReached: boolean;
+};
+
+/**
+ * Keep the newest messages that fit while always retaining explicitly
+ * protected tail/live messages. This is used for live appends as well as page
+ * hydration so a long-running renderer cannot grow only because it never
+ * reconnects.
+ */
+export function retainBoundedTranscriptWindow(
+  messages: readonly ChatMessageUi[],
+  protectedMessageIds: ReadonlySet<string> = new Set(),
+): BoundedTranscriptWindow {
+  const retainedIndexes = new Set<number>();
+  let retainedCount = 0;
+  let retainedBytes = 2;
+
+  for (let index = 0; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (message === undefined || !protectedMessageIds.has(message.id)) continue;
+    const messageBytes = measureTranscriptMessageBytes(message);
+    retainedIndexes.add(index);
+    retainedBytes += messageBytes + (retainedCount === 0 ? 0 : 1);
+    retainedCount += 1;
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (retainedIndexes.has(index)) continue;
+    const message = messages[index];
+    if (message === undefined) continue;
+    const messageBytes = measureTranscriptMessageBytes(message);
+    if (
+      retainedCount + 1 > MAX_TRANSCRIPT_CACHE_MESSAGES ||
+      retainedBytes + messageBytes + (retainedCount === 0 ? 0 : 1) > MAX_TRANSCRIPT_CACHE_BYTES
+    ) {
+      continue;
+    }
+    retainedIndexes.add(index);
+    retainedBytes += messageBytes + (retainedCount === 0 ? 0 : 1);
+    retainedCount += 1;
+  }
+
+  const retainedMessages = messages.filter((_message, index) => retainedIndexes.has(index));
+  return {
+    messages: retainedMessages,
+    retainedBytes,
+    droppedCount: messages.length - retainedMessages.length,
+    cacheLimitReached: retainedMessages.length < messages.length,
+  };
+}
+
+/**
+ * Prepend the newest suffix of an older page that fits. Existing messages are
+ * the active tail and are never evicted by history navigation.
+ */
+export function prependBoundedTranscriptPage(
+  currentMessages: readonly ChatMessageUi[],
+  olderMessages: readonly ChatMessageUi[],
+): TranscriptPageCacheMerge {
+  const currentIds = new Set(currentMessages.map((message) => message.id));
+  const candidates = olderMessages.filter((message) => !currentIds.has(message.id));
+  let merged = [...currentMessages];
+  let acceptedOlderCount = 0;
+
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const candidate = candidates[index];
+    if (candidate === undefined) continue;
+    const next = [candidate, ...merged];
+    if (
+      next.length > MAX_TRANSCRIPT_CACHE_MESSAGES ||
+      measureTranscriptCacheBytes(next) > MAX_TRANSCRIPT_CACHE_BYTES
+    ) {
+      break;
+    }
+    merged = next;
+    acceptedOlderCount += 1;
+  }
+
+  return {
+    messages: merged,
+    retainedBytes: measureTranscriptCacheBytes(merged),
+    acceptedOlderCount,
+    cacheLimitReached: acceptedOlderCount < candidates.length,
+  };
+}
+
+export function measureTranscriptCacheBytes(messages: readonly ChatMessageUi[]): number {
+  return new TextEncoder().encode(JSON.stringify(messages)).byteLength;
+}
+
+function measureTranscriptMessageBytes(message: ChatMessageUi): number {
+  return new TextEncoder().encode(JSON.stringify(message)).byteLength;
+}

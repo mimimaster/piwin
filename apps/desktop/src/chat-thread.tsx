@@ -3,7 +3,12 @@
  */
 import { memo, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 
-import type { SessionPlan, ThemeManifest, WalkthroughArtifact } from '@piwin/contracts';
+import type {
+  ProductSessionLineageView,
+  SessionPlan,
+  ThemeManifest,
+  WalkthroughArtifact,
+} from '@piwin/contracts';
 import type { ArtifactActionMessage } from '@piwin/artifact';
 import type {
   ChatMessageUi,
@@ -41,6 +46,10 @@ import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import type { PendingComposerAttachment } from './media-utils';
 import { IconCopy, IconCheck, IconRevert } from './shell-icons';
 import { AssistantResponseActions } from './assistant-response-actions';
+import { TranscriptTurnList } from './transcript-turn-list';
+import { groupTranscriptTurns } from './transcript-turns';
+import { SystemMessageContent } from './system-message-content';
+import { collectMessageChangedFiles } from './collect-message-changed-files';
 
 /**
  * In-place composer for editing a user message. Renders the same ComposerCard
@@ -267,6 +276,10 @@ export type ChatThreadProps = {
   onOpenForks?: ((messageId: string) => void) | undefined;
   /** SF-03: Map of messageId → direct fork count (for badge display). */
   forkCountsByMessageId?: Record<string, number>;
+  /** SF-04: Product lineage projection for the active session. */
+  sessionLineage?: ProductSessionLineageView | null;
+  /** SF-04: Navigate to another product session from the lineage tree. */
+  onOpenSession?: ((sessionId: string) => void) | undefined;
   /** SF-03: Whether derived-session actions are disabled (e.g. no host). */
   derivedActionsDisabled?: boolean;
 };
@@ -307,24 +320,32 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
     return undefined;
   }, [props.messages]);
 
-  const turnGroups = useMemo(() => {
-    type TurnGroup = {
-      id: string;
-      items: { message: ChatMessageUi; index: number }[];
-    };
-    const turns: TurnGroup[] = [];
-    let currentTurn: TurnGroup | null = null;
-    props.messages.forEach((message, index) => {
-      if (message.role === 'user' || !currentTurn) {
-        currentTurn = {
-          id: `turn-${message.id}`,
-          items: [],
-        };
-        turns.push(currentTurn);
+  const turnGroups = useMemo(() => groupTranscriptTurns(props.messages), [props.messages]);
+  const changedFilePathsByTurnId = useMemo(() => {
+    const pathsByTurnId = new Map<string, string[]>();
+    for (const turn of turnGroups) {
+      const paths: string[] = [];
+      const seen = new Set<string>();
+      for (const { message } of turn.items) {
+        for (const file of collectMessageChangedFiles(message.tools)) {
+          if (!seen.has(file.path)) {
+            seen.add(file.path);
+            paths.push(file.path);
+          }
+        }
       }
-      currentTurn.items.push({ message, index });
-    });
-    return turns;
+      pathsByTurnId.set(turn.id, paths);
+    }
+    return pathsByTurnId;
+  }, [turnGroups]);
+  const latestAssistantMessageId = useMemo(() => {
+    for (let index = props.messages.length - 1; index >= 0; index -= 1) {
+      const message = props.messages[index];
+      if (message?.role === 'assistant' && message.status === 'done') {
+        return message.id;
+      }
+    }
+    return null;
   }, [props.messages]);
 
   return (
@@ -337,27 +358,29 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
           {...(props.onPlanAbort ? { onAbort: props.onPlanAbort } : {})}
         />
       ) : null}
-      {turnGroups.map((turn) => (
+      <TranscriptTurnList
+        turns={turnGroups}
+        pinnedMessageId={props.editingMessageId}
+        renderTurn={(turn) => (
         <section key={turn.id} className="chat-turn-group">
-          {turn.items.map(({ message, index: messageIndex }) => (
+          {turn.items.map(({ message, messageIndex }) => (
             <ChatMessageRow
               key={message.id}
               message={message}
               messageIndex={messageIndex}
-              isLastAssistantInTurn={(() => {
-                for (let i = turn.items.length - 1; i >= 0; i--) {
-                  const item = turn.items[i];
-                  if (item?.message.role === 'assistant') return item.message.id === message.id;
-                }
-                return false;
-              })()}
+              isLastAssistantInTurn={turn.lastAssistantMessageId === message.id}
+              isLatestAssistantResponse={latestAssistantMessageId === message.id}
               isNew={enteringIds.has(message.id)}
+              knownFilePaths={changedFilePathsByTurnId.get(turn.id) ?? []}
               streaming={props.streaming}
               editingMessageId={props.editingMessageId}
               lastUserMessageId={props.lastUserMessageId}
               activeTheme={props.activeTheme}
               artifactThemeKey={props.artifactThemeKey}
               runRecordsById={props.runRecordsById ?? {}}
+              {...(message.runId !== undefined && props.runRecordsById?.[message.runId] !== undefined
+                ? { runRecord: props.runRecordsById[message.runId] }
+                : {})}
               activeRunId={props.activeRunId ?? null}
               activeSkill={props.activeSkill ?? null}
               {...(props.agentLocatorAnimation
@@ -427,13 +450,16 @@ export function ChatThread(props: ChatThreadProps): ReactElement {
               {...(props.forkCountsByMessageId
                 ? { forkCountsByMessageId: props.forkCountsByMessageId }
                 : {})}
+              {...(props.sessionLineage ? { sessionLineage: props.sessionLineage } : {})}
+              {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
               {...(props.derivedActionsDisabled !== undefined
                 ? { derivedActionsDisabled: props.derivedActionsDisabled }
                 : {})}
             />
           ))}
         </section>
-      ))}
+        )}
+      />
       {props.streaming &&
       !props.permissionPrompt &&
       (props.messages.length === 0 ||
@@ -456,12 +482,16 @@ type ChatMessageRowProps = {
   messageIndex: number;
   /** Quiet workbench: entrance animation for messages that arrived after mount. */
   isNew: boolean;
+  /** Tool-reported changed paths from the containing turn for system summaries. */
+  knownFilePaths?: readonly string[] | undefined;
   streaming: boolean;
   editingMessageId: string | null;
   lastUserMessageId: string | null;
   activeTheme: ThemeManifest | null;
   artifactThemeKey: string | number;
   runRecordsById: Record<string, RunRecordUi>;
+  /** Keyed Run projection for this row; avoids whole-map memo invalidation. */
+  runRecord?: RunRecordUi;
   activeRunId: string | null;
   activeSkill: SkillActivityView | null;
   agentLocatorAnimation?: AgentLocatorAnimation;
@@ -519,10 +549,16 @@ type ChatMessageRowProps = {
   onOpenForks?: ((messageId: string) => void) | undefined;
   /** SF-03: Map of messageId → direct fork count (for badge display). */
   forkCountsByMessageId?: Record<string, number>;
+  /** SF-04: Product lineage projection for the active session. */
+  sessionLineage?: ProductSessionLineageView | null;
+  /** SF-04: Navigate to another product session from the lineage tree. */
+  onOpenSession?: ((sessionId: string) => void) | undefined;
   /** SF-03: Whether derived-session actions are disabled. */
   derivedActionsDisabled?: boolean;
   /** SF-03: True only for the last assistant message in a turn group. */
   isLastAssistantInTurn?: boolean;
+  /** SF-04: True only for the newest completed assistant response. */
+  isLatestAssistantResponse?: boolean;
 };
 
 function formatMessageTime(createdAt?: string): string {
@@ -532,6 +568,19 @@ function formatMessageTime(createdAt?: string): string {
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
   return `${hours}:${minutes}`;
+}
+
+function areFilePathListsEqual(
+  left: readonly string[] | undefined,
+  right: readonly string[] | undefined,
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right || left.length !== right.length) {
+    return false;
+  }
+  return left.every((path, index) => path === right[index]);
 }
 
 /** Height (px) above which a user message bubble collapses. */
@@ -621,8 +670,8 @@ function UserMessageContent(props: {
     }
   }
 
-  // Attachments always start in the compact state so a sticky user prompt
-  // cannot occupy most of the transcript viewport while browsing history.
+  // Attachments always start in the compact state so a history prompt cannot
+  // occupy most of the transcript viewport while browsing older turns.
   const isCollapsible = hasAttachments || isTextOverflow;
   const collapsed = isCollapsible && isCollapsed;
 
@@ -793,6 +842,13 @@ const ChatMessageRow = memo(
             {...(props.onArtifactAction ? { onArtifactAction: props.onArtifactAction } : {})}
             {...(props.onOpenDocument ? { onOpenDocument: props.onOpenDocument } : {})}
           />
+        ) : message.role === 'system' ? (
+          <SystemMessageContent
+            text={message.text}
+            {...(props.projectPath !== undefined ? { projectPath: props.projectPath } : {})}
+            {...(props.onOpenFile ? { onOpenFile: props.onOpenFile } : {})}
+            {...(props.knownFilePaths ? { knownFilePaths: props.knownFilePaths } : {})}
+          />
         ) : isEditingThis ? (
           <MessageEditCard
             messageId={message.id}
@@ -841,6 +897,8 @@ const ChatMessageRow = memo(
             showDuplicate={props.onDuplicateSession !== undefined}
             showFork={props.onForkFromMessage !== undefined}
             directForkCount={props.forkCountsByMessageId?.[message.id] ?? 0}
+            {...(props.sessionLineage ? { lineage: props.sessionLineage } : {})}
+            showTreeOnLatestResponse={props.isLatestAssistantResponse === true}
             disabled={props.derivedActionsDisabled === true || props.streaming}
             {...(props.onDuplicateSession
               ? { onDuplicate: props.onDuplicateSession }
@@ -849,6 +907,7 @@ const ChatMessageRow = memo(
               ? { onFork: props.onForkFromMessage }
               : { onFork: () => {} })}
             {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
+            {...(props.onOpenSession ? { onOpenSession: props.onOpenSession } : {})}
             locale={props.locale ?? 'en'}
           />
         ) : null}
@@ -887,8 +946,9 @@ const ChatMessageRow = memo(
       previous.editingMessageId === next.editingMessageId &&
       previous.lastUserMessageId === next.lastUserMessageId &&
       previous.activeTheme === next.activeTheme &&
+      areFilePathListsEqual(previous.knownFilePaths, next.knownFilePaths) &&
       previous.artifactThemeKey === next.artifactThemeKey &&
-      previous.runRecordsById === next.runRecordsById &&
+      previous.runRecord === next.runRecord &&
       previous.activeRunId === next.activeRunId &&
       previous.activeSkill === next.activeSkill &&
       previous.agentLocatorAnimation === next.agentLocatorAnimation &&
@@ -913,8 +973,11 @@ const ChatMessageRow = memo(
       previous.onForkFromMessage === next.onForkFromMessage &&
       previous.onOpenForks === next.onOpenForks &&
       previous.forkCountsByMessageId === next.forkCountsByMessageId &&
+      previous.sessionLineage === next.sessionLineage &&
+      previous.onOpenSession === next.onOpenSession &&
       previous.derivedActionsDisabled === next.derivedActionsDisabled &&
       previous.isLastAssistantInTurn === next.isLastAssistantInTurn &&
+      previous.isLatestAssistantResponse === next.isLatestAssistantResponse &&
       callbackPropsAreStable
     );
   },

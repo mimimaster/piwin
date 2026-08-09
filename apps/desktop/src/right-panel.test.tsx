@@ -7,7 +7,11 @@ import { describe, expect, it, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
-import { RightPanel, type RightPanelTab } from './right-panel';
+import {
+  RightPanel,
+  selectMountedRightPanelTabs,
+  type RightPanelTab,
+} from './right-panel';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens';
 import { RIGHT_PANEL_STATE_STORAGE_KEY, writeStoredRightPanelState } from './right-panel-memory';
 
@@ -215,6 +219,51 @@ describe('RightPanel multi-tab', () => {
 
     expect(container.querySelector('[data-testid="right-panel-open-tab-terminal"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="right-panel-open-tab-files"]')).not.toBeNull();
+  });
+
+  it('selects the active surface plus the explicit terminal keep-alive', () => {
+    expect(selectMountedRightPanelTabs(['terminal', 'files', 'browser'], 'browser', true)).toEqual([
+      'terminal',
+      'browser',
+    ]);
+    expect(selectMountedRightPanelTabs(['files', 'browser'], 'browser', false)).toEqual([]);
+    expect(selectMountedRightPanelTabs(['terminal', 'browser'], 'browser', false)).toEqual([
+      'terminal',
+    ]);
+  });
+
+  it('unmounts inactive non-terminal bodies instead of hiding their resource graphs', () => {
+    writeStoredRightPanelState({
+      openTabs: ['terminal', 'files', 'browser'],
+      activeTab: 'browser',
+    });
+    const rendered = renderPanel({
+      activeTab: 'browser',
+      browserContent: <div data-testid="browser-body">browser</div>,
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="browser-body"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="terminal-body"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="files-body"]')).toBeNull();
+  });
+
+  it('unmounts collapsed non-terminal bodies while preserving an open terminal owner', () => {
+    writeStoredRightPanelState({
+      openTabs: ['terminal', 'browser'],
+      activeTab: 'browser',
+    });
+    const rendered = renderPanel({
+      open: false,
+      activeTab: 'browser',
+      browserContent: <div data-testid="browser-body">browser</div>,
+    });
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="browser-body"]')).toBeNull();
+    expect(container.querySelector('[data-testid="terminal-body"]')).not.toBeNull();
   });
 
   it('renders expand button and positions + button before tabs', () => {

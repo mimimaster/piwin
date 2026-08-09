@@ -1,25 +1,33 @@
-import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type JSX,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
+import { cjk } from '@streamdown/cjk';
+import { createMathPlugin } from '@streamdown/math';
 import {
   evaluateCodeFence,
   normalizeStreamingArtifactFences,
-  splitMarkdownBlocks,
   type ArtifactActionMessage,
   type ArtifactPreviewDecision,
   type ArtifactThemeVariables,
-  type TableAlignment,
 } from '@piwin/artifact';
 import { Button } from '@piwin/ui-kit';
+import { Streamdown, type Components, type ExtraProps } from 'streamdown';
 import { useHighlight, TokenSpans, normalizeLanguage, type TokenLine } from './syntax-highlight';
 import { fileNameFromPath, PathChip } from './path-chip';
 import { ArtifactFrame } from './ArtifactFrame';
 import { isFlashcardArtifactSource } from './flashcard-artifact';
 import { MermaidBlock } from './MermaidBlock';
 import {
-  extractStandaloneDisplayMath,
   isMathFenceLanguage,
   isMermaidFenceLanguage,
   renderKatex,
-  tokenizeInlineWithMath,
 } from './markdown-math';
 import { parseUnifiedDiff } from './diff-view';
 import { computeDiffLineNumbers } from './diff-line-numbers';
@@ -85,9 +93,415 @@ function isShellLanguage(lang?: string): boolean {
   return lang ? SHELL_LANGUAGES.has(lang.trim().toLowerCase()) : false;
 }
 
-function getTextAlign(alignment?: TableAlignment): 'left' | 'center' | 'right' | undefined {
-  if (!alignment || alignment === 'default') return undefined;
-  return alignment;
+const STREAMDOWN_PLUGINS = {
+  cjk,
+  math: createMathPlugin({ singleDollarTextMath: true }),
+};
+const MARKDOWN_LINK_SAFETY = { enabled: false };
+const MARKDOWN_FILE_PATH_PATTERN =
+  /(?:file:\/\/|\/|[A-Za-z]:[\\/]|(?:\.\.?\/))+[\w\u4e00-\u9fa5_.\/-]+\.md\b/g;
+
+type MarkdownDocumentReference = {
+  title: string;
+  path?: string;
+  content?: string;
+};
+
+type StreamdownRendererOptions = {
+  phase: MarkdownRenderingPhase;
+  htmlUiModeEnabled: boolean;
+  artifactTheme: ArtifactThemeVariables | undefined;
+  initPriorityBase: number;
+  artifactThemeKey: string;
+  onArtifactAction: ((action: ArtifactActionMessage) => void) | undefined;
+  artifactPreviewEnabled: boolean;
+  artifactCodeFirst: boolean;
+  artifactMaxBytes: number | undefined;
+  onOpenDocument: ((doc: MarkdownDocumentReference) => void) | undefined;
+};
+
+type StreamdownElementProps<Tag extends keyof JSX.IntrinsicElements> = ComponentProps<Tag> &
+  ExtraProps;
+
+type StreamdownCodeProps = StreamdownElementProps<'code'> & {
+  'data-block'?: boolean | string;
+};
+
+function mergeMarkdownClassNames(base: string, className?: string): string {
+  return className ? `${base} ${className}` : base;
+}
+
+function plainTextFromReactNode(value: ReactNode): string {
+  if (value === null || value === undefined || typeof value === 'boolean') return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (Array.isArray(value)) return value.map(plainTextFromReactNode).join('');
+  if (isValidElement(value)) {
+    const element = value as ReactElement<{ children?: ReactNode }>;
+    return plainTextFromReactNode(element.props.children);
+  }
+  return '';
+}
+
+function renderMarkdownText(
+  text: string,
+  onOpenDocument: ((doc: MarkdownDocumentReference) => void) | undefined,
+  keyPrefix = 'text',
+): ReactNode {
+  if (!onOpenDocument) return text;
+
+  const parts: Array<string | ReactElement> = [];
+  let lastIndex = 0;
+  let partIndex = 0;
+  MARKDOWN_FILE_PATH_PATTERN.lastIndex = 0;
+
+  for (const match of text.matchAll(MARKDOWN_FILE_PATH_PATTERN)) {
+    const fullPath = match[0];
+    const matchIndex = match.index ?? 0;
+    if (matchIndex > lastIndex) {
+      parts.push(text.slice(lastIndex, matchIndex));
+    }
+    parts.push(
+      <PathChip
+        key={`${keyPrefix}-path-${partIndex++}`}
+        fullPath={fullPath}
+        onOpen={() => onOpenDocument({ title: fileNameFromPath(fullPath), path: fullPath })}
+      />,
+    );
+    lastIndex = matchIndex + fullPath.length;
+  }
+
+  if (parts.length === 0) return text;
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
+function renderMarkdownChildren(
+  children: ReactNode,
+  onOpenDocument: ((doc: MarkdownDocumentReference) => void) | undefined,
+): ReactNode {
+  if (typeof children === 'string') return renderMarkdownText(children, onOpenDocument);
+  if (!Array.isArray(children)) return children;
+  return children.map((child, index) =>
+    typeof child === 'string'
+      ? renderMarkdownText(child, onOpenDocument, `text-${index}`)
+      : child,
+  );
+}
+
+function stripLeadingCalloutMarker(value: ReactNode): ReactNode {
+  let removed = false;
+  const markerPattern = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/i;
+
+  const strip = (current: ReactNode): ReactNode => {
+    if (removed) return current;
+    if (typeof current === 'string') {
+      const next = current.replace(markerPattern, '');
+      if (next !== current) removed = true;
+      return next;
+    }
+    if (Array.isArray(current)) return current.map(strip);
+    if (isValidElement(current)) {
+      const element = current as ReactElement<{ children?: ReactNode }>;
+      return cloneElement(element, { children: strip(element.props.children) });
+    }
+    return current;
+  };
+
+  return strip(value);
+}
+
+function stableFenceIndex(language: string, source: string): number {
+  let hash = 17;
+  for (const character of `${language}\u0000${source}`) {
+    hash = (hash * 31 + character.charCodeAt(0)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function createStreamdownComponents(options: StreamdownRendererOptions): Components {
+  const renderParagraph = ({
+    children,
+    node: _node,
+    className,
+    ...props
+  }: StreamdownElementProps<'p'>): ReactElement => (
+    <p {...props} className={mergeMarkdownClassNames('md-p', className)}>
+      {renderMarkdownChildren(children, options.onOpenDocument)}
+    </p>
+  );
+
+  const renderHeading = (level: number) =>
+    ({
+      children,
+      node: _node,
+      className,
+      ...props
+    }: StreamdownElementProps<'h1'>): ReactElement => {
+      const HeadingTag = `h${level}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+      return (
+        <HeadingTag {...props} className={mergeMarkdownClassNames(`md-h md-h${level}`, className)}>
+          {renderMarkdownChildren(children, options.onOpenDocument)}
+        </HeadingTag>
+      );
+    };
+
+  const renderList = (
+    {
+      children,
+      node: _node,
+      className,
+    }: StreamdownElementProps<'ul'>,
+    ordered: boolean,
+  ): ReactElement => {
+    const ListTag = ordered ? 'ol' : 'ul';
+    return (
+      <ListTag
+        className={mergeMarkdownClassNames(
+          ordered ? 'md-list md-list-ordered' : 'md-list',
+          className,
+        )}
+      >
+        {children}
+      </ListTag>
+    );
+  };
+
+  const renderCode = ({
+    children,
+    className,
+    node,
+    'data-block': dataBlock,
+    ...props
+  }: StreamdownCodeProps): ReactElement => {
+    if (dataBlock === undefined) {
+      const inlineValue = plainTextFromReactNode(children);
+      const isMarkdownPath =
+        (inlineValue.includes('/') || inlineValue.includes('\\') || inlineValue.startsWith('file://')) &&
+        inlineValue.trim().endsWith('.md');
+      if (isMarkdownPath && options.onOpenDocument) {
+        return (
+          <PathChip
+            fullPath={inlineValue.trim()}
+            onOpen={() =>
+              options.onOpenDocument?.({
+                title: fileNameFromPath(inlineValue.trim()),
+                path: inlineValue.trim(),
+              })
+            }
+          />
+        );
+      }
+      return (
+        <code {...props} className={mergeMarkdownClassNames('md-inline-code', className)}>
+          {children}
+        </code>
+      );
+    }
+
+    const source = plainTextFromReactNode(children).replace(/\n$/, '');
+    const languageMatch = /(?:^|\s)language-([A-Za-z0-9_-]+)/.exec(className ?? '');
+    const language = languageMatch?.[1] ?? '';
+    const fenceIndex = node?.position?.start.line ?? stableFenceIndex(language, source);
+    const fenceProps: Parameters<typeof CodeFenceView>[0] = {
+      language,
+      source,
+      htmlUiModeEnabled: options.htmlUiModeEnabled,
+      fenceIndex,
+      renderingPhase: options.phase,
+      initPriority: options.initPriorityBase + fenceIndex,
+      artifactThemeKey: options.artifactThemeKey,
+      artifactPreviewEnabled: options.artifactPreviewEnabled,
+      artifactCodeFirst: options.artifactCodeFirst,
+    };
+    if (options.artifactTheme) fenceProps.artifactTheme = options.artifactTheme;
+    if (options.onArtifactAction) fenceProps.onArtifactAction = options.onArtifactAction;
+    if (options.artifactMaxBytes !== undefined) {
+      fenceProps.artifactMaxBytes = options.artifactMaxBytes;
+    }
+    return <CodeFenceView {...fenceProps} />;
+  };
+
+  const renderAnchor = ({
+    children,
+    href,
+    node: _node,
+    className,
+    ...props
+  }: StreamdownElementProps<'a'>): ReactElement => {
+    const url = href ?? '';
+    const label = plainTextFromReactNode(children).trim() || 'Document';
+    const normalizedUrl = url.split('#', 1)[0]?.split('?', 1)[0]?.toLowerCase() ?? '';
+    const isDocumentLink =
+      normalizedUrl.endsWith('.md') ||
+      label.includes('Plan') ||
+      label.includes('Document') ||
+      label.startsWith('📄');
+
+    if (isDocumentLink && options.onOpenDocument) {
+      return (
+        <PathChip
+          fullPath={url}
+          label={label}
+          onOpen={() => options.onOpenDocument?.({ title: label, path: url })}
+        />
+      );
+    }
+
+    return (
+      <a
+        {...props}
+        {...(href ? { href } : {})}
+        className={mergeMarkdownClassNames('md-link', className)}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    );
+  };
+
+  const renderTable = ({
+    children,
+    node: _node,
+    className,
+    ...props
+  }: StreamdownElementProps<'table'>): ReactElement => (
+    <div className="md-table-wrapper" data-testid="md-table">
+      <table {...props} className={mergeMarkdownClassNames('md-table', className)}>
+        {children}
+      </table>
+    </div>
+  );
+
+  const renderTableCell = ({
+    children,
+    node: _node,
+    align,
+    style,
+    ...props
+  }: StreamdownElementProps<'th'>): ReactElement => {
+    const textAlign = align === 'left' || align === 'center' || align === 'right' ? align : undefined;
+    return (
+      <th {...props} style={textAlign ? { ...style, textAlign } : style}>
+        {renderMarkdownChildren(children, options.onOpenDocument)}
+      </th>
+    );
+  };
+
+  const renderTableDataCell = ({
+    children,
+    node: _node,
+    align,
+    style,
+    ...props
+  }: StreamdownElementProps<'td'>): ReactElement => {
+    const textAlign = align === 'left' || align === 'center' || align === 'right' ? align : undefined;
+    return (
+      <td {...props} style={textAlign ? { ...style, textAlign } : style}>
+        {renderMarkdownChildren(children, options.onOpenDocument)}
+      </td>
+    );
+  };
+
+  const renderBlockquote = ({
+    children,
+    node: _node,
+    className,
+    ...props
+  }: StreamdownElementProps<'blockquote'>): ReactElement => (
+    (() => {
+      const calloutMatch = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.exec(
+        plainTextFromReactNode(children),
+      );
+      if (calloutMatch?.[1]) {
+        const kind = calloutMatch[1].toLowerCase();
+        return (
+          <div
+            className={mergeMarkdownClassNames(`md-callout md-callout-${kind}`, className)}
+            data-testid={`callout-${kind}`}
+          >
+            <div className="md-callout-header">
+              <span className="md-callout-badge">{kind.toUpperCase()}</span>
+            </div>
+            <div className="md-callout-body">{stripLeadingCalloutMarker(children)}</div>
+          </div>
+        );
+      }
+      return (
+        <blockquote {...props} className={mergeMarkdownClassNames('md-blockquote', className)}>
+          {children}
+        </blockquote>
+      );
+    })()
+  );
+
+  const renderImage = ({
+    node: _node,
+    alt,
+    src,
+    ...props
+  }: StreamdownElementProps<'img'>): ReactElement => {
+    if (!src) return <span className="md-image-fallback">{alt || 'Image unavailable'}</span>;
+    return (
+      <img
+        {...props}
+        src={src}
+        alt={alt ?? ''}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+      />
+    );
+  };
+
+  const renderInput = ({
+    node: _node,
+    className,
+    ...props
+  }: StreamdownElementProps<'input'>): ReactElement => (
+    <input
+      {...props}
+      type={props.type ?? 'checkbox'}
+      disabled
+      className={mergeMarkdownClassNames('md-task-checkbox', className)}
+    />
+  );
+
+  return {
+    p: renderParagraph,
+    h1: renderHeading(1),
+    h2: renderHeading(2),
+    h3: renderHeading(3),
+    h4: renderHeading(4),
+    h5: renderHeading(5),
+    h6: renderHeading(6),
+    ul: (props) => renderList(props, false),
+    ol: (props) => renderList(props, true),
+    li: ({ children, node: _node, className, ...props }: StreamdownElementProps<'li'>) => (
+      <li {...props} className={mergeMarkdownClassNames('md-list-item', className)}>
+        {children}
+      </li>
+    ),
+    blockquote: renderBlockquote,
+    table: renderTable,
+    th: renderTableCell,
+    td: renderTableDataCell,
+    code: renderCode,
+    pre: ({ children, node: _node }: StreamdownElementProps<'pre'>) =>
+      isValidElement<StreamdownCodeProps>(children)
+        ? cloneElement(children, { 'data-block': 'true' })
+        : <>{children}</>,
+    a: renderAnchor,
+    img: renderImage,
+    input: renderInput,
+    hr: ({ node: _node, className, ...props }: StreamdownElementProps<'hr'>) => (
+      <hr {...props} className={mergeMarkdownClassNames('md-hr', className)} />
+    ),
+    del: ({ children, node: _node, className, ...props }: StreamdownElementProps<'del'>) => (
+      <del {...props} className={mergeMarkdownClassNames('md-del', className)}>
+        {children}
+      </del>
+    ),
+  };
 }
 
 /** Collapsed height for long code fences (~11–12 lines at 13px / 1.35 lh). */
@@ -105,17 +519,20 @@ function CodeBodyWithLineNumbers({
   language,
   defaultCollapsed = true,
   renderCursor = false,
+  highlightEnabled = true,
 }: {
   source: string;
   language: string;
   /** When false (e.g. streaming), keep expanded so new lines stay visible. */
   defaultCollapsed?: boolean;
   renderCursor?: boolean;
+  /** Streaming blocks stay plain until completion to avoid retaining token trees per delta. */
+  highlightEnabled?: boolean;
 }): ReactElement {
   const normalizedLang = normalizeLanguage(language);
   const isDiff = normalizedLang === 'diff';
   const lines = useMemo(() => source.split('\n'), [source]);
-  const tokenLines = useHighlight(source, normalizedLang);
+  const tokenLines = useHighlight(source, normalizedLang, highlightEnabled);
   const diffLineNumbers = useMemo(() => {
     if (!isDiff) return null;
     return computeDiffLineNumbers(parseUnifiedDiff(source));
@@ -123,7 +540,11 @@ function CodeBodyWithLineNumbers({
 
   const body = (
     <pre className={`md-code${isDiff ? ' md-code-diff' : ''}`}>
-      <div className="md-code-content" data-language={language || undefined}>
+      <div
+        className="md-code-content"
+        data-language={language || undefined}
+        data-syntax-highlight={highlightEnabled ? 'enabled' : 'deferred'}
+      >
         {lines.map((line, index) => {
           const isLastLine = index === lines.length - 1;
           const tokens: TokenLine | null = tokenLines?.[index] ?? null;
@@ -205,201 +626,63 @@ export function MarkdownView({
   const phase: MarkdownRenderingPhase =
     renderingPhase ?? (streamComplete ? 'completed' : 'streaming');
   const streamMode = phase === 'streaming';
-  // Parser flag mirrors the product capability: when off, native html/htm
-  // fences fall through to `code` in evaluate (byte-stable normalization).
-  const effectiveHtmlUiMode = htmlUiModeEnabled ?? artifactPreviewEnabled;
-  const normalized = normalizeStreamingArtifactFences(text, effectiveHtmlUiMode, !streamMode);
-  const blocks = splitMarkdownBlocks(normalized);
+
+  // Streamdown owns the Markdown grammar and streaming recovery. Piwin keeps
+  // the surrounding product renderers (ArtifactFrame, shell disclosure,
+  // Mermaid and path chips) behind its custom component boundary.
+  const streamdownHtmlUiMode = htmlUiModeEnabled ?? artifactPreviewEnabled;
+  const streamdownText = normalizeStreamingArtifactFences(
+    text,
+    streamdownHtmlUiMode,
+    !streamMode,
+  );
+  const streamdownComponents = useMemo<Components>(
+    () =>
+      createStreamdownComponents({
+        phase,
+        htmlUiModeEnabled: streamdownHtmlUiMode,
+        artifactTheme,
+        initPriorityBase,
+        artifactThemeKey,
+        onArtifactAction,
+        artifactPreviewEnabled,
+        artifactCodeFirst,
+        artifactMaxBytes,
+        onOpenDocument,
+      }),
+    [
+      phase,
+      streamdownHtmlUiMode,
+      artifactTheme,
+      initPriorityBase,
+      artifactThemeKey,
+      onArtifactAction,
+      artifactPreviewEnabled,
+      artifactCodeFirst,
+      artifactMaxBytes,
+      onOpenDocument,
+    ],
+  );
 
   return (
-    <div className="markdown" data-rendering-phase={phase}>
-      {blocks.map((block, index) => {
-        const isLastBlock = index === blocks.length - 1;
-        const shouldRenderCursor = streamMode && isLastBlock;
-
-        if (block.type === 'code') {
-          const fenceProps: {
-            language: string;
-            source: string;
-            htmlUiModeEnabled: boolean;
-            fenceIndex: number;
-            renderingPhase: MarkdownRenderingPhase;
-            initPriority: number;
-            artifactThemeKey: string;
-            artifactTheme?: ArtifactThemeVariables;
-            onArtifactAction?: (action: ArtifactActionMessage) => void;
-            artifactPreviewEnabled: boolean;
-            artifactCodeFirst?: boolean;
-            artifactMaxBytes?: number;
-            renderCursor?: boolean;
-          } = {
-            language: block.language,
-            source: block.source,
-            htmlUiModeEnabled: effectiveHtmlUiMode,
-            fenceIndex: index,
-            renderingPhase: phase,
-            initPriority: initPriorityBase + index,
-            artifactThemeKey,
-            artifactPreviewEnabled,
-            artifactCodeFirst,
-            renderCursor: shouldRenderCursor,
-          };
-          if (artifactTheme) {
-            fenceProps.artifactTheme = artifactTheme;
-          }
-          if (onArtifactAction) {
-            fenceProps.onArtifactAction = onArtifactAction;
-          }
-          if (artifactMaxBytes !== undefined) {
-            fenceProps.artifactMaxBytes = artifactMaxBytes;
-          }
-          return <CodeFenceView key={index} {...fenceProps} />;
-        }
-        if (block.type === 'heading') {
-          const HeadingTag = `h${Math.min(6, Math.max(1, block.level))}` as
-            'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
-          return (
-            <HeadingTag key={index} className={`md-h md-h${block.level}`}>
-              {renderInline(block.text, onOpenDocument)}
-              {shouldRenderCursor ? (
-                <span className="streaming-cursor-pulse" aria-hidden="true" />
-              ) : null}
-            </HeadingTag>
-          );
-        }
-        if (block.type === 'table') {
-          return (
-            <div key={index} className="md-table-wrapper" data-testid="md-table">
-              <table className="md-table">
-                <thead>
-                  <tr>
-                    {block.headers.map((header, hIdx) => (
-                      <th key={hIdx} style={{ textAlign: getTextAlign(block.alignments[hIdx]) }}>
-                        {renderInline(header, onOpenDocument)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {block.rows.map((row, rIdx) => (
-                    <tr key={rIdx}>
-                      {row.map((cell, cIdx) => {
-                        const isLastCell = rIdx === block.rows.length - 1 && cIdx === row.length - 1;
-                        return (
-                          <td key={cIdx} style={{ textAlign: getTextAlign(block.alignments[cIdx]) }}>
-                            {renderInline(cell, onOpenDocument)}
-                            {shouldRenderCursor && isLastCell ? (
-                              <span className="streaming-cursor-pulse" aria-hidden="true" />
-                            ) : null}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          );
-        }
-        if (block.type === 'blockquote') {
-          if (block.kind) {
-            return (
-              <div
-                key={index}
-                className={`md-callout md-callout-${block.kind}`}
-                data-testid={`callout-${block.kind}`}
-              >
-                <div className="md-callout-header">
-                  <span className="md-callout-badge">{block.kind.toUpperCase()}</span>
-                </div>
-                <div className="md-callout-body">
-                  {renderInline(block.text, onOpenDocument)}
-                  {shouldRenderCursor ? (
-                    <span className="streaming-cursor-pulse" aria-hidden="true" />
-                  ) : null}
-                </div>
-              </div>
-            );
-          }
-          return (
-            <blockquote key={index} className="md-blockquote">
-              {renderInline(block.text, onOpenDocument)}
-              {shouldRenderCursor ? (
-                <span className="streaming-cursor-pulse" aria-hidden="true" />
-              ) : null}
-            </blockquote>
-          );
-        }
-        if (block.type === 'list') {
-          if (block.ordered) {
-            return (
-              <ol key={index} className="md-list md-list-ordered">
-                {block.items.map((item, itemIndex) => {
-                  const isLastItem = itemIndex === block.items.length - 1;
-                  return (
-                    <li key={itemIndex}>
-                      {renderInline(item, onOpenDocument)}
-                      {shouldRenderCursor && isLastItem ? (
-                        <span className="streaming-cursor-pulse" aria-hidden="true" />
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ol>
-            );
-          }
-          return (
-            <ul key={index} className="md-list">
-              {block.items.map((item, itemIndex) => {
-                const isLastItem = itemIndex === block.items.length - 1;
-                return (
-                  <li key={itemIndex}>
-                    {renderInline(item, onOpenDocument)}
-                    {shouldRenderCursor && isLastItem ? (
-                      <span className="streaming-cursor-pulse" aria-hidden="true" />
-                    ) : null}
-                  </li>
-                );
-              })}
-            </ul>
-          );
-        }
-        return (
-          <ParagraphView
-            key={index}
-            value={block.value}
-            onOpenDocument={onOpenDocument}
-            renderCursor={shouldRenderCursor}
-          />
-        );
-      })}
-      {streamMode && blocks.length === 0 && text.length > 0 ? (
-        <span className="streaming-cursor-pulse" aria-hidden="true" />
-      ) : null}
-    </div>
+    <Streamdown
+      className="markdown"
+      mode={streamMode ? 'streaming' : 'static'}
+      parseIncompleteMarkdown={streamMode}
+      isAnimating={streamMode}
+      animated={false}
+      caret="block"
+      plugins={STREAMDOWN_PLUGINS}
+      components={streamdownComponents}
+      controls={false}
+      lineNumbers={false}
+      skipHtml
+      linkSafety={MARKDOWN_LINK_SAFETY}
+    >
+      {streamdownText}
+    </Streamdown>
   );
-}
 
-function ParagraphView(props: {
-  value: string;
-  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined;
-  renderCursor?: boolean;
-}): ReactElement {
-  const standaloneMath = extractStandaloneDisplayMath(props.value);
-  if (standaloneMath !== null) {
-    return (
-      <>
-        <MathView tex={standaloneMath} display />
-        {props.renderCursor ? <span className="streaming-cursor-pulse" aria-hidden="true" /> : null}
-      </>
-    );
-  }
-  return (
-    <p className="md-p">
-      {renderInline(props.value, props.onOpenDocument)}
-      {props.renderCursor ? <span className="streaming-cursor-pulse" aria-hidden="true" /> : null}
-    </p>
-  );
 }
 
 function CodeFenceView(props: {
@@ -484,6 +767,7 @@ function CodeFenceView(props: {
           source={props.source}
           language={props.language}
           defaultCollapsed={false}
+          highlightEnabled={false}
           {...(props.renderCursor !== undefined ? { renderCursor: props.renderCursor } : {})}
         />
       </div>
@@ -548,7 +832,11 @@ function CodeFenceView(props: {
             </div>
             <CopyCodeButton text={props.source} />
           </div>
-          <CodeBodyWithLineNumbers source={props.source} language={props.language} />
+          <CodeBodyWithLineNumbers
+            source={props.source}
+            language={props.language}
+            highlightEnabled={!streamMode}
+          />
         </div>
       );
     }
@@ -574,7 +862,11 @@ function CodeFenceView(props: {
               </div>
               <CopyCodeButton text={props.source} />
             </div>
-            <CodeBodyWithLineNumbers source={props.source} language={props.language} />
+            <CodeBodyWithLineNumbers
+              source={props.source}
+              language={props.language}
+              highlightEnabled={!streamMode}
+            />
           </div>
           <div className="artifact-blocked muted" data-testid="artifact-blocked" role="status">
             Artifact blocked
@@ -640,7 +932,11 @@ function CodeFenceView(props: {
                 </Button>
               </div>
             </div>
-            <CodeBodyWithLineNumbers source={props.source} language={props.language} />
+            <CodeBodyWithLineNumbers
+              source={props.source}
+              language={props.language}
+              highlightEnabled={!streamMode}
+            />
           </div>
         )}
       </div>
@@ -669,6 +965,7 @@ function CodeFenceView(props: {
       <CodeBodyWithLineNumbers
         source={decision.source}
         language={decision.language ?? props.language}
+        highlightEnabled={!streamMode}
       />
     </div>
   );
@@ -820,134 +1117,4 @@ function MathView(props: { tex: string; display: boolean }): ReactElement {
       dangerouslySetInnerHTML={{ __html: result.html }}
     />
   );
-}
-
-function renderInline(
-  text: string,
-  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined,
-): Array<string | ReactElement> {
-  const parts: Array<string | ReactElement> = [];
-  let key = 0;
-
-  // Regex pattern to tokenize inline links `[title](url)` alongside normal segments
-  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-
-  for (const segment of tokenizeInlineWithMath(text)) {
-    if (segment.kind === 'text') {
-      let lastIdx = 0;
-      let match: RegExpExecArray | null;
-
-      while ((match = linkRegex.exec(segment.value)) !== null) {
-        if (match.index > lastIdx) {
-          const subText = segment.value.slice(lastIdx, match.index);
-          pushTextWithFilePaths(subText, parts, key, onOpenDocument);
-          key += 100;
-        }
-
-        const title = match[1] ?? 'Document';
-        const url = match[2] ?? '';
-        const isDocLink =
-          url.endsWith('.md') ||
-          title.includes('Plan') ||
-          title.includes('Document') ||
-          title.startsWith('📄');
-
-        if (isDocLink && onOpenDocument) {
-          parts.push(
-            <PathChip
-              key={key++}
-              fullPath={url}
-              label={title}
-              onOpen={() => onOpenDocument({ title, path: url })}
-            />,
-          );
-        } else {
-          parts.push(
-            <a key={key++} href={url} target="_blank" rel="noopener noreferrer" className="md-link">
-              {title}
-            </a>,
-          );
-        }
-        lastIdx = linkRegex.lastIndex;
-      }
-
-      if (lastIdx < segment.value.length) {
-        const remaining = segment.value.slice(lastIdx);
-        pushTextWithFilePaths(remaining, parts, key, onOpenDocument);
-        key += 100;
-      }
-      continue;
-    }
-    if (segment.kind === 'code') {
-      const codeVal = segment.value.trim();
-      // Only convert inline code to chip if it contains a path (e.g. /path/to/file.md or ./file.md or file://)
-      const isPathMd =
-        (codeVal.includes('/') || codeVal.includes('\\') || codeVal.startsWith('file://')) &&
-        codeVal.endsWith('.md');
-
-      if (isPathMd && onOpenDocument) {
-        parts.push(
-          <PathChip
-            key={key++}
-            fullPath={codeVal}
-            onOpen={() => onOpenDocument({ title: fileNameFromPath(codeVal), path: codeVal })}
-          />,
-        );
-      } else {
-        parts.push(
-          <code key={key++} className="md-inline-code">
-            {segment.value}
-          </code>,
-        );
-      }
-      continue;
-    }
-    if (segment.kind === 'strong') {
-      parts.push(<strong key={key++}>{segment.value}</strong>);
-      continue;
-    }
-    if (segment.kind === 'em') {
-      parts.push(<em key={key++}>{segment.value}</em>);
-      continue;
-    }
-    parts.push(<MathView key={key++} tex={segment.value} display={segment.display} />);
-  }
-  return parts;
-}
-
-function pushTextWithFilePaths(
-  text: string,
-  parts: Array<string | ReactElement>,
-  keyBase: number,
-  onOpenDocument?: ((doc: { title: string; path?: string; content?: string }) => void) | undefined,
-): void {
-  if (!onOpenDocument) {
-    parts.push(text);
-    return;
-  }
-  // Match full absolute or relative file paths with slashes ending in .md
-  // e.g. /Users/yorickjue/.piwin/workspace/自我介绍.md, ./docs/guide.md, file:///...
-  const pathRegex = /(?:file:\/\/|\/|[A-Za-z]:[\\/]|(?:\.\.?\/))+[\w\u4e00-\u9fa5_./-]+\.md\b/g;
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let key = keyBase;
-
-  while ((match = pathRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
-    }
-    const fullPath = match[0];
-    parts.push(
-      <PathChip
-        key={key++}
-        fullPath={fullPath}
-        onOpen={() => onOpenDocument({ title: fileNameFromPath(fullPath), path: fullPath })}
-      />,
-    );
-    lastIndex = pathRegex.lastIndex;
-  }
-
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
 }

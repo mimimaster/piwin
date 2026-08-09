@@ -49,6 +49,7 @@ import {
 } from './file-tree-model';
 import { loadExpandedPaths, saveExpandedPaths } from './file-tree-expand-memory';
 import type { DesktopLocale } from './desktop-locale';
+import { PIWIN_PATH_MIME } from './workspace-path-drag';
 
 export type FileTreeRequest =
   | {
@@ -181,8 +182,6 @@ async function restoreExpanded(
   }
   return next;
 }
-
-export const PIWIN_PATH_MIME = 'application/x-piwin-workspace-path';
 
 /** Single-letter glyph for a git file status code (VS Code SCM style). */
 const GIT_STATUS_LETTER: Record<GitFileStatusCode, string> = {

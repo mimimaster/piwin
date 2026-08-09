@@ -348,8 +348,18 @@ export function useHostBootstrap(args: UseHostBootstrapArgs) {
         }
       }
       const themeResponse = await hostClient.request({ type: 'theme/get-active' });
-      // DesktopThemeRoot applies document tokens; this hook only reports.
-      args.onThemeResolved(resolveThemeBootstrapResponse(themeResponse));
+      // DesktopThemeRoot already applied Appearance prefs at mount. Only push
+      // custom installed theme packages from the host; built-in dark/light/橙白
+      // must not stomp the user's Appearance mode (causes a second theme flash).
+      const bootstrappedTheme = resolveThemeBootstrapResponse(themeResponse);
+      const isBuiltinAppearance =
+        bootstrappedTheme.id === 'piwin-dark' ||
+        bootstrappedTheme.id === 'piwin-light' ||
+        bootstrappedTheme.id === 'piwin-orange-white' ||
+        bootstrappedTheme.id.endsWith('-appearance');
+      if (!isBuiltinAppearance) {
+        args.onThemeResolved(bootstrappedTheme);
+      }
       const petResponse = await hostClient.request({ type: 'pet/get-active' });
       if (petResponse.success) {
         const petData = petResponse.data as { pet: PetRuntimeSnapshot };

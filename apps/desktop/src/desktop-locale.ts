@@ -56,7 +56,8 @@ export type DesktopCopy = {
     deleteSessionPermanently: string;
     sessionActions: string;
     projects: string;
-    viewAllProjects: (count: number) => string;
+    recentProjects: string;
+    noRecentProjects: string;
     allProjects: string;
     projectPickerDescription: string;
     searchProjects: string;
@@ -77,10 +78,14 @@ export type DesktopCopy = {
     openWorkspaceFolderAction: string;
     generalChat: string;
     newConversationInProject: (projectName: string) => string;
+    removeProjectFromSidebar: string;
+    collapseProject: string;
+    expandProject: string;
     showLess: string;
     seeAll: (count: number) => string;
     conversations: string;
     noGeneralConversations: string;
+    loadingSessions: string;
     resizeSidebar: string;
     resizeSidebarHint: string;
   };
@@ -190,8 +195,6 @@ export type DesktopCopy = {
     codeFirstMode: string;
     codeFirstModeDescription: string;
     resetDefaults: string;
-    uiThemes: string;
-    uiThemesDescription: string;
   };
 };
 
@@ -476,7 +479,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deleteSessionPermanently: '永久删除会话',
       sessionActions: '会话操作',
       projects: '项目',
-      viewAllProjects: (count) => `查看全部项目（${count}）`,
+      recentProjects: '最近项目',
+      noRecentProjects: '暂无最近项目',
       allProjects: '全部项目',
       projectPickerDescription: '搜索并切换到最近打开的项目。',
       searchProjects: '搜索项目',
@@ -497,10 +501,14 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       openWorkspaceFolderAction: '打开工作区文件夹…',
       generalChat: '通用 Chat（快速开始）',
       newConversationInProject: (projectName) => `在 ${projectName} 中新建会话`,
+      removeProjectFromSidebar: '从侧栏移除项目',
+      collapseProject: '收起项目',
+      expandProject: '展开项目',
       showLess: '收起',
       seeAll: (count) => `查看全部 (${count})`,
       conversations: '会话',
       noGeneralConversations: '暂无通用会话',
+      loadingSessions: '正在加载会话…',
       resizeSidebar: '调整侧边栏宽度',
       resizeSidebarHint: '拖动调整宽度，双击恢复默认。',
     },
@@ -614,8 +622,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       codeFirstMode: '代码优先',
       codeFirstModeDescription: 'Artifact 默认展示源代码，并提供 Preview 切换。',
       resetDefaults: '重置 Appearance 默认值',
-      uiThemes: '界面主题',
-      uiThemesDescription: '选择、应用或安装 piwin UI appearance themes。',
     },
   },
   en: {
@@ -665,7 +671,8 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       deleteSessionPermanently: 'Delete session permanently',
       sessionActions: 'Session actions',
       projects: 'Projects',
-      viewAllProjects: (count) => `View all projects (${count})`,
+      recentProjects: 'Recent projects',
+      noRecentProjects: 'No recent projects',
       allProjects: 'All projects',
       projectPickerDescription: 'Search and switch to a recently opened project.',
       searchProjects: 'Search projects',
@@ -686,10 +693,14 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       openWorkspaceFolderAction: 'Open Workspace Folder…',
       generalChat: 'General Chat (Quick Start)',
       newConversationInProject: (projectName) => `New conversation in ${projectName}`,
+      removeProjectFromSidebar: 'Remove from sidebar',
+      collapseProject: 'Collapse project',
+      expandProject: 'Expand project',
       showLess: 'Show less',
       seeAll: (count) => `See all (${count})`,
       conversations: 'Conversations',
       noGeneralConversations: 'No general conversations',
+      loadingSessions: 'Loading sessions…',
       resizeSidebar: 'Resize sidebar',
       resizeSidebarHint: 'Drag to resize. Double-click to reset.',
     },
@@ -805,8 +816,6 @@ const COPY_BY_LOCALE: Record<DesktopLocale, DesktopCopy> = {
       codeFirstMode: 'Code-first mode',
       codeFirstModeDescription: 'Display Artifact source first with a Preview toggle.',
       resetDefaults: 'Reset Appearance defaults',
-      uiThemes: 'UI Themes',
-      uiThemesDescription: 'Select, apply, or install piwin UI appearance themes.',
     },
   },
 };

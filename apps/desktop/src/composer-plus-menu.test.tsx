@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 /**
- * Composer plus-menu coverage for slice R5.
+ * Composer plus-menu: Skills + MCP only.
  * Same happy-dom + createRoot harness as context-bar.test.tsx; the menu is
  * portaled by Radix, so assertions read from document, not the container.
  */
@@ -9,7 +9,6 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { PiwinUiProvider } from '@piwin/ui-kit';
 import { PIWIN_APPEARANCE_DARK } from './appearance-tokens.js';
-import { AGENT_MODES } from './agent-mode.js';
 import {
   ComposerPlusMenu,
   type ComposerPlusMenuProps,
@@ -26,15 +25,12 @@ function createBaseProps(
     trigger: <button type="button">+</button>,
     open: true,
     onOpenChange: vi.fn(),
-    agentMode: 'agent',
-    onSelectMode: vi.fn(),
     submenu: 'none',
     onSubmenu: vi.fn(),
     skills: [{ id: 'skill-a', name: 'Review', enabled: true }],
     onOpenSkillsPanel: vi.fn(),
     mcpServers: [{ id: 'mcp-a', name: 'Filesystem', running: true }],
     onOpenMcpPanel: vi.fn(),
-    onAttachImage: vi.fn(),
     ...overrides,
   };
 }
@@ -96,48 +92,19 @@ describe('ComposerPlusMenu', () => {
     expect(queryMenu()).toBeNull();
   });
 
-  it('renders every mode entry plus image, skills, and MCP', () => {
+  it('renders skills and MCP only — no modes, image, or orchestration', () => {
     render(createBaseProps(), root);
 
     const menu = queryMenu();
     expect(menu).not.toBeNull();
-    for (const mode of AGENT_MODES) {
-      expect(document.querySelector(`[data-testid="plus-menu-mode-${mode.id}"]`)).not.toBeNull();
-    }
-    expect(document.querySelector('[data-testid="plus-menu-image"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="plus-menu-skills"]')).not.toBeNull();
     expect(document.querySelector('[data-testid="plus-menu-mcp"]')).not.toBeNull();
-    expect(menu?.textContent).toContain('Add agents, context, tools');
-  });
-
-  it('marks the active mode with a check', () => {
-    render(createBaseProps({ agentMode: 'plan' }), root);
-
-    const planItem = document.querySelector('[data-testid="plus-menu-mode-plan"]');
-    const agentItem = document.querySelector('[data-testid="plus-menu-mode-agent"]');
-    expect(planItem?.querySelector('.plus-menu-check')).not.toBeNull();
-    expect(agentItem?.querySelector('.plus-menu-check')).toBeNull();
-  });
-
-  it('selects a mode and closes the menu', () => {
-    const onSelectMode = vi.fn();
-    const onOpenChange = vi.fn();
-    render(createBaseProps({ onSelectMode, onOpenChange }), root);
-
-    clickItem('plus-menu-mode-plan');
-
-    expect(onSelectMode).toHaveBeenCalledWith('plan');
-    // Radix reports menu dismissal through the controlled onOpenChange(false).
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it('triggers the image attach callback', () => {
-    const onAttachImage = vi.fn();
-    render(createBaseProps({ onAttachImage }), root);
-
-    clickItem('plus-menu-image');
-
-    expect(onAttachImage).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-testid="plus-menu-mode-agent"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plus-menu-mode-plan"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plus-menu-mode-ask"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plus-menu-image"]')).toBeNull();
+    expect(document.querySelector('[data-testid="plus-menu-orchestration"]')).toBeNull();
+    expect(menu?.textContent).toContain('Skills & MCP');
   });
 
   it('renders skill entries and the manage action when the skills flyout is open', () => {
@@ -174,25 +141,5 @@ describe('ComposerPlusMenu', () => {
     expect(document.querySelector('[aria-label="MCP Servers"]')?.textContent).toContain(
       'No servers configured',
     );
-  });
-
-  it('renders orchestration options when orchestration flyout is open', () => {
-    const onOrchestrationSchemeChange = vi.fn();
-    render(
-      createBaseProps({
-        submenu: 'orchestration',
-        orchestrationSchemeOptions: [
-          { id: 'off', name: 'None', description: 'Freehand — no scheme prompt injection' },
-          { id: 'ultra-code', name: 'Ultra Code', description: 'Multi-step coding plan' },
-        ],
-        orchestrationSchemeId: 'ultra-code',
-        onOrchestrationSchemeChange,
-      }),
-      root,
-    );
-
-    const flyout = document.querySelector('[aria-label="Orchestration Scheme"]');
-    expect(flyout).not.toBeNull();
-    expect(flyout?.textContent).toContain('Ultra Code');
   });
 });

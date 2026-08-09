@@ -19,11 +19,6 @@
 @import './styles/region-transcript.css';
 @import './styles/run-activity.css';
 @import './styles/region-inspector.css';
+@import './styles/usage-panel.css';
 @import './styles/region-overlays.css';
 @import './styles/subagent-session-inspector.css';
-@import './styles/region-settings-shell.css';
-@import './styles/region-settings-models.css';
-@import './styles/region-settings-vision.css';
-/* Settings section-content styles (cards, providers, fields) — R4 will split
-   these into per-section pages. */
-@import './styles/settings-resources.css';

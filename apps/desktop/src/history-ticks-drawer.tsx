@@ -13,10 +13,13 @@ import {
   useRef,
   useState,
   type FocusEvent as ReactFocusEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactElement,
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { ChatMessageUi } from './chat-reducer';
+import { messageAnchorId } from './transcript-outline';
+import { useTranscriptScrollPort } from './transcript-scroll-port';
 
 export type HistoryTicksDrawerProps = {
   messages?: ChatMessageUi[] | undefined;
@@ -52,8 +55,8 @@ const COLLAPSED_TICK_STEP_PX = COLLAPSED_TICK_HEIGHT_PX + COLLAPSED_TICK_GAP_PX;
 // The wave is an arithmetic progression of widths. Keep the base width in
 // sync with the compact rail CSS; the step is derived so changing either
 // endpoint automatically recalculates every intermediate tick.
-const COLLAPSED_TICK_BASE_WIDTH_PX = 12;
-const HISTORY_TICK_WAVE_MAX_WIDTH_PX = 36;
+const COLLAPSED_TICK_BASE_WIDTH_PX = 10;
+const HISTORY_TICK_WAVE_MAX_WIDTH_PX = 30;
 const HISTORY_TICK_WAVE_RADIUS = 4;
 const HISTORY_TICK_WAVE_STEP_PX =
   (HISTORY_TICK_WAVE_MAX_WIDTH_PX - COLLAPSED_TICK_BASE_WIDTH_PX) / HISTORY_TICK_WAVE_RADIUS;
@@ -113,9 +116,58 @@ function getCollapsedBubbleAnchor(element: HTMLElement): CollapsedBubbleAnchor {
   };
 }
 
+/**
+ * Map a pointer Y on the collapsed rail to the nearest tick index.
+ * Shared by hover preview and click-to-jump so gaps between 1px ticks still
+ * resolve to a message (hover already did; click must match).
+ */
+export function resolveCollapsedTickIndex(options: {
+  clientY: number;
+  railTop: number;
+  railScrollTop: number;
+  tickCount: number;
+}): number | null {
+  if (options.tickCount <= 0) {
+    return null;
+  }
+
+  const localY =
+    options.clientY - options.railTop + options.railScrollTop - COLLAPSED_TICK_PADDING_TOP_PX;
+  const rawPosition = (localY - COLLAPSED_TICK_HEIGHT_PX / 2) / COLLAPSED_TICK_STEP_PX;
+  const pointerPosition = Math.min(Math.max(rawPosition, 0), options.tickCount - 1);
+  return Math.round(pointerPosition);
+}
+
+/** Scroll the transcript to a message anchor, preferring the chat-stream port. */
+export function scrollTranscriptToMessage(messageId: string): boolean {
+  const targetElement = document.getElementById(messageAnchorId(messageId));
+  if (!targetElement) {
+    return false;
+  }
+
+  const scrollParent = targetElement.closest('.chat-stream');
+  if (scrollParent instanceof HTMLElement) {
+    const parentRect = scrollParent.getBoundingClientRect();
+    const targetRect = targetElement.getBoundingClientRect();
+    const targetCenterY = targetRect.top + targetRect.height / 2;
+    const parentCenterY = parentRect.top + parentRect.height / 2;
+    const nextScrollTop = scrollParent.scrollTop + (targetCenterY - parentCenterY);
+    scrollParent.scrollTo({ top: nextScrollTop, behavior: 'smooth' });
+  } else {
+    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  targetElement.classList.add('highlight-target');
+  window.setTimeout(() => {
+    targetElement.classList.remove('highlight-target');
+  }, 2000);
+  return true;
+}
+
 export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
   messages = [],
 }: HistoryTicksDrawerProps): ReactElement | null {
+  const transcriptScrollPort = useTranscriptScrollPort();
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [collapsedBubbleAnchor, setCollapsedBubbleAnchor] = useState<CollapsedBubbleAnchor | null>(
     null,
@@ -166,14 +218,15 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
         railMetricsRef.current.tickCount === userMessages.length
           ? railMetricsRef.current
           : refreshRailMetrics(rail);
-      if (metrics.tickCount === 0) {
+      const nextIndex = resolveCollapsedTickIndex({
+        clientY,
+        railTop: metrics.top,
+        railScrollTop: rail.scrollTop,
+        tickCount: metrics.tickCount,
+      });
+      if (nextIndex === null) {
         return;
       }
-
-      const localY = clientY - metrics.top + rail.scrollTop - COLLAPSED_TICK_PADDING_TOP_PX;
-      const rawPosition = (localY - COLLAPSED_TICK_HEIGHT_PX / 2) / COLLAPSED_TICK_STEP_PX;
-      const pointerPosition = Math.min(Math.max(rawPosition, 0), metrics.tickCount - 1);
-      const nextIndex = Math.round(pointerPosition);
       // Keep the visual wave independent from the preview state. A pointer
       // can enter the rail without producing a follow-up mousemove, and the
       // nearest tick must still become the peak immediately.
@@ -200,18 +253,48 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
     [refreshRailMetrics, userMessages],
   );
 
-  const handleTickJump = useCallback((messageId: string): void => {
-    const targetElement = document.getElementById(`msg-${messageId}`);
-    if (!targetElement) {
-      return;
-    }
+  const handleTickJump = useCallback(
+    (messageId: string): void => {
+      if (!transcriptScrollPort?.scrollToMessage(messageId)) {
+        scrollTranscriptToMessage(messageId);
+      }
+    },
+    [transcriptScrollPort],
+  );
 
-    targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    targetElement.classList.add('highlight-target');
-    window.setTimeout(() => {
-      targetElement.classList.remove('highlight-target');
-    }, 2000);
-  }, []);
+  /** Click anywhere on the rail (including gaps between 1px ticks) jumps. */
+  const handleRailClick = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>): void => {
+      const rail = event.currentTarget;
+      const metrics =
+        railMetricsRef.current?.rail === rail &&
+        railMetricsRef.current.tickCount === userMessages.length
+          ? railMetricsRef.current
+          : refreshRailMetrics(rail);
+      const nextIndex = resolveCollapsedTickIndex({
+        clientY: event.clientY,
+        railTop: metrics.top,
+        railScrollTop: rail.scrollTop,
+        tickCount: metrics.tickCount,
+      });
+      if (nextIndex === null) {
+        return;
+      }
+
+      const message = userMessages[nextIndex];
+      if (!message) {
+        return;
+      }
+
+      event.preventDefault();
+      // Keep the preview wave on the jumped tick; still scroll the transcript.
+      hoveredIndexRef.current = nextIndex;
+      setWaveCenterIndex(nextIndex);
+      setHoveredMessageId(message.id);
+      handleTickJump(message.id);
+    },
+    [handleTickJump, refreshRailMetrics, userMessages],
+  );
 
   const handleTickFocus = useCallback(
     (messageId: string, event: ReactFocusEvent<HTMLSpanElement>): void => {
@@ -283,6 +366,7 @@ export const HistoryTicksDrawer = memo(function HistoryTicksDrawer({
           updateRailPreview(event.currentTarget, event.clientY);
         }}
         onMouseLeave={clearRailInteraction}
+        onClick={handleRailClick}
         onScroll={clearRailInteraction}
       >
         <div className="border-ticks-list">

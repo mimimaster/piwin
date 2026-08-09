@@ -90,6 +90,38 @@ describe('ComposerDock host status', () => {
     expect(hostStatusBtn).toBeNull();
   });
 
+  it('hides voice input when ASR is not configured', () => {
+    const rendered = renderDock(
+      <ComposerDock {...baseProps} onOpenModelSettings={vi.fn()} />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-speech-btn"]')).toBeNull();
+    expect(container.querySelector('[data-testid="composer-speech-status"]')).toBeNull();
+    expect(container.querySelector('[data-testid="composer-speech-error"]')).toBeNull();
+  });
+
+  it('shows voice input only when ASR is configured and a request is available', () => {
+    const rendered = renderDock(
+      <ComposerDock
+        {...baseProps}
+        speechConfigured={true}
+        speechRequest={async () => ({
+          type: 'response',
+          success: true,
+          command: 'speech/transcribe',
+          requestId: 'speech-test',
+          data: { text: 'hello', model: { providerId: 'test', modelId: 'asr' }, durationMs: 1 },
+        })}
+      />,
+    );
+    root = rendered.root;
+    container = rendered.container;
+
+    expect(container.querySelector('[data-testid="composer-speech-btn"]')).not.toBeNull();
+  });
+
   it('resets textarea height when composer text is cleared or changed', async () => {
     const rendered = renderDock(<ComposerDock {...baseProps} composer="Hello world" />);
     root = rendered.root;

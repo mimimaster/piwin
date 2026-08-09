@@ -81,6 +81,7 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
   // Subscribe to browser/* pushes and start the session on mount.
   useEffect(() => {
     let cancelled = false;
+    const mirrorLeaseId = crypto.randomUUID();
     const unsubscribe = hostClient.subscribe((message: HostServerMessage) => {
       if (cancelled) return;
       if (message.type === 'browser/frame') {
@@ -108,15 +109,37 @@ export function BrowserSessionPanel(props: BrowserSessionPanelProps): ReactEleme
       }
     });
 
-    // Start the shared session. Fire-and-forget: the host start is idempotent.
-    void hostClient.browserStart();
+    // Acquire the mirror lease. HostRuntime keeps the BrowserSession service,
+    // while this command alone owns the Chromium/frame-stream lifetime.
+    void hostClient
+      .browserStart(mirrorLeaseId)
+      .then((response) => {
+        if (!cancelled && !response.success) {
+          console.warn('[piwin] browser mirror start failed', response.error);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.warn('[piwin] browser mirror start failed', error);
+        }
+      });
 
     return () => {
       cancelled = true;
       unsubscribe();
-      // Stop on unmount to release Chromium resources (panel is the only
-      // mirror consumer; agent tools re-start on demand).
-      void hostClient.browserStop();
+      // Release the mirror lease on tab switch/panel close. The Host waits for
+      // Playwright's persistent context to close; agent tools can relaunch the
+      // same reusable service object later.
+      void hostClient
+        .browserStop(mirrorLeaseId)
+        .then((response) => {
+          if (!response.success) {
+            console.warn('[piwin] browser mirror stop failed', response.error);
+          }
+        })
+        .catch((error: unknown) => {
+          console.warn('[piwin] browser mirror stop failed', error);
+        });
     };
   }, [hostClient, onAddWebElement]);
 

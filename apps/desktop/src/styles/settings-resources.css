@@ -132,6 +132,47 @@
   box-shadow: none;
 }
 
+.settings-asr-card .settings-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-soft);
+}
+
+.settings-asr-card .settings-section-row p {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.settings-section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-asr-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+@media (max-width: 640px) {
+  .settings-asr-card .settings-section-row,
+  .settings-form-grid {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
 /* Keep the full-window settings route flat. Nested list surfaces and controls
    retain their own boundaries, while page-level groups lose the heavy card. */
 .settings-main .settings-section-card {
@@ -963,6 +1004,44 @@
   padding-top: 4px;
 }
 
+/* The pin explanation is persistent page content, not transient feedback.
+   Keep it in normal flow so it cannot cover the first server card. */
+.mcp-pin-tip {
+  margin-bottom: 12px;
+}
+
+.mcp-pin-tip .ui-notice {
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-inset));
+  border-color: color-mix(in srgb, var(--accent) 18%, var(--line-soft));
+}
+
+.mcp-pin-tip .ui-notice-body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mcp-pin-tip .ui-notice-title {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.mcp-pin-tip .ui-notice-message {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 /* Single-line toolbars: search / filter / install (no stacked Field label). */
 .settings-toolbar {
   display: flex;
@@ -976,6 +1055,17 @@
 .settings-toolbar > .piwin-select {
   flex: 1 1 180px;
   min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .mcp-pin-tip .ui-notice-body {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .mcp-pin-tip .ui-notice-title {
+    white-space: normal;
+  }
 }
 
 .settings-toolbar .piwin-button {
@@ -3055,37 +3145,6 @@
 .ext-desc {
   font-size: 12.5px;
   color: var(--muted);
-}
-
-/* Theme panel */
-.theme-panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-
-.theme-panel-header h3 {
-  margin: 0 0 6px;
-  font-size: 18px;
-  font-weight: 650;
-  color: var(--text);
-  letter-spacing: -0.015em;
-}
-
-.theme-panel-header p {
-  margin: 0;
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.5;
-  max-width: 560px;
-}
-
-.theme-install-inline {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
 }
 
 /* Provider connection strip + modal */

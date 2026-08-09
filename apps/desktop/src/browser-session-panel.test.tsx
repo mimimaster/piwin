@@ -76,6 +76,24 @@ describe('BrowserSessionPanel', () => {
     expect(queryByTestId('browser-session-frame')).toBeNull();
   });
 
+  it('acquires Chromium on mount and releases it when the browser surface unmounts', () => {
+    const client = createMockHostClient();
+    const startSpy = vi.spyOn(client, 'browserStart');
+    const stopSpy = vi.spyOn(client, 'browserStop');
+    renderPanel({ hostClient: client });
+
+    expect(startSpy).toHaveBeenCalledTimes(1);
+    const leaseId = startSpy.mock.calls[0]?.[0];
+    expect(leaseId).toEqual(expect.any(String));
+
+    act(() => {
+      root.render(<div data-testid="browser-replacement" />);
+    });
+
+    expect(stopSpy).toHaveBeenCalledTimes(1);
+    expect(stopSpy).toHaveBeenCalledWith(leaseId);
+  });
+
   it('navigates via the URL bar using normalizeUrl and calls browser/navigate', async () => {
     const client = createMockHostClient();
     const navigateSpy = vi.spyOn(client, 'browserNavigate');
@@ -170,9 +188,14 @@ describe('BrowserSessionPanel', () => {
     expect(x).toBe(400);
     expect(y).toBe(300);
 
-    // The mock backend emits browser/picked from browserPickAt; flush.
+    // The mock backend lives in a deferred chunk; wait for the actual request
+    // instead of assuming its import resolves within one microtask.
+    const pickRequest = pickAtSpy.mock.results[0]?.value;
+    if (!pickRequest) {
+      throw new Error('browserPickAt request missing');
+    }
     await act(async () => {
-      await Promise.resolve();
+      await pickRequest;
     });
 
     // onAddWebElement should have been called with the pick result.
@@ -184,6 +207,7 @@ describe('BrowserSessionPanel', () => {
 
   it('shows a highlight overlay after a pick result', async () => {
     const client = createMockHostClient();
+    const pickAtSpy = vi.spyOn(client, 'browserPickAt');
     renderPanel({ hostClient: client });
 
     const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
@@ -229,7 +253,11 @@ describe('BrowserSessionPanel', () => {
       );
     });
     await act(async () => {
-      await Promise.resolve();
+      const pickRequest = pickAtSpy.mock.results[0]?.value;
+      if (!pickRequest) {
+        throw new Error('browserPickAt request missing');
+      }
+      await pickRequest;
     });
 
     const highlight = queryByTestId('browser-session-highlight');
@@ -238,6 +266,7 @@ describe('BrowserSessionPanel', () => {
 
   it('offsets the highlight overlay when the frame img is letterboxed in the container', async () => {
     const client = createMockHostClient();
+    const pickAtSpy = vi.spyOn(client, 'browserPickAt');
     renderPanel({ hostClient: client });
 
     const listeners = (client as unknown as { listeners: Set<(m: unknown) => void> }).listeners;
@@ -296,7 +325,11 @@ describe('BrowserSessionPanel', () => {
       );
     });
     await act(async () => {
-      await Promise.resolve();
+      const pickRequest = pickAtSpy.mock.results[0]?.value;
+      if (!pickRequest) {
+        throw new Error('browserPickAt request missing');
+      }
+      await pickRequest;
     });
 
     const highlight = queryByTestId('browser-session-highlight') as HTMLDivElement;

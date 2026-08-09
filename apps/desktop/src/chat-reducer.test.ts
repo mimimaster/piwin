@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExecutionRunRecord } from '@piwin/contracts';
-import {
-  chatUiReducer,
-  createInitialChatUiState,
-  mapTranscriptMessagesToUi,
-} from './chat-reducer';
+import { chatUiReducer, createInitialChatUiState, mapTranscriptMessagesToUi } from './chat-reducer';
 
 function makeRun(runId: string, overrides: Partial<ExecutionRunRecord> = {}): ExecutionRunRecord {
   return {
@@ -316,6 +312,41 @@ describe('chatUiReducer', () => {
     expect(state.activeRunStartedAt).toBeNull();
   });
 
+  it('deduplicates equal or older Run revisions while preserving terminal delivery', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
+    const running = makeRun('run-1', {
+      revision: 3,
+      phase: 'streaming',
+      phaseUpdatedAt: '2026-07-24T00:00:01.000Z',
+    });
+    state = chatUiReducer(state, { type: 'run/updated', run: running });
+    const afterRunning = state;
+    const afterDuplicate = chatUiReducer(state, { type: 'run/updated', run: running });
+    expect(afterDuplicate).toBe(afterRunning);
+    expect(afterDuplicate.runRecordsById).toBe(afterRunning.runRecordsById);
+
+    const afterOlder = chatUiReducer(state, {
+      type: 'run/updated',
+      run: { ...running, revision: 2, phase: 'accepted' },
+    });
+    expect(afterOlder).toBe(afterRunning);
+
+    const terminal = chatUiReducer(state, {
+      type: 'run/terminal',
+      run: makeRun('run-1', {
+        revision: 3,
+        status: 'completed',
+        phase: 'streaming',
+        endedAt: '2026-07-24T00:00:02.000Z',
+        terminalCode: 'completed',
+      }),
+    });
+    expect(terminal).not.toBe(afterRunning);
+    expect(terminal.activeRunId).toBeNull();
+    expect(terminal.runRecordsById['run-1']?.outcome).toBe('completed');
+  });
+
   it('rejects a legacy delta after the run has terminated', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
@@ -390,6 +421,46 @@ describe('chatUiReducer', () => {
       },
     });
     expect(state.messages[0]?.tools[0]?.output).toBe(retainedOutput);
+
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/update',
+        toolCallId: 'tool-1',
+        delta: 'must not replace an explicit empty snapshot',
+        runId: 'run-1',
+        presentation: {
+          kind: 'other',
+          title: 'Large output',
+          output: { text: '' },
+        },
+      },
+    });
+    expect(state.messages[0]?.tools[0]?.output).toBe('');
+
+    const largeStructuredOutput = 'y'.repeat(10 * 1024 * 1024);
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 's1',
+      event: {
+        type: 'tool/update',
+        toolCallId: 'tool-1',
+        delta: '',
+        runId: 'run-1',
+        presentation: {
+          kind: 'other',
+          title: 'Large output',
+          output: { text: largeStructuredOutput },
+        },
+      },
+    });
+    const structuredTool = state.messages[0]?.tools[0];
+    expect(new TextEncoder().encode(structuredTool?.output ?? '').byteLength).toBeLessThanOrEqual(
+      256 * 1024,
+    );
+    expect(structuredTool?.presentation?.output?.text).toBe(structuredTool?.output);
+    expect(structuredTool?.presentation?.output?.truncated).toBe(true);
 
     state = chatUiReducer(state, {
       type: 'event',
@@ -619,6 +690,22 @@ describe('chatUiReducer', () => {
     ).toContain('a.png');
   });
 
+  it('keeps explicit Skill provenance on the active prompt until the run ends', () => {
+    let state = chatUiReducer(createInitialChatUiState(), {
+      type: 'session/set',
+      sessionId: 'skill-session',
+    });
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: '/writing-plans add auth',
+      skill: { skillId: 'writing-plans', name: 'writing-plans' },
+    });
+    expect(state.activeSkill).toEqual({ skillId: 'writing-plans', name: 'writing-plans' });
+
+    state = chatUiReducer(state, { type: 'error', message: 'skill failed' });
+    expect(state.activeSkill).toBeNull();
+  });
+
   it('clears the prior project transcript while loading another project', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, {
@@ -788,6 +875,37 @@ describe('chatUiReducer', () => {
     expect(assistantMessage?.text).toBe('raw assistant reply with [piwin-mode:agent] mention');
   });
 
+  it('bounds both canonical and structured tool output during transcript hydrate', () => {
+    const largeOutput = 'x'.repeat(10 * 1024 * 1024);
+    const [assistantMessage] = mapTranscriptMessagesToUi([
+      {
+        id: 'a-large-tool',
+        role: 'assistant',
+        text: 'done',
+        createdAt: '2026-08-07T00:00:01.000Z',
+        status: 'done',
+        tools: [
+          {
+            toolCallId: 'tool-large',
+            toolName: 'large-output',
+            status: 'done',
+            output: largeOutput,
+            presentation: {
+              kind: 'other',
+              title: 'Large output',
+              output: { text: largeOutput },
+            },
+          },
+        ],
+      },
+    ]);
+
+    const tool = assistantMessage?.tools[0];
+    expect(new TextEncoder().encode(tool?.output ?? '').byteLength).toBeLessThanOrEqual(256 * 1024);
+    expect(tool?.presentation?.output?.text).toBe(tool?.output);
+    expect(tool?.presentation?.output?.truncated).toBe(true);
+  });
+
   it('tracks compaction banner state', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, { type: 'session/set', sessionId: 's1' });
@@ -920,6 +1038,243 @@ describe('chatUiReducer', () => {
     expect(state.messages[0]?.id).toBe('u1');
   });
 
+  it('prepends an older transcript page without replacing the active tail', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'paged-session' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 'paged-session',
+      messages: [
+        {
+          id: 'm3',
+          role: 'user',
+          text: 'three',
+          createdAt: '2026-08-09T00:00:03.000Z',
+          status: 'done',
+        },
+        {
+          id: 'm4',
+          role: 'assistant',
+          text: 'four',
+          createdAt: '2026-08-09T00:00:04.000Z',
+          status: 'done',
+        },
+      ],
+      transcriptPage: {
+        revision: 'a'.repeat(64),
+        totalCount: 4,
+        startIndex: 2,
+        endIndex: 4,
+        messageBytes: 256,
+        olderCursor: 'older-1',
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'session/prepend-messages',
+      sessionId: 'paged-session',
+      messages: [
+        {
+          id: 'm1',
+          role: 'user',
+          text: 'one',
+          createdAt: '2026-08-09T00:00:01.000Z',
+          status: 'done',
+        },
+        {
+          id: 'm2',
+          role: 'assistant',
+          text: 'two',
+          createdAt: '2026-08-09T00:00:02.000Z',
+          status: 'done',
+        },
+      ],
+      transcriptPage: {
+        revision: 'a'.repeat(64),
+        totalCount: 4,
+        startIndex: 0,
+        endIndex: 2,
+        messageBytes: 256,
+      },
+    });
+
+    expect(state.messages.map((message) => message.id)).toEqual(['m1', 'm2', 'm3', 'm4']);
+    expect(state.transcriptWindow).toMatchObject({
+      revision: 'a'.repeat(64),
+      totalCount: 4,
+      cacheLimitReached: false,
+    });
+    expect(state.transcriptWindow?.olderCursor).toBeUndefined();
+  });
+
+  it('bounds messages appended during a long-lived renderer session', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'paged-session' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 'paged-session',
+      messages: Array.from({ length: 160 }, (_, index) => ({
+        id: `m-${index}`,
+        role: 'assistant' as const,
+        text: `message ${index}`,
+        createdAt: `2026-08-09T00:00:${String(index % 60).padStart(2, '0')}.000Z`,
+        status: 'done' as const,
+      })),
+      transcriptPage: {
+        revision: 'a'.repeat(64),
+        totalCount: 200,
+        startIndex: 40,
+        endIndex: 200,
+        messageBytes: 16_000,
+        olderCursor: 'older-1',
+      },
+    });
+
+    state = chatUiReducer(state, {
+      type: 'transcript/append',
+      sessionId: 'paged-session',
+      message: {
+        id: 'm-160',
+        role: 'assistant',
+        text: 'new live-session message',
+        createdAt: '2026-08-09T00:03:00.000Z',
+        status: 'done',
+      },
+    });
+
+    expect(state.messages).toHaveLength(160);
+    expect(state.messages[0]?.id).toBe('m-1');
+    expect(state.messages.at(-1)?.id).toBe('m-160');
+    expect(state.transcriptWindow?.cacheLimitReached).toBe(true);
+    expect(state.transcriptWindow?.olderCursor).toBeUndefined();
+  });
+
+  it('preserves an active partial turn when a stale cursor refreshes the tail', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'paged-session' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 'paged-session',
+      messages: [
+        {
+          id: 'durable-old',
+          role: 'assistant',
+          text: 'old tail',
+          createdAt: '2026-08-09T00:00:00.000Z',
+          status: 'done',
+        },
+      ],
+      transcriptPage: {
+        revision: 'a'.repeat(64),
+        totalCount: 2,
+        startIndex: 1,
+        endIndex: 2,
+        messageBytes: 128,
+        olderCursor: 'stale-older',
+      },
+    });
+    state = chatUiReducer(state, {
+      type: 'user/send',
+      text: 'current prompt',
+      clientMessageId: 'live-user',
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 'paged-session',
+      event: { type: 'message/start', messageId: 'live-assistant', role: 'assistant' },
+    });
+    state = chatUiReducer(state, {
+      type: 'event',
+      sessionId: 'paged-session',
+      event: {
+        type: 'message/text_delta',
+        messageId: 'live-assistant',
+        delta: 'local partial',
+      },
+    });
+
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 'paged-session',
+      messages: [
+        {
+          id: 'durable-new',
+          role: 'assistant',
+          text: 'new durable tail',
+          createdAt: '2026-08-09T00:01:00.000Z',
+          status: 'done',
+        },
+        {
+          id: 'live-assistant',
+          role: 'assistant',
+          text: 'older persisted prefix',
+          createdAt: '2026-08-09T00:02:00.000Z',
+          status: 'streaming',
+        },
+      ],
+      transcriptPage: {
+        revision: 'b'.repeat(64),
+        totalCount: 3,
+        startIndex: 1,
+        endIndex: 3,
+        messageBytes: 256,
+      },
+      preserveActiveTail: true,
+    });
+
+    expect(state.messages.map((message) => message.id)).toEqual([
+      'durable-new',
+      'live-user',
+      'live-assistant',
+    ]);
+    expect(state.messages.find((message) => message.id === 'live-assistant')?.text).toBe(
+      'local partial',
+    );
+    expect(state.messages.find((message) => message.id === 'live-assistant')?.status).toBe(
+      'streaming',
+    );
+    expect(state.streaming).toBe(true);
+    expect(state.runPhase).toBe('streaming');
+    expect(state.transcriptWindow?.revision).toBe('b'.repeat(64));
+  });
+
+  it('ignores an older transcript page from a different revision', () => {
+    let state = createInitialChatUiState();
+    state = chatUiReducer(state, { type: 'session/set', sessionId: 'paged-session' });
+    state = chatUiReducer(state, {
+      type: 'session/load-messages',
+      sessionId: 'paged-session',
+      messages: [],
+      transcriptPage: {
+        revision: 'a'.repeat(64),
+        totalCount: 2,
+        startIndex: 0,
+        endIndex: 0,
+        messageBytes: 2,
+      },
+    });
+    const unchanged = chatUiReducer(state, {
+      type: 'session/prepend-messages',
+      sessionId: 'paged-session',
+      messages: [
+        {
+          id: 'stale',
+          role: 'assistant',
+          text: 'stale',
+          createdAt: '2026-08-09T00:00:00.000Z',
+          status: 'done',
+        },
+      ],
+      transcriptPage: {
+        revision: 'b'.repeat(64),
+        totalCount: 2,
+        startIndex: 0,
+        endIndex: 1,
+        messageBytes: 128,
+      },
+    });
+    expect(unchanged).toBe(state);
+  });
+
   it('session/remove drops session and clears active transcript when active', () => {
     let state = createInitialChatUiState();
     state = chatUiReducer(state, {
@@ -951,6 +1306,50 @@ describe('chatUiReducer', () => {
   });
 
   describe('generalSessions (Conversations sidebar section)', () => {
+    it('bounded page hydration replaces one scope without deselecting its active transcript', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'older-active' });
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-page',
+        scope: { kind: 'general' },
+        sessions: Array.from({ length: 12 }, (_, index) => ({
+          id: `page-${index}`,
+          name: `Page ${index}`,
+        })),
+      });
+
+      expect(state.sessionListsWindowed).toBe(true);
+      expect(state.sessions).toHaveLength(12);
+      expect(state.generalSessions).toHaveLength(12);
+      expect(state.activeSessionId).toBe('older-active');
+    });
+
+    it('keeps lazy-window list updates bounded and ignores unknown background inserts', () => {
+      let state = createInitialChatUiState();
+      state = chatUiReducer(state, {
+        type: 'session/hydrate-page',
+        scope: { kind: 'general' },
+        // Three retained General pages at twelve rows each.
+        sessions: Array.from({ length: 36 }, (_, index) => ({
+          id: `page-${index}`,
+          name: `Page ${index}`,
+        })),
+      });
+      state = chatUiReducer(state, {
+        type: 'session/update',
+        session: { id: 'background', name: 'Background', scope: { kind: 'general' } },
+      });
+      expect(state.generalSessions.some((session) => session.id === 'background')).toBe(false);
+
+      state = chatUiReducer(state, { type: 'session/set', sessionId: 'new-active' });
+      state = chatUiReducer(state, {
+        type: 'session/update',
+        session: { id: 'new-active', name: 'New active', scope: { kind: 'general' } },
+      });
+      expect(state.generalSessions).toHaveLength(36);
+      expect(state.generalSessions[0]?.id).toBe('new-active');
+    });
+
     it('session/hydrate-general populates generalSessions without clearing project sessions', () => {
       let state = createInitialChatUiState();
       // Simulate opening a project: project/set clears sessions, then hydrate

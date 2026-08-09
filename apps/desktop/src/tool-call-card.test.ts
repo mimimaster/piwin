@@ -3,6 +3,7 @@ import {
   collectSessionTools,
   looksLikeArgsDumpSummary,
   resolveToolCallHeaderPreview,
+  resolveToolOpenPath,
 } from './tool-call-card';
 import type { ToolCardUi } from './chat-reducer';
 
@@ -131,5 +132,30 @@ describe('looksLikeArgsDumpSummary', () => {
     expect(looksLikeArgsDumpSummary('[1, 2]')).toBe(true);
     expect(looksLikeArgsDumpSummary('agent_memory_get_context')).toBe(false);
     expect(looksLikeArgsDumpSummary('ls -la')).toBe(false);
+  });
+});
+
+describe('resolveToolOpenPath', () => {
+  it('joins project-relative paths to the project root', () => {
+    expect(resolveToolOpenPath('pelican-bicycle-animation.html', '/workspace')).toEqual({
+      absolutePath: '/workspace/pelican-bicycle-animation.html',
+      relativePath: 'pelican-bicycle-animation.html',
+    });
+  });
+
+  it('keeps absolute paths and derives a project-relative path when under the root', () => {
+    expect(
+      resolveToolOpenPath('/workspace/apps/desktop/src/App.tsx', '/workspace'),
+    ).toEqual({
+      absolutePath: '/workspace/apps/desktop/src/App.tsx',
+      relativePath: 'apps/desktop/src/App.tsx',
+    });
+  });
+
+  it('returns the raw path when no project root is available', () => {
+    expect(resolveToolOpenPath('src/App.tsx')).toEqual({
+      absolutePath: 'src/App.tsx',
+      relativePath: 'src/App.tsx',
+    });
   });
 });

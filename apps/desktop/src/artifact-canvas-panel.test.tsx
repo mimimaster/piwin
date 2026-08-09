@@ -90,7 +90,7 @@ describe('ArtifactCanvasPanel', () => {
     const frame = container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
     expect(frame).not.toBeNull();
     expect(frame?.classList.contains('presentation-canvas')).toBe(true);
-    // Canvas hides Inline Expand/Collapse and raw-source disclosure.
+    // Render frames no longer ship Expand/Collapse or raw-source disclosure.
     expect(container.querySelector('[data-testid="artifact-expand-toggle"]')).toBeNull();
     expect(container.querySelector('details')).toBeNull();
   });

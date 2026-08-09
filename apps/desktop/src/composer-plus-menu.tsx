@@ -1,8 +1,7 @@
 /**
- * Cursor-style composer "+" menu: modes, image, skills, MCP.
- * Visual interaction reverse-engineered from Cursor Agent screenshots
- * (not from cdesktop). Built on ui-kit menu primitives, so Radix owns the
- * portal, positioning, outside dismissal, Escape, and arrow navigation.
+ * Composer "+" menu: Skills and MCP only.
+ * Modes are always Agent; images attach via paste/drop; orchestration lives on the toolbar.
+ * Built on ui-kit menu primitives (Radix portal, positioning, Escape, arrow nav).
  */
 
 import { type ReactElement, type ReactNode } from 'react';
@@ -10,16 +9,13 @@ import {
   DropdownMenu,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@piwin/ui-kit';
-import { AGENT_MODES, type AgentModeId } from './agent-mode';
-import { IconFolder, IconListTree, IconMcp, IconSkill, IconSpark, IconUsers } from './shell-icons';
-import type { OrchestrationSchemeOption } from './OrchestrationSchemeControl';
+import { IconMcp, IconSkill } from './shell-icons';
 
-export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp' | 'orchestration';
+export type ComposerPlusSubmenu = 'none' | 'skills' | 'mcp';
 
 export type ComposerSkillOption = {
   id: string;
@@ -38,31 +34,13 @@ export type ComposerPlusMenuProps = {
   trigger: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  agentMode: AgentModeId;
-  onSelectMode: (mode: AgentModeId) => void;
   submenu: ComposerPlusSubmenu;
   onSubmenu: (submenu: ComposerPlusSubmenu) => void;
   skills: ComposerSkillOption[];
   onOpenSkillsPanel: () => void;
   mcpServers: ComposerMcpOption[];
   onOpenMcpPanel: () => void;
-  onAttachImage: () => void;
-  orchestrationSchemeOptions?: readonly OrchestrationSchemeOption[] | undefined;
-  orchestrationSchemeId?: string | undefined;
-  onOrchestrationSchemeChange?: ((schemeId: string) => void) | undefined;
-  onOpenOrchestrationSchemeSettings?: (() => void) | undefined;
 };
-
-function modeIcon(modeId: AgentModeId): ReactElement {
-  switch (modeId) {
-    case 'plan':
-      return <IconListTree />;
-    case 'ask':
-      return <IconUsers />;
-    default:
-      return <IconSpark />;
-  }
-}
 
 export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
   return (
@@ -73,34 +51,14 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
       modal={false}
       side="top"
       align="start"
-      label="Add agents, context, tools"
+      label="Add tools and context"
       testId="composer-plus-menu"
       contentClassName="plus-menu"
       trigger={props.trigger}
     >
       <DropdownMenuLabel className="plus-menu-caption muted">
-        Add agents, context, tools…
+        Skills & MCP
       </DropdownMenuLabel>
-      {AGENT_MODES.map((mode) => (
-        <DropdownMenuItem
-          key={mode.id}
-          onSelect={() => props.onSelectMode(mode.id)}
-          testId={`plus-menu-mode-${mode.id}`}
-        >
-          <span className="plus-menu-icon">{modeIcon(mode.id)}</span>
-          <span className="plus-menu-label" title={mode.description}>
-            {mode.label}
-          </span>
-          {props.agentMode === mode.id ? <span className="plus-menu-check">✓</span> : null}
-        </DropdownMenuItem>
-      ))}
-      <DropdownMenuSeparator />
-      <DropdownMenuItem onSelect={props.onAttachImage} testId="plus-menu-image">
-        <span className="plus-menu-icon">
-          <IconFolder />
-        </span>
-        <span className="plus-menu-label">Image</span>
-      </DropdownMenuItem>
 
       <DropdownMenuSub
         open={props.submenu === 'skills'}
@@ -165,47 +123,6 @@ export function ComposerPlusMenu(props: ComposerPlusMenuProps): ReactElement {
           </DropdownMenuItem>
         </DropdownMenuSubContent>
       </DropdownMenuSub>
-
-      {props.orchestrationSchemeOptions && props.orchestrationSchemeOptions.length > 0 ? (
-        <DropdownMenuSub
-          open={props.submenu === 'orchestration'}
-          onOpenChange={(open) => props.onSubmenu(open ? 'orchestration' : 'none')}
-        >
-          <DropdownMenuSubTrigger testId="plus-menu-orchestration">
-            <span className="plus-menu-icon">
-              <IconSpark width={16} height={16} />
-            </span>
-            <span className="plus-menu-label">Orchestration</span>
-            <span className="plus-menu-chevron">›</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="plus-submenu" label="Orchestration Scheme">
-            <DropdownMenuLabel className="plus-menu-caption muted">Orchestration</DropdownMenuLabel>
-            {props.orchestrationSchemeOptions.map((scheme) => (
-              <DropdownMenuItem
-                key={scheme.id}
-                onSelect={() => props.onOrchestrationSchemeChange?.(scheme.id)}
-                testId={`plus-menu-orchestration-${scheme.id}`}
-              >
-                <span className="plus-menu-label">{scheme.name}</span>
-                {(props.orchestrationSchemeId ?? 'off') === scheme.id ? (
-                  <span className="plus-menu-check">✓</span>
-                ) : null}
-              </DropdownMenuItem>
-            ))}
-            {props.onOpenOrchestrationSchemeSettings ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={props.onOpenOrchestrationSchemeSettings}
-                  testId="plus-menu-manage-orchestration"
-                >
-                  Manage schemes…
-                </DropdownMenuItem>
-              </>
-            ) : null}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-      ) : null}
     </DropdownMenu>
   );
 }

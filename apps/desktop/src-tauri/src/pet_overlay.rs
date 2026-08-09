@@ -22,7 +22,10 @@ pub fn ensure_pet_overlay_window(app: &tauri::AppHandle) -> tauri::Result<()> {
     let mut builder = WebviewWindowBuilder::new(
         app,
         PET_OVERLAY_LABEL,
-        tauri::WebviewUrl::App("index.html".into()),
+        // Keep the cosmetic overlay on a dedicated frontend entry. Loading the
+        // main index here would initialize the complete Desktop module graph in
+        // a second WebContent process just to render one sprite.
+        tauri::WebviewUrl::App("pet-overlay.html".into()),
     )
     .title("")
     // Initial size matches an idle Codex-scale sprite (96×104) + padding.

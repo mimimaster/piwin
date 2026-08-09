@@ -12,6 +12,7 @@ import { PrimitiveGallery } from './e2e/primitive-gallery';
 import {
   buildAppearanceTheme,
   applyAppearanceToDocument,
+  beginThemeSwitch,
   resolveDesktopAppearance,
   resolveSystemThemeMode,
 } from './appearance-tokens';
@@ -43,7 +44,9 @@ export function DesktopThemeRoot() {
   const applyResolvedTheme = useCallback((candidateTheme: ThemeManifest) => {
     const resolvedTheme = resolveDesktopAppearance(candidateTheme);
     // Apply document tokens before the state update so CSS and Mantine never
-    // present mismatched themes within one commit.
+    // present mismatched themes within one commit. Freeze transitions so the
+    // whole shell does not smear color/geometry for 120–200ms.
+    beginThemeSwitch();
     applyAppearanceToDocument(resolvedTheme);
     setActiveTheme(resolvedTheme);
   }, []);

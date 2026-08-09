@@ -1,15 +1,130 @@
 import { describe, expect, it } from 'vitest';
-import type { HostPush } from '@piwin/contracts';
+import type {
+  HostPush,
+  SessionListPageData,
+  SessionTranscriptMessage,
+  UsageRollup,
+} from '@piwin/contracts';
 import { MockHostBackend } from './host-client-mock';
+
+describe('MockHostBackend usage', () => {
+  it('provides model + Key cache rows for browser-mode visual testing', async () => {
+    const backend = new MockHostBackend(
+      () => {},
+      () => 'sdk',
+    );
+    const response = await backend.handle(
+      { type: 'usage/get-rollup', projectPath: '/tmp/mock-project' },
+      'usage',
+    );
+
+    expect(response.success).toBe(true);
+    if (!response.success) throw new Error(response.error);
+    const rollup = (response.data as { rollup: UsageRollup }).rollup;
+    expect(rollup.scope).toEqual({ kind: 'project', projectPath: '/tmp/mock-project' });
+    expect(rollup.byModelKey).toHaveLength(3);
+    expect(rollup.byModelKey[0]).toMatchObject({
+      providerId: 'openai-work',
+      modelId: 'gpt-5.2-codex',
+    });
+  });
+});
+
+describe('MockHostBackend session pages', () => {
+  it('matches the bounded page and stale-cursor contract', async () => {
+    const backend = new MockHostBackend(
+      () => {},
+      () => 'sdk',
+    );
+    const sessionIds: string[] = [];
+    for (let index = 0; index < 14; index += 1) {
+      const created = await backend.handle(
+        {
+          type: 'session/create',
+          input: {
+            scope: { kind: 'general' },
+            sessionName: `Mock Chat ${index.toString().padStart(2, '0')}`,
+          },
+        },
+        `create-page-${index}`,
+      );
+      if (!created.success) throw new Error(created.error);
+      sessionIds.push((created.data as { sessionId: string }).sessionId);
+    }
+
+    const firstResponse = await backend.handle(
+      {
+        type: 'session/list-page',
+        query: {
+          scope: { kind: 'general' },
+          lifecycle: 'active',
+          order: 'alphabetical',
+          limit: 6,
+        },
+      },
+      'first-page',
+    );
+    if (!firstResponse.success) throw new Error(firstResponse.error);
+    const first = firstResponse.data as SessionListPageData;
+    expect(first.status).toBe('page');
+    if (first.status !== 'page') return;
+    expect(first.sessions).toHaveLength(6);
+    expect(first.page.totalCount).toBe(14);
+    const nextCursor = first.page.nextCursor;
+    if (nextCursor === undefined) throw new Error('expected next cursor');
+    const anchorSessionId = sessionIds[13];
+    if (anchorSessionId === undefined) throw new Error('missing anchor session fixture');
+
+    const anchoredResponse = await backend.handle(
+      {
+        type: 'session/list-page',
+        query: {
+          scope: { kind: 'general' },
+          lifecycle: 'active',
+          order: 'alphabetical',
+          limit: 6,
+          anchorSessionId,
+        },
+      },
+      'anchored-page',
+    );
+    if (!anchoredResponse.success) throw new Error(anchoredResponse.error);
+    const anchored = anchoredResponse.data as SessionListPageData;
+    expect(anchored.status).toBe('page');
+    if (anchored.status !== 'page') return;
+    expect(anchored.page.pageIndex).toBe(2);
+    expect(anchored.sessions.some((session) => session.id === anchorSessionId)).toBe(true);
+
+    const firstSessionId = sessionIds[0];
+    if (firstSessionId === undefined) throw new Error('missing session fixture');
+    await backend.handle(
+      { type: 'session/rename', sessionId: firstSessionId, name: 'AAA Mock Chat' },
+      'rename-page',
+    );
+    const staleResponse = await backend.handle(
+      {
+        type: 'session/list-page',
+        query: {
+          scope: { kind: 'general' },
+          lifecycle: 'active',
+          order: 'alphabetical',
+          limit: 6,
+          cursor: nextCursor,
+        },
+      },
+      'stale-page',
+    );
+    if (!staleResponse.success) throw new Error(staleResponse.error);
+    expect((staleResponse.data as SessionListPageData).status).toBe('stale-cursor');
+  });
+});
 
 describe('MockHostBackend run lifecycle', () => {
   it('keeps stale aborts from cancelling the active run and emits one terminal event', async () => {
     const pushes: HostPush[] = [];
     const backend = new MockHostBackend(
       (message) => {
-        if (message.type !== 'response') {
-          pushes.push(message);
-        }
+        pushes.push(message);
       },
       () => 'sdk',
     );
@@ -41,9 +156,7 @@ describe('MockHostBackend run lifecycle', () => {
       success: true,
       data: { cancelled: false, reason: 'run-mismatch', activeRunId: runId },
     });
-    expect(
-      pushes.some((push) => push.type === 'run/terminal'),
-    ).toBe(false);
+    expect(pushes.some((push) => push.type === 'run/terminal')).toBe(false);
 
     const abortResponse = await backend.handle(
       { type: 'session/abort', sessionId, runId },
@@ -62,6 +175,81 @@ describe('MockHostBackend run lifecycle', () => {
     if (terminalEvent?.type === 'run/terminal') {
       expect(terminalEvent.run).toMatchObject({ status: 'cancelled', terminalCode: 'cancelled' });
     }
+  });
+});
+
+describe('MockHostBackend product session lineage', () => {
+  it('exposes fork origins through session/lineage', async () => {
+    const pushes: HostPush[] = [];
+    const backend = new MockHostBackend(
+      (message) => {
+        pushes.push(message);
+      },
+      () => 'sdk',
+    );
+    const createResponse = await backend.handle(
+      { type: 'session/create', input: { projectPath: '/tmp/mock' } },
+      'create-lineage',
+    );
+    expect(createResponse.success).toBe(true);
+    if (!createResponse.success) return;
+    const sourceSessionId = (createResponse.data as { sessionId: string }).sessionId;
+
+    const promptResponse = await backend.handle(
+      { type: 'session/prompt', sessionId: sourceSessionId, input: { text: 'hello lineage' } },
+      'prompt-lineage',
+    );
+    expect(promptResponse.success).toBe(true);
+    if (!promptResponse.success) return;
+    const runId = (promptResponse.data as { runId: string }).runId;
+    await waitForPush(pushes, (push) => push.type === 'run/terminal' && push.run.runId === runId);
+
+    const messagesResponse = await backend.handle(
+      { type: 'session/messages', sessionId: sourceSessionId },
+      'messages-lineage',
+    );
+    expect(messagesResponse.success).toBe(true);
+    if (!messagesResponse.success) return;
+    const messages = (messagesResponse.data as { messages: SessionTranscriptMessage[] }).messages;
+    const assistantMessage = messages.find(
+      (message) => message.role === 'assistant' && message.status === 'done',
+    );
+    expect(assistantMessage).toBeDefined();
+    if (!assistantMessage) return;
+
+    const forkResponse = await backend.handle(
+      {
+        type: 'session/fork',
+        sessionId: sourceSessionId,
+        messageId: assistantMessage.id,
+        workspaceStrategy: 'shared',
+      },
+      'fork-lineage',
+    );
+    expect(forkResponse.success).toBe(true);
+    if (!forkResponse.success) return;
+    const forkSessionId = (forkResponse.data as { sessionId: string }).sessionId;
+
+    const lineageResponse = await backend.handle(
+      { type: 'session/lineage', sessionId: forkSessionId },
+      'lineage',
+    );
+    expect(lineageResponse).toMatchObject({ success: true, command: 'session/lineage' });
+    if (!lineageResponse.success) return;
+    const lineage = lineageResponse.data as {
+      rootSessionId: string;
+      activeSessionId: string;
+      nodes: Array<{ sessionId: string; origin?: { kind: string; sourceSessionId?: string } }>;
+    };
+    expect(lineage.rootSessionId).toBe(sourceSessionId);
+    expect(lineage.activeSessionId).toBe(forkSessionId);
+    expect(lineage.nodes.map((node) => node.sessionId)).toEqual(
+      expect.arrayContaining([sourceSessionId, forkSessionId]),
+    );
+    expect(lineage.nodes.find((node) => node.sessionId === forkSessionId)?.origin).toMatchObject({
+      kind: 'fork',
+      sourceSessionId,
+    });
   });
 });
 

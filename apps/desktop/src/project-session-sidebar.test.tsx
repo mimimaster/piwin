@@ -70,6 +70,7 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
     settingsOpen: false,
     onOpenWorkspace: () => {},
     onOpenProject: () => {},
+    onRemoveProject: () => {},
     onNewSession: () => {},
     onNewGeneralSession: () => {},
     onResumeSession: () => {},
@@ -90,8 +91,8 @@ function renderSidebar(props: Partial<ProjectSessionSidebarProps> = {}): {
   return { container, root };
 }
 
-describe('ProjectSessionSidebar "See all" functionality', () => {
-  it('displays at most 6 session items when sessions count > 6 and renders "See all (N)" button', () => {
+describe('ProjectSessionSidebar bounded lazy session windows', () => {
+  it('mounts at most six legacy project sessions without page controls', () => {
     const sessions = createMockSessions(13);
     const { container } = renderSidebar({
       filteredSessions: sessions,
@@ -99,13 +100,32 @@ describe('ProjectSessionSidebar "See all" functionality', () => {
 
     const sessionItems = container.querySelectorAll('[data-testid="session-item"]');
     expect(sessionItems.length).toBe(6);
-
-    const seeAllBtn = container.querySelector('[data-testid="see-all-btn"]');
-    expect(seeAllBtn).not.toBeNull();
-    expect(seeAllBtn?.textContent).toBe('See all (13)');
+    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
+    expect(container.querySelector('.session-page-row')).toBeNull();
+    expect(container.querySelector('[data-testid="see-all-btn"]')).not.toBeNull();
   });
 
-  it('displays all session items when count <= 6 and hides "See all" button', () => {
+  it('combines the six-row preview with a bounded See all expansion', () => {
+    const sessions = createMockSessions(25);
+    const { container } = renderSidebar({ filteredSessions: sessions });
+
+    const disclosure = container.querySelector('[data-testid="see-all-btn"]');
+    expect(disclosure?.textContent).toContain('See all (25)');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(6);
+
+    act(() => {
+      (disclosure as HTMLButtonElement).click();
+    });
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(18);
+    expect(disclosure?.textContent).toContain('Show less');
+
+    act(() => {
+      (disclosure as HTMLButtonElement).click();
+    });
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(6);
+  });
+
+  it('displays all project sessions when count is within the page budget', () => {
     const sessions = createMockSessions(5);
     const { container } = renderSidebar({
       filteredSessions: sessions,
@@ -113,44 +133,85 @@ describe('ProjectSessionSidebar "See all" functionality', () => {
 
     const sessionItems = container.querySelectorAll('[data-testid="session-item"]');
     expect(sessionItems.length).toBe(5);
-
-    const seeAllBtn = container.querySelector('[data-testid="see-all-btn"]');
-    expect(seeAllBtn).toBeNull();
+    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
   });
 
-  it('expands all items and toggles button label to "Show less" when "See all" is clicked', () => {
-    const sessions = createMockSessions(10);
+  it('does not reveal a complete legacy array when no Host cursor is available', () => {
+    const sessions = createMockSessions(13);
     const { container } = renderSidebar({
       filteredSessions: sessions,
     });
 
-    let seeAllBtn = container.querySelector('[data-testid="see-all-btn"]') as HTMLButtonElement;
-    expect(seeAllBtn).not.toBeNull();
     expect(container.querySelectorAll('[data-testid="session-item"]').length).toBe(6);
-
-    act(() => {
-      seeAllBtn.click();
-    });
-
-    expect(container.querySelectorAll('[data-testid="session-item"]').length).toBe(10);
-    seeAllBtn = container.querySelector('[data-testid="see-all-btn"]') as HTMLButtonElement;
-    expect(seeAllBtn.textContent).toBe('Show less');
-
-    act(() => {
-      seeAllBtn.click();
-    });
-
     expect(container.querySelectorAll('[data-testid="session-item"]').length).toBe(6);
+    expect(container.textContent).not.toContain('Session Item 7');
+    expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
   });
 
-  it('auto-expands if active session is beyond index 5', () => {
-    const sessions = createMockSessions(10);
+  it('enables Host cursor boundaries only after See all and resets on Show less', () => {
+    const onSessionPageChange = vi.fn();
+    const onSessionWindowReset = vi.fn();
+    const sessions = createMockSessions(4);
     const { container } = renderSidebar({
       filteredSessions: sessions,
-      activeSessionId: 'session-8',
+      sessionListWindows: {
+        general: null,
+        projects: {
+          '/Users/test/project-a': {
+            pages: [
+              {
+                page: {
+                  revision: 'revision',
+                  pageIndex: 166,
+                  pageCount: 168,
+                  totalCount: 1_003,
+                  previousCursor: 'previous-cursor',
+                  nextCursor: 'next-cursor',
+                },
+                items: sessions,
+                retainedBytes: 1_024,
+              },
+            ],
+          },
+        },
+      },
+      onSessionPageChange,
+      onSessionWindowReset,
     });
 
-    expect(container.querySelectorAll('[data-testid="session-item"]').length).toBe(10);
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(4);
+    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
+    expect(container.querySelector('[data-testid="session-lazy-previous"]')).toBeNull();
+    expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
+    expect(onSessionPageChange).not.toHaveBeenCalled();
+
+    const disclosure = container.querySelector('[data-testid="see-all-btn"]');
+    act(() => {
+      (disclosure as HTMLButtonElement).click();
+    });
+    expect(container.querySelector('[data-testid="session-lazy-previous"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="session-lazy-next"]')).not.toBeNull();
+
+    act(() => {
+      (disclosure as HTMLButtonElement).click();
+    });
+    expect(onSessionWindowReset).toHaveBeenCalledWith({
+      kind: 'project',
+      projectPath: '/Users/test/project-a',
+    });
+    expect(container.querySelector('[data-testid="session-lazy-next"]')).toBeNull();
+  });
+
+  it('selects an old active session page without expanding a 1,003-row project', () => {
+    const sessions = createMockSessions(1_003);
+    const { container } = renderSidebar({
+      filteredSessions: sessions,
+      activeSessionId: 'session-999',
+    });
+
+    expect(container.querySelectorAll('[data-testid="session-item"]').length).toBe(6);
+    expect(container.textContent).toContain('Session Item 999');
+    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
   });
 
   it('uses Chinese sidebar labels when the display locale is zh-CN', () => {
@@ -182,49 +243,62 @@ describe('ProjectSessionSidebar "See all" functionality', () => {
 
     expect(container.querySelector('[data-testid="session-search-input"]')).not.toBeNull();
     expect(container.querySelector('[data-testid="session-search-btn"]')).toBeNull();
-    root.unmount();
+    act(() => {
+      root.unmount();
+    });
     container.remove();
   });
 
-  it('limits the visible project rows and opens the searchable all-projects picker', () => {
+  it('renders every project without a separate all-projects row', () => {
     const projects = createMockProjects(8);
     const { container } = renderSidebar({
       recentProjects: projects,
       projectPath: projects[0]?.path ?? null,
     });
 
-    expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(6);
-    const viewAllButton = container.querySelector<HTMLButtonElement>(
-      '[data-testid="view-all-projects-btn"]',
-    );
-    expect(viewAllButton?.textContent).toContain('View all projects (8)');
-
-    act(() => {
-      viewAllButton?.click();
-    });
-
-    expect(document.querySelector('[data-testid="project-picker-dialog"]')).not.toBeNull();
-    expect(document.querySelectorAll('.project-picker-item')).toHaveLength(8);
-
-    act(() => {
-      document
-        .querySelector<HTMLButtonElement>('[data-testid="project-picker-close-btn"]')
-        ?.click();
-    });
+    expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(8);
+    expect(container.querySelector('[data-testid="view-all-projects-btn"]')).toBeNull();
+    expect(container.textContent).not.toContain('View all projects');
   });
 
-  it('always renders the project folder list without a section fold toggle', () => {
+  it('renders a fold toggle for projects that have child sessions', () => {
     const projects = createMockProjects(8);
     const { container } = renderSidebar({
       recentProjects: projects,
       projectPath: projects[7]?.path ?? null,
+      filteredSessions: createMockSessions(1),
     });
 
-    // The Projects section is always expanded: every visible folder renders.
-    expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(6);
-    // The fold toggle has been removed; the section title remains.
-    expect(container.querySelector('[data-testid="projects-section-toggle"]')).toBeNull();
+    // Every project remains rendered; only a project's child list folds.
+    expect(container.querySelectorAll('[data-testid="repository-item"]')).toHaveLength(8);
+    expect(container.querySelectorAll('[data-testid="project-fold-toggle"]')).toHaveLength(1);
     expect(container.querySelector('[data-testid="projects-section-title"]')).not.toBeNull();
+  });
+
+  it('keeps Conversations in a six-row preview until See all', () => {
+    const { container } = renderSidebar({
+      generalSessions: createMockSessions(112),
+    });
+
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(6);
+    expect(container.querySelector('[data-testid="see-all-general-btn"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="general-session-pager"]')).toBeNull();
+  });
+
+  it('keeps legacy project and General fallbacks independently bounded', () => {
+    const projects = createMockProjects(2);
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      projectPath: projects[0]?.path ?? null,
+      projectSessionsByPath: {
+        [projects[1]!.path]: createMockSessions(8),
+      },
+      generalSessions: createMockSessions(8),
+    });
+
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(12);
+    expect(container.querySelector('[data-testid="project-session-pager"]')).toBeNull();
+    expect(container.querySelector('[data-testid="general-session-pager"]')).toBeNull();
   });
 });
 
@@ -355,30 +429,65 @@ it('opens customize menu with ordering, group by, and archived filter', () => {
   expect(toggledArchived).toBe(true);
 });
 
-describe('ProjectSessionSidebar folder click behavior', () => {
-  it('does not call onOpenProject when a project folder is clicked (only toggles expansion)', () => {
+describe('ProjectSessionSidebar project row behavior', () => {
+  it('opens a project context menu and removes the selected project from the sidebar', () => {
+    const onRemoveProject = vi.fn();
+    const projects = createMockProjects(2);
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      onRemoveProject,
+    });
+    const projectRow = container.querySelector<HTMLElement>('[data-testid="repository-item"]');
+    expect(projectRow).not.toBeNull();
+
+    act(() => {
+      projectRow?.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 80,
+          clientY: 80,
+        }),
+      );
+    });
+
+    const removeItem = document.querySelector<HTMLElement>(
+      '[data-testid="project-remove-from-sidebar"]',
+    );
+    expect(removeItem).not.toBeNull();
+    act(() => {
+      removeItem?.click();
+    });
+    expect(onRemoveProject).toHaveBeenCalledWith(projects[0]?.path);
+  });
+
+  it('folds the project when its row is clicked without switching projects', () => {
     const onOpenProject = vi.fn();
     const projects = createMockProjects(2);
     const { container } = renderSidebar({
       recentProjects: projects,
       projectPath: projects[0]?.path ?? null,
+      filteredSessions: createMockSessions(1),
       onOpenProject,
     });
 
-    const folderSummary = container.querySelector<HTMLDivElement>(
+    const projectRow = container.querySelector<HTMLButtonElement>(
       '[data-testid="repository-item"]',
     );
-    expect(folderSummary).not.toBeNull();
+    expect(projectRow).not.toBeNull();
+    expect(projectRow?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(1);
 
     act(() => {
-      folderSummary?.click();
+      projectRow?.click();
     });
 
-    // Clicking the folder must not switch project scope or session.
+    expect(projectRow?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(0);
     expect(onOpenProject).not.toHaveBeenCalled();
   });
 
-  it('shows sessions from projectSessionsByPath for a non-active open folder', () => {
+  it('shows sessions from projectSessionsByPath for every project row', () => {
     const projects = createMockProjects(2);
     const otherProjectPath = projects[1]!.path;
     const otherSessions: SessionListItemUi[] = [
@@ -396,23 +505,13 @@ describe('ProjectSessionSidebar folder click behavior', () => {
       projectSessionsByPath: { [otherProjectPath]: otherSessions },
     });
 
-    // The non-active folder is closed by default; open it.
-    const folders = container.querySelectorAll<HTMLDivElement>('[data-testid="repository-item"]');
-    const otherFolder = Array.from(folders).find(
-      (el) => el.getAttribute('data-project-path') === otherProjectPath,
-    );
-    expect(otherFolder).toBeDefined();
-    act(() => {
-      otherFolder?.click();
-    });
-
-    // The other project's session is now visible without switching scope.
+    // Project sessions are visible without a project-level fold control.
     const sessionItems = container.querySelectorAll('[data-testid="session-item"]');
     const names = Array.from(sessionItems).map((el) => el.textContent ?? '');
     expect(names.some((name) => name.includes('Other Project Chat'))).toBe(true);
   });
 
-  it('keeps multiple project folders open simultaneously', () => {
+  it('keeps sessions for multiple projects visible simultaneously', () => {
     const projects = createMockProjects(3);
     const sessionsByPath: Record<string, SessionListItemUi[]> = {
       [projects[1]!.path]: [
@@ -440,26 +539,53 @@ describe('ProjectSessionSidebar folder click behavior', () => {
       projectSessionsByPath: sessionsByPath,
     });
 
-    const folders = container.querySelectorAll<HTMLDivElement>('[data-testid="repository-item"]');
-    const folderB = Array.from(folders).find(
-      (el) => el.getAttribute('data-project-path') === projects[1]!.path,
-    );
-    const folderC = Array.from(folders).find(
-      (el) => el.getAttribute('data-project-path') === projects[2]!.path,
-    );
-
-    // Open both non-active folders.
-    act(() => {
-      folderB?.click();
-    });
-    act(() => {
-      folderC?.click();
-    });
-
     const names = Array.from(container.querySelectorAll('[data-testid="session-item"]')).map(
       (el) => el.textContent ?? '',
     );
     expect(names.some((n) => n.includes('Project B Chat'))).toBe(true);
     expect(names.some((n) => n.includes('Project C Chat'))).toBe(true);
+  });
+
+  it('collapses one project without hiding other project sessions', () => {
+    const projects = createMockProjects(2);
+    const firstProjectSessions = createMockSessions(1);
+    const secondProjectSessions: SessionListItemUi[] = [
+      {
+        id: 'session-second-project',
+        name: 'Second Project Chat',
+        updatedAt: new Date().toISOString(),
+        isPinned: false,
+        isArchived: false,
+      },
+    ];
+    const { container } = renderSidebar({
+      recentProjects: projects,
+      projectPath: projects[0]?.path ?? null,
+      filteredSessions: firstProjectSessions,
+      projectSessionsByPath: {
+        [projects[1]!.path]: secondProjectSessions,
+      },
+    });
+
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(2);
+    const foldButtons = container.querySelectorAll<HTMLButtonElement>(
+      '[data-testid="project-fold-toggle"]',
+    );
+    expect(foldButtons).toHaveLength(2);
+
+    act(() => {
+      foldButtons[0]?.click();
+    });
+
+    expect(foldButtons[0]?.getAttribute('aria-expanded')).toBe('false');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(1);
+    expect(container.textContent).toContain('Second Project Chat');
+
+    act(() => {
+      foldButtons[0]?.click();
+    });
+
+    expect(foldButtons[0]?.getAttribute('aria-expanded')).toBe('true');
+    expect(container.querySelectorAll('[data-testid="session-item"]')).toHaveLength(2);
   });
 });

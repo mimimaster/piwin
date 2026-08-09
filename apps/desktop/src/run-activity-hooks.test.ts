@@ -40,17 +40,17 @@ describe('useRunActivityPhrases', () => {
     container.parentNode?.removeChild(container);
   });
 
-  it('returns the first base phrase initially', () => {
+  it('returns the txt status copy initially', () => {
     const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en' };
     act(() => root.render(createElement(TestHarness, { input })));
-    expect(container.textContent).toBe('Planning next moves');
+    expect(container.textContent).toBe('Thinking…');
   });
 
-  it('advances to the next phrase after 1.8s', () => {
+  it('does not rotate a single runtime status into unrelated copy', () => {
     const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en' };
     act(() => root.render(createElement(TestHarness, { input })));
     act(() => vi.advanceTimersByTime(1800));
-    expect(container.textContent).toBe('Reading your request');
+    expect(container.textContent).toBe('Thinking…');
   });
 
   it('does not rotate phrases when reduced motion is enabled', () => {
@@ -58,20 +58,20 @@ describe('useRunActivityPhrases', () => {
     const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en' };
     act(() => root.render(createElement(TestHarness, { input })));
     act(() => vi.advanceTimersByTime(3600));
-    expect(container.textContent).toBe('Planning next moves');
+    expect(container.textContent).toBe('Thinking…');
   });
 
-  it('switches to taking-too-long after 15s elapsed', () => {
+  it('keeps the exact status after 15s elapsed', () => {
     const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en', elapsedMs: 0 };
     act(() => root.render(createElement(TestHarness, { input })));
     act(() => vi.advanceTimersByTime(15000));
-    expect(container.textContent).toBe('Taking longer than expected…');
+    expect(container.textContent).toBe('Thinking…');
   });
 
-  it('immediately shows taking-too-long at 15s elapsed', () => {
+  it('keeps the exact status when already elapsed past 15s', () => {
     const input: RunActivityInput = { kind: 'waiting-first-token', locale: 'en', elapsedMs: 15000 };
     act(() => root.render(createElement(TestHarness, { input })));
-    expect(container.textContent).toBe('Taking longer than expected…');
+    expect(container.textContent).toBe('Thinking…');
   });
 
   it('resets taking-too-long when the next run starts', () => {
@@ -82,7 +82,7 @@ describe('useRunActivityPhrases', () => {
         }),
       ),
     );
-    expect(container.textContent).toBe('Taking longer than expected…');
+    expect(container.textContent).toBe('Thinking…');
     act(() =>
       root.render(
         createElement(TestHarness, {
@@ -90,6 +90,6 @@ describe('useRunActivityPhrases', () => {
         }),
       ),
     );
-    expect(container.textContent).toBe('Planning next moves');
+    expect(container.textContent).toBe('Thinking…');
   });
 });

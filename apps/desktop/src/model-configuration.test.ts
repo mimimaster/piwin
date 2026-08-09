@@ -49,6 +49,8 @@ describe('model configuration', () => {
         thinkingLevels: [],
         supportsImage: false,
         supportsImageGeneration: false,
+        supportsSpeechToText: false,
+        supportsTextToSpeech: false,
         reasoning: true,
       }),
     ).toEqual({
@@ -105,6 +107,8 @@ describe('model configuration', () => {
         thinkingLevels: [],
         supportsImage: false,
         supportsImageGeneration: false,
+        supportsSpeechToText: false,
+        supportsTextToSpeech: false,
         reasoning: true,
       }),
     ).toBeNull();

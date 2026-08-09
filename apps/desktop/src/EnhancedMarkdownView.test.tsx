@@ -67,6 +67,7 @@ describe('EnhancedMarkdownView', () => {
     const md = `- Extend \`RunActivityInput\` with optional \`actionCategory\``;
     const elem = renderView(md);
     expect(elem.querySelector('.enhanced-list-item')).not.toBeNull();
+    expect(elem.querySelector('ul.enhanced-list > li.enhanced-list-item')).not.toBeNull();
     expect(elem.querySelector('.enhanced-inline-code')).not.toBeNull();
     expect(elem.querySelector('.enhanced-inline-code')?.textContent).toBe('RunActivityInput');
   });
@@ -85,6 +86,13 @@ describe('EnhancedMarkdownView', () => {
     expect(checkboxes.length).toBe(2);
     expect(checkboxes[0]?.checked).toBe(true);
     expect(checkboxes[1]?.checked).toBe(false);
+  });
+
+  it('keeps ordinary Markdown on the Streamdown review surface', () => {
+    const elem = renderView('A **reviewable** paragraph with ~~old~~ text.');
+    expect(elem.querySelector('.enhanced-markdown-streamdown')).not.toBeNull();
+    expect(elem.querySelector('.enhanced-strong')?.textContent).toBe('reviewable');
+    expect(elem.querySelector('del')?.textContent).toBe('old');
   });
 
   it('renders diff lines in code blocks', () => {

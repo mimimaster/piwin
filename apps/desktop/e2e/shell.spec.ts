@@ -7,8 +7,10 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function waitForHostReady(page: Page): Promise<void> {
   await expect(page.getByTestId('app-shell')).toBeVisible();
-  await expect(page.getByTestId('host-status-pill')).toContainText(/就绪|ready/i);
-  await expect(page.getByTestId('transport-pill')).toContainText('mock');
+  // The compact sidebar no longer paints the legacy status/transport pills.
+  // Wait on the shell-owned runtime sentinel and the mounted composer instead.
+  await expect(page.getByTestId('agent-mode-pill')).toHaveText('mock');
+  await expect(page.getByTestId('composer-input')).toBeVisible();
 }
 
 /**
@@ -16,13 +18,29 @@ async function waitForHostReady(page: Page): Promise<void> {
  */
 async function openTrustedSession(page: Page, projectPath: string): Promise<void> {
   await page.getByTestId('open-workspace-btn').click();
+  await page.getByRole('menuitem', { name: /打开工作区文件夹|open workspace folder/i }).click();
   await page.getByTestId('project-path-input').fill(projectPath);
   await page.getByTestId('open-project-btn').click();
-  // Explicit open auto-trusts and creates/resumes a session (Cursor-like).
+  // Project open enters draft mode. The first prompt lazily creates and names
+  // the Host session; waiting for the reply keeps later lifecycle actions out
+  // of the in-flight run window.
   await expect(page.getByTestId('workspace-path-dialog')).toHaveCount(0);
   await expect(page.getByTestId('trust-dialog')).toHaveCount(0);
-  await expect(page.getByTestId('session-item')).toHaveCount(1);
   await expect(page.getByTestId('composer-input')).toBeEnabled();
+  await page.getByTestId('composer-input').fill(`initialize ${projectPath}`);
+  await page.getByTestId('send-btn').click();
+  await expect(page.getByTestId('session-item')).toHaveCount(1);
+  await expect(
+    page.locator('[data-testid="message-bubble"][data-role="assistant"]', {
+      hasText: 'piwin desktop mock reply',
+    }),
+  ).toBeVisible();
+}
+
+async function openFirstSessionMenu(page: Page): Promise<void> {
+  const row = page.locator('.session-row').first();
+  await row.hover();
+  await row.getByTestId('session-menu-btn').click();
 }
 
 test.describe('desktop shell (vite + host mock)', () => {
@@ -415,7 +433,7 @@ test.describe('desktop shell (vite + host mock)', () => {
     await waitForHostReady(page);
     await openTrustedSession(page, '/tmp/piwin-e2e-session-lifecycle');
 
-    await page.getByTestId('session-menu-btn').click();
+    await openFirstSessionMenu(page);
     await expect(page.getByTestId('session-row-menu')).toBeVisible();
     await page.getByTestId('session-menu-rename').click();
     await expect(page.getByTestId('session-rename-input')).toBeVisible();
@@ -423,19 +441,22 @@ test.describe('desktop shell (vite + host mock)', () => {
     await page.getByTestId('session-rename-save').click();
     await expect(page.getByTestId('session-item')).toContainText('Lifecycle Agent');
 
-    await page.getByTestId('session-menu-btn').click();
+    await openFirstSessionMenu(page);
     await page.getByTestId('session-menu-archive').click();
-    await expect(page.getByTestId('sessions-empty')).toContainText('No sessions yet');
+    await expect(page.getByTestId('session-item')).toHaveCount(0);
+    await expect(page.getByTestId('session-restore-active-btn')).toBeVisible();
 
-    await page.getByTestId('show-archived-toggle').click();
+    await page.getByTestId('display-options-btn').click();
+    await page.getByTestId('display-filter-archived').click();
     await expect(page.getByTestId('session-item')).toContainText('Lifecycle Agent');
     await expect(page.getByTestId('session-item')).toHaveAttribute('data-archived', 'true');
 
-    await page.getByTestId('session-menu-btn').click();
-    await page.getByTestId('session-menu-delete').click();
+    const archivedRow = page.locator('.session-row').first();
+    await archivedRow.hover();
+    await archivedRow.getByTestId('session-delete-btn').click();
     await expect(page.getByTestId('session-delete-confirm')).toBeVisible();
     await page.getByTestId('confirm-dialog-confirm').click();
-    await expect(page.getByTestId('sessions-empty')).toContainText('No archived sessions');
+    await expect(page.getByTestId('session-item')).toHaveCount(0);
   });
 
   test('duplicates a session from the context menu', async ({ page }) => {
@@ -449,7 +470,7 @@ test.describe('desktop shell (vite + host mock)', () => {
       page.locator('[data-testid="message-bubble"][data-role="assistant"]').last(),
     ).toBeVisible({ timeout: 10000 });
 
-    await page.getByTestId('session-menu-btn').click();
+    await openFirstSessionMenu(page);
     await page.getByTestId('session-menu-duplicate').click();
     await expect(page.getByTestId('session-item')).toHaveCount(2);
     await expect(page.getByTestId('session-item').filter({ hasText: 'Copy of' })).toBeVisible();

@@ -61,10 +61,24 @@ progress {
  * - prefers-reduced-motion: kill slide/fade/shimmer; keep static state colors.
  *
  * !important policy for Quiet Workbench CSS:
- * - Allowed only in this reduced-motion kill-switch (MDN-standard a11y pattern)
- *   and the xterm viewport overflow override in region-inspector.css (must
- *   outrank xterm inline styles). Product chrome must not add more !important.
+ * - Allowed only for:
+ *   1) this reduced-motion kill-switch (MDN-standard a11y pattern)
+ *   2) the one-frame theme-switch freeze below (prevents color/layout smear)
+ *   3) the xterm viewport overflow override in region-inspector.css
+ * Product chrome must not add more !important for styling convenience.
  */
+
+/* Instant theme flips: freeze transitions while tokens rewrite so session
+   rows, fonts, and chrome do not animate geometry/color mid-switch. */
+html.is-theme-switching,
+html.is-theme-switching *,
+html.is-theme-switching *::before,
+html.is-theme-switching *::after {
+  transition-duration: 0ms !important;
+  animation-duration: 0ms !important;
+  animation-delay: 0ms !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

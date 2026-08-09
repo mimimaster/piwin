@@ -13,6 +13,7 @@ import type {
   SessionScope,
   SessionSummary,
   SessionTranscriptMessage,
+  SessionTranscriptPageInfo,
   SubagentActivityView,
   SubagentBatchProjection,
   SubagentTaskResult,
@@ -20,10 +21,29 @@ import type {
   WalkthroughArtifact,
 } from '@piwin/contracts';
 import type { SessionOutlineNode } from '@piwin/contracts';
+import { SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS } from '@piwin/contracts';
 import { extractUserFacingBody } from '@piwin/session/derive-default-name';
+import {
+  appendBoundedText,
+  createBoundedTextAccumulator,
+  type BoundedTextAccumulator,
+} from './bounded-text-accumulator';
+import { GENERAL_SESSION_PAGE_SIZE, PROJECT_SESSION_PAGE_SIZE } from './session-sidebar-page';
+import { SESSION_LIST_WINDOW_MAX_PAGES } from './session-list-page-state';
+import {
+  measureTranscriptCacheBytes,
+  prependBoundedTranscriptPage,
+  retainBoundedTranscriptWindow,
+} from './transcript-page-cache';
 
 const MAX_RETAINED_TOOL_OUTPUT_BYTES = 256 * 1024;
 const TOOL_OUTPUT_TRUNCATION_MARKER = '\n[output truncated: retention limit reached]';
+const GENERAL_SESSION_WINDOW_MAX_ITEMS = GENERAL_SESSION_PAGE_SIZE * SESSION_LIST_WINDOW_MAX_PAGES;
+const PROJECT_SESSION_WINDOW_MAX_ITEMS = PROJECT_SESSION_PAGE_SIZE * SESSION_LIST_WINDOW_MAX_PAGES;
+const TOOL_OUTPUT_RETENTION_OPTIONS = {
+  maximumBytes: MAX_RETAINED_TOOL_OUTPUT_BYTES,
+  truncationMarker: TOOL_OUTPUT_TRUNCATION_MARKER,
+} as const;
 
 /** C1: maximum event ids retained for replay detection per session. */
 const MAX_RETAINED_EVENT_IDS = 10_000;
@@ -35,6 +55,9 @@ export type ToolCardUi = {
   toolName: string;
   status: 'running' | 'done' | 'error';
   output: string;
+  /** Internal incremental UTF-8 accounting; omitted by legacy test fixtures. */
+  outputRetainedBytes?: number;
+  outputTruncated?: boolean;
   /** Host-supplied structured presentation when available. */
   presentation?: ToolPresentation;
   /** Owning run when host provided run identity. */
@@ -61,6 +84,8 @@ export type SubagentStreamTool = {
   toolName: string;
   status: 'running' | 'done' | 'error';
   output: string;
+  outputRetainedBytes?: number;
+  outputTruncated?: boolean;
 };
 
 export type SubagentStreamState = {
@@ -80,6 +105,12 @@ export type SubagentStreamState = {
 /** C2: per-run historical record for turn-local work presentation. */
 export type RunRecordUi = {
   runId: string;
+  /** Last authority revision applied to this client projection. */
+  revision?: number;
+  /** Latest source status/phase retained for legacy semantic deduplication. */
+  status?: ExecutionRunRecord['status'];
+  phase?: SessionRunPhase;
+  phaseDetail?: string;
   phaseHistory: Array<{ phase: SessionRunPhase; at: number; detail?: string }>;
   startedAt: number | null;
   endedAt: number | null;
@@ -95,6 +126,12 @@ export type PermissionPromptUi = {
   detail: string;
   defaultDecision: PermissionDecision;
   context?: PermissionRequestContext;
+};
+
+/** Explicit Skill provenance for the currently submitted prompt. */
+export type SkillActivityView = {
+  skillId: string;
+  name: string;
 };
 
 export type SessionListItemUi = {
@@ -138,8 +175,18 @@ export type ChatUiState = {
   generalSessions: SessionListItemUi[];
   /** Per-project session lists for the sidebar folder tree (see above). */
   projectSessionsByPath: Record<string, SessionListItemUi[]>;
+  /** True after Desktop migrates list ownership to bounded Host pages. */
+  sessionListsWindowed: boolean;
   activeSessionId: string | null;
   messages: ChatMessageUi[];
+  /** Host revision/cursor and bounded resident-history accounting. */
+  transcriptWindow: {
+    revision: string;
+    totalCount: number;
+    olderCursor?: string;
+    retainedBytes: number;
+    cacheLimitReached: boolean;
+  } | null;
   outline: SessionOutlineNode[];
   /** Active session was archived without switching context. */
   activeSessionArchived: boolean;
@@ -169,6 +216,8 @@ export type ChatUiState = {
   hostReady: boolean;
   hostMock: boolean;
   permissionPrompt: PermissionPromptUi | null;
+  /** Explicit slash Skill currently associated with the foreground prompt. */
+  activeSkill: SkillActivityView | null;
   error: string | null;
   lastCompactionMessage: string | null;
   lastCompactionSummary: string | null;
@@ -237,6 +286,12 @@ export type ChatUiAction =
   | { type: 'session/hydrate'; sessions: SessionListItemUi[] }
   | { type: 'session/hydrate-general'; sessions: SessionListItemUi[] }
   | {
+      type: 'session/hydrate-page';
+      scope: SessionScope;
+      sessions: SessionListItemUi[];
+      fillActiveList?: boolean;
+    }
+  | {
       type: 'session/hydrate-project';
       projectPath: string;
       sessions: SessionListItemUi[];
@@ -245,22 +300,38 @@ export type ChatUiAction =
       type: 'session/load-messages';
       sessionId: string;
       messages: SessionTranscriptMessage[];
+      transcriptPage?: SessionTranscriptPageInfo;
       outline?: SessionOutlineNode[];
       /** Whether the host has a live handle; this is not a run-status signal. */
       live?: boolean;
+      /** Merge a stale-tail refresh without replacing the active local turn. */
+      preserveActiveTail?: boolean;
+    }
+  | {
+      type: 'session/prepend-messages';
+      sessionId: string;
+      messages: SessionTranscriptMessage[];
+      transcriptPage: SessionTranscriptPageInfo;
     }
   | { type: 'session/update'; session: SessionListItemUi }
   | { type: 'session/remove'; sessionId: string }
   | { type: 'session/mark-archived-active'; archived: boolean }
   | { type: 'session/hide-from-list'; sessionId: string }
   | { type: 'session/clear-active' }
-  | { type: 'session/truncate'; sessionId: string; messages: SessionTranscriptMessage[] }
+  | {
+      type: 'session/truncate';
+      sessionId: string;
+      messages: SessionTranscriptMessage[];
+      transcriptPage?: SessionTranscriptPageInfo;
+    }
   | {
       type: 'user/send';
       text: string;
       attachments?: PromptAttachment[];
       /** Client-generated id so failed sends can roll back the optimistic bubble. */
       clientMessageId?: string;
+      /** Skill selected by the composer, if this prompt used `/skill`. */
+      skill?: SkillActivityView;
     }
   | { type: 'user/send-rollback'; clientMessageId: string }
   | { type: 'run/aborting' }
@@ -329,8 +400,10 @@ export function createInitialChatUiState(): ChatUiState {
      *  from `sessions` (the active scope's list) so any number of project
      *  folders can stay open with their own conversations visible. */
     projectSessionsByPath: {},
+    sessionListsWindowed: false,
     activeSessionId: null,
     messages: [],
+    transcriptWindow: null,
     outline: [],
     activeSessionArchived: false,
     awaitingTranscript: false,
@@ -346,6 +419,7 @@ export function createInitialChatUiState(): ChatUiState {
     hostReady: false,
     hostMock: true,
     permissionPrompt: null,
+    activeSkill: null,
     error: null,
     lastCompactionMessage: null,
     lastCompactionSummary: null,
@@ -387,14 +461,21 @@ export function mapTranscriptMessagesToUi(
     // attachments stay untouched so vision media still renders as originals.
     text: message.role === 'user' ? extractUserFacingBody(message.text) : message.text,
     thinking: message.thinking ?? '',
-    tools: (message.tools ?? []).map((tool) => ({
-      toolCallId: tool.toolCallId,
-      toolName: tool.toolName,
-      status: tool.status,
-      output: tool.output,
-      ...(tool.runId ? { runId: tool.runId } : {}),
-      ...(tool.presentation ? { presentation: tool.presentation } : {}),
-    })),
+    tools: (message.tools ?? []).map((tool) => {
+      const output = createBoundedToolOutput(tool.presentation?.output?.text ?? tool.output);
+      return {
+        toolCallId: tool.toolCallId,
+        toolName: tool.toolName,
+        status: tool.status,
+        output: output.text,
+        outputRetainedBytes: output.retainedBytes,
+        outputTruncated: output.truncated,
+        ...(tool.runId ? { runId: tool.runId } : {}),
+        ...(tool.presentation
+          ? { presentation: projectBoundedToolPresentation(tool.presentation, output) }
+          : {}),
+      };
+    }),
     attachments: message.attachments ?? [],
     status:
       options.keepStreamingStatus === true
@@ -406,6 +487,108 @@ export function mapTranscriptMessagesToUi(
     ...(message.runId ? { runId: message.runId } : {}),
     ...(message.subagentActivity ? { subagentActivity: message.subagentActivity } : {}),
   }));
+}
+
+function collectLiveTranscriptMessageIds(
+  messages: readonly ChatMessageUi[],
+  streaming: boolean,
+): Set<string> {
+  let activeStart = messages.findIndex(
+    (message) =>
+      message.status === 'streaming' || message.tools.some((tool) => tool.status === 'running'),
+  );
+  if (streaming) {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === 'user') {
+        activeStart = index;
+        break;
+      }
+    }
+  }
+  if (activeStart < 0) return new Set();
+  return new Set(messages.slice(activeStart).map((message) => message.id));
+}
+
+function collectRetainedTranscriptMessageIds(
+  messages: readonly ChatMessageUi[],
+  streaming: boolean,
+): Set<string> {
+  const retainedIds = collectLiveTranscriptMessageIds(messages, streaming);
+  const tailStart = Math.max(0, messages.length - SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS);
+  for (let index = tailStart; index < messages.length; index += 1) {
+    const message = messages[index];
+    if (message !== undefined) retainedIds.add(message.id);
+  }
+  return retainedIds;
+}
+
+function mergeRefreshedTailWithLiveMessages(
+  refreshedMessages: readonly ChatMessageUi[],
+  currentMessages: readonly ChatMessageUi[],
+  streaming: boolean,
+): ChatMessageUi[] {
+  const liveIds = collectLiveTranscriptMessageIds(currentMessages, streaming);
+  if (liveIds.size === 0) return [...refreshedMessages];
+  const currentLiveMessages = currentMessages.filter((message) => liveIds.has(message.id));
+  const durablePrefix = refreshedMessages.filter((message) => !liveIds.has(message.id));
+  return [...durablePrefix, ...currentLiveMessages];
+}
+
+function retainRunRecordsForMessages(
+  runRecordsById: Readonly<Record<string, RunRecordUi>>,
+  messages: readonly ChatMessageUi[],
+  activeRunId: string | null,
+): Record<string, RunRecordUi> {
+  const retainedRunIds = new Set<string>();
+  if (activeRunId !== null) retainedRunIds.add(activeRunId);
+  for (const message of messages) {
+    if (message.runId !== undefined) retainedRunIds.add(message.runId);
+    for (const tool of message.tools) {
+      if (tool.runId !== undefined) retainedRunIds.add(tool.runId);
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(runRecordsById).filter(([runId]) => retainedRunIds.has(runId)),
+  );
+}
+
+function enforceBoundedTranscriptWindow(state: ChatUiState): ChatUiState {
+  const bounded = retainBoundedTranscriptWindow(
+    state.messages,
+    collectRetainedTranscriptMessageIds(state.messages, state.streaming),
+  );
+  const cacheLimitReached =
+    (state.transcriptWindow?.cacheLimitReached ?? false) || bounded.cacheLimitReached;
+  const transcriptWindow = state.transcriptWindow
+    ? {
+        revision: state.transcriptWindow.revision,
+        totalCount: state.transcriptWindow.totalCount,
+        ...(!cacheLimitReached && state.transcriptWindow.olderCursor
+          ? { olderCursor: state.transcriptWindow.olderCursor }
+          : {}),
+        retainedBytes: bounded.retainedBytes,
+        cacheLimitReached,
+      }
+    : null;
+  if (bounded.droppedCount === 0) {
+    return { ...state, transcriptWindow };
+  }
+  const retainedMessageIds = new Set(bounded.messages.map((message) => message.id));
+  return {
+    ...state,
+    messages: bounded.messages,
+    transcriptWindow,
+    runRecordsById: retainRunRecordsForMessages(
+      state.runRecordsById,
+      bounded.messages,
+      state.activeRunId,
+    ),
+    walkthroughsByMessageId: Object.fromEntries(
+      Object.entries(state.walkthroughsByMessageId).filter(([messageId]) =>
+        retainedMessageIds.has(messageId),
+      ),
+    ),
+  };
 }
 
 export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiState {
@@ -428,6 +611,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         sessions: [],
         activeSessionId: null,
         messages: [],
+        transcriptWindow: null,
         outline: [],
         activeSessionArchived: false,
         awaitingTranscript: false,
@@ -439,6 +623,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastTerminalRunId: null,
         streaming: false,
         runTerminal: { kind: 'none' },
+        activeSkill: null,
         error: null,
         walkthroughsByMessageId: {},
       };
@@ -454,6 +639,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         sessions: [],
         activeSessionId: null,
         messages: [],
+        transcriptWindow: null,
         outline: [],
         activeSessionArchived: false,
         awaitingTranscript: false,
@@ -465,6 +651,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastTerminalRunId: null,
         streaming: false,
         runTerminal: { kind: 'none' },
+        activeSkill: null,
         error: null,
         walkthroughsByMessageId: {},
         // Subagent activity is scoped to the active parent session; switching
@@ -482,6 +669,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         sessions: [],
         activeSessionId: null,
         messages: [],
+        transcriptWindow: null,
         outline: [],
         activeSessionArchived: false,
         awaitingTranscript: false,
@@ -493,6 +681,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastTerminalRunId: null,
         streaming: false,
         runTerminal: { kind: 'none' },
+        activeSkill: null,
         error: null,
         walkthroughsByMessageId: {},
         subagentStreams: {},
@@ -513,8 +702,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         state.messages.every((message) => message.role === 'user');
       // Explicit opt-in from handleResumeSession only. session/create → session/set
       // must NOT await (no load-messages follows; events/walkthrough would stall).
-      const awaitingTranscript =
-        !preserveOptimisticDraftSend && action.awaitTranscript === true;
+      const awaitingTranscript = !preserveOptimisticDraftSend && action.awaitTranscript === true;
       // Keep previous rows painted only on the resume path (awaitTranscript).
       // Plain session/set switches still clear immediately.
       const keepPreviousTranscript =
@@ -526,6 +714,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         ...state,
         activeSessionId: action.sessionId,
         messages: preserveOptimisticDraftSend || keepPreviousTranscript ? state.messages : [],
+        transcriptWindow: null,
         runPhase: preserveOptimisticDraftSend ? state.runPhase : 'idle',
         activeRunId: preserveOptimisticDraftSend ? state.activeRunId : null,
         activeRunPhase: preserveOptimisticDraftSend ? state.activeRunPhase : null,
@@ -533,6 +722,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeRunStartedAt: preserveOptimisticDraftSend ? state.activeRunStartedAt : null,
         lastTerminalRunId: null,
         streaming: preserveOptimisticDraftSend ? true : false,
+        activeSkill: preserveOptimisticDraftSend ? state.activeSkill : null,
         outline: keepPreviousTranscript ? state.outline : [],
         activeSessionArchived: false,
         awaitingTranscript,
@@ -560,24 +750,50 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       if (state.activeSessionId !== null && state.activeSessionId !== action.sessionId) {
         return state;
       }
-      const messages: ChatMessageUi[] = mapTranscriptMessagesToUi(action.messages);
+      const refreshedMessages = mapTranscriptMessagesToUi(action.messages);
+      const candidateMessages = action.preserveActiveTail
+        ? mergeRefreshedTailWithLiveMessages(refreshedMessages, state.messages, state.streaming)
+        : refreshedMessages;
+      const bounded = retainBoundedTranscriptWindow(
+        candidateMessages,
+        collectRetainedTranscriptMessageIds(candidateMessages, state.streaming),
+      );
+      const messages = bounded.messages;
+      const retainedMessageIds = new Set(messages.map((message) => message.id));
+      const hydratedRunRecords = buildRunRecordsFromTranscriptMessages(
+        action.messages.filter((message) => retainedMessageIds.has(message.id)),
+      );
       return {
         ...state,
         activeSessionId: action.sessionId,
         messages,
-        runPhase: 'idle',
-        activeRunId: null,
-        activeRunPhase: null,
-        activeRunPhaseDetail: null,
-        activeRunStartedAt: null,
-        lastTerminalRunId: null,
-        streaming: false,
+        transcriptWindow: action.transcriptPage
+          ? {
+              revision: action.transcriptPage.revision,
+              totalCount: action.transcriptPage.totalCount,
+              ...(!bounded.cacheLimitReached && action.transcriptPage.olderCursor
+                ? { olderCursor: action.transcriptPage.olderCursor }
+                : {}),
+              retainedBytes: bounded.retainedBytes,
+              cacheLimitReached: bounded.cacheLimitReached,
+            }
+          : null,
+        runPhase: action.preserveActiveTail ? state.runPhase : 'idle',
+        activeRunId: action.preserveActiveTail ? state.activeRunId : null,
+        activeRunPhase: action.preserveActiveTail ? state.activeRunPhase : null,
+        activeRunPhaseDetail: action.preserveActiveTail ? state.activeRunPhaseDetail : null,
+        activeRunStartedAt: action.preserveActiveTail ? state.activeRunStartedAt : null,
+        lastTerminalRunId: action.preserveActiveTail ? state.lastTerminalRunId : null,
+        streaming: action.preserveActiveTail ? state.streaming : false,
+        activeSkill: action.preserveActiveTail ? state.activeSkill : null,
         outline: action.outline ?? [],
-        activeSessionArchived: false,
+        activeSessionArchived: action.preserveActiveTail ? state.activeSessionArchived : false,
         awaitingTranscript: false,
-        runTerminal: { kind: 'none' },
+        runTerminal: action.preserveActiveTail ? state.runTerminal : { kind: 'none' },
         error: null,
-        runRecordsById: buildRunRecordsFromTranscriptMessages(action.messages),
+        runRecordsById: action.preserveActiveTail
+          ? { ...hydratedRunRecords, ...state.runRecordsById }
+          : hydratedRunRecords,
         // Walkthrough artifacts are hydrated separately via walkthrough/list
         // after load. Do NOT clear the map here: session/set (which fires
         // before load-messages) already clears it, and a walkthrough/list
@@ -592,6 +808,34 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
             : { ...state.workingSessionIds },
       };
     }
+    case 'session/prepend-messages': {
+      if (
+        state.activeSessionId !== action.sessionId ||
+        state.transcriptWindow === null ||
+        state.transcriptWindow.revision !== action.transcriptPage.revision
+      ) {
+        return state;
+      }
+      const olderMessages = mapTranscriptMessagesToUi(action.messages);
+      const merged = prependBoundedTranscriptPage(state.messages, olderMessages);
+      return {
+        ...state,
+        messages: merged.messages,
+        transcriptWindow: {
+          revision: action.transcriptPage.revision,
+          totalCount: action.transcriptPage.totalCount,
+          ...(!merged.cacheLimitReached && action.transcriptPage.olderCursor
+            ? { olderCursor: action.transcriptPage.olderCursor }
+            : {}),
+          retainedBytes: merged.retainedBytes,
+          cacheLimitReached: merged.cacheLimitReached,
+        },
+        runRecordsById: {
+          ...buildRunRecordsFromTranscriptMessages(action.messages),
+          ...state.runRecordsById,
+        },
+      };
+    }
     case 'session/add': {
       // Stamp updatedAt so Conversations / project lists sort the new row to the
       // top (sort is pinned first, then updatedAt desc; missing timestamps sink).
@@ -602,23 +846,32 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         id: action.sessionId,
         name: action.name,
         updatedAt: createdAt,
-        scope:
-          projectPath != null
-            ? { kind: 'project', projectPath }
-            : { kind: 'general' },
+        scope: projectPath != null ? { kind: 'project', projectPath } : { kind: 'general' },
       };
       // Sidebar policy: placeholder / empty names never enter the list. The
       // session can still be active (composer) until the first text title lands.
       const listable = !isPlaceholderSessionName(action.name);
-      const nextSessionsForPath = listable
+      const unboundedSessionsForPath = listable
         ? [newSession, ...state.sessions.filter((item) => item.id !== action.sessionId)]
         : state.sessions.filter((item) => item.id !== action.sessionId);
+      const activePageLimit =
+        state.activeScope.kind === 'general'
+          ? GENERAL_SESSION_WINDOW_MAX_ITEMS
+          : PROJECT_SESSION_WINDOW_MAX_ITEMS;
+      const nextSessionsForPath = state.sessionListsWindowed
+        ? unboundedSessionsForPath.slice(0, activePageLimit)
+        : unboundedSessionsForPath;
+      const nextGeneralSessions = listable
+        ? [newSession, ...state.generalSessions.filter((item) => item.id !== action.sessionId)]
+        : state.generalSessions.filter((item) => item.id !== action.sessionId);
       return {
         ...state,
         sessions: nextSessionsForPath,
         generalSessions:
           state.activeScope.kind === 'general' && listable
-            ? [newSession, ...state.generalSessions.filter((item) => item.id !== action.sessionId)]
+            ? state.sessionListsWindowed
+              ? nextGeneralSessions.slice(0, GENERAL_SESSION_WINDOW_MAX_ITEMS)
+              : nextGeneralSessions
             : state.generalSessions.filter((item) => item.id !== action.sessionId),
         // Mirror the new row into the folder tree for the active project.
         projectSessionsByPath:
@@ -627,6 +880,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
             : state.projectSessionsByPath,
         activeSessionId: action.sessionId,
         messages: [],
+        transcriptWindow: null,
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
@@ -634,6 +888,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
+        activeSkill: state.streaming ? state.activeSkill : null,
         outline: [],
         activeSessionArchived: false,
         runTerminal: { kind: 'none' },
@@ -656,6 +911,42 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeSessionId: listable.some((session) => session.id === state.activeSessionId)
           ? state.activeSessionId
           : null,
+      };
+    }
+    case 'session/hydrate-page': {
+      const listable = action.sessions.filter((session) => !isPlaceholderSessionName(session.name));
+      if (action.scope.kind === 'general') {
+        return {
+          ...state,
+          sessionListsWindowed: true,
+          generalSessions: listable,
+          ...(state.activeScope.kind === 'general'
+            ? {
+                sessions: listable,
+                // Page navigation must not deselect the active transcript when
+                // the user intentionally moves to another index page.
+                activeSessionId: state.activeSessionId,
+              }
+            : {}),
+        };
+      }
+      const fillsActiveProject =
+        action.fillActiveList === true ||
+        (state.activeScope.kind === 'project' &&
+          state.activeScope.projectPath === action.scope.projectPath);
+      return {
+        ...state,
+        sessionListsWindowed: true,
+        projectSessionsByPath: {
+          ...state.projectSessionsByPath,
+          [action.scope.projectPath]: listable,
+        },
+        ...(fillsActiveProject
+          ? {
+              sessions: listable,
+              activeSessionId: state.activeSessionId,
+            }
+          : {}),
       };
     }
     case 'session/hydrate-project': {
@@ -739,9 +1030,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       const owningProjectPath =
         ownProjectPath ??
         knownProjectPath ??
-        (!isExplicitGeneral &&
-        !knownInGeneral &&
-        state.activeScope.kind === 'project'
+        (!isExplicitGeneral && !knownInGeneral && state.activeScope.kind === 'project'
           ? state.activeScope.projectPath
           : null);
       const belongsToGeneral =
@@ -753,22 +1042,28 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       const upsertIntoList = (
         list: SessionListItemUi[],
         shouldOwn: boolean,
+        pageLimit: number,
       ): SessionListItemUi[] => {
         let next = list.map((session) =>
           session.id === action.session.id ? { ...session, ...action.session } : session,
         );
         if (shouldOwn && listable) {
           if (!next.some((session) => session.id === action.session.id)) {
-            next.unshift({
-              ...action.session,
-              id: action.session.id,
-              name: action.session.name ?? mergedForCheck.name,
-            });
+            const canInsert =
+              !state.sessionListsWindowed || state.activeSessionId === action.session.id;
+            if (canInsert) {
+              next.unshift({
+                ...action.session,
+                id: action.session.id,
+                name: action.session.name ?? mergedForCheck.name,
+              });
+            }
           }
         } else if (!shouldOwn || !listable) {
           next = next.filter((session) => session.id !== action.session.id);
         }
-        return sortPinnedThenUpdated(next);
+        const sorted = sortPinnedThenUpdated(next);
+        return state.sessionListsWindowed ? sorted.slice(0, pageLimit) : sorted;
       };
 
       // Active list only receives inserts for sessions that belong to the
@@ -780,12 +1075,20 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
           : owningProjectPath != null &&
             state.activeScope.kind === 'project' &&
             state.activeScope.projectPath === owningProjectPath;
-      const nextSessions = upsertIntoList(state.sessions, activeListOwnsSession);
-      const nextGeneral = upsertIntoList(state.generalSessions, belongsToGeneral);
+      const activePageLimit =
+        state.activeScope.kind === 'general'
+          ? GENERAL_SESSION_WINDOW_MAX_ITEMS
+          : PROJECT_SESSION_WINDOW_MAX_ITEMS;
+      const nextSessions = upsertIntoList(state.sessions, activeListOwnsSession, activePageLimit);
+      const nextGeneral = upsertIntoList(
+        state.generalSessions,
+        belongsToGeneral,
+        GENERAL_SESSION_WINDOW_MAX_ITEMS,
+      );
 
       if (owningProjectPath != null) {
         const owned = state.projectSessionsByPath[owningProjectPath] ?? [];
-        const nextOwned = upsertIntoList(owned, true);
+        const nextOwned = upsertIntoList(owned, true, PROJECT_SESSION_WINDOW_MAX_ITEMS);
         // Drop the same id from any other project folders so a re-homed
         // session cannot appear under two project trees at once.
         const nextProjectSessionsByPath: Record<string, SessionListItemUi[]> = {
@@ -831,6 +1134,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         // Do not auto-select another session when the active one is removed.
         activeSessionId: activeRemoved ? null : state.activeSessionId,
         messages: activeRemoved ? [] : state.messages,
+        transcriptWindow: activeRemoved ? null : state.transcriptWindow,
         outline: activeRemoved ? [] : state.outline,
         activeSessionArchived: activeRemoved ? false : state.activeSessionArchived,
         awaitingTranscript: activeRemoved ? false : state.awaitingTranscript,
@@ -839,6 +1143,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeRunPhase: activeRemoved ? null : state.activeRunPhase,
         activeRunStartedAt: activeRemoved ? null : state.activeRunStartedAt,
         streaming: activeRemoved ? false : state.streaming,
+        activeSkill: activeRemoved ? null : state.activeSkill,
         runTerminal: activeRemoved ? { kind: 'none' } : state.runTerminal,
         completedAttentionSessionIds: removeSessionIdMarker(
           state.completedAttentionSessionIds,
@@ -870,6 +1175,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         ...state,
         activeSessionId: null,
         messages: [],
+        transcriptWindow: null,
         outline: [],
         activeSessionArchived: false,
         awaitingTranscript: false,
@@ -880,6 +1186,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
+        activeSkill: null,
         runTerminal: { kind: 'none' },
         walkthroughsByMessageId: {},
       };
@@ -887,24 +1194,21 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       if (state.activeSessionId !== action.sessionId) {
         return state;
       }
-      const messages: ChatMessageUi[] = action.messages.map((message) => ({
-        id: message.id,
-        role: message.role,
-        text: message.text,
-        thinking: message.thinking ?? '',
-        tools: (message.tools ?? []).map((tool) => ({
-          toolCallId: tool.toolCallId,
-          toolName: tool.toolName,
-          status: tool.status,
-          output: tool.output,
-        })),
-        attachments: message.attachments ?? [],
-        status: message.status === 'streaming' ? 'done' : message.status,
-        ...(message.createdAt ? { createdAt: message.createdAt } : {}),
-      }));
-      return {
+      const messages = mapTranscriptMessagesToUi(action.messages);
+      return enforceBoundedTranscriptWindow({
         ...state,
         messages,
+        transcriptWindow: action.transcriptPage
+          ? {
+              revision: action.transcriptPage.revision,
+              totalCount: action.transcriptPage.totalCount,
+              ...(action.transcriptPage.olderCursor
+                ? { olderCursor: action.transcriptPage.olderCursor }
+                : {}),
+              retainedBytes: measureTranscriptCacheBytes(messages),
+              cacheLimitReached: false,
+            }
+          : null,
         runPhase: 'idle',
         activeRunId: null,
         activeRunPhase: null,
@@ -913,7 +1217,9 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         lastTerminalRunId: null,
         streaming: false,
         error: null,
-      };
+        activeSkill: null,
+        runRecordsById: buildRunRecordsFromTranscriptMessages(action.messages),
+      });
     }
     case 'user/send': {
       const userMessage: ChatMessageUi = {
@@ -926,7 +1232,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         status: 'done',
         createdAt: new Date().toISOString(),
       };
-      return {
+      return enforceBoundedTranscriptWindow({
         ...state,
         messages: [...state.messages, userMessage],
         runPhase: 'streaming',
@@ -937,13 +1243,14 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         streaming: true,
         runTerminal: { kind: 'none' },
         error: null,
+        activeSkill: action.skill ?? null,
         workingSessionIds: state.activeSessionId
           ? { ...state.workingSessionIds, [state.activeSessionId]: true }
           : state.workingSessionIds,
         completedAttentionSessionIds: state.activeSessionId
           ? removeSessionIdMarker(state.completedAttentionSessionIds, state.activeSessionId)
           : state.completedAttentionSessionIds,
-      };
+      });
     }
     case 'user/send-rollback': {
       const remainingMessages = state.messages.filter(
@@ -966,6 +1273,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
               activeRunPhase: null,
               activeRunPhaseDetail: null,
               activeRunStartedAt: null,
+              activeSkill: null,
             }
           : {}),
       };
@@ -1007,7 +1315,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       }
     case 'run/updated':
       if (state.activeSessionId !== action.run.sessionId) return state;
-      return applyRunRecord(state, action.run);
+      return applyRunRecord(state, action.run, false);
     case 'run/terminal':
       if (state.activeSessionId !== action.run.sessionId) {
         // Terminal pushes are global. A run can finish after the user has
@@ -1016,10 +1324,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         if (action.run.kind !== 'session-turn') {
           return state;
         }
-        const nextWorking = removeWorkingSessionId(
-          state.workingSessionIds,
-          action.run.sessionId,
-        );
+        const nextWorking = removeWorkingSessionId(state.workingSessionIds, action.run.sessionId);
         // Only completed / failed turns leave a sticky "done" marker. Cancelled
         // and interrupted runs already communicate stop intent and should not
         // keep demanding attention in the sidebar.
@@ -1033,13 +1338,10 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
                 ...state.completedAttentionSessionIds,
                 [action.run.sessionId]: true,
               }
-            : removeSessionIdMarker(
-                state.completedAttentionSessionIds,
-                action.run.sessionId,
-              ),
+            : removeSessionIdMarker(state.completedAttentionSessionIds, action.run.sessionId),
         };
       }
-      return applyRunRecord(state, action.run);
+      return enforceBoundedTranscriptWindow(applyRunRecord(state, action.run, true));
     case 'run/terminal-dismiss':
       return {
         ...state,
@@ -1077,6 +1379,7 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
+        activeSkill: null,
         runTerminal: { kind: 'failed', message: action.message, at: Date.now() },
       };
     case 'error/clear':
@@ -1104,10 +1407,10 @@ export function chatUiReducer(state: ChatUiState, action: ChatUiAction): ChatUiS
       if (!nextMessage) {
         return state;
       }
-      return {
+      return enforceBoundedTranscriptWindow({
         ...state,
         messages: [...state.messages, nextMessage],
-      };
+      });
     }
     case 'event':
       if (state.activeSessionId !== action.sessionId || state.awaitingTranscript) {
@@ -1324,6 +1627,8 @@ function applySubagentStreamEvent(
         toolName: event.toolName,
         status: 'running',
         output: '',
+        outputRetainedBytes: 0,
+        outputTruncated: false,
       };
       if (existingIdx >= 0) {
         tools[existingIdx] = tool;
@@ -1337,9 +1642,18 @@ function applySubagentStreamEvent(
       };
     }
     case 'tool/update': {
-      const tools = existing.tools.map((t) =>
-        t.toolCallId === event.toolCallId ? { ...t, output: t.output + event.delta } : t,
-      );
+      const tools = existing.tools.map((tool) => {
+        if (tool.toolCallId !== event.toolCallId) {
+          return tool;
+        }
+        const output = appendBoundedToolOutput(tool, event.delta);
+        return {
+          ...tool,
+          output: output.text,
+          outputRetainedBytes: output.retainedBytes,
+          outputTruncated: output.truncated,
+        };
+      });
       const updated: SubagentStreamState = { ...existing, tools };
       return {
         ...state,
@@ -1500,14 +1814,14 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         status: 'streaming',
         ...(resolvedRunId ? { runId: resolvedRunId } : {}),
       };
-      return {
+      return enforceBoundedTranscriptWindow({
         ...state,
         messages: [...state.messages, message],
         runPhase: 'streaming',
         ...(event.runId ? { activeRunId: event.runId, activeRunPhase: 'streaming' as const } : {}),
         streaming: true,
         runTerminal: { kind: 'none' },
-      };
+      });
     }
     case 'message/text_delta':
       if (isStaleOptionalRunEvent(state, event.runId)) {
@@ -1571,14 +1885,14 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         message.tools.some((tool) => tool.status === 'running'),
       );
       if (event.runId !== undefined) {
-        return {
+        return enforceBoundedTranscriptWindow({
           ...next,
           activeRunPhase: hasRunningTool ? 'tool-running' : 'streaming',
           runPhase: 'streaming',
           streaming: true,
-        };
+        });
       }
-      return {
+      return enforceBoundedTranscriptWindow({
         ...next,
         runPhase: 'idle',
         activeRunId: null,
@@ -1587,9 +1901,10 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         activeRunStartedAt: null,
         lastTerminalRunId: null,
         streaming: false,
+        activeSkill: null,
         runTerminal: hasRunningTool ? next.runTerminal : { kind: 'complete', at: Date.now() },
         workingSessionIds: removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
-      };
+      });
     }
     case 'session/aborted': {
       if (isStaleOptionalRunEvent(state, event.runId)) {
@@ -1603,7 +1918,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         : state.messages.map((message) =>
             message.status === 'streaming' ? { ...message, status: 'done' as const } : message,
           );
-      return {
+      return enforceBoundedTranscriptWindow({
         ...state,
         messages: nextMessages,
         runPhase: 'idle',
@@ -1613,9 +1928,10 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
         activeRunStartedAt: null,
         lastTerminalRunId: event.runId ?? null,
         streaming: false,
+        activeSkill: null,
         runTerminal: { kind: 'stopped', at: Date.now() },
         workingSessionIds: removeWorkingSessionId(state.workingSessionIds, state.activeSessionId),
-      };
+      });
     }
     case 'tool/start': {
       if (isStaleOptionalRunEvent(state, event.runId)) {
@@ -1625,34 +1941,52 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
       if (!ownerMessage) {
         return state;
       }
-      return updateMessage(state, ownerMessage.id, (message) => ({
-        ...message,
-        tools: [
-          ...message.tools,
-          {
-            toolCallId: event.toolCallId,
-            toolName: event.toolName,
-            status: 'running',
-            output: '',
-            ...(event.presentation ? { presentation: event.presentation } : {}),
-            ...(event.runId ? { runId: event.runId } : {}),
-          },
-        ],
-      }));
+      return updateMessage(state, ownerMessage.id, (message) => {
+        const output = createBoundedToolOutput(event.presentation?.output?.text ?? '');
+        return {
+          ...message,
+          tools: [
+            ...message.tools,
+            {
+              toolCallId: event.toolCallId,
+              toolName: event.toolName,
+              status: 'running',
+              output: output.text,
+              outputRetainedBytes: output.retainedBytes,
+              outputTruncated: output.truncated,
+              ...(event.presentation
+                ? {
+                    presentation: projectBoundedToolPresentation(event.presentation, output),
+                  }
+                : {}),
+              ...(event.runId ? { runId: event.runId } : {}),
+            },
+          ],
+        };
+      });
     }
     case 'tool/update':
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
       }
-      return updateOwnedTool(state, event.toolCallId, event.runId, (tool) => ({
-        ...tool,
-        output:
-          event.presentation?.output?.text ??
-          appendBoundedToolOutput(tool.output, redactDisplayText(event.delta)),
-        ...(event.presentation
-          ? { presentation: mergeToolPresentation(tool.presentation, event.presentation) }
-          : {}),
-      }));
+      return updateOwnedTool(state, event.toolCallId, event.runId, (tool) => {
+        const output =
+          event.presentation?.output?.text !== undefined
+            ? createBoundedToolOutput(event.presentation.output.text)
+            : appendBoundedToolOutput(tool, event.delta);
+        const mergedPresentation = event.presentation
+          ? mergeToolPresentation(tool.presentation, event.presentation)
+          : tool.presentation;
+        return {
+          ...tool,
+          output: output.text,
+          outputRetainedBytes: output.retainedBytes,
+          outputTruncated: output.truncated,
+          ...(mergedPresentation
+            ? { presentation: projectBoundedToolPresentation(mergedPresentation, output) }
+            : {}),
+        };
+      });
     case 'tool/end':
       if (isStaleOptionalRunEvent(state, event.runId)) {
         return state;
@@ -1666,11 +2000,16 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
             mergedPresentation?.output?.text !== undefined
               ? mergedPresentation.output.text
               : tool.output;
+          const output = createBoundedToolOutput(displayOutput);
           return {
             ...tool,
             status: event.isError ? 'error' : 'done',
-            output: displayOutput,
-            ...(mergedPresentation ? { presentation: mergedPresentation } : {}),
+            output: output.text,
+            outputRetainedBytes: output.retainedBytes,
+            outputTruncated: output.truncated,
+            ...(mergedPresentation
+              ? { presentation: projectBoundedToolPresentation(mergedPresentation, output) }
+              : {}),
           };
         });
         if (!event.attachments || event.attachments.length === 0) {
@@ -1765,6 +2104,7 @@ function applyAgentEvent(state: ChatUiState, event: AgentEvent): ChatUiState {
           runPhase: 'idle',
           streaming: false,
           compacting: false,
+          activeSkill: null,
           runTerminal: { kind: 'failed', message: event.message, at: Date.now() },
         };
       }
@@ -1781,8 +2121,24 @@ function isStaleRunEvent(state: ChatUiState, runId: string): boolean {
 }
 
 /** Reduce the authoritative top-level RunHostPush projection. */
-function applyRunRecord(state: ChatUiState, run: ExecutionRunRecord): ChatUiState {
+function applyRunRecord(
+  state: ChatUiState,
+  run: ExecutionRunRecord,
+  isTerminalEvent: boolean,
+): ChatUiState {
   const previousRecord = state.runRecordsById[run.runId];
+  if (previousRecord !== undefined && !isTerminalEvent) {
+    if (
+      run.revision !== undefined &&
+      previousRecord.revision !== undefined &&
+      run.revision <= previousRecord.revision
+    ) {
+      return state;
+    }
+    if (run.revision === undefined && isLegacyRunProjectionEqual(previousRecord, run)) {
+      return state;
+    }
+  }
   const phaseAt = parseEventTime(run.phaseUpdatedAt ?? run.startedAt ?? run.endedAt ?? '');
   const lastPhase = previousRecord?.phaseHistory.at(-1);
   const phaseHistory =
@@ -1807,6 +2163,22 @@ function applyRunRecord(state: ChatUiState, run: ExecutionRunRecord): ChatUiStat
           : undefined;
   const nextRecord: RunRecordUi = {
     runId: run.runId,
+    ...(run.revision !== undefined
+      ? { revision: run.revision }
+      : previousRecord?.revision !== undefined
+        ? { revision: previousRecord.revision }
+        : {}),
+    status: run.status,
+    ...(run.phase !== undefined
+      ? { phase: run.phase }
+      : previousRecord?.phase !== undefined
+        ? { phase: previousRecord.phase }
+        : {}),
+    ...(run.phaseDetail !== undefined
+      ? { phaseDetail: run.phaseDetail }
+      : previousRecord?.phaseDetail !== undefined
+        ? { phaseDetail: previousRecord.phaseDetail }
+        : {}),
     phaseHistory,
     startedAt: run.startedAt ? parseEventTime(run.startedAt) : (previousRecord?.startedAt ?? null),
     endedAt: run.endedAt ? parseEventTime(run.endedAt) : (previousRecord?.endedAt ?? null),
@@ -1859,6 +2231,7 @@ function applyRunRecord(state: ChatUiState, run: ExecutionRunRecord): ChatUiStat
     lastTerminalRunId: run.runId,
     runPhase: 'idle',
     streaming: false,
+    activeSkill: null,
     error: outcome === 'failed' ? (run.error ?? 'Run failed') : state.error,
     runTerminal:
       outcome === 'cancelled'
@@ -1869,6 +2242,33 @@ function applyRunRecord(state: ChatUiState, run: ExecutionRunRecord): ChatUiStat
     runRecordsById: records,
     workingSessionIds: removeWorkingSessionId(state.workingSessionIds, run.sessionId),
   };
+}
+
+function isLegacyRunProjectionEqual(previous: RunRecordUi, run: ExecutionRunRecord): boolean {
+  const outcome =
+    run.status === 'completed'
+      ? 'completed'
+      : run.status === 'cancelled' || run.status === 'interrupted'
+        ? 'cancelled'
+        : run.status === 'failed'
+          ? 'failed'
+          : undefined;
+  const previousOutcome = previous.outcome;
+  const previousStartedAt = previous.startedAt;
+  const previousEndedAt = previous.endedAt;
+  const nextStartedAt = run.startedAt ? parseEventTime(run.startedAt) : null;
+  const nextEndedAt = run.endedAt ? parseEventTime(run.endedAt) : null;
+  const nextTerminalMessage = run.error;
+
+  return (
+    previous.status === run.status &&
+    previous.phase === run.phase &&
+    previous.phaseDetail === run.phaseDetail &&
+    previousOutcome === outcome &&
+    previousStartedAt === nextStartedAt &&
+    previousEndedAt === nextEndedAt &&
+    previous.terminalMessage === nextTerminalMessage
+  );
 }
 
 function isStaleOptionalRunEvent(state: ChatUiState, runId: string | undefined): boolean {
@@ -2117,36 +2517,43 @@ function redactDisplayText(text: string): string {
   return next;
 }
 
-function appendBoundedToolOutput(existingOutput: string, nextDelta: string): string {
-  if (existingOutput.endsWith(TOOL_OUTPUT_TRUNCATION_MARKER)) {
-    return existingOutput;
-  }
-
-  const combinedOutput = existingOutput + nextDelta;
-  if (getUtf8ByteLength(combinedOutput) <= MAX_RETAINED_TOOL_OUTPUT_BYTES) {
-    return combinedOutput;
-  }
-
-  const markerBytes = getUtf8ByteLength(TOOL_OUTPUT_TRUNCATION_MARKER);
-  const retainedPrefixBytes = Math.max(0, MAX_RETAINED_TOOL_OUTPUT_BYTES - markerBytes);
-  const retainedPrefix = truncateUtf8(combinedOutput, retainedPrefixBytes);
-  return `${retainedPrefix}${TOOL_OUTPUT_TRUNCATION_MARKER}`;
+function createBoundedToolOutput(value: string): BoundedTextAccumulator {
+  return createBoundedTextAccumulator(redactDisplayText(value), TOOL_OUTPUT_RETENTION_OPTIONS);
 }
 
-function getUtf8ByteLength(value: string): number {
-  return new TextEncoder().encode(value).byteLength;
+/** Keep structured presentation from retaining an uncapped duplicate output string. */
+function projectBoundedToolPresentation(
+  presentation: ToolPresentation,
+  output: BoundedTextAccumulator,
+): ToolPresentation {
+  if (!presentation.output) {
+    return presentation;
+  }
+  return {
+    ...presentation,
+    output: {
+      ...presentation.output,
+      text: output.text,
+      ...(output.truncated ? { truncated: true } : {}),
+    },
+  };
 }
 
-function truncateUtf8(value: string, maximumBytes: number): string {
-  let retainedBytes = 0;
-  let retainedText = '';
-  for (const character of value) {
-    const characterBytes = getUtf8ByteLength(character);
-    if (retainedBytes + characterBytes > maximumBytes) {
-      break;
-    }
-    retainedText += character;
-    retainedBytes += characterBytes;
-  }
-  return retainedText;
+function appendBoundedToolOutput(
+  tool: Pick<ToolCardUi, 'output' | 'outputRetainedBytes' | 'outputTruncated'>,
+  nextDelta: string,
+): BoundedTextAccumulator {
+  const accumulator =
+    tool.outputRetainedBytes === undefined || tool.outputTruncated === undefined
+      ? createBoundedToolOutput(tool.output)
+      : {
+          text: tool.output,
+          retainedBytes: tool.outputRetainedBytes,
+          truncated: tool.outputTruncated,
+        };
+  return appendBoundedText(
+    accumulator,
+    redactDisplayText(nextDelta),
+    TOOL_OUTPUT_RETENTION_OPTIONS,
+  );
 }

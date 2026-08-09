@@ -149,6 +149,7 @@
 .agent-locator {
   --agent-locator-icon-size: clamp(18px, 1.55em, 24px);
   --agent-locator-icon-scale: clamp(0.75, calc(var(--agent-locator-icon-size) / 24px), 1);
+  --agent-locator-radial-scale: 0.52;
   --agent-locator-motion-duration: 3.6s;
   display: inline-flex;
   align-items: center;
@@ -176,6 +177,13 @@
 .agent-locator-visual > .ui-anim--sm {
   transform: scale(var(--agent-locator-icon-scale));
   transform-origin: center;
+}
+
+/* The radial vanes intentionally bloom beyond the 24px public frame. Keep
+ * that shared animation readable in the global locator without letting it
+ * overlap the status copy. */
+.agent-locator-visual > .ui-anim-radial-bellow {
+  transform: scale(var(--agent-locator-radial-scale));
 }
 
 .agent-locator-visual .ui-anim-radial-bellow__vane,

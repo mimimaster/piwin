@@ -3,7 +3,9 @@
  * Shows Duplicate + Fork as inline SVG icon buttons with hover tooltips.
  */
 import { useState, type ReactElement } from 'react';
+import type { ProductSessionLineageView } from '@piwin/contracts';
 import { IconDuplicateConversation, IconForkConversation } from './shell-icons';
+import { SessionLineagePopover } from './session-lineage-popover';
 
 export type AssistantResponseActionsProps = {
   messageId: string;
@@ -11,10 +13,15 @@ export type AssistantResponseActionsProps = {
   showFork: boolean;
   /** Number of direct forks from this response (0 = no count badge). */
   directForkCount: number;
+  /** Complete product lineage for the active session, when available. */
+  lineage?: ProductSessionLineageView | null;
+  /** Show a tree trigger on the latest response even without direct forks there. */
+  showTreeOnLatestResponse?: boolean;
   disabled: boolean;
   onDuplicate: () => void;
   onFork: (messageId: string) => void;
   onOpenForks?: ((messageId: string) => void) | undefined;
+  onOpenSession?: ((sessionId: string) => void) | undefined;
   locale: 'zh-CN' | 'en';
 };
 
@@ -26,7 +33,6 @@ export function AssistantResponseActions(props: AssistantResponseActionsProps): 
 
   const duplicateLabel = props.locale === 'zh-CN' ? '复制整个会话' : 'Duplicate conversation';
   const forkLabel = props.locale === 'zh-CN' ? '从此处分叉' : 'Fork from here';
-  const forksLabel = props.locale === 'zh-CN' ? '个分支' : 'forks';
 
   async function handleDuplicate(): Promise<void> {
     if (props.disabled || duplicateBusy) return;
@@ -82,21 +88,16 @@ export function AssistantResponseActions(props: AssistantResponseActionsProps): 
           </span>
         </button>
       ) : null}
-      {props.directForkCount > 0 && props.onOpenForks ? (
-        <button
-          type="button"
-          className="msg-action-btn fork-count-badge"
-          onClick={() => props.onOpenForks?.(props.messageId)}
-          title={`${props.directForkCount} ${forksLabel}`}
-          aria-label={`${props.directForkCount} ${forksLabel}`}
-          data-testid="response-fork-count"
-        >
-          <span style={{ fontSize: '11px' }}>{props.directForkCount}</span>
-          <IconForkConversation width={11} height={11} />
-          <span className="assistant-action-tooltip" role="tooltip">
-            {props.directForkCount} {forksLabel}
-          </span>
-        </button>
+      {props.lineage && props.onOpenSession ? (
+        <SessionLineagePopover
+          messageId={props.messageId}
+          lineage={props.lineage}
+          directForkCount={props.directForkCount}
+          showTreeOnLatestResponse={props.showTreeOnLatestResponse === true}
+          onOpenSession={props.onOpenSession}
+          {...(props.onOpenForks ? { onOpenForks: props.onOpenForks } : {})}
+          locale={props.locale}
+        />
       ) : null}
     </div>
   );

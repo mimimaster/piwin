@@ -189,4 +189,68 @@ describe('ToolCallCard openable file paths', () => {
     expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Called');
     expect(card?.getAttribute('data-activity-animation')).toBe('none');
   });
+
+  it('renders fetch-like shell commands with the reference request surface', () => {
+    const fetchTool: ToolCardUi = {
+      toolCallId: 'fetch-shell-1',
+      toolName: 'bash',
+      status: 'done',
+      output: 'raw response',
+      presentation: {
+        title: 'Bash',
+        kind: 'shell',
+        actionVerb: 'Ran command',
+        summary: 'Fetch new subscription link',
+        command: '# Fetch new subscription link\ncurl -s -L "https://example.com/link"',
+        output: { text: 'raw response' },
+      },
+    };
+
+    act(() => {
+      root.render(<ToolCallCard tool={fetchTool} density="detailed" locale="en" defaultExpanded />);
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.getAttribute('data-tool-visual')).toBe('fetch');
+    expect(card?.querySelector('.tool-call-action-verb')?.textContent).toBe('Ran');
+    expect(card?.querySelector('.tool-call-preview')?.textContent).toBe(
+      'Fetch new subscription link',
+    );
+    expect(card?.querySelector('[data-testid="tool-call-fetch-panel"]')?.textContent).toContain(
+      '$# Fetch new subscription link',
+    );
+  });
+
+  it('renders native web_fetch requests in the same code surface', () => {
+    const fetchTool: ToolCardUi = {
+      toolCallId: 'fetch-web-1',
+      toolName: 'web_fetch',
+      status: 'done',
+      output: JSON.stringify({
+        url: 'https://example.com/docs',
+        finalUrl: 'https://example.com/docs',
+        title: 'Docs',
+        text: 'Readable page text',
+      }),
+      presentation: {
+        title: 'web_fetch',
+        kind: 'web',
+        actionVerb: 'Fetched',
+        summary: 'https://example.com/docs',
+        inputPreview: '{"url":"https://example.com/docs"}',
+        output: { text: '{"url":"https://example.com/docs"}' },
+      },
+    };
+
+    act(() => {
+      root.render(<ToolCallCard tool={fetchTool} density="detailed" locale="en" defaultExpanded />);
+    });
+
+    const card = container.querySelector<HTMLElement>('[data-testid="tool-call-card"]');
+    expect(card?.getAttribute('data-tool-visual')).toBe('fetch');
+    expect(card?.querySelector('[data-testid="tool-call-fetch-panel"]')?.textContent).toContain(
+      'GET https://example.com/docs',
+    );
+    expect(card?.querySelector('.citation-card')).not.toBeNull();
+  });
 });

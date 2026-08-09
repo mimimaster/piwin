@@ -541,7 +541,7 @@ export function McpPanel(props: McpPanelProps) {
             </div>
 
             <TabsContent value="configured" className="mcp-tab-content">
-              <div className="ui-feedback-host" style={{ marginBottom: 16 }}>
+              <div className="mcp-pin-tip">
                 <Notice
                   tone="info"
                   title={isChinese ? 'Pin MCP 工具会发生什么？' : 'What does pinning MCP tools do?'}

@@ -9,7 +9,7 @@
  *   - "run-status-strip" / "run-status-stop" / "run-status-stopping"
  *   - "rail-chats-btn" / "right-panel-open-btn" / titlebar-*
  */
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { Button, IconButton } from '@piwin/ui-kit';
 import type { PermissionPreset } from '@piwin/contracts';
 import type { ProductSessionOrigin } from '@piwin/contracts';
@@ -34,6 +34,8 @@ export type ContextBarSession = {
 
 export type ContextBarProps = {
   session: ContextBarSession;
+  /** Persistent session-level navigation control rendered beside the title. */
+  sessionTreeControl?: ReactNode;
   /** SF-04: product session origin for branch/duplicate badge. */
   origin?: ProductSessionOrigin | null;
   /** SF-04: callback to return to root/parent session. */
@@ -188,6 +190,11 @@ export function ContextBar(props: ContextBarProps): ReactElement {
         <span className="context-bar-title" title={session.title}>
           {session.title}
         </span>
+        {props.sessionTreeControl ? (
+          <span className="context-bar-session-tree-slot" data-no-window-drag>
+            {props.sessionTreeControl}
+          </span>
+        ) : null}
         <span className="context-bar-scope-pill">{session.scopeLabel}</span>
         {mode ? (
           <button
