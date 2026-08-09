@@ -76,7 +76,6 @@ function createContextValue(
     requestExtensions: noopRequest,
     requestPlugins: noopRequest,
     requestPrompts: noopRequest,
-    requestTheme: noopRequest,
     requestPet: noopRequest,
     requestAutomation: noopRequest,
     requestSubAgent: undefined,

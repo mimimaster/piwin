@@ -1,7 +1,11 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const host = process.env.TAURI_DEV_HOST;
+const remoteDevHost = process.env.TAURI_DEV_HOST;
+const serverHost = remoteDevHost ?? '127.0.0.1';
+const desktopRoot = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   test: {
@@ -14,11 +18,11 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
-    hmr: host
+    host: serverHost,
+    hmr: remoteDevHost
       ? {
           protocol: 'ws',
-          host,
+          host: remoteDevHost,
           port: 1421,
         }
       : undefined,
@@ -31,5 +35,11 @@ export default defineConfig({
     target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari13',
     minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    rollupOptions: {
+      input: {
+        main: resolve(desktopRoot, 'index.html'),
+        petOverlay: resolve(desktopRoot, 'pet-overlay.html'),
+      },
+    },
   },
 });

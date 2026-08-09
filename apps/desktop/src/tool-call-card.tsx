@@ -11,6 +11,7 @@ import { CitationCards } from './CitationCards';
 import { parseToolCitations } from './tool-citations';
 import { DiffCard, type DiffCardRequest } from './diff-card';
 import { CollapsibleContentBlock } from './collapsible-content-block';
+import { TokenSpans, useHighlight } from './syntax-highlight';
 import {
   IconChevronDown,
   IconFile,
@@ -22,6 +23,7 @@ import {
   IconBook,
   IconBrowser,
   IconSpark,
+  IconMore,
 } from './shell-icons';
 import type { ToolKind } from '@piwin/contracts';
 import {
@@ -318,6 +320,58 @@ function resolveDensity(
   return 'comfortable';
 }
 
+/** True for shell commands that are acting as a fetch/request transcript. */
+function isFetchLikeShellCommand(command: string | undefined): boolean {
+  if (!command) {
+    return false;
+  }
+  return /(^|\s)(?:curl|wget|fetch)\b/i.test(command) || /^\s*#\s*fetch\b/im.test(command);
+}
+
+/** Use a leading shell comment as the human-readable title for a long fetch. */
+function extractCommandDescription(command: string | undefined): string | undefined {
+  if (!command) {
+    return undefined;
+  }
+  const comment = command.match(/^\s*#\s*(.+?)\s*$/m)?.[1];
+  return comment?.trim() || undefined;
+}
+
+/** Keep native web_fetch requests truthful while presenting them as code. */
+function resolveFetchRequestPreview(inputPreview: string | undefined, fallback: string): string {
+  if (!inputPreview) {
+    return fallback;
+  }
+  try {
+    const parsed: unknown = JSON.parse(inputPreview);
+    if (parsed && typeof parsed === 'object') {
+      const url = (parsed as Record<string, unknown>).url;
+      if (typeof url === 'string' && url.trim()) {
+        return `GET ${url.trim()}`;
+      }
+    }
+  } catch {
+    // Legacy transcripts may store a non-JSON request preview.
+  }
+  return inputPreview;
+}
+
+function FetchCommandCode(props: { source: string }): ReactElement {
+  const tokenLines = useHighlight(props.source, 'bash');
+  return (
+    <code>
+      {tokenLines
+        ? tokenLines.map((line, index) => (
+            <span key={index} className="tool-call-command-line">
+              <TokenSpans tokens={line} />
+              {index < tokenLines.length - 1 ? '\n' : null}
+            </span>
+          ))
+        : props.source}
+    </code>
+  );
+}
+
 /** True when a head summary is really a raw args/JSON dump, not a tool/query label. */
 export function looksLikeArgsDumpSummary(text: string): boolean {
   const trimmed = text.trim();
@@ -456,10 +510,22 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
   const isArgsDumpSummary =
     Boolean(inputPreview && summary === inputPreview) || looksLikeArgsDumpSummary(summary);
   const isMcpBehavior = baseBehaviorId === 'mcp.call' || baseBehaviorId === 'mcp.discovery';
+  const isFetchStyle =
+    baseBehaviorId === 'web.fetch' ||
+    (baseBehaviorId === 'shell' && isFetchLikeShellCommand(tool.presentation?.command));
+  const fetchRequestPreview = isFetchStyle
+    ? (tool.presentation?.command ?? resolveFetchRequestPreview(inputPreview, summary))
+    : undefined;
+  const fetchHeaderSummary =
+    isFetchStyle && baseBehaviorId === 'shell'
+      ? (extractCommandDescription(tool.presentation?.command) ?? summary)
+      : summary;
   const headerSummary =
     isMcpBehavior && displayName !== 'MCP gateway' && displayName !== tool.toolName
       ? displayName
-      : summary;
+      : fetchHeaderSummary;
+  const displayActionVerb =
+    isFetchStyle && baseBehaviorId === 'shell' && locale === 'en' ? 'Ran' : actionVerb;
   const previewText = resolveToolCallHeaderPreview({
     summary: headerSummary,
     displayName,
@@ -468,7 +534,7 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     singleBasename: singleBasename || '',
     isPathLike,
     expanded,
-    hasDetailInBody,
+    hasDetailInBody: isFetchStyle ? false : hasDetailInBody,
     isArgsDumpSummary: isMcpBehavior ? false : isArgsDumpSummary,
   });
   const previewClassName =
@@ -491,15 +557,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
     <div
       className={`tool-call-card density-${density} status-${tool.status}${
         expanded ? ' is-expanded' : ''
-      }`}
+      }${isFetchStyle ? ' is-fetch-style' : ''}`}
       data-testid="tool-call-card"
       data-tool-name={tool.toolName}
       data-tool-kind={kind}
       data-tool-status={tool.status}
-      data-action-verb={actionVerb}
+      data-action-verb={displayActionVerb}
       data-activity-id={behaviorId}
       data-activity-animation={behaviorSpec.animation}
       data-density={density}
+      data-tool-visual={isFetchStyle ? 'fetch' : undefined}
     >
       {/*
         Summary is a div (not a <button>) so the openable file pill can be a
@@ -516,11 +583,11 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
         }}
         role="button"
         aria-expanded={expanded}
-        aria-label={`${actionVerb} ${summary || displayName} ${tool.status}`}
+        aria-label={`${displayActionVerb} ${headerSummary || displayName} ${tool.status}`}
         tabIndex={0}
       >
         {kindIcon(kind, tool.toolName, rawActionVerb, baseBehaviorId)}
-        <span className={`tool-call-action-verb ${behaviorClassName}`}>{actionVerb}</span>
+        <span className={`tool-call-action-verb ${behaviorClassName}`}>{displayActionVerb}</span>
         {showFilePill && pillLabel ? (
           canOpenPrimaryFile && primaryOpenPath && primaryTargetPath ? (
             <button
@@ -631,10 +698,24 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
               {tool.presentation.error.category}: {tool.presentation.error.message}
             </div>
           ) : null}
+          {isFetchStyle && fetchRequestPreview ? (
+            <div className="tool-call-fetch-panel" data-testid="tool-call-fetch-panel">
+              <div className="tool-call-command is-fetch-command" data-testid="tool-call-command">
+                <span className="tool-call-command-prompt" aria-hidden="true">
+                  $
+                </span>
+                <FetchCommandCode source={fetchRequestPreview} />
+                <span className="tool-call-command-menu" aria-hidden="true">
+                  <IconMore />
+                </span>
+              </div>
+            </div>
+          ) : null}
           <CitationCards parsed={citations} />
-          {tool.presentation?.command ||
-          inputPreview ||
-          (displayOutput && citations.kind === 'none' && !canRenderDiffCard) ? (
+          {!isFetchStyle &&
+          (tool.presentation?.command ||
+            inputPreview ||
+            (displayOutput && citations.kind === 'none' && !canRenderDiffCard)) ? (
             <CollapsibleContentBlock
               maxCollapsedHeight={130}
               defaultCollapsed={tool.status === 'done'}
@@ -657,6 +738,16 @@ export function ToolCallCard(props: ToolCallCardProps): ReactElement {
                   {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
                 </pre>
               ) : null}
+            </CollapsibleContentBlock>
+          ) : null}
+          {isFetchStyle && displayOutput && citations.kind === 'none' && !canRenderDiffCard ? (
+            <CollapsibleContentBlock
+              maxCollapsedHeight={130}
+              defaultCollapsed={tool.status === 'done'}
+            >
+              <pre className="tool-call-output">
+                {displayOutput.slice(0, density === 'compact' ? 2000 : 8000)}
+              </pre>
             </CollapsibleContentBlock>
           ) : null}
           {displayOutput && citations.kind === 'none' && canRenderDiffCard ? (

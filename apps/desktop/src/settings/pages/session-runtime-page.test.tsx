@@ -101,7 +101,6 @@ function createContextValue(overrides: Partial<SettingsContextValue> = {}): Sett
       success: true,
       data: {},
     })),
-    requestTheme: vi.fn(async () => ({ type: 'response', command: 'x', success: true, data: {} })),
     requestPet: vi.fn(async () => ({ type: 'response', command: 'x', success: true, data: {} })),
     requestAutomation: vi.fn(async () => ({
       type: 'response',

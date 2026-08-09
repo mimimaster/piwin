@@ -618,3 +618,182 @@ input.project-path-input {
 .ui-popover-content {
   z-index: var(--layer-toast);
 }
+
+/* SF-04: compact product-session lineage tree opened from response actions. */
+.ui-popover-content.session-lineage-popover {
+  width: min(380px, calc(100vw - 24px));
+  max-height: min(70vh, 460px);
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.session-lineage-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 4px 9px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.session-lineage-popover-header > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-lineage-popover-header strong {
+  font-size: 12px;
+}
+
+.session-lineage-popover-header > span,
+.session-lineage-popover-subtitle {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.session-lineage-popover-header > span {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.session-lineage-popover-subtitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-lineage-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 7px;
+}
+
+.session-lineage-branch {
+  min-width: 0;
+}
+
+.session-lineage-children {
+  position: relative;
+  margin-left: 13px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line-soft);
+}
+
+.session-lineage-node {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 7px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.session-lineage-node:hover:not(:disabled),
+.session-lineage-node:focus-visible {
+  background: var(--surface-hover);
+  outline: none;
+}
+
+.session-lineage-node--active {
+  background: var(--accent-soft);
+}
+
+.session-lineage-node--missing {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.session-lineage-node-marker {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.75;
+}
+
+.session-lineage-node--active .session-lineage-node-marker {
+  border-color: var(--accent);
+  background: var(--accent);
+  opacity: 1;
+}
+
+.session-lineage-node-copy {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-lineage-node-name,
+.session-lineage-node-hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-lineage-node-name {
+  font-size: 12px;
+}
+
+.session-lineage-node-hint {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.session-lineage-node-status {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.session-lineage-empty {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 9px;
+  margin: 8px 3px 2px;
+  padding: 10px;
+  border: 1px dashed var(--line-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-hover) 46%, transparent);
+}
+
+.session-lineage-empty-icon {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: var(--surface-active, var(--hover));
+  color: var(--content-secondary, var(--muted));
+}
+
+.session-lineage-empty-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.session-lineage-empty-copy strong {
+  color: var(--content-primary, var(--text));
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.session-lineage-empty-copy > span {
+  color: var(--text-muted, var(--muted));
+  font-size: 10.5px;
+  line-height: 1.45;
+}

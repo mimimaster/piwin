@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isNearBottom } from './use-transcript-scroll';
+import {
+  computeScrollProgress,
+  isNearBottom,
+  isScrollOverflowing,
+} from './use-transcript-scroll';
 
 describe('isNearBottom', () => {
   it('detects near-bottom scroll position', () => {
@@ -18,5 +22,52 @@ describe('isNearBottom', () => {
       clientHeight: 80,
     } as HTMLElement;
     expect(isNearBottom(element, 64)).toBe(false);
+  });
+});
+
+describe('computeScrollProgress', () => {
+  it('reports full ratio when content fits the viewport', () => {
+    const element = {
+      scrollHeight: 400,
+      scrollTop: 0,
+      clientHeight: 400,
+    } as HTMLElement;
+    expect(computeScrollProgress(element)).toEqual({ progress: 1, ratio: 1 });
+  });
+
+  it('reports progress and ratio when content overflows', () => {
+    const element = {
+      scrollHeight: 1000,
+      scrollTop: 250,
+      clientHeight: 500,
+    } as HTMLElement;
+    expect(computeScrollProgress(element)).toEqual({
+      progress: 0.5,
+      ratio: 0.5,
+    });
+  });
+
+  it('clamps progress to the unit interval', () => {
+    const element = {
+      scrollHeight: 1000,
+      scrollTop: 900,
+      clientHeight: 200,
+    } as HTMLElement;
+    // maxScroll = 800; scrollTop/maxScroll = 1.125 → clamped to 1
+    expect(computeScrollProgress(element).progress).toBe(1);
+  });
+});
+
+describe('isScrollOverflowing', () => {
+  it('treats a full ratio as not overflowing', () => {
+    expect(isScrollOverflowing(1)).toBe(false);
+  });
+
+  it('ignores sub-pixel thrash near a full ratio', () => {
+    expect(isScrollOverflowing(0.999)).toBe(false);
+  });
+
+  it('marks a clearly overflowing viewport', () => {
+    expect(isScrollOverflowing(0.5)).toBe(true);
   });
 });

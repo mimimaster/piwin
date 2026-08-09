@@ -1,5 +1,7 @@
 import { isPlaceholderSessionName } from './title-display';
 import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
+import { buildForkSessionName } from '@piwin/session/fork-session-name';
+import { createMockSessionTranscriptPage } from './mock-session-transcript-page';
 /** Browser mock host backend — isolated from live Tauri transport. */
 import type {
   AgentEvent,
@@ -8,16 +10,26 @@ import type {
   HostMode,
   HostPush,
   HostResponse,
-  HostServerMessage,
   MediaAttachmentRef,
   ModelRef,
+  ProductSessionLineageView,
+  ProductSessionOrigin,
+  SessionListPageData,
+  SessionTranscriptPageData,
   SessionSummary,
   SessionTranscriptMessage,
+  UsageBucket,
+  UsageRollup,
   WalkthroughArtifact,
 } from '@piwin/contracts';
-import { isJobTerminal } from '@piwin/contracts';
+import {
+  isJobTerminal,
+  SESSION_LIST_PAGE_MAX_ITEMS,
+  SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+  SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+} from '@piwin/contracts';
 
-export type MockEmit = (message: HostPush | HostServerMessage) => void;
+export type MockEmit = (message: HostPush) => void;
 
 /**
  * In-process deterministic host for Vite/browser e2e.
@@ -37,10 +49,12 @@ export class MockHostBackend {
       transcript: SessionTranscriptMessage[];
       name?: string;
       nameSource?: 'default' | 'text' | 'llm' | 'user';
+      updatedAt?: string;
       isPinned?: boolean;
       pinnedAt?: string;
       isArchived?: boolean;
       archivedAt?: string;
+      origin?: ProductSessionOrigin;
     }
   >();
   private plans = new Map<string, import('@piwin/contracts').SessionPlan>();
@@ -77,7 +91,12 @@ export class MockHostBackend {
       maxPasteBytes: 10 * 1024 * 1024,
       allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
     },
-    artifact: { enabled: true, triggerMode: 'automatic', decisionPrompt: { mode: 'default', customPrompt: '' }, maxBytes: 100 * 1024 },
+    artifact: {
+      enabled: true,
+      triggerMode: 'automatic',
+      decisionPrompt: { mode: 'default', customPrompt: '' },
+      maxBytes: 100 * 1024,
+    },
   };
   /** Monotonic revision for the in-memory settings snapshot (mock parity). */
   private mockSettingsRevision = 'mock-settings-v1';
@@ -109,10 +128,13 @@ export class MockHostBackend {
       events: AgentEvent[];
       transcript: SessionTranscriptMessage[];
       name?: string;
+      nameSource?: 'default' | 'text' | 'llm' | 'user';
+      updatedAt?: string;
       isPinned?: boolean;
       pinnedAt?: string;
       isArchived?: boolean;
       archivedAt?: string;
+      origin?: ProductSessionOrigin;
     },
   ): SessionSummary {
     const scope =
@@ -127,15 +149,58 @@ export class MockHostBackend {
       scope,
       workingDirectory,
       projectPath: session.projectPath,
-      updatedAt: new Date().toISOString(),
+      updatedAt: session.updatedAt ?? '1970-01-01T00:00:00.000Z',
       messageCount: session.transcript.length || session.events.length,
       name: session.name ?? `session-${sessionId.slice(0, 8)}`,
     };
+    if (session.nameSource) summary.nameSource = session.nameSource;
     if (session.isPinned === true) summary.isPinned = true;
     if (session.pinnedAt) summary.pinnedAt = session.pinnedAt;
     if (session.isArchived === true) summary.isArchived = true;
     if (session.archivedAt) summary.archivedAt = session.archivedAt;
+    if (session.origin) summary.origin = session.origin;
     return summary;
+  }
+
+  private mockResolveLineageRoot(sessionId: string): string {
+    const session = this.sessions.get(sessionId);
+    return session?.origin?.kind === 'fork' ? session.origin.rootSessionId : sessionId;
+  }
+
+  private mockGetDirectForkNames(sourceSessionId: string): string[] {
+    return [...this.sessions.values()]
+      .filter(
+        (candidate) =>
+          candidate.origin?.kind === 'fork' && candidate.origin.sourceSessionId === sourceSessionId,
+      )
+      .map((candidate) => candidate.name ?? '')
+      .filter((name) => name.length > 0);
+  }
+
+  private mockBuildSessionLineage(sessionId: string): ProductSessionLineageView {
+    const targetSession = this.sessions.get(sessionId);
+    const rootSessionId =
+      targetSession?.origin?.kind === 'fork' ? targetSession.origin.rootSessionId : sessionId;
+    const nodes = [...this.sessions.entries()]
+      .filter(([candidateId]) => this.mockResolveLineageRoot(candidateId) === rootSessionId)
+      .map(([candidateId, candidate]) => ({
+        sessionId: candidateId,
+        ...(candidate.name ? { name: candidate.name } : {}),
+        ...(candidate.origin ? { origin: candidate.origin } : {}),
+        isArchived: candidate.isArchived === true,
+        updatedAt: new Date().toISOString(),
+      }));
+    nodes.sort((left, right) => {
+      if (left.sessionId === rootSessionId) return -1;
+      if (right.sessionId === rootSessionId) return 1;
+      return right.updatedAt.localeCompare(left.updatedAt);
+    });
+    return {
+      rootSessionId,
+      activeSessionId: sessionId,
+      rootMissing: !this.sessions.has(rootSessionId),
+      nodes,
+    };
   }
 
   async handle(command: HostCommand, id: string): Promise<HostResponse> {
@@ -173,6 +238,14 @@ export class MockHostBackend {
               automation: true,
             },
           },
+        };
+      case 'usage/get-rollup':
+        return {
+          id,
+          type: 'response',
+          command: 'usage/get-rollup',
+          success: true,
+          data: { rollup: createMockUsageRollup(command.projectPath) },
         };
       case 'project/open': {
         const openedAt = new Date().toISOString();
@@ -219,6 +292,26 @@ export class MockHostBackend {
             ),
           },
         };
+      case 'project/remove': {
+        const removed = this.mockProjects.delete(command.path);
+        this.mockRememberedPermissions.delete(command.path);
+        if (removed) {
+          return {
+            id,
+            type: 'response',
+            command: 'project/remove',
+            success: true,
+            data: { path: command.path, removed: true },
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'project/remove',
+          success: false,
+          error: `Project not found: ${command.path}`,
+        };
+      }
       case 'project/trust':
         {
           const existingProject = this.mockProjects.get(command.path);
@@ -355,6 +448,7 @@ export class MockHostBackend {
             if (value.pinnedAt) summary.pinnedAt = value.pinnedAt;
             if (value.isArchived === true) summary.isArchived = true;
             if (value.archivedAt) summary.archivedAt = value.archivedAt;
+            if (value.origin) summary.origin = value.origin;
             return summary;
           })
           .filter((session) => {
@@ -382,6 +476,132 @@ export class MockHostBackend {
           });
         return { id, type: 'response', command: 'session/list', success: true, data: { sessions } };
       }
+      case 'session/list-page': {
+        const query = command.query;
+        if (
+          !Number.isSafeInteger(query.limit) ||
+          query.limit <= 0 ||
+          query.limit > SESSION_LIST_PAGE_MAX_ITEMS
+        ) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/list-page',
+            success: false,
+            error: `Session list page limit must be between 1 and ${SESSION_LIST_PAGE_MAX_ITEMS}`,
+          };
+        }
+
+        const sessions = [...this.sessions.entries()]
+          .map(([sessionId, session]) => this.mockSessionSummary(sessionId, session))
+          .filter((session) => {
+            if (isPlaceholderSessionName(session.name)) return false;
+            if (query.scope.kind === 'general') {
+              if (session.scope.kind !== 'general') return false;
+            } else if (
+              session.scope.kind !== 'project' ||
+              session.scope.projectPath !== query.scope.projectPath
+            ) {
+              return false;
+            }
+            return query.lifecycle === 'archived'
+              ? session.isArchived === true
+              : session.isArchived !== true;
+          })
+          .sort((left, right) => compareMockSessionSummaries(left, right, query.order));
+        const revision = mockSessionPageRevision(
+          JSON.stringify({
+            scope: query.scope,
+            lifecycle: query.lifecycle,
+            order: query.order,
+            sessions,
+          }),
+        );
+        const cursor = query.cursor === undefined ? null : parseMockSessionPageCursor(query.cursor);
+        if (query.cursor !== undefined && cursor === null) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/list-page',
+            success: false,
+            error: 'Session list cursor encoding is invalid',
+          };
+        }
+        if (cursor !== null && cursor.revision !== revision) {
+          const stale: SessionListPageData = {
+            status: 'stale-cursor',
+            currentRevision: revision,
+          };
+          return {
+            id,
+            type: 'response',
+            command: 'session/list-page',
+            success: true,
+            data: stale,
+          };
+        }
+        if (cursor !== null && cursor.limit !== query.limit) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/list-page',
+            success: false,
+            error: 'Session list cursor limit does not match the query',
+          };
+        }
+
+        const anchorIndex =
+          cursor === null && query.anchorSessionId !== undefined
+            ? sessions.findIndex((session) => session.id === query.anchorSessionId)
+            : -1;
+        const offset =
+          cursor?.offset ??
+          (anchorIndex >= 0 ? Math.floor(anchorIndex / query.limit) * query.limit : 0);
+        if (offset % query.limit !== 0 || (offset > 0 && offset >= sessions.length)) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/list-page',
+            success: false,
+            error: 'Session list cursor offset is outside the collection',
+          };
+        }
+        const pageSessions = sessions.slice(offset, offset + query.limit);
+        const totalCount = sessions.length;
+        const pageData: SessionListPageData = {
+          status: 'page',
+          sessions: pageSessions,
+          page: {
+            revision,
+            pageIndex: totalCount === 0 ? 0 : Math.floor(offset / query.limit),
+            pageCount: totalCount === 0 ? 0 : Math.ceil(totalCount / query.limit),
+            totalCount,
+          },
+        };
+        if (pageData.status === 'page') {
+          if (offset > 0) {
+            pageData.page.previousCursor = formatMockSessionPageCursor({
+              revision,
+              offset: Math.max(0, offset - query.limit),
+              limit: query.limit,
+            });
+          }
+          if (offset + pageSessions.length < totalCount) {
+            pageData.page.nextCursor = formatMockSessionPageCursor({
+              revision,
+              offset: offset + query.limit,
+              limit: query.limit,
+            });
+          }
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'session/list-page',
+          success: true,
+          data: pageData,
+        };
+      }
       case 'session/create': {
         const sessionId = crypto.randomUUID();
         const scope =
@@ -398,6 +618,7 @@ export class MockHostBackend {
           events: [],
           transcript: [],
           name: command.input.sessionName ?? '',
+          updatedAt: new Date().toISOString(),
         });
         this.emitPush({ type: 'host/status', mode: this.getMode(), ready: true, mock: true });
         return {
@@ -414,6 +635,14 @@ export class MockHostBackend {
           session = { projectPath: '/mock/project', events: [], transcript: [] };
           this.sessions.set(command.sessionId, session);
         }
+        const transcriptPage = createMockSessionTranscriptPage(session.transcript, {
+          sessionId: command.sessionId,
+          limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+          maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+        });
+        if (transcriptPage.status !== 'page') {
+          throw new Error('Mock cursorless transcript tail unexpectedly returned stale');
+        }
         return {
           id,
           type: 'response',
@@ -422,9 +651,41 @@ export class MockHostBackend {
           data: {
             sessionId: command.sessionId,
             live: true,
-            messages: session.transcript,
+            messages: transcriptPage.messages,
+            transcriptPage: transcriptPage.page,
             projectPath: session.projectPath,
           },
+        };
+      }
+      case 'session/transcript-page': {
+        const session = this.sessions.get(command.query.sessionId);
+        if (!session) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/transcript-page',
+            success: false,
+            error: `Unknown session: ${command.query.sessionId}`,
+          };
+        }
+        let page: SessionTranscriptPageData;
+        try {
+          page = createMockSessionTranscriptPage(session.transcript, command.query);
+        } catch (error) {
+          return {
+            id,
+            type: 'response',
+            command: 'session/transcript-page',
+            success: false,
+            error: error instanceof Error ? error.message : 'Invalid transcript page request',
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'session/transcript-page',
+          success: true,
+          data: page,
         };
       }
       case 'session/messages': {
@@ -524,10 +785,7 @@ export class MockHostBackend {
         this.pushMockRunUpdated(command.sessionId, runId, 'running', 'preparing');
         const clientMessageId = command.input.clientMessageId?.trim();
         const userMessage: SessionTranscriptMessage = {
-          id:
-            clientMessageId && clientMessageId.length > 0
-              ? clientMessageId
-              : crypto.randomUUID(),
+          id: clientMessageId && clientMessageId.length > 0 ? clientMessageId : crypto.randomUUID(),
           role: 'user',
           text: command.input.text,
           createdAt: now,
@@ -872,6 +1130,25 @@ export class MockHostBackend {
         };
       }
 
+      case 'speech/transcribe': {
+        const model = this.mockConfig.speech?.asr?.defaultModel;
+        if (!model) {
+          return {
+            id,
+            type: 'response',
+            command: 'speech/transcribe',
+            success: false,
+            error: 'ASR model is not configured.',
+          };
+        }
+        return {
+          id,
+          type: 'response',
+          command: 'speech/transcribe',
+          success: true,
+          data: { text: 'Mock transcript', model, durationMs: 1 },
+        };
+      }
       case 'media/save': {
         const asset = {
           id: crypto.randomUUID(),
@@ -1517,7 +1794,9 @@ export class MockHostBackend {
           latestLogCursor: 0,
           ...(command.input.ownerRunId ? { ownerRunId: command.input.ownerRunId } : {}),
           ...(command.input.ownerSessionId ? { ownerSessionId: command.input.ownerSessionId } : {}),
-          ...(command.input.ownerProjectPath ? { ownerProjectPath: command.input.ownerProjectPath } : {}),
+          ...(command.input.ownerProjectPath
+            ? { ownerProjectPath: command.input.ownerProjectPath }
+            : {}),
           ...(command.input.label ? { label: command.input.label } : {}),
         };
         this.mockJobs.set(jobId, record);
@@ -1635,7 +1914,15 @@ export class MockHostBackend {
           type: 'response',
           command: 'job/stop',
           success: true,
-          data: { job: stopped, cleanup: { requestedJobIds: [command.jobId], stoppedJobIds: [command.jobId], alreadyTerminalJobIds: [], failedJobIds: [] } },
+          data: {
+            job: stopped,
+            cleanup: {
+              requestedJobIds: [command.jobId],
+              stoppedJobIds: [command.jobId],
+              alreadyTerminalJobIds: [],
+              failedJobIds: [],
+            },
+          },
         };
       }
       case 'mcp/status':
@@ -2213,6 +2500,12 @@ export class MockHostBackend {
           }
           return next;
         });
+        const origin: ProductSessionOrigin = {
+          kind: 'duplicate',
+          sourceSessionId: command.sessionId,
+          ...(session.name ? { sourceSessionNameSnapshot: session.name } : {}),
+          createdAt: new Date().toISOString(),
+        };
         this.sessions.set(newId, {
           projectPath: session.projectPath,
           events: [],
@@ -2220,8 +2513,13 @@ export class MockHostBackend {
           name,
           isPinned: false,
           isArchived: false,
+          origin,
         });
-        const summary = this.mockSessionSummary(newId, this.sessions.get(newId)!);
+        const duplicatedSession = this.sessions.get(newId);
+        if (!duplicatedSession) {
+          throw new Error(`Mock duplicate session was not stored: ${newId}`);
+        }
+        const summary = this.mockSessionSummary(newId, duplicatedSession);
         return {
           id,
           type: 'response',
@@ -2231,7 +2529,7 @@ export class MockHostBackend {
             sessionId: newId,
             sourceSessionId: command.sessionId,
             session: summary,
-            messages: clonedTranscript,
+            ...mockSessionMessageResponse(newId, clonedTranscript, command.messageProjection),
           },
         };
       }
@@ -2270,11 +2568,16 @@ export class MockHostBackend {
         }
         const newForkId = crypto.randomUUID();
         const baseName = session.name ?? `session-${command.sessionId.slice(0, 8)}`;
-        const rootName = baseName.replace(/\s*·\s*Branch(\s+\d+)?$/, '');
         const forkName =
           typeof command.name === 'string' && command.name.trim()
             ? command.name.trim()
-            : `${rootName} · Branch`;
+            : buildForkSessionName(
+                baseName,
+                command.sessionId,
+                this.mockGetDirectForkNames(command.sessionId),
+              );
+        const rootSessionId =
+          session.origin?.kind === 'fork' ? session.origin.rootSessionId : command.sessionId;
         const forkTranscript = session.transcript.slice(0, messageIndex + 1).map((message) => {
           const next: SessionTranscriptMessage = {
             id: crypto.randomUUID(),
@@ -2294,6 +2597,18 @@ export class MockHostBackend {
           }
           return next;
         });
+        const origin: ProductSessionOrigin = {
+          kind: 'fork',
+          rootSessionId,
+          sourceSessionId: command.sessionId,
+          ...(session.name ? { sourceSessionNameSnapshot: session.name } : {}),
+          sourceMessageId: command.messageId,
+          sourceMessageRole: 'assistant',
+          sourceMessagePreview: sourceMessage.text.slice(0, 200),
+          sourceMessageCreatedAt: sourceMessage.createdAt,
+          workspaceStrategy: command.workspaceStrategy,
+          createdAt: new Date().toISOString(),
+        };
         this.sessions.set(newForkId, {
           projectPath: session.projectPath,
           events: [],
@@ -2301,20 +2616,13 @@ export class MockHostBackend {
           name: forkName,
           isPinned: false,
           isArchived: false,
+          origin,
         });
-        const forkSummary = this.mockSessionSummary(newForkId, this.sessions.get(newForkId)!);
-        const origin = {
-          kind: 'fork' as const,
-          rootSessionId: command.sessionId,
-          sourceSessionId: command.sessionId,
-          ...(session.name ? { sourceSessionNameSnapshot: session.name } : {}),
-          sourceMessageId: command.messageId,
-          sourceMessageRole: 'assistant' as const,
-          sourceMessagePreview: sourceMessage.text.slice(0, 200),
-          sourceMessageCreatedAt: sourceMessage.createdAt,
-          workspaceStrategy: command.workspaceStrategy,
-          createdAt: new Date().toISOString(),
-        };
+        const forkedSession = this.sessions.get(newForkId);
+        if (!forkedSession) {
+          throw new Error(`Mock fork session was not stored: ${newForkId}`);
+        }
+        const forkSummary = this.mockSessionSummary(newForkId, forkedSession);
         return {
           id,
           type: 'response',
@@ -2324,68 +2632,75 @@ export class MockHostBackend {
             sessionId: newForkId,
             sourceSessionId: command.sessionId,
             session: forkSummary,
-            messages: forkTranscript,
+            ...mockSessionMessageResponse(
+              newForkId,
+              forkTranscript,
+              command.messageProjection,
+            ),
             origin,
           },
         };
       }
       case 'session/lineage': {
-        const targetSession = this.sessions.get(command.sessionId);
-        if (!targetSession) {
-          return {
-            id,
-            type: 'response',
-            command: 'session/lineage',
-            success: true,
-            data: {
-              rootSessionId: command.sessionId,
-              activeSessionId: command.sessionId,
-              rootMissing: true,
-              nodes: [],
-            },
-          };
-        }
-        // In mock mode, return a minimal lineage with just the active session.
         return {
           id,
           type: 'response',
           command: 'session/lineage',
           success: true,
-          data: {
-            rootSessionId: command.sessionId,
-            activeSessionId: command.sessionId,
-            rootMissing: false,
-            nodes: [
-              {
-                sessionId: command.sessionId,
-                ...(targetSession.name ? { name: targetSession.name } : {}),
-                isArchived: false,
-                updatedAt: new Date().toISOString(),
-              },
-            ],
-          },
+          data: this.mockBuildSessionLineage(command.sessionId),
         };
       }
       case 'session/search': {
         const query = command.query.query.trim().toLowerCase();
+        const requestedLimit = command.query.limit ?? 20;
+        const limit =
+          Number.isFinite(requestedLimit) && requestedLimit > 0
+            ? Math.min(Math.floor(requestedLimit), 100)
+            : 20;
         const hits = [...this.sessions.entries()]
-          .filter(([sessionId, value]) => {
+          .map(([sessionId, value]) => ({
+            sessionId,
+            value,
+            summary: this.mockSessionSummary(sessionId, value),
+          }))
+          .filter(({ sessionId, value, summary }) => {
+            if (command.query.scope?.kind === 'general' && summary.scope.kind !== 'general') {
+              return false;
+            }
+            if (
+              command.query.scope?.kind === 'project' &&
+              (summary.scope.kind !== 'project' ||
+                summary.scope.projectPath !== command.query.scope.projectPath)
+            ) {
+              return false;
+            }
             if (command.query.projectPath && value.projectPath !== command.query.projectPath) {
               return false;
             }
+            if (
+              command.query.lifecycle === 'archived'
+                ? summary.isArchived !== true
+                : command.query.lifecycle === 'active' && summary.isArchived === true
+            ) {
+              return false;
+            }
+            if (command.query.pinnedOnly === true && summary.isPinned !== true) return false;
             if (!query) return true;
-            const hay = `${sessionId} ${value.projectPath}`.toLowerCase();
+            const hay = `${sessionId} ${value.projectPath} ${summary.name}`.toLowerCase();
             return (
               hay.includes(query) ||
               value.transcript.some((m) => m.text.toLowerCase().includes(query))
             );
           })
-          .map(([sessionId, value]) => ({
+          .slice(0, limit)
+          .map(({ sessionId, value, summary }) => ({
             sessionId,
             projectPath: value.projectPath,
-            name: `session-${sessionId.slice(0, 8)}`,
+            scope: summary.scope,
+            name: summary.name,
             snippet: value.transcript[0]?.text?.slice(0, 80),
-            isPinned: Boolean((value as { isPinned?: boolean }).isPinned),
+            updatedAt: summary.updatedAt,
+            isPinned: summary.isPinned === true,
           }));
         return {
           id,
@@ -2427,7 +2742,11 @@ export class MockHostBackend {
             sessionId: command.sessionId,
             removedCount,
             remainingCount: session.transcript.length,
-            messages: session.transcript,
+            ...mockSessionMessageResponse(
+              command.sessionId,
+              session.transcript,
+              command.messageProjection,
+            ),
           },
         };
       }
@@ -3121,6 +3440,146 @@ export class MockHostBackend {
     }
     this.emitPush({ type: 'event', sessionId, event });
   }
+}
+
+function createMockUsageRollup(projectPath: string | undefined): UsageRollup {
+  const day = (offset: number): string => {
+    const date = new Date(Date.now() - offset * 24 * 60 * 60 * 1000);
+    return date.toISOString().slice(0, 10);
+  };
+  const byDay: Record<string, UsageBucket> = {
+    [day(12)]: usageBucket(15_000, 5_000, 20_000, 4_000, 6),
+    [day(10)]: usageBucket(20_000, 6_000, 24_000, 2_000, 8),
+    [day(8)]: usageBucket(12_000, 4_000, 18_000, 2_000, 5),
+    [day(6)]: usageBucket(25_000, 8_000, 31_000, 4_000, 10),
+    [day(4)]: usageBucket(28_000, 7_000, 35_000, 4_000, 12),
+    [day(2)]: usageBucket(21_000, 7_000, 30_000, 3_000, 9),
+    [day(0)]: usageBucket(36_000, 7_000, 40_000, 6_000, 16),
+  };
+  return {
+    scope: projectPath ? { kind: 'project', projectPath } : { kind: 'global' },
+    promptTokens: 157_000,
+    completionTokens: 44_000,
+    cacheReadTokens: 198_000,
+    cacheWriteTokens: 25_000,
+    totalTokens: 424_000,
+    entryCount: 66,
+    sessionCount: 12,
+    firstAt: `${day(12)}T08:00:00.000Z`,
+    lastAt: `${day(0)}T12:00:00.000Z`,
+    byModel: {
+      'gpt-5.2-codex': usageBucket(122_000, 30_000, 156_000, 20_000, 50),
+      'claude-sonnet-4-5': usageBucket(35_000, 14_000, 42_000, 5_000, 16),
+    },
+    byModelKey: [
+      {
+        providerId: 'openai-work',
+        modelId: 'gpt-5.2-codex',
+        ...usageBucket(78_000, 18_000, 132_000, 12_000, 32),
+      },
+      {
+        providerId: 'anthropic-main',
+        modelId: 'claude-sonnet-4-5',
+        ...usageBucket(35_000, 14_000, 42_000, 5_000, 16),
+      },
+      {
+        providerId: 'openai-personal',
+        modelId: 'gpt-5.2-codex',
+        ...usageBucket(44_000, 12_000, 24_000, 8_000, 18),
+      },
+    ],
+    byDay,
+    bySession: [],
+  };
+}
+
+function usageBucket(
+  promptTokens: number,
+  completionTokens: number,
+  cacheReadTokens: number,
+  cacheWriteTokens: number,
+  entryCount: number,
+): UsageBucket {
+  return {
+    promptTokens,
+    completionTokens,
+    cacheReadTokens,
+    cacheWriteTokens,
+    totalTokens: promptTokens + completionTokens + cacheReadTokens + cacheWriteTokens,
+    entryCount,
+  };
+}
+
+function mockSessionMessageResponse(
+  sessionId: string,
+  messages: readonly SessionTranscriptMessage[],
+  projection: import('@piwin/contracts').SessionMessageProjection | undefined,
+): { messages?: SessionTranscriptMessage[]; transcriptPage?: import('@piwin/contracts').SessionTranscriptPageInfo } {
+  if (projection === 'none') return {};
+  if (projection !== 'tail') return { messages: [...messages] };
+  const page = createMockSessionTranscriptPage(messages, {
+    sessionId,
+    limit: SESSION_TRANSCRIPT_PAGE_DEFAULT_ITEMS,
+    maximumBytes: SESSION_TRANSCRIPT_PAGE_DEFAULT_BYTES,
+  });
+  if (page.status !== 'page') {
+    throw new Error('Mock cursorless mutation projection unexpectedly returned stale');
+  }
+  return { messages: page.messages, transcriptPage: page.page };
+}
+
+type MockSessionPageCursor = {
+  revision: string;
+  offset: number;
+  limit: number;
+};
+
+function compareMockSessionSummaries(
+  left: SessionSummary,
+  right: SessionSummary,
+  order: import('@piwin/contracts').SessionListOrder,
+): number {
+  if (order === 'alphabetical') {
+    const byName = (left.name ?? '').localeCompare(right.name ?? '');
+    return byName !== 0 ? byName : left.id.localeCompare(right.id);
+  }
+  const leftPinned = left.isPinned === true;
+  const rightPinned = right.isPinned === true;
+  if (leftPinned !== rightPinned) return leftPinned ? -1 : 1;
+  if (leftPinned && rightPinned) {
+    const byPinnedAt = (right.pinnedAt ?? '').localeCompare(left.pinnedAt ?? '');
+    if (byPinnedAt !== 0) return byPinnedAt;
+  }
+  const byUpdatedAt = right.updatedAt.localeCompare(left.updatedAt);
+  return byUpdatedAt !== 0 ? byUpdatedAt : left.id.localeCompare(right.id);
+}
+
+function mockSessionPageRevision(value: string): string {
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0').repeat(8);
+}
+
+function formatMockSessionPageCursor(cursor: MockSessionPageCursor): string {
+  return `mock_${cursor.revision}_${cursor.offset}_${cursor.limit}`;
+}
+
+function parseMockSessionPageCursor(value: string): MockSessionPageCursor | null {
+  const match = /^mock_([a-f0-9]{64})_(\d+)_(\d+)$/.exec(value);
+  if (!match) return null;
+  const revision = match[1];
+  const rawOffset = match[2];
+  const rawLimit = match[3];
+  if (revision === undefined || rawOffset === undefined || rawLimit === undefined) return null;
+  const offset = Number(rawOffset);
+  const limit = Number(rawLimit);
+  if (!Number.isSafeInteger(offset) || offset < 0 || !Number.isSafeInteger(limit) || limit <= 0) {
+    return null;
+  }
+  return { revision, offset, limit };
 }
 
 function chunkText(text: string, size: number): string[] {

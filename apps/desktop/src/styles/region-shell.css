@@ -78,6 +78,16 @@
   overflow: visible;
 }
 
+/* Settings is a separate full-window surface. Keep the workspace mounted so
+   returning to the session preserves local UI state, but remove all active
+   workspace/sidebar/panel pixels from the compositor while settings is open.
+   Host execution and its parent-level event subscription continue normally. */
+.app-shell.settings-open > .settings-workspace-suspended,
+.app-shell.settings-open > .sidebar,
+.app-shell.settings-open > .right-panel {
+  display: none;
+}
+
 .app-shell > .notification-region,
 .app-shell > .shell-overlay-scrim {
   grid-area: unset;
@@ -109,8 +119,6 @@
   overflow: hidden;
   position: relative;
   background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   /* Panel open/close changes stage width; avoid width transitions on chrome. */
   transition: none;
 }
@@ -136,8 +144,6 @@
   flex-direction: column;
   overflow: hidden;
   background: color-mix(in srgb, var(--canvas, var(--bg)) 70%, transparent);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
 }
 
 .workspace-document-stage .doc-preview-panel {

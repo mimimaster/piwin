@@ -3,13 +3,7 @@
  * popping out. Compact two-column layout with a chip-based thinking effort
  * selector and inline capability checkboxes.
  */
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type ReactElement,
-} from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
 import {
   THINKING_LEVEL_OPTIONS,
   type ModelCatalogEntry,
@@ -128,9 +122,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
   function handleThinkingToggle(level: ThinkingLevel, checked: boolean): void {
     updateDraft((current) => {
       const nextLevels = checked
-        ? THINKING_LEVEL_OPTIONS.filter(
-            (l) => l === level || current.thinkingLevels.includes(l),
-          )
+        ? THINKING_LEVEL_OPTIONS.filter((l) => l === level || current.thinkingLevels.includes(l))
         : current.thinkingLevels.filter((l) => l !== level);
       const nextLevel =
         current.thinkingLevel && nextLevels.includes(current.thinkingLevel)
@@ -179,6 +171,8 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         vision: '视觉',
         reasoning: '推理',
         imageGen: '生图',
+        asr: '语音识别',
+        tts: '语音合成',
         cancel: '取消',
         save: '保存',
         savedAuto: '已自动保存',
@@ -195,6 +189,8 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
         vision: 'Vision',
         reasoning: 'Reasoning',
         imageGen: 'Image gen',
+        asr: 'ASR',
+        tts: 'TTS',
         cancel: 'Cancel',
         save: 'Save',
         savedAuto: 'Auto-saved',
@@ -316,6 +312,36 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
           />
           <span>{t.imageGen}</span>
         </label>
+        <label className="model-edit-inline-cap">
+          <input
+            type="checkbox"
+            checked={localDraft.supportsSpeechToText}
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+              updateDraft((current) => ({
+                ...current,
+                supportsSpeechToText: event.target.checked,
+              }))
+            }
+            data-testid="model-edit-speech-to-text"
+            disabled={disabled}
+          />
+          <span>{t.asr}</span>
+        </label>
+        <label className="model-edit-inline-cap">
+          <input
+            type="checkbox"
+            checked={localDraft.supportsTextToSpeech}
+            onChange={(event: ChangeEvent<HTMLInputElement>) =>
+              updateDraft((current) => ({
+                ...current,
+                supportsTextToSpeech: event.target.checked,
+              }))
+            }
+            data-testid="model-edit-text-to-speech"
+            disabled={disabled}
+          />
+          <span>{t.tts}</span>
+        </label>
       </div>
 
       {localDraft.reasoning ? (
@@ -369,10 +395,7 @@ export function ModelEditInline(props: ModelEditInlineProps): ReactElement {
 
       <div className="model-edit-inline-footer">
         {savedFlash ? (
-          <span
-            className="model-edit-inline-saved"
-            data-testid="model-edit-saved-hint"
-          >
+          <span className="model-edit-inline-saved" data-testid="model-edit-saved-hint">
             {savedFlash === 'auto' ? t.savedAuto : t.savedManual}
           </span>
         ) : null}
@@ -417,6 +440,8 @@ function draftsEqual(left: ModelConfigurationDraft, right: ModelConfigurationDra
     left.thinkingLevel === right.thinkingLevel &&
     left.supportsImage === right.supportsImage &&
     left.supportsImageGeneration === right.supportsImageGeneration &&
+    left.supportsSpeechToText === right.supportsSpeechToText &&
+    left.supportsTextToSpeech === right.supportsTextToSpeech &&
     left.reasoning === right.reasoning &&
     left.thinkingLevels.length === right.thinkingLevels.length &&
     left.thinkingLevels.every((level, index) => level === right.thinkingLevels[index])

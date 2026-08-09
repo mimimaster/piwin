@@ -5,7 +5,6 @@ import {
   ARTIFACT_INTERACTION_SHRINK_CONFIRM_MS,
   ARTIFACT_READY_TIMEOUT_MS,
   INITIAL_ARTIFACT_IFRAME_HEIGHT,
-  MAX_ARTIFACT_EXPANDED_HEIGHT,
   MAX_ARTIFACT_IFRAME_HEIGHT,
   MIN_ARTIFACT_IFRAME_HEIGHT,
   cancelArtifactInit,
@@ -19,9 +18,10 @@ import {
   resolveInteractiveArtifactShrink,
   type ArtifactHeightPhase,
 } from '@piwin/artifact';
-import { Button } from '@piwin/ui-kit';
-
 import { useArtifactHeightSignal } from './artifact-height-signal';
+import { getBehaviorActivitySpec } from './behavior-activity.js';
+
+const ARTIFACT_ACTIVITY_ANIMATION = getBehaviorActivitySpec('artifact').animation;
 
 export type ArtifactFrameProps = {
   decision: Extract<
@@ -47,7 +47,8 @@ export type ArtifactFrameProps = {
    * Optional extra control rendered at the end of the artifact header row.
    * Used by MarkdownView's in-place code/render toggle ("Show code") so the
    * affordance lives inside the rendered frame instead of stacking a second
-   * code block above it.
+   * code block above it. Source inspection goes through that toggle — render
+   * mode no longer duplicates raw source under the iframe.
    */
   extraHeaderAction?: ReactElement;
 };
@@ -75,7 +76,7 @@ export function ArtifactFrame({
   const contentLabel = getArtifactContentLabel(decision.descriptor.type);
   if (decision.kind === 'blocked') {
     return (
-      <div data-testid="artifact-frame" className={`artifact-frame blocked${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
+      <div data-testid="artifact-frame" data-activity-id="artifact" data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION} data-tool-status="error" className={`artifact-frame blocked${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
         <div className="artifact-frame-header">
           <strong>{decision.descriptor.title}</strong>
           <span className="pill">blocked</span>
@@ -99,7 +100,7 @@ export function ArtifactFrame({
 
   if (decision.kind === 'preparing') {
     return (
-      <div data-testid="artifact-frame" className={`artifact-frame preparing${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
+      <div data-testid="artifact-frame" data-activity-id="artifact" data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION} data-tool-status="running" className={`artifact-frame preparing${presentation === 'canvas' ? ' presentation-canvas' : ''}`}>
         <div className="artifact-frame-header">
           <strong>{decision.descriptor.title}</strong>
           <span className="pill">streaming</span>
@@ -137,7 +138,6 @@ function ArtifactRenderFrame(props: {
   extraHeaderAction?: ReactElement;
 }): ReactElement {
   const { decision, initPriority, presentation, onArtifactAction, onComposerProposal, extraHeaderAction } = props;
-  const contentLabel = getArtifactContentLabel(decision.descriptor.type);
   const channelId =
     decision.mode === 'stream-preview'
       ? `${decision.descriptor.id}-stream`
@@ -145,7 +145,7 @@ function ArtifactRenderFrame(props: {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [granted, setGranted] = useState(false);
   const [height, setHeight] = useState(INITIAL_ARTIFACT_IFRAME_HEIGHT);
-  const [expanded, setExpanded] = useState(false);
+  const [contentOverflowing, setContentOverflowing] = useState(false);
   const [phase, setPhase] = useState<ArtifactHeightPhase>('protected');
   const [statusLabel, setStatusLabel] = useState<'loading' | 'ready' | 'timeout' | 'streaming'>(
     decision.mode === 'stream-preview' ? 'streaming' : 'loading',
@@ -157,13 +157,13 @@ function ArtifactRenderFrame(props: {
   const shrinkPendingRef = useRef<number | null>(null);
   const slotReleasedRef = useRef(false);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const maxHeight = expanded ? MAX_ARTIFACT_EXPANDED_HEIGHT : MAX_ARTIFACT_IFRAME_HEIGHT;
+  const maxHeight = MAX_ARTIFACT_IFRAME_HEIGHT;
   const heightSignal = useArtifactHeightSignal();
 
   /**
    * Enter final-trim: allow measured heights to shrink back to the real content
    * height for a short settle window, then lock to interactive (grow-only).
-   * This is what recovers a tall artifact (Expand / a spiked measurement).
+   * This recovers a tall artifact after a spiked measurement.
    */
   const startFinalTrim = (): void => {
     if (settleTimerRef.current) {
@@ -217,6 +217,7 @@ function ArtifactRenderFrame(props: {
     }
 
     const applyHeight = (nextHeight: number): void => {
+      setContentOverflowing(nextHeight > maxHeight);
       const clamped = clampArtifactHeight(
         nextHeight,
         MIN_ARTIFACT_IFRAME_HEIGHT,
@@ -342,18 +343,6 @@ function ArtifactRenderFrame(props: {
   // latest values from closure. Adding them would re-bind the listener on
   // every parent re-render without functional benefit.
 
-  // When collapsing expand mode, re-clamp height to the default max and enter a
-  // final-trim window so the iframe shrinks back to the real content height
-  // (previously it stayed at MAX with a large blank area below the content).
-  useEffect(() => {
-    if (!expanded && height > MAX_ARTIFACT_IFRAME_HEIGHT) {
-      setHeight(MAX_ARTIFACT_IFRAME_HEIGHT);
-      floorRef.current = Math.min(floorRef.current, MAX_ARTIFACT_IFRAME_HEIGHT);
-      startFinalTrim();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expanded, height]);
-
   // Reset height state when srcdoc identity changes
   useEffect(() => {
     // During stream-preview, the srcdoc changes on every token as
@@ -364,6 +353,7 @@ function ArtifactRenderFrame(props: {
     if (decision.mode === 'stream-preview') {
       // Keep the current height as floor; don't collapse.
       floorRef.current = Math.max(floorRef.current, INITIAL_ARTIFACT_IFRAME_HEIGHT);
+      setContentOverflowing(false);
       setPhase('protected');
       setStatusLabel('streaming');
       slotReleasedRef.current = false;
@@ -374,12 +364,12 @@ function ArtifactRenderFrame(props: {
       return;
     }
     setHeight(INITIAL_ARTIFACT_IFRAME_HEIGHT);
+    setContentOverflowing(false);
     floorRef.current = INITIAL_ARTIFACT_IFRAME_HEIGHT;
     setPhase('protected');
     // After the stream-preview early return above, decision.mode is
     // narrowed to 'interactive' — always use 'loading' here.
     setStatusLabel('loading');
-    setExpanded(false);
     slotReleasedRef.current = false;
     if (settleTimerRef.current) {
       clearTimeout(settleTimerRef.current);
@@ -396,7 +386,14 @@ function ArtifactRenderFrame(props: {
 
   const isCanvas = presentation === 'canvas';
   return (
-    <div data-testid="artifact-frame" data-expanded={expanded ? "true" : "false"} className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}${expanded ? ' is-expanded' : ''}`}>
+    <div
+      data-testid="artifact-frame"
+      data-activity-id="artifact"
+      data-activity-animation={ARTIFACT_ACTIVITY_ANIMATION}
+      data-tool-status={statusLabel === 'ready' ? 'done' : 'running'}
+      data-content-overflowing={contentOverflowing ? 'true' : undefined}
+      className={`artifact-frame${isCanvas ? ' presentation-canvas' : ''}`}
+    >
       <div className="artifact-frame-header">
         <strong>{decision.descriptor.title}</strong>
         <span
@@ -406,6 +403,11 @@ function ArtifactRenderFrame(props: {
         >
           {modePill}
         </span>
+        {contentOverflowing ? (
+          <span className="pill" title="Scroll inside the preview to see the rest">
+            scroll
+          </span>
+        ) : null}
         <span className="muted">{decision.security.byteSize} bytes</span>
         {decision.themeRepairs.length > 0 ? (
           <span className="pill" title="Hard-coded light surfaces adjusted for theme">
@@ -416,22 +418,6 @@ function ArtifactRenderFrame(props: {
           <span className="pill" title="Viewport-unit heights neutralized for inline layout">
             layout adjusted ({decision.layoutRepairs.length})
           </span>
-        ) : null}
-        {!isCanvas ? (
-          <Button
-            variant="ghost"
-            data-testid="artifact-expand-toggle"
-            className="artifact-expand-toggle"
-            aria-pressed={expanded}
-            onClick={() => setExpanded((previous) => !previous)}
-            title={
-              expanded
-                ? `Collapse to ${MAX_ARTIFACT_IFRAME_HEIGHT}px max`
-                : `Expand up to ${MAX_ARTIFACT_EXPANDED_HEIGHT}px`
-            }
-          >
-            {expanded ? 'Collapse' : 'Expand'}
-          </Button>
         ) : null}
         {extraHeaderAction ?? null}
       </div>
@@ -458,14 +444,6 @@ function ArtifactRenderFrame(props: {
       ) : (
         <p className="muted">Waiting for artifact init slot…</p>
       )}
-      {!isCanvas ? (
-        <details>
-          <summary>Source (raw model {contentLabel})</summary>
-          <pre className="md-code">
-            <code>{decision.descriptor.source}</code>
-          </pre>
-        </details>
-      ) : null}
     </div>
   );
 }

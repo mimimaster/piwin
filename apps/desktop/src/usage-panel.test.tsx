@@ -1,7 +1,5 @@
 // @vitest-environment happy-dom
-/**
- * Token usage statistics panel (CE-OBS).
- */
+/** Token usage statistics panel (CE-OBS). */
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { act } from 'react';
@@ -21,27 +19,85 @@ const SAMPLE_ROLLUP: UsageRollup = {
   scope: { kind: 'project', projectPath: '/tmp/proj' },
   promptTokens: 600,
   completionTokens: 400,
-  totalTokens: 1000,
+  cacheReadTokens: 150,
+  cacheWriteTokens: 50,
+  totalTokens: 1_200,
   entryCount: 3,
   sessionCount: 2,
   firstAt: '2026-08-01T10:00:00.000Z',
   lastAt: '2026-08-02T09:00:00.000Z',
   byModel: {
-    'gpt-4o': { promptTokens: 600, completionTokens: 400, totalTokens: 1000, entryCount: 3 },
+    'gpt-4o': {
+      promptTokens: 600,
+      completionTokens: 400,
+      cacheReadTokens: 150,
+      cacheWriteTokens: 50,
+      totalTokens: 1_200,
+      entryCount: 3,
+    },
   },
+  byModelKey: [
+    {
+      providerId: 'work-key',
+      modelId: 'gpt-4o',
+      promptTokens: 400,
+      completionTokens: 250,
+      cacheReadTokens: 120,
+      cacheWriteTokens: 30,
+      totalTokens: 800,
+      entryCount: 2,
+    },
+    {
+      providerId: 'personal-key',
+      modelId: 'gpt-4o',
+      promptTokens: 200,
+      completionTokens: 150,
+      cacheReadTokens: 30,
+      cacheWriteTokens: 20,
+      totalTokens: 400,
+      entryCount: 1,
+    },
+  ],
   byDay: {
-    '2026-08-01': { promptTokens: 500, completionTokens: 300, totalTokens: 800, entryCount: 2 },
-    '2026-08-02': { promptTokens: 100, completionTokens: 100, totalTokens: 200, entryCount: 1 },
+    '2026-08-01': {
+      promptTokens: 500,
+      completionTokens: 300,
+      cacheReadTokens: 100,
+      cacheWriteTokens: 50,
+      totalTokens: 950,
+      entryCount: 2,
+    },
+    '2026-08-02': {
+      promptTokens: 100,
+      completionTokens: 100,
+      cacheReadTokens: 50,
+      cacheWriteTokens: 0,
+      totalTokens: 250,
+      entryCount: 1,
+    },
   },
   bySession: [
     {
       sessionId: 's1',
       promptTokens: 500,
       completionTokens: 300,
-      totalTokens: 800,
+      cacheReadTokens: 100,
+      cacheWriteTokens: 50,
+      totalTokens: 950,
       entryCount: 2,
       firstAt: '2026-08-01T10:00:00.000Z',
       lastAt: '2026-08-01T11:00:00.000Z',
+    },
+    {
+      sessionId: 's2',
+      promptTokens: 100,
+      completionTokens: 100,
+      cacheReadTokens: 50,
+      cacheWriteTokens: 0,
+      totalTokens: 250,
+      entryCount: 1,
+      firstAt: '2026-08-02T09:00:00.000Z',
+      lastAt: '2026-08-02T09:00:00.000Z',
     },
   ],
 };
@@ -60,7 +116,6 @@ function renderPanel(props: Partial<UsagePanelProps> = {}): {
   const defaultProps: UsagePanelProps = {
     projectPath: '/tmp/proj',
     request: async () => okResponse({ rollup: SAMPLE_ROLLUP }),
-    onOpenSession: () => {},
   };
   act(() => {
     root.render(
@@ -72,7 +127,6 @@ function renderPanel(props: Partial<UsagePanelProps> = {}): {
   return { container, root };
 }
 
-/** Flush the panel's async load() effect so the rollup is rendered. */
 async function flushLoad(): Promise<void> {
   await act(async () => {
     await Promise.resolve();
@@ -92,37 +146,51 @@ describe('UsagePanel', () => {
     }
   });
 
-  it('renders totals from the rollup', async () => {
+  it('consolidates totals, cache efficiency, and activity into three summaries', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
-    const total = container?.querySelector('[data-testid="usage-total"]');
-    expect(total?.textContent).toBe('1.0k');
-    const panel = container?.querySelector('[data-testid="usage-panel"]');
-    expect(panel?.getAttribute('data-scope')).toBe('project');
+
+    expect(container?.querySelector('[data-testid="usage-total"]')?.textContent).toBe('1.2k');
+    expect(container?.querySelector('[data-testid="usage-cache-rate"]')?.textContent).toBe('19%');
+    expect(container?.querySelectorAll('.usage-summary-card')).toHaveLength(3);
+    expect(
+      container?.querySelector('[data-testid="usage-panel"]')?.getAttribute('data-scope'),
+    ).toBe('project');
   });
 
-  it('renders per-day bars for daily trend', async () => {
+  it('renders one consolidated daily token-composition chart', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
-    expect(container?.querySelectorAll('.usage-day-bar')).toHaveLength(2);
+
+    expect(container?.querySelectorAll('.usage-trend-column')).toHaveLength(2);
+    expect(container?.querySelectorAll('.usage-trend-bar span')).toHaveLength(8);
+    expect(container?.querySelector('.usage-heatmap-card')).toBeNull();
+    expect(container?.querySelector('.usage-perf-table')).toBeNull();
   });
 
-  it('requests with project path when project scope is active', async () => {
+  it('requests the selected project and defaults to a 30-day window', async () => {
     let requestedProjectPath: string | undefined;
-    const request = async (command: { type: 'usage/get-rollup'; projectPath?: string }) => {
-      requestedProjectPath = command.projectPath;
-      return okResponse({ rollup: SAMPLE_ROLLUP });
-    };
-    ({ root, container } = renderPanel({ request }));
-    await flushLoad();
-    expect(requestedProjectPath).toBe('/tmp/proj');
-  });
-
-  it('sends a window when a time range is selected', async () => {
     let requestedWindow: { from?: string; to?: string } | undefined;
     const request = async (command: {
       type: 'usage/get-rollup';
       projectPath?: string;
+      window?: { from?: string; to?: string };
+    }) => {
+      requestedProjectPath = command.projectPath;
+      requestedWindow = command.window;
+      return okResponse({ rollup: SAMPLE_ROLLUP });
+    };
+    ({ root, container } = renderPanel({ request }));
+    await flushLoad();
+
+    expect(requestedProjectPath).toBe('/tmp/proj');
+    expect(requestedWindow?.from).toBeTruthy();
+  });
+
+  it('can switch the time range to all time', async () => {
+    let requestedWindow: { from?: string; to?: string } | undefined;
+    const request = async (command: {
+      type: 'usage/get-rollup';
       window?: { from?: string; to?: string };
     }) => {
       requestedWindow = command.window;
@@ -130,53 +198,57 @@ describe('UsagePanel', () => {
     };
     ({ root, container } = renderPanel({ request }));
     await flushLoad();
-    // Default range is 'all' → no window.
+
+    const rangeSelect = container?.querySelector(
+      'select[data-testid="usage-time-select"]',
+    ) as HTMLSelectElement | null;
+    expect(rangeSelect).toBeTruthy();
+    act(() => {
+      if (rangeSelect) {
+        rangeSelect.value = 'all';
+        rangeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    await flushLoad();
     expect(requestedWindow).toBeUndefined();
-
-    const todayButton = container?.querySelector('[data-testid="usage-range-7d"]');
-    act(() => {
-      (todayButton as HTMLButtonElement | null)?.click();
-    });
-    await flushLoad();
-    expect(requestedWindow?.from).toBeTruthy();
-
-    const yearButton = container?.querySelector('[data-testid="usage-range-1y"]');
-    act(() => {
-      (yearButton as HTMLButtonElement | null)?.click();
-    });
-    await flushLoad();
-    expect(requestedWindow?.from).toBeTruthy();
   });
 
-  it('renders provider grouping derived from model ids', async () => {
+  it('separates cache rates for the same model by Key', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
-    // SAMPLE_ROLLUP.byModel has a single "gpt-4o" model → one provider row.
-    const providerRows = container?.querySelectorAll('.usage-table tbody tr');
-    expect(providerRows && providerRows.length).toBeGreaterThan(0);
+
+    expect(container?.querySelectorAll('[data-testid^="usage-model-key-row-"]')).toHaveLength(2);
+    expect(
+      container?.querySelector('[data-testid="usage-model-key-cache-rate-work-key::gpt-4o"]')
+        ?.textContent,
+    ).toContain('22%');
+    expect(
+      container?.querySelector('[data-testid="usage-model-key-cache-rate-personal-key::gpt-4o"]')
+        ?.textContent,
+    ).toContain('12%');
   });
 
-  it('renders GitHub-style contribution heatmap matrix and ratio bar', async () => {
+  it('filters the consolidated table by Key', async () => {
     ({ root, container } = renderPanel());
     await flushLoad();
-    const cells = container?.querySelectorAll('.usage-heatmap-cell');
-    expect(cells && cells.length).toBeGreaterThan(50);
 
-    const ratioBar = container?.querySelector('.usage-ratio-bar');
-    expect(ratioBar).toBeTruthy();
-  });
-
-  it('toggles chart metric modes between total, split, and turns', async () => {
-    ({ root, container } = renderPanel());
-    await flushLoad();
-    const toggles = container?.querySelectorAll('.usage-chart-toggle');
-    expect(toggles).toHaveLength(3);
-
+    const searchInput = container?.querySelector(
+      'input[data-testid="usage-search-input"]',
+    ) as HTMLInputElement | null;
+    expect(searchInput).toBeTruthy();
     act(() => {
-      (toggles[1] as HTMLButtonElement).click();
+      if (searchInput) {
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype,
+          'value',
+        )?.set;
+        valueSetter?.call(searchInput, 'personal');
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
     });
 
-    const splitFills = container?.querySelectorAll('.usage-day-bar-fill.prompt');
-    expect(splitFills && splitFills.length).toBeGreaterThan(0);
+    expect(container?.querySelectorAll('[data-testid^="usage-model-key-row-"]')).toHaveLength(1);
+    expect(container?.textContent).toContain('personal-key');
+    expect(container?.textContent).not.toContain('work-key');
   });
 });

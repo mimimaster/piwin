@@ -1,0 +1,6 @@
+/* Deferred settings stylesheet entry. Loaded with SettingsPanel rather than
+   parsed by every cold Desktop renderer. */
+@import './region-settings-shell.css';
+@import './region-settings-models.css';
+@import './region-settings-vision.css';
+@import './settings-resources.css';

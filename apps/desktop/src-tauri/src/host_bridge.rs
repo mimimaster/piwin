@@ -101,6 +101,29 @@ fn emit_status(app: &AppHandle, state: &str, attempt: Option<u32>) {
     );
 }
 
+/// Deliver unsolicited host pushes only to the main WebView. Responses are
+/// correlated with `host_request` through the pending map and must never enter
+/// this event lane: broadcasting them would make every subscriber process a
+/// request result a second time.
+fn host_push_event_name(parsed: &Value) -> Option<&'static str> {
+    match parsed.get("type").and_then(Value::as_str) {
+        Some("response") => None,
+        Some("push/batch") => Some("host-message-batch"),
+        Some(_) => Some("host-message"),
+        None => None,
+    }
+}
+
+fn emit_host_push(app: &AppHandle, parsed: &Value) {
+    let Some(event_name) = host_push_event_name(parsed) else {
+        return;
+    };
+    let Some(main_window) = app.get_webview_window("main") else {
+        return;
+    };
+    let _ = main_window.emit(event_name, parsed);
+}
+
 /// How the host process was resolved (ADR 0017 two-tier spawn).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum HostCommandTier {
@@ -214,7 +237,9 @@ fn find_sidecar_node(resource_dir: &std::path::Path) -> Option<PathBuf> {
     candidates.into_iter().find(|path| path.is_file())
 }
 
-fn packaged_host_paths_from_resource_dir(resource_dir: &std::path::Path) -> Option<PackagedHostPaths> {
+fn packaged_host_paths_from_resource_dir(
+    resource_dir: &std::path::Path,
+) -> Option<PackagedHostPaths> {
     let host_js = resource_dir.join("host").join("host-serve.mjs");
     let node_bin = find_sidecar_node(resource_dir)?;
     if !host_js.is_file() {
@@ -240,7 +265,16 @@ fn packaged_host_paths_from_resource_dir(resource_dir: &std::path::Path) -> Opti
 fn resolve_host_command(
     mock: bool,
     resource_dir: Option<PathBuf>,
-) -> Result<(String, Vec<String>, HostCommandTier, Option<PathBuf>, PathBuf), String> {
+) -> Result<
+    (
+        String,
+        Vec<String>,
+        HostCommandTier,
+        Option<PathBuf>,
+        PathBuf,
+    ),
+    String,
+> {
     let packaged = resource_dir
         .as_ref()
         .and_then(|dir| packaged_host_paths_from_resource_dir(dir));
@@ -462,9 +496,12 @@ fn host_start_blocking(
                         let _ = entry.tx.send(parsed.clone());
                     }
                 }
+                // A response is request-correlated only. Do not broadcast it
+                // as an unsolicited host push to the WebView.
+                continue;
             }
 
-            let _ = app_reader.emit("host-message", parsed);
+            emit_host_push(&app_reader, &parsed);
         }
 
         // EOF is a failure during normal operation, but is the expected
@@ -543,7 +580,12 @@ fn supervise_restart(
         emit_log(
             &app,
             "warn",
-            format!("host supervisor: retry {}/{} in {:?} (mock={mock})", attempt, RESTART_BACKOFF_SCHEDULE.len(), delay),
+            format!(
+                "host supervisor: retry {}/{} in {:?} (mock={mock})",
+                attempt,
+                RESTART_BACKOFF_SCHEDULE.len(),
+                delay
+            ),
         );
         thread::sleep(*delay);
 
@@ -551,7 +593,11 @@ fn supervise_restart(
         // the process, don't fight it — check if the current one is alive.
         if let Some(existing) = inner.lock().ok().and_then(|guard| guard.clone()) {
             if existing.alive.load(Ordering::Acquire) {
-                emit_log(&app, "info", "host supervisor: process already alive, aborting restart");
+                emit_log(
+                    &app,
+                    "info",
+                    "host supervisor: process already alive, aborting restart",
+                );
                 return;
             }
         }
@@ -572,7 +618,11 @@ fn supervise_restart(
                 emit_log(
                     &app,
                     "error",
-                    format!("host supervisor: restart {}/{} failed: {error}", attempt, RESTART_BACKOFF_SCHEDULE.len()),
+                    format!(
+                        "host supervisor: restart {}/{} failed: {error}",
+                        attempt,
+                        RESTART_BACKOFF_SCHEDULE.len()
+                    ),
                 );
             }
         }
@@ -581,7 +631,10 @@ fn supervise_restart(
     emit_log(
         &app,
         "error",
-        format!("host supervisor: exhausted {} restart attempts", RESTART_BACKOFF_SCHEDULE.len()),
+        format!(
+            "host supervisor: exhausted {} restart attempts",
+            RESTART_BACKOFF_SCHEDULE.len()
+        ),
     );
 }
 
@@ -883,6 +936,22 @@ mod tests {
 
         assert!(receiver.try_recv().is_err());
         assert_eq!(pending.lock().expect("pending lock").len(), 1);
+    }
+
+    #[test]
+    fn host_push_event_routing_keeps_responses_out_of_the_push_lane() {
+        assert_eq!(
+            host_push_event_name(&serde_json::json!({"type": "response"})),
+            None
+        );
+        assert_eq!(
+            host_push_event_name(&serde_json::json!({"type": "push/batch"})),
+            Some("host-message-batch")
+        );
+        assert_eq!(
+            host_push_event_name(&serde_json::json!({"type": "event"})),
+            Some("host-message")
+        );
     }
 
     #[test]

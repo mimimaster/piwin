@@ -9,6 +9,7 @@ import {
   PIWIN_APPEARANCE_LIGHT,
   PIWIN_APPEARANCE_ORANGE_WHITE,
   applyAppearanceToDocument,
+  beginThemeSwitch,
 } from './appearance-tokens';
 
 /**
@@ -326,5 +327,13 @@ describe('applyAppearanceToDocument Paper/Noir projection', () => {
     expect(PIWIN_APPEARANCE_LIGHT.name).toBe('Paper');
     expect(PIWIN_APPEARANCE_DARK.name).toBe('Noir');
     expect(PIWIN_APPEARANCE_ORANGE_WHITE.name).toBe('橙白');
+  });
+});
+
+describe('beginThemeSwitch', () => {
+  it('adds the freeze class so chrome transitions do not smear during a flip', () => {
+    document.documentElement.classList.remove('is-theme-switching');
+    beginThemeSwitch();
+    expect(document.documentElement.classList.contains('is-theme-switching')).toBe(true);
   });
 });

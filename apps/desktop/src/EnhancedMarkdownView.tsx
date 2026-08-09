@@ -1,5 +1,17 @@
-import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type JSX,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
+import { cjk } from '@streamdown/cjk';
+import { createMathPlugin } from '@streamdown/math';
 import { Button } from '@piwin/ui-kit';
+import { Streamdown, type Components, type ExtraProps } from 'streamdown';
 import { PathChip } from './path-chip';
 import { MermaidBlock } from './MermaidBlock';
 import { renderKatex, isMermaidFenceLanguage, isMathFenceLanguage } from './markdown-math';
@@ -37,15 +49,34 @@ export function EnhancedMarkdownView({
   onDeleteComment,
   onCommentLine,
 }: EnhancedMarkdownViewProps): ReactElement {
-  const blocks = parseEnhancedMarkdownBlocks(text);
+  const useLegacyReviewRenderer = shouldUseLegacyReviewRenderer(text);
+  const blocks = useLegacyReviewRenderer ? parseEnhancedMarkdownBlocks(text) : [];
 
   return (
-    <div className="enhanced-markdown-root" data-testid="enhanced-markdown">
-      {blocks.map((block, index) => (
-        <EnhancedBlockView
-          key={index}
-          blockIndex={index}
-          block={block}
+    <article
+      className="enhanced-markdown-root"
+      data-testid="enhanced-markdown"
+      {...(docTitle ? { 'aria-label': docTitle } : {})}
+    >
+      {useLegacyReviewRenderer ? (
+        blocks.map((block, index) => (
+          <EnhancedBlockView
+            key={index}
+            blockIndex={index}
+            block={block}
+            docTitle={docTitle}
+            filePath={filePath}
+            onOpenFile={onOpenFile}
+            comments={comments}
+            onAddComment={onAddComment}
+            onEditComment={onEditComment}
+            onDeleteComment={onDeleteComment}
+            onCommentLine={onCommentLine}
+          />
+        ))
+      ) : (
+        <EnhancedStreamdownContent
+          text={text}
           docTitle={docTitle}
           filePath={filePath}
           onOpenFile={onOpenFile}
@@ -55,9 +86,370 @@ export function EnhancedMarkdownView({
           onDeleteComment={onDeleteComment}
           onCommentLine={onCommentLine}
         />
-      ))}
+      )}
+    </article>
+  );
+}
+
+function shouldUseLegacyReviewRenderer(text: string): boolean {
+  return (
+    /<details\b/i.test(text) ||
+    /^\s*(?:#{1,6}\s+)?\[(MODIFY|NEW|DELETE|RENAME)\]/im.test(text)
+  );
+}
+
+const ENHANCED_STREAMDOWN_PLUGINS = {
+  cjk,
+  math: createMathPlugin({ singleDollarTextMath: true }),
+};
+const ENHANCED_LINK_SAFETY = { enabled: false };
+
+type EnhancedStreamdownContentProps = Omit<EnhancedMarkdownViewProps, 'text'> & {
+  text: string;
+};
+
+type EnhancedStreamdownElementProps<Tag extends keyof JSX.IntrinsicElements> = ComponentProps<Tag> &
+  ExtraProps;
+
+type EnhancedStreamdownCodeProps = EnhancedStreamdownElementProps<'code'> & {
+  'data-block'?: boolean | string;
+};
+
+function enhancedPlainText(value: ReactNode): string {
+  if (value === null || value === undefined || typeof value === 'boolean') return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (Array.isArray(value)) return value.map(enhancedPlainText).join('');
+  if (isValidElement(value)) {
+    const element = value as ReactElement<{ children?: ReactNode }>;
+    return enhancedPlainText(element.props.children);
+  }
+  return '';
+}
+
+function enhancedLineId(kind: string, node: ExtraProps['node'], text: string): string {
+  const line = node?.position?.start.line ?? 0;
+  return `${kind}-${line}-${text.slice(0, 40)}`;
+}
+
+function isEnhancedDocumentPath(value: string): boolean {
+  return (
+    /(?:^|\/|[A-Za-z]:[\\/])[a-zA-Z0-9_\u4e00-\u9fa5.-]+\.[a-zA-Z0-9]+$/i.test(value) ||
+    /^\/[a-zA-Z0-9_\u4e00-\u9fa5.-]+(?:\/[a-zA-Z0-9_\u4e00-\u9fa5.-]+)+\/$/i.test(value) ||
+    /^[a-zA-Z0-9_\u4e00-\u9fa5.-]+\.(?:ts|tsx|js|jsx|py|json|css|scss|md|html|rs|go|sh|png|jpg|svg)$/i.test(
+      value,
+    )
+  );
+}
+
+function EnhancedStreamdownContent({
+  text,
+  docTitle,
+  filePath,
+  onOpenFile,
+  comments = [],
+  onAddComment,
+  onEditComment,
+  onDeleteComment,
+  onCommentLine,
+}: EnhancedStreamdownContentProps): ReactElement {
+  const components = useMemo(
+    () =>
+      createEnhancedStreamdownComponents({
+        docTitle,
+        filePath,
+        onOpenFile,
+        comments,
+        onAddComment,
+        onEditComment,
+        onDeleteComment,
+        onCommentLine,
+      }),
+    [
+      docTitle,
+      filePath,
+      onOpenFile,
+      comments,
+      onAddComment,
+      onEditComment,
+      onDeleteComment,
+      onCommentLine,
+    ],
+  );
+
+  return (
+    <Streamdown
+      className="enhanced-markdown-streamdown"
+      mode="static"
+      parseIncompleteMarkdown={false}
+      plugins={ENHANCED_STREAMDOWN_PLUGINS}
+      components={components}
+      controls={false}
+      lineNumbers={false}
+      skipHtml
+      linkSafety={ENHANCED_LINK_SAFETY}
+    >
+      {text}
+    </Streamdown>
+  );
+}
+
+type EnhancedStreamdownRendererOptions = {
+  docTitle: string | undefined;
+  filePath: string | undefined;
+  onOpenFile: ((filePath: string) => void) | undefined;
+  comments: LineCommentItem[];
+  onAddComment:
+    | ((comment: { lineId: string; lineText: string; commentText: string }) => void)
+    | undefined;
+  onEditComment: ((id: string, commentText: string) => void) | undefined;
+  onDeleteComment: ((id: string) => void) | undefined;
+  onCommentLine: ((lineContent: string) => void) | undefined;
+};
+
+function createEnhancedStreamdownComponents(
+  options: EnhancedStreamdownRendererOptions,
+): Components {
+  const wrapReviewLine = (
+    kind: string,
+    node: ExtraProps['node'],
+    lineText: string,
+    children: ReactNode,
+    className?: string,
+    as: 'div' | 'li' = 'div',
+  ): ReactElement => (
+    <LineCommentWrapper
+      as={as}
+      lineId={enhancedLineId(kind, node, lineText)}
+      lineText={lineText}
+      comments={options.comments}
+      onAddComment={options.onAddComment}
+      onEditComment={options.onEditComment}
+      onDeleteComment={options.onDeleteComment}
+      onCommentLine={options.onCommentLine}
+      {...(className ? { className } : {})}
+    >
+      {children}
+    </LineCommentWrapper>
+  );
+
+  const renderParagraph = ({
+    children,
+    node,
+  }: EnhancedStreamdownElementProps<'p'>): ReactElement => {
+    const lineText = enhancedPlainText(children);
+    return wrapReviewLine(
+      'paragraph',
+      node,
+      lineText,
+      <p className="enhanced-paragraph">{children}</p>,
+      'enhanced-paragraph-row',
+    );
+  };
+
+  const renderHeading = (level: number) =>
+    ({ children, node }: EnhancedStreamdownElementProps<'h1'>): ReactElement => {
+      const headingText = enhancedPlainText(children);
+      const scopeMatch = /^(.*?)\s*\(([^)]+)\)$/.exec(headingText);
+      const headingContent =
+        scopeMatch && typeof children === 'string' ? children.slice(0, scopeMatch[1]?.length) : children;
+      const heading = scopeMatch ? (
+        <HeadingElement level={level} className={`enhanced-heading level-${level}`}>
+          <span>{headingContent}</span>
+          <span className="heading-scope">({scopeMatch[2]})</span>
+        </HeadingElement>
+      ) : (
+        <HeadingElement level={level} className={`enhanced-heading level-${level}`}>
+          {children}
+        </HeadingElement>
+      );
+      return wrapReviewLine('heading', node, headingText, heading);
+    };
+
+  const renderList = ({ children }: EnhancedStreamdownElementProps<'ul'>, ordered: boolean): ReactElement => {
+    const ListTag = ordered ? 'ol' : 'ul';
+    return <ListTag className={ordered ? 'enhanced-list enhanced-ordered-list' : 'enhanced-list'}>{children}</ListTag>;
+  };
+
+  const renderListItem = ({
+    children,
+    node,
+  }: EnhancedStreamdownElementProps<'li'>): ReactElement => {
+    const lineText = enhancedPlainText(children);
+    return wrapReviewLine(
+      'list',
+      node,
+      lineText,
+      <div className="item-text">{children}</div>,
+      'enhanced-list-item',
+      'li',
+    );
+  };
+
+  const renderBlockquote = ({
+    children,
+    node,
+  }: EnhancedStreamdownElementProps<'blockquote'>): ReactElement => {
+    const lineText = enhancedPlainText(children);
+    return wrapReviewLine(
+      'quote',
+      node,
+      lineText,
+      <blockquote>{children}</blockquote>,
+      'enhanced-blockquote',
+    );
+  };
+
+  const renderTable = ({ children }: EnhancedStreamdownElementProps<'table'>): ReactElement => (
+    <div className="md-table-wrapper" data-testid="enhanced-md-table">
+      <table className="md-table">{children}</table>
     </div>
   );
+
+  const renderTableCell = ({
+    children,
+    align,
+    style,
+    node: _node,
+    ...props
+  }: EnhancedStreamdownElementProps<'th'>): ReactElement => {
+    const textAlign = align === 'left' || align === 'center' || align === 'right' ? align : undefined;
+    return <th {...props} style={textAlign ? { ...style, textAlign } : style}>{children}</th>;
+  };
+
+  const renderTableDataCell = ({
+    children,
+    align,
+    style,
+    node: _node,
+    ...props
+  }: EnhancedStreamdownElementProps<'td'>): ReactElement => {
+    const textAlign = align === 'left' || align === 'center' || align === 'right' ? align : undefined;
+    return <td {...props} style={textAlign ? { ...style, textAlign } : style}>{children}</td>;
+  };
+
+  const renderCode = ({
+    children,
+    className,
+    node,
+    'data-block': dataBlock,
+  }: EnhancedStreamdownCodeProps): ReactElement => {
+    const source = enhancedPlainText(children).replace(/\n$/, '');
+    if (dataBlock === undefined) {
+      if (isEnhancedDocumentPath(source.trim()) && options.onOpenFile) {
+        return (
+          <PathChip
+            fullPath={source.trim()}
+            showIcon={false}
+            onOpen={() => options.onOpenFile?.(source.trim())}
+          />
+        );
+      }
+      return <code className="enhanced-inline-code">{children}</code>;
+    }
+
+    const languageMatch = /(?:^|\s)language-([A-Za-z0-9_-]+)/.exec(className ?? '');
+    const language = languageMatch?.[1] ?? '';
+    const lineText = source || language || 'code';
+    const lineId = enhancedLineId('code', node, lineText);
+    if (isMermaidFenceLanguage(language)) {
+      return wrapReviewLine(
+        'code',
+        node,
+        lineText,
+        <MermaidBlock source={source} />,
+      );
+    }
+    if (isMathFenceLanguage(language)) {
+      const katexResult = renderKatex(source, true);
+      return wrapReviewLine(
+        'code',
+        node,
+        lineText,
+        katexResult.ok ? (
+          <div className="enhanced-math-display" dangerouslySetInnerHTML={{ __html: katexResult.html }} />
+        ) : (
+          <pre className="enhanced-code"><code>{source}</code></pre>
+        ),
+      );
+    }
+    return (
+      <CodeBlockView
+        language={language}
+        source={source}
+        comments={options.comments}
+        onAddComment={options.onAddComment}
+        onEditComment={options.onEditComment}
+        onDeleteComment={options.onDeleteComment}
+        onCommentLine={options.onCommentLine}
+        blockId={lineId}
+      />
+    );
+  };
+
+  const renderAnchor = ({
+    children,
+    href,
+    node: _node,
+  }: EnhancedStreamdownElementProps<'a'>): ReactElement => {
+    const url = href ?? '';
+    const label = enhancedPlainText(children).trim() || 'Document';
+    const normalizedUrl = url.split('#', 1)[0]?.split('?', 1)[0]?.toLowerCase() ?? '';
+    if (options.onOpenFile && normalizedUrl.endsWith('.md')) {
+      return (
+        <PathChip
+          fullPath={url}
+          label={label}
+          showIcon={false}
+          onOpen={() => options.onOpenFile?.(url)}
+        />
+      );
+    }
+    return (
+      <a href={url} className="enhanced-link" target="_blank" rel="noopener noreferrer">
+        {children}
+      </a>
+    );
+  };
+
+  const renderInput = ({
+    node: _node,
+    className,
+    ...props
+  }: EnhancedStreamdownElementProps<'input'>): ReactElement => (
+    <input
+      {...props}
+      type={props.type ?? 'checkbox'}
+      disabled
+      className={className ? `enhanced-checkbox ${className}` : 'enhanced-checkbox'}
+    />
+  );
+
+  return {
+    p: renderParagraph,
+    h1: renderHeading(1),
+    h2: renderHeading(2),
+    h3: renderHeading(3),
+    h4: renderHeading(4),
+    h5: renderHeading(5),
+    h6: renderHeading(6),
+    ul: (props) => renderList(props, false),
+    ol: (props) => renderList(props, true),
+    li: renderListItem,
+    blockquote: renderBlockquote,
+    table: renderTable,
+    th: renderTableCell,
+    td: renderTableDataCell,
+    code: renderCode,
+    pre: ({ children, node: _node }: EnhancedStreamdownElementProps<'pre'>) =>
+      isValidElement<EnhancedStreamdownCodeProps>(children)
+        ? cloneElement(children, { 'data-block': 'true' })
+        : <>{children}</>,
+    a: renderAnchor,
+    input: renderInput,
+    strong: ({ children, node: _node }: EnhancedStreamdownElementProps<'strong'>) => (
+      <strong className="enhanced-strong">{children}</strong>
+    ),
+  };
 }
 
 type DiffActionType = 'MODIFY' | 'NEW' | 'DELETE' | 'RENAME';
@@ -452,6 +844,7 @@ function HeadingElement({
  * Line Comment Row Container with Hover Icon & Inline Popover (Matching Antigravity Reference)
  */
 function LineCommentWrapper({
+  as = 'div',
   lineId,
   lineText,
   comments = [],
@@ -462,6 +855,7 @@ function LineCommentWrapper({
   children,
   className = '',
 }: {
+  as?: 'div' | 'li' | undefined;
   lineId: string;
   lineText?: string | null | undefined;
   comments?: LineCommentItem[] | undefined;
@@ -524,8 +918,10 @@ function LineCommentWrapper({
     setPopoverOpen(false);
   }
 
+  const WrapperTag = as;
+
   return (
-    <div
+    <WrapperTag
       className={[
         'enhanced-line-wrapper',
         'has-hover-highlight',
@@ -630,13 +1026,14 @@ function LineCommentWrapper({
           </div>
         </div>
       ) : null}
-    </div>
+    </WrapperTag>
   );
 }
 
 function CodeBlockView({
   language,
   source,
+  blockId,
   comments,
   onAddComment,
   onEditComment,
@@ -645,6 +1042,7 @@ function CodeBlockView({
 }: {
   language: string;
   source: string;
+  blockId?: string | undefined;
   comments?: LineCommentItem[] | undefined;
   onAddComment?:
     ((comment: { lineId: string; lineText: string; commentText: string }) => void) | undefined;
@@ -681,7 +1079,7 @@ function CodeBlockView({
         <pre className="enhanced-code">
           <code>
             {visibleLines.map((line, idx) => {
-              const lineId = `code-line-${idx}-${line.slice(0, 30)}`;
+              const lineId = `${blockId ?? 'code'}-line-${idx}-${line.slice(0, 30)}`;
               const isAdd = line.startsWith('+');
               const isDel = line.startsWith('-');
               const lineClass = isAdd
@@ -912,6 +1310,7 @@ function EnhancedBlockView({
           const listLineId = `list-${blockIndex}-${index}-${item.text.slice(0, 30)}`;
           return (
             <LineCommentWrapper
+              as="li"
               key={index}
               lineId={listLineId}
               lineText={item.text}

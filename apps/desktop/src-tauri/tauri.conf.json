@@ -8,7 +8,7 @@
       "script": "pnpm exec vite --port 1420 --strictPort",
       "cwd": ".."
     },
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": {
       "script": "pnpm exec tsc -b && pnpm exec vite build",
       "cwd": ".."

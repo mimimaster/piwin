@@ -61,7 +61,7 @@ function renderFrame(
   return { container, root };
 }
 
-describe('ArtifactFrame expand', () => {
+describe('ArtifactFrame chrome', () => {
   let instances: { container: HTMLDivElement; root: Root }[] = [];
   let previousActEnvironment: boolean | undefined;
 
@@ -81,7 +81,7 @@ describe('ArtifactFrame expand', () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
   });
 
-  it('toggles full-bleed expanded class for chat-stage width expand', async () => {
+  it('omits Expand and raw-source disclosure on inline render frames', async () => {
     const { container, root } = renderFrame();
     instances.push({ container, root });
 
@@ -92,36 +92,15 @@ describe('ArtifactFrame expand', () => {
     });
 
     const frame = container.querySelector<HTMLElement>('[data-testid="artifact-frame"]');
-    const toggle = container.querySelector<HTMLButtonElement>(
-      '[data-testid="artifact-expand-toggle"]',
-    );
     expect(frame).not.toBeNull();
-    expect(toggle).not.toBeNull();
     expect(frame?.classList.contains('is-expanded')).toBe(false);
-    expect(frame?.getAttribute('data-expanded')).toBe('false');
-    expect(toggle?.getAttribute('aria-pressed')).toBe('false');
-
-    await act(async () => {
-      toggle?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(frame?.classList.contains('is-expanded')).toBe(true);
-    expect(frame?.getAttribute('data-expanded')).toBe('true');
-    expect(toggle?.getAttribute('aria-pressed')).toBe('true');
-    expect(toggle?.textContent).toContain('Collapse');
-
-    await act(async () => {
-      toggle?.click();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
-
-    expect(frame?.classList.contains('is-expanded')).toBe(false);
-    expect(frame?.getAttribute('data-expanded')).toBe('false');
-    expect(toggle?.textContent).toContain('Expand');
+    expect(frame?.hasAttribute('data-expanded')).toBe(false);
+    // Source lives behind Show code from MarkdownView; no expand height toggle.
+    expect(container.querySelector('[data-testid="artifact-expand-toggle"]')).toBeNull();
+    expect(container.querySelector('details')).toBeNull();
   });
 
-  it('hides inline chrome and applies the canvas presentation class', async () => {
+  it('applies the canvas presentation class without expand chrome', async () => {
     const { container, root } = renderFrame(makeRenderDecision(), 'canvas');
     instances.push({ container, root });
 
@@ -135,7 +114,6 @@ describe('ArtifactFrame expand', () => {
     expect(frame).not.toBeNull();
     expect(frame?.classList.contains('presentation-canvas')).toBe(true);
     expect(frame?.classList.contains('is-expanded')).toBe(false);
-    // No Inline chrome: no Expand/Collapse toggle, no raw-source disclosure.
     expect(container.querySelector('[data-testid="artifact-expand-toggle"]')).toBeNull();
     expect(container.querySelector('details')).toBeNull();
   });

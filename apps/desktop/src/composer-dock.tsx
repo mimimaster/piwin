@@ -16,7 +16,7 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
-import type { ContextUsageSnapshot, HostStatusData } from '@piwin/contracts';
+import type { ContextUsageSnapshot, HostStatusData, ProjectRecord } from '@piwin/contracts';
 import { IconButton } from '@piwin/ui-kit';
 import {
   ComposerPlusMenu,
@@ -38,9 +38,9 @@ import {
 import {
   IconBook,
   IconChat,
-  IconChevronDown,
   IconClose,
   IconDocument,
+  IconMic,
   IconPlus,
   IconSend,
   IconStop,
@@ -68,7 +68,9 @@ import { getDesktopCopy } from './desktop-locale';
 import { useDesktopLocale } from './desktop-locale-context';
 import { BranchChip, type BranchChipRequest } from './branch-chip';
 import { RuntimeTargetChip } from './runtime-target-chip';
+import { ProjectChip } from './project-chip';
 import { SteerQueue, type SteerQueueMessage } from './steer-queue';
+import { useSpeechInput } from './hooks/use-speech-input.js';
 
 export type ComposerModelOption = {
   providerId: string;
@@ -167,9 +169,18 @@ export type ComposerDockProps = {
   onOrchestrationSchemeChange?: (schemeId: string) => void;
   onOpenOrchestrationSchemeSettings?: () => void;
   /** Optional git request adapter for the footer branch chip. */
-  branchRequest?: ((command: BranchChipRequest) => Promise<import('@piwin/contracts').HostResponse>) | undefined;
-  /** Optional handler to trigger project picker dialog when project path chip is clicked. */
-  onOpenProjectPicker?: (() => void) | undefined;
+  branchRequest?:
+    ((command: BranchChipRequest) => Promise<import('@piwin/contracts').HostResponse>) | undefined;
+  /** Recently opened projects shown in the path dropdown above an empty composer. */
+  recentProjects?: readonly ProjectRecord[];
+  /** Switch directly to a project selected from the path dropdown. */
+  onOpenProject?: ((path: string) => void) | undefined;
+  /** True when the configured ASR provider/model is currently usable. */
+  speechConfigured?: boolean;
+  /** Transient Desktop → Host ASR request; audio is never saved by the composer. */
+  speechRequest?: (
+    input: import('@piwin/contracts').SpeechTranscribeInput,
+  ) => Promise<import('@piwin/contracts').HostResponse>;
   /** Steer messages queued for execution */
   steerQueueMessages?: readonly SteerQueueMessage[];
   onSteerQueueSendNow?: (messageId: string) => void | Promise<void>;
@@ -384,6 +395,42 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
       }
     });
   }
+
+  const insertSpeechText = useCallback(
+    (text: string): void => {
+      const normalized = text.trim();
+      if (!normalized) return;
+      const targetValue = isExtensionUiInput ? extensionUiInput : props.composer;
+      const targetCaret = Math.max(0, Math.min(caretIndex, targetValue.length));
+      const prefix = targetValue.slice(0, targetCaret);
+      const suffix = targetValue.slice(targetCaret);
+      const beforeSeparator = prefix && !/\s$/.test(prefix) ? ' ' : '';
+      const afterSeparator = suffix && !/^\s/.test(suffix) ? ' ' : '';
+      const inserted = `${beforeSeparator}${normalized}${afterSeparator}`;
+      const nextValue = `${prefix}${inserted}${suffix}`;
+      if (isExtensionUiInput) {
+        props.onExtensionUiInputChange?.(nextValue);
+      } else {
+        props.onComposerChange(nextValue);
+      }
+      focusCaret(targetCaret + inserted.length);
+    },
+    [
+      caretIndex,
+      extensionUiInput,
+      isExtensionUiInput,
+      props.composer,
+      props.onComposerChange,
+      props.onExtensionUiInputChange,
+    ],
+  );
+
+  const speechInput = useSpeechInput({
+    enabled: props.speechConfigured === true && props.speechRequest !== undefined && canComposeText,
+    ...(props.speechRequest ? { request: props.speechRequest } : {}),
+    onTranscript: insertSpeechText,
+  });
+  const showSpeechInput = props.speechConfigured === true && props.speechRequest !== undefined;
 
   function applySlashItem(item: SlashItem): void {
     if (!activeSlashToken || !item.available) {
@@ -633,7 +680,7 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
     requestAnimationFrame(() => {
       el.style.height = 'auto';
       if (composerValue) {
-        el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+        el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
       }
     });
   }, [composerValue]);
@@ -870,21 +917,54 @@ export function ComposerCard(props: ComposerDockProps): ReactElement {
                   props.onRefreshComposerMenus();
                 }
               }}
-              agentMode={props.agentMode}
-              onSelectMode={props.onAgentModeChange}
               submenu={props.plusSubmenu}
               onSubmenu={props.onPlusSubmenuChange}
               skills={props.menuSkills}
               onOpenSkillsPanel={props.onOpenSkillsPanel}
               mcpServers={props.menuMcp}
               onOpenMcpPanel={props.onOpenMcpPanel}
-              onAttachImage={props.onAttachImage}
-              orchestrationSchemeOptions={props.orchestrationSchemeOptions}
-              orchestrationSchemeId={props.orchestrationSchemeId}
-              onOrchestrationSchemeChange={props.onOrchestrationSchemeChange}
-              onOpenOrchestrationSchemeSettings={props.onOpenOrchestrationSchemeSettings}
             />
           </div>
+
+          {showSpeechInput ? (
+            <>
+              <IconButton
+                className={`composer-v2-icon-btn${speechInput.status === 'listening' ? ' active' : ''}`}
+                data-testid="composer-speech-btn"
+                label={
+                  speechInput.status === 'listening'
+                    ? 'Stop recording'
+                    : speechInput.status === 'transcribing'
+                      ? 'Transcribing'
+                      : 'Voice input'
+                }
+                disabled={
+                  isStreamingRun ||
+                  !canComposeText ||
+                  speechInput.status === 'transcribing'
+                }
+                onClick={() => speechInput.toggle()}
+              >
+                <IconMic />
+              </IconButton>
+              {speechInput.error ? (
+                <span
+                  className="composer-speech-status is-error"
+                  data-testid="composer-speech-error"
+                >
+                  {speechInput.error}
+                </span>
+              ) : speechInput.status === 'listening' ? (
+                <span className="composer-speech-status" data-testid="composer-speech-status">
+                  Recording…
+                </span>
+              ) : speechInput.status === 'transcribing' ? (
+                <span className="composer-speech-status" data-testid="composer-speech-status">
+                  Transcribing…
+                </span>
+              ) : null}
+            </>
+          ) : null}
 
           {/* Agent mode chip (non-default only) */}
           {props.agentMode !== 'agent' ? (
@@ -1044,20 +1124,12 @@ export function ComposerDock(props: ComposerDockProps): ReactElement {
           Only displayed at the start of a session before user inputs (layoutMode === 'centered'). */}
       {props.layoutMode === 'centered' ? (
         <div className="composer-context-rail" data-testid="composer-context-row">
-          {props.onOpenProjectPicker && props.projectPath ? (
-            <button
-              type="button"
-              className="composer-context-link"
-              data-testid="composer-project-chip"
-              onClick={props.onOpenProjectPicker}
-              title={props.projectPath}
-              aria-label={props.projectPath}
-            >
-              <span className="composer-context-link-label">{props.projectPath}</span>
-              <span className="composer-context-link-caret" aria-hidden>
-                <IconChevronDown width={13} height={13} />
-              </span>
-            </button>
+          {props.onOpenProject && props.projectPath ? (
+            <ProjectChip
+              projectPath={props.projectPath}
+              recentProjects={props.recentProjects ?? []}
+              onOpenProject={props.onOpenProject}
+            />
           ) : props.projectPath ? (
             <span
               className="composer-context-link is-static"

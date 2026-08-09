@@ -32,6 +32,15 @@ export function IconChat(props: IconProps): ReactElement {
   );
 }
 
+export function IconMic(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <rect x="8" y="3" width="8" height="12" rx="4" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8" />
+    </IconBase>
+  );
+}
+
 export function IconSideChat(props: IconProps): ReactElement {
   return (
     <IconBase {...props}>
@@ -732,6 +741,19 @@ export function IconForkConversation(props: IconProps): ReactElement {
   );
 }
 
+/** SF-04: Session lineage tree — one root with two navigable descendants. */
+export function IconSessionTree(props: IconProps): ReactElement {
+  return (
+    <IconBase {...props}>
+      <circle cx="6" cy="5" r="1.5" />
+      <circle cx="18" cy="10" r="1.5" />
+      <circle cx="18" cy="19" r="1.5" />
+      <path d="M7.5 5h2A3.5 3.5 0 0 1 13 8.5v7A3.5 3.5 0 0 0 16.5 19" />
+      <path d="M13 10h3.5" />
+    </IconBase>
+  );
+}
+
 /** Up arrow icon matching steer queue prioritize send-now button. */
 export function IconArrowUp(props: IconProps): ReactElement {
   return (
@@ -740,4 +762,3 @@ export function IconArrowUp(props: IconProps): ReactElement {
     </IconBase>
   );
 }
-

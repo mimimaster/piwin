@@ -33,8 +33,6 @@
   backface-visibility: hidden;
 }
 
-
-
 .sidebar.is-resizing {
   transition: none;
   will-change: width;
@@ -347,7 +345,11 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 0 4px;
+  /* Keep left inset for tree rows; cancel .sidebar padding-right so the
+     native scrollbar sits on the nav/chat boundary instead of floating
+     over session titles/times. */
+  margin-right: -8px;
+  padding: 0 0 0 4px;
   /* Thin scrollbar, revealed on hover so rows keep their full width. */
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -358,7 +360,7 @@
 }
 
 .sidebar-folder-tree::-webkit-scrollbar {
-  width: 5px;
+  width: 6px;
 }
 
 .sidebar-folder-tree::-webkit-scrollbar-track {
@@ -406,10 +408,8 @@
   flex: none;
 }
 
-.sidebar-projects-see-all-btn {
-  margin: 0 0 2px;
-}
-
+/* Project groups stay in the tree; their child sessions can be collapsed
+   independently from the six-item session preview. */
 .tree-folder-details {
   display: flex;
   flex-direction: column;
@@ -420,11 +420,9 @@
   align-items: center;
   justify-content: space-between;
   height: 32px;
-  padding: 0 8px;
+  min-width: 0;
+  padding: 0;
   border-radius: 6px;
-  cursor: pointer;
-  user-select: none;
-  list-style: none;
   color: var(--muted);
   font-size: 13.5px;
   font-weight: 550;
@@ -433,16 +431,76 @@
     color 120ms ease;
 }
 
-.tree-folder-summary::-webkit-details-marker {
-  display: none;
+.tree-folder-toggle,
+.tree-folder-toggle-spacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
 }
 
-.tree-folder-summary:hover {
+.tree-folder-toggle {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+  line-height: 0;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.tree-folder-toggle .tree-folder-icon {
+  display: block;
+}
+
+.tree-folder-toggle:hover,
+.tree-folder-toggle:focus-visible {
   background: var(--hover);
   color: var(--text);
 }
 
-.tree-folder-summary.active {
+.tree-folder-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--text) 28%, transparent);
+  outline-offset: 1px;
+}
+
+.tree-folder-main {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.tree-folder-main:hover,
+.tree-folder-main:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.tree-folder-main:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--text) 28%, transparent);
+  outline-offset: 1px;
+}
+
+.tree-folder-summary.active .tree-folder-main {
   color: var(--text);
   font-weight: 600;
 }
@@ -470,11 +528,6 @@
   color: var(--text);
 }
 
-html[data-theme-mode='light'] .tree-folder-summary:hover .tree-folder-icon,
-html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
-  color: var(--accent);
-}
-
 .tree-folder-add-btn {
   display: inline-flex;
   align-items: center;
@@ -491,9 +544,10 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
   cursor: pointer;
   line-height: 0;
   opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   transition:
     opacity 120ms ease,
-    background 120ms ease,
     color 120ms ease;
 }
 
@@ -506,10 +560,13 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
 
 .tree-folder-summary:hover .tree-folder-add-btn {
   opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
   color: var(--text);
 }
 
-.tree-folder-add-btn:hover {
+.tree-folder-add-btn:hover,
+.tree-folder-add-btn:focus-visible {
   background: var(--hover);
   color: var(--text);
 }
@@ -532,40 +589,62 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
   padding: 0;
 }
 
-.see-all-row {
-  margin-top: 4px;
+/* Project sessions keep their text hierarchy, but the interaction surface is
+   a full-width sidebar row. Pull the row back across the list's visual indent
+   and put that indent back into the button padding so the title does not move. */
+.tree-session-list:not(.conversations-list) > .session-row {
+  width: calc(100% + 18px);
+  margin-left: -18px;
 }
 
-.sidebar-see-all-btn {
-  display: inline-flex;
+.tree-session-list:not(.conversations-list) > .session-row .session-item {
+  padding-left: 26px;
+}
+
+.session-list-lazy-boundary {
+  display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
   width: 100%;
-  padding: 6px 10px;
-  border: none;
-  border-radius: 6px;
-  /* Quiet plain-text "show more" row: no fill, gray label, slightly larger
-     than the previous 12.5px so it reads as a clear affordance. */
-  background: transparent;
+  min-height: 1px;
+  margin: 0;
+  list-style: none;
+}
+
+.tree-session-list:not(.conversations-list) > .session-list-lazy-boundary {
+  width: calc(100% + 18px);
+  margin-left: -18px;
+}
+
+.session-list-lazy-boundary > .ui-spinner {
+  margin: 6px 0;
   color: var(--muted);
-  font-size: 13.5px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  cursor: pointer;
-  text-align: left;
-  transition:
-    background var(--motion-quick, 120ms) ease,
-    color var(--motion-quick, 120ms) ease;
 }
 
-.sidebar-see-all-btn:hover {
-  background: transparent;
-  color: var(--text);
+.session-list-disclosure-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  margin: 2px 0 0;
+  list-style: none;
 }
 
-.sidebar-see-all-btn:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--text) 28%, transparent);
-  outline-offset: 1px;
+.tree-session-list:not(.conversations-list) > .session-list-disclosure-row {
+  width: calc(100% + 18px);
+  margin-left: -18px;
+}
+
+.session-list-disclosure.piwin-button {
+  width: 100%;
+  min-height: 26px;
+  justify-content: flex-start;
+  padding-inline: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.tree-session-list:not(.conversations-list) .session-list-disclosure.piwin-button {
+  padding-left: 26px;
 }
 
 /* ── Sessions list ────────────────────────────────────────────────── */
@@ -576,6 +655,9 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
   overflow-y: auto;
   overflow-x: hidden;
   gap: 2px;
+  /* Match .sidebar-folder-tree: scrollbar flush to the chat boundary. */
+  margin-right: -8px;
+  padding-right: 0;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
 }
@@ -585,7 +667,7 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
 }
 
 .sidebar-sessions::-webkit-scrollbar {
-  width: 5px;
+  width: 6px;
 }
 
 .sidebar-sessions::-webkit-scrollbar-track {
@@ -641,7 +723,7 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
   position: relative;
   width: 100%;
   /* Compact history row: title size stays, vertical chrome shrinks. */
-  min-height: 26px;
+  min-height: 30px;
   padding: 0 8px;
   padding-right: 44px;
   border: none;
@@ -654,11 +736,11 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
   align-items: center;
   gap: 6px;
   line-height: 1.2;
+  /* Color only — never animate padding/box-shadow here; those read as session
+     rows "jumping" during theme flips and hover reveal. */
   transition:
     background 140ms ease,
-    color 140ms ease,
-    box-shadow 140ms ease,
-    padding-right 140ms ease;
+    color 140ms ease;
 }
 
 .session-row:hover .session-item,
@@ -672,13 +754,10 @@ html[data-theme-mode='light'] .tree-folder-summary.active .tree-folder-icon {
 }
 
 .session-item.active {
-  background: var(--selected);
-  /* No bright accent ring — that read as "glare" on dark sidebars. */
+  /* Keep selection inside the current theme: a quiet black mask over the
+     sidebar surface, with no accent-colored ring or tint. */
+  background: color-mix(in srgb, var(--sidebar, var(--panel)) 92%, #000 8%);
   box-shadow: none;
-}
-
-html[data-theme-mode='light'] .session-item.active {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .session-item-body {
@@ -690,11 +769,11 @@ html[data-theme-mode='light'] .session-item.active {
 }
 
 .session-item-name {
-  /* Project + Conversations share the same title size/color. */
-  font-size: 13.5px;
+  /* Keep conversation titles readable in both project and general lists. */
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: -0.012em;
-  line-height: 1.2;
+  line-height: 1.3;
   color: color-mix(in srgb, var(--text) 92%, transparent);
   white-space: nowrap;
   overflow: hidden;

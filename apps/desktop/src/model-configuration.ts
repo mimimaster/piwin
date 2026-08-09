@@ -26,6 +26,10 @@ export type ModelConfigurationDraft = {
   supportsImage: boolean;
   /** Maps to `capabilities` including `image-generation`. */
   supportsImageGeneration: boolean;
+  /** Maps to `capabilities` including `speech-to-text`. */
+  supportsSpeechToText: boolean;
+  /** Maps to `capabilities` including `text-to-speech`. */
+  supportsTextToSpeech: boolean;
   /** Maps to `reasoning`. */
   reasoning: boolean;
 };
@@ -72,6 +76,8 @@ export function createModelConfigurationDraft(
     thinkingLevels,
     supportsImage: effective.input?.includes('image') ?? false,
     supportsImageGeneration: effective.capabilities?.includes('image-generation') ?? false,
+    supportsSpeechToText: effective.capabilities?.includes('speech-to-text') ?? false,
+    supportsTextToSpeech: effective.capabilities?.includes('text-to-speech') ?? false,
     reasoning: effective.reasoning ?? true,
   };
 }
@@ -112,8 +118,18 @@ export function createModelConfigurationEntry(
     ? (['text', 'image'] as const satisfies readonly ModelInputModality[])
     : (['text'] as const satisfies readonly ModelInputModality[]);
   model.reasoning = draft.reasoning;
+  const capabilities: ModelCapability[] = [];
   if (draft.supportsImageGeneration) {
-    model.capabilities = ['image-generation'] satisfies ModelCapability[];
+    capabilities.push('image-generation');
+  }
+  if (draft.supportsSpeechToText) {
+    capabilities.push('speech-to-text');
+  }
+  if (draft.supportsTextToSpeech) {
+    capabilities.push('text-to-speech');
+  }
+  if (capabilities.length > 0) {
+    model.capabilities = capabilities;
   }
   return model;
 }
@@ -165,19 +181,22 @@ export function applyModelConfigurationDraft(
   if (!draft.maxOutputTokens.trim()) delete updated.maxOutputTokens;
   if (!draft.label.trim() || draft.label.trim() === updated.id) delete updated.label;
   if (!draft.tooltipMarkdown.trim()) delete updated.tooltipMarkdown;
-  if (!draft.supportsImageGeneration) {
-    const remaining = (original.capabilities ?? []).filter(
-      (capability) => capability !== 'image-generation',
-    );
-    if (remaining.length > 0) updated.capabilities = remaining;
-    else delete updated.capabilities;
+  // Preserve capability tags that this editor does not expose (for example
+  // video-generation), while replacing the image and speech flags it owns.
+  const preservedCapabilities = (original.capabilities ?? []).filter(
+    (capability) =>
+      capability !== 'image-generation' &&
+      capability !== 'speech-to-text' &&
+      capability !== 'text-to-speech',
+  );
+  const editedCapabilities = new Set<ModelCapability>(preservedCapabilities);
+  if (draft.supportsImageGeneration) editedCapabilities.add('image-generation');
+  if (draft.supportsSpeechToText) editedCapabilities.add('speech-to-text');
+  if (draft.supportsTextToSpeech) editedCapabilities.add('text-to-speech');
+  if (editedCapabilities.size > 0) {
+    updated.capabilities = [...editedCapabilities];
   } else {
-    // The inline Models editor only exposes image-generation today. Preserve
-    // other capability tags (for example video-generation) when it saves a
-    // model that was configured in a capability-specific settings page.
-    const capabilities = new Set(original.capabilities ?? []);
-    capabilities.add('image-generation');
-    updated.capabilities = [...capabilities];
+    delete updated.capabilities;
   }
   if (draft.thinkingLevels.length === 0) {
     delete updated.thinkingLevels;

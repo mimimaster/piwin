@@ -286,7 +286,7 @@ describe('MarkdownView artifact preview policy', () => {
   });
 });
 
-describe('MarkdownView path chips', () => {
+describe('MarkdownView file references', () => {
   it('collapses a full .md path to its file name', () => {
     const fullPath = '/Users/yorickjue/.piwin/workspace/自我介绍.md';
     const { container } = renderMarkdown(
@@ -393,15 +393,63 @@ describe('MarkdownView path chips', () => {
     expect((headers[1] as HTMLElement).style.textAlign).toBe('right');
   });
 
-  it('renders streaming cursor inline inside paragraph element following latest token', () => {
+  it('renders Streamdown streaming caret without adding a second cursor node', () => {
     const { container } = renderMarkdown(
       <MarkdownView text="Hello streaming token" renderingPhase="streaming" />,
     );
     const p = container.querySelector('p.md-p');
     expect(p).not.toBeNull();
-    const cursor = p?.querySelector('.streaming-cursor-pulse');
-    expect(cursor).not.toBeNull();
-    // Cursor should be inside the paragraph, not a direct child of container outside p
+    const rendererStyle = container.querySelector('.markdown')?.getAttribute('style') ?? '';
+    expect(rendererStyle).toContain('--streamdown-caret');
     expect(container.querySelector('.markdown > .streaming-cursor-pulse')).toBeNull();
+  });
+
+  it('defers code-fence syntax highlighting until streaming completes', () => {
+    const fence = '```ts\nconst answer = 42;\n```';
+    const streaming = renderMarkdown(
+      <MarkdownView text={fence} renderingPhase="streaming" />,
+    );
+    expect(
+      streaming.container
+        .querySelector('.md-code-content')
+        ?.getAttribute('data-syntax-highlight'),
+    ).toBe('deferred');
+    act(() => {
+      streaming.root.unmount();
+    });
+    streaming.container.remove();
+
+    const completed = renderMarkdown(
+      <MarkdownView text={fence} renderingPhase="completed" />,
+    );
+    expect(
+      completed.container
+        .querySelector('.md-code-content')
+        ?.getAttribute('data-syntax-highlight'),
+    ).toBe('enabled');
+  });
+
+  it('renders GFM task lists, strikethrough, callouts, and no raw HTML nodes', () => {
+    const { container } = renderMarkdown(
+      <MarkdownView
+        text={[
+          '- [x] shipped',
+          '- [ ] pending',
+          '',
+          '~~old wording~~',
+          '',
+          '> [!TIP]',
+          '> Prefer the reusable renderer.',
+          '',
+          '<script data-untrusted="true">alert(1)</script>',
+        ].join('\n')}
+        renderingPhase="completed"
+      />,
+    );
+    expect(container.querySelectorAll('.md-task-checkbox')).toHaveLength(2);
+    expect(container.querySelector('.md-task-checkbox:checked')).not.toBeNull();
+    expect(container.querySelector('.md-del')?.textContent).toBe('old wording');
+    expect(container.querySelector('[data-testid="callout-tip"]')).not.toBeNull();
+    expect(container.querySelector('script[data-untrusted="true"]')).toBeNull();
   });
 });

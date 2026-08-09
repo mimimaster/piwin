@@ -1,8 +1,8 @@
 /**
- * Settings editor for Orchestration Schemes (ORCH-V2).
+ * Orchestration scheme editor — roster of roles for the main agent.
  *
- * Edits main discipline + members roster. Built-in Ultra Code can be overlaid
- * (same id in settings) or reset; user schemes support full CRUD.
+ * User configures: scheme name, main discipline, members (role + duty +
+ * optional model/isolation). Runtime scheduling is the main agent's job.
  */
 import { useMemo, useState, type ReactElement } from 'react';
 import {
@@ -33,10 +33,6 @@ const THINKING_LEVELS: ThinkingLevel[] = [
   'ultra',
 ];
 
-const ISOLATION_MODES: SubagentIsolationMode[] = ['readonly', 'worktree'];
-
-const FALLBACK_OPTIONS: OrchestrationMemberFallback[] = ['main', 'none'];
-
 export type SchemeModelOption = {
   value: string;
   label: string;
@@ -50,8 +46,8 @@ export type OrchestrationSchemeEditorCopy = {
   schemeCloneSaved: string;
   schemeClonedSuffix: string;
   schemeSourceBuiltin: string;
+  schemeSourceOverridden: string;
   schemeSourceSettings: string;
-  schemeDefaultProfile: string;
   schemeGeneric: string;
   schemeExpose: string;
   schemeEdit: string;
@@ -70,14 +66,16 @@ export type OrchestrationSchemeEditorCopy = {
   schemeAddFromTemplate: string;
   schemeRole: string;
   schemeRoleDesc: string;
-  schemeMemberProfile: string;
   schemeMemberModel: string;
   schemeModelInherit: string;
   schemeThinking: string;
   schemeThinkingInherit: string;
   schemeIsolation: string;
-  schemeIsolationInherit: string;
+  schemeIsolationReadonly: string;
+  schemeIsolationWorktree: string;
   schemeFallback: string;
+  schemeFallbackMain: string;
+  schemeFallbackNone: string;
   schemeDefaultRole: string;
   schemeMaxConcurrency: string;
   schemeMaxTasks: string;
@@ -89,7 +87,7 @@ export type OrchestrationSchemeEditorCopy = {
   schemeInvalidRole: string;
   schemeNeedMember: string;
   schemeCheapModelHint: string;
-  remove: string;
+  schemeAdvanced: string;
 };
 
 function cloneMember(member: OrchestrationSchemeMember): OrchestrationSchemeMember {
@@ -104,7 +102,6 @@ function cloneMember(member: OrchestrationSchemeMember): OrchestrationSchemeMemb
   };
 }
 
-/** Normalize a scheme (builtin or settings) into an editable settings draft. */
 export function schemeToEditableDraft(scheme: OrchestrationScheme): OrchestrationSchemeSettings {
   const members = migrateSchemeMembers(scheme).map(cloneMember);
   const draft: OrchestrationSchemeSettings = {
@@ -119,7 +116,6 @@ export function schemeToEditableDraft(scheme: OrchestrationScheme): Orchestratio
   if (scheme.defaultRole) draft.defaultRole = scheme.defaultRole;
   else if (members[0]) draft.defaultRole = members[0].role;
   if (scheme.defaultProfileId) draft.defaultProfileId = scheme.defaultProfileId;
-  if (scheme.allowedProfileIds) draft.allowedProfileIds = [...scheme.allowedProfileIds];
   if (scheme.maxConcurrency !== undefined) draft.maxConcurrency = scheme.maxConcurrency;
   if (scheme.maxTasksPerRun !== undefined) draft.maxTasksPerRun = scheme.maxTasksPerRun;
   if (scheme.maxSubagentThinkingLevel) {
@@ -139,9 +135,9 @@ export function createEmptyUserScheme(existingIds: ReadonlySet<string>): Orchest
   return {
     id,
     name: 'My scheme',
-    description: 'Custom orchestration roster',
+    description: 'Custom role roster for the main agent',
     systemPreamble:
-      'This orchestration scheme is active. Delegate polluting exploration to roster roles via piwin_subagent_run with role set. Wait for results before continuing. Do not nest subagents.',
+      'This orchestration scheme is active. Delegate work that would pollute this context to roster roles via piwin_subagent_run with role set. Wait for tool results before continuing. Do not nest subagents. Trivial single-file work need not force a subagent.',
     exposeSpawnMetadata: false,
     waitPolicy: 'await-all',
     defaultRole: searcher.role,
@@ -154,9 +150,7 @@ export function createEmptyUserScheme(existingIds: ReadonlySet<string>): Orchest
 }
 
 export function validateSchemeDraft(draft: OrchestrationSchemeSettings): string | undefined {
-  if (!isValidOrchestrationSchemeId(draft.id)) {
-    return 'invalid-id';
-  }
+  if (!isValidOrchestrationSchemeId(draft.id)) return 'invalid-id';
   if (!draft.name.trim() || !draft.description.trim() || !draft.systemPreamble.trim()) {
     return 'incomplete';
   }
@@ -169,15 +163,24 @@ export function validateSchemeDraft(draft: OrchestrationSchemeSettings): string 
     if (seen.has(member.role)) return 'duplicate-role';
     seen.add(member.role);
   }
-  if (draft.defaultRole && !seen.has(draft.defaultRole)) {
-    return 'bad-default-role';
-  }
+  if (draft.defaultRole && !seen.has(draft.defaultRole)) return 'bad-default-role';
   return undefined;
 }
 
 function modelSelectValue(model: ModelRef | undefined): string {
   if (!model) return '';
   return JSON.stringify(model);
+}
+
+function sourceLabel(
+  scheme: OrchestrationScheme,
+  hasOverlay: boolean,
+  copy: OrchestrationSchemeEditorCopy,
+): string {
+  const isBuiltinBase = scheme.id === ULTRA_CODE_SCHEME_ID;
+  if (isBuiltinBase && hasOverlay) return copy.schemeSourceOverridden;
+  if (scheme.source === 'builtin' && !hasOverlay) return copy.schemeSourceBuiltin;
+  return copy.schemeSourceSettings;
 }
 
 export type OrchestrationSchemeEditorProps = {
@@ -205,9 +208,9 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
     onCloneScheme,
   } = props;
 
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editing, setEditing] = useState<OrchestrationSchemeSettings | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const overlayIds = useMemo(
     () => new Set(schemeDrafts.map((scheme) => scheme.id)),
@@ -215,24 +218,24 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
   );
 
   function startEdit(scheme: OrchestrationScheme): void {
-    setExpandedId(scheme.id);
     setEditing(schemeToEditableDraft(scheme));
     setEditError(null);
+    setAdvancedOpen(false);
     onNotice(null);
   }
 
   function startCreate(): void {
     const existing = new Set(schemes.map((scheme) => scheme.id));
-    const draft = createEmptyUserScheme(existing);
-    setExpandedId(draft.id);
-    setEditing(draft);
+    setEditing(createEmptyUserScheme(existing));
     setEditError(null);
+    setAdvancedOpen(false);
     onNotice(null);
   }
 
   function cancelEdit(): void {
     setEditing(null);
     setEditError(null);
+    setAdvancedOpen(false);
   }
 
   function patchEditing(patch: Partial<OrchestrationSchemeSettings>): void {
@@ -242,7 +245,6 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
   type MemberPatch = {
     role?: string;
     description?: string;
-    profileId?: string | null;
     model?: ModelRef | null;
     thinkingLevel?: ThinkingLevel | null;
     isolation?: SubagentIsolationMode | null;
@@ -258,13 +260,8 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
           role: (patch.role ?? member.role).trim(),
           description: (patch.description ?? member.description).trim(),
         };
-        const nextProfileId =
-          patch.profileId === null
-            ? undefined
-            : patch.profileId !== undefined
-              ? patch.profileId
-              : member.profileId;
-        if (nextProfileId) merged.profileId = nextProfileId;
+        // Keep profileId if present (internal seed); UI no longer edits it.
+        if (member.profileId) merged.profileId = member.profileId;
         const nextModel =
           patch.model === null
             ? undefined
@@ -286,8 +283,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
               ? patch.isolation
               : member.isolation;
         if (nextIsolation) merged.isolation = nextIsolation;
-        const nextFallback = patch.fallback ?? member.fallback ?? 'main';
-        merged.fallback = nextFallback;
+        merged.fallback = patch.fallback ?? member.fallback ?? 'main';
         return merged;
       });
       return { ...prev, members: rebuilt };
@@ -300,16 +296,17 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
       const base =
         template ??
         ({
-          role: `role-${(prev.members?.length ?? 0) + 1}`,
+          role: `role${(prev.members?.length ?? 0) + 1}`,
           description: 'Describe when the main agent should use this role.',
+          isolation: 'readonly' as const,
           fallback: 'main' as const,
         } satisfies OrchestrationSchemeMember);
       let role = base.role;
       const existing = new Set((prev.members ?? []).map((member) => member.role));
       if (existing.has(role)) {
         let suffix = 2;
-        while (existing.has(`${base.role}-${suffix}`)) suffix += 1;
-        role = `${base.role}-${suffix}`;
+        while (existing.has(`${base.role}${suffix}`)) suffix += 1;
+        role = `${base.role}${suffix}`;
       }
       const member = cloneMember({ ...base, role });
       const members = [...(prev.members ?? []), member];
@@ -347,10 +344,6 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
       setEditError(copy.schemeInvalidRole);
       return;
     }
-    if (code === 'need-member' || code === 'bad-default-role') {
-      setEditError(copy.schemeNeedMember);
-      return;
-    }
     if (code) {
       setEditError(copy.schemeNeedMember);
       return;
@@ -376,8 +369,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
     }
 
     const withoutSame = schemeDrafts.filter((scheme) => scheme.id !== cleaned.id);
-    const next = [...withoutSame, cleaned];
-    const ok = await onPersistSchemes(next);
+    const ok = await onPersistSchemes([...withoutSame, cleaned]);
     if (!ok) return;
     setEditing(null);
     setEditError(null);
@@ -404,6 +396,364 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
     onNotice(copy.schemeSaved);
   }
 
+  function renderEditorForm(draft: OrchestrationSchemeSettings): ReactElement {
+    const isBuiltinId = draft.id === ULTRA_CODE_SCHEME_ID;
+    return (
+      <div
+        style={{ marginTop: 14, borderTop: '1px solid rgba(127,127,127,0.25)', paddingTop: 12 }}
+        data-testid={`orchestration-scheme-editor-${draft.id}`}
+      >
+        {isBuiltinId ? (
+          <div style={{ marginBottom: 10 }}>
+            <Notice tone="info">{copy.schemeCheapModelHint}</Notice>
+          </div>
+        ) : null}
+
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 12, fontWeight: 600, flex: 2, minWidth: 160 }}>
+              {copy.schemeName}
+              <TextInput
+                value={draft.name}
+                disabled={saving}
+                onChange={(event) => patchEditing({ name: event.target.value })}
+              />
+            </label>
+            {!isBuiltinId ? (
+              <label style={{ fontSize: 12, fontWeight: 600, flex: 1, minWidth: 120 }}>
+                {copy.schemeId}
+                <TextInput
+                  value={draft.id}
+                  disabled={saving || overlayIds.has(draft.id)}
+                  onChange={(event) =>
+                    patchEditing({ id: event.target.value.trim().toLowerCase() })
+                  }
+                />
+              </label>
+            ) : null}
+          </div>
+
+          <label style={{ fontSize: 12, fontWeight: 600 }}>
+            {copy.schemeDesc}
+            <TextInput
+              value={draft.description}
+              disabled={saving}
+              onChange={(event) => patchEditing({ description: event.target.value })}
+            />
+          </label>
+
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+              {copy.schemeDiscipline}
+            </div>
+            <p className="muted" style={{ fontSize: 11, margin: '0 0 6px' }}>
+              {copy.schemeDisciplineHint}
+            </p>
+            <textarea
+              className="ui-text-input"
+              style={{ width: '100%', minHeight: 100, fontFamily: 'inherit', fontSize: 13 }}
+              value={draft.systemPreamble}
+              disabled={saving}
+              data-testid={`orchestration-scheme-preamble-${draft.id}`}
+              onChange={(event) => patchEditing({ systemPreamble: event.target.value })}
+            />
+          </div>
+
+          <div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8,
+                flexWrap: 'wrap',
+              }}
+            >
+              <strong style={{ fontSize: 13 }}>{copy.schemeMembers}</strong>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <Button
+                  size="compact"
+                  variant="secondary"
+                  disabled={saving}
+                  onClick={() => addMember()}
+                >
+                  {copy.schemeAddMember}
+                </Button>
+                {DEFAULT_ORCHESTRATION_ROLE_TEMPLATES.map((template) => (
+                  <Button
+                    key={template.role}
+                    size="compact"
+                    variant="ghost"
+                    disabled={saving}
+                    onClick={() => addMember(template)}
+                    data-testid={`orchestration-add-template-${template.role}`}
+                  >
+                    +{template.role}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {(draft.members ?? []).map((member, index) => (
+              <div
+                key={`${member.role}-${index}`}
+                className="settings-section-card"
+                style={{ padding: 12, marginBottom: 8 }}
+                data-testid={`orchestration-member-row-${index}`}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    marginBottom: 8,
+                    alignItems: 'center',
+                  }}
+                >
+                  <strong style={{ fontSize: 13 }}>
+                    {member.role || `${copy.schemeRole} #${index + 1}`}
+                  </strong>
+                  <Button
+                    size="compact"
+                    variant="ghost"
+                    disabled={saving || (draft.members?.length ?? 0) <= 1}
+                    onClick={() => removeMember(index)}
+                  >
+                    {copy.schemeRemoveMember}
+                  </Button>
+                </div>
+
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <label style={{ fontSize: 12 }}>
+                    {copy.schemeRole}
+                    <TextInput
+                      value={member.role}
+                      disabled={saving}
+                      onChange={(event) =>
+                        patchMember(index, {
+                          role: event.target.value.trim().toLowerCase(),
+                        })
+                      }
+                    />
+                  </label>
+                  <label style={{ fontSize: 12 }}>
+                    {copy.schemeRoleDesc}
+                    <TextInput
+                      value={member.description}
+                      disabled={saving}
+                      onChange={(event) =>
+                        patchMember(index, { description: event.target.value })
+                      }
+                    />
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <label style={{ fontSize: 12, flex: 1, minWidth: 160 }}>
+                      {copy.schemeMemberModel}
+                      <Select
+                        value={modelSelectValue(member.model)}
+                        disabled={saving}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          if (!value) {
+                            patchMember(index, { model: null });
+                            return;
+                          }
+                          const selected = modelOptions.find((option) => option.value === value);
+                          if (selected) patchMember(index, { model: selected.ref });
+                        }}
+                      >
+                        <option value="">{copy.schemeModelInherit}</option>
+                        {modelOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                    <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
+                      {copy.schemeThinking}
+                      <Select
+                        value={member.thinkingLevel ?? ''}
+                        disabled={saving}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          patchMember(index, {
+                            thinkingLevel: value ? (value as ThinkingLevel) : null,
+                          });
+                        }}
+                      >
+                        <option value="">{copy.schemeThinkingInherit}</option>
+                        {THINKING_LEVELS.map((level) => (
+                          <option key={level} value={level}>
+                            {level}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                    <label style={{ fontSize: 12, flex: 1, minWidth: 140 }}>
+                      {copy.schemeIsolation}
+                      <Select
+                        value={member.isolation ?? 'readonly'}
+                        disabled={saving}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          patchMember(index, {
+                            isolation:
+                              value === 'worktree' || value === 'readonly' ? value : null,
+                          });
+                        }}
+                      >
+                        <option value="readonly">{copy.schemeIsolationReadonly}</option>
+                        <option value="worktree">{copy.schemeIsolationWorktree}</option>
+                      </Select>
+                    </label>
+                  </div>
+                  <label style={{ fontSize: 12, maxWidth: 280 }}>
+                    {copy.schemeFallback}
+                    <Select
+                      value={member.fallback ?? 'main'}
+                      disabled={saving}
+                      onChange={(event) =>
+                        patchMember(index, {
+                          fallback: event.target.value as OrchestrationMemberFallback,
+                        })
+                      }
+                    >
+                      <option value="main">{copy.schemeFallbackMain}</option>
+                      <option value="none">{copy.schemeFallbackNone}</option>
+                    </Select>
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 12, flex: 1, minWidth: 140 }}>
+              {copy.schemeDefaultRole}
+              <Select
+                value={draft.defaultRole ?? ''}
+                disabled={saving}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setEditing((prev) => {
+                    if (!prev) return prev;
+                    const next: OrchestrationSchemeSettings = { ...prev };
+                    if (value) next.defaultRole = value;
+                    else delete next.defaultRole;
+                    return next;
+                  });
+                }}
+              >
+                {(draft.members ?? []).map((member) => (
+                  <option key={member.role} value={member.role}>
+                    {member.role}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <label style={{ fontSize: 12, flex: 1, minWidth: 180 }}>
+              {copy.schemeExpose}
+              <Select
+                value={draft.exposeSpawnMetadata ? 'expose' : 'generic'}
+                disabled={saving}
+                onChange={(event) =>
+                  patchEditing({
+                    exposeSpawnMetadata: event.target.value === 'expose',
+                  })
+                }
+              >
+                <option value="generic">{copy.schemeGeneric}</option>
+                <option value="expose">{copy.schemeExpose}</option>
+              </Select>
+            </label>
+          </div>
+
+          <details
+            open={advancedOpen}
+            onToggle={(event) => setAdvancedOpen((event.target as HTMLDetailsElement).open)}
+          >
+            <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              {copy.schemeAdvanced}
+            </summary>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
+                {copy.schemeMaxConcurrency}
+                <TextInput
+                  type="number"
+                  min={1}
+                  value={String(draft.maxConcurrency ?? 4)}
+                  disabled={saving}
+                  onChange={(event) =>
+                    patchEditing({
+                      maxConcurrency: Math.max(1, Number(event.target.value) || 1),
+                    })
+                  }
+                />
+              </label>
+              <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
+                {copy.schemeMaxTasks}
+                <TextInput
+                  type="number"
+                  min={1}
+                  value={String(draft.maxTasksPerRun ?? 8)}
+                  disabled={saving}
+                  onChange={(event) =>
+                    patchEditing({
+                      maxTasksPerRun: Math.max(1, Number(event.target.value) || 1),
+                    })
+                  }
+                />
+              </label>
+              <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
+                {copy.schemeMaxThinking}
+                <Select
+                  value={draft.maxSubagentThinkingLevel ?? ''}
+                  disabled={saving}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setEditing((prev) => {
+                      if (!prev) return prev;
+                      const next: OrchestrationSchemeSettings = { ...prev };
+                      if (value) next.maxSubagentThinkingLevel = value as ThinkingLevel;
+                      else delete next.maxSubagentThinkingLevel;
+                      return next;
+                    });
+                  }}
+                >
+                  <option value="">{copy.schemeMaxThinkingInherit}</option>
+                  {THINKING_LEVELS.map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            </div>
+          </details>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button variant="ghost" disabled={saving} onClick={cancelEdit}>
+              {copy.schemeCancel}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={saving}
+              data-testid={`orchestration-scheme-save-${draft.id}`}
+              onClick={() => void saveEditing()}
+            >
+              {saving ? '…' : copy.schemeSave}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const creatingNew =
+    editing !== null && !schemes.some((scheme) => scheme.id === editing.id);
+
   return (
     <div className="settings-section" data-testid="orchestration-schemes-section">
       <div
@@ -423,7 +773,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
         </div>
         <Button
           variant="secondary"
-          disabled={saving}
+          disabled={saving || editing !== null}
           data-testid="orchestration-scheme-new"
           onClick={startCreate}
         >
@@ -434,51 +784,83 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
       {notice ? <Notice tone="success">{notice}</Notice> : null}
       {editError ? <Notice tone="error">{editError}</Notice> : null}
 
+      {creatingNew && editing ? (
+        <div
+          className="settings-section-card"
+          style={{ padding: 14, marginBottom: 12 }}
+          data-testid={`orchestration-scheme-row-${editing.id}`}
+        >
+          <strong style={{ fontSize: 14 }}>{copy.schemeNew}</strong>
+          {renderEditorForm(editing)}
+        </div>
+      ) : null}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
         {schemes.map((scheme) => {
-          const isExpanded = expandedId === scheme.id;
           const isEditingThis = editing?.id === scheme.id;
           const hasOverlay = overlayIds.has(scheme.id);
           const isBuiltinBase = scheme.id === ULTRA_CODE_SCHEME_ID;
+          const members = migrateSchemeMembers(scheme);
+
           return (
             <div
               key={scheme.id}
               className="settings-section-card"
-              style={{ padding: 12 }}
+              style={{ padding: 14 }}
               data-testid={`orchestration-scheme-row-${scheme.id}`}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                <div>
-                  <strong style={{ fontSize: 14 }}>{scheme.name}</strong>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  alignItems: 'flex-start',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <strong style={{ fontSize: 15 }}>{scheme.name}</strong>
+                    <span className="pill">{sourceLabel(scheme, hasOverlay, copy)}</span>
+                  </div>
                   <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
                     <code>{scheme.id}</code>
-                    {' · '}
-                    {scheme.source === 'builtin' && !hasOverlay
-                      ? copy.schemeSourceBuiltin
-                      : hasOverlay && isBuiltinBase
-                        ? `${copy.schemeSourceBuiltin}+`
-                        : copy.schemeSourceSettings}
+                  </div>
+                  <p style={{ fontSize: 13, marginTop: 8, marginBottom: 0, lineHeight: 1.45 }}>
+                    {scheme.description}
+                  </p>
+                  <div
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}
+                    data-testid={`orchestration-scheme-roles-${scheme.id}`}
+                  >
+                    {members.map((member) => (
+                      <span
+                        key={member.role}
+                        className="pill"
+                        title={member.description}
+                        style={{ fontSize: 11 }}
+                      >
+                        {member.role}
+                      </span>
+                    ))}
                   </div>
                 </div>
+
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
                   <Button
                     variant="secondary"
-                    disabled={saving}
+                    disabled={saving || (editing !== null && !isEditingThis)}
                     data-testid={`orchestration-scheme-edit-${scheme.id}`}
                     onClick={() => {
-                      if (isEditingThis) {
-                        cancelEdit();
-                        setExpandedId(null);
-                      } else {
-                        startEdit(scheme);
-                      }
+                      if (isEditingThis) cancelEdit();
+                      else startEdit(scheme);
                     }}
                   >
                     {isEditingThis ? copy.schemeCancel : copy.schemeEdit}
                   </Button>
                   <Button
                     variant="secondary"
-                    disabled={saving}
+                    disabled={saving || editing !== null}
                     data-testid={`orchestration-scheme-clone-${scheme.id}`}
                     onClick={() => void onCloneScheme(scheme.id)}
                   >
@@ -487,7 +869,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
                   {isBuiltinBase && hasOverlay ? (
                     <Button
                       variant="ghost"
-                      disabled={saving}
+                      disabled={saving || editing !== null}
                       data-testid={`orchestration-scheme-reset-${scheme.id}`}
                       onClick={() => void resetBuiltin(scheme.id)}
                     >
@@ -497,7 +879,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
                   {!isBuiltinBase ? (
                     <Button
                       variant="ghost"
-                      disabled={saving}
+                      disabled={saving || editing !== null}
                       data-testid={`orchestration-scheme-delete-${scheme.id}`}
                       onClick={() => void deleteUserScheme(scheme.id)}
                     >
@@ -507,421 +889,7 @@ export function OrchestrationSchemeEditor(props: OrchestrationSchemeEditorProps)
                 </div>
               </div>
 
-              <p style={{ fontSize: 13, marginTop: 8, marginBottom: 0, lineHeight: 1.4 }}>
-                {scheme.description}
-              </p>
-              <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-                {scheme.defaultRole ? (
-                  <>
-                    {copy.schemeDefaultRole}: <code>{scheme.defaultRole}</code>
-                    {' · '}
-                  </>
-                ) : null}
-                {scheme.exposeSpawnMetadata ? copy.schemeExpose : copy.schemeGeneric}
-                {scheme.members && scheme.members.length > 0
-                  ? ` · roles: ${scheme.members.map((member) => member.role).join(', ')}`
-                  : ''}
-              </div>
-
-              {isEditingThis && editing ? (
-                <div
-                  style={{ marginTop: 14, borderTop: '1px solid rgba(127,127,127,0.25)', paddingTop: 12 }}
-                  data-testid={`orchestration-scheme-editor-${scheme.id}`}
-                >
-                  {editing.id === ULTRA_CODE_SCHEME_ID ? (
-                    <div style={{ marginBottom: 10 }}>
-                      <Notice tone="info">{copy.schemeCheapModelHint}</Notice>
-                    </div>
-                  ) : null}
-
-                  <div style={{ display: 'grid', gap: 10 }}>
-                    <label style={{ fontSize: 12, fontWeight: 600 }}>
-                      {copy.schemeName}
-                      <TextInput
-                        value={editing.name}
-                        disabled={saving}
-                        onChange={(event) => patchEditing({ name: event.target.value })}
-                      />
-                    </label>
-                    {editing.id !== ULTRA_CODE_SCHEME_ID ? (
-                      <label style={{ fontSize: 12, fontWeight: 600 }}>
-                        {copy.schemeId}
-                        <TextInput
-                          value={editing.id}
-                          disabled={saving || overlayIds.has(editing.id)}
-                          onChange={(event) =>
-                            patchEditing({
-                              id: event.target.value.trim().toLowerCase(),
-                            })
-                          }
-                        />
-                      </label>
-                    ) : null}
-                    <label style={{ fontSize: 12, fontWeight: 600 }}>
-                      {copy.schemeDesc}
-                      <TextInput
-                        value={editing.description}
-                        disabled={saving}
-                        onChange={(event) => patchEditing({ description: event.target.value })}
-                      />
-                    </label>
-
-                    <details open>
-                      <summary style={{ cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                        {copy.schemeDiscipline}
-                      </summary>
-                      <p className="muted" style={{ fontSize: 11, margin: '6px 0' }}>
-                        {copy.schemeDisciplineHint}
-                      </p>
-                      <textarea
-                        className="ui-text-input"
-                        style={{ width: '100%', minHeight: 120, fontFamily: 'inherit', fontSize: 13 }}
-                        value={editing.systemPreamble}
-                        disabled={saving}
-                        data-testid={`orchestration-scheme-preamble-${editing.id}`}
-                        onChange={(event) => patchEditing({ systemPreamble: event.target.value })}
-                      />
-                    </details>
-
-                    <div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: 8,
-                          marginBottom: 8,
-                        }}
-                      >
-                        <strong style={{ fontSize: 12 }}>{copy.schemeMembers}</strong>
-                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          <Button
-                            size="compact"
-                            variant="ghost"
-                            disabled={saving}
-                            onClick={() => addMember()}
-                          >
-                            {copy.schemeAddMember}
-                          </Button>
-                          {DEFAULT_ORCHESTRATION_ROLE_TEMPLATES.map((template) => (
-                            <Button
-                              key={template.role}
-                              size="compact"
-                              variant="ghost"
-                              disabled={saving}
-                              onClick={() => addMember(template)}
-                            >
-                              +{template.role}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {(editing.members ?? []).map((member, index) => (
-                        <div
-                          key={`${member.role}-${index}`}
-                          className="settings-section-card"
-                          style={{ padding: 10, marginBottom: 8 }}
-                          data-testid={`orchestration-member-row-${index}`}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              gap: 8,
-                              marginBottom: 8,
-                            }}
-                          >
-                            <strong style={{ fontSize: 12 }}>
-                              {copy.schemeRole} #{index + 1}
-                            </strong>
-                            <Button
-                              size="compact"
-                              variant="ghost"
-                              disabled={saving || (editing.members?.length ?? 0) <= 1}
-                              onClick={() => removeMember(index)}
-                            >
-                              {copy.schemeRemoveMember}
-                            </Button>
-                          </div>
-                          <div style={{ display: 'grid', gap: 8 }}>
-                            <label style={{ fontSize: 12 }}>
-                              {copy.schemeRole}
-                              <TextInput
-                                value={member.role}
-                                disabled={saving}
-                                onChange={(event) =>
-                                  patchMember(index, {
-                                    role: event.target.value.trim().toLowerCase(),
-                                  })
-                                }
-                              />
-                            </label>
-                            <label style={{ fontSize: 12 }}>
-                              {copy.schemeRoleDesc}
-                              <TextInput
-                                value={member.description}
-                                disabled={saving}
-                                onChange={(event) =>
-                                  patchMember(index, { description: event.target.value })
-                                }
-                              />
-                            </label>
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <label style={{ fontSize: 12, flex: 1, minWidth: 140 }}>
-                                {copy.schemeMemberProfile}
-                                <TextInput
-                                  value={member.profileId ?? ''}
-                                  disabled={saving}
-                                  placeholder="explorer"
-                                  onChange={(event) => {
-                                    const value = event.target.value.trim();
-                                    patchMember(index, {
-                                      profileId: value ? value : null,
-                                    });
-                                  }}
-                                />
-                              </label>
-                              <label style={{ fontSize: 12, flex: 1, minWidth: 160 }}>
-                                {copy.schemeMemberModel}
-                                <Select
-                                  value={modelSelectValue(member.model)}
-                                  disabled={saving}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    if (!value) {
-                                      patchMember(index, { model: null });
-                                      return;
-                                    }
-                                    try {
-                                      const parsed = JSON.parse(value) as ModelRef;
-                                      patchMember(index, { model: parsed });
-                                    } catch {
-                                      patchMember(index, { model: null });
-                                    }
-                                  }}
-                                >
-                                  <option value="">{copy.schemeModelInherit}</option>
-                                  {modelOptions.map((option) => (
-                                    <option key={option.value} value={option.value}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </Select>
-                              </label>
-                            </div>
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                              <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
-                                {copy.schemeThinking}
-                                <Select
-                                  value={member.thinkingLevel ?? ''}
-                                  disabled={saving}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    patchMember(index, {
-                                      thinkingLevel: value
-                                        ? (value as ThinkingLevel)
-                                        : null,
-                                    });
-                                  }}
-                                >
-                                  <option value="">{copy.schemeThinkingInherit}</option>
-                                  {THINKING_LEVELS.map((level) => (
-                                    <option key={level} value={level}>
-                                      {level}
-                                    </option>
-                                  ))}
-                                </Select>
-                              </label>
-                              <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
-                                {copy.schemeIsolation}
-                                <Select
-                                  value={member.isolation ?? ''}
-                                  disabled={saving}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    patchMember(index, {
-                                      isolation:
-                                        value === 'readonly' || value === 'worktree'
-                                          ? value
-                                          : null,
-                                    });
-                                  }}
-                                >
-                                  <option value="">{copy.schemeIsolationInherit}</option>
-                                  {ISOLATION_MODES.map((mode) => (
-                                    <option key={mode} value={mode}>
-                                      {mode}
-                                    </option>
-                                  ))}
-                                </Select>
-                              </label>
-                              <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
-                                {copy.schemeFallback}
-                                <Select
-                                  value={member.fallback ?? 'main'}
-                                  disabled={saving}
-                                  onChange={(event) =>
-                                    patchMember(index, {
-                                      fallback: event.target.value as OrchestrationMemberFallback,
-                                    })
-                                  }
-                                >
-                                  {FALLBACK_OPTIONS.map((option) => (
-                                    <option key={option} value={option}>
-                                      {option}
-                                    </option>
-                                  ))}
-                                </Select>
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: 12, flex: 1, minWidth: 140 }}>
-                        {copy.schemeDefaultRole}
-                        <Select
-                          value={editing.defaultRole ?? ''}
-                          disabled={saving}
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            setEditing((prev) => {
-                              if (!prev) return prev;
-                              const next: OrchestrationSchemeSettings = { ...prev };
-                              if (value) next.defaultRole = value;
-                              else delete next.defaultRole;
-                              return next;
-                            });
-                          }}
-                        >
-                          {(editing.members ?? []).map((member) => (
-                            <option key={member.role} value={member.role}>
-                              {member.role}
-                            </option>
-                          ))}
-                        </Select>
-                      </label>
-                      <label style={{ fontSize: 12, flex: 1, minWidth: 140 }}>
-                        {copy.schemeExpose}
-                        <Select
-                          value={editing.exposeSpawnMetadata ? 'expose' : 'generic'}
-                          disabled={saving}
-                          onChange={(event) =>
-                            patchEditing({
-                              exposeSpawnMetadata: event.target.value === 'expose',
-                            })
-                          }
-                        >
-                          <option value="generic">{copy.schemeGeneric}</option>
-                          <option value="expose">{copy.schemeExpose}</option>
-                        </Select>
-                      </label>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
-                        {copy.schemeMaxConcurrency}
-                        <TextInput
-                          type="number"
-                          min={1}
-                          value={String(editing.maxConcurrency ?? 4)}
-                          disabled={saving}
-                          onChange={(event) =>
-                            patchEditing({
-                              maxConcurrency: Math.max(1, Number(event.target.value) || 1),
-                            })
-                          }
-                        />
-                      </label>
-                      <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
-                        {copy.schemeMaxTasks}
-                        <TextInput
-                          type="number"
-                          min={1}
-                          value={String(editing.maxTasksPerRun ?? 8)}
-                          disabled={saving}
-                          onChange={(event) =>
-                            patchEditing({
-                              maxTasksPerRun: Math.max(1, Number(event.target.value) || 1),
-                            })
-                          }
-                        />
-                      </label>
-                      <label style={{ fontSize: 12, flex: 1, minWidth: 120 }}>
-                        {copy.schemeMaxThinking}
-                        <Select
-                          value={editing.maxSubagentThinkingLevel ?? ''}
-                          disabled={saving}
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            setEditing((prev) => {
-                              if (!prev) return prev;
-                              const next: OrchestrationSchemeSettings = { ...prev };
-                              if (value) next.maxSubagentThinkingLevel = value as ThinkingLevel;
-                              else delete next.maxSubagentThinkingLevel;
-                              return next;
-                            });
-                          }}
-                        >
-                          <option value="">{copy.schemeMaxThinkingInherit}</option>
-                          {THINKING_LEVELS.map((level) => (
-                            <option key={level} value={level}>
-                              {level}
-                            </option>
-                          ))}
-                        </Select>
-                      </label>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                      <Button variant="ghost" disabled={saving} onClick={cancelEdit}>
-                        {copy.schemeCancel}
-                      </Button>
-                      <Button
-                        variant="primary"
-                        disabled={saving}
-                        data-testid={`orchestration-scheme-save-${editing.id}`}
-                        onClick={() => void saveEditing()}
-                      >
-                        {saving ? '…' : copy.schemeSave}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : isExpanded ? (
-                <pre
-                  className="muted"
-                  style={{
-                    marginTop: 10,
-                    fontSize: 11,
-                    whiteSpace: 'pre-wrap',
-                    maxHeight: 160,
-                    overflow: 'auto',
-                  }}
-                >
-                  {scheme.systemPreamble}
-                </pre>
-              ) : (
-                <button
-                  type="button"
-                  className="muted"
-                  style={{
-                    marginTop: 8,
-                    border: 0,
-                    background: 'transparent',
-                    padding: 0,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    textDecoration: 'underline',
-                  }}
-                  onClick={() => setExpandedId(scheme.id)}
-                >
-                  {copy.schemeDiscipline}…
-                </button>
-              )}
+              {isEditingThis && editing ? renderEditorForm(editing) : null}
             </div>
           );
         })}

@@ -537,3 +537,9 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   .piwin-list-row { transition: none; }
 }
+.deferred-surface-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 120px;
+}

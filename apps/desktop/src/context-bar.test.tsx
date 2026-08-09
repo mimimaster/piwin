@@ -136,6 +136,29 @@ describe('ContextBar', () => {
     expect(container.querySelectorAll('[role="status"]')).toHaveLength(1);
   });
 
+  it('renders the persistent session-tree control beside the session title', () => {
+    renderContextBar(
+      createBaseProps({
+        runState: createIdleRunStatus(),
+        sessionTreeControl: (
+          <button type="button" data-testid="context-session-tree-control">
+            Session tree
+          </button>
+        ),
+      }),
+      root,
+    );
+
+    const identity = container.querySelector('.context-bar-identity');
+    const title = identity?.querySelector('.context-bar-title');
+    const treeControl = identity?.querySelector('[data-testid="context-session-tree-control"]');
+    expect(title?.textContent).toBe('Session Alpha');
+    expect(treeControl?.textContent).toBe('Session tree');
+    expect(title?.nextElementSibling?.classList.contains('context-bar-session-tree-slot')).toBe(
+      true,
+    );
+  });
+
   it('formats elapsed time over one minute as "1m 15s"', () => {
     renderContextBar(
       createBaseProps({ runState: { ...createWorkingRunStatus(), elapsedMs: 75_000 } }),
@@ -152,7 +175,7 @@ describe('ContextBar', () => {
     const statusRegions = container.querySelectorAll('[data-testid="run-status-strip"]');
     expect(statusRegions).toHaveLength(1);
     expect(statusRegions[0]?.getAttribute('data-kind')).toBe('working');
-    expect(container.textContent).toContain('Running read_file');
+    expect(container.textContent).toContain('Working…');
     expect(container.textContent).toContain('12s');
 
     const stopButton = container.querySelector<HTMLButtonElement>(

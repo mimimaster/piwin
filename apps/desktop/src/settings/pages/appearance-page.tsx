@@ -2,7 +2,6 @@
 import type { ReactElement } from 'react';
 import { Button, ColorInput, Select, SegmentedControl, Switch } from '@piwin/ui-kit';
 import { buildAppearanceTheme, resolveSystemThemeMode } from '../../appearance-tokens';
-import { ThemePanel } from '../../ThemePanel';
 import { getDesktopCopy, type DesktopCopy } from '../../desktop-locale';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import {
@@ -169,8 +168,7 @@ function ThemeSettingsCard(props: {
 export function AppearancePage(): ReactElement {
   const { locale } = useDesktopLocale();
   const copy = getDesktopCopy(locale).appearance;
-  const { preferences, onPreferencesChange, requestTheme, onThemeApplied, activeTheme } =
-    useSettings();
+  const { preferences, onPreferencesChange, onThemeApplied, activeTheme } = useSettings();
 
   function handleAppearanceModeChange(mode: AppearanceMode): void {
     const nextPreferences = { ...preferences, appearanceMode: mode };
@@ -391,10 +389,6 @@ export function AppearancePage(): ReactElement {
         </div>
       </div>
 
-      <div className="settings-section settings-section-card">
-        <PageTitle title={copy.uiThemes} description={copy.uiThemesDescription} />
-        <ThemePanel request={requestTheme} onApplied={onThemeApplied} variant="inline" />
-      </div>
     </div>
   );
 }

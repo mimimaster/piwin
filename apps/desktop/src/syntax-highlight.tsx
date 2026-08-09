@@ -8,11 +8,19 @@
  * - Two themes: `github-dark` for dark mode, `github-light` for light mode.
  *   Theme is read from `document.documentElement.dataset.themeMode` so it
  *   tracks the active desktop appearance without extra React context.
- * - `useHighlight` returns `null` until tokens are ready, so callers render
- *   plain text as a fallback (no layout shift).
+ * - `useHighlight` returns `null` until the first tokens are ready (plain-text
+ *   fallback). Theme switches keep the previous tokens painted until the new
+ *   highlight resolves, avoiding a plain-text flash / reflow.
  */
-import { createElement, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { createHighlighter, type Highlighter, type ThemedToken } from 'shiki';
+import {
+  createElement,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
+import type { Highlighter, ThemedToken } from 'shiki';
 
 const DARK_THEME = 'github-dark' as const;
 const LIGHT_THEME = 'github-light' as const;
@@ -92,10 +100,15 @@ export function useShikiTheme(): typeof DARK_THEME | typeof LIGHT_THEME {
 
 function getHighlighter(): Promise<Highlighter> {
   if (!highlighterPromise) {
-    highlighterPromise = createHighlighter({
-      themes: [DARK_THEME, LIGHT_THEME],
-      langs: [...PRELOAD_LANGS],
-    });
+    // Module loading is part of the lazy boundary too. A static createHighlighter
+    // import makes WebKit parse Shiki, TextMate, and language loaders even when
+    // every visible code block is still streaming or plain text.
+    highlighterPromise = import('shiki').then(({ createHighlighter }) =>
+      createHighlighter({
+        themes: [DARK_THEME, LIGHT_THEME],
+        langs: [...PRELOAD_LANGS],
+      }),
+    );
   }
   return highlighterPromise;
 }
@@ -159,18 +172,30 @@ function isTestEnv(): boolean {
   return (typeof process !== 'undefined' && process.env && process.env.VITEST === 'true') || false;
 }
 
-export function useHighlight(code: string, lang: string): TokenLine[] | null {
+export function useHighlight(code: string, lang: string, enabled = true): TokenLine[] | null {
   const [tokens, setTokens] = useState<TokenLine[] | null>(null);
   const theme = useShikiTheme();
+  const sourceIdentityRef = useRef<string | null>(enabled ? `${lang}::${code}` : null);
 
   useEffect(() => {
+    if (!enabled) {
+      sourceIdentityRef.current = null;
+      setTokens((currentTokens) => (currentTokens === null ? currentTokens : null));
+      return;
+    }
     if (isTestEnv()) {
       // Skip async shiki in unit tests to avoid post-teardown render races.
       // Consumers render the plain-text fallback.
       return;
     }
     let cancelled = false;
-    setTokens(null);
+    const nextIdentity = `${lang}::${code}`;
+    // Drop stale tokens only when source identity changes. Theme flips keep
+    // the previous highlight painted so code blocks do not flash/reflow.
+    if (sourceIdentityRef.current !== nextIdentity) {
+      sourceIdentityRef.current = nextIdentity;
+      setTokens(null);
+    }
     void highlightCode(code, lang)
       .then((result) => {
         if (!cancelled && isDomAlive()) setTokens(result);
@@ -181,9 +206,9 @@ export function useHighlight(code: string, lang: string): TokenLine[] | null {
     return () => {
       cancelled = true;
     };
-  }, [code, lang, theme]);
+  }, [code, enabled, lang, theme]);
 
-  return tokens;
+  return enabled ? tokens : null;
 }
 
 /**
@@ -195,13 +220,19 @@ export function useHighlight(code: string, lang: string): TokenLine[] | null {
 export function useHighlightLines(lines: string[], lang: string): Map<number, TokenLine> | null {
   const [result, setResult] = useState<Map<number, TokenLine> | null>(null);
   const theme = useShikiTheme();
+  const sourceIdentityRef = useRef(`${lang}::${lines.join('\n')}`);
 
   useEffect(() => {
     if (isTestEnv()) {
       return;
     }
     let cancelled = false;
-    setResult(null);
+    const nextIdentity = `${lang}::${lines.join('\n')}`;
+    // Keep previous line tokens across theme flips; clear only on source change.
+    if (sourceIdentityRef.current !== nextIdentity) {
+      sourceIdentityRef.current = nextIdentity;
+      setResult(null);
+    }
     void Promise.all(lines.map((line) => highlightLine(line, lang)))
       .then((tokenLines) => {
         if (cancelled || !isDomAlive()) return;

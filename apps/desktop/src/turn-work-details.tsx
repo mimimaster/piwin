@@ -15,7 +15,7 @@ import { TurnToolGroup } from './turn-tool-group';
 import { IconChevronRight, IconBrain } from './shell-icons';
 import { AgentLocator, SkillActivityChip } from './agent-locator.js';
 import { turnPresentationToActivityInput } from './run-activity-mappers.js';
-import { ActivitySvgIcon } from './RunActivitySvgIcons.js';
+import { RadialBellow } from '@piwin/ui-kit';
 import type { DiffCardRequest } from './diff-card';
 import type { AgentLocatorAnimation } from './ui-preferences.js';
 import { runtimeStatusText } from './run-activity-strings.js';
@@ -146,7 +146,17 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
             onClick={() => setThinkingOpen((previous) => !previous)}
           >
             {presentation.isActive && !presentation.answerStarted ? (
-              <ActivitySvgIcon kind="working" className="turn-summary-active-icon" />
+              <span
+                className="turn-summary-active-animation"
+                data-testid="turn-summary-active-animation"
+                aria-hidden="true"
+              >
+                <RadialBellow
+                  size="sm"
+                  label={locale === 'zh-CN' ? '代理思考中' : 'Agent is thinking'}
+                  testId="turn-summary-radial-bellow"
+                />
+              </span>
             ) : (
               <IconBrain className="turn-summary-brain-icon" />
             )}
@@ -168,16 +178,18 @@ export function TurnWorkDetails(props: TurnWorkDetailsProps): ReactElement | nul
             </span>
           </button>
 
-          <div className="turn-work-details-body" hidden={!thinkingOpen}>
-            <div
-              className={`turn-thinking${thinkingIsStreaming ? ' is-streaming' : ''}`}
-              data-testid="turn-thinking"
-            >
-              <pre className={thinkingIsStreaming ? 'turn-shimmer-text' : undefined}>
-                {thinkingItem.text}
-              </pre>
+          {thinkingOpen ? (
+            <div className="turn-work-details-body">
+              <div
+                className={`turn-thinking${thinkingIsStreaming ? ' is-streaming' : ''}`}
+                data-testid="turn-thinking"
+              >
+                <pre className={thinkingIsStreaming ? 'turn-shimmer-text' : undefined}>
+                  {thinkingItem.text}
+                </pre>
+              </div>
             </div>
-          </div>
+          ) : null}
         </>
       ) : null}
 

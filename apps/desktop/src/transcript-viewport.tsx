@@ -1,31 +1,38 @@
 /**
- * Scrollable transcript container with jump-to-latest affordance.
- * Quiet workbench: no right-edge message mini-nav rail (outline deferred).
+ * Transcript shell + scrollport with jump-to-latest and floating chrome.
  *
- * Architecture: `.transcript-viewport` is the scroll container (overflow-y).
- * `.chat-stream` inside it is a plain block — no overflow of its own — so its
- * padding/centering matches `.composer-dock` exactly (same available width,
- * no scrollbar gutter interference).
+ * Architecture (single source of truth):
+ * - `.transcript-viewport` is a non-scrolling relative shell.
+ * - `.chat-stream` is the only overflow-y scroll container (native scrollbar
+ *   hidden) so its content width matches `.composer-dock` with no gutter.
+ * - History ticks + floating scrollbar are absolute children of the shell,
+ *   never of the scrollport, so they stay pinned while content scrolls.
+ * - Bottom fade mask lives on `.chat-stream` only — never on chrome.
  *
- * The floating scrollbar is positioned absolutely inside `.transcript-viewport`
- * and doesn't scroll with content because it is a sibling of `.chat-stream`,
- * not a child. Since `.transcript-viewport` itself is the scroll container,
- * `position: absolute` children are positioned relative to the viewport's
- * border box and stay fixed while content scrolls.
- *
- * IMPORTANT: The scroll ref must point to `.transcript-viewport` (the actual
- * overflow container), not `.chat-stream`.
+ * Scroll metrics come from `useTranscriptScroll` (ResizeObserver + activity),
+ * not mount/unmount of the floating track.
  */
 import type { ReactElement, ReactNode } from 'react';
-import { useCallback, useRef } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
+import { Button } from '@piwin/ui-kit';
 import type { ChatMessageUi } from './chat-reducer';
-import { useTranscriptScroll } from './use-transcript-scroll';
+import { isNearBottom, useTranscriptScroll } from './use-transcript-scroll';
 import { HistoryTicksDrawer } from './history-ticks-drawer';
+import { TranscriptScrollProvider } from './transcript-scroll-port';
+import {
+  readTranscriptScrollPosition,
+  rememberTranscriptScrollPosition,
+} from './transcript-scroll-memory';
 
 export type TranscriptViewportProps = {
   messageCount: number;
   activitySignal: string;
   messages?: ChatMessageUi[];
+  sessionId?: string;
+  canLoadOlder?: boolean;
+  historyLoading?: boolean;
+  historyCacheLimitReached?: boolean;
+  onLoadOlder?: () => Promise<void>;
   children: ReactNode;
 };
 
@@ -38,16 +45,34 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
   const trackRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
 
+  useLayoutEffect(() => {
+    const sessionId = props.sessionId;
+    if (!sessionId) {
+      return;
+    }
+    const rememberedPosition = readTranscriptScrollPosition(sessionId);
+    if (rememberedPosition) {
+      scroll.restorePosition(rememberedPosition);
+    }
+    const scrollElementRef = scroll.containerRef;
+    return () => {
+      const element = scrollElementRef.current;
+      if (!element) {
+        return;
+      }
+      rememberTranscriptScrollPosition(sessionId, {
+        scrollTop: element.scrollTop,
+        followTail: isNearBottom(element),
+      });
+    };
+  }, [props.sessionId, scroll.containerRef, scroll.restorePosition]);
+
   // Floating scrollbar geometry: thumb height = ratio * track height,
   // thumb top = progress * (track height - thumb height).
   const thumbHeightPct = Math.max(8, scroll.scrollRatio * 100);
-  // `top` percentage is relative to the containing block (the track), so
-  // this correctly positions the thumb within the full track height.
   const thumbTopPct = scroll.scrollProgress * (100 - thumbHeightPct);
-  const showFloatingScrollbar = scroll.scrollRatio < 1;
 
-  /** Given a Y coordinate within the track, scroll the viewport to the
-   *  corresponding position. */
+  /** Given a Y coordinate within the track, scroll the stream to that position. */
   const scrollToTrackY = useCallback(
     (clientY: number) => {
       const track = trackRef.current;
@@ -62,7 +87,6 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     [scroll.containerRef],
   );
 
-  /** Click on the track (not thumb): jump to that position. */
   const handleTrackMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       if (event.target !== trackRef.current) return;
@@ -72,7 +96,6 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     [scrollToTrackY],
   );
 
-  /** Mousedown on thumb: start drag. */
   const handleThumbMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -95,40 +118,80 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
     [scrollToTrackY],
   );
 
+  const handleLoadOlder = useCallback(async (): Promise<void> => {
+    const container = scroll.containerRef.current;
+    if (!container || !props.onLoadOlder || props.historyLoading) return;
+    const previousScrollHeight = container.scrollHeight;
+    const previousScrollTop = container.scrollTop;
+    await props.onLoadOlder();
+    window.requestAnimationFrame(() => {
+      const current = scroll.containerRef.current;
+      if (!current) return;
+      current.scrollTop =
+        previousScrollTop + Math.max(0, current.scrollHeight - previousScrollHeight);
+    });
+  }, [props.historyLoading, props.onLoadOlder, scroll.containerRef]);
+
   return (
-    <div
-      className="transcript-viewport"
-      ref={scroll.containerRef}
-      onScroll={() => {
-        scroll.handleScroll();
-      }}
+    <TranscriptScrollProvider
+      sessionId={props.sessionId ?? null}
+      scrollElementRef={scroll.containerRef}
     >
-      <HistoryTicksDrawer messages={props.messages} />
-      <div
-        className="chat-stream"
-        data-testid="chat-stream"
-        role="log"
-        aria-label="Conversation"
-        aria-relevant="additions"
-        aria-live="off"
-        aria-busy={props.activitySignal.includes('streaming')}
-      >
-        {props.children}
-        {scroll.showJumpToLatest ? (
-          <button
-            type="button"
-            className="jump-to-latest-btn"
-            data-testid="jump-to-latest-btn"
-            onClick={scroll.jumpToLatest}
-            aria-label="Jump to latest"
-          >
-            Jump to latest
-          </button>
-        ) : null}
-      </div>
-      {showFloatingScrollbar ? (
+      <div className="transcript-viewport">
+        <HistoryTicksDrawer messages={props.messages} />
         <div
-          className="chat-stream-floating-scrollbar"
+          className="chat-stream"
+          data-testid="chat-stream"
+          ref={scroll.containerRef}
+          onScroll={scroll.handleScroll}
+          role="log"
+          aria-label="Conversation"
+          aria-relevant="additions"
+          aria-live="off"
+          aria-busy={props.activitySignal.includes('streaming')}
+        >
+          {props.canLoadOlder || props.historyCacheLimitReached ? (
+            <div
+              className="transcript-history-page-control"
+              data-testid="transcript-history-page-control"
+            >
+              {props.canLoadOlder ? (
+                <Button
+                  size="compact"
+                  variant="ghost"
+                  disabled={props.historyLoading === true}
+                  data-testid="transcript-load-older"
+                  onClick={() => void handleLoadOlder()}
+                >
+                  {props.historyLoading ? 'Loading earlier messages…' : 'Load earlier messages'}
+                </Button>
+              ) : (
+                <span className="muted" data-testid="transcript-cache-limit">
+                  History window limit reached — export the session for the complete transcript.
+                </span>
+              )}
+            </div>
+          ) : null}
+          {props.children}
+          {scroll.showJumpToLatest ? (
+            <button
+              type="button"
+              className="jump-to-latest-btn"
+              data-testid="jump-to-latest-btn"
+              onClick={scroll.jumpToLatest}
+              aria-label="Jump to latest"
+            >
+              Jump to latest
+            </button>
+          ) : null}
+        </div>
+        {/* Always mounted: visibility via isOverflowing avoids mount thrash. */}
+        <div
+          className={
+            scroll.isOverflowing
+              ? 'chat-stream-floating-scrollbar is-visible'
+              : 'chat-stream-floating-scrollbar'
+          }
           data-testid="chat-stream-floating-scrollbar"
           aria-hidden="true"
           ref={trackRef}
@@ -143,7 +206,7 @@ export function TranscriptViewport(props: TranscriptViewportProps): ReactElement
             onMouseDown={handleThumbMouseDown}
           />
         </div>
-      ) : null}
-    </div>
+      </div>
+    </TranscriptScrollProvider>
   );
 }

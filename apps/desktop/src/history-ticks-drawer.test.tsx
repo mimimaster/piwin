@@ -6,6 +6,8 @@ import {
   HistoryTicksDrawer,
   formatFullTimestamp,
   getHistoryTickWaveScale,
+  resolveCollapsedTickIndex,
+  scrollTranscriptToMessage,
   truncateMessageText,
 } from './history-ticks-drawer';
 import type { ChatMessageUi } from './chat-reducer';
@@ -52,6 +54,37 @@ describe('history-ticks-drawer helpers', () => {
     expect(firstStep).toBeCloseTo(secondStep);
     expect(secondStep).toBeCloseTo(thirdStep);
     expect(thirdStep).toBeCloseTo(fourthStep);
+  });
+
+  it('maps rail pointer Y to the nearest tick index, including gaps', () => {
+    // padding-top 8 + tick 0 center 0.5 → clientY ≈ railTop + 8.5
+    expect(
+      resolveCollapsedTickIndex({
+        clientY: 108.5,
+        railTop: 100,
+        railScrollTop: 0,
+        tickCount: 3,
+      }),
+    ).toBe(0);
+
+    // Midway into the 10px gap toward tick 1 (step = 11).
+    expect(
+      resolveCollapsedTickIndex({
+        clientY: 100 + 8 + 0.5 + 11 * 0.6,
+        railTop: 100,
+        railScrollTop: 0,
+        tickCount: 3,
+      }),
+    ).toBe(1);
+
+    expect(
+      resolveCollapsedTickIndex({
+        clientY: 0,
+        railTop: 100,
+        railScrollTop: 0,
+        tickCount: 0,
+      }),
+    ).toBeNull();
   });
 });
 
@@ -172,8 +205,8 @@ describe('HistoryTicksDrawer component', () => {
     expect(bubble).not.toBeNull();
     expect(bubble?.parentElement).toBe(document.body);
     expect(container?.contains(bubble)).toBe(false);
-    // left = rail.left(8) + wave max(36) + gap(8) = 52 — tight to the tick tip.
-    expect((bubble as HTMLElement).style.left).toBe('52px');
+    // left = rail.left(8) + wave max(30) + gap(8) = 46 — tight to the tick tip.
+    expect((bubble as HTMLElement).style.left).toBe('46px');
     expect(bubble?.querySelector('.history-bubble-text')?.textContent).toBe(
       '内置的浏览器有优化的方案吗',
     );
@@ -359,6 +392,96 @@ describe('HistoryTicksDrawer component', () => {
     });
     expect(container?.querySelector('[data-testid="history-drawer-panel"]')).toBeNull();
     document.body.removeChild(targetElement);
+  });
+
+  it('jumps when the rail is clicked in the gap between ticks', () => {
+    const targetElement = document.createElement('div');
+    targetElement.id = 'msg-msg-user-2';
+    targetElement.scrollIntoView = vi.fn();
+    document.body.appendChild(targetElement);
+
+    act(() => {
+      root?.render(<HistoryTicksDrawer messages={sampleMessages} />);
+    });
+
+    const rail = container?.querySelector('[data-testid="history-drawer-handle"]');
+    expect(rail).not.toBeNull();
+
+    if (rail instanceof HTMLElement) {
+      vi.spyOn(rail, 'getBoundingClientRect').mockReturnValue({
+        top: 0,
+        left: 8,
+        right: 50,
+        bottom: 100,
+        width: 42,
+        height: 100,
+        x: 8,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect);
+    }
+
+    act(() => {
+      // clientY near the second tick center (padding 8 + step 11 → ~19.5).
+      rail?.dispatchEvent(
+        new window.MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          clientY: 19.5,
+        }),
+      );
+    });
+
+    expect(targetElement.scrollIntoView).toHaveBeenCalledWith({
+      behavior: 'smooth',
+      block: 'center',
+    });
+    document.body.removeChild(targetElement);
+  });
+
+  it('scrolls the chat-stream container when jumping to a message anchor', () => {
+    const stream = document.createElement('div');
+    stream.className = 'chat-stream';
+    Object.defineProperty(stream, 'scrollTop', { value: 0, writable: true });
+    stream.scrollTo = vi.fn();
+    stream.getBoundingClientRect = () =>
+      ({
+        top: 0,
+        left: 0,
+        right: 400,
+        bottom: 400,
+        width: 400,
+        height: 400,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    const targetElement = document.createElement('div');
+    targetElement.id = 'msg-msg-user-1';
+    targetElement.getBoundingClientRect = () =>
+      ({
+        top: 800,
+        left: 0,
+        right: 100,
+        bottom: 900,
+        width: 100,
+        height: 100,
+        x: 0,
+        y: 800,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    stream.appendChild(targetElement);
+    document.body.appendChild(stream);
+
+    expect(scrollTranscriptToMessage('msg-user-1')).toBe(true);
+    expect(stream.scrollTo).toHaveBeenCalledWith({
+      top: 650,
+      behavior: 'smooth',
+    });
+    expect(targetElement.classList.contains('highlight-target')).toBe(true);
+
+    document.body.removeChild(stream);
   });
 
   it('jumps directly to the historical message with keyboard activation', () => {

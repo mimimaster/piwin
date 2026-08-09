@@ -37,6 +37,8 @@ export function AddModelDialog({
   const [maxOutputTokens, setMaxOutputTokens] = useState('');
   const [supportsImage, setSupportsImage] = useState(false);
   const [imageGeneration, setImageGeneration] = useState(false);
+  const [speechToText, setSpeechToText] = useState(false);
+  const [textToSpeech, setTextToSpeech] = useState(false);
   const [imageGenTimeout, setImageGenTimeout] = useState('180');
   const [reasoning, setReasoning] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +61,8 @@ export function AddModelDialog({
     setMaxOutputTokens('');
     setSupportsImage(false);
     setImageGeneration(false);
+    setSpeechToText(false);
+    setTextToSpeech(false);
     setImageGenTimeout('180');
     setReasoning(true);
     setError(null);
@@ -196,6 +200,12 @@ export function AddModelDialog({
     const capabilities: import('@piwin/contracts').ModelCapability[] = [];
     if (imageGeneration) {
       capabilities.push('image-generation');
+    }
+    if (speechToText) {
+      capabilities.push('speech-to-text');
+    }
+    if (textToSpeech) {
+      capabilities.push('text-to-speech');
     }
     const timeoutSeconds = Number(imageGenTimeout.trim());
     const hasValidTimeout =
@@ -378,6 +388,24 @@ export function AddModelDialog({
               data-testid="add-model-image-generation"
             />
             {isChinese ? '生图能力（Image Generation）' : 'Image generation'}
+          </label>
+          <label className="add-model-flag">
+            <input
+              type="checkbox"
+              checked={speechToText}
+              onChange={(event) => setSpeechToText(event.currentTarget.checked)}
+              data-testid="add-model-speech-to-text"
+            />
+            {isChinese ? '语音识别（ASR）' : 'Speech recognition (ASR)'}
+          </label>
+          <label className="add-model-flag">
+            <input
+              type="checkbox"
+              checked={textToSpeech}
+              onChange={(event) => setTextToSpeech(event.currentTarget.checked)}
+              data-testid="add-model-text-to-speech"
+            />
+            {isChinese ? '语音合成（TTS）' : 'Speech synthesis (TTS)'}
           </label>
           <label className="add-model-flag">
             <input

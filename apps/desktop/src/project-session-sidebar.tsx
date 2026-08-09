@@ -2,12 +2,19 @@
  * Left project/session rail: brand, repositories, agent list, host status footer.
  * Handlers stay in App — this component is presentation + local open menu state only.
  */
-import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
-import type { HostStatusData, ProjectRecord } from '@piwin/contracts';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import type {
+  HostStatusData,
+  ProjectRecord,
+  SessionListOrder,
+  SessionScope,
+} from '@piwin/contracts';
 import type { SessionListItemUi } from './chat-reducer';
 import type { SessionTimeGroup } from './session-groups';
 import {
   Button,
+  ContextMenu,
+  ContextMenuItem,
   DropdownMenu,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -19,7 +26,6 @@ import {
 } from '@piwin/ui-kit';
 import { projectDisplayName } from './project-display-name';
 import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
-import { ProjectPickerDialog } from './project-picker-dialog';
 import {
   IconArchive,
   IconBook,
@@ -43,6 +49,21 @@ import {
   IconUnarchive,
 } from './shell-icons';
 import { getDesktopCopy, type DesktopCopy, type DesktopLocale } from './desktop-locale';
+import {
+  GENERAL_SESSION_PAGE_SIZE,
+  PROJECT_SESSION_PAGE_SIZE,
+  selectSessionSidebarPage,
+} from './session-sidebar-page';
+import {
+  SESSION_LIST_WINDOW_MAX_PAGES,
+  getSessionListWindow,
+  getSessionListWindowBounds,
+  sessionScopeKey,
+  type SessionListWindowsState,
+} from './session-list-page-state';
+import { SessionListLazyBoundary } from './session-list-lazy-boundary';
+
+const SESSION_LIST_PREVIEW_SIZE = 6;
 
 function formatRelativeTime(dateString?: string): string {
   if (!dateString) return '';
@@ -85,8 +106,6 @@ function sortByPinnedThenUpdated(list: SessionListItemUi[]): SessionListItemUi[]
   return sorted;
 }
 
-const VISIBLE_PROJECT_LIMIT = 6;
-
 export type ProjectSessionSidebarProps = {
   projectPath: string | null;
   projectTrusted: boolean;
@@ -106,6 +125,17 @@ export type ProjectSessionSidebarProps = {
    *  Independent from `filteredSessions` (the active scope's list) so any
    *  number of project folders can stay open with their own conversations. */
   projectSessionsByPath?: Record<string, SessionListItemUi[]>;
+  /** Current bounded Host-page window per hydrated scope. */
+  sessionListWindows?: SessionListWindowsState<SessionListItemUi>;
+  sessionListOrder?: SessionListOrder;
+  onSessionListOrderChange?: (order: SessionListOrder) => void;
+  onSessionPageChange?: (
+    scope: SessionScope,
+    cursor: string,
+    direction: 'previous' | 'next',
+  ) => void | Promise<void>;
+  /** Reload the first Host page after an expanded lazy list is collapsed. */
+  onSessionWindowReset?: (scope: SessionScope) => void | Promise<void>;
   sessionGroups: SessionTimeGroup<SessionListItemUi>[];
   activeSessionId: string | null;
   sessionSearch: string;
@@ -115,6 +145,7 @@ export type ProjectSessionSidebarProps = {
   settingsOpen: boolean;
   onOpenWorkspace: () => void;
   onOpenProject: (path: string) => void;
+  onRemoveProject: (path: string) => void;
   onNewSession: (options?: {
     scope?: { kind: 'general' } | { kind: 'project'; projectPath: string };
   }) => void;
@@ -383,16 +414,23 @@ function SessionRowItem({
 export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactElement {
   const copy = getDesktopCopy(props.locale ?? 'zh-CN');
   const sidebarCopy = copy.sidebar;
-  const [sortBy, setSortBy] = useState<'updated' | 'alphabetical'>('updated');
+  const [localSortBy, setLocalSortBy] = useState<SessionListOrder>('updated');
+  const sortBy = props.sessionListOrder ?? localSortBy;
   const [groupBy, setGroupBy] = useState<'time' | 'none'>('time');
-  const [openProjects, setOpenProjects] = useState<Record<string, boolean>>({});
-  const [showAllProjectSessions, setShowAllProjectSessions] = useState<Record<string, boolean>>({});
-  const [showAllGeneralSessions, setShowAllGeneralSessions] = useState<boolean>(false);
-  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
+  const [expandedProjectSessionLists, setExpandedProjectSessionLists] = useState<
+    Record<string, boolean>
+  >({});
+  const [generalSessionListExpanded, setGeneralSessionListExpanded] = useState(false);
+  const pendingSessionWindowLoads = useRef(new Set<string>());
   const sidebarRef = useRef<HTMLElement>(null);
   const sessionSearchInputRef = useRef<HTMLInputElement>(null);
   const hasActiveSessionSearch = props.sessionSearch.trim().length > 0;
   const [sessionSearchExpanded, setSessionSearchExpanded] = useState(hasActiveSessionSearch);
+  const changeSortBy = (order: SessionListOrder): void => {
+    setLocalSortBy(order);
+    props.onSessionListOrderChange?.(order);
+  };
 
   // Keep the expanded search field open while a query is active.
   useEffect(() => {
@@ -400,6 +438,45 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
       setSessionSearchExpanded(true);
     }
   }, [hasActiveSessionSearch]);
+
+  const loadSessionWindowPage = useCallback(
+    async (
+      scope: SessionScope,
+      cursor: string,
+      direction: 'previous' | 'next',
+    ): Promise<boolean> => {
+      const scopeKey = sessionScopeKey(scope);
+      if (
+        props.onSessionPageChange === undefined ||
+        pendingSessionWindowLoads.current.has(scopeKey)
+      ) {
+        return false;
+      }
+      pendingSessionWindowLoads.current.add(scopeKey);
+      try {
+        await props.onSessionPageChange(scope, cursor, direction);
+        return true;
+      } finally {
+        pendingSessionWindowLoads.current.delete(scopeKey);
+      }
+    },
+    [props.onSessionPageChange],
+  );
+
+  const resetSessionWindow = useCallback(
+    (scope: SessionScope): void => {
+      if (props.onSessionWindowReset === undefined) {
+        return;
+      }
+      void Promise.resolve(props.onSessionWindowReset(scope)).catch((error: unknown) => {
+        console.warn(
+          `[session-list] failed to reset ${sessionScopeKey(scope)} to its first page`,
+          error,
+        );
+      });
+    },
+    [props.onSessionWindowReset],
+  );
 
   useEffect(() => {
     if (!sessionSearchExpanded) {
@@ -476,27 +553,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
     }
     return sortByPinnedThenUpdated(props.generalSessions);
   }, [props.generalSessions, sortBy]);
-
-  const visibleProjects = useMemo(() => {
-    const activeProjectIndex = props.recentProjects.findIndex(
-      (project) => project.path === props.projectPath,
-    );
-    if (activeProjectIndex < 0 || activeProjectIndex < VISIBLE_PROJECT_LIMIT) {
-      return props.recentProjects.slice(0, VISIBLE_PROJECT_LIMIT);
-    }
-
-    const activeProject = props.recentProjects[activeProjectIndex];
-    if (!activeProject) {
-      return props.recentProjects.slice(0, VISIBLE_PROJECT_LIMIT);
-    }
-
-    return [
-      activeProject,
-      ...props.recentProjects.filter((project) => project.path !== activeProject.path),
-    ].slice(0, VISIBLE_PROJECT_LIMIT);
-  }, [props.projectPath, props.recentProjects]);
-
-  const hasMoreProjects = props.recentProjects.length > VISIBLE_PROJECT_LIMIT;
 
   const showResizeHandle =
     !props.isOverlayPresentation && typeof props.onResizePointerDown === 'function';
@@ -699,7 +755,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                   testId="display-options-ordering-menu"
                 >
                   <DropdownMenuItem
-                    onSelect={() => setSortBy('updated')}
+                    onSelect={() => changeSortBy('updated')}
                     testId="display-sort-updated"
                   >
                     <span className="sidebar-display-option-label">{sidebarCopy.lastUpdated}</span>
@@ -712,7 +768,7 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                     )}
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onSelect={() => setSortBy('alphabetical')}
+                    onSelect={() => changeSortBy('alphabetical')}
                     testId="display-sort-alphabetical"
                   >
                     <span className="sidebar-display-option-label">{sidebarCopy.alphabetical}</span>
@@ -814,75 +870,154 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
 
         {/* Project Folders list */}
         <div className="tree-node-list">
-          {visibleProjects.map((project) => {
+          {props.recentProjects.map((project) => {
             const isActiveProject = project.path === props.projectPath;
-            // The active project folder is open by default for display.
-            // Clicking a folder only toggles its expansion and never
-            // switches scope or the active session.
-            const isProjectOpen = openProjects[project.path] ?? isActiveProject;
             const displayName = project.displayName ?? projectDisplayName(project.path);
+            const projectScope: SessionScope = {
+              kind: 'project',
+              projectPath: project.path,
+            };
+            const hostProjectWindow =
+              hasActiveSessionSearch || props.sessionListWindows === undefined
+                ? null
+                : getSessionListWindow(props.sessionListWindows, projectScope);
+            const hostProjectBounds =
+              hostProjectWindow === null ? null : getSessionListWindowBounds(hostProjectWindow);
+            const projectPreviousCursor = hostProjectBounds?.previousCursor;
+            const projectNextCursor = hostProjectBounds?.nextCursor;
+            // Every project remains in the list. When a folder is expanded,
+            // its sessions flow below the project row and push later projects
+            // down naturally; the single folder-tree scrollbar handles the
+            // full list.
             // Each folder shows its own sessions from the per-project map.
             // The active project falls back to the filtered active list so
             // search/archive filters still apply to the open project.
             const projectSessions =
               (isActiveProject
-                ? sortedFilteredSessions
+                ? hostProjectWindow === null
+                  ? sortedFilteredSessions
+                  : props.filteredSessions
                 : props.projectSessionsByPath?.[project.path]) ?? [];
 
-            const activeSessionIndex = projectSessions.findIndex(
-              (s) => s.id === props.activeSessionId,
-            );
-            const hasActiveInHidden = activeSessionIndex >= 6;
-            const isProjectExpanded = showAllProjectSessions[project.path] ?? hasActiveInHidden;
-            const visibleProjectSessions = isProjectExpanded
-              ? projectSessions
-              : projectSessions.slice(0, 6);
+            const isProjectCollapsed = collapsedProjects[project.path] ?? false;
+            const isProjectSessionListExpanded =
+              hasActiveSessionSearch || (expandedProjectSessionLists[project.path] ?? false);
+            const projectSessionTotalCount =
+              hostProjectBounds?.totalCount ?? projectSessions.length;
+            const hasProjectSessionDisclosure =
+              !hasActiveSessionSearch && projectSessionTotalCount > SESSION_LIST_PREVIEW_SIZE;
+            const visibleProjectSessions = isProjectSessionListExpanded
+              ? hostProjectWindow !== null
+                ? projectSessions
+                : selectSessionSidebarPage(
+                    projectSessions,
+                    PROJECT_SESSION_PAGE_SIZE * SESSION_LIST_WINDOW_MAX_PAGES,
+                    null,
+                    props.activeSessionId,
+                  ).items
+              : selectSessionSidebarPage(
+                  projectSessions,
+                  SESSION_LIST_PREVIEW_SIZE,
+                  null,
+                  props.activeSessionId,
+                ).items;
+            const projectScopeKey = sessionScopeKey(projectScope);
+            const toggleProjectCollapsed = (): void => {
+              setCollapsedProjects((previous) => ({
+                ...previous,
+                [project.path]: !(previous[project.path] ?? false),
+              }));
+            };
 
             return (
-              <details key={project.path} className="tree-folder-details" open={isProjectOpen}>
-                <summary
-                  className={
-                    isActiveProject ? 'tree-folder-summary active' : 'tree-folder-summary'
+              <div key={project.path} className="tree-folder-details">
+                <ContextMenu
+                  label={sidebarCopy.projects}
+                  testId="project-context-menu"
+                  content={
+                    <ContextMenuItem
+                      testId="project-remove-from-sidebar"
+                      onSelect={() => props.onRemoveProject(project.path)}
+                    >
+                      <IconTrash width={14} height={14} />
+                      {sidebarCopy.removeProjectFromSidebar}
+                    </ContextMenuItem>
                   }
-                  data-testid="repository-item"
-                  data-project-path={project.path}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    // Folder clicks only toggle expansion; they never switch
-                    // the active session or project scope. Selecting a
-                    // specific conversation is the only way to switch.
-                    setOpenProjects((prev) => ({
-                      ...prev,
-                      [project.path]: !isProjectOpen,
-                    }));
-                  }}
-                  title={project.path}
                 >
-                  <span className="tree-folder-title">
-                    {isProjectOpen ? (
-                      <IconFolderOpen className="tree-folder-icon" />
-                    ) : (
-                      <IconFolder className="tree-folder-icon" />
-                    )}
-                    <span>{displayName}</span>
-                  </span>
-                  <button
-                    type="button"
-                    className="tree-folder-add-btn"
-                    title={sidebarCopy.newConversationInProject(displayName)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      props.onOpenProject(project.path);
-                      props.onNewSession();
-                    }}
+                  <div
+                    className={
+                      isActiveProject ? 'tree-folder-summary active' : 'tree-folder-summary'
+                    }
                   >
-                    <IconPlus width={12} height={12} />
-                  </button>
-                </summary>
+                    {projectSessions.length > 0 ? (
+                      <button
+                        type="button"
+                        className="tree-folder-toggle"
+                        data-testid="project-fold-toggle"
+                        aria-expanded={!isProjectCollapsed}
+                        aria-label={
+                          isProjectCollapsed
+                            ? sidebarCopy.expandProject
+                            : sidebarCopy.collapseProject
+                        }
+                        title={
+                          isProjectCollapsed
+                            ? sidebarCopy.expandProject
+                            : sidebarCopy.collapseProject
+                        }
+                        onClick={toggleProjectCollapsed}
+                      >
+                        {isProjectCollapsed ? (
+                          <IconFolder className="tree-folder-icon" />
+                        ) : (
+                          <IconFolderOpen className="tree-folder-icon" />
+                        )}
+                      </button>
+                    ) : (
+                      <span className="tree-folder-toggle-spacer" aria-hidden />
+                    )}
+                    <button
+                      type="button"
+                      className="tree-folder-main"
+                      data-testid="repository-item"
+                      data-project-path={project.path}
+                      aria-expanded={!isProjectCollapsed}
+                      onClick={toggleProjectCollapsed}
+                      title={project.path}
+                    >
+                      <span className="tree-folder-title">
+                        <span>{displayName}</span>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      className="tree-folder-add-btn"
+                      title={sidebarCopy.newConversationInProject(displayName)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        props.onOpenProject(project.path);
+                        props.onNewSession();
+                      }}
+                    >
+                      <IconPlus width={12} height={12} />
+                    </button>
+                  </div>
+                </ContextMenu>
 
                 {/* Sessions under this project */}
-                {isProjectOpen && projectSessions.length > 0 ? (
+                {!isProjectCollapsed && projectSessions.length > 0 ? (
                   <ul className="tree-session-list">
+                    {isProjectSessionListExpanded && projectPreviousCursor !== undefined ? (
+                      <SessionListLazyBoundary
+                        scopeKey={projectScopeKey}
+                        direction="previous"
+                        cursor={projectPreviousCursor}
+                        loadingLabel={sidebarCopy.loadingSessions}
+                        onLoad={() =>
+                          loadSessionWindowPage(projectScope, projectPreviousCursor, 'previous')
+                        }
+                      />
+                    ) : null}
                     {visibleProjectSessions.map((session) => (
                       <SessionRowItem
                         key={session.id}
@@ -899,57 +1034,83 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         copy={sidebarCopy}
                       />
                     ))}
-                    {projectSessions.length > 6 ? (
-                      <li className="session-row see-all-row">
-                        <button
-                          type="button"
-                          className="sidebar-see-all-btn"
+                    {isProjectSessionListExpanded && projectNextCursor !== undefined ? (
+                      <SessionListLazyBoundary
+                        scopeKey={projectScopeKey}
+                        direction="next"
+                        cursor={projectNextCursor}
+                        loadingLabel={sidebarCopy.loadingSessions}
+                        onLoad={() =>
+                          loadSessionWindowPage(projectScope, projectNextCursor, 'next')
+                        }
+                      />
+                    ) : null}
+                    {hasProjectSessionDisclosure ? (
+                      <li className="session-list-disclosure-row">
+                        <Button
+                          variant="ghost"
+                          size="compact"
+                          className="session-list-disclosure"
                           data-testid="see-all-btn"
-                          onClick={() =>
-                            setShowAllProjectSessions((prev) => ({
-                              ...prev,
-                              [project.path]: !isProjectExpanded,
-                            }))
-                          }
+                          onClick={() => {
+                            setExpandedProjectSessionLists((previous) => ({
+                              ...previous,
+                              [project.path]: !isProjectSessionListExpanded,
+                            }));
+                            if (isProjectSessionListExpanded) {
+                              resetSessionWindow(projectScope);
+                            }
+                          }}
                         >
-                          {isProjectExpanded
+                          {isProjectSessionListExpanded
                             ? sidebarCopy.showLess
-                            : sidebarCopy.seeAll(projectSessions.length)}
-                        </button>
+                            : sidebarCopy.seeAll(projectSessionTotalCount)}
+                        </Button>
                       </li>
                     ) : null}
                   </ul>
                 ) : null}
-              </details>
+              </div>
             );
           })}
         </div>
 
-        {hasMoreProjects ? (
-          <button
-            type="button"
-            className="sidebar-see-all-btn sidebar-projects-see-all-btn"
-            data-testid="view-all-projects-btn"
-            onClick={() => setProjectPickerOpen(true)}
-          >
-            {sidebarCopy.viewAllProjects(props.recentProjects.length)}
-            <IconChevronRight width={13} height={13} aria-hidden />
-          </button>
-        ) : null}
-
         {/* SECTION 2: CONVERSATIONS (General / Non-Project Sessions) */}
         {(() => {
           // General sessions are maintained independently so the Conversations
-          // section stays populated even when a project is active.
-          const generalSessions = sortedGeneralSessions;
-          const activeGeneralIndex = generalSessions.findIndex(
-            (s) => s.id === props.activeSessionId,
-          );
-          const hasGeneralActiveInHidden = activeGeneralIndex >= 6;
-          const isGeneralExpanded = showAllGeneralSessions || hasGeneralActiveInHidden;
-          const visibleGeneralSessions = isGeneralExpanded
-            ? generalSessions
-            : generalSessions.slice(0, 6);
+          // section stays populated even when a project is active. The DOM owns
+          // one small sliding Host-page window, never the complete collection.
+          const generalScope: SessionScope = { kind: 'general' };
+          const hostGeneralWindow =
+            hasActiveSessionSearch || props.sessionListWindows === undefined
+              ? null
+              : getSessionListWindow(props.sessionListWindows, generalScope);
+          const hostGeneralBounds =
+            hostGeneralWindow === null ? null : getSessionListWindowBounds(hostGeneralWindow);
+          const generalPreviousCursor = hostGeneralBounds?.previousCursor;
+          const generalNextCursor = hostGeneralBounds?.nextCursor;
+          const generalSessions =
+            hostGeneralWindow === null ? sortedGeneralSessions : props.generalSessions;
+          const isGeneralSessionListExpanded = hasActiveSessionSearch || generalSessionListExpanded;
+          const generalSessionTotalCount = hostGeneralBounds?.totalCount ?? generalSessions.length;
+          const hasGeneralSessionDisclosure =
+            !hasActiveSessionSearch && generalSessionTotalCount > SESSION_LIST_PREVIEW_SIZE;
+          const visibleGeneralSessions = isGeneralSessionListExpanded
+            ? hostGeneralWindow !== null
+              ? generalSessions
+              : selectSessionSidebarPage(
+                  generalSessions,
+                  GENERAL_SESSION_PAGE_SIZE * SESSION_LIST_WINDOW_MAX_PAGES,
+                  null,
+                  props.activeSessionId,
+                ).items
+            : selectSessionSidebarPage(
+                generalSessions,
+                SESSION_LIST_PREVIEW_SIZE,
+                null,
+                props.activeSessionId,
+              ).items;
+          const generalScopeKey = sessionScopeKey(generalScope);
 
           return (
             <div className="sidebar-conversations-section">
@@ -971,6 +1132,17 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
               <ul className="tree-session-list conversations-list">
                 {generalSessions.length > 0 ? (
                   <>
+                    {isGeneralSessionListExpanded && generalPreviousCursor !== undefined ? (
+                      <SessionListLazyBoundary
+                        scopeKey={generalScopeKey}
+                        direction="previous"
+                        cursor={generalPreviousCursor}
+                        loadingLabel={sidebarCopy.loadingSessions}
+                        onLoad={() =>
+                          loadSessionWindowPage(generalScope, generalPreviousCursor, 'previous')
+                        }
+                      />
+                    ) : null}
                     {visibleGeneralSessions.map((session) => (
                       <SessionRowItem
                         key={session.id}
@@ -986,18 +1158,35 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
                         copy={sidebarCopy}
                       />
                     ))}
-                    {generalSessions.length > 6 ? (
-                      <li className="session-row see-all-row">
-                        <button
-                          type="button"
-                          className="sidebar-see-all-btn"
+                    {isGeneralSessionListExpanded && generalNextCursor !== undefined ? (
+                      <SessionListLazyBoundary
+                        scopeKey={generalScopeKey}
+                        direction="next"
+                        cursor={generalNextCursor}
+                        loadingLabel={sidebarCopy.loadingSessions}
+                        onLoad={() =>
+                          loadSessionWindowPage(generalScope, generalNextCursor, 'next')
+                        }
+                      />
+                    ) : null}
+                    {hasGeneralSessionDisclosure ? (
+                      <li className="session-list-disclosure-row">
+                        <Button
+                          variant="ghost"
+                          size="compact"
+                          className="session-list-disclosure"
                           data-testid="see-all-general-btn"
-                          onClick={() => setShowAllGeneralSessions((prev) => !prev)}
+                          onClick={() => {
+                            setGeneralSessionListExpanded(!isGeneralSessionListExpanded);
+                            if (isGeneralSessionListExpanded) {
+                              resetSessionWindow(generalScope);
+                            }
+                          }}
                         >
-                          {isGeneralExpanded
+                          {isGeneralSessionListExpanded
                             ? sidebarCopy.showLess
-                            : sidebarCopy.seeAll(generalSessions.length)}
-                        </button>
+                            : sidebarCopy.seeAll(generalSessionTotalCount)}
+                        </Button>
                       </li>
                     ) : null}
                   </>
@@ -1047,15 +1236,6 @@ export function ProjectSessionSidebar(props: ProjectSessionSidebarProps): ReactE
           {props.hostMock ? 'mock' : 'live'}
         </span>
       </div>
-
-      <ProjectPickerDialog
-        open={projectPickerOpen}
-        onOpenChange={setProjectPickerOpen}
-        projects={props.recentProjects}
-        activeProjectPath={props.projectPath}
-        onOpenProject={props.onOpenProject}
-        {...(props.locale !== undefined ? { locale: props.locale } : {})}
-      />
     </aside>
   );
 }

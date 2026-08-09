@@ -18,7 +18,7 @@ import type {
 } from '@piwin/contracts';
 import { formatError,  toMediaAttachmentRef } from '@piwin/contracts';
 import type { HostClient } from '../host-client';
-import type { ChatUiAction, ChatUiState } from '../chat-reducer';
+import type { ChatUiAction, ChatUiState, SkillActivityView } from '../chat-reducer';
 import {
   fileToBase64,
   isPendingAttachmentReady,
@@ -32,10 +32,11 @@ import {
   normalizeCompactCustomInstructions,
   parseComposerSlashSubmit,
 } from '../slash';
-import { PIWIN_PATH_MIME } from '../file-tree-panel';
+import { PIWIN_PATH_MIME } from '../workspace-path-drag';
 import { deriveDefaultNameFromMessage } from '@piwin/session/derive-default-name';
 import { isPlaceholderSessionName } from '../title-display';
 import { canUseThinkingLevel } from '../model-thinking-policy';
+import { decideDraftTransition } from '../draft-transition';
 
 export type UseComposerMediaArgs = {
   hostClient: HostClient;
@@ -119,6 +120,12 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
   // null → new id. The effect below would normally save the composer text as
   // draft, but the text is being sent — this flag tells the effect to skip.
   const skipDraftSaveRef = useRef(false);
+  /**
+   * Draft → live session for the *current* draft work (image paste/drop/picker
+   * needs a session id for media/save). Keep the typed text; do not treat this
+   * as "user switched to another session".
+   */
+  const preserveComposerOnSessionActivationRef = useRef(false);
   const prevActiveSessionIdRef = useRef<string | null>(args.state.activeSessionId);
 
   useEffect(() => {
@@ -127,22 +134,40 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
     if (prevId === currentId) return;
     prevActiveSessionIdRef.current = currentId;
 
-    const leavingDraft = prevId === null && currentId !== null;
-    const enteringDraft = prevId !== null && currentId === null;
+    const decision = decideDraftTransition({
+      leavingDraft: prevId === null && currentId !== null,
+      enteringDraft: prevId !== null && currentId === null,
+      skipDraftSave: skipDraftSaveRef.current,
+      preserveComposerOnSessionActivation: preserveComposerOnSessionActivationRef.current,
+    });
 
-    if (leavingDraft) {
-      if (skipDraftSaveRef.current) {
+    switch (decision.kind) {
+      case 'noop':
+        break;
+      case 'skip-draft-save':
         // Session created on send — handleSend already cleared composer and draft.
         skipDraftSaveRef.current = false;
-      } else {
+        preserveComposerOnSessionActivationRef.current = false;
+        break;
+      case 'preserve-composer':
+        // Media attach created a session under the same draft — keep typed text
+        // and pending chips. Clearing here wiped "type then paste image".
+        preserveComposerOnSessionActivationRef.current = false;
+        // Keep a copy so entering draft mode later (clicking "+") can restore
+        // the text that was never sent.
+        draftTextRef.current = composer;
+        break;
+      case 'save-and-clear-composer':
         // User switched to an existing session — save draft, clear composer
         // so the draft text does not leak into the resumed session.
         draftTextRef.current = composer;
         setComposer('');
-      }
-    } else if (enteringDraft) {
-      // User entered draft mode (clicked "+" or switched scope) — restore draft.
-      setComposer(draftTextRef.current);
+        break;
+      case 'restore-draft':
+        // User entered draft mode (clicked "+" or switched scope) — restore draft.
+        preserveComposerOnSessionActivationRef.current = false;
+        setComposer(draftTextRef.current);
+        break;
     }
     // else: switching between two existing sessions — no draft management.
     // composer intentionally omitted from deps; reading it here captures the
@@ -190,10 +215,18 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       args.dispatch({ type: 'error', message: 'Create a session before sending' });
       return null;
     }
-    if (isGeneral) {
-      return args.ensureSession({ scope: { kind: 'general' } });
+    // We only reach this point from draft mode (activeSessionId was null).
+    // Creating the session activates it in the reducer, which normally runs
+    // the draft-exit effect and clears the composer. Media paste/drop/picker
+    // runs under the same draft, so tell the effect to keep the typed text.
+    // handleSend sets skipDraftSaveRef first, so the send path still clears.
+    const sessionId = isGeneral
+      ? await args.ensureSession({ scope: { kind: 'general' } })
+      : await args.ensureSession({ alreadyTrusted: true });
+    if (sessionId) {
+      preserveComposerOnSessionActivationRef.current = true;
     }
-    return args.ensureSession({ alreadyTrusted: true });
+    return sessionId;
   }, [args]);
 
   /**
@@ -705,6 +738,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       text: string;
       attachments?: PromptAttachment[];
       displayText?: string;
+      skill?: SkillActivityView;
     }): string => {
       const clientMessageId = crypto.randomUUID();
       args.dispatch({
@@ -712,6 +746,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         text: params.displayText ?? params.text,
         attachments: params.attachments ?? [],
         clientMessageId,
+        ...(params.skill ? { skill: params.skill } : {}),
       });
       setComposer('');
       clearPendingAttachments();
@@ -876,6 +911,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
       let hostPromptText = text;
       let promptAgentMode: AgentModeId = args.agentMode;
       let promptAttachments: PromptAttachment[] = attachments;
+      let skillActivity: SkillActivityView | undefined;
 
       if (text.startsWith('/') && attachments.length === 0) {
         const skills = (args.menuSkills ?? []).map((skill) => ({
@@ -895,6 +931,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
           // text (skill is not a first-class host field). Naming strips it.
           hostPromptText = applySkillToPrompt(parsed.skillName, parsed.skillId, parsed.args);
           promptAttachments = [];
+          skillActivity = { skillId: parsed.skillId, name: parsed.skillName };
         }
       }
 
@@ -902,6 +939,7 @@ export function useComposerMedia(args: UseComposerMediaArgs) {
         text,
         displayText,
         attachments: promptAttachments,
+        ...(skillActivity ? { skill: skillActivity } : {}),
       });
 
       promptSubmissionInProgress.current = true;

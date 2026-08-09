@@ -31,7 +31,7 @@ export type ArtifactCanvasPanelProps = {
   /** Theme variables for the sandboxed document; remounts on key change. */
   artifactTheme?: ArtifactThemeVariables;
   /** Bumped on theme switch so ArtifactFrame remounts with new tokens. */
-  artifactThemeKey?: string;
+  artifactThemeKey?: string | number;
   /** Security byte cap forwarded to evaluateArtifactDescriptor. */
   artifactMaxBytes?: number;
   /**

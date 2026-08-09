@@ -3,7 +3,7 @@
  * host-request callbacks; renders the SettingsShell. All sections render
  * through the section registry (settings/pages).
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   ModelDiscoveryResult,
   ModelProviderConfig,
@@ -17,7 +17,6 @@ import type { McpPanelProps } from './McpPanel';
 import type { ExtensionsPanelProps } from './ExtensionsPanel';
 import type { PluginsPanelProps } from './PluginsPanel';
 import type { PromptsPanelProps } from './PromptsPanel';
-import type { ThemePanelProps } from './ThemePanel';
 import type { PetPanelProps } from './PetPanel';
 import type { AutomationPanelProps } from './AutomationPanel';
 import { hideUiNotification, showUiNotification } from '@piwin/ui-kit';
@@ -27,6 +26,7 @@ import { type SettingsSectionId } from './settings/section-registry';
 import { webToDraft, draftToWeb, type DraftWeb } from './settings/web-draft';
 import { SettingsShell } from './settings/settings-shell';
 import type { SettingsConfigRequest, SettingsContextValue } from './settings/settings-context';
+import './styles/settings.css';
 
 type SettingsPanelProps = {
   request: SettingsConfigRequest;
@@ -42,7 +42,6 @@ type SettingsPanelProps = {
   requestExtensions: ExtensionsPanelProps['request'];
   requestPlugins: PluginsPanelProps['request'];
   requestPrompts: PromptsPanelProps['request'];
-  requestTheme: ThemePanelProps['request'];
   requestPet: PetPanelProps['request'];
   requestAutomation: AutomationPanelProps['request'];
   requestSubAgent?: import('./SubAgentPanel').SubAgentPanelProps['request'];
@@ -52,7 +51,7 @@ type SettingsPanelProps = {
   subagentChildren?: Record<string, import('@piwin/contracts').SessionSummary>;
   subagentBatches?: Record<string, import('@piwin/contracts').SubagentBatchProjection>;
   onOpenSubagentSession?: (sessionId: string) => void;
-  onThemeApplied: ThemePanelProps['onApplied'];
+  onThemeApplied: (theme: ThemeManifest) => void;
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
   initialSection?: SettingsSectionId;
   hostStatus?: HostStatusData | null;
@@ -62,7 +61,7 @@ type SettingsPanelProps = {
   onSectionChange?: (section: SettingsSectionId) => void;
 };
 
-export function SettingsPanel({
+export const SettingsPanel = memo(function SettingsPanel({
   request,
   hostClient,
   onSaved,
@@ -75,7 +74,6 @@ export function SettingsPanel({
   requestExtensions,
   requestPlugins,
   requestPrompts,
-  requestTheme,
   requestPet,
   requestAutomation,
   requestSubAgent,
@@ -349,7 +347,6 @@ export function SettingsPanel({
       requestExtensions,
       requestPlugins,
       requestPrompts,
-      requestTheme,
       requestPet,
       requestAutomation,
       requestSubAgent,
@@ -389,7 +386,6 @@ export function SettingsPanel({
       requestExtensions,
       requestPlugins,
       requestPrompts,
-      requestTheme,
       requestPet,
       requestAutomation,
       requestSubAgent,
@@ -416,4 +412,4 @@ export function SettingsPanel({
       onClose={onClose}
     />
   );
-}
+});

@@ -2,11 +2,12 @@ import type {
   HostCommand,
   HostMode,
   HostPush,
+  HostPushBatchFrame,
   HostResponse,
   HostServerMessage,
 } from '@piwin/contracts';
 import { formatError } from '@piwin/contracts';
-import { MockHostBackend } from './host-client-mock';
+import type { MockHostBackend } from './host-client-mock';
 
 export type HostClientListener = (message: HostServerMessage) => void;
 
@@ -47,6 +48,7 @@ function getHostRequestTimeoutMs(command: HostCommand): number {
       return HOST_REQUEST_STATUS_TIMEOUT_MS;
     case 'models/discover':
     case 'models/test':
+    case 'speech/transcribe':
     case 'mcp/start':
     case 'mcp/stop':
     case 'skills/install':
@@ -93,22 +95,20 @@ export class HostClient {
   private ready = false;
   private requestCounter = 0;
   private unlistenHostMessage: (() => void) | null = null;
+  private unlistenHostMessageBatch: (() => void) | null = null;
   private unlistenHostLog: (() => void) | null = null;
   private unlistenHostStatus: (() => void) | null = null;
+  /** Stage 1 local egress cursor, scoped to the current host process. */
+  private hostInstanceId: string | null = null;
+  private lastHostSeq = 0;
   /** Prevent Strict Mode/HMR from registering the Tauri event bridge twice. */
   private pendingConnection: Promise<void> | null = null;
-  private readonly mockBackend: MockHostBackend | null;
+  private mockBackend: MockHostBackend | null = null;
+  private pendingMockBackend: Promise<MockHostBackend> | null = null;
 
   constructor(options: HostClientOptions = {}) {
     this.transport = detectTransport(options);
     this.hostMock = options.hostMock !== false;
-    this.mockBackend =
-      this.transport === 'mock'
-        ? new MockHostBackend(
-            (message) => this.emit(message),
-            () => this.mode,
-          )
-        : null;
   }
 
   getTransport(): TransportMode {
@@ -155,6 +155,7 @@ export class HostClient {
 
   private async connectTransport(): Promise<void> {
     if (this.transport === 'mock') {
+      await this.getMockBackend();
       this.ready = true;
       this.emit({
         type: 'host/status',
@@ -171,6 +172,10 @@ export class HostClient {
     if (this.unlistenHostMessage) {
       this.unlistenHostMessage();
       this.unlistenHostMessage = null;
+    }
+    if (this.unlistenHostMessageBatch) {
+      this.unlistenHostMessageBatch();
+      this.unlistenHostMessageBatch = null;
     }
     if (this.unlistenHostLog) {
       this.unlistenHostLog();
@@ -213,6 +218,16 @@ export class HostClient {
         this.mode = event.payload.mode;
       }
     });
+
+    // Rust emits one event for each bounded egress batch. The batch is applied
+    // as one cursor transaction; compatibility subscribers still receive the
+    // contained semantic pushes in canonical order.
+    this.unlistenHostMessageBatch = await listen<HostPushBatchFrame>(
+      'host-message-batch',
+      (event) => {
+        this.emitBatch(event.payload);
+      },
+    );
 
     this.unlistenHostLog = await listen<{ level: string; message: string }>('host-log', (event) => {
       const level = event.payload.level;
@@ -264,6 +279,10 @@ export class HostClient {
       this.unlistenHostMessage();
       this.unlistenHostMessage = null;
     }
+    if (this.unlistenHostMessageBatch) {
+      this.unlistenHostMessageBatch();
+      this.unlistenHostMessageBatch = null;
+    }
     if (this.unlistenHostLog) {
       this.unlistenHostLog();
       this.unlistenHostLog = null;
@@ -292,7 +311,8 @@ export class HostClient {
     const withId = { ...command, id } as HostCommand;
 
     if (this.transport === 'mock') {
-      return this.mockBackend!.handle(withId, id);
+      const mockBackend = await this.getMockBackend();
+      return mockBackend.handle(withId, id);
     }
 
     // Return host errors unchanged. Retrying after a string-matched error can
@@ -319,17 +339,81 @@ export class HostClient {
     }
   }
 
+  private async getMockBackend(): Promise<MockHostBackend> {
+    if (this.mockBackend) {
+      return this.mockBackend;
+    }
+    if (this.pendingMockBackend) {
+      return this.pendingMockBackend;
+    }
+
+    // The deterministic browser backend is large and is never used by the
+    // production Tauri path. Keep it behind the mock transport boundary.
+    const pending = import('./host-client-mock').then(({ MockHostBackend }) => {
+      const backend = new MockHostBackend(
+        (message) => this.emit(message),
+        () => this.mode,
+      );
+      this.mockBackend = backend;
+      return backend;
+    });
+    this.pendingMockBackend = pending;
+    try {
+      return await pending;
+    } finally {
+      if (this.pendingMockBackend === pending) {
+        this.pendingMockBackend = null;
+      }
+    }
+  }
+
   private emit(message: HostPush | HostServerMessage): void {
     for (const listener of this.listeners) {
       listener(message);
     }
   }
 
+  private emitBatch(batch: HostPushBatchFrame): void {
+    if (!isHostPushBatchFrame(batch)) {
+      console.warn('[host] ignoring malformed push batch');
+      return;
+    }
+
+    const hostChanged = this.hostInstanceId !== batch.hostInstanceId;
+    const previousSeq = hostChanged ? 0 : this.lastHostSeq;
+    if (batch.throughSeq < previousSeq) {
+      console.warn('[host] ignoring stale push batch', {
+        hostInstanceId: batch.hostInstanceId,
+        previousSeq,
+        throughSeq: batch.throughSeq,
+      });
+      return;
+    }
+
+    // Advance the cursor only after every contained push has been offered to
+    // subscribers. If a subscriber throws, this transaction remains unacked.
+    for (const item of batch.items) {
+      if (item.seq <= previousSeq) {
+        continue;
+      }
+      if (item.push.type === 'host/status') {
+        this.ready = item.push.ready;
+        this.mode = item.push.mode;
+      }
+      this.emit(item.push);
+    }
+    this.hostInstanceId = batch.hostInstanceId;
+    this.lastHostSeq = batch.throughSeq;
+  }
+
   // --- Browser session commands (ADR 0020 §6) -------------------------------
 
   /** Start the shared browser session (idempotent). */
-  async browserStart(): Promise<HostResponse> {
-    return this.request({ type: 'browser/start' });
+  async browserStart(leaseId?: string): Promise<HostResponse> {
+    return this.request({
+      type: 'browser/start',
+      ...(leaseId !== undefined ? { leaseId } : {}),
+    });
   }
 
   /** Navigate the mirrored browser to `url`. */
@@ -350,9 +434,12 @@ export class HostClient {
     });
   }
 
-  /** Stop the shared browser session and release Chromium. */
-  async browserStop(): Promise<HostResponse> {
-    return this.request({ type: 'browser/stop' });
+  /** Release the Desktop mirror lease and its current Chromium runtime. */
+  async browserStop(leaseId?: string): Promise<HostResponse> {
+    return this.request({
+      type: 'browser/stop',
+      ...(leaseId !== undefined ? { leaseId } : {}),
+    });
   }
 
   // --- Side Chat commands (spec §8) -----------------------------------------
@@ -386,4 +473,51 @@ export class HostClient {
   async sideChatSync(sideChatSessionId: string): Promise<HostResponse> {
     return this.request({ type: 'side-chat/sync', sideChatSessionId });
   }
+}
+
+function isHostPushBatchFrame(value: unknown): value is HostPushBatchFrame {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const record = value as Record<string, unknown>;
+  if (
+    record.type !== 'push/batch' ||
+    typeof record.hostInstanceId !== 'string' ||
+    record.hostInstanceId.length === 0 ||
+    !isSafeSequence(record.afterSeq) ||
+    !isSafeSequence(record.throughSeq) ||
+    record.throughSeq < record.afterSeq ||
+    !Array.isArray(record.items)
+  ) {
+    return false;
+  }
+  let previousSeq = record.afterSeq;
+  for (const item of record.items) {
+    if (typeof item !== 'object' || item === null) {
+      return false;
+    }
+    const itemRecord = item as Record<string, unknown>;
+    const pushRecord =
+      typeof itemRecord.push === 'object' && itemRecord.push !== null
+        ? (itemRecord.push as Record<string, unknown>)
+        : undefined;
+    if (
+      !isSafeSequence(itemRecord.seq) ||
+      itemRecord.seq <= previousSeq ||
+      itemRecord.seq > record.throughSeq ||
+      typeof itemRecord.eventId !== 'string' ||
+      itemRecord.eventId.length === 0 ||
+      pushRecord === undefined ||
+      (pushRecord.seq !== undefined && pushRecord.seq !== itemRecord.seq) ||
+      (pushRecord.eventId !== undefined && pushRecord.eventId !== itemRecord.eventId)
+    ) {
+      return false;
+    }
+    previousSeq = itemRecord.seq;
+  }
+  return true;
+}
+
+function isSafeSequence(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 }

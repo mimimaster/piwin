@@ -189,6 +189,41 @@ export function resolveDesktopAppearance(theme: ThemeManifest): ThemeManifest {
   return theme;
 }
 
+const THEME_SWITCHING_CLASS = 'is-theme-switching';
+const THEME_SWITCH_SETTLE_MS = 64;
+let themeSwitchSettleTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Freeze chrome transitions for one paint cycle around a theme flip.
+ * Without this, dozens of 120–200ms color/box-shadow transitions smear and
+ * make session rows / fonts feel like they are moving.
+ */
+export function beginThemeSwitch(): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const root = document.documentElement;
+  root.classList.add(THEME_SWITCHING_CLASS);
+  // Force style application before token writes in the same turn.
+  void root.offsetHeight;
+  if (themeSwitchSettleTimer !== null) {
+    clearTimeout(themeSwitchSettleTimer);
+  }
+  const releaseThemeSwitch = (): void => {
+    themeSwitchSettleTimer = setTimeout(() => {
+      root.classList.remove(THEME_SWITCHING_CLASS);
+      themeSwitchSettleTimer = null;
+    }, THEME_SWITCH_SETTLE_MS);
+  };
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(releaseThemeSwitch);
+    });
+    return;
+  }
+  releaseThemeSwitch();
+}
+
 /**
  * Apply visual theme tokens to document root.
  * This is the single runtime authority for all color/typography CSS variables.

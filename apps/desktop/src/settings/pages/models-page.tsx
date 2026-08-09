@@ -17,6 +17,7 @@ import { ImageGenerationSettings } from '../../ImageGenerationSettings';
 import { VideoGenerationSettings } from '../../VideoGenerationSettings';
 import { useDesktopLocale } from '../../desktop-locale-context';
 import { useSettings } from '../settings-context';
+import { AsrModelSettings } from '../asr-model-settings.js';
 
 type ModelTab = 'text' | 'image' | 'video';
 
@@ -48,6 +49,13 @@ export function ModelsPage(): ReactElement {
 
   return (
     <div className="settings-models-page" data-testid="settings-models">
+      <AsrModelSettings
+        config={config}
+        saving={saving}
+        onSave={saveConfig}
+        onError={setError}
+        onInfo={setInfo}
+      />
       <Tabs
         value={activeTab}
         onValueChange={(value) => setActiveTab(value as ModelTab)}
@@ -80,11 +88,7 @@ export function ModelsPage(): ReactElement {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent
-          value="text"
-          className="mcp-tab-content"
-          testId="model-config-panel-text"
-        >
+        <TabsContent value="text" className="mcp-tab-content" testId="model-config-panel-text">
           <div className="settings-card settings-card-flush" data-testid="settings-provider-card">
             <ProviderSettings
               config={config}
@@ -104,19 +108,11 @@ export function ModelsPage(): ReactElement {
           </div>
         </TabsContent>
 
-        <TabsContent
-          value="image"
-          className="mcp-tab-content"
-          testId="model-config-panel-image"
-        >
+        <TabsContent value="image" className="mcp-tab-content" testId="model-config-panel-image">
           <ImageGenerationSettings />
         </TabsContent>
 
-        <TabsContent
-          value="video"
-          className="mcp-tab-content"
-          testId="model-config-panel-video"
-        >
+        <TabsContent value="video" className="mcp-tab-content" testId="model-config-panel-video">
           <VideoGenerationSettings />
         </TabsContent>
       </Tabs>

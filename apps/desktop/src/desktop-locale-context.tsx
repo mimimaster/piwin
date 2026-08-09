@@ -1,6 +1,7 @@
 import {
   createContext,
   useContext,
+  useMemo,
   type PropsWithChildren,
   type ReactElement,
 } from 'react';
@@ -35,14 +36,17 @@ export function DesktopLocaleProvider({
   onLocaleChange,
   children,
 }: DesktopLocaleProviderProps): ReactElement {
+  const contextValue = useMemo(
+    () => ({
+      locale,
+      setLocale: onLocaleChange,
+      translator: getDesktopTranslator(locale),
+    }),
+    [locale, onLocaleChange],
+  );
+
   return (
-    <DesktopLocaleContext.Provider
-      value={{
-        locale,
-        setLocale: onLocaleChange,
-        translator: getDesktopTranslator(locale),
-      }}
-    >
+    <DesktopLocaleContext.Provider value={contextValue}>
       {children}
     </DesktopLocaleContext.Provider>
   );

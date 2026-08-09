@@ -9,13 +9,22 @@ import {
   type DragEvent,
   type SetStateAction,
 } from 'react';
-import { formatError } from '@piwin/contracts';
-import { isJobActive, modeToPreset, resolvePreset } from '@piwin/contracts';
+import {
+  formatError,
+  isJobActive,
+  isModelEnabled,
+  isProviderEnabled,
+  modelSupportsCapability,
+  modeToPreset,
+  resolvePreset,
+} from '@piwin/contracts';
 import type {
   PermissionPreset,
   PiwinConfig,
   ProjectRecord,
+  SessionListOrder,
   SessionSearchHit,
+  SessionScope,
   SettingsMutation,
   ThemeManifest,
   WalkthroughArtifact,
@@ -24,7 +33,6 @@ import { listOrchestrationSchemes, ORCHESTRATION_SCHEME_OFF_ID } from '@piwin/co
 import { chatUiReducer, createInitialChatUiState, type SessionListItemUi } from './chat-reducer';
 import { HostClient } from './host-client';
 import { useHostRequestAdapters } from './host-request-adapters';
-import { SettingsPanel } from './SettingsPanel';
 import { NotificationRegion } from './NotificationRegion';
 import { MainErrorBanner } from './main-error-banner';
 import { ProjectSessionSidebar } from './project-session-sidebar';
@@ -33,25 +41,16 @@ import { ChatThread } from './chat-thread';
 import { ComposerDock, type ComposerDockProps } from './composer-dock';
 import { PermissionBar } from './permission-bar';
 import { ExtensionUiPrompt } from './extension-ui-prompt';
-import { FileTreePanel } from './file-tree-panel';
-import { ReviewPanel } from './review-panel';
 import { AppDialogs } from './app-dialogs';
 import { createEmptyNotificationState, notificationReducer } from './notification-queue';
-import { GitPanel } from './GitPanel';
 import type { HostLogEntry } from './HostLogPanel';
-import { NotesPanel } from './NotesPanel';
-import { FlashcardsPanel } from './FlashcardsPanel';
-import { KnowledgeCenterPanel } from './KnowledgeCenterPanel';
-import { CanvasPanel } from './canvas-panel';
-import { SideChatPanel } from './side-chat-panel';
-import { DocPreviewPanel, type SessionDocItem } from './DocPreviewPanel';
+import type { SessionDocItem } from './DocPreviewPanel';
+import { resolveDocumentContentFromMessages } from './resolve-document-content';
 import type { LineCommentItem } from './EnhancedMarkdownView';
 import { mergeComposerWithDocComments } from './doc-comments';
 import { RightPanel, type RightPanelTab } from './right-panel'; // right-panel portal v3
-import { BrowserSessionPanel } from './browser-session-panel';
 import { collectSessionTools } from './tool-call-card';
-import { ChangesPanel } from './changes-panel';
-import { TerminalDock, type PtyOutputLine } from './terminal-dock';
+import type { PtyOutputLine } from './terminal-dock';
 import { type AgentModeId } from './agent-mode';
 import { groupSessionsByRecency } from './session-groups';
 import {
@@ -74,6 +73,9 @@ import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import { useHostBootstrap } from './hooks/use-host-bootstrap';
 import { useComposerMedia } from './hooks/use-composer-media';
 import { useSessionActions } from './hooks/use-session-actions';
+import { useSessionLineage } from './hooks/use-session-lineage';
+import { getDirectForkCountsByMessageId } from './session-lineage-tree';
+import { SessionLineageHeaderPopover } from './session-lineage-popover';
 import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspector';
 import {
   selectActiveSubagents,
@@ -81,7 +83,6 @@ import {
   type SubagentInspectorSelection,
 } from './subagent-activity-model';
 import { SubagentWorkingDock } from './subagent-working-dock';
-import { SubagentSessionDialog } from './subagent-session-dialog';
 import { useJobs } from './hooks/use-jobs';
 import { Button, ConfirmDialog, Dialog, IconButton, Notice } from '@piwin/ui-kit';
 import { IconClose } from './shell-icons';
@@ -103,11 +104,29 @@ import { RIGHT_PANEL_DEFAULT_WIDTH_PX } from './right-panel-width';
 import { SIDEBAR_DEFAULT_WIDTH_PX } from './sidebar-width';
 import { resolveThinkingLevelForModel } from './model-thinking-policy';
 import { buildEnabledModelOptions } from './model-options';
+import { sessionScopeKey } from './session-list-page-state';
 
 import {
   ArtifactHeightSignalProvider,
   type ArtifactHeightSignalContextValue,
 } from './artifact-height-signal';
+import {
+  DeferredBrowserSessionPanel,
+  DeferredCanvasPanel,
+  DeferredChangesPanel,
+  DeferredDocPreviewPanel,
+  DeferredFileTreePanel,
+  DeferredFlashcardsPanel,
+  DeferredGitPanel,
+  DeferredKnowledgeCenterPanel,
+  DeferredNotesPanel,
+  DeferredReviewPanel,
+  DeferredSettingsPanel,
+  DeferredSideChatPanel,
+  DeferredSubagentSessionDialog,
+  DeferredSurfaceBoundary,
+  DeferredTerminalDock,
+} from './deferred-desktop-surfaces';
 
 export type AppProps = {
   /** Resolved active manifest owned by DesktopThemeRoot. */
@@ -125,6 +144,26 @@ function mergeSessionsForLookup(
   return [...primary, ...secondary.filter((session) => !seen.has(session.id))];
 }
 
+function projectSessionSearchHits(
+  hits: readonly SessionSearchHit[],
+  residentSessions: readonly SessionListItemUi[],
+): SessionListItemUi[] {
+  const residentById = new Map(residentSessions.map((session) => [session.id, session]));
+  return hits
+    .map((hit): SessionListItemUi => {
+      const existing = residentById.get(hit.sessionId);
+      return {
+        ...(existing ?? { id: hit.sessionId, name: hit.name?.trim() ?? '' }),
+        ...(hit.name?.trim() ? { name: hit.name.trim() } : {}),
+        ...(hit.snippet ? { lastPreview: hit.snippet } : {}),
+        ...(hit.updatedAt ? { updatedAt: hit.updatedAt } : {}),
+        ...(hit.isPinned === true ? { isPinned: true } : {}),
+        ...(hit.scope ? { scope: hit.scope } : {}),
+      };
+    })
+    .filter((session) => session.name.trim().length > 0);
+}
+
 export function App({ activeTheme, onThemeApplied }: AppProps) {
   const hostClient = useMemo(() => new HostClient({ transport: 'auto', hostMock: false }), []);
   const {
@@ -136,13 +175,17 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     requestPrompts,
     requestMcp,
     requestGit,
-    requestTheme,
     requestPet,
     requestPty,
     requestAutomation,
   } = useHostRequestAdapters(hostClient);
 
   const [state, dispatch] = useReducer(chatUiReducer, undefined, createInitialChatUiState);
+  const sessionLineage = useSessionLineage(hostClient, state.activeSessionId);
+  const forkCountsByMessageId = useMemo(
+    () => getDirectForkCountsByMessageId(sessionLineage),
+    [sessionLineage],
+  );
   const [notificationState, dispatchNotification] = useReducer(
     notificationReducer,
     undefined,
@@ -216,31 +259,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       }
 
       if (!doc.content && cleanPath) {
-        // Search messages for inline tool outputs or message text as fallback
-        const searchInMessages = (): string | null => {
-          for (let i = state.messages.length - 1; i >= 0; i--) {
-            const msg = state.messages[i];
-            if (!msg) continue;
-            if (msg.text && (msg.text.includes(cleanTitle) || msg.text.includes(cleanPath))) {
-              const codeBlockMatch = new RegExp(
-                '```(?:markdown|md)?\\n([\\s\\S]*?)\\n```',
-                'i',
-              ).exec(msg.text);
-              if (codeBlockMatch && codeBlockMatch[1]) {
-                return codeBlockMatch[1];
-              }
-            }
-            for (const tool of msg.tools) {
-              if (
-                tool.output &&
-                (tool.output.includes(cleanTitle) || tool.output.includes(cleanPath))
-              ) {
-                return tool.output;
-              }
-            }
-          }
-          return null;
-        };
+        // Recover body from transcript when the path was never written (e.g.
+        // write_file permission deny) or host read failed. Must NOT grab the
+        // first bare/ts fence — that produced half-cut plan panels.
+        const searchInMessages = (): string | null =>
+          resolveDocumentContentFromMessages({
+            title: cleanTitle,
+            path: cleanPath,
+            messages: state.messages,
+          });
 
         // Determine projectPath & relativePath for host command
         let projPath = state.projectPath;
@@ -309,6 +336,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     rightPanelOpen && rightPanelTab === 'terminal' && rightPanelView === 'detail';
   const [sessionSearch, setSessionSearch] = useState('');
   const [showArchivedSessions, setShowArchivedSessions] = useState(false);
+  const [sessionListOrder, setSessionListOrder] = useState<SessionListOrder>('updated');
   const [sessionMenu, setSessionMenu] = useState<{
     sessionId: string;
     x: number;
@@ -333,7 +361,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setOrchestrationSchemeId(ORCHESTRATION_SCHEME_OFF_ID);
   }, [state.activeSessionId]);
 
-  const [remoteSearchHits, setRemoteSearchHits] = useState<SessionSearchHit[] | null>(null);
+  const [remoteSearchHitsByScope, setRemoteSearchHitsByScope] = useState<Record<
+    string,
+    SessionSearchHit[]
+  > | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   /** Filled after useComposerMedia mounts so Revert can restore text without reordering hooks. */
   const composerSetterRef = useRef<(value: SetStateAction<string>) => void>(() => undefined);
@@ -693,6 +724,26 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
 
   const modelOptions = useMemo(() => buildEnabledModelOptions(config?.providers ?? []), [config]);
 
+  const speechConfigured = useMemo(() => {
+    const modelRef = config?.speech?.asr?.defaultModel;
+    if (!modelRef || !config) return false;
+    const provider = config.providers.find((item) => item.id === modelRef.providerId);
+    const model = provider?.models.find((item) => item.id === modelRef.modelId);
+    return Boolean(
+      provider &&
+      isProviderEnabled(provider) &&
+      model &&
+      isModelEnabled(model) &&
+      modelSupportsCapability(model, 'speech-to-text'),
+    );
+  }, [config]);
+
+  const speechRequest = useCallback(
+    (input: import('@piwin/contracts').SpeechTranscribeInput) =>
+      hostClient.request({ type: 'speech/transcribe', input }),
+    [hostClient],
+  );
+
   // Flashcard actions from artifact flip cards (ADR 0018 S5c, doc-flashcards §12):
   // - flashcard/rate → flashcards/rate HostCommand → FSRS state update
   // - flashcard/open-source → doccards/open-source HostCommand → resolve + open file
@@ -831,8 +882,31 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     (command: import('./file-tree-panel').FileTreeRequest) => hostClient.request(command),
     [hostClient],
   );
+  const resolveSessionScopeHint = useCallback(
+    (sessionId: string): SessionScope | undefined => {
+      if (remoteSearchHitsByScope === null) {
+        return undefined;
+      }
+      for (const hits of Object.values(remoteSearchHitsByScope)) {
+        const hit = hits.find((candidate) => candidate.sessionId === sessionId);
+        if (!hit) {
+          continue;
+        }
+        if (hit.scope) {
+          return hit.scope;
+        }
+        return hit.projectPath.trim().length > 0
+          ? { kind: 'project', projectPath: hit.projectPath }
+          : { kind: 'general' };
+      }
+      return undefined;
+    },
+    [remoteSearchHitsByScope],
+  );
   const {
     hydrateSessions,
+    sessionListWindows,
+    transcriptHistoryLoading,
     handleOpenWorkspaceClick,
     handleBrowseProject,
     handleOpenProject,
@@ -840,6 +914,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     ensureSession,
     handleNewSession,
     handleResumeSession,
+    handleLoadOlderTranscript,
     handleRenameSession,
     handleDuplicateSession,
     handleForkSession,
@@ -860,6 +935,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     setProjectInput,
     setProjectPickerOpen,
     showArchivedSessions,
+    sessionListOrder,
+    resolveSessionScopeHint,
     selectedModelKey,
     modelOptions,
     thinkingLevel,
@@ -876,6 +953,46 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       sessionComposerProfileRestoredRef.current(profile);
     },
   });
+
+  const handleSessionPageChange = useCallback(
+    async (scope: SessionScope, cursor: string, direction: 'previous' | 'next'): Promise<void> => {
+      await hydrateSessions(scope, {
+        includeArchived: showArchivedSessions,
+        order: sessionListOrder,
+        cursor,
+        merge: direction === 'previous' ? 'prepend' : 'append',
+      });
+    },
+    [hydrateSessions, sessionListOrder, showArchivedSessions],
+  );
+
+  const handleSessionWindowReset = useCallback(
+    async (scope: SessionScope): Promise<void> => {
+      await hydrateSessions(scope, {
+        includeArchived: showArchivedSessions,
+        order: sessionListOrder,
+      });
+    },
+    [hydrateSessions, sessionListOrder, showArchivedSessions],
+  );
+
+  const handleSessionListOrderChange = useCallback(
+    (order: SessionListOrder): void => {
+      setSessionListOrder(order);
+      void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions, order });
+      for (const project of recentProjects) {
+        void hydrateSessions(
+          { kind: 'project', projectPath: project.path },
+          {
+            includeArchived: showArchivedSessions,
+            order,
+            ...(project.path === state.projectPath ? { fillActiveList: true } : {}),
+          },
+        );
+      }
+    },
+    [hydrateSessions, recentProjects, showArchivedSessions, state.projectPath],
+  );
 
   // Settings is a separate presentation surface. Keep the callback handed to
   // it stable while the active session streams; the latest session action is
@@ -937,7 +1054,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     void hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
     // Do not depend on hydrateSessions: it intentionally captures current UI
     // state and changes identity after every reducer update. Depending on it
-    // here creates a session/list request loop that starves prompt requests.
+    // here creates a session/list-page request loop that starves prompt requests.
     // General is refreshed explicitly on scope selection and archive toggles.
     // hydrateSessions is intentionally omitted; its identity changes with UI state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1173,6 +1290,60 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         });
     },
     [hostClient],
+  );
+
+  const handleRemoveProjectFromSidebar = useCallback(
+    async (projectPath: string): Promise<void> => {
+      const response = await hostClient.request({
+        type: 'project/remove',
+        path: projectPath,
+      });
+      if (!response.success) {
+        dispatch({ type: 'error', message: response.error });
+        return;
+      }
+
+      setRecentProjects((projects) => projects.filter((project) => project.path !== projectPath));
+      if (state.projectPath !== projectPath) {
+        return;
+      }
+
+      // Removing the active project also clears desktop restore state, otherwise
+      // startup would reopen it and add it back to the sidebar.
+      if (
+        config?.desktop?.lastSession?.scope.kind === 'project' &&
+        config.desktop.lastSession.scope.projectPath === projectPath
+      ) {
+        const nextDesktop = config.desktop ? { ...config.desktop } : {};
+        delete nextDesktop.lastSession;
+        const nextConfig: PiwinConfig = { ...config, desktop: nextDesktop };
+        setConfig(nextConfig);
+        saveSettingsInOrder((currentConfig) => {
+          const desktop = { ...(currentConfig.desktop ?? {}) };
+          delete desktop.lastSession;
+          return [
+            {
+              kind: 'replace-domain',
+              domain: 'desktop',
+              value: desktop as NonNullable<PiwinConfig['desktop']>,
+            },
+          ];
+        });
+      }
+
+      dispatch({ type: 'project/clear' });
+      await hydrateSessions({ kind: 'general' }, { includeArchived: showArchivedSessions });
+    },
+    [
+      config,
+      dispatch,
+      hostClient,
+      hydrateSessions,
+      saveSettingsInOrder,
+      setConfig,
+      showArchivedSessions,
+      state.projectPath,
+    ],
   );
 
   const persistComposerProfile = useCallback(
@@ -1455,7 +1626,6 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
 
   function handleToggleAppearance(): void {
     // Instant local flip: same Appearance prefs path as Settings (no host IPC wait).
-    // Host theme packages remain managed in Settings → Themes / ThemePanel.
     const nextMode = activeTheme.mode === 'light' ? 'dark' : 'light';
     const nextThemeSettings =
       nextMode === 'light'
@@ -1585,83 +1755,83 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
 
   useEffect(() => {
     const query = sessionSearch.trim();
-    if (!query || !state.projectPath) {
-      setRemoteSearchHits(null);
+    if (!query) {
+      setRemoteSearchHitsByScope(null);
       return;
     }
+    setRemoteSearchHitsByScope(null);
     let cancelled = false;
     const timer = window.setTimeout(() => {
       void (async () => {
-        const searchQuery: import('@piwin/contracts').SessionSearchQuery = {
-          query,
-          limit: 30,
-        };
-        if (state.projectPath) {
-          searchQuery.projectPath = state.projectPath;
-        }
-        const response = await hostClient.request({
-          type: 'session/search',
-          query: searchQuery,
-        });
+        const scopes: SessionScope[] =
+          state.activeScope.kind === 'general'
+            ? [{ kind: 'general' }]
+            : [state.activeScope, { kind: 'general' }];
+        const results = await Promise.all(
+          scopes.map(async (scope) => {
+            const searchQuery: import('@piwin/contracts').SessionSearchQuery = {
+              query,
+              scope,
+              lifecycle: showArchivedSessions ? 'archived' : 'active',
+              limit: 30,
+            };
+            const response = await hostClient.request({
+              type: 'session/search',
+              query: searchQuery,
+            });
+            if (!response.success) {
+              return [sessionScopeKey(scope), [] as SessionSearchHit[]] as const;
+            }
+            const data = response.data as { hits?: SessionSearchHit[] } | undefined;
+            return [sessionScopeKey(scope), data?.hits ?? []] as const;
+          }),
+        );
         if (cancelled) return;
-        if (!response.success) {
-          setRemoteSearchHits([]);
-          return;
+        const nextHits: Record<string, SessionSearchHit[]> = {};
+        for (const [scopeKey, hits] of results) {
+          nextHits[scopeKey] = hits;
         }
-        const data = response.data as { hits?: SessionSearchHit[] } | undefined;
-        setRemoteSearchHits(data?.hits ?? []);
+        setRemoteSearchHitsByScope(nextHits);
       })();
     }, 250);
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [sessionSearch, state.projectPath, hostClient]);
+  }, [hostClient, sessionSearch, showArchivedSessions, state.activeScope]);
 
   const filteredSessions = useMemo(() => {
     const query = sessionSearch.trim().toLowerCase();
     if (!query) {
       return state.sessions;
     }
-    if (remoteSearchHits) {
-      const byId = new Map(state.sessions.map((session) => [session.id, session]));
-      return remoteSearchHits.map((hit) => {
-        const existing = byId.get(hit.sessionId);
-        if (existing) {
-          return {
-            ...existing,
-            ...(hit.snippet ? { lastPreview: hit.snippet } : {}),
-            ...(hit.isPinned === true ? { isPinned: true } : {}),
-          };
-        }
-        return {
-          id: hit.sessionId,
-          name: hit.name ?? `session-${hit.sessionId.slice(0, 8)}`,
-          ...(hit.snippet ? { lastPreview: hit.snippet } : {}),
-          ...(hit.updatedAt ? { updatedAt: hit.updatedAt } : {}),
-          ...(hit.isPinned === true ? { isPinned: true } : {}),
-        };
-      });
+    const remoteSearchHits = remoteSearchHitsByScope?.[sessionScopeKey(state.activeScope)];
+    if (remoteSearchHits !== undefined) {
+      return projectSessionSearchHits(remoteSearchHits, state.sessions);
     }
     return state.sessions.filter((session) => {
       const haystack = `${session.name} ${session.lastPreview ?? ''}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [sessionSearch, state.sessions, remoteSearchHits]);
+  }, [remoteSearchHitsByScope, sessionSearch, state.activeScope, state.sessions]);
 
   // General sessions are maintained independently so the Conversations sidebar
-  // section stays populated even when a project is active. Client-side filter
-  // only — remote search is scope-specific and doesn't cover general sessions.
+  // section stays populated even when a project is active. Search owns its own
+  // bounded General result instead of filtering only the resident index page.
   const filteredGeneralSessions = useMemo(() => {
     const query = sessionSearch.trim().toLowerCase();
     if (!query) {
       return state.generalSessions;
     }
+    const remoteGeneralHits = remoteSearchHitsByScope?.general;
+    if (remoteGeneralHits !== undefined) {
+      return projectSessionSearchHits(remoteGeneralHits, state.generalSessions);
+    }
     return state.generalSessions.filter((session) => {
       const haystack = `${session.name} ${session.lastPreview ?? ''}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [sessionSearch, state.generalSessions]);
+  }, [remoteSearchHitsByScope, sessionSearch, state.generalSessions]);
 
   const sessionGroups = useMemo(() => groupSessionsByRecency(filteredSessions), [filteredSessions]);
 
@@ -1917,6 +2087,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
         ? { modelContextWindow: selectedModelContextWindow }
         : {}),
       onOpenModelSettings: handleOpenModelSettings,
+      speechConfigured,
+      speechRequest,
       hostStatus,
       hostReady: state.hostReady,
       hostMock: state.hostMock,
@@ -1932,7 +2104,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       onOrchestrationSchemeChange: setOrchestrationSchemeId,
       onOpenOrchestrationSchemeSettings: handleOpenOrchestrationSchemeSettings,
       branchRequest: requestGit as ComposerDockProps['branchRequest'],
-      onOpenProjectPicker: () => setProjectPickerOpen(true),
+      recentProjects,
+      onOpenProject: (path) => {
+        void handleOpenProject(path);
+      },
     }),
     [
       agentMode,
@@ -1961,6 +2136,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       handleOpenMcpPanel,
       handleOpenModelSettings,
       handleOpenPermissionsSettings,
+      handleOpenProject,
       handleOpenSkillsPanel,
       handleRefreshComposerMenus,
       handleRemoveDocComments,
@@ -1977,6 +2153,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       plusMenuOpen,
       plusSubmenu,
       requestGit,
+      recentProjects,
       retryPendingAttachment,
       revokePending,
       selectedModelContextWindow,
@@ -1988,6 +2165,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       setExtensionUiInput,
       setPlusMenuOpen,
       setPlusSubmenu,
+      speechConfigured,
+      speechRequest,
       state.activeSessionId,
       state.compacting,
       state.contextUsage,
@@ -2120,10 +2299,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, []);
 
   return (
-    <DesktopLocaleProvider
-      locale={desktopLocale}
-      onLocaleChange={handleLocaleChange}
-    >
+    <DesktopLocaleProvider locale={desktopLocale} onLocaleChange={handleLocaleChange}>
       <div
         className={`app-shell workbench${rightPanelOpen ? ' has-right-panel' : ''}${navDrawerOpen ? ' nav-open' : ''}${settingsOpen ? ' settings-open' : ''}${knowledgeOpen ? ' knowledge-open' : ''}${rightPanelResize.isResizing || sidebarResize.isResizing ? ' is-resizing-panels' : ''}`}
         style={appShellStyle}
@@ -2153,6 +2329,11 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               filteredSessions={filteredSessions}
               generalSessions={filteredGeneralSessions}
               projectSessionsByPath={state.projectSessionsByPath}
+              sessionListWindows={sessionListWindows}
+              sessionListOrder={sessionListOrder}
+              onSessionListOrderChange={handleSessionListOrderChange}
+              onSessionPageChange={handleSessionPageChange}
+              onSessionWindowReset={handleSessionWindowReset}
               sessionGroups={sessionGroups}
               activeSessionId={state.activeSessionId}
               sessionSearch={sessionSearch}
@@ -2161,18 +2342,25 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
               onToggleShowArchived={() => {
                 const next = !showArchivedSessions;
                 setShowArchivedSessions(next);
-                if (state.projectPath) {
-                  void hydrateSessions(state.projectPath, { includeArchived: next });
-                  // Also refresh general sessions so the Conversations section
-                  // respects the archive filter while a project is active.
-                  void hydrateSessions({ kind: 'general' }, { includeArchived: next });
-                } else {
-                  void hydrateSessions({ kind: 'general' }, { includeArchived: next });
+                void hydrateSessions(
+                  { kind: 'general' },
+                  { includeArchived: next, order: sessionListOrder },
+                );
+                for (const project of recentProjects) {
+                  void hydrateSessions(
+                    { kind: 'project', projectPath: project.path },
+                    {
+                      includeArchived: next,
+                      order: sessionListOrder,
+                      ...(project.path === state.projectPath ? { fillActiveList: true } : {}),
+                    },
+                  );
                 }
               }}
               settingsOpen={settingsOpen}
               onOpenWorkspace={() => void handleOpenWorkspaceClick()}
               onOpenProject={(path) => void handleOpenProject(path)}
+              onRemoveProject={(path) => void handleRemoveProjectFromSidebar(path)}
               onNewSession={() => void handleNewSession()}
               onNewGeneralSession={() => {
                 void (async () => {
@@ -2253,6 +2441,20 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       ? '项目'
                       : 'Project',
               }}
+              {...(state.activeSessionId
+                ? {
+                    sessionTreeControl: (
+                      <SessionLineageHeaderPopover
+                        lineage={sessionLineage}
+                        activeSessionId={state.activeSessionId}
+                        activeSessionName={activeSessionName}
+                        activeSessionArchived={state.activeSessionArchived}
+                        onOpenSession={(sessionId) => void handleResumeSession(sessionId)}
+                        locale={desktopLocale}
+                      />
+                    ),
+                  }
+                : {})}
               isConversationSession={state.activeScope.kind === 'general'}
               runState={runStatus}
               onStop={() => void handleAbort()}
@@ -2327,11 +2529,15 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   </IconButton>
                 </header>
                 <div className="knowledge-stage-body">
-                  <KnowledgeCenterPanel
-                    projectPath={state.projectPath}
-                    request={requestKnowledgeCenter}
-                    sendSessionPrompt={sendSessionPrompt}
-                  />
+                  <DeferredSurfaceBoundary
+                    label={desktopLocale === 'zh-CN' ? '正在加载知识中心' : 'Loading knowledge'}
+                  >
+                    <DeferredKnowledgeCenterPanel
+                      projectPath={state.projectPath}
+                      request={requestKnowledgeCenter}
+                      sendSessionPrompt={sendSessionPrompt}
+                    />
+                  </DeferredSurfaceBoundary>
                 </div>
               </section>
             ) : undefined
@@ -2364,9 +2570,18 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 </div>
               ) : null}
               <TranscriptViewport
+                key={state.activeSessionId ?? 'no-session'}
                 messageCount={state.messages.length}
                 activitySignal={activitySignal}
                 messages={state.messages}
+                canLoadOlder={
+                  state.transcriptWindow?.olderCursor !== undefined &&
+                  state.transcriptWindow.cacheLimitReached !== true
+                }
+                historyLoading={transcriptHistoryLoading}
+                historyCacheLimitReached={state.transcriptWindow?.cacheLimitReached === true}
+                onLoadOlder={handleLoadOlderTranscript}
+                {...(state.activeSessionId ? { sessionId: state.activeSessionId } : {})}
               >
                 <ArtifactHeightSignalProvider value={artifactHeightSignal}>
                   {state.messages.length > 0 ? (
@@ -2411,7 +2626,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       onOpenFile={(absolutePath, relativePath) => {
                         handleOpenDocument(
                           {
-                            title: (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
+                            title:
+                              (relativePath || absolutePath).split(/[\\/]/).pop() || absolutePath,
                             path: absolutePath,
                           },
                           'inspector',
@@ -2434,6 +2650,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                               void handleForkSession(state.activeSessionId!, messageId),
                           }
                         : {})}
+                      {...(sessionLineage ? { sessionLineage } : {})}
+                      forkCountsByMessageId={forkCountsByMessageId}
+                      onOpenSession={(sessionId: string) => void handleResumeSession(sessionId)}
                       derivedActionsDisabled={!state.activeSessionId || state.streaming}
                     />
                   ) : null}
@@ -2567,10 +2786,10 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                 onOpenMcp={() => openSettingsSection('tools')}
                 onOpenSettings={() => openSettingsSection('general')}
                 onToggleSessions={() => shell.toggleSessions()}
-                notesContent={<NotesPanel request={requestNotesPanel} />}
-                cardsContent={<FlashcardsPanel request={requestCardsPanel} />}
+                notesContent={<DeferredNotesPanel request={requestNotesPanel} />}
+                cardsContent={<DeferredFlashcardsPanel request={requestCardsPanel} />}
                 filesContent={
-                  <FileTreePanel
+                  <DeferredFileTreePanel
                     projectPath={state.projectPath}
                     request={requestFileTree}
                     onInsertPath={(absolutePath) => {
@@ -2583,19 +2802,22 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                     locale={desktopLocale}
                   />
                 }
-                canvasContent={<CanvasPanel />}
+                canvasContent={<DeferredCanvasPanel />}
                 browserContent={
-                  <BrowserSessionPanel
+                  <DeferredBrowserSessionPanel
                     hostClient={hostClient}
                     onAddWebElement={addWebElement}
                     agentRunning={state.streaming}
                   />
                 }
                 sideChatContent={
-                  <SideChatPanel sessionId={state.activeSessionId} hostClient={hostClient} />
+                  <DeferredSideChatPanel
+                    sessionId={state.activeSessionId}
+                    hostClient={hostClient}
+                  />
                 }
                 docPreviewContent={
-                  <DocPreviewPanel
+                  <DeferredDocPreviewPanel
                     title={activeDocument?.title}
                     content={activeDocument?.content}
                     filePath={activeDocument?.filePath}
@@ -2630,7 +2852,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   />
                 }
                 terminalContent={
-                  <TerminalDock
+                  <DeferredTerminalDock
                     projectPath={state.projectPath}
                     projectTrusted={state.projectTrusted}
                     ptyOutput={ptyOutput}
@@ -2642,9 +2864,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   />
                 }
                 reviewContent={
-                  <ReviewPanel
+                  <DeferredReviewPanel
                     changesContent={
-                      <ChangesPanel
+                      <DeferredChangesPanel
                         projectPath={state.projectPath}
                         request={requestGit as never}
                         onOpenFile={(absolutePath, relativePath) => {
@@ -2660,7 +2882,7 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                       />
                     }
                     gitContent={
-                      <GitPanel
+                      <DeferredGitPanel
                         projectPath={state.projectPath}
                         request={requestGit as never}
                         variant="embedded"
@@ -2679,8 +2901,9 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           projectPickerOpen={projectPickerOpen}
           onProjectPickerOpenChange={setProjectPickerOpen}
           onOpenProject={(path) => {
-            if (path) {
-              void handleOpenProject(path);
+            const requestedPath = path?.trim() || projectInput.trim();
+            if (requestedPath) {
+              void handleOpenProject(requestedPath);
             }
           }}
           onBrowseProject={() => void handleBrowseProject()}
@@ -2815,54 +3038,63 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
           </Dialog>
         ) : null}
 
-        <SubagentSessionDialog
-          open={inspector.selection !== null}
-          selection={inspector.selection}
-          status={inspector.status}
-          messages={inspector.messages}
-          liveTail={inspector.liveTail}
-          loading={inspector.loading}
-          error={inspector.error}
-          showThinking={preferences.verboseAgentChat}
-          onOpenChange={(open) => {
-            if (!open) {
-              inspector.closeInspector();
-            }
-          }}
-          onOpenFullSession={inspector.openFullSession}
-          onRetry={inspector.retryLoad}
-        />
+        {inspector.selection !== null ? (
+          <DeferredSurfaceBoundary
+            label={desktopLocale === 'zh-CN' ? '正在加载子代理会话' : 'Loading subagent session'}
+          >
+            <DeferredSubagentSessionDialog
+              open
+              selection={inspector.selection}
+              status={inspector.status}
+              messages={inspector.messages}
+              liveTail={inspector.liveTail}
+              loading={inspector.loading}
+              error={inspector.error}
+              showThinking={preferences.verboseAgentChat}
+              onOpenChange={(open) => {
+                if (!open) {
+                  inspector.closeInspector();
+                }
+              }}
+              onOpenFullSession={inspector.openFullSession}
+              onRetry={inspector.retryLoad}
+            />
+          </DeferredSurfaceBoundary>
+        ) : null}
       </div>
       {settingsOpen ? (
-        <SettingsPanel
-          hostStatus={hostStatus}
-          hostClient={hostClient}
-          request={requestConfig}
-          preferences={preferences}
-          activeTheme={activeTheme}
-          onPreferencesChange={handleSettingsPreferencesChange}
-          initialSection={settingsSection}
-          onSectionChange={shell.setSettingsSection}
-          projectPath={state.projectPath}
-          projectTrusted={state.projectTrusted}
-          requestSkills={requestSkills}
-          requestMcp={requestMcp}
-          requestExtensions={requestExtensions}
-          requestPlugins={requestPlugins}
-          requestPrompts={requestPrompts}
-          requestTheme={requestTheme}
-          requestPet={requestPet}
-          requestAutomation={requestAutomation}
-          requestSubAgent={requestSubAgent as never}
-          subagentChildren={state.subagentChildren}
-          subagentBatches={state.subagentBatches}
-          activeSessionId={state.activeSessionId}
-          onOpenSubagentSession={handleSettingsOpenSubagentSession}
-          onThemeApplied={onThemeApplied}
-          onPetActiveChanged={setActivePet}
-          onClose={shell.closeSettings}
-          onSaved={handleSettingsSaved}
-        />
+        <DeferredSurfaceBoundary
+          label={desktopLocale === 'zh-CN' ? '正在加载设置' : 'Loading settings'}
+        >
+          <DeferredSettingsPanel
+            hostStatus={hostStatus}
+            hostClient={hostClient}
+            request={requestConfig}
+            preferences={preferences}
+            activeTheme={activeTheme}
+            onPreferencesChange={handleSettingsPreferencesChange}
+            initialSection={settingsSection}
+            onSectionChange={shell.setSettingsSection}
+            projectPath={state.projectPath}
+            projectTrusted={state.projectTrusted}
+            requestSkills={requestSkills}
+            requestMcp={requestMcp}
+            requestExtensions={requestExtensions}
+            requestPlugins={requestPlugins}
+            requestPrompts={requestPrompts}
+            requestPet={requestPet}
+            requestAutomation={requestAutomation}
+            requestSubAgent={requestSubAgent as never}
+            subagentChildren={state.subagentChildren}
+            subagentBatches={state.subagentBatches}
+            activeSessionId={state.activeSessionId}
+            onOpenSubagentSession={handleSettingsOpenSubagentSession}
+            onThemeApplied={onThemeApplied}
+            onPetActiveChanged={setActivePet}
+            onClose={shell.closeSettings}
+            onSaved={handleSettingsSaved}
+          />
+        </DeferredSurfaceBoundary>
       ) : null}
     </DesktopLocaleProvider>
   );

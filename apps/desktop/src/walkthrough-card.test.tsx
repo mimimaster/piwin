@@ -136,12 +136,35 @@ describe('WalkthroughCard', () => {
       '[data-testid="walkthrough-doc-btn-a1"]',
     );
     expect(btn).toBeTruthy();
+    expect(btn?.getAttribute('role')).toBe('button');
+    expect(btn?.textContent).toContain('Open full document');
     act(() => {
       btn?.click();
     });
     expect(opened).toBeDefined();
     expect(opened?.path).toBe('walkthroughs/a1.md');
     expect(opened?.content).toContain('Walkthrough');
+  });
+
+  it('opens the full document from the keyboard-accessible card action', () => {
+    let openCount = 0;
+    const { container } = renderCard(
+      <WalkthroughCard
+        artifact={readyArtifact()}
+        messageId="a1"
+        onOpenDocument={() => {
+          openCount += 1;
+        }}
+      />,
+    );
+    const cardAction = container.querySelector<HTMLElement>(
+      '[data-testid="walkthrough-doc-btn-a1"]',
+    );
+    expect(cardAction?.getAttribute('tabindex')).toBe('0');
+    act(() => {
+      cardAction?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(openCount).toBe(1);
   });
 
   it('calls onRegenerate when Regenerate is clicked', () => {

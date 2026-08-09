@@ -20,7 +20,6 @@ import type { McpPanelProps } from '../McpPanel';
 import type { ExtensionsPanelProps } from '../ExtensionsPanel';
 import type { PluginsPanelProps } from '../PluginsPanel';
 import type { PromptsPanelProps } from '../PromptsPanel';
-import type { ThemePanelProps } from '../ThemePanel';
 import type { PetPanelProps } from '../PetPanel';
 import type { AutomationPanelProps } from '../AutomationPanel';
 import type { SubAgentPanelProps } from '../SubAgentPanel';
@@ -100,7 +99,6 @@ export type SettingsContextValue = {
   requestExtensions: ExtensionsPanelProps['request'];
   requestPlugins: PluginsPanelProps['request'];
   requestPrompts: PromptsPanelProps['request'];
-  requestTheme: ThemePanelProps['request'];
   requestPet: PetPanelProps['request'];
   requestAutomation: AutomationPanelProps['request'];
   requestSubAgent: SubAgentPanelProps['request'] | undefined;
@@ -109,7 +107,7 @@ export type SettingsContextValue = {
   subagentChildren?: Record<string, SessionSummary>;
   /** Live batch projections keyed by batch Run id. */
   subagentBatches?: Record<string, SubagentBatchProjection>;
-  onThemeApplied: ThemePanelProps['onApplied'];
+  onThemeApplied: (theme: ThemeManifest) => void;
   onPetActiveChanged: PetPanelProps['onActiveChanged'];
   discoverProviderModels: (
     provider: ModelProviderConfig,

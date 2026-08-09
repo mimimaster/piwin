@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { HostResponse } from '@piwin/contracts';
+import type { HostPushBatchFrame, HostResponse, HostServerMessage } from '@piwin/contracts';
 import { HostClient } from './host-client';
 
 const invokeMock = vi.fn();
@@ -71,8 +71,70 @@ describe('HostClient', () => {
     const client = new HostClient({ transport: 'live' });
     await Promise.all([client.connect(), client.connect()]);
 
-    // One connection installs host-message + host-log + host-status listeners.
-    expect(listenMock).toHaveBeenCalledTimes(3);
+    // One connection installs host-message + host-message-batch + host-log +
+    // host-status listeners.
+    expect(listenMock).toHaveBeenCalledTimes(4);
     expect(invokeMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies a local push batch once and advances its cursor after delivery', async () => {
+    const callbacks = new Map<string, (event: { payload: unknown }) => void>();
+    const unlisten = vi.fn();
+    listenMock.mockImplementation(
+      async (eventName: string, callback: (event: { payload: unknown }) => void) => {
+        callbacks.set(eventName, callback);
+        return unlisten;
+      },
+    );
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'host_start') {
+        return { started: true };
+      }
+      if (command === 'host_request') {
+        return {
+          id: 'ui-1',
+          type: 'response',
+          command: 'host/status',
+          success: true,
+          data: { mode: 'sdk', ready: true, mock: false },
+        } satisfies HostResponse;
+      }
+      throw new Error(`Unexpected Tauri command: ${command}`);
+    });
+
+    const client = new HostClient({ transport: 'live' });
+    const pushes: HostServerMessage[] = [];
+    client.subscribe((message) => pushes.push(message));
+    await client.connect();
+
+    const batch: HostPushBatchFrame = {
+      type: 'push/batch',
+      hostInstanceId: 'host-test',
+      afterSeq: 0,
+      throughSeq: 2,
+      items: [
+        {
+          seq: 1,
+          eventId: 'event-1',
+          push: { type: 'host/status', mode: 'sdk', ready: false, mock: false },
+        },
+        {
+          seq: 2,
+          eventId: 'event-2',
+          push: {
+            type: 'session/name-updated',
+            sessionId: 'session-1',
+            name: 'Demo',
+            nameSource: 'text',
+          },
+        },
+      ],
+    };
+    callbacks.get('host-message-batch')?.({ payload: batch });
+    callbacks.get('host-message-batch')?.({ payload: batch });
+
+    expect(pushes.filter((message) => message.type === 'session/name-updated')).toHaveLength(1);
+    expect(pushes.filter((message) => message.type === 'host/status')).toHaveLength(2);
+    expect(client.isReady()).toBe(false);
   });
 });

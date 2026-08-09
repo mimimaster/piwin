@@ -993,7 +993,58 @@ describe('ChatThread render isolation (E1)', () => {
     act(() => {
       renderThread(true);
     });
-    expect(container.querySelector('[data-testid="turn-work-details-summary"]')).not.toBeNull();
+    const summary = container.querySelector<HTMLElement>(
+      '[data-testid="turn-work-details-summary"]',
+    );
+    expect(summary).not.toBeNull();
+    expect(container.querySelector('[data-testid="turn-thinking"]')).toBeNull();
+
+    act(() => {
+      summary?.click();
+    });
+    expect(container.querySelector('[data-testid="turn-thinking"]')?.textContent).toContain(
+      'Reviewing the implementation details.',
+    );
+  });
+
+  it('uses the compact shared radial animation for active thinking', () => {
+    const activeMessage: ChatMessageUi = {
+      id: 'thinking-animation-a1',
+      role: 'assistant',
+      text: '',
+      thinking: 'Reviewing the implementation details.',
+      tools: [],
+      attachments: [],
+      status: 'streaming',
+    };
+
+    act(() => {
+      root.render(
+        <PiwinUiProvider manifest={PIWIN_APPEARANCE_DARK}>
+          <ChatThread
+            messages={[activeMessage]}
+            streaming
+            editingMessageId={null}
+            lastUserMessageId={null}
+            activeTheme={null}
+            artifactThemeKey={0}
+            runRecordsById={{}}
+            onEdit={noop}
+            onCancelEdit={noop}
+            onEditResend={noop}
+            onRetry={noop}
+            onInspectSubagent={undefined}
+            composerCard={composerCard}
+            locale="zh-CN"
+          />
+        </PiwinUiProvider>,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="turn-summary-active-animation"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="turn-summary-radial-bellow"]')).toMatchObject({
+      className: expect.stringContaining('ui-anim--sm'),
+    });
   });
 });
 

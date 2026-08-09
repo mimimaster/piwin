@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type ReactElement,
-} from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type ReactElement } from 'react';
 import {
   THINKING_LEVEL_OPTIONS,
   type ModelCatalogEntry,
@@ -83,9 +77,7 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
   function handleThinkingToggle(level: ThinkingLevel, checked: boolean): void {
     updateDraft((current) => {
       const nextLevels = checked
-        ? THINKING_LEVEL_OPTIONS.filter(
-            (l) => l === level || current.thinkingLevels.includes(l),
-          )
+        ? THINKING_LEVEL_OPTIONS.filter((l) => l === level || current.thinkingLevels.includes(l))
         : current.thinkingLevels.filter((l) => l !== level);
       const nextLevel =
         current.thinkingLevel && nextLevels.includes(current.thinkingLevel)
@@ -295,6 +287,22 @@ export function ModelEditPopover(props: ModelEditPopoverProps): ReactElement {
               updateDraft((current) => ({ ...current, supportsImageGeneration: checked }))
             }
             testId="model-edit-image-generation"
+          />
+          <FieldCheckbox
+            label={isChinese ? '语音识别（ASR）' : 'Speech recognition (ASR)'}
+            checked={localDraft.supportsSpeechToText}
+            onCheckedChange={(checked) =>
+              updateDraft((current) => ({ ...current, supportsSpeechToText: checked }))
+            }
+            testId="model-edit-speech-to-text"
+          />
+          <FieldCheckbox
+            label={isChinese ? '语音合成（TTS）' : 'Speech synthesis (TTS)'}
+            checked={localDraft.supportsTextToSpeech}
+            onCheckedChange={(checked) =>
+              updateDraft((current) => ({ ...current, supportsTextToSpeech: checked }))
+            }
+            testId="model-edit-text-to-speech"
           />
         </div>
 

@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { KeyboardEvent, ReactElement } from 'react';
 import type { WalkthroughArtifact } from '@piwin/contracts';
 import { MarkdownView } from './MarkdownView';
 
@@ -60,6 +60,7 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
   const titleLabel = isZh ? '演练' : 'Walkthrough';
   const loadingLabel = isZh ? '正在生成演练…' : 'Generating walkthrough…';
   const viewDocLabel = isZh ? '作为文档查看' : 'View as document';
+  const openFullLabel = isZh ? '打开完整文档' : 'Open full document';
   const regenerateLabel = isZh ? '重新生成' : 'Regenerate';
   const retryLabel = isZh ? '重试' : 'Retry';
 
@@ -71,6 +72,12 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
         content: artifact.markdown,
       });
     }
+  };
+
+  const handleOpenDocKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    handleOpenDoc();
   };
 
   const excerptText = artifact.status === 'ready' ? extractMarkdownExcerpt(artifact.markdown) : '';
@@ -115,10 +122,15 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
 
       {/* Main Clickable Document Card Preview */}
       <div
-        className="doc-artifact-body"
+        className={`doc-artifact-body${artifact.status === 'ready' ? ' is-openable' : ''}`}
         onClick={handleOpenDoc}
+        onKeyDown={artifact.status === 'ready' ? handleOpenDocKeyDown : undefined}
         {...(artifact.status === 'ready'
-          ? { 'data-testid': `walkthrough-doc-btn-${messageId}` }
+          ? {
+              'data-testid': `walkthrough-doc-btn-${messageId}`,
+              role: 'button',
+              tabIndex: 0,
+            }
           : {})}
         aria-label={viewDocLabel}
         title={viewDocLabel}
@@ -158,6 +170,7 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
 
         {artifact.status === 'ready' ? (
           <div className="doc-artifact-excerpt-box">
+            <span className="doc-artifact-excerpt-label">{isZh ? '摘要' : 'Summary'}</span>
             <p className="doc-artifact-excerpt-text">{excerptText}</p>
             {/* Hidden MarkdownView container for source code fence testing */}
             <div style={{ display: 'none' }}>
@@ -167,6 +180,13 @@ export function WalkthroughCard(props: WalkthroughCardProps): ReactElement {
                 renderingPhase="completed"
               />
             </div>
+          </div>
+        ) : null}
+
+        {artifact.status === 'ready' && props.onOpenDocument ? (
+          <div className="doc-artifact-footer" aria-hidden="true">
+            <span>{openFullLabel}</span>
+            <span className="doc-artifact-footer-arrow">→</span>
           </div>
         ) : null}
 

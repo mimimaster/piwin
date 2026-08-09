@@ -116,11 +116,6 @@ export type HostRequestAdapters = {
     draft?: McpServerConfig;
   }) => Promise<HostResponse>;
   requestGit: (command: Parameters<HostClient['request']>[0]) => Promise<HostResponse>;
-  requestTheme: (command: {
-    type: 'theme/list' | 'theme/get-active' | 'theme/set-active' | 'theme/install-local';
-    themeId?: string;
-    sourcePath?: string;
-  }) => Promise<HostResponse>;
   requestPet: (command: {
     type:
       | 'pet/list'
@@ -549,19 +544,6 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
       });
     },
     requestGit: (command) => hostClient.request(command),
-    requestTheme: async (command) => {
-      if (command.type === 'theme/list') return hostClient.request({ type: 'theme/list' });
-      if (command.type === 'theme/get-active') {
-        return hostClient.request({ type: 'theme/get-active' });
-      }
-      if (command.type === 'theme/set-active') {
-        return hostClient.request({ type: 'theme/set-active', themeId: command.themeId ?? '' });
-      }
-      return hostClient.request({
-        type: 'theme/install-local',
-        sourcePath: command.sourcePath ?? '',
-      });
-    },
     requestPet: async (command) => {
       if (command.type === 'pet/list') return hostClient.request({ type: 'pet/list' });
       if (command.type === 'pet/get-active') {

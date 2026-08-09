@@ -4,7 +4,8 @@
  * - 2x2 home grid: Files / Terminal / Browser / Changes
  * - + opens a section picker popover limited to the same four tabs
  * - Drag left edge to resize; double-click resets width
- * - Keep-mounted open tab bodies so PTY survives tab switches
+ * - Mount only the active surface; preserve an open terminal as the explicit
+ *   PTY-authority exception
  */
 
 import { useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
@@ -18,6 +19,7 @@ import { RightPanelPlusMenu } from './right-panel-plus-menu';
 import { RightPanelHome } from './right-panel-home';
 import { RIGHT_PANEL_MAX_WIDTH_PX, RIGHT_PANEL_MIN_WIDTH_PX } from './right-panel-width';
 import { WindowDragRegion, handleNativeWindowDragMouseDown } from './native-window-drag';
+import { DeferredSurfaceBoundary } from './deferred-desktop-surfaces';
 
 /** @deprecated use presence of open tabs; kept for App attention gating. */
 export type RightPanelView = 'home' | 'detail';
@@ -86,6 +88,21 @@ function sectionContent(props: RightPanelProps, tab: RightPanelTab): ReactNode |
     default:
       return undefined;
   }
+}
+
+/**
+ * Hidden feature surfaces must not retain DOM, listeners, frames, or graphics.
+ * Terminal is the sole exception until PTY session authority moves above
+ * TerminalDock; unmounting that owner intentionally closes all PTYs.
+ */
+export function selectMountedRightPanelTabs(
+  openTabs: readonly RightPanelTab[],
+  activeTab: RightPanelTab | null,
+  panelOpen: boolean,
+): RightPanelTab[] {
+  return openTabs.filter(
+    (tab) => tab === 'terminal' || (panelOpen && activeTab !== null && tab === activeTab),
+  );
 }
 
 export function RightPanel(props: RightPanelProps): ReactElement {
@@ -189,6 +206,7 @@ export function RightPanel(props: RightPanelProps): ReactElement {
   const requested = props.activeTab;
   const active =
     requested != null && openTabs.includes(requested) ? requested : (openTabs[0] ?? null);
+  const mountedTabs = selectMountedRightPanelTabs(openTabs, active, props.open);
 
   const panelClass = [
     'right-panel',
@@ -357,9 +375,9 @@ export function RightPanel(props: RightPanelProps): ReactElement {
       {openTabs.length === 0 ? (
         <RightPanelHome locale={locale} onSelect={openTab} />
       ) : (
-        /* Keep all open tab bodies mounted (PTY survives switch). */
+        /* Active-only lifecycle; terminal remains the explicit PTY exception. */
         <div className="right-panel-bodies">
-          {openTabs.map((tab) => {
+          {mountedTabs.map((tab) => {
             const content = sectionContent(props, tab);
             const label = sectionLabel(tab, locale);
             return (
@@ -380,9 +398,21 @@ export function RightPanel(props: RightPanelProps): ReactElement {
                     </div>
                   </div>
                 ) : tab === 'terminal' ? (
-                  <div className="right-panel-section right-panel-terminal">{content}</div>
+                  <div className="right-panel-section right-panel-terminal">
+                    <DeferredSurfaceBoundary
+                      label={locale === 'zh-CN' ? '正在加载终端' : 'Loading terminal'}
+                    >
+                      {content}
+                    </DeferredSurfaceBoundary>
+                  </div>
                 ) : (
-                  <div className="right-panel-section">{content}</div>
+                  <div className="right-panel-section">
+                    <DeferredSurfaceBoundary
+                      label={locale === 'zh-CN' ? `正在加载${label}` : `Loading ${label}`}
+                    >
+                      {content}
+                    </DeferredSurfaceBoundary>
+                  </div>
                 )}
               </div>
             );
