@@ -70,6 +70,7 @@ import { DesktopLocaleProvider } from './desktop-locale-context';
 import type { ComposerPlusSubmenu } from './composer-plus-menu';
 import { useHostBootstrap } from './hooks/use-host-bootstrap';
 import { useComposerMedia } from './hooks/use-composer-media';
+import { useComposerContextRefs } from './hooks/use-composer-context-refs';
 import { useSessionActions } from './hooks/use-session-actions';
 import { useSubagentSessionInspector } from './hooks/use-subagent-session-inspector';
 import {
@@ -1273,6 +1274,14 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
   }, [config, saveSettingsInOrder, setConfig, state.activeScope, state.activeSessionId]);
 
   const {
+    pendingContextRefs,
+    addContextRef,
+    removeContextRef,
+    clearContextRefs,
+    snapshotContextRefs,
+  } = useComposerContextRefs();
+
+  const {
     composer,
     setComposer,
     pendingAttachments,
@@ -1307,6 +1316,30 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
     confirmTextOnlyImageSend: async (message) => {
       // Lightweight confirm; host still path-injects if user continues.
       return window.confirm(message);
+    },
+    getPendingContextRefs: snapshotContextRefs,
+    clearPendingContextRefs: clearContextRefs,
+    addContextRefFromDrop: ({ relativePath }) => {
+      if (!state.projectPath) {
+        return false;
+      }
+      const result = addContextRef({
+        kind: 'file',
+        projectPath: state.projectPath,
+        relativePath,
+        label: relativePath,
+      });
+      if (!result.ok) {
+        dispatchNotification({
+          type: 'notify/push',
+          notification: {
+            level: 'warning',
+            message: 'Context chip limit reached (12). Remove one first.',
+          },
+        });
+        return false;
+      }
+      return true;
     },
   });
   composerSetterRef.current = setComposer;
@@ -1844,6 +1877,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       pendingAttachments,
       onRemoveAttachment: revokePending,
       onRetryAttachment: retryPendingAttachment,
+      pendingContextRefs,
+      onRemoveContextRef: removeContextRef,
       docCommentsAttachment,
       onRemoveDocComments: handleRemoveDocComments,
       dropActive,
@@ -1941,6 +1976,8 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
       menuSkills,
       modelOptions,
       pendingAttachments,
+      pendingContextRefs,
+      removeContextRef,
       plusMenuOpen,
       plusSubmenu,
       requestGit,
@@ -2532,6 +2569,19 @@ export function App({ activeTheme, onThemeApplied }: AppProps) {
                   <FileTreePanel
                     projectPath={state.projectPath}
                     request={requestFileTree}
+                    onAddContextRef={(ref) => {
+                      const result = addContextRef(ref);
+                      if (!result.ok) {
+                        dispatchNotification({
+                          type: 'notify/push',
+                          notification: {
+                            level: 'warning',
+                            message: 'Context chip limit reached (12). Remove one first.',
+                          },
+                        });
+                        return;
+                      }
+                    }}
                     onInsertPath={(absolutePath) => {
                       setComposer((current) =>
                         current.trim().length > 0

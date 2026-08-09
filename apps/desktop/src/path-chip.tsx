@@ -1,6 +1,9 @@
-import { useState, type ReactElement } from 'react';
-import { ContextMenu, ContextMenuItem } from '@piwin/ui-kit';
+import { useMemo, type ReactElement } from 'react';
+import type { PromptContextRef } from '@piwin/contracts';
 import { FileTypeIcon } from './file-type-icon';
+import { ContextMenuFromCatalog, type ContextMenuDispatchers } from './context-menu';
+import type { DesktopLocale } from './desktop-locale';
+import { useDesktopLocale } from './desktop-locale-context';
 
 export type PathChipProps = {
   fullPath: string;
@@ -9,25 +12,34 @@ export type PathChipProps = {
   className?: string | undefined;
   showIcon?: boolean | undefined;
   'data-testid'?: string | undefined;
+  /** Optional project root — enables Add to Chat when onAddContextRef is set. */
+  projectPath?: string | undefined;
+  /** Optional path relative to project root. */
+  relativePath?: string | undefined;
+  onAddContextRef?: ((ref: PromptContextRef) => void) | undefined;
 };
 
 export function fileNameFromPath(path: string): string {
   return path.split(/[\\/]/).pop() || path;
 }
 
-async function writePathToClipboard(path: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(path);
-    return true;
-  } catch {
-    // Clipboard may be unavailable in insecure contexts; fail silently.
-    return false;
+function relativePathFromFull(fullPath: string, projectPath: string | undefined): string {
+  if (!projectPath) {
+    return fullPath;
   }
+  const normalizedRoot = projectPath.replace(/\/+$/, '');
+  if (fullPath === normalizedRoot) {
+    return '';
+  }
+  if (fullPath.startsWith(`${normalizedRoot}/`)) {
+    return fullPath.slice(normalizedRoot.length + 1);
+  }
+  return fullPath;
 }
 
 /**
  * Renders a file path as a compact chip with distinct file-type icons & colors.
- * Left click opens the file; right click offers "Copy Path" for the full path.
+ * Left click opens the file; right click offers CM path-chip actions when wired.
  */
 export function PathChip({
   fullPath,
@@ -36,42 +48,83 @@ export function PathChip({
   className = 'md-doc-chip',
   showIcon = true,
   'data-testid': testId,
+  projectPath,
+  relativePath,
+  onAddContextRef,
 }: PathChipProps): ReactElement {
+  const { locale } = useDesktopLocale();
   const displayText = label ?? fileNameFromPath(fullPath);
-  const [copyLabel, setCopyLabel] = useState('Copy Path');
+  const resolvedRelative = relativePath ?? relativePathFromFull(fullPath, projectPath);
+  const hasProjectContext = Boolean(projectPath && onAddContextRef);
 
-  function handleCopy(): void {
-    void (async () => {
-      const ok = await writePathToClipboard(fullPath);
-      if (ok) {
-        setCopyLabel('Copied');
-        setTimeout(() => setCopyLabel('Copy Path'), 1200);
-      }
-    })();
-  }
+  const dispatchers: ContextMenuDispatchers = useMemo(
+    () => ({
+      addToChat: (ref) => {
+        onAddContextRef?.(ref);
+      },
+      focusComposer: () => {
+        const textarea = document.querySelector<HTMLTextAreaElement>(
+          '[data-testid="composer-input"]',
+        );
+        textarea?.focus();
+      },
+      sendPreset: () => undefined,
+      openPath: () => {
+        onOpen();
+      },
+      revealPath: () => undefined,
+      copyText: (value) => {
+        void navigator.clipboard.writeText(value).catch(() => undefined);
+      },
+      quoteInComposer: () => undefined,
+      retryMessage: () => undefined,
+      forkMessage: () => undefined,
+      openSideChat: () => undefined,
+      notify: () => undefined,
+    }),
+    [onAddContextRef, onOpen],
+  );
+
+  const caps = {
+    hasProject: hasProjectContext,
+    canReveal: false,
+    sideChatAvailable: false,
+    applyAvailable: false,
+    locale: locale as DesktopLocale,
+  };
+
+  const targetProjectPath = projectPath ?? '';
+  const chip = (
+    <a
+      href="#"
+      className={className}
+      title={fullPath}
+      data-testid={testId}
+      data-full-path={fullPath}
+      onClick={(event) => {
+        event.preventDefault();
+        onOpen();
+      }}
+    >
+      {showIcon ? <FileTypeIcon filePathOrExt={fullPath} /> : null}
+      <span className="chip-text">{displayText}</span>
+    </a>
+  );
 
   return (
-    <ContextMenu
-      content={
-        <ContextMenuItem onSelect={handleCopy} testId="path-chip-copy-path">
-          {copyLabel}
-        </ContextMenuItem>
-      }
+    <ContextMenuFromCatalog
+      testId="path-chip-context-menu"
+      target={{
+        surface: 'path-chip',
+        projectPath: targetProjectPath,
+        relativePath: resolvedRelative,
+        absolutePath: fullPath,
+        label: displayText,
+      }}
+      caps={caps}
+      dispatchers={dispatchers}
     >
-      <a
-        href="#"
-        className={className}
-        title={fullPath}
-        data-testid={testId}
-        data-full-path={fullPath}
-        onClick={(event) => {
-          event.preventDefault();
-          onOpen();
-        }}
-      >
-        {showIcon ? <FileTypeIcon filePathOrExt={fullPath} /> : null}
-        <span className="chip-text">{displayText}</span>
-      </a>
-    </ContextMenu>
+      {chip}
+    </ContextMenuFromCatalog>
   );
 }
