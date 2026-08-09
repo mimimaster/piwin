@@ -8,7 +8,7 @@
  *
  * Protocol:
  *   stdin  ← HostCommand       (one JSON object per line)
- *   stdout → HostServerMessage  (HostResponse | HostPush)
+ *   stdout → HostServerMessage  (HostResponse | HostPush | push/batch)
  *
  * Usage:
  *   node scripts/e2e-host-jsonl.mjs
@@ -53,6 +53,18 @@ function fail(message) {
   throw error;
 }
 
+function findPushFromLines(lines, predicate) {
+  for (const line of lines) {
+    const parsed = JSON.parse(line);
+    const pushes = parsed.type === 'push/batch' ? parsed.items.map((item) => item.push) : [parsed];
+    const matching = pushes.find(predicate);
+    if (matching !== undefined) {
+      return matching;
+    }
+  }
+  return undefined;
+}
+
 // ── main harness ─────────────────────────────────────────────────
 
 async function runTestSequence(child, piwinRoot) {
@@ -63,13 +75,15 @@ async function runTestSequence(child, piwinRoot) {
     stderrChunks.push(chunk);
     if (isDebug) process.stderr.write(chunk);
   });
-  child.on('exit', (code) => { childExitCode = code; });
+  child.on('exit', (code) => {
+    childExitCode = code;
+  });
 
   // ── stdout reader ──────────────────────────────────────────────
-  const seenLines = [];          // ordered list of all parsed messages
-  const pendingResolvers = [];   // [{ id, resolve, timer }]
-  const eventLog = [];           // non-response push events
-  const eventListeners = [];     // [{ predicate, resolve, timer }]
+  const seenLines = []; // ordered list of all parsed messages
+  const pendingResolvers = []; // [{ id, resolve, timer }]
+  const eventLog = []; // non-response push events
+  const eventListeners = []; // [{ predicate, resolve, timer }]
 
   const stdoutReader = createInterface({ input: child.stdout, crlfDelay: Infinity });
 
@@ -100,16 +114,23 @@ async function runTestSequence(child, piwinRoot) {
         }
       }
     } else {
-      debug('push:', parsed.type, 'event:', parsed.event?.type ?? '');
-      eventLog.push(parsed);
-      // Notify matching event listener.
-      for (let idx = 0; idx < eventListeners.length; idx += 1) {
-        const entry = eventListeners[idx];
-        if (entry.predicate(parsed)) {
-          clearTimeout(entry.timer);
-          entry.resolve(parsed);
-          eventListeners.splice(idx, 1);
-          idx -= 1;
+      const pushes =
+        parsed.type === 'push/batch' ? parsed.items.map((item) => item.push) : [parsed];
+      for (const push of pushes) {
+        // Keep inner pushes in the ordered compatibility view so assertions
+        // reason about semantic delivery rather than the batch envelope.
+        seenLines.push(push);
+        debug('push:', push.type, 'event:', push.event?.type ?? '');
+        eventLog.push(push);
+        // Notify matching event listener.
+        for (let idx = 0; idx < eventListeners.length; idx += 1) {
+          const entry = eventListeners[idx];
+          if (entry.predicate(push)) {
+            clearTimeout(entry.timer);
+            entry.resolve(push);
+            eventListeners.splice(idx, 1);
+            idx -= 1;
+          }
         }
       }
     }
@@ -172,7 +193,11 @@ async function runTestSequence(child, piwinRoot) {
     debug('cleanup (success=%s)', success);
 
     // Close stdin to signal EOF and let the dispatcher drain.
-    try { child.stdin.end(); } catch { /* ignore */ }
+    try {
+      child.stdin.end();
+    } catch {
+      /* ignore */
+    }
 
     // Wait for graceful exit (up to 5 seconds).
     if (childExitCode === null) {
@@ -205,13 +230,14 @@ async function runTestSequence(child, piwinRoot) {
   try {
     // ── 1. Wait for initial host/status push ─────────────────────
     debug('step 1: waiting for host/status push ...');
-    const initialStatus = await waitForEvent(
-      (push) => push.type === 'host/status',
-      10_000,
-    );
+    const initialStatus = await waitForEvent((push) => push.type === 'host/status', 10_000);
     assert(initialStatus?.ready === true, 'host/status ready');
     assert(initialStatus?.mock === true, 'host/status mock=true');
     assert(initialStatus?.mode === 'sdk', 'host/status mode=sdk');
+    assert(
+      seenLines.some((line) => line.type === 'push/batch'),
+      'initial host status uses a bounded push/batch frame',
+    );
     debug('host/status received: ready=%s mock=%s', initialStatus.ready, initialStatus.mock);
 
     // ── 2. host/ping ─────────────────────────────────────────────
@@ -245,7 +271,10 @@ async function runTestSequence(child, piwinRoot) {
     const createResponse = await waitForResponse(createId, 10_000);
     assert(createResponse.success === true, 'session/create success');
     const sessionId = createResponse.data?.sessionId;
-    assert(typeof sessionId === 'string' && sessionId.length > 0, 'session/create returned sessionId');
+    assert(
+      typeof sessionId === 'string' && sessionId.length > 0,
+      'session/create returned sessionId',
+    );
     debug('session created:', sessionId);
 
     // ── 6. session/prompt (should ack within 250ms) ──────────────
@@ -265,10 +294,7 @@ async function runTestSequence(child, piwinRoot) {
       acceptedData?.runId && typeof acceptedData.runId === 'string',
       'prompt response has runId',
     );
-    assert(
-      acceptedData?.sessionId === sessionId,
-      'prompt response sessionId matches',
-    );
+    assert(acceptedData?.sessionId === sessionId, 'prompt response sessionId matches');
     assert(
       acceptedData?.acceptedAt && typeof acceptedData.acceptedAt === 'string',
       'prompt response has acceptedAt',
@@ -303,9 +329,7 @@ async function runTestSequence(child, piwinRoot) {
     // ── 8. Wait for exactly one terminal event ───────────────────
     debug('step 8: waiting for run/terminal event ...');
     const terminalEvent = await waitForEvent(
-      (push) =>
-        push.type === 'run/terminal' &&
-        push.run?.runId === runId,
+      (push) => push.type === 'run/terminal' && push.run?.runId === runId,
       15_000,
     );
     const cancelTerminalMs = Date.now() - abortSentAt;
@@ -328,9 +352,7 @@ async function runTestSequence(child, piwinRoot) {
 
     // Verify exactly one terminal event for this run.
     const terminalEventsForRun = eventLog.filter(
-      (push) =>
-        push.type === 'run/terminal' &&
-        push.run?.runId === runId,
+      (push) => push.type === 'run/terminal' && push.run?.runId === runId,
     );
     assert(
       terminalEventsForRun.length === 1,
@@ -343,10 +365,7 @@ async function runTestSequence(child, piwinRoot) {
     const terminalEventIdx = seenLines.indexOf(terminalEvent);
     assert(abortResponseIdx >= 0, 'abort response found in output stream');
     assert(terminalEventIdx >= 0, 'terminal event found in output stream');
-    assert(
-      abortResponseIdx < terminalEventIdx,
-      'abort response arrived before run/terminal event',
-    );
+    assert(abortResponseIdx < terminalEventIdx, 'abort response arrived before run/terminal event');
     assert(
       statusResponseIdx < terminalEventIdx,
       'host/status response arrived before run/terminal event',
@@ -389,11 +408,15 @@ async function testMalformedJson(piwinRoot) {
   const child = spawn(
     'pnpm',
     [
-      '--filter', '@piwin/cli',
-      'exec', 'tsx',
+      '--filter',
+      '@piwin/cli',
+      'exec',
+      'tsx',
       'src/index.ts',
-      'host', 'serve',
-      '--mode', 'sdk',
+      'host',
+      'serve',
+      '--mode',
+      'sdk',
       '--mock',
     ],
     {
@@ -472,7 +495,9 @@ async function testMalformedJson(piwinRoot) {
   // Clean shutdown.
   child.stdin.end();
   let childExitCode = null;
-  child.on('exit', (code) => { childExitCode = code; });
+  child.on('exit', (code) => {
+    childExitCode = code;
+  });
 
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline && childExitCode === null) {
@@ -497,11 +522,15 @@ async function testMcpStatus(piwinRoot) {
   const child = spawn(
     'pnpm',
     [
-      '--filter', '@piwin/cli',
-      'exec', 'tsx',
+      '--filter',
+      '@piwin/cli',
+      'exec',
+      'tsx',
       'src/index.ts',
-      'host', 'serve',
-      '--mode', 'sdk',
+      'host',
+      'serve',
+      '--mode',
+      'sdk',
       '--mock',
     ],
     {
@@ -551,9 +580,7 @@ async function testMcpStatus(piwinRoot) {
       5_000,
     );
     const poll = () => {
-      const responseLine = stdoutLines.find(
-        (l) => l.includes(mcpId) && l.includes('"response"'),
-      );
+      const responseLine = stdoutLines.find((l) => l.includes(mcpId) && l.includes('"response"'));
       if (responseLine) {
         clearTimeout(timer);
         resolve(responseLine);
@@ -564,9 +591,7 @@ async function testMcpStatus(piwinRoot) {
     poll();
   });
 
-  const responseLine = stdoutLines.find(
-    (l) => l.includes(mcpId) && l.includes('"response"'),
-  );
+  const responseLine = stdoutLines.find((l) => l.includes(mcpId) && l.includes('"response"'));
   assert(responseLine != null, 'mcp/status response received');
   const parsed = JSON.parse(responseLine);
   assert(parsed.success === true, 'mcp/status success');
@@ -576,21 +601,17 @@ async function testMcpStatus(piwinRoot) {
     'mcp/status data.servers is array',
   );
   for (const server of parsed.data.servers) {
-    assert(
-      typeof server.serverId === 'string',
-      'mcp/status server has serverId string',
-    );
-    assert(
-      typeof server.status === 'string',
-      'mcp/status server has status string',
-    );
+    assert(typeof server.serverId === 'string', 'mcp/status server has serverId string');
+    assert(typeof server.status === 'string', 'mcp/status server has status string');
   }
   debug('mcp/status returned %d servers', parsed.data.servers.length);
 
   // Clean shutdown.
   child.stdin.end();
   let childExitCode = null;
-  child.on('exit', (code) => { childExitCode = code; });
+  child.on('exit', (code) => {
+    childExitCode = code;
+  });
 
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline && childExitCode === null) {
@@ -610,11 +631,15 @@ async function testPermissionResolve(piwinRoot) {
   const child = spawn(
     'pnpm',
     [
-      '--filter', '@piwin/cli',
-      'exec', 'tsx',
+      '--filter',
+      '@piwin/cli',
+      'exec',
+      'tsx',
       'src/index.ts',
-      'host', 'serve',
-      '--mode', 'sdk',
+      'host',
+      'serve',
+      '--mode',
+      'sdk',
       '--mock',
     ],
     {
@@ -684,9 +709,7 @@ async function testPermissionResolve(piwinRoot) {
     poll();
   });
 
-  const responseLine = stdoutLines.find(
-    (l) => l.includes(resolveId) && l.includes('"response"'),
-  );
+  const responseLine = stdoutLines.find((l) => l.includes(resolveId) && l.includes('"response"'));
   assert(responseLine != null, 'permission/resolve response received');
   const parsed = JSON.parse(responseLine);
   // The resolve is idempotent - it succeeds even if the request doesn't exist
@@ -697,7 +720,9 @@ async function testPermissionResolve(piwinRoot) {
   // Clean shutdown.
   child.stdin.end();
   let childExitCode = null;
-  child.on('exit', (code) => { childExitCode = code; });
+  child.on('exit', (code) => {
+    childExitCode = code;
+  });
 
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline && childExitCode === null) {
@@ -717,13 +742,18 @@ async function testHighRateOutput(piwinRoot) {
   const child = spawn(
     'pnpm',
     [
-      '--filter', '@piwin/cli',
-      'exec', 'tsx',
+      '--filter',
+      '@piwin/cli',
+      'exec',
+      'tsx',
       'src/index.ts',
-      'host', 'serve',
-      '--mode', 'sdk',
+      'host',
+      'serve',
+      '--mode',
+      'sdk',
       '--mock',
-      '--test-fixture', 'high-rate-tool-output',
+      '--test-fixture',
+      'high-rate-tool-output',
     ],
     {
       cwd: join(import.meta.dirname, '..'),
@@ -766,7 +796,10 @@ async function testHighRateOutput(piwinRoot) {
   const openId = randomUUID();
   child.stdin.write(JSON.stringify({ id: openId, type: 'project/open', path: projectPath }) + '\n');
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout project/open in high-rate test')), 5_000);
+    const timer = setTimeout(
+      () => reject(new Error('timeout project/open in high-rate test')),
+      5_000,
+    );
     const poll = () => {
       if (stdoutLines.some((l) => l.includes(openId) && l.includes('"response"'))) {
         clearTimeout(timer);
@@ -779,9 +812,14 @@ async function testHighRateOutput(piwinRoot) {
   });
 
   const trustId = randomUUID();
-  child.stdin.write(JSON.stringify({ id: trustId, type: 'project/trust', path: projectPath }) + '\n');
+  child.stdin.write(
+    JSON.stringify({ id: trustId, type: 'project/trust', path: projectPath }) + '\n',
+  );
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout project/trust in high-rate test')), 5_000);
+    const timer = setTimeout(
+      () => reject(new Error('timeout project/trust in high-rate test')),
+      5_000,
+    );
     const poll = () => {
       if (stdoutLines.some((l) => l.includes(trustId) && l.includes('"response"'))) {
         clearTimeout(timer);
@@ -802,7 +840,10 @@ async function testHighRateOutput(piwinRoot) {
     }) + '\n',
   );
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout session/create in high-rate test')), 10_000);
+    const timer = setTimeout(
+      () => reject(new Error('timeout session/create in high-rate test')),
+      10_000,
+    );
     const poll = () => {
       if (stdoutLines.some((l) => l.includes(createId) && l.includes('"response"'))) {
         clearTimeout(timer);
@@ -836,7 +877,10 @@ async function testHighRateOutput(piwinRoot) {
 
   // Wait for prompt ack.
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('timeout prompt ack in high-rate test')), 5_000);
+    const timer = setTimeout(
+      () => reject(new Error('timeout prompt ack in high-rate test')),
+      5_000,
+    );
     const poll = () => {
       if (stdoutLines.some((l) => l.includes(promptId) && l.includes('"response"'))) {
         clearTimeout(timer);
@@ -848,7 +892,8 @@ async function testHighRateOutput(piwinRoot) {
     poll();
   });
 
-  // Wait for run/terminal event.
+  // Wait for run/terminal event (inside a push/batch frame on the Stage 1
+  // transport).
   await new Promise((resolve, reject) => {
     const timer = setTimeout(
       () => reject(new Error('timeout run/terminal in high-rate test')),
@@ -866,17 +911,13 @@ async function testHighRateOutput(piwinRoot) {
   });
 
   // Verify terminal event is well-formed.
-  const terminalLine = stdoutLines.find((l) => l.includes('run/terminal'));
-  assert(terminalLine != null, 'high-rate test: run/terminal event received');
-  const terminalParsed = JSON.parse(terminalLine);
+  const terminalParsed = findPushFromLines(stdoutLines, (push) => push.type === 'run/terminal');
+  assert(terminalParsed != null, 'high-rate test: run/terminal event received');
   assert(
     terminalParsed.type === 'run/terminal',
     'high-rate test: terminal event has type=run/terminal',
   );
-  assert(
-    typeof terminalParsed.run?.runId === 'string',
-    'high-rate test: terminal event has runId',
-  );
+  assert(typeof terminalParsed.run?.runId === 'string', 'high-rate test: terminal event has runId');
   assert(
     typeof terminalParsed.run?.status === 'string',
     'high-rate test: terminal event has outcome',
@@ -893,14 +934,16 @@ async function testHighRateOutput(piwinRoot) {
   let transcriptResponse;
   while (Date.now() < retentionDeadline) {
     const responseLine = stdoutLines.find(
-      (line) => line.includes(messageId) && line.includes('output truncated: retention limit reached'),
+      (line) => line.includes(messageId) && line.includes('"command":"session/messages"'),
     );
     if (responseLine) {
       transcriptResponse = JSON.parse(responseLine);
       break;
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
-    child.stdin.write(JSON.stringify({ id: messageId, type: 'session/messages', sessionId }) + '\n');
+    child.stdin.write(
+      JSON.stringify({ id: messageId, type: 'session/messages', sessionId }) + '\n',
+    );
   }
   assert(transcriptResponse?.success === true, 'high-rate test: transcript response succeeds');
   const assistant = transcriptResponse?.data?.messages?.find(
@@ -909,23 +952,26 @@ async function testHighRateOutput(piwinRoot) {
   const toolOutput = assistant?.tools?.find(
     (tool) => tool.toolName === 'delayed_fixture_tool',
   )?.output;
-  assert(
-    typeof toolOutput === 'string' && toolOutput.includes('[output truncated: retention limit reached]'),
-    'high-rate test: transcript retained tool output has truncation marker',
-  );
+  // `session/messages` is the slim UI projection: heavy tool bodies are
+  // intentionally omitted after the bounded Host transcript recorder has
+  // persisted them. The recorder's exact truncation marker is covered by its
+  // focused unit test; this E2E asserts the slim response remains bounded.
+  assert(typeof toolOutput === 'string', 'high-rate test: tool output is a string');
   assert(
     Buffer.byteLength(toolOutput ?? '', 'utf8') <= 256 * 1024,
-    'high-rate test: retained tool output is bounded to 256 KiB',
+    'high-rate test: slim tool output is bounded to 256 KiB',
   );
   assert(
     assistant?.tools?.[0]?.status === 'done',
-    'high-rate test: retained tool lifecycle completed after truncation',
+    'high-rate test: slim tool lifecycle completed after truncation',
   );
 
   // Clean shutdown.
   child.stdin.end();
   let childExitCode = null;
-  child.on('exit', (code) => { childExitCode = code; });
+  child.on('exit', (code) => {
+    childExitCode = code;
+  });
 
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline && childExitCode === null) {
@@ -947,13 +993,18 @@ async function main() {
   const child = spawn(
     'pnpm',
     [
-      '--filter', '@piwin/cli',
-      'exec', 'tsx',
+      '--filter',
+      '@piwin/cli',
+      'exec',
+      'tsx',
       'src/index.ts',
-      'host', 'serve',
-      '--mode', 'sdk',
+      'host',
+      'serve',
+      '--mode',
+      'sdk',
       '--mock',
-      '--test-fixture', 'hang-until-abort',
+      '--test-fixture',
+      'hang-until-abort',
     ],
     {
       cwd: join(import.meta.dirname, '..'),

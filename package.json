@@ -16,6 +16,7 @@
     "format:check": "prettier --check .",
     "dev:cli": "pnpm --filter @piwin/cli dev",
     "dev:desktop": "pnpm --dir apps/desktop dev",
+    "dev:host": "pnpm --filter @piwin/host-app dev",
     "check": "pnpm typecheck && pnpm test && pnpm test:architecture",
     "dev:tauri": "pnpm ensure:packaging-placeholders && pnpm --dir apps/desktop dev:tauri",
     "bundle:host": "node scripts/bundle-host.mjs",
