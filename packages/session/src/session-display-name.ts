@@ -18,6 +18,20 @@ const PLACEHOLDER_SESSION_RE = /^session-.+/i;
 
 const DEFAULT_LABELS = new Set(['new chat', '新会话', 'new session', '新对话']);
 
+/**
+ * Internal prompt wrappers that older Desktop builds accidentally persisted as
+ * the beginning of a text-derived title. Keep this deliberately narrow: the
+ * repair path may rewrite only known product-generated prefixes, never an
+ * arbitrary title that merely contains the word "piwin".
+ */
+const LEGACY_INTERNAL_NAME_PREFIX_RE =
+  /^(?:\[piwin-(?:mode|prompt-meta|skill)(?::|\s|\])|operating contract for this turn\b)/i;
+
+/** True when a text title is a known legacy model-prompt leak. */
+export function isLegacyInternalSessionName(name: string | undefined | null): boolean {
+  return typeof name === 'string' && LEGACY_INTERNAL_NAME_PREFIX_RE.test(name.trim());
+}
+
 /** True when the label is still a host placeholder / empty draft title. */
 export function isPlaceholderSessionName(name: string | undefined | null): boolean {
   if (name === undefined || name === null) {

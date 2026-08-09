@@ -18,6 +18,9 @@ import {
 } from './session-index-store.js';
 import { loadSessionTranscript, saveSessionTranscript } from './message-store.js';
 import { cloneTranscript } from './clone-session-transcript.js';
+import { buildForkSessionName } from './fork-session-name.js';
+
+export { buildForkSessionName } from './fork-session-name.js';
 
 export type ForkSessionPaths = {
   indexPath: string;
@@ -31,6 +34,8 @@ export type ForkSessionInput = {
   messageId: string;
   /** Optional display name; default "<source name> · Branch". */
   name?: string;
+  /** Existing direct-fork names used to choose a collision-free default. */
+  existingForkNames?: string[];
   /** Injected for tests; default randomUUID(). */
   newSessionId?: string;
   /** V1: 'shared'. Worktree is a follow-up slice. */
@@ -61,29 +66,6 @@ export class ForkValidationError extends Error {
     this.name = 'ForkValidationError';
     this.code = code;
   }
-}
-
-/**
- * Build a default fork name: `<source name> · Branch`, `· Branch 2`, etc.
- * Inspects existing direct forks of the same source to avoid collisions.
- */
-export function buildForkSessionName(
-  sourceName: string | undefined,
-  sourceSessionId: string,
-  existingForkNames: string[] = [],
-): string {
-  const base = (sourceName ?? `session-${sourceSessionId.slice(0, 8)}`).trim() || 'session';
-  // Strip existing "· Branch" suffixes to get the root name.
-  const rootName = base.replace(/\s*·\s*Branch(\s+\d+)?$/, '');
-  const firstCandidate = `${rootName} · Branch`;
-  if (!existingForkNames.includes(firstCandidate)) {
-    return firstCandidate;
-  }
-  let counter = 2;
-  while (existingForkNames.includes(`${rootName} · Branch ${counter}`)) {
-    counter++;
-  }
-  return `${rootName} · Branch ${counter}`;
 }
 
 /**
@@ -137,7 +119,13 @@ export async function forkProductSession(
     );
   }
 
-  const sourceMessage = sourceTranscript.messages[sourceMessageIndex]!;
+  const sourceMessage = sourceTranscript.messages[sourceMessageIndex];
+  if (!sourceMessage) {
+    throw new ForkValidationError(
+      'session-fork-message-not-found',
+      `Message not found in source transcript: ${input.messageId}`,
+    );
+  }
   if (sourceMessage.role !== 'assistant') {
     throw new ForkValidationError(
       'session-fork-message-not-found',
@@ -199,7 +187,11 @@ export async function forkProductSession(
   const displayName =
     typeof input.name === 'string' && input.name.trim().length > 0
       ? input.name.trim()
-      : buildForkSessionName(sourceRecord.name, sourceRecord.id);
+      : buildForkSessionName(
+          sourceRecord.name,
+          sourceRecord.id,
+          input.existingForkNames ?? [],
+        );
 
   // Create the index record.
   const record = createSessionRecord({

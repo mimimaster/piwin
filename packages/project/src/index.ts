@@ -2,6 +2,7 @@ export {
   listProjects,
   loadProjectStore,
   openOrCreateProject,
+  removeProject,
   saveProjectStore,
   setProjectTrust,
   getProjectNetworkPolicy,

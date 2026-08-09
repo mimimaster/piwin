@@ -13,6 +13,7 @@ import {
   listProjects,
   listRememberedPermissions,
   openOrCreateProject,
+  removeProject,
   revokeRememberedPermission,
   saveProjectStore,
   setProjectTrust,
@@ -29,6 +30,20 @@ describe('project-store', () => {
     const projects = await listProjects(filePath);
     expect(projects).toHaveLength(1);
     expect(projects[0]?.path).toContain('demo-project');
+  });
+
+  it('removes a remembered project without touching other projects', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'piwin-project-remove-'));
+    const filePath = join(dir, 'projects.json');
+    await openOrCreateProject(filePath, '/tmp/remove-project');
+    await openOrCreateProject(filePath, '/tmp/keep-project');
+
+    const removed = await removeProject(filePath, '/tmp/remove-project');
+
+    expect(removed?.path).toContain('remove-project');
+    expect((await listProjects(filePath)).map((project) => project.path)).toEqual([
+      '/tmp/keep-project',
+    ]);
   });
 
   it('remembers network allow policy per project', async () => {

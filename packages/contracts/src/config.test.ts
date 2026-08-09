@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { createDefaultSubagentConfig, THINKING_LEVEL_OPTIONS } from './config.js';
+import {
+  createDefaultSubagentConfig,
+  modelSupportsCapability,
+  THINKING_LEVEL_OPTIONS,
+} from './config.js';
 import type {
   ModelConfigEntry,
   ModelCapability,
@@ -69,6 +73,17 @@ describe('ModelConfigEntry capabilities + routes', () => {
     expect(entry.thinkingLevels).toContain('max');
     expect(entry.thinkingLevels).toContain(entry.thinkingLevel);
   });
+
+  it('treats legacy models as chat models and requires explicit speech tags', () => {
+    expect(modelSupportsCapability({}, 'chat')).toBe(true);
+    expect(modelSupportsCapability({}, 'speech-to-text')).toBe(false);
+    expect(modelSupportsCapability({ capabilities: ['speech-to-text'] }, 'speech-to-text')).toBe(
+      true,
+    );
+    expect(modelSupportsCapability({ capabilities: ['text-to-speech'] }, 'speech-to-text')).toBe(
+      false,
+    );
+  });
 });
 
 describe('THINKING_LEVEL_OPTIONS', () => {
@@ -131,6 +146,42 @@ describe('PiwinConfig.videoGeneration', () => {
       },
     };
     expect(config.videoGeneration?.defaultModel?.modelId).toBe('gen4.5');
+  });
+});
+
+describe('PiwinConfig.speech', () => {
+  it('accepts independent ASR and TTS defaults', () => {
+    const config: PiwinConfig = {
+      hostMode: 'sdk',
+      providers: [],
+      media: { maxPasteBytes: 0, allowedMimeTypes: [] },
+      artifact: {
+        enabled: true,
+        triggerMode: 'automatic',
+        decisionPrompt: { mode: 'default', customPrompt: '' },
+        maxBytes: 0,
+      },
+      speech: {
+        asr: {
+          defaultModel: {
+            protocol: 'openai-compatible',
+            providerId: 'openai',
+            modelId: 'whisper-1',
+          },
+          language: 'zh',
+        },
+        tts: {
+          defaultModel: {
+            protocol: 'openai-compatible',
+            providerId: 'openai',
+            modelId: 'tts-1',
+          },
+          voice: 'alloy',
+        },
+      },
+    };
+    expect(config.speech?.asr?.defaultModel?.modelId).toBe('whisper-1');
+    expect(config.speech?.tts?.voice).toBe('alloy');
   });
 });
 

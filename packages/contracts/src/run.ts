@@ -30,6 +30,8 @@ export type ExecutionRunStatus =
 /** Immutable run record. */
 export type ExecutionRunRecord = {
   runId: string;
+  /** Monotonic authority revision; legacy wire records may omit it. */
+  revision?: number;
   kind: ExecutionRunKind;
   status: ExecutionRunStatus;
   rootRunId: string;

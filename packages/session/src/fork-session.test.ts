@@ -173,4 +173,19 @@ describe('forkProductSession', () => {
     expect(result).toBeDefined();
     expect(result!.record.name).toBe('Test Chat · Branch');
   });
+
+  it('uses the next available default branch name', async () => {
+    const result = await forkProductSession(
+      { indexPath, sourceTranscriptPath, targetTranscriptPath },
+      {
+        sourceSessionId: 'source-1',
+        messageId: 'msg-2',
+        workspaceStrategy: 'shared',
+        existingForkNames: ['Test Chat · Branch', 'Test Chat · Branch 2'],
+        newSessionId: 'fork-named-3',
+      },
+    );
+    expect(result).toBeDefined();
+    expect(result?.record.name).toBe('Test Chat · Branch 3');
+  });
 });

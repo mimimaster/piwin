@@ -86,30 +86,37 @@ export function createDefaultArtifactConfig(): ArtifactConfig {
  * Users can replace this via `decisionPrompt.mode = 'custom'`.
  */
 export const DEFAULT_ARTIFACT_DECISION_PROMPT = [
-  '[piwin-prompt-meta kind="artifact:decision" version="2" applies="artifacts-enabled"]',
+  '[piwin-prompt-meta kind="artifact:decision" version="3" applies="artifacts-enabled"]',
+  '<artifact-decision-policy name="piwin-proactive-inline">',
   '## Artifact Decision Policy',
   '',
-  '## Success',
-  'Choose the lightest output that lets the user complete their job: Markdown by default; an Artifact only when interaction, structure, or reuse clearly beats prose.',
+  '## Primary rule',
+  "Choose the presentation that makes the user's information easiest to scan, understand, search, copy, compare, and reuse.",
+  'Artifact is not limited to explicit UI requests. Use an Artifact proactively whenever a structured or information-dense response is materially more useful as a compact interactive or visually grouped UI than as a long Markdown block.',
   '',
-  '### Markdown when',
-  '- User wants text, source, a short answer, or simple tables/lists',
-  '- An artifact would only decorate the same content',
-  '- You are uncertain',
+  '### Use Artifact proactively when',
+  '- The answer contains many items, categories, commands, options, examples, or reference entries',
+  '- The user asks for a cheatsheet, reference guide, command summary, comparison, matrix, timeline, workflow, catalog, checklist, or categorized overview',
+  '- The content benefits from search, filtering, copying, sorting, tabs, accordions, or grouping',
+  '- A dense table, list, or long explanation would be difficult to scan as ordinary Markdown',
+  '- The user is likely to save, revisit, compare, or repeatedly use the answer',
+  '- The user asks for a dashboard, calculator, visual summary, interactive tool, prototype, or UI',
+  '- The answer would otherwise become a long wall of text',
   '',
-  '### Artifact when',
-  '- User asks for artifact / visual / dashboard / calculator / interactive tool',
-  '- Content needs search, filter, copy, compare, or interaction',
-  '- Diagram, chart, or visual structure is clearer than continuous text',
-  '- User will save or return to it as a standalone reference',
-  '- Iterating on an existing artifact',
+  'For dense textual content, prefer an Artifact even when the user does not explicitly mention UI, as long as the Artifact improves readability or reuse.',
   '',
-  '### Inline vs Canvas',
-  '**Inline** (default): diagrams, cheatsheets, small calculators, compact interactive explanations.',
-  '**Canvas** only if at least one holds: user asks for canvas/full page; multi-step local state; app/page prototype to operate; dense workspace beside chat; must return a result to Composer.',
-  'Length, charts, tabs, or a few controls alone do not justify Canvas. If uncertain → Inline.',
+  '### Use Markdown when',
+  '- The answer is short and can be understood in one or two paragraphs',
+  '- The user explicitly asks for Markdown, plain text, source code, raw HTML, or a code snippet',
+  '- The user asks to explain, debug, teach, or review code and no interactive presentation is useful',
+  '- A small list or simple table is clearer than an Artifact',
+  '',
+  '### Output choice',
+  'If the answer is between a long Markdown response and a compact searchable, copyable, or visually grouped Artifact, choose the Artifact.',
+  'Use Inline Artifact by default. Use Canvas only for full-page layouts, app-like prototypes, complex local state, or a workspace that needs to remain beside the conversation.',
   '',
   'Runtime contract (theme, layout, sandbox) is injected separately — do not restate it here.',
+  '</artifact-decision-policy>',
 ].join('\n');
 
 /**
@@ -161,9 +168,7 @@ export type SvgArtifactDescriptor = ArtifactDescriptorBase & {
 export type ArtifactDescriptor = HtmlArtifactDescriptor | SvgArtifactDescriptor;
 
 export type ArtifactSecurityBlockReason =
-  | 'blocked-empty'
-  | 'blocked-too-large'
-  | 'blocked-external-resource';
+  'blocked-empty' | 'blocked-too-large' | 'blocked-external-resource';
 
 export type ArtifactSecurityResult = {
   canRender: boolean;

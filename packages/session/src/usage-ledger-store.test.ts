@@ -50,33 +50,112 @@ describe('usage-ledger-store', () => {
 
   it('computes totals, byModel, byDay and per-session rollup', async () => {
     const records = [
-      record({ sessionId: 's1', modelId: 'm1', totalTokens: 100, promptTokens: 60, completionTokens: 40, recordedAt: '2026-08-01T10:00:00.000Z' }),
-      record({ sessionId: 's1', modelId: 'm1', totalTokens: 200, promptTokens: 120, completionTokens: 80, recordedAt: '2026-08-01T11:00:00.000Z' }),
-      record({ sessionId: 's2', modelId: 'm2', totalTokens: 50, promptTokens: 10, completionTokens: 40, recordedAt: '2026-08-02T09:00:00.000Z' }),
+      record({
+        sessionId: 's1',
+        providerId: 'key-work',
+        modelId: 'm1',
+        totalTokens: 130,
+        promptTokens: 60,
+        completionTokens: 40,
+        cacheReadTokens: 20,
+        cacheWriteTokens: 10,
+        recordedAt: '2026-08-01T10:00:00.000Z',
+      }),
+      record({
+        sessionId: 's1',
+        providerId: 'key-work',
+        modelId: 'm1',
+        totalTokens: 230,
+        promptTokens: 120,
+        completionTokens: 80,
+        cacheReadTokens: 30,
+        recordedAt: '2026-08-01T11:00:00.000Z',
+      }),
+      record({
+        sessionId: 's2',
+        providerId: 'key-personal',
+        modelId: 'm2',
+        totalTokens: 60,
+        promptTokens: 10,
+        completionTokens: 40,
+        cacheReadTokens: 5,
+        cacheWriteTokens: 5,
+        recordedAt: '2026-08-02T09:00:00.000Z',
+      }),
     ];
     const rollup = computeUsageRollup(records);
-    expect(rollup.totalTokens).toBe(350);
+    expect(rollup.totalTokens).toBe(420);
     expect(rollup.promptTokens).toBe(190);
     expect(rollup.completionTokens).toBe(160);
+    expect(rollup.cacheReadTokens).toBe(55);
+    expect(rollup.cacheWriteTokens).toBe(15);
     expect(rollup.entryCount).toBe(3);
     expect(rollup.sessionCount).toBe(2);
     expect(rollup.firstAt).toBe('2026-08-01T10:00:00.000Z');
     expect(rollup.lastAt).toBe('2026-08-02T09:00:00.000Z');
-    expect(rollup.byModel['m1']?.totalTokens).toBe(300);
-    expect(rollup.byModel['m2']?.totalTokens).toBe(50);
-    expect(rollup.byDay['2026-08-01']?.totalTokens).toBe(300);
-    expect(rollup.byDay['2026-08-02']?.totalTokens).toBe(50);
+    expect(rollup.byModel['m1']?.totalTokens).toBe(360);
+    expect(rollup.byModel['m1']?.cacheReadTokens).toBe(50);
+    expect(rollup.byModel['m1']?.cacheWriteTokens).toBe(10);
+    expect(rollup.byModel['m2']?.totalTokens).toBe(60);
+    expect(rollup.byModelKey).toHaveLength(2);
+    expect(rollup.byModelKey[0]).toMatchObject({
+      providerId: 'key-work',
+      modelId: 'm1',
+      cacheReadTokens: 50,
+      cacheWriteTokens: 10,
+      totalTokens: 360,
+    });
+    expect(rollup.byDay['2026-08-01']?.totalTokens).toBe(360);
+    expect(rollup.byDay['2026-08-02']?.totalTokens).toBe(60);
     expect(rollup.bySession).toHaveLength(2);
     expect(rollup.bySession[0]?.sessionId).toBe('s1');
-    expect(rollup.bySession[0]?.totalTokens).toBe(300);
+    expect(rollup.bySession[0]?.totalTokens).toBe(360);
+    expect(rollup.bySession[0]?.cacheReadTokens).toBe(50);
     expect(rollup.bySession[1]?.sessionId).toBe('s2');
+  });
+
+  it('keeps the same model separated by provider-config Key', () => {
+    const rollup = computeUsageRollup([
+      record({ providerId: 'work-key', modelId: 'shared-model', cacheReadTokens: 80 }),
+      record({ providerId: 'personal-key', modelId: 'shared-model', cacheReadTokens: 10 }),
+      record({ modelId: 'shared-model', cacheReadTokens: 5 }),
+    ]);
+
+    expect(rollup.byModel['shared-model']?.entryCount).toBe(3);
+    expect(rollup.byModelKey).toHaveLength(3);
+    expect(
+      rollup.byModelKey.map((row) => ({
+        providerId: row.providerId,
+        modelId: row.modelId,
+        cacheReadTokens: row.cacheReadTokens,
+      })),
+    ).toEqual([
+      { providerId: 'work-key', modelId: 'shared-model', cacheReadTokens: 80 },
+      { providerId: 'personal-key', modelId: 'shared-model', cacheReadTokens: 10 },
+      { providerId: null, modelId: 'shared-model', cacheReadTokens: 5 },
+    ]);
   });
 
   it('filters by project scope, window and topSessions', async () => {
     const records = [
-      record({ sessionId: 's1', projectPath: '/tmp/proj-a', totalTokens: 100, recordedAt: '2026-08-01T10:00:00.000Z' }),
-      record({ sessionId: 's2', projectPath: '/tmp/proj-b', totalTokens: 50, recordedAt: '2026-08-02T10:00:00.000Z' }),
-      record({ sessionId: 's3', projectPath: null, totalTokens: 25, recordedAt: '2026-08-03T10:00:00.000Z' }),
+      record({
+        sessionId: 's1',
+        projectPath: '/tmp/proj-a',
+        totalTokens: 100,
+        recordedAt: '2026-08-01T10:00:00.000Z',
+      }),
+      record({
+        sessionId: 's2',
+        projectPath: '/tmp/proj-b',
+        totalTokens: 50,
+        recordedAt: '2026-08-02T10:00:00.000Z',
+      }),
+      record({
+        sessionId: 's3',
+        projectPath: null,
+        totalTokens: 25,
+        recordedAt: '2026-08-03T10:00:00.000Z',
+      }),
     ];
     // Project scope filter.
     const project = computeUsageRollup(records, { projectPath: '/tmp/proj-a' });
@@ -101,5 +180,7 @@ describe('usage-ledger-store', () => {
     await appendUsageRecord(filePath, record({ totalTokens: 100 }));
     const rollup = await readUsageRollup(filePath);
     expect(rollup.totalTokens).toBe(100);
+    expect(rollup.cacheReadTokens).toBe(0);
+    expect(rollup.cacheWriteTokens).toBe(0);
   });
 });
