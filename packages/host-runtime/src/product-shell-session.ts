@@ -1,6 +1,8 @@
 /**
  * Product-owned session handle for cross-process resume.
- * Keeps stable product sessionId + transcript; lazily creates a live Pi/mock handle on first prompt.
+ * Keeps stable product sessionId; lazily creates a live Pi/mock handle on first prompt.
+ * ADR 0040 §7: full transcripts are never retained inside the shell — model
+ * history is loaded transiently and stays bounded by buildProductHistoryContext.
  */
 import type {
   AgentEvent,
@@ -10,7 +12,6 @@ import type {
   SessionCompactResult,
   SessionHandle,
   SessionScope,
-  SessionTranscriptMessage,
   SessionTreeView,
 } from '@piwin/contracts';
 
@@ -23,7 +24,6 @@ export type ProductShellSessionOptions = {
   scope?: SessionScope;
   workingDirectory?: string;
   sessionName?: string;
-  seedMessages?: SessionTranscriptMessage[];
   createLiveSession: (input: CreateSessionInput) => Promise<SessionHandle>;
 };
 
@@ -142,18 +142,9 @@ export function createProductShellSession(
       if (live) {
         return live.getMessages();
       }
-      return (options.seedMessages ?? []).map((message) => {
-        const view: AgentMessageView = {
-          id: message.id,
-          role: message.role,
-          text: message.text,
-          createdAt: message.createdAt,
-        };
-        if (message.attachments) {
-          view.attachments = message.attachments;
-        }
-        return view;
-      });
+      // ADR 0040 §7: no complete transcript retention inside the shell. While
+      // lazy, the shell reports no messages; durable history stays Host-owned.
+      return [];
     },
     async getTree(): Promise<SessionTreeView> {
       if (live) {

@@ -109,6 +109,11 @@ export type HostCommand =
   | { id?: string; type: 'host/status' }
   | {
       id?: string;
+      /** ADR 0040 §8: query-only aggregate residency/resource metrics. */
+      type: 'host/runtime-resources';
+    }
+  | {
+      id?: string;
       /**
        * ADR 0027: replay buffered pushes from `sinceSeq` (exclusive) to the
        * calling sink. Only valid when the sink is sequenced and the host
@@ -184,6 +189,12 @@ export type HostCommand =
   | { id?: string; type: 'subagent/batch-status'; runId: string }
   | { id?: string; type: 'subagent/batch-cancel'; runId: string }
   | { id?: string; type: 'session/resume'; sessionId: string }
+  | {
+      id?: string;
+      /** ADR 0040 §9: bounded outline page for older outline data. */
+      type: 'session/outline-page';
+      query: import('./session-transcript.js').SessionOutlinePageQuery;
+    }
   | { id?: string; type: 'session/transcript-page'; query: SessionTranscriptPageQuery }
   | { id?: string; type: 'session/runtime-status'; sessionId: string }
   | {
@@ -565,7 +576,7 @@ export type HostCommand =
       id?: string;
       type: 'walkthrough/list';
       sessionId: string;
-      /** Optional message ids from a just-hydrated transcript — avoids a second full transcript read. */
+      /** @deprecated Host transcript authority is queried directly; bounded shells cannot supply a complete id set. */
       knownMessageIds?: string[];
     }
   | {
@@ -807,6 +818,51 @@ export type HostStatusData = {
     remoteGateway?: boolean;
     /** ADR 0027: host tags pushes with seq/eventId and supports host/replay. */
     pushSequencing?: boolean;
+    /** ADR 0040: host owns session runtime residency (TTL/LRU/memory budgets). */
+    runtimeResidency?: boolean;
+    /** ADR 0040 §9: host supports bounded `session/outline-page` paging. */
+    sessionOutlinePage?: boolean;
+  };
+};
+
+/**
+ * Query-only aggregate residency/resource metrics (ADR 0040 §8).
+ *
+ * Returned by `host/runtime-resources`. Metrics are aggregate; per-process
+ * secrets/PIDs are never exposed. Worker samples may be incomplete.
+ */
+export type HostRuntimeResourcesData = {
+  /** Resident runtimes by residency state. */
+  counts: {
+    resident: number;
+    idle: number;
+    busy: number;
+    activating: number;
+    suspending: number;
+  };
+  /** Activations queued for capacity (FIFO waiters). */
+  waiterCount: number;
+  /** Effective policy budgets. */
+  budget: {
+    maxResidentRuntimes: number;
+    maxIdleRuntimes: number;
+    memoryHighWaterMiB: number;
+    memoryLowWaterMiB: number;
+  };
+  /** Aggregate RSS in MiB. Incomplete when worker samples are missing/stale. */
+  memory: {
+    hostRssMiB: number;
+    workerRssMiB?: number;
+    /** True when every expected worker sample is fresh. */
+    sampleCompleteness: 'complete' | 'partial' | 'missing';
+  };
+  /** Cumulative eviction/failure counters by reason. */
+  counters: {
+    evictedByIdleTtl: number;
+    evictedByMaxIdle: number;
+    evictedByMaxResident: number;
+    evictedByMemoryPressure: number;
+    memoryPressureFailures: number;
   };
 };
 

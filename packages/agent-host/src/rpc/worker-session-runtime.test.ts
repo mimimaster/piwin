@@ -8,6 +8,7 @@ import type {
   WorkerRequest,
 } from '../rpc-sdk-worker-protocol.js';
 import { WorkerSessionRuntime, type WorkerPiSessionLike } from './worker-session-runtime.js';
+import { normalizeGenerationMessageId } from '../generation-identity.js';
 import type { SerializableBlueprint } from './serializable-blueprint.js';
 
 const minimalBlueprint: SerializableBlueprint = {
@@ -33,6 +34,7 @@ const frameContext: WorkerFrameContext = {
   sessionId: 'ps-1',
   runtimeGenerationId: 'gen-1',
 };
+const normalizedMessageId = normalizeGenerationMessageId(frameContext, 'm1');
 
 function fakeMapper() {
   return {
@@ -204,7 +206,7 @@ describe('WorkerSessionRuntime', () => {
     expect(frames).toContainEqual({
       type: 'event',
       context: frameContext,
-      event: { type: 'message/text_snapshot', messageId: 'm1', text: 'mock reply' },
+      event: { type: 'message/text_snapshot', messageId: normalizedMessageId, text: 'mock reply' },
     } satisfies WorkerEvent);
     expect(frames).toContainEqual({
       type: 'response',
@@ -269,7 +271,7 @@ describe('WorkerSessionRuntime', () => {
     expect(frames).toContainEqual({
       type: 'event',
       context: frameContext,
-      event: { type: 'message/text_snapshot', messageId: 'm1', text: 'mock reply' },
+      event: { type: 'message/text_snapshot', messageId: normalizedMessageId, text: 'mock reply' },
     } satisfies WorkerEvent);
 
     await runtime.handleRequest({
@@ -373,12 +375,12 @@ describe('WorkerSessionRuntime', () => {
     expect(frames).toContainEqual({
       type: 'event',
       context: frameContext,
-      event: { type: 'message/text_snapshot', messageId: 'm1', text: 'steered' },
+      event: { type: 'message/text_snapshot', messageId: normalizedMessageId, text: 'steered' },
     } satisfies WorkerEvent);
     expect(frames).toContainEqual({
       type: 'event',
       context: frameContext,
-      event: { type: 'message/text_snapshot', messageId: 'm1', text: 'followed' },
+      event: { type: 'message/text_snapshot', messageId: normalizedMessageId, text: 'followed' },
     } satisfies WorkerEvent);
   });
 

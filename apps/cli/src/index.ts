@@ -15,12 +15,15 @@ import {
   scanPrompts,
   createSecretResolver,
   getPiwinSessionIndexPath,
+  listInterruptedTranscriptMigrations,
+  repairInterruptedTranscriptMigration,
 } from '@piwin/host-runtime';
 import type {
   AgentEvent,
   HostCommand,
   HostMode,
   HostPush,
+  HostRuntimeResourcesData,
   HostServerMessage,
   HostStatusData,
   PermissionMode,
@@ -68,7 +71,7 @@ function printHelp(): void {
   console.log(`piwin — private coding agent shell
 
 Usage:
-  piwin doctor
+  piwin doctor [--repair-transcripts]
   piwin host-mode
   piwin config init
   piwin config show
@@ -306,7 +309,16 @@ function createAssistantCliDisplay() {
   };
 }
 
-async function commandDoctor(): Promise<void> {
+function formatRuntimeResourcesLines(data: HostRuntimeResourcesData): string[] {
+  return [
+    `runtime residency: resident=${data.counts.resident} idle=${data.counts.idle} busy=${data.counts.busy} activating=${data.counts.activating} suspending=${data.counts.suspending} waiters=${data.waiterCount}`,
+    `runtime budget: maxResident=${data.budget.maxResidentRuntimes} maxIdle=${data.budget.maxIdleRuntimes} highWaterMiB=${data.budget.memoryHighWaterMiB} lowWaterMiB=${data.budget.memoryLowWaterMiB}`,
+    `runtime memory: hostRssMiB=${data.memory.hostRssMiB}${data.memory.workerRssMiB !== undefined ? ` workerRssMiB=${data.memory.workerRssMiB}` : ''} sample=${data.memory.sampleCompleteness}`,
+    `runtime evictions: ttl=${data.counters.evictedByIdleTtl} maxIdle=${data.counters.evictedByMaxIdle} maxResident=${data.counters.evictedByMaxResident} memory=${data.counters.evictedByMemoryPressure} pressureFail=${data.counters.memoryPressureFailures}`,
+  ];
+}
+
+async function commandDoctor(args: string[] = []): Promise<void> {
   const root = getPiwinRoot();
   const config = await loadPiwinConfig(root);
   const nodeVersion = process.versions.node;
@@ -344,9 +356,7 @@ async function commandDoctor(): Promise<void> {
       `- skills: ${skills.length} (extraPaths=${(config.skills?.extraPaths ?? []).length})`,
     );
   } catch (error) {
-    console.log(
-      `- skills: (unavailable: ${formatError(error)})`,
-    );
+    console.log(`- skills: (unavailable: ${formatError(error)})`);
   }
   try {
     await ensureBundledExtensionsInstalled(root);
@@ -360,9 +370,7 @@ async function commandDoctor(): Promise<void> {
     );
     console.log('- extensions security: third-party modules run with full process privileges');
   } catch (error) {
-    console.log(
-      `- extensions: (unavailable: ${formatError(error)})`,
-    );
+    console.log(`- extensions: (unavailable: ${formatError(error)})`);
   }
   try {
     await ensureBundledPromptsInstalled(root);
@@ -375,9 +383,7 @@ async function commandDoctor(): Promise<void> {
       `- prompts: ${prompts.length} (${enabledCount} enabled; extraPaths=${(config.prompts?.extraPaths ?? []).length})`,
     );
   } catch (error) {
-    console.log(
-      `- prompts: (unavailable: ${formatError(error)})`,
-    );
+    console.log(`- prompts: (unavailable: ${formatError(error)})`);
   }
   console.log(`- mock env: ${process.env.PIWIN_MOCK === '1' ? 'on' : 'off'}`);
   console.log('- Pi kernel: via @piwin/agent-host only (apps must not import Pi)');
@@ -395,9 +401,7 @@ async function commandDoctor(): Promise<void> {
       );
     }
   } catch (error) {
-    console.log(
-      `- browser chromium: (unavailable: ${formatError(error)})`,
-    );
+    console.log(`- browser chromium: (unavailable: ${formatError(error)})`);
   }
   try {
     const runtime = new HostRuntime({
@@ -417,24 +421,52 @@ async function commandDoctor(): Promise<void> {
           console.log(`- ${line}`);
         }
       }
+      const resources = await runtime.handleCommand({ type: 'host/runtime-resources' });
+      if (resources.success) {
+        console.log('--- runtime residency (aggregate) ---');
+        for (const line of formatRuntimeResourcesLines(
+          resources.data as HostRuntimeResourcesData,
+        )) {
+          console.log(`- ${line}`);
+        }
+      } else {
+        console.log(`- runtime residency: (unavailable: ${resources.error})`);
+      }
     } finally {
       await runtime.dispose();
     }
   } catch (error) {
-    console.log(
-      `- capability matrix: (unavailable: ${formatError(error)})`,
-    );
+    console.log(`- capability matrix: (unavailable: ${formatError(error)})`);
   }
   console.log(`- session index path: ${getPiwinSessionIndexPath(root)}`);
+  const interruptedMigrations = await listInterruptedTranscriptMigrations(root);
+  if (interruptedMigrations.length === 0) {
+    console.log('- transcript migration: healthy');
+  } else {
+    console.log(`- transcript migration: ${interruptedMigrations.length} interrupted`);
+    for (const issue of interruptedMigrations) {
+      console.log(`  · ${issue.sessionId}: ${issue.databasePath}`);
+    }
+    if (args.includes('--repair-transcripts')) {
+      for (const issue of interruptedMigrations) {
+        const repaired = await repairInterruptedTranscriptMigration(root, issue.sessionId);
+        console.log(
+          `  · repaired ${issue.sessionId}; previous database retained at ${repaired.previousDatabasePath ?? '(none)'}`,
+        );
+      }
+    } else {
+      console.log(
+        '  · run `piwin doctor --repair-transcripts` to rebuild from the retained v1 source',
+      );
+    }
+  }
   console.log(`- CI scripts: typecheck/test present in package.json`);
   try {
     const { listThemes } = await import('@piwin/theme');
     const themes = await listThemes(root);
     console.log(`- themes: ${themes.themes.length} (active=${themes.activeThemeId})`);
   } catch (error) {
-    console.log(
-      `- themes: (unavailable: ${formatError(error)})`,
-    );
+    console.log(`- themes: (unavailable: ${formatError(error)})`);
   }
   try {
     const { listPets } = await import('@piwin/pet');
@@ -687,6 +719,15 @@ async function commandStatus(argv: string[]): Promise<void> {
     console.log(
       '- usage: chip/events available after first assistant turn (see usage/update); CLI chat prints [usage] lines',
     );
+    const resources = await runtime.handleCommand({ type: 'host/runtime-resources' });
+    if (resources.success) {
+      console.log('--- runtime residency ---');
+      for (const line of formatRuntimeResourcesLines(resources.data as HostRuntimeResourcesData)) {
+        console.log(`- ${line}`);
+      }
+    } else {
+      console.log(`- runtime residency: (unavailable: ${resources.error})`);
+    }
   } finally {
     await runtime.dispose();
   }
@@ -2338,7 +2379,9 @@ async function commandSideChat(argv: string[]): Promise<void> {
   if (sub === 'list') {
     const sourceSessionId = argv[2];
     if (!sourceSessionId || sourceSessionId.startsWith('--')) {
-      console.error('Usage: piwin side-chat list <source-session-id> [--include-archived] [--mock]');
+      console.error(
+        'Usage: piwin side-chat list <source-session-id> [--include-archived] [--mock]',
+      );
       process.exitCode = 1;
       return;
     }
@@ -2360,7 +2403,9 @@ async function commandSideChat(argv: string[]): Promise<void> {
   if (sub === 'open') {
     const sourceSessionId = argv[2];
     if (!sourceSessionId || sourceSessionId.startsWith('--')) {
-      console.error('Usage: piwin side-chat open <source-session-id> [--name <name>] [--message <message-id>] [--mock]');
+      console.error(
+        'Usage: piwin side-chat open <source-session-id> [--name <name>] [--message <message-id>] [--mock]',
+      );
       process.exitCode = 1;
       return;
     }
@@ -2402,7 +2447,10 @@ async function commandSideChat(argv: string[]): Promise<void> {
 
   if (sub === 'send') {
     const sideChatSessionId = argv[2];
-    const text = argv.slice(3).filter((arg) => !arg.startsWith('--')).join(' ');
+    const text = argv
+      .slice(3)
+      .filter((arg) => !arg.startsWith('--'))
+      .join(' ');
     if (!sideChatSessionId || !text || sideChatSessionId.startsWith('--')) {
       console.error('Usage: piwin side-chat send <side-chat-session-id> <text> [--mock]');
       process.exitCode = 1;
@@ -2502,7 +2550,6 @@ function createWalkthroughHostClient(mode: HostMode, mock: boolean): Walkthrough
   };
 }
 
-
 async function commandScheme(argv: string[]): Promise<void> {
   const sub = argv[1] ?? 'list';
   const root = getPiwinRoot();
@@ -2540,12 +2587,9 @@ async function commandScheme(argv: string[]): Promise<void> {
     try {
       // Validate against known profiles when possible (best-effort without host).
       const known = new Set(
-        (config.subagents?.profiles ?? []).map((profile) => profile.id).concat([
-          'explorer',
-          'reviewer',
-          'implementer',
-          'tester',
-        ]),
+        (config.subagents?.profiles ?? [])
+          .map((profile) => profile.id)
+          .concat(['explorer', 'reviewer', 'implementer', 'tester']),
       );
       const resolved = resolveOrchestrationScheme(slice, id, { knownProfileIds: known });
       if (!resolved) {
@@ -2565,7 +2609,9 @@ async function commandScheme(argv: string[]): Promise<void> {
         const modelLabel = member.model
           ? `${member.model.providerId}/${member.model.modelId}`
           : 'inherit';
-        const avail = member.available ? 'available' : `UNAVAILABLE(${member.unavailableReason ?? '?'})`;
+        const avail = member.available
+          ? 'available'
+          : `UNAVAILABLE(${member.unavailableReason ?? '?'})`;
         console.log(
           `  - ${member.role} [${avail}] profile=${member.profileId ?? '-'} model=${modelLabel} ` +
             `isolation=${member.isolation ?? '-'} thinking=${member.thinkingLevel ?? '-'} fallback=${member.fallback}`,
@@ -2599,7 +2645,7 @@ async function main(argv: string[]): Promise<void> {
     return;
   }
   if (command === 'doctor') {
-    await commandDoctor();
+    await commandDoctor(argv.slice(1));
     return;
   }
   if (command === 'host-mode') {

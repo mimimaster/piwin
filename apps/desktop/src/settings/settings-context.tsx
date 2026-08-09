@@ -45,7 +45,8 @@ export type SettingsConfigRequest = (command: {
     | 'project/permissions-revoke'
     | 'usage/get-rollup'
     | 'session/runtime-status'
-    | 'session/compact-export';
+    | 'session/compact-export'
+    | 'host/runtime-resources';
   config?: PiwinConfig;
   provider?: ModelProviderConfig;
   apiKey?: string;

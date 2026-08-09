@@ -33,7 +33,8 @@ export type HostRequestAdapters = {
       | 'project/permissions-revoke'
       | 'usage/get-rollup'
       | 'session/runtime-status'
-      | 'session/compact-export';
+      | 'session/compact-export'
+      | 'host/runtime-resources';
     config?: PiwinConfig;
     provider?: ModelProviderConfig;
     apiKey?: string;
@@ -348,6 +349,9 @@ export function createHostRequestAdapters(hostClient: HostClient): HostRequestAd
           type: 'session/runtime-status',
           sessionId: command.sessionId ?? '',
         });
+      }
+      if (command.type === 'host/runtime-resources') {
+        return hostClient.request({ type: 'host/runtime-resources' });
       }
       if (command.type === 'session/compact-export') {
         const sessionId = command.sessionId?.trim();

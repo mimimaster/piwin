@@ -13,8 +13,8 @@ import type {
   SessionCompactResult,
   SessionSeedMessage,
   ToolResult,
-} from '@piwin/contracts'
-import { formatError } from '@piwin/contracts';;
+} from '@piwin/contracts';
+import { formatError } from '@piwin/contracts';
 import { createPiSessionEventMapper, type PiSessionEventMapper } from '../event-map.js';
 import type {
   SerializableBlueprint,
@@ -34,6 +34,7 @@ import type {
 import { buildWorkerProxyTools } from './worker-proxy-tool-factory.js';
 import { isSerializableBlueprint } from './serializable-blueprint.js';
 import type { PiBackendCustomToolDefinition } from '../backends/pi-backend-tool-adapter.js';
+import { normalizeAgentEventIds } from '../generation-identity.js';
 
 /** Minimal Pi-like session surface the worker runtime needs. */
 export type WorkerPiSessionLike = {
@@ -507,7 +508,10 @@ export class WorkerSessionRuntime {
           // Product IDs are the parent correlation key. The worker ID remains
           // available as an alias for requests and in the create response.
           context: eventContext,
-          event: wrapped.event,
+          event: normalizeAgentEventIds(wrapped.event, {
+            sessionId,
+            runtimeGenerationId: context.runtimeGenerationId,
+          }),
         };
         this.options.sendFrame(frame);
       }

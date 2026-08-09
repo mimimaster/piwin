@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { HostPush, MediaSaveData } from '@piwin/contracts';
+import type { HostPush, HostRuntimeResourcesData, MediaSaveData } from '@piwin/contracts';
 import { buildSettingsDomainMutations } from '@piwin/contracts';
 import {
   allowNetworkFetchHost,
@@ -703,11 +703,25 @@ describe('HostRuntime', () => {
       contextUsage?: { totalTokens?: number; source?: string };
     };
     expect(data.sessionId).toBe(sessionId);
-    expect(data.live).toBe(true);
+    // ADR 0040 §1: resume is a durable read. A fresh Host instance holds no
+    // live handle, so a cold resume reports live:false and still hydrates the
+    // bounded transcript page; the next prompt transparently activates.
+    expect(data.live).toBe(false);
     expect(data.messages.some((message) => message.role === 'user')).toBe(true);
     expect(data.messages.some((message) => message.text.includes('hello after create'))).toBe(true);
     expect(data.contextUsage?.totalTokens).toBeGreaterThan(0);
     expect(data.contextUsage?.source).toBe('host-estimate');
+
+    // Cold prompt activates a runtime for the stable product session id and
+    // injects bounded product history once before provider execution.
+    const coldPrompt = await runtimeB.handleCommand({
+      id: 'cold-prompt',
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'hello after resume' },
+    });
+    expect(coldPrompt.success).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 80));
 
     const listed = await runtimeB.handleCommand({
       id: 'msgs',
@@ -716,6 +730,605 @@ describe('HostRuntime', () => {
     });
     expect(listed.success).toBe(true);
     await runtimeB.dispose();
+  });
+
+  it('cold resume stays a durable read and never allocates a runtime', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-cold-resume-'));
+    const runtimeA = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const sessionIds: string[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      const created = await runtimeA.handleCommand({
+        id: `create-${index}`,
+        type: 'session/create',
+        input: { projectPath: `/tmp/browse-${index}` },
+      });
+      expect(created.success).toBe(true);
+      if (!created.success) throw new Error(created.error);
+      sessionIds.push((created.data as { sessionId: string }).sessionId);
+    }
+    await runtimeA.dispose();
+
+    // Browsing sessions in a fresh Host must not create Agent runtimes.
+    const runtimeB = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    for (const sessionId of sessionIds) {
+      const resumed = await runtimeB.handleCommand({
+        type: 'session/resume',
+        sessionId,
+      });
+      expect(resumed.success).toBe(true);
+      if (!resumed.success) throw new Error(resumed.error);
+      const data = resumed.data as { live: boolean; sessionId: string };
+      expect(data.sessionId).toBe(sessionId);
+      expect(data.live).toBe(false);
+    }
+    // Resuming many sessions left no live handles: a steer on any cold
+    // session must fail as not-live instead of executing.
+    const steer = await runtimeB.handleCommand({
+      type: 'session/steer',
+      sessionId: sessionIds[0] as string,
+      message: 'ignored',
+    });
+    expect(steer.success).toBe(false);
+    await runtimeB.dispose();
+  });
+
+  it('cold prompt activates one runtime and injects bounded history exactly once', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-cold-prompt-'));
+    const runtimeA = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtimeA.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/history-project', sessionName: 'history-demo' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const firstPrompt = await runtimeA.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'first question' },
+    });
+    expect(firstPrompt.success).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    await runtimeA.dispose();
+
+    const runtimeB = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const resumed = await runtimeB.handleCommand({ type: 'session/resume', sessionId });
+    expect(resumed.success).toBe(true);
+    if (!resumed.success) throw new Error(resumed.error);
+    expect((resumed.data as { live: boolean }).live).toBe(false);
+
+    // Poll transcript messages until the mock stream + recorder persist settle.
+    const readMessages = async (): Promise<Array<{ role: string; text: string }>> => {
+      const response = await runtimeB.handleCommand({ type: 'session/messages', sessionId });
+      expect(response.success).toBe(true);
+      if (!response.success) throw new Error(response.error);
+      return (response.data as { messages: Array<{ role: string; text: string }> }).messages;
+    };
+    const assistantCount = (messages: Array<{ role: string; text: string }>): number =>
+      messages.filter((message) => message.role === 'assistant').length;
+    const waitForAssistant = async (
+      expectedCount: number,
+      predicate: (text: string) => boolean,
+    ): Promise<string> => {
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        const messages = await readMessages();
+        const assistantRows = messages.filter((message) => message.role === 'assistant');
+        const lastAssistantText = assistantRows.at(-1)?.text;
+        if (assistantRows.length >= expectedCount && lastAssistantText !== undefined) {
+          if (predicate(lastAssistantText)) {
+            return lastAssistantText;
+          }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      throw new Error('timed out waiting for assistant transcript message');
+    };
+    const assistantCountAfterResume = assistantCount(await readMessages());
+
+    // First turn on the reconstructed generation receives product history once.
+    const coldPrompt = await runtimeB.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'second question' },
+    });
+    expect(coldPrompt.success).toBe(true);
+    const coldAssistantText = await waitForAssistant(
+      assistantCountAfterResume + 1,
+      (text) => text !== undefined && text.includes('[piwin-product-history]'),
+    );
+    expect(coldAssistantText).toContain('[piwin-product-history]');
+
+    // Second turn reuses the backend's own context; history is not duplicated.
+    const assistantCountAfterCold = assistantCount(await readMessages());
+    const secondPrompt = await runtimeB.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'third question' },
+    });
+    expect(secondPrompt.success).toBe(true);
+    const secondAssistantText = await waitForAssistant(
+      assistantCountAfterCold + 1,
+      (text) => text !== undefined && text.length > 0,
+    );
+    expect(secondAssistantText).not.toContain('[piwin-product-history]');
+    await runtimeB.dispose();
+  });
+
+  it('suspends an idle runtime with a full cleanup transaction (ADR 0040 §6)', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-suspend-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/suspend-project', sessionName: 'suspend-demo' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    const prompted = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'hello before suspension' },
+    });
+    expect(prompted.success).toBe(true);
+    await waitForPushType([], 'run/terminal').catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    const residency = residencyOf(runtime);
+    const generationId = generationOf(runtime, sessionId);
+    expect(residency.getResidency(sessionId)).toBe('resident-idle');
+
+    // The controller keeps capacity reserved until the full Host suspension
+    // transaction (flush, backend drop, map cleanup) has completed.
+    expect(await residency.requestSuspend(sessionId, generationId, 'manual')).toBe(true);
+
+    // The cleanup transaction is async; poll until the host handle is gone.
+    let liveAfterSuspend = true;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const resumed = await runtime.handleCommand({ type: 'session/resume', sessionId });
+      expect(resumed.success).toBe(true);
+      if (!resumed.success) throw new Error(resumed.error);
+      liveAfterSuspend = (resumed.data as { live: boolean }).live;
+      if (!liveAfterSuspend) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(liveAfterSuspend).toBe(false);
+    expect(residency.getResidency(sessionId)).toBe('cold');
+    // Late control requests on a cold session fail closed.
+    const steer = await runtime.handleCommand({
+      type: 'session/steer',
+      sessionId,
+      message: 'ignored',
+    });
+    expect(steer.success).toBe(false);
+
+    // Cold re-prompt reconstructs a fresh generation and keeps durable history.
+    const reprompt = await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'hello after suspension' },
+    });
+    expect(reprompt.success).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const messages = await runtime.handleCommand({ type: 'session/messages', sessionId });
+    expect(messages.success).toBe(true);
+    if (!messages.success) throw new Error(messages.error);
+    const rows = (messages.data as { messages: Array<{ role: string; text: string }> }).messages;
+    expect(rows.some((row) => row.role === 'user' && row.text === 'hello before suspension')).toBe(
+      true,
+    );
+    expect(rows.some((row) => row.text.includes('hello after suspension'))).toBe(true);
+    await runtime.dispose();
+  });
+
+  it('keeps a runtime resident when recorder flush blocks suspension', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-suspend-flush-failure-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/suspend-flush-failure' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const generationId = generationOf(runtime, sessionId);
+    const recorders = (
+      runtime as unknown as {
+        transcriptRecorders: Map<string, { flush: () => Promise<void> }>;
+      }
+    ).transcriptRecorders;
+    const recorder = recorders.get(sessionId);
+    if (!recorder) throw new Error('transcript recorder was not bound');
+    const originalFlush = recorder.flush;
+    recorder.flush = async () => {
+      throw new Error('injected flush failure');
+    };
+
+    const residency = residencyOf(runtime);
+    expect(await residency.requestSuspend(sessionId, generationId, 'manual')).toBe(false);
+    expect(residency.getResidency(sessionId)).toBe('resident-idle');
+    const resumed = await runtime.handleCommand({ type: 'session/resume', sessionId });
+    expect(resumed).toMatchObject({ success: true, data: { live: true } });
+
+    recorder.flush = originalFlush;
+    await runtime.dispose();
+  });
+
+  it('rolls back a cold activation when Run generation attachment conflicts', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-generation-conflict-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/generation-conflict' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const residency = residencyOf(runtime);
+    expect(
+      await residency.requestSuspend(sessionId, generationOf(runtime, sessionId), 'manual'),
+    ).toBe(true);
+
+    const registry = (
+      runtime as unknown as {
+        runRegistry: import('./run-registry.js').RunRegistry;
+      }
+    ).runRegistry;
+    const run = registry.createForegroundRun(sessionId);
+    expect(registry.attachRuntimeGeneration(run.runId, 'generation-conflict')).toMatchObject({
+      ok: true,
+    });
+    const activate = (
+      runtime as unknown as {
+        activateSessionRuntime: (
+          sessionId: string,
+          runId: string,
+          signal: AbortSignal,
+        ) => Promise<unknown>;
+      }
+    ).activateSessionRuntime.bind(runtime);
+
+    await expect(
+      activate(sessionId, run.runId, registry.getSignal(run.runId) ?? new AbortController().signal),
+    ).rejects.toThrow('generation attach failed');
+    expect(residency.getResidency(sessionId)).toBe('cold');
+    const resumed = await runtime.handleCommand({ type: 'session/resume', sessionId });
+    expect(resumed).toMatchObject({ success: true, data: { live: false } });
+    registry.terminate(run.runId, 'failed', 'failed');
+    await runtime.dispose();
+  });
+
+  it('never suspends a busy or protected runtime (ADR 0040 §5)', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-suspend-busy-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/suspend-busy' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+
+    await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'make me busy' },
+    });
+    // Deterministically wait for the run to finish (mock stream + recorder
+    // persist latency varies under full-suite load).
+    const runRegistry = (
+      runtime as unknown as { runRegistry: import('./run-registry.js').RunRegistry }
+    ).runRegistry;
+    for (let attempt = 0; attempt < 100 && runRegistry.getForegroundRun(sessionId); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    const residency = residencyOf(runtime);
+    const generationId = generationOf(runtime, sessionId);
+    // An active Run marks the runtime busy; the sweep must not evict it.
+    residency.markBusy(sessionId, generationId);
+    await residency.sweepNow();
+    expect(residency.getResidency(sessionId)).toBe('resident-busy');
+    expect(residency.beginSuspend(sessionId, generationId, 'idle-ttl')).toEqual({
+      ok: false,
+      reason: 'protected',
+    });
+
+    // An explicit protection lease (compaction) is equally non-evictable.
+    residency.markIdle(sessionId, generationId);
+    expect(residency.protect(sessionId, generationId)).toBe(true);
+    await residency.sweepNow();
+    expect(residency.getResidency(sessionId)).toBe('resident-idle');
+    residency.releaseProtection(sessionId, generationId);
+
+    // The Host blocker predicate also reports protected while a Run is live.
+    const protectedPredicate = (
+      runtime as unknown as {
+        isSessionRuntimeProtected: (sessionId: string) => boolean;
+      }
+    ).isSessionRuntimeProtected;
+    const run = (runtime as unknown as { runRegistry: import('./run-registry.js').RunRegistry })
+      .runRegistry;
+    run.createForegroundRun(sessionId, generationId);
+    expect(protectedPredicate.call(runtime, sessionId)).toBe(true);
+    await runtime.dispose();
+  });
+
+  it('reports aggregate runtime resources and eviction counters (ADR 0040 §8)', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-resources-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+
+    const initial = await runtime.handleCommand({ type: 'host/runtime-resources' });
+    expect(initial.success).toBe(true);
+    if (!initial.success) throw new Error(initial.error);
+    const initialData = initial.data as HostRuntimeResourcesData;
+    expect(initialData.counts.resident).toBe(0);
+    expect(initialData.counts.idle).toBe(0);
+    expect(initialData.counts.busy).toBe(0);
+    expect(initialData.waiterCount).toBe(0);
+    expect(initialData.budget.maxIdleRuntimes).toBe(2);
+    expect(initialData.budget.memoryHighWaterMiB).toBeGreaterThanOrEqual(512);
+    expect(initialData.memory.hostRssMiB).toBeGreaterThan(0);
+    expect(initialData.counters.evictedByIdleTtl).toBe(0);
+    expect(initialData.counters.memoryPressureFailures).toBe(0);
+
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/resources-project' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    await runtime.handleCommand({
+      type: 'session/prompt',
+      sessionId,
+      input: { text: 'hello resources' },
+    });
+    // Poll until the run terminally marks the runtime idle (mock stream +
+    // recorder persist latency varies under full-suite load).
+    let afterData: HostRuntimeResourcesData | null = null;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const poll = await runtime.handleCommand({ type: 'host/runtime-resources' });
+      expect(poll.success).toBe(true);
+      if (!poll.success) throw new Error(poll.error);
+      const candidate = poll.data as HostRuntimeResourcesData;
+      if (candidate.counts.resident === 1 && candidate.counts.idle === 1) {
+        afterData = candidate;
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    expect(afterData).not.toBeNull();
+    if (afterData === null) throw new Error('timed out waiting for resident idle runtime');
+    expect(afterData.counts.busy).toBe(0);
+
+    // Manual suspension drives the eviction path; the counter reflects it.
+    const residency = residencyOf(runtime);
+    const generationId = generationOf(runtime, sessionId);
+    expect(await residency.requestSuspend(sessionId, generationId, 'idle-ttl')).toBe(true);
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const poll = await runtime.handleCommand({ type: 'host/runtime-resources' });
+      if (poll.success && (poll.data as HostRuntimeResourcesData).counts.resident === 0) {
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    const afterSuspend = await runtime.handleCommand({ type: 'host/runtime-resources' });
+    expect(afterSuspend.success).toBe(true);
+    if (!afterSuspend.success) throw new Error(afterSuspend.error);
+    const suspendedData = afterSuspend.data as HostRuntimeResourcesData;
+    expect(suspendedData.counts.resident).toBe(0);
+    expect(suspendedData.counters.evictedByIdleTtl).toBe(1);
+
+    // ADR 0040 WP7: cold projection must remain truthful after suspension so
+    // Desktop/CLI can show Cold + last eviction reason (never "Unknown").
+    const runtimeStatus = await runtime.handleCommand({
+      type: 'session/runtime-status',
+      sessionId,
+    });
+    expect(runtimeStatus).toMatchObject({
+      success: true,
+      data: {
+        status: {
+          sessionId,
+          residency: 'cold',
+          lastEvictionReason: 'idle-ttl',
+        },
+      },
+    });
+    await runtime.dispose();
+  });
+
+  it('reserves residency capacity before a direct session backend is created', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-create-admission-'));
+    const { savePiwinConfig, createDefaultPiwinConfig } = await import('./config-store.js');
+    const config = createDefaultPiwinConfig();
+    config.session = {
+      autoName: false,
+      runtimeRetention: {
+        idleTtlSeconds: 600,
+        maxIdleRuntimes: 1,
+        maxResidentRuntimes: 1,
+      },
+    };
+    await savePiwinConfig(config, rootDir);
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const first = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/create-admission', sessionName: 'holder' },
+    });
+    expect(first.success).toBe(true);
+    if (!first.success) throw new Error(first.error);
+    const firstId = (first.data as { sessionId: string }).sessionId;
+    const residency = residencyOf(runtime);
+    residency.markBusy(firstId, generationOf(runtime, firstId));
+
+    const secondPromise = runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/create-admission', sessionName: 'waiter' },
+    });
+    for (let attempt = 0; attempt < 100 && residency.getCounts().waiterCount === 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(residency.getCounts().waiterCount).toBe(1);
+    const productSessions = (runtime as unknown as { host: { sessions: Map<string, unknown> } })
+      .host.sessions;
+    expect(productSessions.size).toBe(1);
+
+    residency.markIdle(firstId, generationOf(runtime, firstId));
+    const second = await secondPromise;
+    expect(second.success).toBe(true);
+    expect(residency.getCounts().resident).toBe(1);
+    await runtime.dispose();
+  });
+
+  it('protects sessions by pending permission and Extension UI value session ids', async () => {
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true });
+    const internals = runtime as unknown as {
+      isSessionRuntimeProtected: (sessionId: string) => boolean;
+      pendingPermissions: Map<string, { sessionId: string }>;
+      pendingExtensionUi: Map<string, { sessionId: string }>;
+    };
+    internals.pendingPermissions.set('permission-request-id', { sessionId: 'permission-session' });
+    internals.pendingExtensionUi.set('ui-request-id', { sessionId: 'ui-session' });
+    expect(internals.isSessionRuntimeProtected('permission-session')).toBe(true);
+    expect(internals.isSessionRuntimeProtected('ui-session')).toBe(true);
+    internals.pendingPermissions.clear();
+    internals.pendingExtensionUi.clear();
+    await runtime.dispose();
+  });
+
+  it('finishes cold cleanup after an unsubscribe throws post-detach', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-suspend-unsubscribe-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/suspend-unsubscribe' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const unsubscribers = (runtime as unknown as { unsubscribers: Map<string, () => void> })
+      .unsubscribers;
+    const original = unsubscribers.get(sessionId);
+    if (original === undefined) throw new Error('session unsubscribe was not bound');
+    unsubscribers.set(sessionId, () => {
+      original();
+      throw new Error('injected unsubscribe failure');
+    });
+
+    const residency = residencyOf(runtime);
+    expect(
+      await residency.requestSuspend(sessionId, generationOf(runtime, sessionId), 'manual'),
+    ).toBe(true);
+    expect(residency.getResidency(sessionId)).toBe('cold');
+    const resumed = await runtime.handleCommand({ type: 'session/resume', sessionId });
+    expect(resumed).toMatchObject({ success: true, data: { live: false } });
+    await runtime.dispose();
+  });
+
+  it('continues Host/backend disposal when a recorder flush rejects', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-dispose-flush-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const created = await runtime.handleCommand({
+      type: 'session/create',
+      input: { projectPath: '/tmp/dispose-flush' },
+    });
+    expect(created.success).toBe(true);
+    if (!created.success) throw new Error(created.error);
+    const sessionId = (created.data as { sessionId: string }).sessionId;
+    const internals = runtime as unknown as {
+      host: { dispose: () => Promise<void> };
+      transcriptRecorders: Map<string, { flush: () => Promise<void> }>;
+    };
+    const recorder = internals.transcriptRecorders.get(sessionId);
+    if (recorder === undefined) throw new Error('transcript recorder was not bound');
+    recorder.flush = async () => {
+      throw new Error('injected shutdown flush failure');
+    };
+    const originalHostDispose = internals.host.dispose.bind(internals.host);
+    let hostDisposed = false;
+    internals.host.dispose = async () => {
+      hostDisposed = true;
+      await originalHostDispose();
+    };
+
+    await expect(runtime.dispose()).rejects.toThrow('HostRuntime shutdown completed with errors');
+    expect(hostDisposed).toBe(true);
+    expect(residencyOf(runtime).getCounts().resident).toBe(0);
+  });
+
+  it('loads persisted runtime retention and advertises residency capabilities', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-retention-config-'));
+    const { savePiwinConfig, createDefaultPiwinConfig } = await import('./config-store.js');
+    const config = createDefaultPiwinConfig();
+    config.session = {
+      autoName: true,
+      runtimeRetention: {
+        idleTtlSeconds: 45,
+        maxIdleRuntimes: 1,
+        maxResidentRuntimes: 2,
+        memoryHighWaterMiB: 768,
+      },
+    };
+    await savePiwinConfig(config, rootDir);
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+
+    const resources = await runtime.handleCommand({ type: 'host/runtime-resources' });
+    expect(resources).toMatchObject({
+      success: true,
+      data: {
+        budget: {
+          maxResidentRuntimes: 2,
+          maxIdleRuntimes: 1,
+          memoryHighWaterMiB: 768,
+        },
+      },
+    });
+    const status = await runtime.handleCommand({ type: 'host/status' });
+    expect(status).toMatchObject({
+      success: true,
+      data: {
+        capabilities: {
+          runtimeResidency: true,
+          sessionOutlinePage: true,
+        },
+      },
+    });
+    await runtime.dispose();
+  });
+
+  it('preserves runtime-memory-pressure as the Run terminal code', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-host-memory-terminal-'));
+    const runtime = new HostRuntime({ mode: 'sdk', mock: true, piwinRoot: rootDir });
+    const registry = (
+      runtime as unknown as {
+        runRegistry: import('./run-registry.js').RunRegistry;
+      }
+    ).runRegistry;
+    const context = (
+      runtime as unknown as {
+        buildSessionLiveContext: () => import('./commands/session-live-commands.js').SessionLiveContext;
+      }
+    ).buildSessionLiveContext();
+    const run = registry.createForegroundRun('session-memory-pressure');
+
+    expect(
+      await context.terminateRun(
+        run.sessionId,
+        run.runId,
+        'failed',
+        'runtime-memory-pressure',
+        'aggregate RSS exceeded the high water mark',
+      ),
+    ).toBe(true);
+    expect(registry.get(run.runId)).toMatchObject({
+      status: 'failed',
+      terminalCode: 'runtime-memory-pressure',
+    });
+    await runtime.dispose();
   });
 
   it('supports manual session compaction on mock sessions', async () => {
@@ -1601,4 +2214,29 @@ async function waitForPushType(pushes: string[], type: string): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 5));
   }
   throw new Error(`Timed out waiting for push type ${type}`);
+}
+
+/** Test seam: the Host-owned residency controller (ADR 0040 §2). */
+function residencyOf(
+  runtime: HostRuntime,
+): import('./sessions/session-runtime-residency-controller.js').SessionRuntimeResidencyController {
+  return (
+    runtime as unknown as {
+      residencyController: import('./sessions/session-runtime-residency-controller.js').SessionRuntimeResidencyController;
+    }
+  ).residencyController;
+}
+
+/** Test seam: the active runtime generation for a session. */
+function generationOf(runtime: HostRuntime, sessionId: string): string {
+  const controller = (
+    runtime as unknown as {
+      runtimeController: import('./sessions/session-runtime-controller.js').SessionRuntimeController;
+    }
+  ).runtimeController;
+  const generationId = controller.getStatus(sessionId).generationId;
+  if (generationId === undefined) {
+    throw new Error(`no runtime generation for ${sessionId}`);
+  }
+  return generationId;
 }

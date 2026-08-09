@@ -186,6 +186,16 @@ async function createTestContext(
     piwinRoot: rootDir,
     push: pushCap.push as WalkthroughCommandContext['push'],
     loadTranscriptMessages: async () => transcriptMessages,
+    getTranscriptMessage: async (_sessionId, messageId) =>
+      transcriptMessages.find((message) => message.id === messageId),
+    hasLaterAssistant: async (_sessionId, messageId, runId) => {
+      const index = transcriptMessages.findIndex((message) => message.id === messageId);
+      return transcriptMessages.slice(index + 1).some(
+        (message) =>
+          message.role === 'assistant' &&
+          (runId === undefined || message.runId === runId),
+      );
+    },
     loadSessionPlan: async () => plan,
     loadConfig: async () => config,
     resolveSessionModel: () => sessionModel,

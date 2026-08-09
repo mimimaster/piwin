@@ -1,6 +1,11 @@
 /** In-memory runtime generation registry per session (spec §12). */
 
-import type { SessionRuntimeStatus, SettingsDomain } from '@piwin/contracts';
+import type {
+  SessionRuntimeEvictionReason,
+  SessionRuntimeResidency,
+  SessionRuntimeStatus,
+  SettingsDomain,
+} from '@piwin/contracts';
 import { isImmediateTighteningDomain, isRuntimeStaleDomain } from '@piwin/contracts';
 
 export type SessionRuntimeControllerOptions = {
@@ -42,12 +47,54 @@ export class SessionRuntimeController {
   private readonly revisionBySession = new Map<string, string>();
   private readonly pendingChangesBySession = new Map<string, Set<SettingsDomain>>();
   private readonly candidateBySession = new Map<string, SessionRuntimeCandidate>();
+  /** ADR 0040 §2: residency projection (cold/activating/resident-idle/...). */
+  private readonly residencyBySession = new Map<string, SessionRuntimeResidency>();
+  /**
+   * Last eviction reason retained after a session becomes cold so diagnostics
+   * can still explain why the runtime was suspended (ADR 0040 §2).
+   */
+  private readonly lastEvictionReasonBySession = new Map<string, SessionRuntimeEvictionReason>();
   private readonly isRunInFlight: (sessionId: string) => boolean;
   private readonly onChanged: ((status: SessionRuntimeStatus) => void) | undefined;
 
   constructor(options: SessionRuntimeControllerOptions) {
     this.isRunInFlight = options.isRunInFlight;
     this.onChanged = options.onChanged;
+  }
+
+  /** ADR 0040 §2: publish the residency projection for a session. */
+  setResidency(
+    sessionId: string,
+    residency: SessionRuntimeResidency,
+    options?: {
+      lastEvictionReason?: SessionRuntimeEvictionReason;
+    },
+  ): void {
+    this.residencyBySession.set(sessionId, residency);
+    if (residency === 'cold' || residency === 'suspending') {
+      if (options?.lastEvictionReason !== undefined) {
+        this.lastEvictionReasonBySession.set(sessionId, options.lastEvictionReason);
+      }
+    } else {
+      // Active residency supersedes any previous eviction explanation.
+      this.lastEvictionReasonBySession.delete(sessionId);
+    }
+    this.notifyChanged(sessionId);
+  }
+
+  /**
+   * Project a durable cold residency. Prefer this over deleting the projection
+   * so Desktop/CLI can truthfully show Cold and the last eviction reason.
+   */
+  markCold(sessionId: string, reason?: SessionRuntimeEvictionReason): void {
+    this.setResidency(sessionId, 'cold', {
+      ...(reason !== undefined ? { lastEvictionReason: reason } : {}),
+    });
+  }
+
+  /** @deprecated Prefer markCold so cold sessions keep a truthful residency. */
+  clearResidency(sessionId: string, reason?: SessionRuntimeEvictionReason): void {
+    this.markCold(sessionId, reason);
   }
 
   /** Record a new runtime generation for a session. */
@@ -157,6 +204,18 @@ export class SessionRuntimeController {
     }
     if (staleDomains.length > 0) {
       status.capabilitySnapshotId = 'stale';
+    }
+    // ADR 0040: every session has a residency projection. Absence of a live
+    // entry means cold (history-only); never leave clients guessing "Unknown".
+    status.residency = this.residencyBySession.get(sessionId) ?? 'cold';
+    const lastEvictionReason = this.lastEvictionReasonBySession.get(sessionId);
+    if (lastEvictionReason !== undefined && status.residency === 'cold') {
+      status.lastEvictionReason = lastEvictionReason;
+    } else if (
+      lastEvictionReason !== undefined &&
+      status.residency === 'suspending'
+    ) {
+      status.lastEvictionReason = lastEvictionReason;
     }
     return status;
   }

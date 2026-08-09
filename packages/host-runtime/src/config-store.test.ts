@@ -81,6 +81,24 @@ describe('config-store', () => {
     expect(loaded.compaction?.autoEnabledDefault).toBe(false);
   });
 
+  it('round-trips normalized session runtime retention', async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), 'piwin-runtime-retention-'));
+    const config = createDefaultPiwinConfig();
+    config.session = {
+      autoName: false,
+      runtimeRetention: {
+        idleTtlSeconds: 45,
+        maxIdleRuntimes: 1,
+        maxResidentRuntimes: 2,
+        memoryHighWaterMiB: 768,
+      },
+    };
+    await savePiwinConfig(config, rootDir);
+
+    const loaded = await loadPiwinConfig(rootDir);
+    expect(loaded.session).toEqual(config.session);
+  });
+
   it('round-trips visionDelegation, imageGeneration, videoGeneration, and speech', async () => {
     const rootDir = await mkdtemp(join(tmpdir(), 'piwin-config-vision-'));
     const config = createDefaultPiwinConfig();

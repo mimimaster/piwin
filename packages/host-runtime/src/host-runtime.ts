@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve as resolvePath } from 'node:path';
+import { totalmem } from 'node:os';
 import type {
   AgentEvent,
   AgentHost,
@@ -37,10 +38,15 @@ import {
 } from '@piwin/agent-host';
 import {
   contentKindForMimeType,
+  deriveMemoryHighWaterMiB,
+  deriveMemoryLowWaterMiB,
   formatError,
   isRunTerminal,
   LEGACY_LOCAL_SINK_ID,
+  normalizeSessionRuntimeRetentionConfig,
   shouldAcceptContextUsage,
+  USER_AUTHORED_GENERATION,
+  type SessionRuntimeRetentionConfig,
 } from '@piwin/contracts';
 import { formatTextModelWebElementInjection } from '@piwin/contracts';
 import {
@@ -134,7 +140,6 @@ import {
   deriveDefaultNameFromMessage,
   isPlaceholderSessionName,
   getSessionRecord,
-  listTranscriptMessages,
   setSessionAutoName,
   upsertSessionRecord,
   buildSessionOutline,
@@ -145,14 +150,12 @@ import {
   listChildSessions,
   applyPlanStepUpdate,
   applyPlanStatus,
-  truncateTranscriptFrom,
-  buildProductHistoryContext,
   mergeProductHistoryIntoPrompt,
-  exportTranscript,
   suggestSessionExportBasename,
   appendUsageRecord,
   readLatestSessionContextUsage,
   createSubagentRunStore,
+  type SessionTranscriptStore,
 } from '@piwin/session';
 import type {
   ContextUsageSnapshot,
@@ -161,12 +164,19 @@ import type {
   SessionTranscriptMessage,
   UsageRecord,
 } from '@piwin/contracts';
-import { createTranscriptRecorder } from './transcript-recorder.js';
+import type { TranscriptRecorder } from './transcript-recorder.js';
+import { createStoreTranscriptRecorder } from './store-transcript-recorder.js';
+import {
+  createSessionTranscriptStoreRegistry,
+  type SessionTranscriptStoreRegistry,
+} from './session-transcript-store-registry.js';
 import { createDelayedSessionHandle } from './delayed-session-fixture.js';
 import { createProductShellSession } from './product-shell-session.js';
 import { formatPlanForModelContext } from './format-plan-context.js';
 import {
   ProductAgentHost,
+  createProductSessionId,
+  createRuntimeGenerationId,
   type PreparedProductSession,
   type ProductAgentHostToolRegistrationMode,
 } from './product-agent-host.js';
@@ -180,7 +190,6 @@ import {
   getPiwinProjectsPath,
   getPiwinRoot,
   getPiwinSessionIndexPath,
-  getPiwinSessionTranscriptPath,
   getPiwinSessionPlanPath,
   getPiwinSessionDir,
   getPiwinUsageLedgerPath,
@@ -200,6 +209,10 @@ import {
 } from './commands/session-live-commands.js';
 import type { HostCommandContext } from './commands/host-command-context.js';
 import { SessionRuntimeController } from './sessions/session-runtime-controller.js';
+import {
+  createSessionRuntimeResidencyController,
+  type SessionRuntimeResidencyController,
+} from './sessions/session-runtime-residency-controller.js';
 import { createImmediateSafetyPredicate } from './sessions/immediate-safety-gate.js';
 import {
   SessionRuntimeReplacementEngine,
@@ -250,11 +263,26 @@ import type {
   SubagentWorkspaceLease,
 } from '@piwin/contracts';
 
+const TRANSCRIPT_STORE_LEASED_COMMANDS = new Set<HostCommand['type']>([
+  'session/resume',
+  'session/outline-page',
+  'session/transcript-page',
+  'session/messages',
+  'session/export',
+  'session/truncate-from',
+  'session/duplicate',
+  'session/fork',
+  'walkthrough/list',
+  'walkthrough/generate',
+]);
+
 export type HostRuntimeOptions = {
   mode: HostMode;
   mock?: boolean;
   piwinRoot?: string;
   rpcCommand?: string;
+  /** Explicit internal worker artifact for source-mode diagnostics/soak. */
+  agentWorkerScript?: string;
   onPush?: (message: HostPush) => void;
   /**
    * Explicit test seam used only by the JSONL integration harness. Production
@@ -299,6 +327,20 @@ type ComposedSessionHostTools = {
 export class HostRuntime {
   private readonly host: ProductAgentHost;
   private readonly sessions = new Map<string, SessionHandle>();
+  /**
+   * ADR 0040 §2/§7: deduplicates concurrent cold-activation attempts per
+   * session id so simultaneous prompts/resumes share one in-flight transition.
+   */
+  private readonly sessionActivationPromises = new Map<string, Promise<SessionHandle>>();
+  /** Complete suspension transactions, shared by eviction and prompt races. */
+  private readonly sessionSuspensionPromises = new Map<string, Promise<boolean>>();
+  /**
+   * ADR 0040 §7: sessions whose fresh runtime generation still awaits its one
+   * bounded product-history injection. Cleared after the first prompt of the
+   * reconstructed generation injects history, so later turns never duplicate
+   * it while the backend keeps native context.
+   */
+  private readonly coldStartHistoryBySession = new Map<string, string>();
   private readonly sessionProjects = new Map<string, string>();
   /** Transient child context available before a child has a persisted session. */
   private readonly subagentSessionContexts = new Map<
@@ -385,10 +427,8 @@ export class HostRuntime {
       sessionId: string;
     }
   >();
-  private readonly transcriptRecorders = new Map<
-    string,
-    ReturnType<typeof createTranscriptRecorder>
-  >();
+  private readonly transcriptRecorders = new Map<string, TranscriptRecorder>();
+  private readonly transcriptStores: SessionTranscriptStoreRegistry;
   private mcpManager: McpLifecycleManager | null = null;
   private hostClosing = false;
   private disposePromise: Promise<void> | null = null;
@@ -408,7 +448,31 @@ export class HostRuntime {
   } | null = null;
   /** Spec §12: per-session runtime generation/staleness registry. */
   private readonly runtimeController: SessionRuntimeController;
+  /**
+   * ADR 0040 §2: Host-owned residency state machine. Decides when runtimes may
+   * be created or must be suspended; HostRuntime executes the real suspension
+   * transaction through `suspendRuntime` and the blocker predicate.
+   */
+  private readonly residencyController: SessionRuntimeResidencyController;
+  /** Direct creates hold an activating reservation until bind publishes them. */
+  private readonly pendingDirectActivations = new Map<string, string>();
   private readonly runtimeReplacementEngine: SessionRuntimeReplacementEngine;
+  /** ADR 0040 §3: normalized retention policy (adaptive high water derived). */
+  private runtimeRetention: SessionRuntimeRetentionConfig;
+  /** Effective automatic RSS high-water budget in MiB. */
+  private runtimeMemoryHighWaterMiB: number;
+  /** One-time persisted retention load before the first Host command. */
+  private runtimeRetentionInitialization: Promise<void> | null = null;
+  /**
+   * ADR 0040 §8: cached aggregate worker RSS sample. Refreshed with a short
+   * throttle before admission; missing/stale samples mark completeness so no
+   * false low-memory claim is made.
+   */
+  private workerRssSample: {
+    rssMiB: number;
+    completeness: 'complete' | 'partial' | 'missing';
+    sampledAtMs: number;
+  } | null = null;
   /** Per-run denial counters for run-admission diagnostics (CE run admission). */
   private readonly runAdmissionDenials = new Map<string, number>();
   private readonly options: HostRuntimeOptions;
@@ -448,6 +512,11 @@ export class HostRuntime {
 
   constructor(options: HostRuntimeOptions) {
     this.options = options;
+    this.transcriptStores = createSessionTranscriptStoreRegistry({
+      rootDir: getPiwinRoot(options.piwinRoot),
+      onDiagnostic: (message) =>
+        this.push({ type: 'host/log', level: 'info', message: `[transcript] ${message}` }),
+    });
     if (options.onPush) {
       this.pushSinks.set(LEGACY_LOCAL_SINK_ID, {
         id: LEGACY_LOCAL_SINK_ID,
@@ -472,6 +541,53 @@ export class HostRuntime {
           );
       },
       onChanged: (status) => this.push({ type: 'session/runtime-updated', status }),
+    });
+    // ADR 0040 §2/§5/§6: the residency state machine decides when a runtime
+    // may be created or must be suspended. HostRuntime owns the real cleanup
+    // transaction (`suspendSessionRuntime`) and the blocker predicate that
+    // keeps active/cancelling/permission/UI/compaction/replacement runtimes
+    // resident. §3/§8: the adaptive RSS high water (25% of system memory,
+    // clamped 512–2048 MiB) powers admission eviction; worker samples are
+    // cached and marked incomplete when missing/stale.
+    this.runtimeRetention = normalizeSessionRuntimeRetentionConfig(undefined);
+    this.runtimeMemoryHighWaterMiB = deriveMemoryHighWaterMiB(totalmem() / 1024 / 1024);
+    this.residencyController = createSessionRuntimeResidencyController({
+      retention: {
+        ...this.runtimeRetention,
+        memoryHighWaterMiB: this.runtimeMemoryHighWaterMiB,
+      },
+      resolveMaxResidentRuntimes: () => {
+        const executionConcurrency =
+          this.runtimeResourceCoordinator?.getStatus().effectiveMaxConcurrency ?? 1;
+        const adaptive = executionConcurrency + this.runtimeRetention.maxIdleRuntimes;
+        const workerCapacity = this.agentWorkerSupervisor?.getStatus().maxActiveWorkers;
+        return workerCapacity === undefined ? adaptive : Math.min(adaptive, workerCapacity);
+      },
+      isRuntimeProtected: (sessionId) => this.isSessionRuntimeProtected(sessionId),
+      onResidencyChanged: (entry) => {
+        this.runtimeController.setResidency(
+          entry.sessionId,
+          entry.state,
+          entry.state === 'suspending' && entry.lastEvictionReason !== undefined
+            ? { lastEvictionReason: entry.lastEvictionReason }
+            : undefined,
+        );
+      },
+      suspendRuntime: (input) => {
+        return this.suspendSessionRuntime(input.sessionId, input.runtimeGenerationId, input.reason);
+      },
+      sampleMemory: () => {
+        const hostRssMiB = Math.max(1, Math.round(process.memoryUsage().rss / 1024 / 1024));
+        const worker = this.workerRssSample;
+        if (!worker || worker.rssMiB <= 0) {
+          return { hostRssMiB, sampleCompleteness: worker?.completeness ?? 'missing' };
+        }
+        return {
+          hostRssMiB,
+          workerRssMiB: worker.rssMiB,
+          sampleCompleteness: worker.completeness,
+        };
+      },
     });
     this.runtimeReplacementEngine = new SessionRuntimeReplacementEngine({
       controller: this.runtimeController,
@@ -710,6 +826,7 @@ export class HostRuntime {
   }
 
   private async disposeInternal(): Promise<void> {
+    const shutdownErrors: unknown[] = [];
     const replacementCleanup = this.runtimeReplacementEngine.cancelAll();
     const activeRuns = this.runRegistry.list({
       status: ['queued', 'running', 'cancelling'],
@@ -751,7 +868,11 @@ export class HostRuntime {
     }
     // Replacement cleanup must finish before MCP/Host disposal so a cancelled
     // candidate cannot recreate a generation against already-closed services.
-    await replacementCleanup;
+    try {
+      await replacementCleanup;
+    } catch (error) {
+      shutdownErrors.push(error);
+    }
     for (const pendingPermission of this.pendingPermissions.values()) {
       pendingPermission.resolve('deny');
     }
@@ -769,7 +890,11 @@ export class HostRuntime {
       this.notesServices = null;
     }
     if (this.browserSessionUnsubscribe) {
-      this.browserSessionUnsubscribe();
+      try {
+        this.browserSessionUnsubscribe();
+      } catch (error) {
+        shutdownErrors.push(error);
+      }
       this.browserSessionUnsubscribe = null;
     }
     if (this.browserSession) {
@@ -798,7 +923,11 @@ export class HostRuntime {
       this.mcpManager = null;
     }
     for (const unsubscribe of this.unsubscribers.values()) {
-      unsubscribe();
+      try {
+        unsubscribe();
+      } catch (error) {
+        shutdownErrors.push(error);
+      }
     }
     this.unsubscribers.clear();
     for (const sessionId of this.sessions.keys()) {
@@ -807,8 +936,25 @@ export class HostRuntime {
     }
     this.sessions.clear();
     this.sessionProjects.clear();
-    await Promise.all([...this.transcriptRecorders.values()].map((recorder) => recorder.flush()));
-    this.transcriptRecorders.clear();
+    try {
+      await Promise.all([...this.transcriptRecorders.values()].map((recorder) => recorder.flush()));
+    } catch (error) {
+      shutdownErrors.push(error);
+    } finally {
+      for (const recorder of this.transcriptRecorders.values()) {
+        try {
+          recorder.dispose();
+        } catch (error) {
+          shutdownErrors.push(error);
+        }
+      }
+      this.transcriptRecorders.clear();
+      try {
+        this.transcriptStores.closeAll();
+      } catch (error) {
+        shutdownErrors.push(error);
+      }
+    }
     // ADR 0030: dispose subagent orchestration components.
     if (this.subagentIntegrationCoordinator) {
       try {
@@ -829,7 +975,13 @@ export class HostRuntime {
     this.subagentOrchestrator = null;
     this.subagentWorkspaceService = null;
     this.runtimeResourceCoordinator = null;
-    await this.host.dispose();
+    try {
+      await this.host.dispose();
+    } catch (error) {
+      shutdownErrors.push(error);
+    }
+    // ADR 0040: stop the residency sweep timer and reject pending waiters.
+    this.residencyController.dispose();
     this.subagentSessionContexts.clear();
     this.generationToolSurfaces.clear();
     this.generationMcpConfigs.clear();
@@ -850,12 +1002,27 @@ export class HostRuntime {
     this.workerCrashCleanupRoots.clear();
     this.eventEnvelopeGenerators.clear();
     this.sessionHostToolPort?.clear();
+    this.pendingDirectActivations.clear();
     this.ready = false;
+    if (shutdownErrors.length > 0) {
+      throw new AggregateError(shutdownErrors, 'HostRuntime shutdown completed with errors');
+    }
   }
 
   async handleCommand(command: HostCommand): Promise<HostResponse> {
+    if (TRANSCRIPT_STORE_LEASED_COMMANDS.has(command.type)) {
+      return this.transcriptStores.withCommandLease(
+        () => this.handleCommandWithTranscriptLease(command),
+        (sessionId) => this.sessions.has(sessionId) || this.transcriptRecorders.has(sessionId),
+      );
+    }
+    return this.handleCommandWithTranscriptLease(command);
+  }
+
+  private async handleCommandWithTranscriptLease(command: HostCommand): Promise<HostResponse> {
     const requestId = typeof command.id === 'string' ? command.id : undefined;
     try {
+      await this.ensureRuntimeRetentionLoaded();
       // §8.1: walkthrough/cancel is a control-channel request that must bypass
       // the normal long-task dispatch chain and abort the in-flight generation
       // immediately. Handle it before buildDomainCommands so it is never queued
@@ -889,6 +1056,9 @@ export class HostRuntime {
             if (settingsConfig?.permissions?.mode) {
               this.permissionModeFromConfig = settingsConfig.permissions.mode;
             }
+            if (settingsConfig?.session) {
+              this.applyRuntimeRetention(settingsConfig.session.runtimeRetention);
+            }
             for (const sessionId of this.sessions.keys()) {
               this.runtimeController.recordSettingsChange(sessionId, changedDomains);
             }
@@ -909,6 +1079,13 @@ export class HostRuntime {
           return ok(requestId, 'host/ping', { pong: true });
         case 'host/status':
           return ok(requestId, 'host/status', this.getStatus());
+        case 'host/runtime-resources': {
+          // Query-only aggregate metrics (ADR 0040 §8). Await the bounded
+          // worker sample so a first query/Refresh click does not return the
+          // previous cache and require a second poll for truthful diagnostics.
+          await this.refreshWorkerRssSample();
+          return ok(requestId, 'host/runtime-resources', this.getRuntimeResources());
+        }
 
         default:
           return fail(requestId, 'unknown', 'Unhandled command');
@@ -1537,6 +1714,7 @@ export class HostRuntime {
       return { ok: false, message: `job ${job.id} is disabled` };
     }
     const now = new Date().toISOString();
+    let promptSessionId: string | undefined;
     try {
       if (job.type === 'prompt') {
         const projectPath = job.projectPath;
@@ -1544,10 +1722,11 @@ export class HostRuntime {
           throw new Error('prompt cron requires projectPath');
         }
         const text = job.promptText?.trim() || job.name;
-        const session = await this.host.createSession({
+        const session = await this.createSession({
           projectPath,
           sessionName: `cron-${job.id.slice(0, 8)}`,
         });
+        promptSessionId = session.id;
         await this.bindSession(session, projectPath, `cron-${job.id.slice(0, 8)}`, {
           kind: 'main',
           depth: 0,
@@ -1565,6 +1744,9 @@ export class HostRuntime {
       }
       throw new Error(`cron type ${job.type} not enabled in this slice`);
     } catch (error) {
+      if (promptSessionId !== undefined) {
+        await this.disposeLiveSession(promptSessionId).catch(() => undefined);
+      }
       const message = formatError(error);
       const updated = {
         ...job,
@@ -1706,6 +1888,9 @@ export class HostRuntime {
 
   private createAgentWorkerSupervisor(): AgentWorkerSupervisor {
     return new AgentWorkerSupervisor({
+      ...(this.options.agentWorkerScript
+        ? { worker: { workerScript: this.options.agentWorkerScript } }
+        : {}),
       onEvent: (sessionId, event) => {
         const childContext = this.subagentSessionContexts.get(sessionId);
         if (!childContext) return;
@@ -2691,6 +2876,8 @@ export class HostRuntime {
       bindSession: (session, projectPath, sessionName, lineage) =>
         this.bindSession(session, projectPath, sessionName, lineage),
       loadTranscriptMessages: (sessionId) => this.loadTranscriptMessages(sessionId),
+      getTranscriptStore: (sessionId) => this.getTranscriptStore(sessionId),
+      withTranscriptStore: (sessionId, operation) => this.withTranscriptStore(sessionId, operation),
       loadSideChatSnapshot: async (sessionId) => {
         const rootDir = getPiwinRoot(this.options.piwinRoot);
         const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
@@ -2703,8 +2890,13 @@ export class HostRuntime {
       recordUserPrompt: (sessionId, input) => this.recordUserPrompt(sessionId, input),
       touchSession: (sessionId, previewText) => this.touchSession(sessionId, previewText),
       needsProductHistoryInjection: (sessionId) =>
-        this.sessions.get(sessionId)?.needsProductHistoryInjection?.() === true,
+        this.pendingColdStartGenerationId(sessionId) !== undefined,
       ensureLiveSession: (sessionId) => this.ensureLiveSession(sessionId),
+      activateSessionRuntime: (sessionId, runId, signal) =>
+        this.activateSessionRuntime(sessionId, runId, signal),
+      markProductHistoryInjected: (sessionId) => {
+        this.coldStartHistoryBySession.delete(sessionId);
+      },
       resolveAutoCompaction: (sessionId) => this.resolveAutoCompaction(sessionId),
       buildModelPromptInput: (input, signal) => this.buildModelPromptInput(input, signal),
       validatePromptAttachments: (input) => this.validatePromptAttachments(input),
@@ -2733,10 +2925,28 @@ export class HostRuntime {
       getForegroundRun: (sessionId) => this.runRegistry.getForegroundRun(sessionId),
       registerForegroundRun: (sessionId) => {
         const generationId = this.runtimeController.getStatus(sessionId).generationId;
-        return this.runRegistry.createForegroundRun(sessionId, generationId);
+        const run = this.runRegistry.createForegroundRun(sessionId, generationId);
+        // ADR 0040 §5: a runtime with an active Run is busy and never evicted.
+        if (generationId !== undefined) {
+          this.residencyController.markBusy(sessionId, generationId);
+        }
+        return run;
       },
       getRunSignal: (runId) => this.runRegistry.getSignal(runId),
       hasRunReceivedFirstToken: (runId) => this.runRegistry.hasFirstToken(runId),
+      /** ADR 0040 §5: explicit protection lease (compaction / backend op). */
+      protectRuntime: (sessionId) => {
+        const generationId = this.runtimeController.getStatus(sessionId).generationId;
+        return generationId !== undefined
+          ? this.residencyController.protect(sessionId, generationId)
+          : false;
+      },
+      releaseRuntimeProtection: (sessionId) => {
+        const generationId = this.runtimeController.getStatus(sessionId).generationId;
+        if (generationId !== undefined) {
+          this.residencyController.releaseProtection(sessionId, generationId);
+        }
+      },
       requestCancelRun: (sessionId, runId, reason) => {
         const active = this.runRegistry.getForegroundRun(sessionId);
         if (!active || (runId !== undefined && active.runId !== runId)) return undefined;
@@ -2787,7 +2997,9 @@ export class HostRuntime {
                   code === 'model-turn-timeout' ||
                   code === 'mcp-timeout'
                 ? 'timeout'
-                : 'failed';
+                : code === 'runtime-memory-pressure'
+                  ? code
+                  : 'failed';
         const effectiveMessage = cleanupFailed ? (message ?? 'job cleanup failed') : message;
         const terminal = this.runRegistry.terminate(
           runId,
@@ -2796,6 +3008,12 @@ export class HostRuntime {
           effectiveMessage,
         );
         if (!terminal) return false;
+        // ADR 0040 §5/§7: the terminal Run releases busy residency, wakes any
+        // queued activation waiter, and restarts the idle TTL clock.
+        const terminalGenerationId = this.runtimeController.getStatus(sessionId).generationId;
+        if (terminalGenerationId !== undefined) {
+          this.residencyController.markIdle(sessionId, terminalGenerationId);
+        }
         // ORCH: drop turn-scoped scheme binding when the run ends.
         this.runOrchestrationSchemes.delete(runId);
         this.schemeAdmissionGate.clear(runId);
@@ -2837,6 +3055,7 @@ export class HostRuntime {
       runtimeController: this.runtimeController,
       resetSessionEventState: (sessionId) => this.resetSessionEventState(sessionId),
       cancelRuntimeReplacement: (sessionId) => this.runtimeReplacementEngine.cancel(sessionId),
+      disposeLiveSession: (sessionId, reason) => this.disposeLiveSession(sessionId, reason),
       reloadRuntime: (request) =>
         this.runtimeReplacementEngine.replace(request).then((result) => ({
           generationId: result.candidate.generationId,
@@ -2876,6 +3095,10 @@ export class HostRuntime {
       ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
       push: (message) => this.push(message),
       loadTranscriptMessages: (sessionId) => this.loadTranscriptMessages(sessionId),
+      getTranscriptMessage: (sessionId, messageId) =>
+        this.withTranscriptStore(sessionId, (store) => store.getMessage(messageId)),
+      hasLaterAssistant: (sessionId, messageId, runId) =>
+        this.withTranscriptStore(sessionId, (store) => store.hasLaterAssistant(messageId, runId)),
       loadSessionPlan: (sessionId) => this.loadSessionPlanForWalkthrough(sessionId),
       loadConfig: () => loadPiwinConfig(this.options.piwinRoot),
       resolveSessionModel: (sessionId) => this.sessionModels.get(sessionId),
@@ -3011,8 +3234,12 @@ export class HostRuntime {
       ...hostContext,
       sessionProduct: {
         ...(this.options.piwinRoot !== undefined ? { piwinRoot: this.options.piwinRoot } : {}),
-        host: this.host,
+        createSession: (input) => this.createSession(input),
         loadTranscriptMessages: (sessionId) => this.loadTranscriptMessages(sessionId),
+        getTranscriptStore: (sessionId, projectPath) =>
+          this.getTranscriptStore(sessionId, projectPath),
+        withTranscriptStore: (sessionId, operation, projectPath) =>
+          this.withTranscriptStore(sessionId, operation, projectPath),
         abortLiveSession: (sessionId) => this.abortLiveSession(sessionId),
         disposeLiveSession: (sessionId) => this.disposeLiveSession(sessionId),
         bindSession: (session, projectPath, sessionName, lineage) =>
@@ -3021,6 +3248,35 @@ export class HostRuntime {
         pushStatus: () => this.pushStatus(),
       },
     };
+  }
+
+  private async ensureRuntimeRetentionLoaded(): Promise<void> {
+    if (this.runtimeRetentionInitialization === null) {
+      this.runtimeRetentionInitialization = loadPiwinConfig(this.options.piwinRoot)
+        .then((config) => {
+          this.applyRuntimeRetention(config.session?.runtimeRetention);
+        })
+        .catch((error: unknown) => {
+          this.push({
+            type: 'host/log',
+            level: 'warn',
+            message: `[residency] failed to load runtime retention; defaults remain active: ${formatError(error)}`,
+          });
+        });
+    }
+    await this.runtimeRetentionInitialization;
+  }
+
+  private applyRuntimeRetention(input: Partial<SessionRuntimeRetentionConfig> | undefined): void {
+    const normalized = normalizeSessionRuntimeRetentionConfig(input);
+    const memoryHighWaterMiB =
+      normalized.memoryHighWaterMiB ?? deriveMemoryHighWaterMiB(totalmem() / 1024 / 1024);
+    this.runtimeRetention = normalized;
+    this.runtimeMemoryHighWaterMiB = memoryHighWaterMiB;
+    this.residencyController.updateRetention({
+      ...normalized,
+      memoryHighWaterMiB,
+    });
   }
 
   private getStatus(): HostStatusData {
@@ -3046,6 +3302,8 @@ export class HostRuntime {
         sessionSearch: true,
         sessionPin: true,
         sessionLifecycle: true,
+        runtimeResidency: true,
+        sessionOutlinePage: true,
         usage: true,
         process: true,
         // Keep this fail-closed if construction or the command surface ever
@@ -3094,6 +3352,16 @@ export class HostRuntime {
     lineage?: SessionLineage,
     bindingGenerationId?: string,
   ): Promise<void> {
+    const bindingRuntimeGenerationId =
+      bindingGenerationId ?? this.runtimeController.getStatus(session.id).generationId;
+    if (
+      bindingRuntimeGenerationId !== undefined &&
+      this.residencyController.getResidency(session.id) === 'cold'
+    ) {
+      throw new Error(
+        `runtime-residency-invariant: ${session.id}/${bindingRuntimeGenerationId} was created before admission`,
+      );
+    }
     const existing = this.unsubscribers.get(session.id);
     if (existing) {
       existing();
@@ -3175,15 +3443,15 @@ export class HostRuntime {
       }
     }
 
-    this.ensureTranscriptRecorder(
+    const boundRuntimeGenerationId = bindingRuntimeGenerationId;
+    await this.ensureTranscriptRecorder(
       session.id,
       projectPath ?? this.sessionProjects.get(session.id) ?? 'unknown',
+      boundRuntimeGenerationId ?? `host-untracked-${randomUUID()}`,
     );
 
     // Capture parent session id for subagent event forwarding (inline stream UX).
     const parentSessionId = lineage?.parentSessionId;
-    const boundRuntimeGenerationId =
-      bindingGenerationId ?? this.runtimeController.getStatus(session.id).generationId;
 
     const unsubscribe = session.subscribe((event: AgentEvent) => {
       const currentRuntimeGenerationId = this.runtimeController.getStatus(session.id).generationId;
@@ -3312,6 +3580,15 @@ export class HostRuntime {
     });
     this.unsubscribers.set(session.id, unsubscribe);
 
+    const pendingDirectGeneration = this.pendingDirectActivations.get(session.id);
+    if (
+      pendingDirectGeneration !== undefined &&
+      pendingDirectGeneration === boundRuntimeGenerationId
+    ) {
+      this.pendingDirectActivations.delete(session.id);
+      this.residencyController.commitActivation(session.id, pendingDirectGeneration);
+    }
+
     // Apply durable auto-compaction default (or session override) when handle supports it.
     void this.applyAutoCompactionToSession(session).catch((error: unknown) => {
       const message = formatError(error);
@@ -3373,18 +3650,20 @@ export class HostRuntime {
     });
   }
 
-  private ensureTranscriptRecorder(sessionId: string, projectPath: string): void {
+  private async ensureTranscriptRecorder(
+    sessionId: string,
+    projectPath: string,
+    runtimeGenerationId: string,
+  ): Promise<void> {
     if (this.transcriptRecorders.has(sessionId)) {
       return;
     }
-    const rootDir = getPiwinRoot(this.options.piwinRoot);
-    const transcriptPath = getPiwinSessionTranscriptPath(rootDir, sessionId);
+    const store = await this.transcriptStores.get(sessionId, projectPath);
     this.transcriptRecorders.set(
       sessionId,
-      createTranscriptRecorder({
-        transcriptPath,
-        sessionId,
-        projectPath,
+      createStoreTranscriptRecorder({
+        store,
+        runtimeGenerationId,
         resolveModel: () => this.sessionModels.get(sessionId),
         onDiagnostic: (message) =>
           this.push({ type: 'host/log', level: 'warn', message: `[transcript] ${message}` }),
@@ -3394,10 +3673,42 @@ export class HostRuntime {
 
   private async recordUserPrompt(sessionId: string, input: PromptInput): Promise<void> {
     const projectPath = this.sessionProjects.get(sessionId) ?? 'unknown';
-    this.ensureTranscriptRecorder(sessionId, projectPath);
-    const recorder = this.transcriptRecorders.get(sessionId);
-    if (recorder) {
-      await recorder.recordUserPrompt(input);
+    const runtimeGenerationId = this.runtimeController.getStatus(sessionId).generationId;
+    if (runtimeGenerationId === undefined) {
+      // A cold prompt is durably accepted before runtime admission. User rows
+      // own Host provenance and therefore do not require a Pi generation.
+      const clientMessageId = input.clientMessageId?.trim();
+      const userId =
+        clientMessageId && clientMessageId.length > 0
+          ? clientMessageId
+          : `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const attachments = input.attachments?.filter(
+        (attachment): attachment is MediaAttachmentRef => attachment.kind === 'media',
+      );
+      const result = await this.withTranscriptStore(
+        sessionId,
+        (store) =>
+          store.appendMessage({
+            id: userId,
+            runtimeGenerationId: USER_AUTHORED_GENERATION,
+            backendMessageId: userId,
+            role: 'user',
+            text: input.text,
+            status: 'done',
+            createdAt: new Date().toISOString(),
+            ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
+          }),
+        projectPath,
+      );
+      if (!result.ok) {
+        throw new Error(`Cold prompt transcript identity collision: ${userId}`);
+      }
+    } else {
+      await this.ensureTranscriptRecorder(sessionId, projectPath, runtimeGenerationId);
+      const recorder = this.transcriptRecorders.get(sessionId);
+      if (recorder) {
+        await recorder.recordUserPrompt(input);
+      }
     }
     // Await text naming so name-updated is ordered with the user turn and the
     // session becomes listable before the model stream starts.
@@ -3414,9 +3725,49 @@ export class HostRuntime {
   }
 
   private async loadTranscriptMessages(sessionId: string): Promise<SessionTranscriptMessage[]> {
+    return this.withTranscriptStore(sessionId, (store) => store.listTail(100));
+  }
+
+  private async getTranscriptStore(
+    sessionId: string,
+    projectPathOverride?: string,
+  ): Promise<SessionTranscriptStore> {
+    const projectPath = projectPathOverride ?? this.sessionProjects.get(sessionId);
+    if (projectPath !== undefined) {
+      return this.transcriptStores.get(sessionId, projectPath);
+    }
     const rootDir = getPiwinRoot(this.options.piwinRoot);
-    const transcriptPath = getPiwinSessionTranscriptPath(rootDir, sessionId);
-    return listTranscriptMessages(transcriptPath);
+    const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
+    if (record === undefined) {
+      throw new Error(`Unknown session: ${sessionId}`);
+    }
+    return this.transcriptStores.get(sessionId, record.projectPath);
+  }
+
+  private async withTranscriptStore<T>(
+    sessionId: string,
+    operation: (store: SessionTranscriptStore) => Promise<T>,
+    projectPathOverride?: string,
+  ): Promise<T> {
+    const projectPath = projectPathOverride ?? this.sessionProjects.get(sessionId);
+    const resolvedProjectPath =
+      projectPath ??
+      (
+        await getSessionRecord(
+          getPiwinSessionIndexPath(getPiwinRoot(this.options.piwinRoot)),
+          sessionId,
+        )
+      )?.projectPath;
+    if (resolvedProjectPath === undefined) {
+      throw new Error(`Unknown session: ${sessionId}`);
+    }
+    return this.transcriptStores.withStore(
+      sessionId,
+      resolvedProjectPath,
+      operation,
+      (candidateSessionId) =>
+        this.sessions.has(candidateSessionId) || this.transcriptRecorders.has(candidateSessionId),
+    );
   }
 
   private async touchSession(sessionId: string, preview: string): Promise<void> {
@@ -3517,14 +3868,12 @@ export class HostRuntime {
     // Read the transcript instead of in-memory maps: the maps drift when the
     // first exchange fails to name (a later retry would see a later prompt
     // instead of the first user message) and are empty after a host restart.
-    const messages = await this.loadTranscriptMessages(sessionId);
-    const firstUserMessage = messages.find((message) => message.role === 'user');
+    const store = await this.getTranscriptStore(sessionId);
+    const firstUserMessage = await store.firstMessageByRole('user');
     if (!firstUserMessage?.text) {
       return;
     }
-    const lastAssistantMessage = [...messages]
-      .reverse()
-      .find((message) => message.role === 'assistant');
+    const lastAssistantMessage = await store.lastMessageByRole('assistant');
     const assistantReply = lastAssistantMessage?.text ?? '';
     // Prefer the model snapshot from the transcript; fall back to the last
     // prompt's model for legacy transcripts that omit it.
@@ -3542,37 +3891,413 @@ export class HostRuntime {
     });
   }
 
-  private async ensureLiveSession(sessionId: string): Promise<SessionHandle> {
+  /**
+   * ADR 0040 §7: activation is Host-owned and deduplicated by session id.
+   * Returns the resident handle, creating a fresh runtime generation for the
+   * stable product session id when the session is cold. A second concurrent
+   * activation for the same session shares the in-flight transition.
+   */
+  private activateSessionRuntime(
+    sessionId: string,
+    runId?: string,
+    signal?: AbortSignal,
+  ): Promise<SessionHandle> {
+    const suspension = this.sessionSuspensionPromises.get(sessionId);
+    if (suspension) {
+      return suspension.then(() => this.activateSessionRuntime(sessionId, runId, signal));
+    }
     const existing = this.sessions.get(sessionId);
     if (existing) {
-      return existing;
+      return Promise.resolve(existing);
     }
+    const inFlight = this.sessionActivationPromises.get(sessionId);
+    if (inFlight) {
+      return inFlight;
+    }
+    const activation = this.doActivateSessionRuntime(sessionId, runId, signal).finally(() => {
+      this.sessionActivationPromises.delete(sessionId);
+    });
+    this.sessionActivationPromises.set(sessionId, activation);
+    return activation;
+  }
+
+  private async doActivateSessionRuntime(
+    sessionId: string,
+    runId?: string,
+    signal?: AbortSignal,
+  ): Promise<SessionHandle> {
+    // 1. validate the durable session record before allocating any runtime.
     const rootDir = getPiwinRoot(this.options.piwinRoot);
-    const record = await getSessionRecord(getPiwinSessionIndexPath(rootDir), sessionId);
+    const indexPath = getPiwinSessionIndexPath(rootDir);
+    const record = await getSessionRecord(indexPath, sessionId);
     if (!record) {
       throw new Error(`Unknown session: ${sessionId}`);
     }
-    const messages = await this.loadTranscriptMessages(sessionId);
-    try {
-      const session = await this.host.resumeSession(sessionId);
-      await this.bindSession(session, record.projectPath, record.name);
-      return session;
-    } catch {
-      const shellOptions: Parameters<typeof createProductShellSession>[0] = {
-        sessionId,
-        projectPath: record.projectPath,
-        seedMessages: messages,
-        createLiveSession: async (input) => {
-          return this.createSession(input);
-        },
-      };
-      if (record.name) {
-        shellOptions.sessionName = record.name;
-      }
-      const shell = createProductShellSession(shellOptions);
-      await this.bindSession(shell, record.projectPath, record.name);
-      return shell;
+    // 2. reserve residency capacity (ADR 0040 §4). Admission evicts idle
+    // runtimes first (with the aggregate Host/worker RSS sample); a
+    // busy-only budget queues a cancellable waiter.
+    const runtimeGenerationId = createRuntimeGenerationId();
+    await this.refreshWorkerRssSample();
+    const admissionPromise = this.residencyController.beginActivation(
+      sessionId,
+      runtimeGenerationId,
+      signal ?? new AbortController().signal,
+    );
+    // While the activation queues for capacity, publish waiting-resource so
+    // clients see the constraint instead of silence (ADR 0040 §4).
+    if (runId !== undefined) {
+      void this.publishWaitingResourceWhileQueued(runId);
     }
+    const admission = await admissionPromise;
+    if (!admission.ok) {
+      if (admission.code === 'memory-pressure') {
+        const memoryError = new Error(`runtime-memory-pressure: ${admission.message}`);
+        (memoryError as { code?: string }).code = 'runtime-memory-pressure';
+        throw memoryError;
+      }
+      throw new Error(`activation aborted: ${admission.message}`);
+    }
+    let handle: SessionHandle;
+    try {
+      // 3. create and commit a generation for the same product session id.
+      handle = await this.host.activateSession(
+        sessionId,
+        {
+          projectPath: record.projectPath,
+          ...(record.name ? { sessionName: record.name } : {}),
+        },
+        runtimeGenerationId,
+      );
+      if (runId !== undefined) {
+        const attached = this.runRegistry.attachRuntimeGeneration(runId, runtimeGenerationId);
+        if (!attached.ok) {
+          await this.host.dropSession(sessionId);
+          this.residencyController.abortActivation(sessionId, runtimeGenerationId);
+          throw new Error(
+            `cold activation generation attach failed for ${sessionId}: ` +
+              `${runId} -> ${runtimeGenerationId} (${attached.reason})`,
+          );
+        }
+      }
+    } catch (error) {
+      this.residencyController.abortActivation(sessionId, runtimeGenerationId);
+      const message = formatError(error);
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `session activation failed for ${sessionId}: ${message}`,
+      });
+      throw error;
+    }
+    try {
+      // 4. bind the event stream and recorder with the attached generation.
+      await this.bindSession(
+        handle,
+        record.projectPath,
+        record.name,
+        undefined,
+        runtimeGenerationId,
+      );
+    } catch (error) {
+      const unsubscribe = this.unsubscribers.get(sessionId);
+      unsubscribe?.();
+      this.unsubscribers.delete(sessionId);
+      this.sessions.delete(sessionId);
+      this.sessionProjects.delete(sessionId);
+      const recorder = this.transcriptRecorders.get(sessionId);
+      recorder?.dispose();
+      this.transcriptRecorders.delete(sessionId);
+      await this.host.dropSession(sessionId).catch((dropError: unknown) => {
+        this.push({
+          type: 'host/log',
+          level: 'warn',
+          message: `failed to drop unbound runtime for ${sessionId}: ${formatError(dropError)}`,
+        });
+      });
+      this.residencyController.abortActivation(sessionId, runtimeGenerationId);
+      const message = formatError(error);
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `session bind failed for ${sessionId}: ${message}`,
+      });
+      throw error;
+    }
+    this.residencyController.commitActivation(sessionId, runtimeGenerationId);
+    if (runId !== undefined) {
+      this.residencyController.markBusy(sessionId, runtimeGenerationId);
+    }
+    // A reconstructed backend owns no native Pi context: the first prompt must
+    // inject bounded product history exactly once for this generation.
+    this.coldStartHistoryBySession.set(sessionId, runtimeGenerationId);
+    return handle;
+  }
+
+  /** Generation id awaiting its first product-history injection, if any. */
+  private pendingColdStartGenerationId(sessionId: string): string | undefined {
+    const pendingGeneration = this.coldStartHistoryBySession.get(sessionId);
+    if (pendingGeneration === undefined) {
+      return undefined;
+    }
+    return this.runtimeController.getStatus(sessionId).generationId === pendingGeneration
+      ? pendingGeneration
+      : undefined;
+  }
+
+  /**
+   * ADR 0040 §8: refresh the cached aggregate worker RSS sample with a short
+   * throttle. Runs before admission so the eviction decision sees current
+   * Host + worker RSS; a missing/partial sample never makes a false
+   * low-memory claim (count/TTL enforcement still applies).
+   */
+  private async refreshWorkerRssSample(force = false): Promise<void> {
+    const supervisor = this.agentWorkerSupervisor;
+    if (!supervisor) {
+      this.workerRssSample = null;
+      return;
+    }
+    if (
+      !force &&
+      this.workerRssSample !== null &&
+      Date.now() - this.workerRssSample.sampledAtMs < 1000
+    ) {
+      return;
+    }
+    try {
+      const sample = await supervisor.sampleAggregateWorkerRssMiB();
+      this.workerRssSample = {
+        rssMiB: sample.rssMiB,
+        completeness: sample.sampleCompleteness,
+        sampledAtMs: Date.now(),
+      };
+    } catch {
+      this.workerRssSample = { rssMiB: 0, completeness: 'missing', sampledAtMs: Date.now() };
+    }
+  }
+
+  /**
+   * ADR 0040 §4: publish `waiting-resource` while an activation queues for
+   * capacity. Bounded poll (1s) — if admission resolves first, the phase was
+   * never queued and no phase is emitted.
+   */
+  private async publishWaitingResourceWhileQueued(runId: string): Promise<void> {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      if (this.residencyController.getCounts().waiterCount > 0) {
+        this.runRegistry.updatePhase(runId, 'waiting-resource');
+        return;
+      }
+    }
+  }
+
+  /** Query-only aggregate residency/resource metrics (ADR 0040 §8). */
+  private getRuntimeResources(): import('@piwin/contracts').HostRuntimeResourcesData {
+    const counts = this.residencyController.getCounts();
+    const counters = this.residencyController.getCounters();
+    const maxResidentRuntimes = this.residencyController.getMaxResidentRuntimes();
+    const worker = this.workerRssSample;
+    return {
+      counts: {
+        resident: counts.resident,
+        idle: counts.residentIdle,
+        busy: counts.residentBusy,
+        activating: counts.activating,
+        suspending: counts.suspending,
+      },
+      waiterCount: counts.waiterCount,
+      budget: {
+        maxResidentRuntimes,
+        maxIdleRuntimes: this.runtimeRetention.maxIdleRuntimes,
+        memoryHighWaterMiB: this.runtimeMemoryHighWaterMiB,
+        memoryLowWaterMiB: deriveMemoryLowWaterMiB(this.runtimeMemoryHighWaterMiB),
+      },
+      memory: {
+        hostRssMiB: Math.max(1, Math.round(process.memoryUsage().rss / 1024 / 1024)),
+        ...(worker && worker.rssMiB > 0 ? { workerRssMiB: worker.rssMiB } : {}),
+        sampleCompleteness: worker?.completeness ?? 'missing',
+      },
+      counters: {
+        evictedByIdleTtl: counters.evictedByIdleTtl,
+        evictedByMaxIdle: counters.evictedByMaxIdle,
+        evictedByMaxResident: counters.evictedByMaxResident,
+        evictedByMemoryPressure: counters.evictedByMemoryPressure,
+        memoryPressureFailures: counters.memoryPressureFailures,
+      },
+    };
+  }
+
+  /**
+   * ADR 0040 §5: a session runtime is never an eviction candidate while any
+   * protected work is in flight — an active/cancelling Run (or a
+   * generation-correlated descendant), a pending permission or Extension UI
+   * request, a compaction or replacement transaction, or an activation
+   * transition already in progress.
+   */
+  private isSessionRuntimeProtected(sessionId: string): boolean {
+    const generationId = this.runtimeController.getStatus(sessionId).generationId;
+    const hasActiveRun = this.runRegistry
+      .list({ status: ['queued', 'running', 'cancelling'] })
+      .some(
+        (run) =>
+          run.sessionId === sessionId ||
+          (generationId !== undefined && run.runtimeGenerationId === generationId),
+      );
+    if (hasActiveRun) {
+      return true;
+    }
+    if ([...this.pendingPermissions.values()].some((request) => request.sessionId === sessionId)) {
+      return true;
+    }
+    if ([...this.pendingExtensionUi.values()].some((request) => request.sessionId === sessionId)) {
+      return true;
+    }
+    if (this.residencyController.isProtected(sessionId)) {
+      return true;
+    }
+    if (this.runtimeReplacementEngine.hasPending(sessionId)) {
+      return true;
+    }
+    if (this.sessionActivationPromises.has(sessionId)) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * ADR 0040 §6: suspension is separate from session disposal. Executes the
+   * full cleanup transaction while the residency entry remains `suspending`.
+   * Capacity is released only after this returns true. The transaction is
+   * idempotent and never touches independent authorities
+   * (Jobs, walkthrough generation, durable session data).
+   */
+  private suspendSessionRuntime(
+    sessionId: string,
+    runtimeGenerationId: string,
+    reason: import('@piwin/contracts').SessionRuntimeEvictionReason,
+  ): Promise<boolean> {
+    const existing = this.sessionSuspensionPromises.get(sessionId);
+    if (existing) {
+      return existing;
+    }
+    const suspension = this.doSuspendSessionRuntime(sessionId, runtimeGenerationId, reason).finally(
+      () => {
+        if (this.sessionSuspensionPromises.get(sessionId) === suspension) {
+          this.sessionSuspensionPromises.delete(sessionId);
+        }
+      },
+    );
+    this.sessionSuspensionPromises.set(sessionId, suspension);
+    return suspension;
+  }
+
+  private async doSuspendSessionRuntime(
+    sessionId: string,
+    runtimeGenerationId: string,
+    reason: import('@piwin/contracts').SessionRuntimeEvictionReason,
+  ): Promise<boolean> {
+    const live = this.sessions.get(sessionId);
+    if (!live) {
+      return true;
+    }
+    // Recheck blockers: state may have changed since the sweep decision.
+    if (this.isSessionRuntimeProtected(sessionId)) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `[residency] suspension deferred for ${sessionId}: protected work in flight`,
+      });
+      return false;
+    }
+    // Flush is the final reversible step. Once ProductAgentHost detaches the
+    // generation, restoring resident-idle would publish a dead handle.
+    const recorder = this.transcriptRecorders.get(sessionId);
+    if (recorder) {
+      try {
+        await recorder.flush();
+      } catch (error) {
+        const detail = formatError(error);
+        this.push({
+          type: 'host/log',
+          level: 'error',
+          message: `[residency] suspension aborted for ${sessionId}: recorder flush failed: ${detail}`,
+        });
+        return false;
+      }
+    }
+
+    const cleanupErrors: unknown[] = [];
+    try {
+      await this.host.dropSession(sessionId);
+    } catch (error) {
+      // ProductAgentHost still attempts generation detach, abort, and backend
+      // release before surfacing its AggregateError. Cleanup below must finish
+      // the Host projection as cold; the detached runtime cannot be rolled back.
+      cleanupErrors.push(error);
+    }
+    const generationStillAttached =
+      this.runtimeController.getStatus(sessionId).generationId === runtimeGenerationId;
+    if (generationStillAttached) {
+      const detail = cleanupErrors.map((error) => formatError(error)).join('; ');
+      this.push({
+        type: 'host/log',
+        level: 'error',
+        message: `[residency] suspension failed before detach for ${sessionId} (${reason}): ${detail || 'generation remained attached'}`,
+      });
+      return false;
+    }
+
+    await this.refreshWorkerRssSample(true);
+    const unsub = this.unsubscribers.get(sessionId);
+    if (unsub) {
+      try {
+        unsub();
+      } catch (error) {
+        cleanupErrors.push(error);
+      } finally {
+        this.unsubscribers.delete(sessionId);
+      }
+    }
+    this.runEventCorrelator.clear(sessionId);
+    this.sessions.delete(sessionId);
+    this.coldStartHistoryBySession.delete(sessionId);
+    if (recorder) {
+      try {
+        recorder.dispose();
+      } catch (error) {
+        cleanupErrors.push(error);
+      } finally {
+        this.transcriptRecorders.delete(sessionId);
+      }
+    }
+    try {
+      this.transcriptStores.close(sessionId);
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+    // Remove resident-only maps.
+    this.sessionProjects.delete(sessionId);
+    this.sessionModels.delete(sessionId);
+    this.sessionLastAssistantReply.delete(sessionId);
+    this.sessionUsage.delete(sessionId);
+    this.sessionLastPromptText.delete(sessionId);
+    this.sessionAutoCompactionOverrides.delete(sessionId);
+    this.sessionFilesTouched.delete(sessionId);
+    this.sideChatSnapshotInjectedVersions.delete(sessionId);
+    this.clearSessionAllowlist(sessionId);
+    this.sessionPermissionOverrides.delete(sessionId);
+    this.runtimeController.markCold(sessionId, reason);
+    if (cleanupErrors.length > 0) {
+      this.push({
+        type: 'host/log',
+        level: 'warn',
+        message: `[residency] ${sessionId} became cold with cleanup errors: ${cleanupErrors.map((error) => formatError(error)).join('; ')}`,
+      });
+    }
+    return true;
+  }
+
+  private async ensureLiveSession(sessionId: string): Promise<SessionHandle> {
+    return this.activateSessionRuntime(sessionId);
   }
 
   private async recordUsageToLedger(sessionId: string, usage: ContextUsageSnapshot): Promise<void> {
@@ -3638,8 +4363,7 @@ export class HostRuntime {
       }
     }
     try {
-      const messages = await this.loadTranscriptMessages(sessionId);
-      const message = messages.find((item) => item.id === messageId);
+      const message = await (await this.getTranscriptStore(sessionId)).getMessage(messageId);
       if (!message || message.role !== 'assistant') {
         return;
       }
@@ -3676,7 +4400,10 @@ export class HostRuntime {
     await this.stopProcessesForSession(sessionId);
   }
 
-  private async disposeLiveSession(sessionId: string): Promise<void> {
+  private async disposeLiveSession(
+    sessionId: string,
+    reason: import('@piwin/contracts').SessionRuntimeEvictionReason = 'host-dispose',
+  ): Promise<void> {
     this.settlePendingExtensionUiForSession(sessionId);
     const replacementCleanup = this.runtimeReplacementEngine.cancel(sessionId);
     const live = this.sessions.get(sessionId);
@@ -3714,8 +4441,19 @@ export class HostRuntime {
       recorder.dispose();
       this.transcriptRecorders.delete(sessionId);
     }
+    this.transcriptStores.close(sessionId);
     this.resetSessionEventState(sessionId);
+    // ADR 0040 §6: session disposal also releases the residency entry so the
+    // sweep timer and counters never track a disposed runtime. Read the
+    // generation BEFORE detaching it from the runtime registry.
+    const disposedGenerationId = this.runtimeController.getStatus(sessionId).generationId;
+    this.pendingDirectActivations.delete(sessionId);
     this.runtimeController.detachGeneration(sessionId);
+    if (disposedGenerationId !== undefined) {
+      this.residencyController.beginSuspend(sessionId, disposedGenerationId, reason);
+      this.residencyController.finishSuspend(sessionId, disposedGenerationId);
+    }
+    this.runtimeController.markCold(sessionId, reason);
     this.sessionHostToolPort?.clearSession(sessionId);
     this.clearSessionAllowlist(sessionId);
     this.sessionUsage.delete(sessionId);
@@ -3779,7 +4517,35 @@ export class HostRuntime {
             });
           }
         }
-        return this.host.createSession(input, options);
+        const sessionId = createProductSessionId();
+        const runtimeGenerationId = createRuntimeGenerationId();
+        await this.refreshWorkerRssSample();
+        const admission = await this.residencyController.beginActivation(
+          sessionId,
+          runtimeGenerationId,
+          new AbortController().signal,
+        );
+        if (!admission.ok) {
+          const error = new Error(
+            admission.code === 'memory-pressure'
+              ? `runtime-memory-pressure: ${admission.message}`
+              : `activation aborted: ${admission.message}`,
+          );
+          (error as { code?: string }).code =
+            admission.code === 'memory-pressure' ? 'runtime-memory-pressure' : admission.code;
+          throw error;
+        }
+        this.pendingDirectActivations.set(sessionId, runtimeGenerationId);
+        try {
+          // Direct create and cold activation share the same stable-identity
+          // backend path. The reservation remains `activating` until bindSession
+          // has installed the recorder/subscription and publishes the handle.
+          return await this.host.activateSession(sessionId, input, runtimeGenerationId, options);
+        } catch (error) {
+          this.pendingDirectActivations.delete(sessionId);
+          this.residencyController.abortActivation(sessionId, runtimeGenerationId);
+          throw error;
+        }
       }
       default:
         throw new Error(`Unsupported host test fixture: ${this.options.testFixture}`);

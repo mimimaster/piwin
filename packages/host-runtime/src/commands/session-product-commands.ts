@@ -5,11 +5,11 @@
 import { rm } from 'node:fs/promises';
 import { formatError } from '@piwin/contracts';
 import type {
-  AgentHost,
   CreateSessionInput,
   HostCommand,
   HostPush,
   HostResponse,
+  ProductSessionOrigin,
   SessionHandle,
   SessionIndexRecord,
   SessionTranscriptMessage,
@@ -18,7 +18,10 @@ import {
   archiveSessionRecord,
   deleteSessionRecord,
   deriveDefaultNameFromMessage,
-  duplicateProductSession,
+  buildDuplicateSessionName,
+  buildForkSessionName,
+  cloneTranscriptMessage,
+  createSessionRecord,
   getSessionRecord,
   listSessionsForProject,
   createSessionIndexPage,
@@ -31,15 +34,10 @@ import {
   unpinSessionRecord,
   upsertSessionRecord,
   filterListableSessions,
+  type SessionTranscriptStore,
 } from '@piwin/session';
 import { markSideChatSourceState } from '@piwin/session';
-import {
-  forkProductSession,
-  ForkValidationError,
-  getSessionLineage,
-  getDirectForkNames,
-  listAllSessionRecords,
-} from '@piwin/session';
+import { getSessionLineage, getDirectForkNames, listAllSessionRecords } from '@piwin/session';
 import { cloneSessionMedia, cleanupFailedMediaClone } from '@piwin/media';
 import { fail, ok } from '../response-helpers.js';
 import { indexRecordToSummary } from '../session-summary-map.js';
@@ -48,7 +46,6 @@ import {
   getPiwinSessionDir,
   getPiwinSessionIndexPath,
   getPiwinSessionMediaDir,
-  getPiwinSessionTranscriptPath,
 } from '../paths.js';
 import { resolveListFilter } from '../session-scope.js';
 import { repairLegacySessionNames } from '../session-name-repair.js';
@@ -56,9 +53,16 @@ import { createSessionMessageResponse } from '../session-message-response.js';
 
 export type SessionProductCommandContext = {
   piwinRoot?: string;
-  host: AgentHost;
+  /** Host-owned admission path; reserves residency before backend creation. */
+  createSession: (input: CreateSessionInput) => Promise<SessionHandle>;
   /** Load the persisted product transcript for a session (side-chat snapshot source). */
   loadTranscriptMessages: (sessionId: string) => Promise<SessionTranscriptMessage[]>;
+  getTranscriptStore: (sessionId: string, projectPath?: string) => Promise<SessionTranscriptStore>;
+  withTranscriptStore: <T>(
+    sessionId: string,
+    operation: (store: SessionTranscriptStore) => Promise<T>,
+    projectPath?: string,
+  ) => Promise<T>;
   /**
    * Abort a live handle if present (archive). Does not remove host maps.
    */
@@ -113,7 +117,11 @@ export async function handleSessionProductCommand(
     repairLegacySessionNames({
       indexPath,
       records,
-      loadTranscriptMessages: context.loadTranscriptMessages,
+      loadTranscriptMessages: (sessionId) =>
+        context.withTranscriptStore(sessionId, async (store) => {
+          const firstUserMessage = await store.firstMessageByRole('user');
+          return firstUserMessage === undefined ? [] : [firstUserMessage];
+        }),
       onRepaired: (record) => {
         if (record.name) {
           context.push?.({
@@ -307,62 +315,64 @@ export async function handleSessionProductCommand(
       if (typeof command.name === 'string' && command.name.trim().length > 0) {
         createInput.sessionName = command.name.trim();
       }
-      const created = await context.host.createSession(createInput);
-      const sourceTranscriptPath = getPiwinSessionTranscriptPath(rootDir, command.sessionId);
-      const targetTranscriptPath = getPiwinSessionTranscriptPath(rootDir, created.id);
-      const duplicateInput: {
-        sourceSessionId: string;
-        newSessionId: string;
-        name?: string;
-      } = {
-        sourceSessionId: command.sessionId,
-        newSessionId: created.id,
-      };
-      if (typeof command.name === 'string') {
-        duplicateInput.name = command.name;
-      }
-      const duplicated = await duplicateProductSession(
-        {
-          indexPath,
-          sourceTranscriptPath,
-          targetTranscriptPath,
-        },
-        duplicateInput,
-      );
-      if (!duplicated) {
-        return fail(
-          requestId,
-          'session/duplicate',
-          `Failed to duplicate session: ${command.sessionId}`,
-        );
-      }
-      await context.bindSession(created, source.projectPath, duplicated.record.name, {
-        kind: 'main',
-        depth: 0,
-      });
-      const rebound = await getSessionRecord(indexPath, created.id);
-      if (rebound) {
-        rebound.messageCount = duplicated.record.messageCount;
-        if (duplicated.record.lastPreview) {
-          rebound.lastPreview = duplicated.record.lastPreview;
+      const created = await context.createSession(createInput);
+      try {
+        const sourceStore = await context.getTranscriptStore(command.sessionId);
+        const targetStore = await context.getTranscriptStore(created.id, source.projectPath);
+        let messageCount = 0;
+        let lastMessage: SessionTranscriptMessage | undefined;
+        for await (const message of sourceStore.iterateAll(100)) {
+          const cloned = cloneTranscriptMessage(message);
+          await appendDerivedMessage(targetStore, cloned);
+          messageCount += 1;
+          lastMessage = cloned;
         }
-        if (duplicated.record.name) {
-          rebound.name = duplicated.record.name;
-        }
-        await upsertSessionRecord(indexPath, rebound);
+        const displayName =
+          typeof command.name === 'string' && command.name.trim().length > 0
+            ? command.name.trim()
+            : buildDuplicateSessionName(source.name, source.id);
+        await context.bindSession(created, source.projectPath, displayName, {
+          kind: 'main',
+          depth: 0,
+        });
+        const record =
+          (await getSessionRecord(indexPath, created.id)) ??
+          createSessionRecord({
+            id: created.id,
+            projectPath: source.projectPath,
+            ...(source.scope ? { scope: source.scope } : {}),
+            ...(source.workingDirectory ? { workingDirectory: source.workingDirectory } : {}),
+            name: displayName,
+            kind: 'main',
+            depth: 0,
+          });
+        record.messageCount = messageCount;
+        if (lastMessage?.text) record.lastPreview = lastMessage.text.slice(0, 160);
+        record.origin = {
+          kind: 'duplicate',
+          sourceSessionId: command.sessionId,
+          ...(source.name ? { sourceSessionNameSnapshot: source.name } : {}),
+          createdAt: new Date().toISOString(),
+        };
+        record.isPinned = false;
+        record.isArchived = false;
+        if (source.model) record.model = source.model;
+        if (source.thinkingLevel) record.thinkingLevel = source.thinkingLevel;
+        await upsertSessionRecord(indexPath, record);
+        const messages = await targetStore.listTail(50);
+        context.pushStatus();
+        return ok(requestId, 'session/duplicate', {
+          sessionId: created.id,
+          sourceSessionId: command.sessionId,
+          session: indexRecordToSummary(record),
+          ...createSessionMessageResponse(created.id, messages, command.messageProjection),
+        });
+      } catch (error) {
+        await context.disposeLiveSession(created.id).catch(() => undefined);
+        await deleteSessionRecord(indexPath, created.id).catch(() => undefined);
+        await rm(getPiwinSessionDir(rootDir, created.id), { recursive: true, force: true });
+        return fail(requestId, 'session/duplicate', `Duplicate failed: ${formatError(error)}`);
       }
-      const finalRecord = (await getSessionRecord(indexPath, created.id)) ?? duplicated.record;
-      context.pushStatus();
-      return ok(requestId, 'session/duplicate', {
-        sessionId: created.id,
-        sourceSessionId: command.sessionId,
-        session: indexRecordToSummary(finalRecord),
-        ...createSessionMessageResponse(
-          created.id,
-          duplicated.transcript.messages as SessionTranscriptMessage[],
-          command.messageProjection,
-        ),
-      });
     }
     case 'session/fork': {
       const source = await getSessionRecord(indexPath, command.sessionId);
@@ -372,79 +382,115 @@ export async function handleSessionProductCommand(
       if (source.isArchived === true) {
         return fail(requestId, 'session/fork', 'Source session is archived');
       }
+      const sourceStore = await context.getTranscriptStore(command.sessionId);
+      const selected = await sourceStore.getMessage(command.messageId);
+      if (selected === undefined || selected.role !== 'assistant') {
+        return fail(requestId, 'session/fork', 'Selected assistant response was not found');
+      }
+      if (selected.status !== 'done') {
+        return fail(
+          requestId,
+          'session/fork',
+          `Selected response is not complete (status: ${selected.status})`,
+        );
+      }
       const createInput: CreateSessionInput = {
         projectPath: source.projectPath,
       };
       if (source.scope) {
         createInput.scope = source.scope;
       }
-      const created = await context.host.createSession(createInput);
-      const sourceTranscriptPath = getPiwinSessionTranscriptPath(rootDir, command.sessionId);
-      const targetTranscriptPath = getPiwinSessionTranscriptPath(rootDir, created.id);
+      const created = await context.createSession(createInput);
       const mediaRoot = getPiwinSessionMediaDir(rootDir, '');
       // Compute existing fork names for collision avoidance.
       const allRecords = await listAllSessionRecords(indexPath);
       const existingForkNames = getDirectForkNames(allRecords, command.sessionId);
 
       try {
-        const forked = await forkProductSession(
-          {
-            indexPath,
-            sourceTranscriptPath,
-            targetTranscriptPath,
-          },
-          {
-            sourceSessionId: command.sessionId,
-            messageId: command.messageId,
-            ...(typeof command.name === 'string' ? { name: command.name } : {}),
-            existingForkNames,
-            newSessionId: created.id,
-            workspaceStrategy: command.workspaceStrategy,
-            cloneMedia: async (transcript) => {
-              await cloneSessionMedia(transcript, {
-                mediaRoot,
-                targetSessionId: created.id,
-              });
-            },
-          },
-        );
-        if (!forked) {
-          await cleanupFailedMediaClone(mediaRoot, created.id);
-          return fail(requestId, 'session/fork', `Failed to fork session: ${command.sessionId}`);
+        const targetStore = await context.getTranscriptStore(created.id, source.projectPath);
+        let messageCount = 0;
+        let lastMessage: SessionTranscriptMessage | undefined;
+        let reachedSelection = false;
+        for await (const message of sourceStore.iterateAll(100)) {
+          const cloned = cloneTranscriptMessage(message);
+          if (cloned.attachments !== undefined) {
+            const singleMessageDocument = {
+              version: 1 as const,
+              sessionId: created.id,
+              projectPath: source.projectPath,
+              messages: [cloned],
+              updatedAt: new Date().toISOString(),
+            };
+            await cloneSessionMedia(singleMessageDocument, {
+              mediaRoot,
+              targetSessionId: created.id,
+            });
+          }
+          await appendDerivedMessage(targetStore, cloned);
+          messageCount += 1;
+          lastMessage = cloned;
+          if (message.id === command.messageId) {
+            reachedSelection = true;
+            break;
+          }
         }
-        await context.bindSession(created, source.projectPath, forked.record.name, {
+        if (!reachedSelection) {
+          throw new Error(
+            `Message not found while streaming source transcript: ${command.messageId}`,
+          );
+        }
+        const displayName =
+          typeof command.name === 'string' && command.name.trim().length > 0
+            ? command.name.trim()
+            : buildForkSessionName(source.name, source.id, existingForkNames);
+        await context.bindSession(created, source.projectPath, displayName, {
           kind: 'main',
           depth: 0,
         });
-        const rebound = await getSessionRecord(indexPath, created.id);
-        if (rebound) {
-          rebound.messageCount = forked.record.messageCount;
-          if (forked.record.lastPreview) {
-            rebound.lastPreview = forked.record.lastPreview;
-          }
-          if (forked.record.name) {
-            rebound.name = forked.record.name;
-          }
-          await upsertSessionRecord(indexPath, rebound);
-        }
-        const finalRecord = (await getSessionRecord(indexPath, created.id)) ?? forked.record;
+        const record =
+          (await getSessionRecord(indexPath, created.id)) ??
+          createSessionRecord({
+            id: created.id,
+            projectPath: source.projectPath,
+            ...(source.scope ? { scope: source.scope } : {}),
+            ...(source.workingDirectory ? { workingDirectory: source.workingDirectory } : {}),
+            name: displayName,
+            nameSource: 'text',
+            kind: 'main',
+            depth: 0,
+          });
+        const origin: ProductSessionOrigin = {
+          kind: 'fork',
+          rootSessionId: source.origin?.kind === 'fork' ? source.origin.rootSessionId : source.id,
+          sourceSessionId: command.sessionId,
+          ...(source.name ? { sourceSessionNameSnapshot: source.name } : {}),
+          sourceMessageId: command.messageId,
+          sourceMessageRole: 'assistant',
+          sourceMessagePreview: selected.text.slice(0, 200),
+          sourceMessageCreatedAt: selected.createdAt,
+          workspaceStrategy: command.workspaceStrategy,
+          createdAt: new Date().toISOString(),
+        };
+        record.messageCount = messageCount;
+        if (lastMessage?.text) record.lastPreview = lastMessage.text.slice(0, 160);
+        record.origin = origin;
+        if (source.model) record.model = source.model;
+        if (source.thinkingLevel) record.thinkingLevel = source.thinkingLevel;
+        await upsertSessionRecord(indexPath, record);
+        const messages = await targetStore.listTail(50);
         context.pushStatus();
         return ok(requestId, 'session/fork', {
           sessionId: created.id,
           sourceSessionId: command.sessionId,
-          session: indexRecordToSummary(finalRecord),
-          ...createSessionMessageResponse(
-            created.id,
-            forked.transcript.messages as SessionTranscriptMessage[],
-            command.messageProjection,
-          ),
-          origin: forked.origin,
+          session: indexRecordToSummary(record),
+          ...createSessionMessageResponse(created.id, messages, command.messageProjection),
+          origin,
         });
       } catch (error) {
         await cleanupFailedMediaClone(mediaRoot, created.id);
-        if (error instanceof ForkValidationError) {
-          return fail(requestId, 'session/fork', error.message);
-        }
+        await context.disposeLiveSession(created.id).catch(() => undefined);
+        await deleteSessionRecord(indexPath, created.id).catch(() => undefined);
+        await rm(getPiwinSessionDir(rootDir, created.id), { recursive: true, force: true });
         return fail(requestId, 'session/fork', `Fork failed: ${formatError(error)}`);
       }
     }
@@ -456,7 +502,8 @@ export async function handleSessionProductCommand(
       const result = await searchSessions(
         {
           indexPath,
-          resolveTranscriptPath: (sessionId) => getPiwinSessionTranscriptPath(rootDir, sessionId),
+          searchTranscript: (sessionId, query) =>
+            context.withTranscriptStore(sessionId, (store) => store.searchMessage(query)),
         },
         command.query,
       );
@@ -464,5 +511,49 @@ export async function handleSessionProductCommand(
     }
     default:
       return null;
+  }
+}
+
+async function appendDerivedMessage(
+  store: SessionTranscriptStore,
+  message: SessionTranscriptMessage,
+): Promise<void> {
+  const result = await store.appendMessage({
+    id: message.id,
+    runtimeGenerationId: 'derived-copy-v1',
+    backendMessageId: message.id,
+    role: message.role,
+    text: message.text,
+    status: message.status,
+    createdAt: message.createdAt,
+    ...(message.thinking !== undefined ? { thinking: message.thinking } : {}),
+    ...(message.runId !== undefined ? { runId: message.runId } : {}),
+    ...(message.model !== undefined ? { model: message.model } : {}),
+    ...(message.attachments !== undefined ? { attachments: message.attachments } : {}),
+    ...(message.tools !== undefined ? { tools: message.tools } : {}),
+    ...(message.phaseHistory !== undefined ||
+    message.startedAt !== undefined ||
+    message.endedAt !== undefined ||
+    message.outcome !== undefined ||
+    message.terminalMessage !== undefined ||
+    message.subagentActivity !== undefined
+      ? {
+          metadata: {
+            ...(message.phaseHistory !== undefined ? { phaseHistory: message.phaseHistory } : {}),
+            ...(message.startedAt !== undefined ? { startedAt: message.startedAt } : {}),
+            ...(message.endedAt !== undefined ? { endedAt: message.endedAt } : {}),
+            ...(message.outcome !== undefined ? { outcome: message.outcome } : {}),
+            ...(message.terminalMessage !== undefined
+              ? { terminalMessage: message.terminalMessage }
+              : {}),
+            ...(message.subagentActivity !== undefined
+              ? { subagentActivity: message.subagentActivity }
+              : {}),
+          },
+        }
+      : {}),
+  });
+  if (!result.ok) {
+    throw new Error(`Derived transcript identity collision: ${message.id}`);
   }
 }
